@@ -305,7 +305,26 @@ export function AdminModelPanel() {
       </CardHeader>
       <CardContent className="space-y-3">
         <div>
-          <Label>Proveedor</Label>
+          <Label>
+            Proveedor{" "}
+            <HelpHint>
+              <div className="space-y-1.5">
+                <p>
+                  <strong>Lovable AI Gateway:</strong> usa los créditos de IA prepagados de Lovable.
+                  Sin necesidad de tener tarjeta propia con OpenAI/Google. Modelos Gemini enrutados
+                  por el gateway.
+                </p>
+                <p>
+                  <strong>OpenAI:</strong> conecta directo con tu cuenta de platform.openai.com.
+                  Acceso a modelos gpt-4o / gpt-4.1 / etc. Cobra a tu billing de OpenAI.
+                </p>
+                <p>
+                  <strong>Google Gemini (directo):</strong> tu propio proyecto en Google AI Studio /
+                  Vertex. Cobra a tu cuenta GCP. Más control sobre cuotas y residencia de datos.
+                </p>
+              </div>
+            </HelpHint>
+          </Label>
           <Select value={draftProvider} onValueChange={(v) => handleProviderChange(v as Provider)}>
             <SelectTrigger>
               <SelectValue />
@@ -322,8 +341,33 @@ export function AdminModelPanel() {
           <Label>
             Modelo{" "}
             <HelpHint>
-              Identificador exacto del modelo según el provider. Sugerencias en el menú; puedes
-              escribir cualquier modelo soportado.
+              <div className="space-y-1.5">
+                <p>
+                  Identificador exacto del modelo, tal como lo acepta la API del provider — un typo
+                  y la calificación falla en runtime.
+                </p>
+                <p>
+                  <strong>Ejemplos por provider:</strong>
+                </p>
+                <ul className="list-disc pl-4 space-y-0.5">
+                  <li>
+                    <strong>Lovable / Gemini:</strong> <code>google/gemini-2.5-flash</code> (rápido,
+                    barato), <code>google/gemini-2.5-pro</code> (mejor razonamiento).
+                  </li>
+                  <li>
+                    <strong>OpenAI:</strong> <code>gpt-4o-mini</code> (default barato),{" "}
+                    <code>gpt-4o</code>, <code>gpt-4.1</code>.
+                  </li>
+                  <li>
+                    <strong>Gemini directo:</strong> <code>gemini-2.5-flash</code>,{" "}
+                    <code>gemini-2.5-pro</code>.
+                  </li>
+                </ul>
+                <p>
+                  El menú desplegable muestra las recomendaciones; el input acepta cualquier modelo
+                  nuevo que tu provider soporte.
+                </p>
+              </div>
             </HelpHint>
           </Label>
           <Input
@@ -349,9 +393,10 @@ export function AdminModelPanel() {
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            Cada institución gestiona su propia API key del provider activo y sus propios costos de
-            IA. Si dejas el campo vacío al guardar, la plataforma cae al secret configurado por el
-            SuperAdmin (<code>{SECRET_NAME[draftProvider]}</code>).
+            Cada institución usa su propia API key del provider activo (cobra a su cuenta). Si la
+            dejás vacía, la calificación cae al secret <code>{SECRET_NAME[draftProvider]}</code>{" "}
+            configurado por el SuperAdmin como fallback. La key se guarda cifrada en la DB y nunca
+            se muestra completa (solo los últimos 4 caracteres).
           </AlertDescription>
         </Alert>
 
@@ -362,7 +407,16 @@ export function AdminModelPanel() {
             value={draftLovableKey}
             onChange={setDraftLovableKey}
             maskFn={maskKey}
-            help="LOVABLE_API_KEY — créditos administrados por Lovable."
+            helpHint={
+              <div className="space-y-1">
+                <p>
+                  Variable <code>LOVABLE_API_KEY</code>. Se obtiene desde el dashboard de Lovable,
+                  sección AI Credits.
+                </p>
+                <p>Los costos los administra Lovable según tus créditos contratados.</p>
+              </div>
+            }
+            help="Empieza con un prefijo de Lovable. Pegalo completo; lo enmascaramos al guardar."
           />
         )}
         {draftProvider === "openai" && (
@@ -372,7 +426,27 @@ export function AdminModelPanel() {
             value={draftOpenaiKey}
             onChange={setDraftOpenaiKey}
             maskFn={maskKey}
-            help="sk-... desde platform.openai.com. Cobra a tu cuenta OpenAI."
+            helpHint={
+              <div className="space-y-1">
+                <p>
+                  Generala en{" "}
+                  <a
+                    href="https://platform.openai.com/api-keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    platform.openai.com/api-keys
+                  </a>
+                  .
+                </p>
+                <p>
+                  Cobra a tu cuenta OpenAI. Restringí permisos del key a chat/completions y ponele
+                  un cap de uso mensual desde tu panel de OpenAI para no llevarte sorpresas.
+                </p>
+              </div>
+            }
+            help="Empieza con sk-… Pegala completa; la enmascaramos en pantalla y se guarda cifrada."
           />
         )}
         {draftProvider === "gemini" && (
@@ -382,7 +456,27 @@ export function AdminModelPanel() {
             value={draftGeminiKey}
             onChange={setDraftGeminiKey}
             maskFn={maskKey}
-            help="AIza... desde Google AI Studio. Cobra a tu proyecto GCP."
+            helpHint={
+              <div className="space-y-1">
+                <p>
+                  Generala en{" "}
+                  <a
+                    href="https://aistudio.google.com/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    aistudio.google.com/apikey
+                  </a>
+                  .
+                </p>
+                <p>
+                  Cobra a tu proyecto GCP (o queda en el tier gratuito si tu uso entra). Asociala a
+                  un proyecto con cuotas configuradas para controlar costos.
+                </p>
+              </div>
+            }
+            help="Empieza con AIza… Pegala completa; la enmascaramos en pantalla y se guarda cifrada."
           />
         )}
 
@@ -427,19 +521,27 @@ function ApiKeyInput({
   onChange,
   maskFn,
   help,
+  helpHint,
 }: {
   label: string;
   stored: string | null;
   value: string;
   onChange: (v: string) => void;
   maskFn: (k: string | null) => string;
+  /** Línea corta debajo del input — guidance tip o formato esperado. */
   help?: string;
+  /** Contenido del HelpHint (?) al lado del label — explicación más
+   *  detallada con links/listas. Acepta ReactNode para markup rico. */
+  helpHint?: React.ReactNode;
 }) {
   const isKeep = value === "__keep";
   const masked = maskFn(stored);
   return (
     <div>
-      <Label>{label}</Label>
+      <Label>
+        {label}
+        {helpHint && <HelpHint>{helpHint}</HelpHint>}
+      </Label>
       <div className="flex gap-2">
         <Input
           type="password"

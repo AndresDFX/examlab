@@ -76,7 +76,7 @@ const MODULES: Array<{
 }> = [
   { key: "dashboard", label: "Dashboard" },
   { key: "courses", label: "Cursos" },
-  { key: "contents", label: "Contenidos (Docente)" },
+  { key: "contents", label: "Contenidos" },
   { key: "exams", label: "Exámenes" },
   { key: "workshops", label: "Talleres" },
   { key: "projects", label: "Proyectos" },

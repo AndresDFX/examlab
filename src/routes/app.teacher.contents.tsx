@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -177,7 +178,15 @@ function statusVariant(s: ContentStatus): "default" | "secondary" | "destructive
 }
 
 function TeacherContents() {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
+  const activeRole = useActiveRole();
+  // Admin / SuperAdmin actuando como tal: ven TODOS los contenidos del
+  // tenant (RLS los acota a su institución). El Docente solo los suyos
+  // — `teacher_id = user.id`. Cuando un usuario con múltiples roles
+  // alterna al rol Docente, se aplica el filtro restrictivo.
+  const isAdminLikeView =
+    (activeRole === "Admin" || activeRole === "SuperAdmin") &&
+    (roles.includes("Admin") || roles.includes("SuperAdmin"));
   const { t } = useTranslation();
   const confirm = useConfirm();
   const navigate = useNavigate();
@@ -320,12 +329,17 @@ function TeacherContents() {
     if (!user) return;
     setLoading(true);
     setLoadError(null);
+    // Admin/SuperAdmin: sin filtro por teacher_id → ven todos los
+    // contenidos que la RLS de la institución les muestra (sirve para
+    // auditar y gestionar lo que producen los docentes). Docente: solo
+    // los suyos para no saturar el grid con material de colegas.
+    const contentsBase = db
+      .from("generated_contents")
+      .select("*")
+      .order("created_at", { ascending: false });
+    const contentsQuery = isAdminLikeView ? contentsBase : contentsBase.eq("teacher_id", user.id);
     const [{ data: gens, error: gensErr }, { data: brandRow }, { data: cs }] = await Promise.all([
-      db
-        .from("generated_contents")
-        .select("*")
-        .eq("teacher_id", user.id)
-        .order("created_at", { ascending: false }),
+      contentsQuery,
       db.from("content_brand_config").select("*").maybeSingle(),
       // Cursos visibles para este usuario. Antes filtrábamos via
       // `course_teachers`, pero esa tabla no siempre tiene una fila
@@ -384,7 +398,10 @@ function TeacherContents() {
       setDerived(next);
     }
     setLoading(false);
-  }, [user]);
+    // isAdminLikeView en deps: si el usuario alterna entre rol Admin y
+    // Docente con el role-switcher, queremos re-cargar con el filtro
+    // correcto (Admin = todos; Docente = solo los suyos).
+  }, [user, isAdminLikeView]);
 
   useEffect(() => {
     void load();

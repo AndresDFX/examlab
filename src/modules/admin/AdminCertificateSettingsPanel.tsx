@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { Award, Save, Info, ImageIcon, FileSignature, Upload } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { resizeImageForLogo } from "@/modules/tenants/image-resize";
+import { slugifyTenantName } from "@/modules/tenants/tenant";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -124,7 +125,13 @@ export function AdminCertificateSettingsPanel() {
             : finalFile.type === "image/svg+xml"
               ? "svg"
               : "webp";
-      const path = `${tenantId}/cert-${kind}.${ext}`;
+      // Slug del nombre institucional del certificado para que el
+      // archivo en el bucket sea reconocible (en vez de un genérico
+      // `cert-logo.png`). El folder DEBE seguir siendo el tenantId
+      // — la RLS lo verifica con `(storage.foldername(name))[1]`.
+      // Si el admin todavía no puso institution_name, fallback genérico.
+      const slug = slugifyTenantName(draft?.institution_name);
+      const path = `${tenantId}/${slug}-cert-${kind}.${ext}`;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: upErr } = await (supabase.storage as any)
         .from("tenant-logos")

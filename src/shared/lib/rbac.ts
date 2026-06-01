@@ -21,6 +21,15 @@ export const ROUTE_RULES: RouteRule[] = [
   // necesita poder hacer soporte cross-tenant) + rutas /app/superadmin.
   { prefix: "/app/superadmin", roles: ["SuperAdmin"] },
   { prefix: "/app/admin", roles: ["Admin", "SuperAdmin"] },
+  // `/app/teacher/contents` se relaja a Admin/SuperAdmin además de
+  // Docente — el módulo de Contenidos genera material pedagógico
+  // (PPTX/MD) que el Admin de la institución también necesita gestionar
+  // (revisar lo que producen sus docentes, ajustar prompts/branding,
+  // crear contenidos templated propios). Longest-prefix match: esta
+  // regla gana sobre `/app/teacher`. La ruta vive bajo
+  // /app/teacher/* solo por historia; mover el path implicaría
+  // routeTree.gen.ts + breaking links externos.
+  { prefix: "/app/teacher/contents", roles: ["Docente", "Admin", "SuperAdmin"] },
   { prefix: "/app/teacher", roles: ["Docente"] },
   { prefix: "/app/student", roles: ["Estudiante"] },
   { prefix: "/app/unauthorized", roles: null },

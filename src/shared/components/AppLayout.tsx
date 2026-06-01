@@ -132,13 +132,16 @@ const NAV: NavItem[] = [
   },
   // Contenidos: generación de material académico (.pptx + .md) con IA.
   // Va junto a Cursos porque es el insumo pedagógico que el docente
-  // usa ANTES de armar exámenes/talleres/proyectos. Solo Docente —
-  // Admin configura marca + prompt desde el módulo Prompts.
+  // usa ANTES de armar exámenes/talleres/proyectos. Admin también lo
+  // ve para auditar/gestionar el material que producen los docentes
+  // de su institución y crear plantillas centrales. La RLS de la tabla
+  // ya filtra por tenant; el RBAC del path lo permite explícitamente
+  // (ver rbac.ts `/app/teacher/contents`).
   {
     to: "/app/teacher/contents",
     labelKey: "nav.contents",
     icon: Presentation,
-    roles: ["Docente"],
+    roles: ["Docente", "Admin"],
   },
   // Banco de preguntas reutilizables por curso (Docente). Va aquí —
   // arriba — porque es el repositorio que alimenta los formularios de

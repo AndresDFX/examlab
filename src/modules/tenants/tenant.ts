@@ -73,9 +73,7 @@ export function resolveTenantLogoUrl(
   if (!tenant) return null;
   if (tenant.logo_path) {
     try {
-      const { data } = supabaseClient.storage
-        .from("tenant-logos")
-        .getPublicUrl(tenant.logo_path);
+      const { data } = supabaseClient.storage.from("tenant-logos").getPublicUrl(tenant.logo_path);
       return (data?.publicUrl as string | undefined) ?? null;
     } catch {
       return null;
@@ -89,6 +87,43 @@ const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/;
 
 export function isValidTenantSlug(slug: string): boolean {
   return SLUG_RE.test(slug);
+}
+
+/**
+ * Slugifica el nombre de un tenant para usarlo como NOMBRE DE ARCHIVO
+ * (no como slug de URL — eso lo hace el campo `tenants.slug` en DB).
+ *
+ * Por qué: los logos de institución se guardan en el bucket
+ * `tenant-logos` con path `${tenant_id}/<filename>`. El folder DEBE ser
+ * el UUID (lo exige la RLS via `(storage.foldername(name))[1]`), pero
+ * el filename es libre — así que usamos el nombre de la institución
+ * para que cuando alguien inspeccione el storage o descargue el archivo
+ * directamente, sea claro qué institución es:
+ *   `Universidad Antonio Jose Camacho` → `universidad-antonio-jose-camacho`
+ *
+ * Reglas:
+ *   - lowercase
+ *   - quita acentos (NFD + remove combining marks)
+ *   - reemplaza cualquier no-alfanumérico por guión
+ *   - colapsa guiones consecutivos
+ *   - trim de guiones al inicio/fin
+ *   - fallback a `"institution"` si queda vacío (tenant name todo símbolos)
+ *   - cap a 60 chars para no generar paths gigantes
+ */
+export function slugifyTenantName(name: string | null | undefined): string {
+  if (!name) return "institution";
+  const normalized = name
+    .normalize("NFD")
+    // Combining marks (acentos, tildes, diéresis) — quedan como código
+    // separado después del NFD. U+0300..U+036F es el rango
+    // "Combining Diacritical Marks" de Unicode.
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 60);
+  return normalized || "institution";
 }
 
 /**
@@ -136,10 +171,7 @@ export interface TenantUrlAction {
   overrideSlug: string | null;
 }
 
-export function decideTenantUrlAction(
-  pathname: string,
-  isSuperAdmin: boolean,
-): TenantUrlAction {
+export function decideTenantUrlAction(pathname: string, isSuperAdmin: boolean): TenantUrlAction {
   const slug = extractTenantSlugFromPath(pathname);
   if (!slug) {
     return { strippedPath: null, overrideSlug: null };

@@ -32,7 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { useTenant, readTenantOverride } from "@/modules/tenants/use-tenant";
-import { resolveTenantLogoUrl } from "@/modules/tenants/tenant";
+import { resolveTenantLogoUrl, slugifyTenantName } from "@/modules/tenants/tenant";
 import { resizeImageForLogo } from "@/modules/tenants/image-resize";
 import { TenantQuotaCard } from "@/modules/tenants/TenantQuotaCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -77,9 +77,7 @@ export function AdminMyTenantPanel() {
   const { roles } = useAuth();
   const activeRole = useActiveRole();
   const isSuperAdminCrossTenant =
-    roles.includes("SuperAdmin") &&
-    activeRole === "SuperAdmin" &&
-    readTenantOverride() === null;
+    roles.includes("SuperAdmin") && activeRole === "SuperAdmin" && readTenantOverride() === null;
   const [form, setForm] = useState<FormState>({
     name: "",
     logo_url: "",
@@ -119,9 +117,13 @@ export function AdminMyTenantPanel() {
 
   /**
    * Sube un archivo de imagen al bucket tenant-logos.
-   * Path: <tenant_id>/logo.<ext>. Upsert = sobrescribe el anterior.
-   * Guarda la nueva ruta en form.logo_path para que al "Guardar" se
-   * persista en tenants.logo_path.
+   * Path: `<tenant_id>/<slug-de-institución>-logo.<ext>`. El folder DEBE
+   * ser el UUID (RLS lo exige); el filename incluye el nombre
+   * slugificado del tenant para que sea reconocible al inspeccionar el
+   * bucket o descargar el archivo directo (en lugar de un genérico
+   * `logo.png` para todas las instituciones). Upsert = sobrescribe el
+   * anterior. Guarda la nueva ruta en `form.logo_path` para que al
+   * "Guardar" se persista en `tenants.logo_path`.
    */
   const uploadLogo = async (file: File) => {
     if (!tenant) return;
@@ -138,8 +140,7 @@ export function AdminMyTenantPanel() {
     try {
       // Auto-resize client-side: el helper escala a 512×512 max
       // proporcional. SVG/archivos chicos pasan sin tocar.
-      const { file: finalFile, resized, originalSize, finalSize } =
-        await resizeImageForLogo(file);
+      const { file: finalFile, resized, originalSize, finalSize } = await resizeImageForLogo(file);
       const ext =
         finalFile.type === "image/png"
           ? "png"
@@ -148,7 +149,12 @@ export function AdminMyTenantPanel() {
             : finalFile.type === "image/svg+xml"
               ? "svg"
               : "webp";
-      const path = `${tenant.id}/logo.${ext}`;
+      // Slug del NOMBRE del form (no del tenant remoto): si el admin
+      // está editando el nombre antes de subir el logo, queremos que el
+      // filename refleje el nombre que va a quedar persistido. Fallback
+      // a `tenant.name` por si el form viene vacío.
+      const slug = slugifyTenantName(form.name || tenant.name);
+      const path = `${tenant.id}/${slug}-logo.${ext}`;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: upErr } = await (supabase.storage as any)
         .from("tenant-logos")
@@ -253,8 +259,8 @@ export function AdminMyTenantPanel() {
           <Label className="text-xs">Identificador (URL)</Label>
           <Input value={tenant.slug} disabled className="font-mono text-xs" />
           <p className="text-[11px] text-muted-foreground mt-1">
-            El slug es la URL canónica de tu institución y no es editable.
-            Solo el SuperAdmin lo puede cambiar.
+            El slug es la URL canónica de tu institución y no es editable. Solo el SuperAdmin lo
+            puede cambiar.
           </p>
         </div>
 
@@ -325,8 +331,8 @@ export function AdminMyTenantPanel() {
                 )}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5">
-                PNG, JPG, SVG o WebP · máximo 2 MB. Aparece en el header de
-                la app y en el login para usuarios de tu institución.
+                PNG, JPG, SVG o WebP · máximo 2 MB. Aparece en el header de la app y en el login
+                para usuarios de tu institución.
               </p>
             </div>
           </div>
@@ -392,8 +398,7 @@ export function AdminMyTenantPanel() {
             placeholder="miuniversidad.edu.co"
           />
           <p className="text-[11px] text-muted-foreground mt-1">
-            Reservado para asignación automática de usuarios por dominio
-            en versiones futuras.
+            Reservado para asignación automática de usuarios por dominio en versiones futuras.
           </p>
         </div>
 
@@ -405,8 +410,8 @@ export function AdminMyTenantPanel() {
         <div className="pt-2 border-t">
           <TenantQuotaCard compact title="Licencias de usuarios" />
           <p className="text-[11px] text-muted-foreground mt-2">
-            Definidas por el SuperAdmin de la plataforma. Para ajustar estos topes,
-            contacta al equipo de ExamLab.
+            Definidas por el SuperAdmin de la plataforma. Para ajustar estos topes, contacta al
+            equipo de ExamLab.
           </p>
         </div>
 
@@ -420,4 +425,3 @@ export function AdminMyTenantPanel() {
     </Card>
   );
 }
-

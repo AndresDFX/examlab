@@ -56,7 +56,7 @@ import {
 } from "lucide-react";
 import { startImpersonate } from "@/modules/admin/impersonation";
 import { AssignUsersToTenantDialog } from "@/modules/superadmin/AssignUsersToTenantDialog";
-import { isValidTenantSlug } from "@/modules/tenants/tenant";
+import { isValidTenantSlug, slugifyTenantName } from "@/modules/tenants/tenant";
 import { setTenantOverride } from "@/modules/tenants/use-tenant";
 import type { Tenant } from "@/modules/tenants/tenant";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -209,10 +209,12 @@ function SuperAdminTenantsPage() {
     return file;
   };
 
-  /** Sube un File al bucket `tenant-logos` con path `${tenantId}/logo.ext`.
-   *  Aplica el resize de `resizeImageForLogo` antes. Devuelve el path
-   *  guardado o null si falló (con toast). Útil tanto para uploads
-   *  inmediatos (edit) como para uploads post-INSERT (create). */
+  /** Sube un File al bucket `tenant-logos` con path
+   *  `${tenantId}/<slug-de-institucion>-logo.<ext>`. El folder DEBE ser
+   *  el UUID (lo exige la RLS via `(storage.foldername(name))[1]`); el
+   *  filename usa el nombre de la institución slugificado para que sea
+   *  reconocible al inspeccionar el bucket / al descargar el archivo
+   *  directo. Aplica resize antes. */
   const uploadLogoToBucket = async (file: File, tenantId: string): Promise<string | null> => {
     const { file: finalFile, resized, originalSize, finalSize } = await resizeImageForLogo(file);
     const ext =
@@ -223,7 +225,8 @@ function SuperAdminTenantsPage() {
           : finalFile.type === "image/svg+xml"
             ? "svg"
             : "webp";
-    const path = `${tenantId}/logo.${ext}`;
+    const slug = slugifyTenantName(form.name);
+    const path = `${tenantId}/${slug}-logo.${ext}`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: upErr } = await (supabase.storage as any)
       .from("tenant-logos")
