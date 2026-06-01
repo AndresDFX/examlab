@@ -77,6 +77,7 @@ import {
   Bell,
   Library,
   Award,
+  ListChecks,
   Video,
   ListOrdered,
   Building2,
@@ -226,6 +227,22 @@ const NAV: NavItem[] = [
     to: "/app/student/attendance",
     labelKey: "nav.studentAttendance",
     icon: CalendarCheck,
+    roles: ["Estudiante"],
+  },
+  // Encuestas — docente lanza preguntas/votaciones (mig 20260720000000).
+  // En vivo durante una sesión (tipo single/multiple) o asíncronas tipo
+  // Doodle con cupo por opción (tipo slot) — útil para que cada alumno
+  // elija fecha de sustentación de proyecto, p.ej.
+  {
+    to: "/app/teacher/polls",
+    labelKey: "nav.polls",
+    icon: ListChecks,
+    roles: ["Docente"],
+  },
+  {
+    to: "/app/student/polls",
+    labelKey: "nav.polls",
+    icon: ListChecks,
     roles: ["Estudiante"],
   },
   {

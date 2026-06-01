@@ -36,6 +36,8 @@ import { Route as AppTeacherContentsRouteImport } from './routes/app.teacher.con
 import { Route as AppTeacherCalendarRouteImport } from './routes/app.teacher.calendar'
 import { Route as AppTeacherAuditLogsRouteImport } from './routes/app.teacher.audit-logs'
 import { Route as AppTeacherAttendanceRouteImport } from './routes/app.teacher.attendance'
+import { Route as AppTeacherPollsRouteImport } from './routes/app.teacher.polls'
+import { Route as AppStudentPollsRouteImport } from './routes/app.student.polls'
 import { Route as AppTeacherAiPromptsRouteImport } from './routes/app.teacher.ai-prompts'
 import { Route as AppTeacherAiCronRouteImport } from './routes/app.teacher.ai-cron'
 import { Route as AppSuperadminTenantsRouteImport } from './routes/app.superadmin.tenants'
@@ -207,6 +209,16 @@ const AppTeacherAuditLogsRoute = AppTeacherAuditLogsRouteImport.update({
 const AppTeacherAttendanceRoute = AppTeacherAttendanceRouteImport.update({
   id: '/teacher/attendance',
   path: '/teacher/attendance',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTeacherPollsRoute = AppTeacherPollsRouteImport.update({
+  id: '/teacher/polls',
+  path: '/teacher/polls',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStudentPollsRoute = AppStudentPollsRouteImport.update({
+  id: '/student/polls',
+  path: '/student/polls',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTeacherAiPromptsRoute = AppTeacherAiPromptsRouteImport.update({
@@ -440,6 +452,8 @@ export interface FileRoutesByFullPath {
   '/app/teacher/ai-cron': typeof AppTeacherAiCronRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
+  '/app/teacher/polls': typeof AppTeacherPollsRoute
+  '/app/student/polls': typeof AppStudentPollsRoute
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
   '/app/teacher/calendar': typeof AppTeacherCalendarRoute
   '/app/teacher/contents': typeof AppTeacherContentsRoute
@@ -504,6 +518,8 @@ export interface FileRoutesByTo {
   '/app/teacher/ai-cron': typeof AppTeacherAiCronRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
+  '/app/teacher/polls': typeof AppTeacherPollsRoute
+  '/app/student/polls': typeof AppStudentPollsRoute
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
   '/app/teacher/calendar': typeof AppTeacherCalendarRoute
   '/app/teacher/contents': typeof AppTeacherContentsRoute
@@ -571,6 +587,8 @@ export interface FileRoutesById {
   '/app/teacher/ai-cron': typeof AppTeacherAiCronRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
+  '/app/teacher/polls': typeof AppTeacherPollsRoute
+  '/app/student/polls': typeof AppStudentPollsRoute
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
   '/app/teacher/calendar': typeof AppTeacherCalendarRoute
   '/app/teacher/contents': typeof AppTeacherContentsRoute
@@ -639,6 +657,8 @@ export interface FileRouteTypes {
     | '/app/teacher/ai-cron'
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
+    | '/app/teacher/polls'
+    | '/app/student/polls'
     | '/app/teacher/audit-logs'
     | '/app/teacher/calendar'
     | '/app/teacher/contents'
@@ -703,6 +723,8 @@ export interface FileRouteTypes {
     | '/app/teacher/ai-cron'
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
+    | '/app/teacher/polls'
+    | '/app/student/polls'
     | '/app/teacher/audit-logs'
     | '/app/teacher/calendar'
     | '/app/teacher/contents'
@@ -769,6 +791,8 @@ export interface FileRouteTypes {
     | '/app/teacher/ai-cron'
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
+    | '/app/teacher/polls'
+    | '/app/student/polls'
     | '/app/teacher/audit-logs'
     | '/app/teacher/calendar'
     | '/app/teacher/contents'
@@ -992,6 +1016,20 @@ declare module '@tanstack/react-router' {
       path: '/teacher/attendance'
       fullPath: '/app/teacher/attendance'
       preLoaderRoute: typeof AppTeacherAttendanceRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/teacher/polls': {
+      id: '/app/teacher/polls'
+      path: '/teacher/polls'
+      fullPath: '/app/teacher/polls'
+      preLoaderRoute: typeof AppTeacherPollsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/student/polls': {
+      id: '/app/student/polls'
+      path: '/student/polls'
+      fullPath: '/app/student/polls'
+      preLoaderRoute: typeof AppStudentPollsRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/teacher/ai-prompts': {
@@ -1314,6 +1352,8 @@ interface AppRouteChildren {
   AppTeacherAiCronRoute: typeof AppTeacherAiCronRoute
   AppTeacherAiPromptsRoute: typeof AppTeacherAiPromptsRoute
   AppTeacherAttendanceRoute: typeof AppTeacherAttendanceRoute
+  AppTeacherPollsRoute: typeof AppTeacherPollsRoute
+  AppStudentPollsRoute: typeof AppStudentPollsRoute
   AppTeacherAuditLogsRoute: typeof AppTeacherAuditLogsRoute
   AppTeacherCalendarRoute: typeof AppTeacherCalendarRoute
   AppTeacherContentsRoute: typeof AppTeacherContentsRoute
@@ -1370,6 +1410,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppTeacherAiCronRoute: AppTeacherAiCronRoute,
   AppTeacherAiPromptsRoute: AppTeacherAiPromptsRoute,
   AppTeacherAttendanceRoute: AppTeacherAttendanceRoute,
+  AppTeacherPollsRoute: AppTeacherPollsRoute,
+  AppStudentPollsRoute: AppStudentPollsRoute,
   AppTeacherAuditLogsRoute: AppTeacherAuditLogsRoute,
   AppTeacherCalendarRoute: AppTeacherCalendarRoute,
   AppTeacherContentsRoute: AppTeacherContentsRoute,

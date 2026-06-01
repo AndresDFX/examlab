@@ -66,7 +66,9 @@ import {
   Upload,
   Link as LinkIcon,
   Edit2,
+  Globe,
 } from "lucide-react";
+import { useActiveRole } from "@/hooks/use-active-role";
 import { formatFileSize } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 
@@ -89,6 +91,12 @@ interface VideoRow {
   /** Curso al que pertenece el video. NULL = global (visible en todos
    *  los cursos cuando un módulo busca videos disponibles). */
   course_id: string | null;
+  /** Tenant dueño del video. NULL = PLATFORM-GLOBAL: lo subió el
+   *  SuperAdmin y es visible/referenciable por cualquier institución
+   *  (mig 20260722000000_videos_platform_global). El UI lo muestra con
+   *  un badge "🌐 Global plataforma" para que el docente entienda que
+   *  ese video viene del catálogo central. */
+  tenant_id: string | null;
 }
 
 interface CourseOption {
@@ -134,15 +142,32 @@ function extFromMime(mime: string): string {
 
 function VideoLibrary() {
   const { user, roles } = useAuth();
+  const activeRole = useActiveRole();
   const confirm = useConfirm();
   const isStaff = roles.includes("Docente") || roles.includes("Admin");
+  // El SuperAdmin actuando como tal puede publicar videos como
+  // PLATFORM-GLOBAL (mig 20260722000000): `tenant_id IS NULL` los
+  // hace visibles a TODOS los tenants. Cuando un usuario tiene el rol
+  // pero está actuando como otro rol (Admin/Docente con role-switcher),
+  // este toggle se oculta — solo aplica al SuperAdmin "puro".
+  const isSuperAdminActive = activeRole === "SuperAdmin" && roles.includes("SuperAdmin");
   const [rows, setRows] = useState<VideoRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<VideoRow | null>(null);
   const [mode, setMode] = useState<"url" | "upload">("url");
-  const [form, setForm] = useState({ title: "", description: "", url: "", courseId: "" });
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    url: "",
+    courseId: "",
+    // SuperAdmin-only: publicar como video del catálogo global de
+    // plataforma (tenant_id NULL). Default false para que un SuperAdmin
+    // que esté gestionando un tenant concreto no publique global por
+    // accidente — explícito siempre.
+    publishAsGlobal: false,
+  });
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploadPct, setUploadPct] = useState(0);
@@ -203,7 +228,13 @@ function VideoLibrary() {
 
   const openNew = () => {
     setEditing(null);
-    setForm({ title: "", description: "", url: "", courseId: "" });
+    setForm({
+      title: "",
+      description: "",
+      url: "",
+      courseId: "",
+      publishAsGlobal: false,
+    });
     setFile(null);
     setMode("url");
     setUploadPct(0);
@@ -216,6 +247,11 @@ function VideoLibrary() {
       description: v.description ?? "",
       url: v.url,
       courseId: v.course_id ?? "",
+      // Mantenemos el scope al editar: si la fila ya es global
+      // (tenant_id NULL), el toggle viene marcado; si es del tenant,
+      // queda desmarcado. El usuario puede cambiarlo si es SuperAdmin
+      // y el UPDATE se persiste con tenant_id null o el del caller.
+      publishAsGlobal: v.tenant_id === null,
     });
     setFile(null);
     // Si fue subido, el modo es "upload" (no se puede cambiar a URL sin
@@ -242,17 +278,26 @@ function VideoLibrary() {
       return;
     }
     setSaving(true);
+    // SuperAdmin con toggle "Global plataforma": publicamos tenant_id
+    // NULL → visible cross-tenant. Para cualquier otro caller (o
+    // SuperAdmin con toggle off) la fila va al tenant del caller — el
+    // trigger `tg_videos_set_tenant` lo deriva si no se manda.
+    const publishGlobal = isSuperAdminActive && form.publishAsGlobal;
     if (editing) {
-      const { error } = await db
-        .from("videos")
-        .update({
-          title,
-          description: form.description.trim() || null,
-          url,
-          provider,
-          course_id: form.courseId || null,
-        })
-        .eq("id", editing.id);
+      const updatePayload: Record<string, unknown> = {
+        title,
+        description: form.description.trim() || null,
+        url,
+        provider,
+        course_id: form.courseId || null,
+      };
+      // Permitir AL SUPERADMIN cambiar el scope al editar (global ↔
+      // tenant). Para el resto, no tocamos tenant_id (la RLS le impide
+      // editar filas de otros tenants igual).
+      if (isSuperAdminActive) {
+        updatePayload.tenant_id = publishGlobal ? null : editing.tenant_id;
+      }
+      const { error } = await db.from("videos").update(updatePayload).eq("id", editing.id);
       setSaving(false);
       if (error) {
         toast.error(friendlyError(error));
@@ -260,20 +305,24 @@ function VideoLibrary() {
       }
       toast.success("Video actualizado");
     } else {
-      const { error } = await db.from("videos").insert({
+      const insertPayload: Record<string, unknown> = {
         title,
         description: form.description.trim() || null,
         url,
         provider,
         uploaded_by: user.id,
         course_id: form.courseId || null,
-      });
+      };
+      if (publishGlobal) insertPayload.tenant_id = null;
+      const { error } = await db.from("videos").insert(insertPayload);
       setSaving(false);
       if (error) {
         toast.error(friendlyError(error));
         return;
       }
-      toast.success("Video agregado a la biblioteca");
+      toast.success(
+        publishGlobal ? "Video agregado al catálogo global" : "Video agregado a la biblioteca",
+      );
     }
     setDialogOpen(false);
     await load();
@@ -286,17 +335,19 @@ function VideoLibrary() {
       toast.error("El título es obligatorio");
       return;
     }
+    const publishGlobal = isSuperAdminActive && form.publishAsGlobal;
     // En edición sin nuevo archivo: solo guardamos metadatos.
     if (editing && !file) {
       setSaving(true);
-      const { error } = await db
-        .from("videos")
-        .update({
-          title,
-          description: form.description.trim() || null,
-          course_id: form.courseId || null,
-        })
-        .eq("id", editing.id);
+      const updatePayload: Record<string, unknown> = {
+        title,
+        description: form.description.trim() || null,
+        course_id: form.courseId || null,
+      };
+      if (isSuperAdminActive) {
+        updatePayload.tenant_id = publishGlobal ? null : editing.tenant_id;
+      }
+      const { error } = await db.from("videos").update(updatePayload).eq("id", editing.id);
       setSaving(false);
       if (error) {
         toast.error(friendlyError(error));
@@ -350,17 +401,18 @@ function VideoLibrary() {
       // Reemplazo: subimos el nuevo, actualizamos la fila, y al final
       // borramos el viejo en background (no bloquea la UX).
       const oldPath = editing.storage_path;
-      const { error } = await db
-        .from("videos")
-        .update({
-          title,
-          description: form.description.trim() || null,
-          url: publicUrl,
-          provider: "direct",
-          storage_path: objectName,
-          course_id: form.courseId || null,
-        })
-        .eq("id", editing.id);
+      const updatePayload: Record<string, unknown> = {
+        title,
+        description: form.description.trim() || null,
+        url: publicUrl,
+        provider: "direct",
+        storage_path: objectName,
+        course_id: form.courseId || null,
+      };
+      if (isSuperAdminActive) {
+        updatePayload.tenant_id = publishGlobal ? null : editing.tenant_id;
+      }
+      const { error } = await db.from("videos").update(updatePayload).eq("id", editing.id);
       if (error) {
         setSaving(false);
         setUploadPct(0);
@@ -374,7 +426,7 @@ function VideoLibrary() {
       setUploadPct(100);
       toast.success("Video reemplazado");
     } else {
-      const { error } = await db.from("videos").insert({
+      const insertPayload: Record<string, unknown> = {
         title,
         description: form.description.trim() || null,
         url: publicUrl,
@@ -382,7 +434,9 @@ function VideoLibrary() {
         uploaded_by: user.id,
         storage_path: objectName,
         course_id: form.courseId || null,
-      });
+      };
+      if (publishGlobal) insertPayload.tenant_id = null;
+      const { error } = await db.from("videos").insert(insertPayload);
       if (error) {
         setSaving(false);
         setUploadPct(0);
@@ -391,7 +445,9 @@ function VideoLibrary() {
         return;
       }
       setUploadPct(100);
-      toast.success("Video subido a la biblioteca");
+      toast.success(
+        publishGlobal ? "Video subido al catálogo global" : "Video subido a la biblioteca",
+      );
     }
     setSaving(false);
     setDialogOpen(false);
@@ -504,118 +560,132 @@ function VideoLibrary() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visible.length === 0 ? (
-                  (() => {
-                    const filterActive = !!search || filterCourseId != null;
-                    const noMatch = filterActive && rows.length > 0;
-                    return (
-                      <TableEmpty
-                        colSpan={5}
-                        text={noMatch ? "Sin coincidencias" : "Sin videos en la biblioteca"}
-                        hint={
-                          noMatch
-                            ? "Ajusta el buscador o el filtro de curso para ver más resultados."
-                            : "Agrega un video por URL (YouTube, Vimeo, MP4 directo) o súbelo desde tu equipo para reutilizarlo en varios proyectos o módulos."
-                        }
-                        action={
-                          noMatch ? undefined : (
-                            <Button onClick={openNew}>
-                              <Plus className="h-4 w-4 mr-1" />
-                              Nuevo video
-                            </Button>
-                          )
-                        }
-                      />
-                    );
-                  })()
-                ) : (
-                  visible.map((v) => (
-                    <TableRow key={v.id} className={v.is_archived ? "opacity-60" : undefined}>
-                      <TableCell className="max-w-md">
-                        <div className="flex items-start gap-3">
-                          <div className="h-9 w-9 rounded-md bg-cyan-500/10 flex items-center justify-center shrink-0">
-                            <VideoIcon className="h-4 w-4 text-cyan-600" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-medium text-sm truncate" title={v.title}>
-                              {v.title}
-                            </div>
-                            {v.description && (
-                              <p
-                                className="text-xs text-muted-foreground truncate mt-0.5"
-                                title={v.description}
-                              >
-                                {v.description}
-                              </p>
-                            )}
-                            <a
-                              href={v.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[11px] text-muted-foreground hover:underline truncate flex items-center gap-1 mt-0.5 max-w-full"
-                              title={v.url}
-                            >
-                              <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-                              <span className="truncate">{v.url}</span>
-                            </a>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <Badge variant="outline" className="text-[10px] uppercase w-fit">
-                            {v.provider === "direct" ? "MP4" : v.provider}
-                          </Badge>
-                          {v.storage_path && (
-                            <Badge variant="secondary" className="text-[10px] gap-1 w-fit">
-                              <Upload className="h-2.5 w-2.5" /> Subido
-                            </Badge>
-                          )}
-                          {v.is_archived && (
-                            <Badge variant="secondary" className="text-[10px] w-fit">
-                              Archivado
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {v.course_id ? (
-                          <span className="text-xs">{courseNameById[v.course_id] ?? "—"}</span>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px]">
-                            Global
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        <DateCell value={v.created_at} variant="datetime" />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <RowActionsMenu
-                          actions={[
-                            {
-                              label: "Editar",
-                              icon: Edit2,
-                              onClick: () => openEdit(v),
-                            },
-                            {
-                              label: v.is_archived ? "Restaurar" : "Archivar",
-                              icon: v.is_archived ? RotateCcw : Archive,
-                              onClick: () => void toggleArchive(v),
-                            },
-                            {
-                              label: "Eliminar",
-                              icon: Trash2,
-                              tone: "destructive",
-                              separatorBefore: true,
-                              onClick: () => void remove(v),
-                            },
-                          ]}
+                {visible.length === 0
+                  ? (() => {
+                      const filterActive = !!search || filterCourseId != null;
+                      const noMatch = filterActive && rows.length > 0;
+                      return (
+                        <TableEmpty
+                          colSpan={5}
+                          text={noMatch ? "Sin coincidencias" : "Sin videos en la biblioteca"}
+                          hint={
+                            noMatch
+                              ? "Ajusta el buscador o el filtro de curso para ver más resultados."
+                              : "Agrega un video por URL (YouTube, Vimeo, MP4 directo) o súbelo desde tu equipo para reutilizarlo en varios proyectos o módulos."
+                          }
+                          action={
+                            noMatch ? undefined : (
+                              <Button onClick={openNew}>
+                                <Plus className="h-4 w-4 mr-1" />
+                                Nuevo video
+                              </Button>
+                            )
+                          }
                         />
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
+                      );
+                    })()
+                  : visible.map((v) => (
+                      <TableRow key={v.id} className={v.is_archived ? "opacity-60" : undefined}>
+                        <TableCell className="max-w-md">
+                          <div className="flex items-start gap-3">
+                            <div className="h-9 w-9 rounded-md bg-cyan-500/10 flex items-center justify-center shrink-0">
+                              <VideoIcon className="h-4 w-4 text-cyan-600" />
+                            </div>
+                            <div className="min-w-0">
+                              <div
+                                className="font-medium text-sm truncate flex items-center gap-1.5"
+                                title={v.title}
+                              >
+                                <span className="truncate">{v.title}</span>
+                                {/* Badge "Global plataforma" cuando
+                                  tenant_id IS NULL — el catálogo central
+                                  del SuperAdmin. Visible para cualquier
+                                  caller que vea la fila vía RLS. */}
+                                {v.tenant_id === null && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[9px] gap-0.5 border-violet-500/40 text-violet-600 dark:text-violet-400 shrink-0"
+                                  >
+                                    <Globe className="h-2.5 w-2.5" />
+                                    Global plataforma
+                                  </Badge>
+                                )}
+                              </div>
+                              {v.description && (
+                                <p
+                                  className="text-xs text-muted-foreground truncate mt-0.5"
+                                  title={v.description}
+                                >
+                                  {v.description}
+                                </p>
+                              )}
+                              <a
+                                href={v.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[11px] text-muted-foreground hover:underline truncate flex items-center gap-1 mt-0.5 max-w-full"
+                                title={v.url}
+                              >
+                                <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                                <span className="truncate">{v.url}</span>
+                              </a>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <Badge variant="outline" className="text-[10px] uppercase w-fit">
+                              {v.provider === "direct" ? "MP4" : v.provider}
+                            </Badge>
+                            {v.storage_path && (
+                              <Badge variant="secondary" className="text-[10px] gap-1 w-fit">
+                                <Upload className="h-2.5 w-2.5" /> Subido
+                              </Badge>
+                            )}
+                            {v.is_archived && (
+                              <Badge variant="secondary" className="text-[10px] w-fit">
+                                Archivado
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          {v.course_id ? (
+                            <span className="text-xs">{courseNameById[v.course_id] ?? "—"}</span>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px]">
+                              Global
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <DateCell value={v.created_at} variant="datetime" />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <RowActionsMenu
+                            actions={[
+                              {
+                                label: "Editar",
+                                icon: Edit2,
+                                onClick: () => openEdit(v),
+                              },
+                              {
+                                label: v.is_archived ? "Restaurar" : "Archivar",
+                                icon: v.is_archived ? RotateCcw : Archive,
+                                onClick: () => void toggleArchive(v),
+                              },
+                              {
+                                label: "Eliminar",
+                                icon: Trash2,
+                                tone: "destructive",
+                                separatorBefore: true,
+                                onClick: () => void remove(v),
+                              },
+                            ]}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
               </TableBody>
             </Table>
           )}
@@ -768,6 +838,35 @@ function VideoLibrary() {
               </div>
             </TabsContent>
           </Tabs>
+
+          {/* Toggle "Catálogo global de la plataforma" — solo SuperAdmin
+              activo. Aplica a AMBOS modos (URL + upload). tenant_id NULL
+              en la fila resultante = visible y referenciable por
+              cualquier institución (mig 20260722000000). */}
+          {isSuperAdminActive && (
+            <div className="rounded-md border border-violet-500/30 bg-violet-500/5 p-3">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 accent-violet-500"
+                  checked={form.publishAsGlobal}
+                  onChange={(e) => setForm({ ...form, publishAsGlobal: e.target.checked })}
+                  disabled={saving}
+                />
+                <div className="flex-1 text-xs">
+                  <div className="font-medium flex items-center gap-1.5">
+                    <Globe className="h-3.5 w-3.5 text-violet-500" />
+                    Catálogo global de la plataforma
+                  </div>
+                  <p className="text-muted-foreground mt-0.5">
+                    Cualquier institución podrá ver y referenciar este video. Útil para
+                    introducciones y tutoriales transversales. Si lo dejás desmarcado, el video
+                    pertenece solo a la institución del caller.
+                  </p>
+                </div>
+              </label>
+            </div>
+          )}
 
           {/* Progress bar de upload — vive FUERA del TabsContent y arriba
               del footer para que sea siempre visible. Antes estaba al

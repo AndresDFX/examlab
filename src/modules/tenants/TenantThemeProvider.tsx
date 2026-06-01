@@ -38,6 +38,7 @@
  * theme default OKLCH azul/violeta.
  */
 import { useEffect, useState } from "react";
+import { useRouterState } from "@tanstack/react-router";
 import { useTenant, readTenantOverride } from "@/modules/tenants/use-tenant";
 import { useTheme } from "@/hooks/use-theme";
 import { getActiveRoleSignal, subscribeActiveRole } from "@/modules/tenants/active-role-signal";
@@ -268,8 +269,27 @@ export function TenantThemeProvider({ children }: { children: React.ReactNode })
     return subscribeActiveRole((r) => setActiveRoleLocal(r));
   }, []);
 
+  // Pathname reactivo. El provider está montado en `__root.tsx` y corre
+  // en TODAS las rutas — incluyendo la landing pública `/` y `/auth/*`.
+  // Fuera de `/app/*` (zona autenticada) NO queremos aplicar branding
+  // de tenant: la landing tiene que mostrar siempre los colores
+  // originales de la plataforma, aunque el visitante haya sido antes
+  // un SuperAdmin con un `examlab_tenant_override` viejo en
+  // localStorage (que persiste al cerrar sesión).
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isAuthenticatedZone = pathname.startsWith("/app/") || pathname === "/app";
+
   useEffect(() => {
     const root = document.documentElement;
+    // Landing / auth / cualquier ruta pública: theme base sin tocar.
+    // Esto cubre el bug "la home muestra los colores del tenant X
+    // porque el visitante había visto antes ese tenant" — al volver a
+    // /, el override de localStorage se ignora y los CSS vars del
+    // provider se limpian.
+    if (!isAuthenticatedZone) {
+      clearTenantVars(root);
+      return;
+    }
     // ── Caso especial SuperAdmin SIN override ──
     // Si el usuario está actuando como SuperAdmin y NO eligió "Ver como
     // institución X", la plataforma debe mostrar el theme base
@@ -325,10 +345,7 @@ export function TenantThemeProvider({ children }: { children: React.ReactNode })
     // default tiene un glow distinto al base — replicamos esa semántica.
     if (primary) {
       const isDark = luminanceOfHex(primary) < 0.5;
-      root.style.setProperty(
-        "--primary-glow",
-        tintHex(primary, 0.18, isDark ? "white" : "black"),
-      );
+      root.style.setProperty("--primary-glow", tintHex(primary, 0.18, isDark ? "white" : "black"));
     } else {
       root.style.removeProperty("--primary-glow");
     }
@@ -433,6 +450,9 @@ export function TenantThemeProvider({ children }: { children: React.ReactNode })
     tenantIconColor,
     activeRole,
     resolvedTheme,
+    // Necesario para que al navegar de /app/* → / (landing) las vars se
+    // limpien y la landing recupere los colores originales.
+    isAuthenticatedZone,
   ]);
 
   return <>{children}</>;

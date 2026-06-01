@@ -69,6 +69,7 @@ import {
   ChevronsUpDown,
   CalendarPlus,
   PlayCircle,
+  Zap,
 } from "lucide-react";
 import { toCSV } from "@/shared/lib/csv";
 import { formatDateShort } from "@/shared/lib/format";
@@ -86,6 +87,7 @@ import {
   ATTENDANCE_CODE_ROTATION_DEFAULT,
 } from "@/modules/attendance/attendance-code";
 import { GenerateSessionsDialog } from "@/modules/contents/GenerateSessionsDialog";
+import { LaunchPollDialog } from "@/modules/polls/LaunchPollDialog";
 
 // Columna `cut_name` es OPCIONAL: si está vacía, la sesión queda sin
 // corte (no aporta a la nota de asistencia hasta que el docente la
@@ -217,6 +219,12 @@ function TeacherAttendance() {
 
   // Check-in self-service: configuración + estado del proyector activo
   const [checkInConfigSession, setCheckInConfigSession] = useState<Session | null>(null);
+  // Sesión seleccionada para lanzar una encuesta in-class. Cuando es
+  // != null se abre `LaunchPollDialog` con el attendance_session_id
+  // pre-rellenado. La encuesta queda en `polls` con el FK seteado y
+  // aparece destacada para los alumnos en /app/student/polls como
+  // "🎯 Sesión presencial".
+  const [pollLaunchSession, setPollLaunchSession] = useState<Session | null>(null);
   /** Abre el dialog "Programar sesiones del curso". Se usa SIN contenido
    *  pre-asociado — el dialog calcula N sesiones a partir de fecha
    *  inicio + días de la semana, las crea con `course_id = courseId` y
@@ -944,53 +952,53 @@ function TeacherAttendance() {
         actions={
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
             <Select value={courseId} onValueChange={setCourseId}>
-            <SelectTrigger className="w-full sm:w-56">
-              <SelectValue placeholder="Curso" />
-            </SelectTrigger>
-            <SelectContent>
-              {courses.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                  {c.period ? ` (${c.period})` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <ImportExportMenu
-            label="Clases"
-            resourceName="clases"
-            templateCsv={SESSIONS_TEMPLATE}
-            onImport={importSessions}
-            onExport={buildSessionsCsv}
-            disabled={!courseId}
-          />
-          <ImportExportMenu
-            label="Asistencia"
-            resourceName="asistencia"
-            templateCsv={ATTENDANCE_TEMPLATE}
-            onImport={importAttendance}
-            onExport={buildAttendanceCsv}
-            disabled={!courseId}
-          />
-          <Button size="sm" onClick={() => setNewSessionOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" />
-            Nueva sesión
-          </Button>
-          {/* Programar varias sesiones a partir de fecha inicio + días
+              <SelectTrigger className="w-full sm:w-56">
+                <SelectValue placeholder="Curso" />
+              </SelectTrigger>
+              <SelectContent>
+                {courses.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                    {c.period ? ` (${c.period})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <ImportExportMenu
+              label="Clases"
+              resourceName="clases"
+              templateCsv={SESSIONS_TEMPLATE}
+              onImport={importSessions}
+              onExport={buildSessionsCsv}
+              disabled={!courseId}
+            />
+            <ImportExportMenu
+              label="Asistencia"
+              resourceName="asistencia"
+              templateCsv={ATTENDANCE_TEMPLATE}
+              onImport={importAttendance}
+              onExport={buildAttendanceCsv}
+              disabled={!courseId}
+            />
+            <Button size="sm" onClick={() => setNewSessionOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              Nueva sesión
+            </Button>
+            {/* Programar varias sesiones a partir de fecha inicio + días
               de la semana. Mismo dialog que vive en el módulo de
               Contenidos, pero acá lo abrimos SIN contenido pre-asociado
               — el docente puede después asignar contenido a cada sesión
               desde el selector buscable del propio tablero. */}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setGenerateSessionsOpen(true)}
-            disabled={!courseId}
-            title="Programar varias sesiones del curso a partir de fecha + días de semana"
-          >
-            <CalendarPlus className="h-4 w-4 mr-1" />
-            Programar sesiones
-          </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setGenerateSessionsOpen(true)}
+              disabled={!courseId}
+              title="Programar varias sesiones del curso a partir de fecha + días de semana"
+            >
+              <CalendarPlus className="h-4 w-4 mr-1" />
+              Programar sesiones
+            </Button>
           </div>
         }
       />
@@ -1057,7 +1065,9 @@ function TeacherAttendance() {
                 </TableRow>
               )}
               <TableRow>
-                <TableHead className="sticky left-0 z-10 bg-card min-w-36 sm:min-w-48">Estudiante</TableHead>
+                <TableHead className="sticky left-0 z-10 bg-card min-w-36 sm:min-w-48">
+                  Estudiante
+                </TableHead>
                 {sessions.map((sess) => {
                   // Labels compactos para el resumen de "corte · contenido"
                   // que aparece debajo del header — evita reservar 2
@@ -1193,6 +1203,17 @@ function TeacherAttendance() {
                                 {sess.recording_url || sess.recording_video_id
                                   ? "Editar grabación"
                                   : "Agregar grabación"}
+                              </DropdownMenuItem>
+                              {/* Lanzar encuesta en vivo durante esta
+                                  sesión. El attendance_session_id queda
+                                  ligado a la encuesta (FK en `polls`),
+                                  permite mostrar la encuesta al alumno
+                                  con un badge "Sesión presencial" y a
+                                  futuro destacarla cuando esté dentro
+                                  de la clase. */}
+                              <DropdownMenuItem onSelect={() => setPollLaunchSession(sess)}>
+                                <Zap className="h-4 w-4 mr-2 text-sky-500" />
+                                Lanzar encuesta
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
@@ -1599,6 +1620,24 @@ function TeacherAttendance() {
 
       {/* Projector overlay */}
       {projector && <AttendanceCheckInProjector state={projector} onClose={closeProjector} />}
+
+      {/* Encuesta en vivo durante una sesión. courseId viene del state
+          del componente (la pantalla siempre opera sobre un curso
+          seleccionado); attendanceSessionId del session seleccionado
+          desde el dropdown. La encuesta queda ligada a la sesión para
+          que el alumno la vea destacada en /app/student/polls. */}
+      <LaunchPollDialog
+        open={Boolean(pollLaunchSession)}
+        onOpenChange={(open) => !open && setPollLaunchSession(null)}
+        courseId={courseId}
+        attendanceSessionId={pollLaunchSession?.id ?? null}
+        sessionLabel={
+          pollLaunchSession
+            ? `${pollLaunchSession.title ?? "Clase"} · ${formatDateShort(pollLaunchSession.session_date)}`
+            : undefined
+        }
+        onCreated={() => setPollLaunchSession(null)}
+      />
     </div>
   );
 }
