@@ -42,7 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2, Pencil, Users as UsersIcon, Eye } from "lucide-react";
+import { Plus, Trash2, Pencil, Users as UsersIcon, Eye, EyeOff } from "lucide-react";
 import { DateCell } from "@/components/ui/date-cell";
 import { startImpersonate } from "@/modules/admin/impersonation";
 import { Spinner } from "@/components/ui/spinner";
@@ -133,6 +133,10 @@ function AdminUsers() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Row | null>(null);
   const [password, setPassword] = useState("");
+  // Toggle "ojo" para el input de contraseña (crear/editar). Default
+  // false (oculto) para evitar shoulder-surfing — quien crea al usuario
+  // debe poder revelarla explícitamente cuando la quiera mostrar/verificar.
+  const [showPassword, setShowPassword] = useState(false);
   // Si true, al crear el usuario se marca `must_change_password=true` en
   // el profile → el primer login le exige cambiar la contraseña antes
   // de usar la app (diálogo bloqueante en AppLayout). Default true por
@@ -223,19 +227,43 @@ function AdminUsers() {
   const sel = useMultiSelect(filteredRows);
 
   const handleBulkDelete = async (ids: string[]) => {
-    // Atomic batch — Postgres transaccional. Borramos roles primero
-    // (FK), luego perfiles. Si alguno falla, ninguno se elimina.
-    const { error: rolesErr } = await supabase.from("user_roles").delete().in("user_id", ids);
-    if (rolesErr) throw new Error(rolesErr.message);
-    const { error } = await supabase.from("profiles").delete().in("id", ids);
-    if (error) throw new Error(error.message);
+    // Borramos vía edge `admin-delete-user` (uno por uno) para que cada
+    // delete pase por `auth.admin.deleteUser` y cascadee correctamente.
+    // Antes hacíamos `delete from profiles` directo desde el cliente,
+    // pero dejaba huérfanos en `auth.users` que rompían el chequeo de
+    // unicidad al recrear con el mismo email.
+    // Sequential (no Promise.all) — la edge ya audita por cada borrado
+    // y queremos respetar rate-limit del Admin API de Supabase.
+    let okCount = 0;
+    const failed: string[] = [];
+    for (const id of ids) {
+      const { data, error: edgeErr } = await supabase.functions.invoke("admin-delete-user", {
+        body: { userId: id },
+      });
+      const respError = (data as { error?: string } | null)?.error;
+      if (edgeErr || respError) {
+        failed.push(id);
+        console.warn("[bulk delete] failed for", id, respError ?? edgeErr?.message);
+      } else {
+        okCount += 1;
+      }
+    }
+    if (failed.length === ids.length) {
+      throw new Error("No se pudo eliminar ningún usuario");
+    }
     void logEvent({
       action: "user.bulk_deleted",
       category: "user",
       severity: "warning",
-      metadata: { count: ids.length, ids },
+      metadata: { count: okCount, total: ids.length, failed_count: failed.length },
     });
-    toast.success(`${ids.length} usuario(s) eliminado(s) correctamente`);
+    if (failed.length === 0) {
+      toast.success(`${okCount} usuario(s) eliminado(s) correctamente`);
+    } else {
+      toast.warning(
+        `${okCount} usuario(s) eliminados, ${failed.length} fallaron — revisá la consola para detalles.`,
+      );
+    }
     sel.clear();
     load();
   };
@@ -398,6 +426,9 @@ function AdminUsers() {
     // Cada usuario nuevo arranca con el default (true) — más seguro que
     // heredar la elección del usuario creado anteriormente.
     setForcePasswordChange(true);
+    // Toggle del ojo siempre oculto al abrir — quien crea/edita activa
+    // la visibilidad explícitamente cuando la necesita.
+    setShowPassword(false);
     setEnrollCourseId(null);
     setDialogOpen(true);
   };
@@ -405,6 +436,7 @@ function AdminUsers() {
   const openEdit = (r: Row) => {
     setEditing({ ...r });
     setPassword("");
+    setShowPassword(false);
     setEnrollCourseId(null);
     setDialogOpen(true);
   };
@@ -733,14 +765,18 @@ function AdminUsers() {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error: rolesErr } = await supabase.from("user_roles").delete().eq("user_id", r.id);
-    if (rolesErr) {
-      toast.error(friendlyError(rolesErr));
-      return;
-    }
-    const { error } = await supabase.from("profiles").delete().eq("id", r.id);
-    if (error) {
-      toast.error(friendlyError(error));
+    // Delete via edge `admin-delete-user` que usa service_role para
+    // borrar de `auth.users` — eso CASCADEA a `profiles` + `user_roles`
+    // + todas las tablas con FK ON DELETE CASCADE a auth.users(id).
+    // Antes hacíamos `delete from profiles` directo desde el cliente,
+    // pero `auth.users` quedaba huérfana y al re-crear con el mismo
+    // email `check_email_taken` reportaba colisión.
+    const { data, error: edgeErr } = await supabase.functions.invoke("admin-delete-user", {
+      body: { userId: r.id },
+    });
+    const respError = (data as { error?: string } | null)?.error;
+    if (edgeErr || respError) {
+      toast.error(respError ?? edgeErr?.message ?? "No se pudo eliminar el usuario");
       return;
     }
     toast.success(t("users.deletedToast"));
@@ -1102,12 +1138,27 @@ function AdminUsers() {
                 <div className="space-y-2">
                   <div>
                     <Label required>Contraseña inicial</Label>
-                    <Input
-                      type="text"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Mínimo 8 caracteres"
-                    />
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Mínimo 8 caracteres"
+                        className="pr-9"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                   {/* Toggle "pedir cambio en el primer login". Default ON
                       por seguridad — la contraseña inicial la conoce el
@@ -1141,12 +1192,23 @@ function AdminUsers() {
                     Nueva contraseña{" "}
                     <HelpHint>Déjalo vacío para no cambiar la contraseña actual.</HelpHint>
                   </Label>
-                  <Input
-                    type="text"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Mínimo 8 caracteres"
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Mínimo 8 caracteres"
+                      className="pr-9"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
               )}
               <div>
