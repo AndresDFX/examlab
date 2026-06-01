@@ -174,13 +174,28 @@ Deno.serve(async (req) => {
       return jsonError(`No se pudo generar el link: ${linkErr?.message ?? "respuesta vacía"}`, 500);
     }
 
-    // Cargar el nombre del target para devolverlo y mostrar en el banner.
+    // Cargar el nombre + tenant del target para devolverlo. El tenant
+    // slug lo devolvemos al cliente para que pueda navegar directo a
+    // `/t/<targetSlug>/app` post-verifyOtp — evita que el
+    // `TenantUrlGuard` tenga que hacer un segundo hard reload tras la
+    // impersonación (causa raíz del "infinite reload" observado).
     const { data: targetProfile } = await admin
       .from("profiles")
-      .select("full_name")
+      .select("full_name, tenant_id")
       .eq("id", targetId)
       .maybeSingle();
     const fullName = (targetProfile as { full_name?: string } | null)?.full_name ?? null;
+    const targetTenantId =
+      (targetProfile as { tenant_id?: string | null } | null)?.tenant_id ?? null;
+    let targetTenantSlug: string | null = null;
+    if (targetTenantId) {
+      const { data: tenantRow } = await admin
+        .from("tenants")
+        .select("slug")
+        .eq("id", targetTenantId)
+        .maybeSingle();
+      targetTenantSlug = (tenantRow as { slug?: string } | null)?.slug ?? null;
+    }
 
     // Audit log via RPC (preserva actor_id = caller via auth.uid()).
     // Acción separada por rol del caller para que el log refleje el
@@ -212,6 +227,11 @@ Deno.serve(async (req) => {
         id: targetId,
         full_name: fullName,
         email: targetEmail,
+        // Slug del tenant del target (null si es SuperAdmin sin
+        // institución). El cliente lo usa para navegar directo a
+        // `/t/<slug>/app` post-verifyOtp y evitar el dance de
+        // redirects del TenantUrlGuard que causaba el reload loop.
+        tenant_slug: targetTenantSlug,
       },
     });
   } catch (e: unknown) {

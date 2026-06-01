@@ -45,6 +45,11 @@ interface ImpersonationBackup {
     id: string;
     full_name: string | null;
     email: string;
+    /** Tenant del target. Lo guardamos en el backup para que
+     *  `stopImpersonate` pueda navegar correctamente de vuelta sin
+     *  asumir el tenant del caller original (caso: SuperAdmin con
+     *  override viendo otro tenant). */
+    tenant_slug?: string | null;
   };
   started_at: string;
 }
@@ -133,8 +138,14 @@ export async function startImpersonate(userId: string): Promise<void> {
   }
 
   window.dispatchEvent(new Event("examlab:impersonation-changed"));
-  // Recarga dura — re-inicializa AppLayout, queries, hooks, todo.
-  window.location.href = "/app";
+  // Recarga dura al URL CORRECTO del target. Antes navegábamos a `/app`
+  // y dejábamos que `TenantUrlGuard` redirigiera a `/t/<slug>/app` en
+  // un segundo hard reload — eso causaba reload loops cuando el target
+  // tenía tenant pero la primera carga ejecutaba múltiples efectos en
+  // paralelo. Acá navegamos DIRECTO al URL final → el router boota una
+  // sola vez con el basepath correcto y el guard no necesita redirect.
+  const targetSlug = target.tenant_slug ?? null;
+  window.location.href = targetSlug ? `/t/${targetSlug}/app` : "/app";
 }
 
 /**
@@ -178,9 +189,7 @@ export async function stopImpersonate(): Promise<void> {
         p_course_name: null,
         p_metadata: {
           target_email: backup.target.email,
-          duration_seconds: Math.floor(
-            (Date.now() - new Date(backup.started_at).getTime()) / 1000,
-          ),
+          duration_seconds: Math.floor((Date.now() - new Date(backup.started_at).getTime()) / 1000),
         },
       });
     } catch {
@@ -189,6 +198,11 @@ export async function stopImpersonate(): Promise<void> {
 
     localStorage.removeItem(IMPERSONATION_BACKUP_KEY);
     window.dispatchEvent(new Event("examlab:impersonation-changed"));
+    // Navega a `/app` sin prefijo — el `TenantUrlGuard` decide:
+    //   - Si el caller restaurado es SuperAdmin → cross-tenant OK.
+    //   - Si es Admin/Docente → redirige a su propio /t/<slug>/app.
+    // Es una sola hop de redirect (no loop) porque la sesión restaurada
+    // es la original del caller, no la impersonada.
     window.location.href = "/app";
   } catch {
     localStorage.removeItem(IMPERSONATION_BACKUP_KEY);

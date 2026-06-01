@@ -1069,22 +1069,33 @@ function AdminUsers() {
                               icon: Pencil,
                               onClick: () => openEdit(r),
                             },
-                            // "Iniciar como" — solo disponible para targets
-                            // que no son Admin (escalación lateral prohibida
-                            // server-side también). El propio admin no se ve
-                            // a sí mismo en la lista de "iniciar como".
-                            !r.roles.includes("Admin") && {
-                              label: "Iniciar como",
-                              icon: Eye,
-                              hint: `Acceder a la plataforma como ${r.full_name}`,
-                              onClick: () => void handleImpersonate(r),
-                              // Pinta el ícono con el primary del tenant
-                              // actual (ya aplicado al theme via
-                              // TenantThemeProvider) — visualiza que la
-                              // impersonación se queda dentro de la
-                              // institución.
-                              iconColor: "var(--brand-primary)",
-                            },
+                            // "Iniciar como" — autorización por jerarquía:
+                            //   - SuperAdmin puede impersonar Admin/Docente/
+                            //     Estudiante (NO a otro SuperAdmin).
+                            //   - Admin común puede impersonar a Docente/
+                            //     Estudiante de su tenant (NO a otro Admin).
+                            //   - Docente: este grid es Admin-only, no aplica.
+                            // El edge `admin-impersonate` re-valida server-side
+                            // (defensa-en-profundidad). Acá solo escondemos lo
+                            // que sabemos que va a fallar.
+                            (() => {
+                              if (r.roles.includes("SuperAdmin")) return null; // nadie impersona SA
+                              // Admin común: no puede impersonar a otro Admin.
+                              // SuperAdmin: sí puede (cross-tenant support).
+                              if (r.roles.includes("Admin") && !isSuperAdminCaller) return null;
+                              return {
+                                label: "Iniciar como",
+                                icon: Eye,
+                                hint: `Acceder a la plataforma como ${r.full_name}`,
+                                onClick: () => void handleImpersonate(r),
+                                // Pinta el ícono con el primary del tenant
+                                // actual (ya aplicado al theme via
+                                // TenantThemeProvider) — visualiza que la
+                                // impersonación se queda dentro de la
+                                // institución.
+                                iconColor: "var(--brand-primary)",
+                              };
+                            })(),
                             {
                               label: t("common.delete"),
                               icon: Trash2,
