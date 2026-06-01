@@ -126,6 +126,9 @@ export function TeacherProjectFilesEditor({
   const [qLanguage, setQLanguage] = useState("java");
   // Scaffolding flujo ZIP único — toggle por slot (solo aplica a codigo_zip).
   const [qZipSingle, setQZipSingle] = useState(false);
+  // Framework GUI para preguntas java_gui. Default swing; persiste
+  // en options.java_framework. Misma semántica que WorkshopQuestions.
+  const [qJavaFramework, setQJavaFramework] = useState<"swing" | "javafx">("swing");
 
   const resetForm = () => {
     setEditingId(null);
@@ -140,6 +143,7 @@ export function TeacherProjectFilesEditor({
     setQPoints(1);
     setQLanguage("java");
     setQZipSingle(false);
+    setQJavaFramework("swing");
   };
 
   const loadIntoForm = (q: ProjectFile) => {
@@ -159,6 +163,8 @@ export function TeacherProjectFilesEditor({
     setQPoints(q.points);
     setQLanguage(q.language ?? "java");
     setQZipSingle(Boolean(q.zip_single));
+    const fw = (q.options as { java_framework?: string } | null)?.java_framework;
+    setQJavaFramework(fw === "javafx" ? "javafx" : "swing");
     setActiveTab("manual");
   };
 
@@ -245,7 +251,9 @@ export function TeacherProjectFilesEditor({
               ...(typeof qMinSelections === "number" ? { min_selections: qMinSelections } : {}),
               ...(typeof qMaxSelections === "number" ? { max_selections: qMaxSelections } : {}),
             }
-          : null;
+          : qType === "java_gui"
+            ? { java_framework: qJavaFramework }
+            : null;
     // Para proyectos: el tipo 'codigo' implica entrega ZIP (codigo_zip).
     // Solo persistimos 'language' si la pregunta es realmente código —
     // el ZIP no fija un lenguaje porque puede traer múltiples archivos.
@@ -707,6 +715,42 @@ export function TeacherProjectFilesEditor({
                   />
                 </div>
               </div>
+            </div>
+          )}
+          {qType === "java_gui" && (
+            <div>
+              <Label className="flex items-center gap-1.5">
+                Framework
+                <HelpHint>
+                  <span>
+                    <strong>Swing/AWT</strong>: framework built-in del JDK, soportado por CheerpJ
+                    (navegador) y AWS Lambda.
+                  </span>
+                  <br />
+                  <span>
+                    <strong>JavaFX</strong>: requiere OpenJFX 21 (runner Lambda). NO funciona con
+                    CheerpJ. La clase del alumno debe <code>extends Application</code>; el wrapper
+                    server-side llama <code>Application.launch()</code>.
+                  </span>
+                </HelpHint>
+              </Label>
+              <Select
+                value={qJavaFramework}
+                onValueChange={(v) => setQJavaFramework(v as "swing" | "javafx")}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="swing">Swing / AWT</SelectItem>
+                  <SelectItem value="javafx">JavaFX</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {qJavaFramework === "javafx"
+                  ? "Requiere modo runner AWS Lambda — CheerpJ no incluye OpenJFX."
+                  : "Compatible con ambos runners (CheerpJ + AWS Lambda)."}
+              </p>
             </div>
           )}
           {qType === "codigo_zip" && (

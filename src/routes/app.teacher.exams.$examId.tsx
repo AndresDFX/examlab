@@ -43,7 +43,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { TeacherExamNotes } from "@/modules/exams/ExamNotesManager";
-import { JAVA_GUI_STARTER } from "@/modules/code/JavaGuiRunner";
+import { JAVA_GUI_STARTER, JAVAFX_STARTER } from "@/modules/code/JavaGuiRunner";
 import { getStarterCode } from "@/modules/code/CodeEditor";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
@@ -129,6 +129,9 @@ function ExamEditor() {
   const [qMaxSelections, setQMaxSelections] = useState<number | "">("");
   const [qPoints, setQPoints] = useState(1);
   const [qLanguage, setQLanguage] = useState("java");
+  // Framework GUI para preguntas java_gui. Default swing; persiste en
+  // options.java_framework. Misma semántica que workshops/projects.
+  const [qJavaFramework, setQJavaFramework] = useState<"swing" | "javafx">("swing");
 
   const resetQForm = () => {
     setEditingId(null);
@@ -142,6 +145,7 @@ function ExamEditor() {
     setQMaxSelections("");
     setQPoints(1);
     setQLanguage("java");
+    setQJavaFramework("swing");
   };
 
   const loadQIntoForm = (q: Question) => {
@@ -160,6 +164,8 @@ function ExamEditor() {
     setQMaxSelections(typeof maxS === "number" ? maxS : "");
     setQPoints(q.points ?? 1);
     setQLanguage((q as any).language ?? "java");
+    const fw = ((q as any).options as { java_framework?: string } | null)?.java_framework;
+    setQJavaFramework(fw === "javafx" ? "javafx" : "swing");
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -172,7 +178,8 @@ function ExamEditor() {
   const [aiRows, setAiRows] = useState<AiRow[]>([{ type: "abierta", count: 3, language: "java" }]);
   const updateAiRow = (i: number, patch: Partial<AiRow>) =>
     setAiRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
-  const addAiRow = () => setAiRows((rows) => [...rows, { type: "abierta", count: 1, language: "java" }]);
+  const addAiRow = () =>
+    setAiRows((rows) => [...rows, { type: "abierta", count: 1, language: "java" }]);
   const removeAiRow = (i: number) => setAiRows((rows) => rows.filter((_, idx) => idx !== i));
 
   // Evaluación de tiempo del examen con IA.
@@ -452,7 +459,9 @@ function ExamEditor() {
               ...(typeof qMinSelections === "number" ? { min_selections: qMinSelections } : {}),
               ...(typeof qMaxSelections === "number" ? { max_selections: qMaxSelections } : {}),
             }
-          : null;
+          : qType === "java_gui"
+            ? { java_framework: qJavaFramework }
+            : null;
     const language = qType === "codigo" ? qLanguage : qType === "java_gui" ? "java" : null;
 
     if (editingId) {
@@ -484,7 +493,9 @@ function ExamEditor() {
         language,
         starter_code:
           qType === "java_gui"
-            ? JAVA_GUI_STARTER
+            ? qJavaFramework === "javafx"
+              ? JAVAFX_STARTER
+              : JAVA_GUI_STARTER
             : qType === "codigo"
               ? getStarterCode(language) || null
               : null,
@@ -742,10 +753,9 @@ function ExamEditor() {
                 <Label>
                   Estado{" "}
                   <HelpHint>
-                    Draft (Borrador) lo deja oculto para los estudiantes — útil para
-                    preparar el examen sin que aparezca en sus listas. Publicado se ve
-                    durante la ventana de fechas. Cerrado lo bloquea manualmente antes
-                    de que termine la ventana.
+                    Draft (Borrador) lo deja oculto para los estudiantes — útil para preparar el
+                    examen sin que aparezca en sus listas. Publicado se ve durante la ventana de
+                    fechas. Cerrado lo bloquea manualmente antes de que termine la ventana.
                   </HelpHint>
                 </Label>
                 <Select
@@ -1297,6 +1307,28 @@ function ExamEditor() {
                   </Select>
                 </div>
               )}
+              {qType === "java_gui" && (
+                <div>
+                  <Label>Framework</Label>
+                  <Select
+                    value={qJavaFramework}
+                    onValueChange={(v) => setQJavaFramework(v as "swing" | "javafx")}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="swing">Swing / AWT</SelectItem>
+                      <SelectItem value="javafx">JavaFX</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {qJavaFramework === "javafx"
+                      ? "JavaFX requiere modo runner AWS Lambda — CheerpJ no incluye OpenJFX."
+                      : "Compatible con CheerpJ (navegador) y AWS Lambda."}
+                  </p>
+                </div>
+              )}
               {qType !== "cerrada" && qType !== "cerrada_multi" && (
                 <div>
                   <Label required>Rúbrica esperada</Label>
@@ -1370,8 +1402,8 @@ function ExamEditor() {
                       <Label>
                         Mínimo de marcadas{" "}
                         <HelpHint>
-                          Si lo defines, el estudiante DEBE marcar al menos esta cantidad para
-                          que cuente como respondida.
+                          Si lo defines, el estudiante DEBE marcar al menos esta cantidad para que
+                          cuente como respondida.
                         </HelpHint>
                       </Label>
                       <Input
@@ -1388,8 +1420,8 @@ function ExamEditor() {
                       <Label>
                         Máximo de marcadas{" "}
                         <HelpHint>
-                          Si lo defines, el estudiante NO puede marcar más de esta cantidad
-                          (puntaje = 0 si excede).
+                          Si lo defines, el estudiante NO puede marcar más de esta cantidad (puntaje
+                          = 0 si excede).
                         </HelpHint>
                       </Label>
                       <Input
@@ -1418,10 +1450,7 @@ function ExamEditor() {
                   )}
                 </Button>
                 {!editingId && exam?.course_id && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setBankDialogOpen(true)}
-                  >
+                  <Button variant="outline" onClick={() => setBankDialogOpen(true)}>
                     <Library className="h-4 w-4 mr-1" /> Importar del banco
                   </Button>
                 )}
