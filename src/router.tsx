@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routeTree } from "./routeTree.gen";
+import { computeRouterBasepath, clearLegacyOverrideStorage } from "@/modules/tenants/url";
 
 /**
  * Misma detección que ErrorBoundary + __root.tsx. Si cualquier ruta lazy
@@ -102,9 +103,22 @@ function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => vo
 }
 
 export const getRouter = () => {
+  // Limpia el localStorage del override viejo (legacy). La fuente de
+  // verdad ahora es la URL — ver [`url.ts`](src/modules/tenants/url.ts).
+  clearLegacyOverrideStorage();
+
+  // Basepath dinámico computado del URL inicial. Si la URL es
+  // `/t/fesna/app/admin/users`, el basepath es `/t/fesna` y TanStack ve
+  // `/app/admin/users` internamente — matchea las rutas existentes sin
+  // renombrarlas. Si no hay prefix (landing, auth), basepath es "".
+  // Cambiar de tenant a runtime requiere `hardNavigateToTenant()` que
+  // recarga la página para re-inicializar el router con nuevo basepath.
+  const basepath = computeRouterBasepath();
+
   const router = createRouter({
     routeTree,
     context: {},
+    basepath: basepath || undefined,
     scrollRestoration: true,
     defaultPreloadStaleTime: 0,
     defaultErrorComponent: DefaultErrorComponent,

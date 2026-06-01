@@ -363,7 +363,14 @@
     "featureAI": "Integrated AI for generating content and grading with custom criteria",
     "instructions": "Sign in with the credentials provided by your administrator.",
     "contactAdmin": "No account? Contact your administrator to register you on the platform.",
-    "backToHome": "← Back to home"
+    "backToHome": "← Back to home",
+    "institution": "Institution",
+    "selectInstitution": "Select your institution",
+    "institutionUrl": "URL:",
+    "tenantRequired": "Select your institution before continuing.",
+    "tenantMismatch": "You don't belong to the selected institution.",
+    "crossTenantOnlySuperAdmin": "Only SuperAdmin can access cross-tenant mode.",
+    "crossTenantOption": "— SuperAdmin: cross-tenant view —"
   },
   "tenant": {
     "platformBrand": "Educational Management Platform",

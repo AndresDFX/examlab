@@ -399,14 +399,17 @@ function SuperAdminTenantsPage() {
     await load();
   };
 
+  // Hard navigate a /t/<slug>/app — recarga la página para que el
+  // router se reinicie con el nuevo basepath. Como hace reload, ningún
+  // toast posterior se vería; el banner azul `TenantOverrideBanner`
+  // hace de feedback visual al cargar el nuevo contexto.
   const viewAs = (t: Tenant) => {
     setTenantOverride(t.slug);
-    toast.success(`Viendo como: ${t.name}. Recarga la página para refrescar listas.`);
   };
 
+  // Limpia el prefix → modo cross-tenant. Mismo hard reload.
   const clearViewAs = () => {
     setTenantOverride(null);
-    toast.success("Override de tenant limpiado. Recarga para volver al tuyo.");
   };
 
   /**
@@ -472,10 +475,12 @@ function SuperAdminTenantsPage() {
     });
     if (!ok) return;
     try {
-      // 4. Limpiamos el override de "ver como tenant" para que la sesión
-      //    impersonada vea su propia institución natural, no la que el
-      //    SuperAdmin tenía pegada.
-      setTenantOverride(null);
+      // NOTA: antes acá llamábamos `setTenantOverride(null)` para limpiar
+      // el contexto de "ver como tenant" antes de impersonar. Con la
+      // arquitectura URL-driven eso haría un hard navigate y nunca
+      // llegaríamos a `startImpersonate`. Ahora basta con dejar que el
+      // `TenantUrlGuard` redirija a la sesión impersonada a su URL
+      // correcto cuando la nueva sesión cargue.
       await startImpersonate(target.id);
       // startImpersonate hace window.location.href — no llegamos acá.
     } catch (e) {
