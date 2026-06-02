@@ -610,6 +610,147 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── Workshop FULL grading (async, batch + persistencia interna) ─────
+    // Diseñada para el flow async (cola): UN solo job IA persiste TODAS
+    // las preguntas abiertas de UNA entrega de taller en una sola llamada
+    // a Gemini, en vez de encolar N jobs (uno por pregunta) que era el
+    // patrón original.
+    //
+    // Diferencias vs `batchGrading`:
+    //   - Recibe `submissionId` (workshop_submissions.id) además de items.
+    //   - Persiste los resultados directamente en workshop_submission_answers
+    //     (UPDATE por submission_id + question_id) usando service_role.
+    //   - Devuelve `persistedInternally: true` para que el worker NO intente
+    //     re-escribir target_table (el worker tiene esa rama).
+    //
+    // body: {
+    //   workshopFullGrading: true,
+    //   submissionId: "<workshop_submissions.id>",
+    //   items: [{ qid, content, rubric, userAnswer, maxPoints }],
+    //   courseLanguage?: 'es'|'en',
+    //   courseId?: string
+    // }
+    // returns: { ok, persistedInternally: true, processed: N }
+    if (body.workshopFullGrading) {
+      const { submissionId, courseLanguage, courseId } = body;
+      const itemsInput = Array.isArray(body.items) ? body.items : [];
+      if (!submissionId || typeof submissionId !== "string") {
+        throw new Error("submissionId requerido");
+      }
+
+      const wfLang: "es" | "en" = courseLanguage === "en" ? "en" : "es";
+      const wfLangName = wfLang === "en" ? "inglés (English)" : "español";
+
+      // Mismo filter/map que batchGrading. Reusamos la misma forma de
+      // BatchItem para que gradeOpenAnswersInBatch funcione idéntico.
+      const batchInput: BatchItem[] = itemsInput
+        .filter(
+          (it: {
+            qid?: unknown;
+            userAnswer?: unknown;
+            maxPoints?: unknown;
+          }) =>
+            typeof it.qid === "string" &&
+            it.qid &&
+            (typeof it.userAnswer === "string" ? it.userAnswer.trim() : it.userAnswer) &&
+            typeof it.maxPoints === "number",
+        )
+        .map(
+          (it: {
+            qid: string;
+            content?: string;
+            rubric?: string;
+            userAnswer: string;
+            maxPoints: number;
+          }) => ({
+            qid: it.qid,
+            content: String(it.content ?? ""),
+            rubric: String(it.rubric ?? ""),
+            userAnswer: String(it.userAnswer),
+            maxPoints: Number(it.maxPoints),
+          }),
+        );
+
+      // Sin items válidos: salimos OK como si nada hubiera que calificar.
+      // El worker marca done. La submission ya tiene su placeholder
+      // "Pendiente IA…" del client — limpiar lo dejamos al docente o al
+      // próximo refresh; por ahora preservamos para diagnóstico.
+      if (batchInput.length === 0) {
+        return new Response(
+          JSON.stringify({ ok: true, persistedInternally: true, processed: 0 }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const customSystemWf = await buildGradingSystemPrompt(
+        "workshop_question",
+        courseId,
+        "Eres un evaluador académico imparcial. Calificas respuestas según las rúbricas dadas. Por cada respuesta devuelves un puntaje, retroalimentación útil y una estimación 0..1 de probabilidad de que sea generada por IA.",
+      );
+
+      const outWf = await gradeOpenAnswersInBatch(batchInput, customSystemWf, wfLangName);
+      if ("batchError" in outWf) {
+        // Bubble up con kind explícito para que el caller (worker) lo
+        // detecte como error transiente cuando aplica (http_status 429/5xx).
+        // El retry automático que metimos en complete_ai_grading mira
+        // el mensaje — incluimos http_status para que matchee el regex.
+        const httpStatus = outWf.batchError.http_status ?? 500;
+        const snippet = outWf.batchError.response_snippet ?? "sin detalle";
+        throw new Error(
+          `workshop_full batch failed: ${outWf.batchError.kind} (HTTP ${httpStatus}). ${snippet.slice(0, 200)}`,
+        );
+      }
+
+      // ─── Persistencia interna ────────────────────────────────────────
+      // UPDATE por (submission_id, question_id). Usamos el admin client
+      // (service_role) que ya teníamos arriba — bypasea RLS. Hacemos un
+      // UPDATE por qid en serie para tener un error claro si alguno falla.
+      // Para N≤30 preguntas el overhead es negligible vs el AI call.
+      let persisted = 0;
+      const persistErrors: Array<{ qid: string; error: string }> = [];
+      for (const [qid, r] of outWf.results.entries()) {
+        const it = batchInput.find((x) => x.qid === qid);
+        if (!it) continue; // qid devuelto que no estaba en el input — skip defensivo
+        const cap = it.maxPoints;
+        const score = Math.max(0, Math.min(cap, Number(r.score) || 0));
+        const aiLikelihood = Math.max(0, Math.min(1, Number(r.ai_likelihood) || 0));
+        const { error: upErr } = await adminClient
+          .from("workshop_submission_answers")
+          .update({
+            ai_grade: score,
+            ai_feedback: r.feedback || "Sin retroalimentación",
+            ai_likelihood: aiLikelihood,
+            ai_reasons: r.ai_reasons ?? null,
+          })
+          .eq("submission_id", submissionId)
+          .eq("question_id", qid);
+        if (upErr) {
+          persistErrors.push({ qid, error: upErr.message });
+        } else {
+          persisted++;
+        }
+      }
+
+      // Si TODAS las persistencias fallaron, lo tratamos como fallo del job.
+      // Si solo algunas → reportamos en la respuesta pero marcamos done
+      // (las que sí persistieron quedaron). Decisión: parcial mejor que cero.
+      if (persisted === 0 && persistErrors.length > 0) {
+        throw new Error(
+          `No se pudo persistir ningún resultado: ${persistErrors[0].error}`,
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          persistedInternally: true,
+          processed: persisted,
+          partial_errors: persistErrors.length > 0 ? persistErrors : undefined,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // ── Workshop grading mode ──
     if (body.workshopGrading) {
       const {

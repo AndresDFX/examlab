@@ -1648,10 +1648,22 @@ export function StudentWorkshopTaker({
       }
 
       // ── Encolado IA (solo modo async, después del upsert) ──
-      // Encolamos un job por pregunta abierta. El target row del job es
-      // el `workshop_submission_answers.id` recién upserteado. Por
-      // simplicidad encolamos N jobs (no UN batch) — más caro en
-      // llamadas Gemini pero coherente con el modelo per-row del worker.
+      // UN solo job batch que cubre TODAS las preguntas abiertas de esta
+      // entrega. El edge function `ai-grade-submission` con
+      // `workshopFullGrading: true` reusa `gradeOpenAnswersInBatch` (la
+      // misma helper que ya usaba el path sync) y persiste cada
+      // resultado en workshop_submission_answers internamente.
+      //
+      // Antes: N enqueues con `workshop_question` (1 por pregunta) → N
+      // llamadas a Gemini. Para un taller de 8 preguntas × 30 estudiantes
+      // = 240 llamadas. Ahora son 30 (una por estudiante). ~8× menos
+      // costo por concepto y menos rate-limiting.
+      //
+      // El target_row del job ahora es el workshop_submissions.id (la
+      // entrega completa), no el workshop_submission_answers.id de cada
+      // pregunta. El worker no escribe nada (persistedInternally=true);
+      // el target sirve para que el panel Cola resuelva el taller y el
+      // estudiante en su enrichment.
       if (useAsyncAi && batchItems.length > 0) {
         // Fetch el course_id del workshop para el RLS del docente
         // (mismo motivo que en examen + proyecto).
@@ -1664,39 +1676,30 @@ export function StudentWorkshopTaker({
           .maybeSingle();
         const courseIdForJob = (wsRow as { course_id?: string } | null)?.course_id ?? null;
 
-        for (const it of batchItems) {
-          // ID del answer recién upserteado.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { data: row } = await (supabase as any)
-            .from("workshop_submission_answers")
-            .select("id")
-            .eq("submission_id", submissionId)
-            .eq("question_id", it.qid)
-            .maybeSingle();
-          if (!row?.id) continue;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any).rpc("enqueue_ai_grading", {
-            _kind: "workshop_question",
-            _invoke_target: "ai-grade-submission",
-            _body: {
-              workshopQuestionGrading: true,
-              questionType: it.type,
-              questionContent: it.content,
-              expectedRubric: it.rubric,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any).rpc("enqueue_ai_grading", {
+          _kind: "workshop_full",
+          _invoke_target: "ai-grade-submission",
+          _body: {
+            workshopFullGrading: true,
+            submissionId,
+            items: batchItems.map((it) => ({
+              qid: it.qid,
+              content: it.content,
+              rubric: it.rubric,
+              userAnswer: it.userAnswer,
               maxPoints: it.maxPoints,
-              studentAnswer: it.userAnswer,
-              language: it.language,
-              courseLanguage,
-            },
-            _target_table: "workshop_submission_answers",
-            _target_row_id: row.id,
-            _field_grade: "ai_grade",
-            _field_feedback: "ai_feedback",
-            _field_likelihood: "ai_likelihood",
-            _field_reasons: "ai_reasons",
-            _course_id: courseIdForJob,
-          });
-        }
+            })),
+            courseLanguage,
+            courseId: courseIdForJob,
+          },
+          _target_table: "workshop_submissions",
+          _target_row_id: submissionId,
+          // field_grade / field_feedback no se usan (persistedInternally
+          // hace que el worker NO escriba), pero la RPC los requiere.
+          // Defaults ai_grade/ai_feedback están bien.
+          _course_id: courseIdForJob,
+        });
       }
 
       // ── Encolado IA de `codigo_zip` (async) ──

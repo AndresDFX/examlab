@@ -147,6 +147,10 @@ const KIND_LABELS: Record<string, string> = {
   exam_question: "Pregunta de examen",
   workshop_submission: "Taller",
   workshop_question: "Pregunta de taller",
+  // workshop_full: nuevo kind para el batch async — UN job IA por entrega
+  // de taller (todas las preguntas abiertas en una sola llamada Gemini).
+  // Reemplaza al patrón de N enqueues con kind `workshop_question`.
+  workshop_full: "Taller (batch)",
   project_submission: "Proyecto",
   project_file: "Archivo de proyecto",
   project_codigo_zip: "Código ZIP de proyecto",
