@@ -466,7 +466,21 @@ function ExamEditor() {
 
     if (editingId) {
       // UPDATE: no tocamos position ni starter_code para no clobberar lo que
-      // se haya personalizado.
+      // se haya personalizado. EXCEPCIÓN: si type=java_gui y starter_code
+      // coincide EXACTO con el default del otro framework, asumimos
+      // "template sin tocar" y refrescamos al default del framework
+      // actual. Sin esto, cambiar Swing→JavaFX dejaba `extends JFrame`
+      // con framework=javafx.
+      const existing = questions.find((q) => q.id === editingId);
+      const starterUpdate =
+        qType === "java_gui" && existing
+          ? (() => {
+              const desired = qJavaFramework === "javafx" ? JAVAFX_STARTER : JAVA_GUI_STARTER;
+              const other = qJavaFramework === "javafx" ? JAVA_GUI_STARTER : JAVAFX_STARTER;
+              if (existing.starter_code === other) return { starter_code: desired };
+              return null;
+            })()
+          : null;
       const { error } = await supabase
         .from("questions")
         .update({
@@ -476,6 +490,7 @@ function ExamEditor() {
           options,
           points: qPoints,
           language,
+          ...(starterUpdate ?? {}),
         })
         .eq("id", editingId);
       if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);

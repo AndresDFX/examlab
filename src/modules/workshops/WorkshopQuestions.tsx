@@ -232,7 +232,22 @@ export function TeacherWorkshopQuestionsEditor({
     const dbAny = supabase as any;
     if (editingId) {
       // UPDATE: no tocamos position ni starter_code para no clobberar lo que
-      // el alumno o el docente puedan haber personalizado.
+      // el docente haya personalizado. EXCEPCIÓN: si el tipo es java_gui y
+      // el starter_code persistido coincide EXACTO con el default del otro
+      // framework, asumimos "template sin tocar" y lo refrescamos al
+      // default del framework actual. Sin esto, cambiar la pregunta de
+      // Swing→JavaFX dejaba el `extends JFrame` con framework=javafx, y
+      // el alumno veía código incongruente con el runner.
+      const existing = questions.find((q) => q.id === editingId);
+      const starterUpdate =
+        qType === "java_gui" && existing
+          ? (() => {
+              const desired = qJavaFramework === "javafx" ? JAVAFX_STARTER : JAVA_GUI_STARTER;
+              const other = qJavaFramework === "javafx" ? JAVA_GUI_STARTER : JAVAFX_STARTER;
+              if (existing.starter_code === other) return { starter_code: desired };
+              return null; // preservar (custom o ya alineado).
+            })()
+          : null;
       const { error } = await dbAny
         .from("workshop_questions")
         .update({
@@ -243,6 +258,7 @@ export function TeacherWorkshopQuestionsEditor({
           points: qPoints,
           language,
           zip_single: qType === "codigo_zip" ? qZipSingle : false,
+          ...(starterUpdate ?? {}),
         })
         .eq("id", editingId);
       if (error) {
@@ -1949,17 +1965,23 @@ export function StudentWorkshopTaker({
             {q.type === "diagrama" && (
               <DiagramEditor value={answers[q.id] ?? ""} onChange={(v) => updateAnswer(q.id, v)} />
             )}
-            {q.type === "java_gui" && (
-              <JavaGuiRunner
-                value={answers[q.id] ?? q.starter_code ?? JAVA_GUI_STARTER}
-                onChange={(v) => updateAnswer(q.id, v)}
-                height="280px"
-                framework={
+            {q.type === "java_gui" &&
+              (() => {
+                // Default por framework: si no hay starter persistido,
+                // mostrar el template que coincide con el runner.
+                const fw =
                   (q.options as { java_framework?: "swing" | "javafx" } | null)?.java_framework ??
-                  "swing"
-                }
-              />
-            )}
+                  "swing";
+                const defaultStarter = fw === "javafx" ? JAVAFX_STARTER : JAVA_GUI_STARTER;
+                return (
+                  <JavaGuiRunner
+                    value={answers[q.id] ?? q.starter_code ?? defaultStarter}
+                    onChange={(v) => updateAnswer(q.id, v)}
+                    height="280px"
+                    framework={fw}
+                  />
+                );
+              })()}
             {q.type === "codigo_zip" &&
               q.zip_single &&
               (() => {

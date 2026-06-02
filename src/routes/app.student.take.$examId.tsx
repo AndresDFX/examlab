@@ -31,7 +31,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { CodeEditor, type CodeLanguage, getStarterCode } from "@/modules/code/CodeEditor";
 import { CodeRunnerPicker, type CodeRunnerProvider } from "@/modules/code/CodeRunnerPicker";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
-import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/modules/code/JavaGuiRunner";
+import { JavaGuiRunner, JAVA_GUI_STARTER, JAVAFX_STARTER } from "@/modules/code/JavaGuiRunner";
 import {
   saveAnswersLocally,
   isOnline,
@@ -1818,15 +1818,24 @@ function TakeExam() {
                   </div>
                 ) : q.type === "java_gui" ? (
                   <div onBlur={saveAnswersNow}>
-                    <JavaGuiRunner
-                      value={answers[q.id] ?? q.starter_code ?? JAVA_GUI_STARTER}
-                      onChange={(v) => updateAnswer(q.id, v)}
-                      height="280px"
-                      framework={
+                    {(() => {
+                      // El default depende del framework — JAVAFX_STARTER
+                      // si la pregunta es JavaFX. Sin esto el alumno veía
+                      // un JFrame template para una pregunta FX cuando el
+                      // docente no había custom-editado el starter.
+                      const fw =
                         (q.options as { java_framework?: "swing" | "javafx" } | null)
-                          ?.java_framework ?? "swing"
-                      }
-                    />
+                          ?.java_framework ?? "swing";
+                      const defaultStarter = fw === "javafx" ? JAVAFX_STARTER : JAVA_GUI_STARTER;
+                      return (
+                        <JavaGuiRunner
+                          value={answers[q.id] ?? q.starter_code ?? defaultStarter}
+                          onChange={(v) => updateAnswer(q.id, v)}
+                          height="280px"
+                          framework={fw}
+                        />
+                      );
+                    })()}
                   </div>
                 ) : (
                   (() => {

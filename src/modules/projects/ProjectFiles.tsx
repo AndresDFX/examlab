@@ -45,7 +45,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
 import { CodeEditor } from "@/modules/code/CodeEditor";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
-import { JavaGuiRunner, JAVA_GUI_STARTER } from "@/modules/code/JavaGuiRunner";
+import { JavaGuiRunner, JAVA_GUI_STARTER, JAVAFX_STARTER } from "@/modules/code/JavaGuiRunner";
 import { ProjectIntroVideoGate } from "@/modules/projects/ProjectIntroVideoGate";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
@@ -2247,17 +2247,28 @@ export function StudentProjectTaker({
             {q.type === "diagrama" && (
               <DiagramEditor value={answers[q.id] ?? ""} onChange={(v) => updateAnswer(q.id, v)} />
             )}
-            {q.type === "java_gui" && (
-              <JavaGuiRunner
-                value={answers[q.id] ?? q.starter_code ?? JAVA_GUI_STARTER}
-                onChange={(v) => updateAnswer(q.id, v)}
-                height="280px"
-                framework={
+            {q.type === "java_gui" &&
+              (() => {
+                // El starter por defecto depende del framework: si la
+                // pregunta es JavaFX (extends Application + start), no
+                // tiene sentido mostrar el Swing starter (JFrame). Sin
+                // este branch el alumno tendría que borrar el snippet de
+                // Swing manualmente — y proyectos no guardan
+                // q.starter_code (se inserta como null), así que el
+                // fallback es siempre el del framework correcto.
+                const fw =
                   (q.options as { java_framework?: "swing" | "javafx" } | null)?.java_framework ??
-                  "swing"
-                }
-              />
-            )}
+                  "swing";
+                const defaultStarter = fw === "javafx" ? JAVAFX_STARTER : JAVA_GUI_STARTER;
+                return (
+                  <JavaGuiRunner
+                    value={answers[q.id] ?? q.starter_code ?? defaultStarter}
+                    onChange={(v) => updateAnswer(q.id, v)}
+                    height="280px"
+                    framework={fw}
+                  />
+                );
+              })()}
             {q.type === "codigo_zip" &&
               q.zip_single &&
               (() => {

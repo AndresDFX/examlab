@@ -19,8 +19,8 @@
  * No es presentacional puro — sabe que está acoplada al hook. Razón:
  * cada grid repitiendo wiring de labels + selectores + ellipsis logic
  * sería ruido. Si un caso necesita custom (ej. añadir botones extra
- * adentro), usar los primitives de `@/components/ui/pagination` y
- * `usePagination` directo.
+ * adentro), copiar este archivo como base y usar `usePagination`
+ * directo — todo lo presentacional (botones, ellipsis) vive acá.
  *
  * Visible cuando `totalItems > 0`. Si solo hay 1 página, todavía
  * mostramos el selector de items por página (útil para "1 página de

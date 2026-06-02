@@ -112,7 +112,11 @@ interface Counts {
    *  antes una ventana de 24h dejaba fallos viejos "invisibles" en los
    *  contadores aunque seguían listados. */
   failed: number;
-  lastDoneAt: string | null;
+  /** TODOS los jobs en estado `done` (sin ventana). Reemplazó al
+   *  timestamp "último éxito" que aportaba poco — el contador da
+   *  contexto de volumen procesado. El detalle por job vive en el tab
+   *  Historial con filtros propios. */
+  done: number;
 }
 
 interface QueueJob {
@@ -311,7 +315,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
     pending: 0,
     processing: 0,
     failed: 0,
-    lastDoneAt: null,
+    done: 0,
   });
   const [jobs, setJobs] = useState<QueueJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -326,7 +330,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
   // propio tab (AiJobsHistoryPanel) con filtros propios — no se
   // duplican acá para evitar dos UX para responder la misma pregunta.
   const [statusFilter, setStatusFilter] = useState<
-    "active" | "pending" | "processing" | "failed" | "rejected" | "all"
+    "active" | "pending" | "processing" | "failed" | "rejected" | "done" | "all"
   >("active");
   // Usuario actual — necesario para detectar "este rechazo es para mí"
   // y mostrar el banner inline al docente que originó el job. Admin
@@ -395,7 +399,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
           .eq("tenant_id", tenantFilter);
         courseIdsFilter = ((courseRows ?? []) as Array<{ id: string }>).map((r) => r.id);
         if (courseIdsFilter.length === 0) {
-          setCounts({ pending: 0, processing: 0, failed: 0, lastDoneAt: null });
+          setCounts({ pending: 0, processing: 0, failed: 0, done: 0 });
           setJobs([]);
           setLoading(false);
           return;
@@ -412,7 +416,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
       // del filtro "active" muestra todos los failed sin importar la
       // antigüedad. Antes un `.gte(completed_at, -24h)` dejaba fallos
       // viejos fuera del contador pero visibles en la lista.
-      const [{ count: pending }, { count: processing }, { count: failed }, { data: lastDone }] =
+      const [{ count: pending }, { count: processing }, { count: failed }, { count: done }] =
         await Promise.all([
           applyTenant(
             db
@@ -435,17 +439,15 @@ function AiQueuePanel({ isAdmin = false }: Props) {
           applyTenant(
             db
               .from("ai_grading_queue")
-              .select("completed_at")
-              .eq("status", "done")
-              .order("completed_at", { ascending: false })
-              .limit(1),
-          ).maybeSingle(),
+              .select("id", { count: "exact", head: true })
+              .eq("status", "done"),
+          ),
         ]);
       setCounts({
         pending: pending ?? 0,
         processing: processing ?? 0,
         failed: failed ?? 0,
-        lastDoneAt: lastDone?.completed_at ?? null,
+        done: done ?? 0,
       });
 
       // Lista de jobs según filtro.
@@ -1025,10 +1027,15 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground flex items-center gap-1">
-              <CheckCircle2 className="h-3 w-3 text-emerald-500" /> Último éxito
+              <CheckCircle2 className="h-3 w-3 text-emerald-500" /> Completados
             </div>
-            <div className="text-sm tabular-nums mt-1">
-              {counts.lastDoneAt ? formatDateTime(counts.lastDoneAt) : "—"}
+            {/* Contador agregado de jobs `done` — más útil que el
+                timestamp "último éxito" anterior: refleja volumen
+                procesado y se complementa con el filtro "Solo
+                completados" del Select para drill-down. El detalle por
+                job (fechas, razones) vive en el tab Historial. */}
+            <div className="text-2xl font-semibold tabular-nums mt-1 text-emerald-600 dark:text-emerald-400">
+              {counts.done}
             </div>
           </CardContent>
         </Card>
@@ -1128,6 +1135,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                 <SelectItem value="processing">Solo en proceso</SelectItem>
                 <SelectItem value="failed">Solo fallados</SelectItem>
                 <SelectItem value="rejected">Solo rechazos abiertos</SelectItem>
+                <SelectItem value="done">Solo completados</SelectItem>
                 <SelectItem value="all">Todos (incluye cerrados)</SelectItem>
               </SelectContent>
             </Select>
