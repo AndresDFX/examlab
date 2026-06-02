@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/multi-select";
 import { SupabaseCronPanel } from "@/modules/admin/SupabaseCronPanel";
 import { AdminAiGradingPanel } from "@/modules/admin/AdminAiGradingPanel";
+import { AiJobsHistoryPanel } from "@/modules/ai/AiJobsHistoryPanel";
 import { logEvent } from "@/shared/lib/audit";
 import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
 import { readOverrideExpiry, getProcessingMode } from "@/modules/ai/ai-grading";
@@ -79,6 +80,7 @@ import {
   Ban,
   MessageSquareWarning,
   CheckCheck,
+  Archive,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";
@@ -194,10 +196,7 @@ function targetRouteForJob(
   if (j.target_table === "submissions" && j.examId) {
     return { to: "/app/teacher/monitor/$examId", params: { examId: j.examId } };
   }
-  if (
-    j.target_table === "project_submission_files" ||
-    j.target_table === "project_submissions"
-  ) {
+  if (j.target_table === "project_submission_files" || j.target_table === "project_submissions") {
     return { to: "/app/teacher/projects" };
   }
   return null;
@@ -232,6 +231,14 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
               <Sparkles className="h-3.5 w-3.5" />
               IA
             </TabsTrigger>
+            {/* Historial — jobs cerrados (done / cancelled / rechazo
+                acusado). Componente read-only con filtros propios
+                (rango de fechas, búsqueda). El scope lo enforza RLS:
+                Admin ve el historial completo de su tenant. */}
+            <TabsTrigger value="history" className="gap-1.5">
+              <Archive className="h-3.5 w-3.5" />
+              Historial
+            </TabsTrigger>
             {/* Configuración: sync/async + códigos override. Antes vivía
                 en Admin → Configuración → 'Cola IA'. Centralizada acá
                 porque toda la operativa de cola (procesamiento +
@@ -251,6 +258,9 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
           <TabsContent value="ia" className="space-y-4 mt-4">
             <AiQueuePanel isAdmin={isAdmin} />
           </TabsContent>
+          <TabsContent value="history" className="space-y-4 mt-4">
+            <AiJobsHistoryPanel isAdmin={isAdmin} />
+          </TabsContent>
           <TabsContent value="config" className="space-y-4 mt-4">
             <AdminAiGradingPanel />
           </TabsContent>
@@ -261,7 +271,28 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
           )}
         </Tabs>
       ) : (
-        <AiQueuePanel isAdmin={isAdmin} />
+        // Docente: dos tabs (Activos + Historial). Antes era panel
+        // inline sin tabs; agregamos la pestaña Historial para paridad
+        // con Admin. El scope del historial lo enforza RLS — el docente
+        // solo ve jobs que él encoló o de cursos que dicta.
+        <Tabs defaultValue="ia">
+          <TabsList>
+            <TabsTrigger value="ia" className="gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              Activos
+            </TabsTrigger>
+            <TabsTrigger value="history" className="gap-1.5">
+              <Archive className="h-3.5 w-3.5" />
+              Historial
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="ia" className="space-y-4 mt-4">
+            <AiQueuePanel isAdmin={isAdmin} />
+          </TabsContent>
+          <TabsContent value="history" className="space-y-4 mt-4">
+            <AiJobsHistoryPanel isAdmin={isAdmin} />
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );
@@ -288,10 +319,15 @@ function AiQueuePanel({ isAdmin = false }: Props) {
   const [retryNonce, setRetryNonce] = useState(0);
   // Filtro por estado. "active" = pending + processing + failed +
   // rechazos no acusados (default, útil para "qué hay corriendo / qué me
-  // toca cerrar"). "history" = done + cancelled + rechazos acusados —
-  // los jobs ya cerrados. "all" trae todo sin discriminar. Y cada
-  // estado individual queda como filtro fino.
-  const [statusFilter, setStatusFilter] = useState<"active" | "history" | Status | "all">("active");
+  // toca cerrar"). "all" trae todo sin discriminar. Y cada estado
+  // individual queda como filtro fino.
+  //
+  // Los estados cerrados (done/cancelled/rejected acusados) viven en su
+  // propio tab (AiJobsHistoryPanel) con filtros propios — no se
+  // duplican acá para evitar dos UX para responder la misma pregunta.
+  const [statusFilter, setStatusFilter] = useState<
+    "active" | "pending" | "processing" | "failed" | "rejected" | "all"
+  >("active");
   // Usuario actual — necesario para detectar "este rechazo es para mí"
   // y mostrar el banner inline al docente que originó el job. Admin
   // que rechazó NO necesita banner; ya sabe que rechazó.
@@ -429,13 +465,10 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         query = query.or(
           "status.in.(pending,processing,failed),and(status.eq.rejected,acknowledged_at.is.null)",
         );
-      } else if (statusFilter === "history") {
-        // Historial = done/cancelled + rechazos ya acusados. El job
-        // rejected acked es equivalente a "cerrado" — pertenece al
-        // archivo, no a la cola activa.
-        query = query.or(
-          "status.in.(done,cancelled),and(status.eq.rejected,acknowledged_at.not.is.null)",
-        );
+      } else if (statusFilter === "rejected") {
+        // Solo rechazos abiertos (sin acusar). Los acusados están en
+        // el tab Historial.
+        query = query.eq("status", "rejected").is("acknowledged_at", null);
       } else if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
       }
@@ -1091,14 +1124,11 @@ function AiQueuePanel({ isAdmin = false }: Props) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="active">Activos + rechazos abiertos</SelectItem>
-                <SelectItem value="history">Historial (cerrados)</SelectItem>
                 <SelectItem value="pending">Solo pendientes</SelectItem>
                 <SelectItem value="processing">Solo en proceso</SelectItem>
                 <SelectItem value="failed">Solo fallados</SelectItem>
-                <SelectItem value="rejected">Solo rechazados</SelectItem>
-                <SelectItem value="done">Solo completados</SelectItem>
-                <SelectItem value="cancelled">Solo cancelados</SelectItem>
-                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="rejected">Solo rechazos abiertos</SelectItem>
+                <SelectItem value="all">Todos (incluye cerrados)</SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -1129,11 +1159,11 @@ function AiQueuePanel({ isAdmin = false }: Props) {
               title="No hay jobs"
               description={
                 statusFilter === "active"
-                  ? "No hay jobs activos en la cola. Cuando se encole una calificación con IA aparecerá aquí."
-                  : statusFilter === "history"
-                    ? "Aún no hay jobs cerrados (completados, cancelados o rechazos acusados)."
+                  ? "No hay jobs activos en la cola. Cuando se encole una calificación con IA aparecerá aquí. Para jobs ya cerrados (completados / cancelados / rechazos acusados) revisa el tab Historial."
+                  : statusFilter === "all"
+                    ? "No hay jobs en la cola."
                     : `No hay jobs con el estado "${
-                        statusFilter === "all" ? "todos" : STATUS_LABELS[statusFilter as Status]
+                        STATUS_LABELS[statusFilter as Status] ?? statusFilter
                       }".`
               }
             />
