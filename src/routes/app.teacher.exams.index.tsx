@@ -44,6 +44,8 @@ import { DuplicateAssessmentDialog } from "@/shared/components/DuplicateAssessme
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { DateCell } from "@/components/ui/date-cell";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { formatDateTime, formatDuration, formatPercent } from "@/shared/lib/format";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { toCSV } from "@/shared/lib/csv";
@@ -135,6 +137,17 @@ function TeacherExams() {
   }, [exams]);
 
   const sel = useMultiSelect(filteredExams);
+
+  // Paginación client-side sobre la lista filtrada. El multi-select
+  // sigue trabajando sobre `filteredExams` (todas las páginas) para
+  // que "seleccionar todos" abarque las coincidencias del filtro y no
+  // solo la página visible. resetKey vuelve a la página 1 al cambiar
+  // search/curso/corte.
+  const pagination = usePagination(filteredExams, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:teacher_exams",
+    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}`,
+  });
 
   const handleBulkDelete = async (ids: string[]) => {
     const { error } = await supabase.from("exams").delete().in("id", ids);
@@ -231,21 +244,18 @@ function TeacherExams() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const load = async () => {
-    const [
-      { data: cs, error: csErr },
-      { data: es, error: esErr },
-      { data: cs2 },
-    ] = await Promise.all([
-      supabase.from("courses").select("id, name, period").order("name"),
-      supabase
-        .from("exams")
-        .select("*, course:courses(name, period)")
-        .order("start_time", { ascending: false }),
-      (supabase as any)
-        .from("grade_cuts")
-        .select("id, course_id, name, exam_weight")
-        .order("position"),
-    ]);
+    const [{ data: cs, error: csErr }, { data: es, error: esErr }, { data: cs2 }] =
+      await Promise.all([
+        supabase.from("courses").select("id, name, period").order("name"),
+        supabase
+          .from("exams")
+          .select("*, course:courses(name, period)")
+          .order("start_time", { ascending: false }),
+        (supabase as any)
+          .from("grade_cuts")
+          .select("id, course_id, name, exam_weight")
+          .order("position"),
+      ]);
     if (csErr || esErr) {
       setLoadError(friendlyError(csErr ?? esErr, "No pudimos cargar los exámenes."));
       return;
@@ -493,53 +503,55 @@ function TeacherExams() {
         actions={
           <>
             <ImportExportMenu
-            label={t("exam.title")}
-            resourceName="examenes"
-            templateCsv={EXAMS_TEMPLATE}
-            onExport={() => {
-              if (!exams.length) return "";
-              return toCSV(
-                exams.map((e) => ({
-                  course_name: e.course?.name ?? "",
-                  title: e.title,
-                  description: e.description ?? "",
-                  start_time: e.start_time,
-                  end_time: e.end_time,
-                  time_limit_minutes: e.time_limit_minutes,
-                  navigation_type: e.navigation_type,
-                  shuffle_enabled: e.shuffle_enabled ? "true" : "false",
-                })),
-              );
-            }}
-            onImport={async (rows) => {
-              if (!user) throw new Error("Sesión no válida");
-              const courseByName = new Map(courses.map((c) => [c.name.toLowerCase().trim(), c.id]));
-              let created = 0,
-                skipped = 0;
-              for (const r of rows) {
-                const cid = courseByName.get((r.course_name || "").toLowerCase().trim());
-                if (!cid || !r.title || !r.start_time || !r.end_time) {
-                  skipped++;
-                  continue;
+              label={t("exam.title")}
+              resourceName="examenes"
+              templateCsv={EXAMS_TEMPLATE}
+              onExport={() => {
+                if (!exams.length) return "";
+                return toCSV(
+                  exams.map((e) => ({
+                    course_name: e.course?.name ?? "",
+                    title: e.title,
+                    description: e.description ?? "",
+                    start_time: e.start_time,
+                    end_time: e.end_time,
+                    time_limit_minutes: e.time_limit_minutes,
+                    navigation_type: e.navigation_type,
+                    shuffle_enabled: e.shuffle_enabled ? "true" : "false",
+                  })),
+                );
+              }}
+              onImport={async (rows) => {
+                if (!user) throw new Error("Sesión no válida");
+                const courseByName = new Map(
+                  courses.map((c) => [c.name.toLowerCase().trim(), c.id]),
+                );
+                let created = 0,
+                  skipped = 0;
+                for (const r of rows) {
+                  const cid = courseByName.get((r.course_name || "").toLowerCase().trim());
+                  if (!cid || !r.title || !r.start_time || !r.end_time) {
+                    skipped++;
+                    continue;
+                  }
+                  const { error } = await supabase.from("exams").insert({
+                    course_id: cid,
+                    title: r.title,
+                    description: r.description || null,
+                    start_time: new Date(r.start_time).toISOString(),
+                    end_time: new Date(r.end_time).toISOString(),
+                    time_limit_minutes: Number(r.time_limit_minutes) || 60,
+                    navigation_type: r.navigation_type || "libre",
+                    shuffle_enabled: String(r.shuffle_enabled).toLowerCase() === "true",
+                    created_by: user.id,
+                  });
+                  if (error) skipped++;
+                  else created++;
                 }
-                const { error } = await supabase.from("exams").insert({
-                  course_id: cid,
-                  title: r.title,
-                  description: r.description || null,
-                  start_time: new Date(r.start_time).toISOString(),
-                  end_time: new Date(r.end_time).toISOString(),
-                  time_limit_minutes: Number(r.time_limit_minutes) || 60,
-                  navigation_type: r.navigation_type || "libre",
-                  shuffle_enabled: String(r.shuffle_enabled).toLowerCase() === "true",
-                  created_by: user.id,
-                });
-                if (error) skipped++;
-                else created++;
-              }
-              await load();
-              return t("import.imported", { created, skipped });
-            }}
-          />
+                await load();
+                return t("import.imported", { created, skipped });
+              }}
+            />
             <Button size="sm" onClick={openNew}>
               <Plus className="h-4 w-4 mr-1" />
               {t("exam.newExam")}
@@ -692,7 +704,7 @@ function TeacherExams() {
                   hint="Limpia el buscador o el curso para ver todos los exámenes."
                 />
               ) : null}
-              {filteredExams.map((e) => (
+              {pagination.paginatedItems.map((e) => (
                 <TableRow key={e.id} data-state={sel.isSelected(e.id) ? "selected" : undefined}>
                   <TableCell className="w-10">
                     <MultiSelectCheckbox id={e.id} state={sel} />
@@ -818,6 +830,7 @@ function TeacherExams() {
               ))}
             </TableBody>
           </Table>
+          <DataPagination state={pagination} entityNamePlural="exámenes" />
         </CardContent>
       </Card>
 
@@ -868,9 +881,9 @@ function TeacherExams() {
               <Label>
                 Estado{" "}
                 <HelpHint>
-                  Borrador lo deja oculto para los estudiantes — útil para preparar el
-                  examen sin que aparezca en sus listas. Publicado se muestra dentro de
-                  la ventana de fechas. Cerrado bloquea intentos nuevos manualmente.
+                  Borrador lo deja oculto para los estudiantes — útil para preparar el examen sin
+                  que aparezca en sus listas. Publicado se muestra dentro de la ventana de fechas.
+                  Cerrado bloquea intentos nuevos manualmente.
                 </HelpHint>
               </Label>
               <Select

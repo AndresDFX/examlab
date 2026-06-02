@@ -55,6 +55,8 @@ import {
   MultiSelectHeaderCheckbox,
   MultiSelectCheckbox,
 } from "@/components/ui/multi-select";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
@@ -219,6 +221,15 @@ function ErrorsModule() {
   // límite de 300 del RPC, hay que migrar a un RPC de agrupamiento en
   // SQL — por ahora, 300 cubre el caso típico.
   const groups = useMemo<ErrorEventGroup<ErrorEvent>[]>(() => groupEvents(events), [events]);
+
+  // Paginación sobre la lista de GRUPOS (cada grupo es una fila del grid;
+  // los eventos individuales viven dentro del grupo expandido). Reset
+  // cuando cambia el scope del fetch (status + tenant).
+  const pagination = usePagination(groups, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:admin_errors",
+    resetKey: `${statusFilter}|${tenantFilter}`,
+  });
 
   const total = useMemo(
     () => ERROR_STATUSES.reduce((acc, s) => acc + (counts[s] ?? 0), 0),
@@ -432,7 +443,7 @@ function ErrorsModule() {
                     }
                   />
                 ) : (
-                  groups.map((g) => {
+                  pagination.paginatedItems.map((g) => {
                     const aggStatus = aggregateGroupStatus(g.statusCounts);
                     const aggCfg = STATUS_CFG[aggStatus];
                     const isOpen = expandedGroups.has(g.fingerprint);
@@ -548,6 +559,7 @@ function ErrorsModule() {
                 )}
               </TableBody>
             </Table>
+            <DataPagination state={pagination} entityNamePlural="errores" />
           </CardContent>
         </Card>
       )}

@@ -45,6 +45,8 @@ import { toast } from "sonner";
 import { Award, Download, Copy, ExternalLink } from "lucide-react";
 import { downloadCertificate, buildVerifyUrl } from "@/modules/certificates/certificate-pdf";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 
 export const Route = createFileRoute("/app/certificates")({ component: CertificatesAdmin });
 
@@ -191,6 +193,11 @@ function CertificatesAdmin() {
       return true;
     });
   }, [items, filterCourseId, search, showRevoked]);
+  const pagination = usePagination(filtered, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:certificates",
+    resetKey: `${search}|${filterCourseId}|${showRevoked}|${tenantFilter}`,
+  });
 
   const handleDownload = async (cert: CertificateRow) => {
     try {
@@ -364,7 +371,7 @@ function CertificatesAdmin() {
                     description="Ajusta el curso, la búsqueda o limpia los filtros para ver el resto."
                   />
                 ) : (
-                  filtered.map((c) => (
+                  pagination.paginatedItems.map((c) => (
                     <TableRow
                       key={c.id}
                       data-state={c.revoked_at ? "selected" : undefined}
@@ -442,6 +449,7 @@ function CertificatesAdmin() {
                 )}
               </TableBody>
             </Table>
+            <DataPagination state={pagination} entityNamePlural="certificados" />
           </CardContent>
         </Card>
       )}

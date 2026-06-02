@@ -41,6 +41,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { DateCell } from "@/components/ui/date-cell";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
 import { WorkshopGroupsEditor } from "@/modules/workshops/WorkshopGroupsEditor";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -256,9 +258,7 @@ function TeacherWorkshops() {
   /** Mapa workshop_id → courseIds[]. Poblado desde workshop_courses (M:N).
    *  Para talleres single-course tiene un único course_id; para multi
    *  trae varios. Usado por el grid (badges) y el edit dialog (set inicial). */
-  const [workshopCourses, setWorkshopCourses] = useState<Map<string, string[]>>(
-    new Map(),
-  );
+  const [workshopCourses, setWorkshopCourses] = useState<Map<string, string[]>>(new Map());
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [aiErrorsByWorkshop, setAiErrorsByWorkshop] = useState<Record<string, number>>({});
@@ -306,6 +306,17 @@ function TeacherWorkshops() {
   }, [workshops]);
 
   const sel = useMultiSelect(filteredWorkshops);
+
+  // Paginación client-side sobre la lista filtrada. El multi-select
+  // sigue trabajando sobre `filteredWorkshops` (todas las páginas) para
+  // que "seleccionar todos" abarque coincidencias del filtro, no solo
+  // los visibles. resetKey vuelve a la página 1 cuando cambian los
+  // filtros activos.
+  const pagination = usePagination(filteredWorkshops, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:teacher_workshops",
+    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}`,
+  });
 
   const handleBulkDelete = async (ids: string[]) => {
     const { error } = await supabase.from("workshops").delete().in("id", ids);
@@ -559,9 +570,7 @@ function TeacherWorkshops() {
     // Si las queries crítica fallan (courses, workshops), marcamos
     // loadError para mostrar ErrorState en vez de "0 talleres" silencioso.
     if (csErr || wsErr) {
-      setLoadError(
-        friendlyError(csErr ?? wsErr, "No pudimos cargar los talleres."),
-      );
+      setLoadError(friendlyError(csErr ?? wsErr, "No pudimos cargar los talleres."));
       return;
     }
     setLoadError(null);
@@ -864,16 +873,14 @@ function TeacherWorkshops() {
       const dbAny2 = supabase as any;
       const editedCourseIds = [...selectedCourseIds];
       // Si el set quedó vacío (edge case), forzamos al menos el primario.
-      const finalCourseIds =
-        editedCourseIds.length > 0 ? editedCourseIds : [form.course_id!];
+      const finalCourseIds = editedCourseIds.length > 0 ? editedCourseIds : [form.course_id!];
       await dbAny2.from("workshop_courses").delete().eq("workshop_id", form.id);
       const wcEditRows = finalCourseIds.map((cid) => {
         const cc = courseCuts[cid];
         return {
           workshop_id: form.id,
           course_id: cid,
-          cut_id:
-            cc?.cut_id || (cid === form.course_id ? form.cut_id || null : null),
+          cut_id: cc?.cut_id || (cid === form.course_id ? form.cut_id || null : null),
           weight:
             cc?.weight != null
               ? Math.max(0, Number(cc.weight))
@@ -967,9 +974,7 @@ function TeacherWorkshops() {
         };
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: wcErr } = await (supabase as any)
-        .from("workshop_courses")
-        .insert(wcRows);
+      const { error: wcErr } = await (supabase as any).from("workshop_courses").insert(wcRows);
       if (wcErr) {
         toast.error(friendlyUniqueViolation(wcErr) ?? wcErr.message);
         return;
@@ -1767,9 +1772,7 @@ function TeacherWorkshops() {
           .order("position"),
         dbAny
           .from("workshop_submission_answers")
-          .select(
-            "question_id, answer_text, selected_option, code_content, diagram_code",
-          )
+          .select("question_id, answer_text, selected_option, code_content, diagram_code")
           .eq("submission_id", sub.id),
       ]);
       const questions = (qs ?? []) as Array<{
@@ -1782,13 +1785,15 @@ function TeacherWorkshops() {
         starter_code: string | null;
       }>;
       const answersByQid = new Map(
-        ((ans ?? []) as Array<{
-          question_id: string;
-          answer_text: string | null;
-          selected_option: string | null;
-          code_content: string | null;
-          diagram_code: string | null;
-        }>).map((a) => [a.question_id, a]),
+        (
+          (ans ?? []) as Array<{
+            question_id: string;
+            answer_text: string | null;
+            selected_option: string | null;
+            code_content: string | null;
+            diagram_code: string | null;
+          }>
+        ).map((a) => [a.question_id, a]),
       );
 
       if (questions.length > 0) {
@@ -1817,12 +1822,10 @@ function TeacherWorkshops() {
             localScores.set(q.id, { earned: 0, feedback: "Pregunta cerrada (calificación local)" });
             continue;
           }
-          const raw =
-            a?.code_content ?? a?.diagram_code ?? a?.answer_text ?? "";
+          const raw = a?.code_content ?? a?.diagram_code ?? a?.answer_text ?? "";
           const trimmed = String(raw).trim();
           const starter = String(q.starter_code ?? "").trim();
-          const isEmpty =
-            !trimmed || (starter !== "" && trimmed === starter);
+          const isEmpty = !trimmed || (starter !== "" && trimmed === starter);
           if (isEmpty) {
             localScores.set(q.id, { earned: 0, feedback: "Sin respuesta" });
             continue;
@@ -1862,9 +1865,7 @@ function TeacherWorkshops() {
           >;
           for (const it of batchItems) {
             const r = results[it.qid];
-            const earned = r
-              ? Math.max(0, Math.min(it.maxPoints, Number(r.score) || 0))
-              : 0;
+            const earned = r ? Math.max(0, Math.min(it.maxPoints, Number(r.score) || 0)) : 0;
             localScores.set(it.qid, {
               earned,
               feedback: r?.feedback ?? "Sin retroalimentación",
@@ -2216,53 +2217,55 @@ function TeacherWorkshops() {
         actions={
           <>
             <ImportExportMenu
-            label="Talleres"
-            resourceName="talleres"
-            templateCsv={WORKSHOPS_TEMPLATE}
-            onExport={() => {
-              if (!workshops.length) return "";
-              return toCSV(
-                workshops.map((w) => ({
-                  course_name: w.course?.name ?? "",
-                  title: w.title,
-                  description: w.description ?? "",
-                  instructions: w.instructions ?? "",
-                  external_link: w.external_link ?? "",
-                  due_date: w.due_date ?? "",
-                  max_score: w.max_score,
-                  status: w.status,
-                })),
-              );
-            }}
-            onImport={async (rows) => {
-              if (!user) throw new Error("Sesión no válida");
-              const courseByName = new Map(courses.map((c) => [c.name.toLowerCase().trim(), c.id]));
-              let created = 0,
-                skipped = 0;
-              for (const r of rows) {
-                const cid = courseByName.get((r.course_name || "").toLowerCase().trim());
-                if (!cid || !r.title) {
-                  skipped++;
-                  continue;
+              label="Talleres"
+              resourceName="talleres"
+              templateCsv={WORKSHOPS_TEMPLATE}
+              onExport={() => {
+                if (!workshops.length) return "";
+                return toCSV(
+                  workshops.map((w) => ({
+                    course_name: w.course?.name ?? "",
+                    title: w.title,
+                    description: w.description ?? "",
+                    instructions: w.instructions ?? "",
+                    external_link: w.external_link ?? "",
+                    due_date: w.due_date ?? "",
+                    max_score: w.max_score,
+                    status: w.status,
+                  })),
+                );
+              }}
+              onImport={async (rows) => {
+                if (!user) throw new Error("Sesión no válida");
+                const courseByName = new Map(
+                  courses.map((c) => [c.name.toLowerCase().trim(), c.id]),
+                );
+                let created = 0,
+                  skipped = 0;
+                for (const r of rows) {
+                  const cid = courseByName.get((r.course_name || "").toLowerCase().trim());
+                  if (!cid || !r.title) {
+                    skipped++;
+                    continue;
+                  }
+                  const { error } = await supabase.from("workshops").insert({
+                    course_id: cid,
+                    title: r.title,
+                    description: r.description || null,
+                    instructions: r.instructions || null,
+                    external_link: r.external_link || null,
+                    due_date: r.due_date ? new Date(r.due_date).toISOString() : null,
+                    max_score: Number(r.max_score) || 100,
+                    status: r.status || "draft",
+                    created_by: user.id,
+                  });
+                  if (error) skipped++;
+                  else created++;
                 }
-                const { error } = await supabase.from("workshops").insert({
-                  course_id: cid,
-                  title: r.title,
-                  description: r.description || null,
-                  instructions: r.instructions || null,
-                  external_link: r.external_link || null,
-                  due_date: r.due_date ? new Date(r.due_date).toISOString() : null,
-                  max_score: Number(r.max_score) || 100,
-                  status: r.status || "draft",
-                  created_by: user.id,
-                });
-                if (error) skipped++;
-                else created++;
-              }
-              await load();
-              return `${created} talleres creados · ${skipped} omitidos`;
-            }}
-          />
+                await load();
+                return `${created} talleres creados · ${skipped} omitidos`;
+              }}
+            />
             <Button size="sm" onClick={openNew}>
               <Plus className="h-4 w-4 mr-1" />
               Nuevo taller
@@ -2406,7 +2409,7 @@ function TeacherWorkshops() {
                   hint="Limpia el buscador o el curso para ver todos los talleres."
                 />
               ) : null}
-              {filteredWorkshops.map((ws) => (
+              {pagination.paginatedItems.map((ws) => (
                 <TableRow key={ws.id} data-state={sel.isSelected(ws.id) ? "selected" : undefined}>
                   <TableCell className="w-10">
                     <MultiSelectCheckbox id={ws.id} state={sel} />
@@ -2423,11 +2426,7 @@ function TeacherWorkshops() {
                         {(() => {
                           const wcIds = workshopCourses.get(ws.id);
                           const ids =
-                            wcIds && wcIds.length > 0
-                              ? wcIds
-                              : ws.course_id
-                                ? [ws.course_id]
-                                : [];
+                            wcIds && wcIds.length > 0 ? wcIds : ws.course_id ? [ws.course_id] : [];
                           const names = ids
                             .map((cid) => courses.find((c) => c.id === cid)?.name)
                             .filter(Boolean);
@@ -2550,10 +2549,7 @@ function TeacherWorkshops() {
                             for (const cid of allIds) {
                               cutsByCourse[cid] = {
                                 cut_id: cid === ws.course_id ? ((ws as any).cut_id ?? null) : null,
-                                weight:
-                                  cid === ws.course_id
-                                    ? Number((ws as any).weight ?? 1)
-                                    : 1,
+                                weight: cid === ws.course_id ? Number((ws as any).weight ?? 1) : 1,
                               };
                             }
                             setCourseCuts(cutsByCourse);
@@ -2575,6 +2571,7 @@ function TeacherWorkshops() {
               ))}
             </TableBody>
           </Table>
+          <DataPagination state={pagination} entityNamePlural="talleres" />
         </CardContent>
       </Card>
 

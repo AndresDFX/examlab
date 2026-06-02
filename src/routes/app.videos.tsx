@@ -71,6 +71,8 @@ import {
 import { useActiveRole } from "@/hooks/use-active-role";
 import { formatFileSize } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 
 export const Route = createFileRoute("/app/videos")({ component: VideoLibrary });
 
@@ -241,6 +243,11 @@ function VideoLibrary() {
       }),
     [rows, showArchived, filterCourseId, search],
   );
+  const pagination = usePagination(visible, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:videos",
+    resetKey: `${search}|${filterCourseId ?? ""}|${showArchived}|${tenantFilter}`,
+  });
 
   const courseNameById = useMemo(() => {
     const m: Record<string, string> = {};
@@ -630,7 +637,7 @@ function VideoLibrary() {
                         />
                       );
                     })()
-                  : visible.map((v) => (
+                  : pagination.paginatedItems.map((v) => (
                       <TableRow key={v.id} className={v.is_archived ? "opacity-60" : undefined}>
                         <TableCell className="max-w-md">
                           <div className="flex items-start gap-3">
@@ -735,6 +742,7 @@ function VideoLibrary() {
               </TableBody>
             </Table>
           )}
+          <DataPagination state={pagination} entityNamePlural="videos" />
         </CardContent>
       </Card>
 

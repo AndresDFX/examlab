@@ -32,6 +32,8 @@ import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { Spinner } from "@/components/ui/spinner";
 import { DateCell } from "@/components/ui/date-cell";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { useTranslation } from "react-i18next";
 import {
   Shield,
@@ -550,6 +552,17 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
     );
   }, [logs, search]);
 
+  // Paginación client-side sobre la lista ya filtrada por search. Los
+  // demás filtros (category/severity/etc.) son server-side y resetean
+  // el offset en `load(reset=true)`; aquí solo necesitamos resetear a
+  // página 1 cuando cambia el search (que filtra in-memory) o cuando
+  // cambia el set base de logs (length).
+  const pagination = usePagination(filtered, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:audit_logs",
+    resetKey: `${search}|${logs.length}`,
+  });
+
   // ── Filtros activos ───────────────────────────────────────────────────────
   const hasFilters =
     search ||
@@ -824,7 +837,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                   ) : filtered.length === 0 ? (
                     <TableEmpty colSpan={mode === "admin" ? 8 : 7} text={t("audit.noEvents")} />
                   ) : (
-                    filtered.map((log) => {
+                    pagination.paginatedItems.map((log) => {
                       const sev = SEVERITY_CONFIG[log.severity] ?? SEVERITY_CONFIG.info;
                       const cat = CATEGORY_CONFIG[log.category];
                       return (
@@ -940,6 +953,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
               </Button>
             </div>
           )}
+          <DataPagination state={pagination} entityNamePlural="eventos" />
         </CardContent>
       </Card>
 

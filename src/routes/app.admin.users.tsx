@@ -44,6 +44,8 @@ import {
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Users as UsersIcon, Eye, EyeOff } from "lucide-react";
 import { DateCell } from "@/components/ui/date-cell";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { startImpersonate } from "@/modules/admin/impersonation";
 import { Spinner } from "@/components/ui/spinner";
 import { toCSV } from "@/shared/lib/csv";
@@ -222,9 +224,23 @@ function AdminUsers() {
     }
     return out;
   }, [rows, search, roleFilter]);
-  // El multi-select trabaja sobre la lista visible. Si seleccioné todo
-  // con un filtro activo, "seleccionar todos" se refiere a lo filtrado.
+  // El multi-select trabaja sobre la lista filtrada COMPLETA (todas las
+  // páginas), no sobre la página actual — "seleccionar todos" cuando
+  // hay un filtro activo significa "todos los que cumplen el filtro",
+  // no "los visibles en la página 3". Para bulk delete de muchos
+  // usuarios filtrados, lo intuitivo es no tener que paginar.
   const sel = useMultiSelect(filteredRows);
+
+  // Paginación client-side. La RLS ya acota a lo que el caller puede
+  // ver; partir en páginas evita renderizar 500 filas en tenants
+  // grandes. resetKey incluye search + roleFilter + tenantFilter para
+  // que al filtrar el usuario vuelva a página 1 (no se quede en la
+  // página 7 con grid vacío).
+  const pagination = usePagination(filteredRows, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:admin_users",
+    resetKey: `${search}|${roleFilter}|${tenantFilter}`,
+  });
 
   const handleBulkDelete = async (ids: string[]) => {
     // Borramos vía edge `admin-delete-user` (uno por uno) para que cada
@@ -1017,7 +1033,7 @@ function AdminUsers() {
                       }
                     />
                   )}
-                  {filteredRows.map((r) => (
+                  {pagination.paginatedItems.map((r) => (
                     <TableRow key={r.id} data-state={sel.isSelected(r.id) ? "selected" : undefined}>
                       <TableCell className="w-10">
                         <MultiSelectCheckbox id={r.id} state={sel} />
@@ -1112,6 +1128,7 @@ function AdminUsers() {
               </Table>
             </div>
           )}
+          <DataPagination state={pagination} entityNamePlural="usuarios" />
         </CardContent>
       </Card>
 

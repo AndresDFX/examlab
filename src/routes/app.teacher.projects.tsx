@@ -98,6 +98,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { DateCell } from "@/components/ui/date-cell";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { ListSkeleton } from "@/components/ui/table-skeleton";
 import { formatDateTime, formatPercent } from "@/shared/lib/format";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
@@ -238,6 +240,17 @@ function TeacherProjects() {
   }, [projects]);
 
   const sel = useMultiSelect(filteredProjects);
+
+  // Paginación client-side sobre la lista filtrada. El multi-select
+  // sigue trabajando sobre `filteredProjects` (todas las páginas) para
+  // que "seleccionar todos" abarque coincidencias del filtro, no solo
+  // los visibles. resetKey vuelve a la página 1 cuando cambian los
+  // filtros activos.
+  const pagination = usePagination(filteredProjects, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:teacher_projects",
+    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}`,
+  });
 
   // Export CSV de la lista filtrada — solo lectura. No soportamos import
   // porque la creación de un proyecto requiere rúbricas, archivos esperados
@@ -1850,9 +1863,7 @@ function TeacherProjects() {
    * Una sola query `.in("id", ids)` — atómica, una sola RT vs N gets.
    */
   const bulkDeleteSelectedSubmissions = async () => {
-    const ids = filteredGradingSubs
-      .filter((s) => gradingSel.isSelected(s.id))
-      .map((s) => s.id);
+    const ids = filteredGradingSubs.filter((s) => gradingSel.isSelected(s.id)).map((s) => s.id);
     if (ids.length === 0) return;
     const ok = await confirm({
       title:
@@ -1880,9 +1891,7 @@ function TeacherProjects() {
     });
     gradingSel.clear();
     toast.success(
-      ids.length === 1
-        ? t("project.submissionDeleted")
-        : `${ids.length} entregas eliminadas`,
+      ids.length === 1 ? t("project.submissionDeleted") : `${ids.length} entregas eliminadas`,
     );
   };
 
@@ -2032,7 +2041,7 @@ function TeacherProjects() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredProjects.map((p) => (
+              {pagination.paginatedItems.map((p) => (
                 <TableRow key={p.id} data-state={sel.isSelected(p.id) ? "selected" : undefined}>
                   <TableCell className="w-10">
                     <MultiSelectCheckbox id={p.id} state={sel} />
@@ -2156,6 +2165,7 @@ function TeacherProjects() {
               ) : null}
             </TableBody>
           </Table>
+          <DataPagination state={pagination} entityNamePlural="proyectos" />
         </CardContent>
       </Card>
 

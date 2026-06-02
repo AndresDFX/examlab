@@ -26,6 +26,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { SectionLoader } from "@/components/ui/loaders";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import {
   Table,
   TableBody,
@@ -130,6 +132,13 @@ function SuperAdminTenantsPage() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, isSuper]);
+
+  // Paginación client-side sobre el listado completo de tenants.
+  const pagination = usePagination(tenants, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:superadmin_tenants",
+    resetKey: "",
+  });
 
   // Gate de rol — los no-SuperAdmin redirigen al dashboard.
   if (authLoading) return <SectionLoader text="Cargando…" />;
@@ -537,7 +546,7 @@ function SuperAdminTenantsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tenants.map((t) => (
+                {pagination.paginatedItems.map((t) => (
                   <TableRow key={t.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
@@ -614,6 +623,7 @@ function SuperAdminTenantsPage() {
               </TableBody>
             </Table>
           )}
+          <DataPagination state={pagination} entityNamePlural="instituciones" />
         </CardContent>
       </Card>
 

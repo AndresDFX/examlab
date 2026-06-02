@@ -89,6 +89,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { HelpHint } from "@/components/ui/help-hint";
 import { buildPptxBlob, type PptxBrand } from "@/modules/contents/contents-pptx";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 
 export const Route = createFileRoute("/app/teacher/contents")({ component: TeacherContents });
 
@@ -239,6 +241,11 @@ function TeacherContents() {
       );
     });
   }, [items, courses, search, courseFilter]);
+  const pagination = usePagination(filteredItems, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:teacher_contents",
+    resetKey: `${search}|${courseFilter ?? ""}|${tenantFilter}`,
+  });
   // Conteos de items derivados por contenido (sesiones programadas +
   // evaluaciones creadas con source_content_id). Lo poblamos junto al
   // load() principal y lo mostramos como badges debajo del topic en el
@@ -850,7 +857,7 @@ function TeacherContents() {
                       />
                     );
                   })()}
-                {filteredItems.map((it) => (
+                {pagination.paginatedItems.map((it) => (
                   <TableRow key={it.id}>
                     <TableCell className="max-w-xs">
                       {/* display_name como identificador humano principal.
@@ -1091,6 +1098,7 @@ function TeacherContents() {
               </TableBody>
             </Table>
           )}
+          <DataPagination state={pagination} entityNamePlural="contenidos" />
         </CardContent>
       </Card>
 

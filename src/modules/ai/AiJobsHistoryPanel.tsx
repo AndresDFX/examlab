@@ -77,6 +77,8 @@ import {
 } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -481,6 +483,14 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
     search.trim() !== "" ||
     tenantFilter !== "all";
 
+  // Paginación client-side sobre `filteredJobs`. resetKey incluye los
+  // filtros para que al cambiar criterios el usuario vuelva a página 1.
+  const pagination = usePagination(filteredJobs, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:ai_history",
+    resetKey: `${statusFilter}|${dateFrom}|${dateTo}|${search}|${tenantFilter}|${isAdmin ? "a" : "t"}`,
+  });
+
   const clearFilters = () => {
     setStatusFilter("all");
     setDateFrom("");
@@ -688,7 +698,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
             />
           ) : (
             <div className="divide-y">
-              {filteredJobs.map((j) => {
+              {pagination.paginatedItems.map((j) => {
                 const kindLabel = KIND_LABELS[j.kind] ?? j.kind;
                 const expanded = expandedId === j.id;
                 const label = j.examTitle ?? j.projectTitle ?? j.workshopTitle ?? kindLabel;
@@ -791,12 +801,14 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
               })}
             </div>
           )}
+          <DataPagination state={pagination} entityNamePlural="jobs" />
         </CardContent>
       </Card>
 
       {jobs.length === PAGE_LIMIT && (
         <p className="text-[11px] text-muted-foreground text-center">
-          Mostrando los últimos {PAGE_LIMIT} jobs. Usa el rango de fechas para acotar más atrás.
+          Cargados los últimos {PAGE_LIMIT} jobs desde el servidor. Usa el rango de fechas para
+          acotar más atrás si necesitas ver jobs anteriores.
         </p>
       )}
     </div>

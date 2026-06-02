@@ -54,6 +54,8 @@ import { Library, Plus, Search, Pencil, Trash2, X as XIcon, Save } from "lucide-
 import { friendlyError } from "@/shared/lib/db-errors";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { toCSV } from "@/shared/lib/csv";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 
 export const Route = createFileRoute("/app/teacher/question-bank")({
   component: QuestionBankPage,
@@ -230,6 +232,11 @@ function QuestionBankPage() {
       return true;
     });
   }, [rows, search, filterType, filterDifficulty]);
+  const pagination = usePagination(filtered, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:teacher_question_bank",
+    resetKey: `${search}|${filterType}|${filterDifficulty}|${courseId}`,
+  });
 
   // Export del banco filtrado. No soportamos import porque las preguntas
   // (con options JSON, starter_code, expected_rubric) no caben en CSV plano;
@@ -499,7 +506,7 @@ function QuestionBankPage() {
                     }
                   />
                 ) : (
-                  filtered.map((r) => (
+                  pagination.paginatedItems.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="max-w-md">
                         <div className="line-clamp-2 text-sm">{r.content}</div>
@@ -552,6 +559,7 @@ function QuestionBankPage() {
               </TableBody>
             </Table>
           )}
+          <DataPagination state={pagination} entityNamePlural="preguntas" />
         </CardContent>
       </Card>
 

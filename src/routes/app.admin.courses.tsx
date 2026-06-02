@@ -14,6 +14,8 @@ import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { DateCell } from "@/components/ui/date-cell";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
@@ -252,6 +254,17 @@ export function AdminCourses() {
     return result;
   }, [courses, search, subjectFilter, programFilterUi, subjectFilterUi]);
   const sel = useMultiSelect(filteredCourses);
+
+  // Paginación client-side. La RLS ya acota a lo que el caller puede
+  // ver; partir en páginas evita renderizar 500 filas en tenants
+  // grandes. resetKey incluye los filtros activos para que al filtrar
+  // el usuario vuelva a página 1 (no se quede en una página fuera de
+  // rango con grid vacío).
+  const pagination = usePagination(filteredCourses, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:admin_courses",
+    resetKey: `${search}|${subjectFilter ?? ""}|${programFilterUi}|${subjectFilterUi}|${tenantFilter}`,
+  });
 
   // Export del listado filtrado. No soportamos import porque cada curso
   // arrastra cortes con weights, weights de docente, matrículas y enlaces
@@ -1412,7 +1425,7 @@ export function AdminCourses() {
                   }
                 />
               )}
-              {filteredCourses.map((c) => (
+              {pagination.paginatedItems.map((c) => (
                 <TableRow key={c.id} data-state={sel.isSelected(c.id) ? "selected" : undefined}>
                   <TableCell className="w-10">
                     <MultiSelectCheckbox id={c.id} state={sel} />
@@ -1556,6 +1569,7 @@ export function AdminCourses() {
               ))}
             </TableBody>
           </Table>
+          <DataPagination state={pagination} entityNamePlural="cursos" />
         </CardContent>
       </Card>
 
