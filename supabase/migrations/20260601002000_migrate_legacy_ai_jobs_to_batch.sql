@@ -57,7 +57,9 @@ BEGIN
   grouped_ws AS (
     SELECT
       submission_id,
-      max(course_id)                                            AS course_id,
+      -- Todos los rows del grupo (misma submission) comparten course_id.
+      -- max(uuid) no existe en PostgreSQL, así que usamos array_agg + [1].
+      (array_agg(course_id))[1]                                 AS course_id,
       -- Default a 'es' si el body legacy no tenía courseLanguage.
       COALESCE(max(body->>'courseLanguage'), 'es')              AS course_language,
       jsonb_agg(jsonb_build_object(
@@ -128,7 +130,8 @@ BEGIN
   grouped_pf AS (
     SELECT
       submission_id,
-      max(course_id)                                            AS course_id,
+      -- max(uuid) no existe; ver comentario en grouped_ws.
+      (array_agg(course_id))[1]                                 AS course_id,
       COALESCE(max(body->>'courseLanguage'), 'es')              AS course_language,
       -- projectDescription puede no estar en todos los bodies legacy;
       -- usamos cualquiera no-null como representante de la submission.
