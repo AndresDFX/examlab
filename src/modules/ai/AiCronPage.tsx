@@ -153,6 +153,10 @@ const KIND_LABELS: Record<string, string> = {
   workshop_full: "Taller (batch)",
   project_submission: "Proyecto",
   project_file: "Archivo de proyecto",
+  // project_full: batch async — UN job por entrega de proyecto para
+  // TODAS las preguntas no-ZIP (mismo patrón que workshop_full).
+  // Los archivos ZIP (project_codigo_zip) siguen un job por archivo.
+  project_full: "Proyecto (batch)",
   project_codigo_zip: "Código ZIP de proyecto",
 };
 
@@ -190,7 +194,10 @@ function targetRouteForJob(
   if (j.target_table === "submissions" && j.examId) {
     return { to: "/app/teacher/monitor/$examId", params: { examId: j.examId } };
   }
-  if (j.target_table === "project_submission_files") {
+  if (
+    j.target_table === "project_submission_files" ||
+    j.target_table === "project_submissions"
+  ) {
     return { to: "/app/teacher/projects" };
   }
   return null;
@@ -455,6 +462,11 @@ function AiQueuePanel({ isAdmin = false }: Props) {
       const directWsSubIds = baseJobs
         .filter((j) => j.target_table === "workshop_submissions")
         .map((j) => j.target_row_id);
+      // Jobs project_full (batch): target_table apunta a project_submissions
+      // directo. Idéntico patrón al de directWsSubIds para talleres.
+      const directProjectSubIds = baseJobs
+        .filter((j) => j.target_table === "project_submissions")
+        .map((j) => j.target_row_id);
       const courseIds = Array.from(
         new Set(baseJobs.map((j) => j.course_id).filter((c): c is string => !!c)),
       );
@@ -504,7 +516,12 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         courseMap.set(c.id, c.name);
       }
 
-      const projectSubmissionIds = Array.from(new Set(projectFileRows.map((r) => r.submission_id)));
+      // Conjunto de project_submissions a resolver: los derivados de
+      // project_submission_files (per-file jobs legacy) + los target
+      // directos de jobs project_full (batch). Dedup con Set.
+      const projectSubmissionIds = Array.from(
+        new Set([...projectFileRows.map((r) => r.submission_id), ...directProjectSubIds]),
+      );
       const allUserIds = new Set<string>();
       for (const s of submissionsRows) allUserIds.add(s.user_id);
       const examIdsForLookup = Array.from(new Set(submissionsRows.map((s) => s.exam_id)));
@@ -597,8 +614,17 @@ function AiQueuePanel({ isAdmin = false }: Props) {
             out.examTitle = examTitleMap.get(sub.exam_id);
             out.studentName = profileMap.get(sub.user_id);
           }
-        } else if (j.target_table === "project_submission_files") {
-          const subId = projectFileToSub.get(j.target_row_id);
+        } else if (
+          j.target_table === "project_submission_files" ||
+          j.target_table === "project_submissions"
+        ) {
+          // Archivo individual → submission_id via lookup; Proyecto batch
+          // → submission_id ES el target_row_id. Resolvemos proyecto +
+          // estudiante de la misma forma.
+          const subId =
+            j.target_table === "project_submission_files"
+              ? projectFileToSub.get(j.target_row_id)
+              : j.target_row_id;
           const ps = subId ? projectSubMap.get(subId) : undefined;
           if (ps) {
             out.projectId = ps.project_id;

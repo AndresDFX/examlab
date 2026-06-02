@@ -1878,30 +1878,16 @@ export function StudentProjectTaker({
           }
         }
       } else if (batchItems.length > 0 && useAsyncAi) {
-        // Modo async: marcamos pendiente y encolamos UN job por
-        // pregunta. Encolamos DESPUÉS del upsert (necesitamos el
-        // project_submission_files.id) — acá solo armamos los bodies
-        // y los empujamos a `pendingEnqueues`, que el loop de abajo
-        // recorre. Usamos `projectFileGrading: true` (mismo body que
-        // el flujo sync per-file legacy del edge function).
+        // Modo async: pre-marcamos cada respuesta como pendiente. La
+        // encolada va DESPUÉS del upsert como UN solo job batch
+        // (kind=project_full) que cubre TODAS las preguntas no-ZIP.
+        // Antes encolábamos N jobs (uno por pregunta con
+        // `projectFileGrading: true`) → N llamadas a Gemini. Ahora 1
+        // call sirve para todo el lote por estudiante. ~Nx menos costo.
         for (const it of batchItems) {
           const payload = payloadsByQid[it.qid];
           payload.ai_grade = null;
           payload.ai_feedback = PENDING_AI_FEEDBACK;
-          pendingEnqueues.push({
-            qid: it.qid,
-            kind: "project_file",
-            body: {
-              projectFileGrading: true,
-              fileTitle: it.content,
-              fileDescription: null,
-              expectedRubric: it.rubric,
-              maxPoints: it.maxPoints,
-              studentContent: it.userAnswer,
-              courseLanguage,
-              projectDescription,
-            },
-          });
         }
       }
 
@@ -1961,8 +1947,13 @@ export function StudentProjectTaker({
 
       // ── Encolado IA async (post-upsert para tener los row ids) ──
       // En modo `processing_mode = async`, las IA calls quedaron diferidas.
-      // Acá leemos los row ids recién upserteados y encolamos un job por
-      // cada uno. El worker `ai-grading-worker` (cron horario) los drena.
+      //
+      // Dos caminos según el tipo de job:
+      //   - codigo_zip: 1 job POR archivo ZIP. Cada uno descomprime y lee
+      //     archivos en el worker — son trabajos pesados que NO se baten.
+      //   - resto (abierta/codigo/diagrama no-ZIP): UN solo job batch
+      //     `project_full` que cubre todas las preguntas en una llamada
+      //     a Gemini. Reduce N a 1 por entrega.
       if (pendingEnqueues.length > 0) {
         for (const job of pendingEnqueues) {
           const { data: row } = await db
@@ -1985,11 +1976,45 @@ export function StudentProjectTaker({
             _course_id: projectCourseId ?? null,
           });
         }
-        // Copy minimal: solo "Por calificar". El conteo va al
-        // description como dato concreto, sin la perorata sobre la
-        // cola (decisión: el estudiante no necesita conocer el flow).
+      }
+
+      // Batch enqueue: UN job para todas las preguntas no-ZIP. El edge
+      // function `ai-grade-submission` (rama projectFullGrading) reusa
+      // gradeOpenAnswersInBatch y persiste cada resultado en
+      // project_submission_files con `persistedInternally: true`, así el
+      // worker NO escribe nada (la UI ya tiene placeholder "Pendiente IA").
+      if (useAsyncAi && batchItems.length > 0) {
+        await db.rpc("enqueue_ai_grading", {
+          _kind: "project_full",
+          _invoke_target: "ai-grade-submission",
+          _body: {
+            projectFullGrading: true,
+            submissionId,
+            items: batchItems.map((it) => ({
+              qid: it.qid,
+              content: it.content,
+              rubric: it.rubric,
+              userAnswer: it.userAnswer,
+              maxPoints: it.maxPoints,
+            })),
+            courseLanguage,
+            courseId: projectCourseId ?? undefined,
+            projectDescription,
+          },
+          _target_table: "project_submissions",
+          _target_row_id: submissionId,
+          // field_grade / field_feedback no se usan (persistedInternally
+          // hace que el worker NO escriba), pero la RPC los requiere.
+          _course_id: projectCourseId ?? null,
+        });
+      }
+
+      // Notif "Por calificar" cuando hay AL MENOS un enqueue (ZIP o batch).
+      const totalQueued =
+        pendingEnqueues.length + (useAsyncAi && batchItems.length > 0 ? batchItems.length : 0);
+      if (totalQueued > 0) {
         toast.info(QUEUED_STUDENT_TITLE, {
-          description: `${pendingEnqueues.length} respuesta(s)`,
+          description: `${totalQueued} respuesta(s)`,
           duration: 6000,
         });
       }

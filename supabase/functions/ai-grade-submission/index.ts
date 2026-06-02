@@ -855,6 +855,147 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── Project FULL grading (async, batch + persistencia interna) ─────
+    // Diseñada para el flow async (cola): UN solo job IA persiste TODAS
+    // las preguntas no-ZIP de UNA entrega de proyecto en una sola llamada
+    // a Gemini, en vez de encolar N jobs (uno por archivo/pregunta).
+    //
+    // Es el mismo patrón que `workshopFullGrading` pero apunta a
+    // `project_submission_files` (qid → file_id) y trae projectDescription
+    // como contexto global del proyecto (lo mismo que el modo per-file
+    // legacy `projectFileGrading`).
+    //
+    // ZIP/multi-file de código (project_codigo_zip) NO entra acá — cada
+    // entrega ZIP requiere descomprimir y leer archivos, y por eso
+    // mantiene su propio job individual. La cola lo procesa aparte.
+    //
+    // body: {
+    //   projectFullGrading: true,
+    //   submissionId: "<project_submissions.id>",
+    //   items: [{ qid, content, rubric, userAnswer, maxPoints }],
+    //   courseLanguage?: 'es'|'en',
+    //   courseId?: string,
+    //   projectDescription?: string  // contexto global; mejora coherencia de notas
+    // }
+    // returns: { ok, persistedInternally: true, processed: N }
+    if (body.projectFullGrading) {
+      const { submissionId, courseLanguage, courseId, projectDescription } = body;
+      const itemsInput = Array.isArray(body.items) ? body.items : [];
+      if (!submissionId || typeof submissionId !== "string") {
+        throw new Error("submissionId requerido");
+      }
+
+      const pfLang: "es" | "en" = courseLanguage === "en" ? "en" : "es";
+      const pfLangName = pfLang === "en" ? "inglés (English)" : "español";
+
+      // Mismo filter/map que batchGrading / workshopFullGrading.
+      const batchInput: BatchItem[] = itemsInput
+        .filter(
+          (it: {
+            qid?: unknown;
+            userAnswer?: unknown;
+            maxPoints?: unknown;
+          }) =>
+            typeof it.qid === "string" &&
+            it.qid &&
+            (typeof it.userAnswer === "string" ? it.userAnswer.trim() : it.userAnswer) &&
+            typeof it.maxPoints === "number",
+        )
+        .map(
+          (it: {
+            qid: string;
+            content?: string;
+            rubric?: string;
+            userAnswer: string;
+            maxPoints: number;
+          }) => ({
+            qid: it.qid,
+            content: String(it.content ?? ""),
+            rubric: String(it.rubric ?? ""),
+            userAnswer: String(it.userAnswer),
+            maxPoints: Number(it.maxPoints),
+          }),
+        );
+
+      if (batchInput.length === 0) {
+        return new Response(
+          JSON.stringify({ ok: true, persistedInternally: true, processed: 0 }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      // Usamos el mismo use_case `project_file` que el modo per-file
+      // legacy: la rúbrica/persona del admin para "evaluar archivos del
+      // proyecto" sigue aplicando. El batch solo cambia el transporte.
+      const customSystemPf = await buildGradingSystemPrompt(
+        "project_file",
+        courseId,
+        "Eres un evaluador académico imparcial. Calificas el contenido textual de archivos del proyecto de un estudiante. Para cada archivo das un puntaje, retroalimentación útil y una estimación de probabilidad (0..1) de que el contenido haya sido generado por IA.",
+      );
+      // Inyectamos projectDescription como contexto global ANTES de la
+      // tabla de items. El helper gradeOpenAnswersInBatch no sabe de
+      // projectDescription, así que lo prependemos al system prompt.
+      const projectCtx =
+        projectDescription && String(projectDescription).trim()
+          ? `\n\nContexto global del proyecto (úsalo para entender el alcance y propósito):\n${String(projectDescription).trim()}`
+          : "";
+      const systemWithCtx = `${customSystemPf}${projectCtx}`;
+
+      const outPf = await gradeOpenAnswersInBatch(batchInput, systemWithCtx, pfLangName);
+      if ("batchError" in outPf) {
+        const httpStatus = outPf.batchError.http_status ?? 500;
+        const snippet = outPf.batchError.response_snippet ?? "sin detalle";
+        throw new Error(
+          `project_full batch failed: ${outPf.batchError.kind} (HTTP ${httpStatus}). ${snippet.slice(0, 200)}`,
+        );
+      }
+
+      // ─── Persistencia interna ────────────────────────────────────────
+      // UPDATE por (submission_id, file_id). qid acá ES el file_id (en
+      // projects el "id de pregunta" se llama file_id en la tabla
+      // submission_files). Mismo patrón que workshopFullGrading.
+      let persisted = 0;
+      const persistErrors: Array<{ qid: string; error: string }> = [];
+      for (const [qid, r] of outPf.results.entries()) {
+        const it = batchInput.find((x) => x.qid === qid);
+        if (!it) continue;
+        const cap = it.maxPoints;
+        const score = Math.max(0, Math.min(cap, Number(r.score) || 0));
+        const aiLikelihood = Math.max(0, Math.min(1, Number(r.ai_likelihood) || 0));
+        const { error: upErr } = await adminClient
+          .from("project_submission_files")
+          .update({
+            ai_grade: score,
+            ai_feedback: r.feedback || "Sin retroalimentación",
+            ai_likelihood: aiLikelihood,
+            ai_reasons: r.ai_reasons ?? null,
+          })
+          .eq("submission_id", submissionId)
+          .eq("file_id", qid);
+        if (upErr) {
+          persistErrors.push({ qid, error: upErr.message });
+        } else {
+          persisted++;
+        }
+      }
+
+      if (persisted === 0 && persistErrors.length > 0) {
+        throw new Error(
+          `No se pudo persistir ningún resultado: ${persistErrors[0].error}`,
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          persistedInternally: true,
+          processed: persisted,
+          partial_errors: persistErrors.length > 0 ? persistErrors : undefined,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // ── Project FILE grading (per-file, contenido textual) ──
     // Body: { projectFileGrading: true, fileTitle, fileDescription, expectedRubric,
     //         maxPoints, studentContent, courseLanguage }
