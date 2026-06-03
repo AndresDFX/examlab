@@ -33,6 +33,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { RowAction } from "@/components/ui/row-action";
 import { DateCell } from "@/components/ui/date-cell";
+import { HelpHint } from "@/components/ui/help-hint";
 import {
   Table,
   TableBody,
@@ -586,22 +587,72 @@ function CreatePollDialog({
               </Select>
             </div>
             <div>
-              <Label required>Tipo</Label>
+              <Label required>
+                Tipo{" "}
+                <HelpHint side="right">
+                  <div className="space-y-2 text-xs">
+                    <p>
+                      <strong>Opción única:</strong> el alumno elige <em>una sola</em> opción. Útil
+                      para comprensión rápida o satisfacción (ej. ¿quedó claro el tema?).
+                    </p>
+                    <p>
+                      <strong>Múltiple:</strong> el alumno puede marcar <em>varias</em> opciones a
+                      la vez. Útil cuando varias respuestas son válidas (ej. ¿qué temas te
+                      interesan?).
+                    </p>
+                    <p>
+                      <strong>Cupo por opción (Doodle):</strong> cada opción tiene un cupo limitado
+                      y se cierra cuando se llena. Ideal para repartir slots — por ejemplo, fechas u
+                      horarios de sustentación de proyecto: cada fecha es una opción con cupo de N
+                      estudiantes y los alumnos eligen su turno preferido.
+                    </p>
+                  </div>
+                </HelpHint>
+              </Label>
               <Select value={type} onValueChange={(v) => setType(v as PollType)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="single">Opción única</SelectItem>
-                  <SelectItem value="multiple">Múltiple (varias opciones)</SelectItem>
-                  <SelectItem value="slot">Cupo por opción (Doodle)</SelectItem>
+                  <SelectItem value="single">
+                    <div className="flex flex-col gap-0.5">
+                      <span>Opción única</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        El alumno elige una sola opción
+                      </span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="multiple">
+                    <div className="flex flex-col gap-0.5">
+                      <span>Múltiple</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        El alumno puede marcar varias opciones
+                      </span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="slot">
+                    <div className="flex flex-col gap-0.5">
+                      <span>Cupo por opción (Doodle)</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        Cada opción tiene un cupo limitado — ej. fechas de sustentación
+                      </span>
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <Label>Cierra el (opcional)</Label>
+              <Label>
+                Cierra el (opcional){" "}
+                <HelpHint side="right">
+                  Fecha y hora en que la encuesta deja de aceptar respuestas. Después de ese momento
+                  los alumnos ya no pueden votar y, según la configuración de resultados, recién ahí
+                  podrían verlos. Si lo dejas vacío, la encuesta permanece abierta hasta que la
+                  cierres manualmente desde el listado.
+                </HelpHint>
+              </Label>
               <Input
                 type="datetime-local"
                 value={closesAt}
@@ -612,28 +663,97 @@ function CreatePollDialog({
               </p>
             </div>
             <div>
-              <Label>Resultados para alumnos</Label>
+              <Label>
+                Resultados para alumnos{" "}
+                <HelpHint side="left">
+                  <div className="space-y-2 text-xs">
+                    <p>
+                      <strong>Visible siempre:</strong> el alumno ve resultados parciales en cuanto
+                      vota. Útil en clase para visualizar consensos al instante.
+                    </p>
+                    <p>
+                      <strong>Visible tras cerrar:</strong> los resultados aparecen solo cuando
+                      cierras la encuesta. Evita el sesgo de "todos votan lo que ya va ganando".
+                    </p>
+                    <p>
+                      <strong>Solo el docente:</strong> los alumnos nunca ven los resultados; solo
+                      tú. Útil para feedback honesto o evaluación entre pares.
+                    </p>
+                  </div>
+                </HelpHint>
+              </Label>
               <Select value={visibility} onValueChange={(v) => setVisibility(v as ResultsVis)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="always">{VIS_LABELS.always}</SelectItem>
-                  <SelectItem value="after_close">{VIS_LABELS.after_close}</SelectItem>
-                  <SelectItem value="never">{VIS_LABELS.never}</SelectItem>
+                  <SelectItem value="always">
+                    <div className="flex flex-col gap-0.5">
+                      <span>{VIS_LABELS.always}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        Ve resultados parciales mientras vota
+                      </span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="after_close">
+                    <div className="flex flex-col gap-0.5">
+                      <span>{VIS_LABELS.after_close}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        Solo cuando termines la encuesta
+                      </span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="never">
+                    <div className="flex flex-col gap-0.5">
+                      <span>{VIS_LABELS.never}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        El alumno nunca los ve
+                      </span>
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <div>
-            <Label required>Opciones</Label>
+            <Label required>
+              Opciones{" "}
+              <HelpHint side="right">
+                <div className="space-y-1 text-xs">
+                  <p>
+                    Las respuestas que verán los alumnos. Mínimo 2; agrega tantas como necesites.
+                  </p>
+                  {type === "slot" && (
+                    <p>
+                      <strong>Cupo:</strong> número máximo de alumnos que pueden elegir esa opción.
+                      Por ejemplo, si cada opción es una fecha de sustentación y solo caben 5
+                      estudiantes por día, pon <code>5</code> en cada cupo.
+                    </p>
+                  )}
+                </div>
+              </HelpHint>
+            </Label>
+            {type === "slot" && (
+              <p className="text-[11px] text-muted-foreground mt-1 mb-1">
+                Modo Doodle: cada opción se cierra cuando se llena su cupo. Útil para repartir slots
+                como fechas de sustentación o turnos de laboratorio.
+              </p>
+            )}
             <div className="space-y-2 mt-1">
               {options.map((o, idx) => (
                 <div key={idx} className="flex items-center gap-2">
                   <Input
                     value={o.label}
                     onChange={(e) => updateOption(idx, { label: e.target.value })}
-                    placeholder={`Opción ${idx + 1}`}
+                    placeholder={
+                      type === "slot"
+                        ? idx === 0
+                          ? "Ej: Lun 10 jun, 9:00 AM"
+                          : idx === 1
+                            ? "Ej: Lun 10 jun, 10:00 AM"
+                            : `Opción ${idx + 1}`
+                        : `Opción ${idx + 1}`
+                    }
                     className="flex-1"
                   />
                   {type === "slot" && (
@@ -644,6 +764,7 @@ function CreatePollDialog({
                       onChange={(e) => updateOption(idx, { max_responses: e.target.value })}
                       placeholder="Cupo"
                       className="w-20"
+                      title="Máximo de alumnos que pueden elegir esta opción"
                     />
                   )}
                   {options.length > 2 && (

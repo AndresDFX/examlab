@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { RowAction } from "@/components/ui/row-action";
+import { HelpHint } from "@/components/ui/help-hint";
 import {
   Dialog,
   DialogContent,
@@ -194,41 +195,141 @@ export function LaunchPollDialog({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <Label required>Tipo</Label>
+              <Label required>
+                Tipo{" "}
+                <HelpHint side="right">
+                  <div className="space-y-2 text-xs">
+                    <p>
+                      <strong>Opción única:</strong> el alumno elige <em>una sola</em> opción
+                      (comprensión rápida, satisfacción).
+                    </p>
+                    <p>
+                      <strong>Múltiple:</strong> el alumno puede marcar <em>varias</em>
+                      opciones a la vez.
+                    </p>
+                    <p>
+                      <strong>Cupo por opción (Doodle):</strong> cada opción tiene un cupo limitado
+                      y se cierra al llenarse. Ideal para repartir fechas/turnos (ej. sustentaciones
+                      de proyecto).
+                    </p>
+                  </div>
+                </HelpHint>
+              </Label>
               <Select value={type} onValueChange={(v) => setType(v as PollType)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="single">Opción única</SelectItem>
-                  <SelectItem value="multiple">Múltiple</SelectItem>
-                  <SelectItem value="slot">Cupo por opción</SelectItem>
+                  <SelectItem value="single">
+                    <div className="flex flex-col gap-0.5">
+                      <span>Opción única</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        El alumno elige una sola opción
+                      </span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="multiple">
+                    <div className="flex flex-col gap-0.5">
+                      <span>Múltiple</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        El alumno puede marcar varias opciones
+                      </span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="slot">
+                    <div className="flex flex-col gap-0.5">
+                      <span>Cupo por opción (Doodle)</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        Cupo limitado por opción — ej. fechas de sustentación
+                      </span>
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label>Resultados</Label>
+              <Label>
+                Resultados{" "}
+                <HelpHint side="left">
+                  <div className="space-y-2 text-xs">
+                    <p>
+                      <strong>Visibles al alumno:</strong> ve resultados parciales en cuanto vota.
+                    </p>
+                    <p>
+                      <strong>Tras cerrar:</strong> los ve solo cuando cierras la encuesta. Evita el
+                      sesgo de "votar lo que ya va ganando".
+                    </p>
+                    <p>
+                      <strong>Solo docente:</strong> los alumnos nunca ven resultados; útil para
+                      feedback honesto.
+                    </p>
+                  </div>
+                </HelpHint>
+              </Label>
               <Select value={visibility} onValueChange={(v) => setVisibility(v as ResultsVis)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="always">Visibles al alumno</SelectItem>
-                  <SelectItem value="after_close">Tras cerrar</SelectItem>
-                  <SelectItem value="never">Solo docente</SelectItem>
+                  <SelectItem value="always">
+                    <div className="flex flex-col gap-0.5">
+                      <span>Visibles al alumno</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        Ve resultados parciales mientras vota
+                      </span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="after_close">
+                    <div className="flex flex-col gap-0.5">
+                      <span>Tras cerrar</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        Solo cuando termines la encuesta
+                      </span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="never">
+                    <div className="flex flex-col gap-0.5">
+                      <span>Solo docente</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        El alumno nunca los ve
+                      </span>
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <div>
-            <Label required>Opciones</Label>
+            <Label required>
+              Opciones{" "}
+              <HelpHint side="right">
+                <div className="space-y-1 text-xs">
+                  <p>Mínimo 2 respuestas para que el alumno elija.</p>
+                  {type === "slot" && (
+                    <p>
+                      <strong>Cupo:</strong> máximo de alumnos que pueden elegir esa opción. Ej. si
+                      cada opción es una fecha de sustentación y caben 5 estudiantes por día, pon{" "}
+                      <code>5</code> en cada cupo.
+                    </p>
+                  )}
+                </div>
+              </HelpHint>
+            </Label>
             <div className="space-y-2 mt-1">
               {options.map((o, idx) => (
                 <div key={idx} className="flex items-center gap-2">
                   <Input
                     value={o.label}
                     onChange={(e) => updateOption(idx, { label: e.target.value })}
-                    placeholder={`Opción ${idx + 1}`}
+                    placeholder={
+                      type === "slot"
+                        ? idx === 0
+                          ? "Ej: Lun 10 jun, 9:00 AM"
+                          : idx === 1
+                            ? "Ej: Lun 10 jun, 10:00 AM"
+                            : `Opción ${idx + 1}`
+                        : `Opción ${idx + 1}`
+                    }
                     className="flex-1"
                   />
                   {type === "slot" && (
@@ -239,6 +340,7 @@ export function LaunchPollDialog({
                       onChange={(e) => updateOption(idx, { max_responses: e.target.value })}
                       placeholder="Cupo"
                       className="w-20"
+                      title="Máximo de alumnos que pueden elegir esta opción"
                     />
                   )}
                   {options.length > 2 && (
