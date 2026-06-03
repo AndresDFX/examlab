@@ -1189,7 +1189,7 @@ function MessagesPage() {
       />
 
       <Card>
-        <CardContent className="p-0 grid md:grid-cols-[280px_1fr] min-h-[60vh]">
+        <CardContent className="p-0 grid grid-cols-1 md:grid-cols-[280px_1fr] min-h-[60vh]">
           {/* Lista de conversaciones — en mobile se oculta cuando hay
               conv activa (single-pane navigation tipo iMessage). En md+
               siempre visible. */}

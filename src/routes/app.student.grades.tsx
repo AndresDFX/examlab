@@ -526,7 +526,7 @@ function StudentGrades() {
       ) : !course ? null : (
         <>
           {/* Tarjetas resumen: una por corte + final */}
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {cutsBreakdown.map((cb) => (
               <Card key={cb.cut.id}>
                 <CardContent className="p-4 space-y-1">

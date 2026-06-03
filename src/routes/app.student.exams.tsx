@@ -190,9 +190,18 @@ function StudentExams() {
       };
 
       const countAttempts = (examId: string): number => {
+        // Solo cuenta intentos YA CALIFICADOS. Una entrega `completado`
+        // sin nota (ai_grade null y sin override docente) sigue
+        // editable — el alumno puede reanudarla y re-entregar antes de
+        // que IA/docente la califiquen. Si la contáramos, el botón
+        // de "Hacer examen" mostraría "Sin intentos disponibles"
+        // injustamente. Misma regla en el cap dentro de take.$examId.
         const list = (subs ?? []) as SubRow[];
         return list.filter(
-          (s) => s.exam_id === examId && (s.status === "completado" || s.status === "sospechoso"),
+          (s) =>
+            s.exam_id === examId &&
+            (s.status === "completado" || s.status === "sospechoso") &&
+            (s.ai_grade != null || s.final_override_grade != null),
         ).length;
       };
 
@@ -419,7 +428,7 @@ function StudentExams() {
         }
       />
 
-      <div className="grid md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {visibleRows.length === 0 && (
           <div className="md:col-span-2 rounded-md border border-dashed bg-muted/20 p-6 text-center">
             <p className="text-sm text-muted-foreground">

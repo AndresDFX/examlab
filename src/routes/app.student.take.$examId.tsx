@@ -455,9 +455,27 @@ function TakeExam() {
         .order("created_at", { ascending: false });
       const allSubs = subs ?? [];
       const inProgress = allSubs.find((s: any) => s.status === "en_progreso");
+      // Un intento solo cuenta cuando ya tiene calificación (ai_grade o
+      // final_override_grade). Una submission `completado` aún sin nota
+      // sigue editable — el alumno puede reanudarla y re-entregar antes
+      // de que la IA o el docente le pongan calificación. Misma regla
+      // que workshops/proyectos: el contador no sube hasta que hay
+      // feedback. La "ungraded submitted" más reciente se promueve a
+      // intento reanudable más abajo.
       const finishedCount = allSubs.filter(
-        (s: any) => s.status === "completado" || s.status === "sospechoso",
+        (s: any) =>
+          (s.status === "completado" || s.status === "sospechoso") &&
+          (s.ai_grade != null || s.final_override_grade != null),
       ).length;
+      // `completado`/`sospechoso` SIN calificación → es el intento activo
+      // que el alumno puede seguir editando. Tomamos el más reciente
+      // (allSubs ya viene ordenado created_at DESC).
+      const resumableUngraded = allSubs.find(
+        (s: any) =>
+          (s.status === "completado" || s.status === "sospechoso") &&
+          s.ai_grade == null &&
+          s.final_override_grade == null,
+      );
       const maxAttempts = Math.max(
         1,
         Number(e.max_attempts ?? e.course?.max_exam_attempts ?? 1) || 1,
@@ -472,13 +490,41 @@ function TakeExam() {
       const localSessionId = getOrCreateLocalSession(examId);
       sessionIdRef.current = localSessionId;
 
-      if (inProgress) {
+      // Submission a reanudar: prioridad al en_progreso. Si no hay pero
+      // existe una entregada SIN calificar, esa también es reanudable
+      // (el alumno puede editar y re-entregar antes del feedback).
+      // Volvemos su status a `en_progreso` para que toda la lógica
+      // posterior (autosave, session lock, submit) opere igual.
+      const resumeTarget = inProgress ?? resumableUngraded ?? null;
+      if (resumeTarget) {
+        // Si era una entregada sin calificar, la rehidratamos a
+        // en_progreso para que el alumno la edite. Limpiamos
+        // `submitted_at` para que no quede el timestamp anterior y
+        // marcamos el cambio antes de tocar UI state. También
+        // cancelamos cualquier job IA pendiente apuntando a esta
+        // submission: sin esto, el worker en vuelo podría calificar
+        // la versión vieja mientras el alumno edita.
+        if (resumeTarget === resumableUngraded) {
+          await supabase
+            .from("submissions")
+            .update({ status: "en_progreso", submitted_at: null })
+            .eq("id", resumeTarget.id);
+          // Best-effort: si la RPC falla, igual seguimos — el peor caso
+          // es que el grader IA produzca una nota desfasada que el
+          // alumno verá al re-entregar (la nueva entrega re-encolará).
+          await (supabase as any).rpc("cancel_pending_ai_jobs_for_submission", {
+            _submission_id: resumeTarget.id,
+          });
+          toast.info(
+            "Tu entrega anterior aún no fue calificada — la reabrimos para que sigas editando antes de re-entregar.",
+          );
+        }
         // Session lock via answers.__session_id + updated_at (no extra columns needed).
         // The autosave keeps updated_at fresh every 1.5s while a device is active.
         // If another device owns the session and updated_at is <10s old → block.
-        const existingAnswers = (inProgress.answers as Record<string, any>) ?? {};
+        const existingAnswers = (resumeTarget.answers as Record<string, any>) ?? {};
         const storedSession = existingAnswers.__session_id as string | undefined;
-        const updatedAt = new Date((inProgress as any).updated_at).getTime();
+        const updatedAt = new Date((resumeTarget as any).updated_at).getTime();
         const ageMs = Date.now() - updatedAt;
 
         if (storedSession && storedSession !== localSessionId && ageMs < 10_000) {
@@ -491,12 +537,12 @@ function TakeExam() {
         const claimedAnswers = { ...existingAnswers, __session_id: localSessionId };
         answersRef.current = claimedAnswers;
 
-        // Reanudar el intento en curso
-        setSubmissionId(inProgress.id);
-        submissionIdRef.current = inProgress.id;
-        setSubmissionStartedAt((inProgress as any).started_at ?? null);
+        // Reanudar el intento en curso (o re-abrir la entrega sin calificar)
+        setSubmissionId(resumeTarget.id);
+        submissionIdRef.current = resumeTarget.id;
+        setSubmissionStartedAt((resumeTarget as any).started_at ?? null);
         setAnswers(claimedAnswers);
-        const persistedWarnings = inProgress.focus_warnings ?? 0;
+        const persistedWarnings = resumeTarget.focus_warnings ?? 0;
         setWarnings(persistedWarnings);
         warningsRef.current = persistedWarnings;
         const persistedEvents = Array.isArray(existingAnswers.__warning_events)

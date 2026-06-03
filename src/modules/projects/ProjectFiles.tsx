@@ -1385,29 +1385,48 @@ export function StudentProjectTaker({
       // Si hay grupo: filtramos/insertamos por group_id para que cualquier
       // miembro toque la misma fila. user_id se mantiene como "último
       // editor" para auditoría.
-      // Incluimos `attempt_count` para re-check anti-race: si entre la
-      // carga inicial y este submit otro miembro del grupo ya entregó,
-      // detectamos el nuevo conteo y abortamos.
+      // Incluimos `attempt_count`, `status` y `final_grade` para:
+      //  (a) re-check anti-race: si entre la carga inicial y este submit
+      //      otro miembro del grupo ya entregó, detectamos el nuevo conteo.
+      //  (b) decidir si este submit consume un intento o solo re-edita el
+      //      mismo: el contador NO sube si la entrega previa aún no tiene
+      //      nota — el estudiante está corrigiendo antes de feedback, no
+      //      gastando un intento nuevo.
       const existingQuery = db
         .from("project_submissions")
-        .select("id, attempt_count")
+        .select("id, attempt_count, status, final_grade")
         .eq("project_id", projectId);
       const { data: existing } = await (groupId
         ? existingQuery.eq("group_id", groupId).maybeSingle()
         : existingQuery.eq("user_id", user.id).maybeSingle());
-      const previousCount = Number(
-        (existing as { attempt_count?: number } | null)?.attempt_count ?? 0,
-      );
+      const existingRow = existing as {
+        id?: string;
+        attempt_count?: number;
+        status?: string;
+        final_grade?: number | null;
+      } | null;
+      const previousCount = Number(existingRow?.attempt_count ?? 0);
+      // "Calificada" = status calificado o ya tiene nota final. Una
+      // entrega que aún está en `entregado` con final_grade=null sigue
+      // editable y el re-submit no cuenta como intento nuevo.
+      const previousWasGraded =
+        existingRow != null &&
+        (existingRow.status === "calificado" || existingRow.final_grade != null);
+      // Incrementamos solo cuando: es la primera entrega (no existe), o
+      // la previa ya fue calificada (es un intento nuevo de verdad).
+      const incrementAttempt = !existingRow || previousWasGraded;
+      const nextAttemptCount = incrementAttempt ? previousCount + 1 : previousCount;
       // Defense-in-depth contra concurrencia (grupos) o tabs abiertas:
-      // el state local `attemptCount` puede estar desactualizado.
-      if (previousCount >= effectiveMaxAttempts) {
+      // el state local `attemptCount` puede estar desactualizado. Sólo
+      // bloqueamos cuando el nuevo conteo excedería el cap — re-editar
+      // sin gastar intento siempre se permite.
+      if (nextAttemptCount > effectiveMaxAttempts) {
         toast.error(
           `Ya consumiste tus ${effectiveMaxAttempts} intento${effectiveMaxAttempts === 1 ? "" : "s"} de entrega. Recarga para ver la entrega actual.`,
         );
         setSubmitting(false);
         return;
       }
-      const nextAttemptCount = previousCount + 1;
       if (existing?.id) {
         submissionId = existing.id;
         await db

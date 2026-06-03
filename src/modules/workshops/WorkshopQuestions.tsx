@@ -1128,21 +1128,46 @@ export function StudentWorkshopTaker({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbAny2 = supabase as any;
       let submissionId: string;
+      // Traemos `attempt_count`, `status` y `final_grade` para aplicar
+      // la regla "el intento solo cuenta cuando la entrega previa ya
+      // tiene nota". Si el alumno está re-editando una entrega que aún
+      // no fue calificada, mantenemos el mismo conteo — no gasta un
+      // intento nuevo. Idéntico patrón al de proyectos.
       const existingQuery = dbAny2
         .from("workshop_submissions")
-        .select("id")
+        .select("id, attempt_count, status, final_grade")
         .eq("workshop_id", workshopId);
       const { data: existing } = await (groupId
         ? existingQuery.eq("group_id", groupId).maybeSingle()
         : existingQuery.eq("user_id", user.id).maybeSingle());
-      if (existing?.id) {
-        submissionId = existing.id;
+      const existingRow = existing as {
+        id?: string;
+        attempt_count?: number;
+        status?: string;
+        final_grade?: number | null;
+      } | null;
+      const previousCount = Number(existingRow?.attempt_count ?? 0);
+      const previousWasGraded =
+        existingRow != null &&
+        (existingRow.status === "calificado" || existingRow.final_grade != null);
+      const incrementAttempt = !existingRow || previousWasGraded;
+      const nextAttemptCount = incrementAttempt ? previousCount + 1 : previousCount;
+      if (nextAttemptCount > effectiveMaxAttempts) {
+        toast.error(
+          `Ya consumiste tus ${effectiveMaxAttempts} intento${effectiveMaxAttempts === 1 ? "" : "s"} de entrega. Recarga para ver la entrega actual.`,
+        );
+        setSubmitting(false);
+        return;
+      }
+      if (existingRow?.id) {
+        submissionId = existingRow.id;
         await dbAny2
           .from("workshop_submissions")
           .update({
             status: "entregado",
             submitted_at: new Date().toISOString(),
             user_id: user.id, // último editor (auditoría)
+            attempt_count: nextAttemptCount,
           })
           .eq("id", submissionId);
       } else {
@@ -1154,6 +1179,7 @@ export function StudentWorkshopTaker({
             group_id: groupId ?? null,
             status: "entregado",
             submitted_at: new Date().toISOString(),
+            attempt_count: nextAttemptCount,
           })
           .select("id")
           .single();
@@ -1164,6 +1190,9 @@ export function StudentWorkshopTaker({
         }
         submissionId = created.id;
       }
+      // Sync local state — afecta el botón "entregar" que se deshabilita
+      // si el conteo alcanza el cap (mismo patrón que proyectos).
+      setAttemptCount(nextAttemptCount);
 
       // ── Calificación en dos fases ──
       // Fase 1: scorea localmente las cerradas y empty; bucketea las
