@@ -69,14 +69,18 @@ import {
   Ban,
   XCircle,
   RefreshCw,
+  RotateCw,
   ChevronDown,
   ChevronRight,
   Search,
   X,
   Filter,
 } from "lucide-react";
+import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { logEvent } from "@/shared/lib/audit";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 
@@ -140,11 +144,15 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
   const { roles } = useAuth();
   const activeRole = useActiveRole();
   const isSuperAdminCaller = activeRole === "SuperAdmin" && roles.includes("SuperAdmin");
+  const confirm = useConfirm();
 
   const [jobs, setJobs] = useState<HistoryJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  /** Set de ids actualmente reencolándose — para mostrar spinner y
+   *  evitar dobles clicks. */
+  const [requeueing, setRequeueing] = useState<Set<string>>(new Set());
 
   // Filtros — todos opt-in salvo el de estado que default "todos los
   // estados cerrados". Date range vacío = todo el rango disponible.
@@ -499,6 +507,61 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
     setTenantFilter("all");
   };
 
+  /** Re-encola un job cerrado (cancelled / rejected) a `pending`. Usa la
+   *  misma RPC `requeue_ai_grading_job` que el panel activo. El SECURITY
+   *  DEFINER valida permisos del caller (Admin/SA del tenant, creator del
+   *  job, o docente del curso). Al re-encolar un rejected, la RPC limpia
+   *  rejection_reason / rejected_by / rejected_at / acknowledged_at.
+   *  Después de éxito recargamos para que la fila salga del historial
+   *  (pasa a `pending`, que vive en el tab activo). */
+  const requeueJob = async (job: HistoryJob) => {
+    if (requeueing.has(job.id)) return;
+    const label = job.examTitle ?? job.projectTitle ?? job.workshopTitle ?? job.kind;
+    const fromRejected = job.status === "rejected";
+    const ok = await confirm({
+      title: fromRejected ? "¿Reanudar trabajo rechazado?" : "¿Reanudar trabajo cancelado?",
+      description:
+        `"${label}" volverá a la cola pendiente para reintento.` +
+        (fromRejected
+          ? " La razón del rechazo y el acuse de recibo se borrarán — el job arranca de cero."
+          : "") +
+        " El worker lo procesará en su próximo tick (o puedes ejecutar 'Procesar este job ahora' desde el tab IA).",
+      tone: "warning",
+      confirmLabel: "Reanudar",
+    });
+    if (!ok) return;
+    setRequeueing((prev) => new Set(prev).add(job.id));
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).rpc("requeue_ai_grading_job", {
+        _job_id: job.id,
+      });
+      if (error) {
+        toast.error(friendlyError(error, "No se pudo reanudar el job"));
+        return;
+      }
+      toast.success("Job re-encolado");
+      void logEvent({
+        action: "ai_grading.job_requeued",
+        category: "grading",
+        severity: "info",
+        entityType: "ai_grading_queue",
+        entityId: job.id,
+        entityName: label,
+        metadata: { source: "history_panel", from_status: job.status },
+      });
+      // Recargamos — el job ya no aparece como `done/cancelled/rejected`,
+      // pasó a `pending` y vive en el panel activo.
+      setRetryNonce((n) => n + 1);
+    } finally {
+      setRequeueing((prev) => {
+        const next = new Set(prev);
+        next.delete(job.id);
+        return next;
+      });
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Stats agregados — útiles cuando el usuario está usando filtros
@@ -704,55 +767,86 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
                 const label = j.examTitle ?? j.projectTitle ?? j.workshopTitle ?? kindLabel;
                 const subtitleParts = [j.studentName, j.courseName].filter(Boolean) as string[];
 
+                // Re-encolar disponible para jobs en estados terminales
+                // recuperables. `done` NO entra: el resultado ya está
+                // aplicado a la entrega y reabrirlo va por otro flujo.
+                const canRequeue = j.status === "cancelled" || j.status === "rejected";
+                const isRequeueing = requeueing.has(j.id);
                 return (
                   <div key={j.id} className="text-sm">
-                    <button
-                      type="button"
-                      onClick={() => setExpandedId(expanded ? null : j.id)}
-                      className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-muted/40 transition-colors"
-                      title={expanded ? "Ocultar detalle" : "Ver detalle"}
+                    <div
+                      className={`px-3 py-2 flex items-center gap-2 hover:bg-muted/40 transition-colors ${
+                        j.status === "rejected" ? "bg-orange-500/5" : ""
+                      }`}
                     >
-                      {expanded ? (
-                        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      )}
-                      <StatusDot status={j.status} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium truncate">{label}</span>
-                          <Badge variant="outline" className="text-[10px] shrink-0">
-                            {kindLabel}
-                          </Badge>
-                          <Badge
-                            variant={
-                              j.status === "done"
-                                ? "default"
-                                : j.status === "rejected"
-                                  ? "destructive"
-                                  : "secondary"
-                            }
-                            className={`text-[10px] shrink-0 ${
-                              j.status === "done"
-                                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
-                                : j.status === "rejected"
-                                  ? "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30 hover:bg-orange-500/20"
-                                  : ""
-                            }`}
-                          >
-                            {STATUS_LABELS[j.status]}
-                          </Badge>
-                        </div>
-                        {subtitleParts.length > 0 && (
-                          <div className="text-xs text-muted-foreground truncate">
-                            {subtitleParts.join(" · ")}
-                          </div>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedId(expanded ? null : j.id)}
+                        className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                        title={expanded ? "Ocultar detalle" : "Ver detalle"}
+                      >
+                        {expanded ? (
+                          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         )}
-                      </div>
-                      <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
-                        {j.completed_at ? formatDateTime(j.completed_at) : "—"}
-                      </span>
-                    </button>
+                        <StatusDot status={j.status} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium truncate">{label}</span>
+                            <Badge variant="outline" className="text-[10px] shrink-0">
+                              {kindLabel}
+                            </Badge>
+                            <Badge
+                              variant={
+                                j.status === "done"
+                                  ? "default"
+                                  : j.status === "rejected"
+                                    ? "destructive"
+                                    : "secondary"
+                              }
+                              className={`text-[10px] shrink-0 ${
+                                j.status === "done"
+                                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
+                                  : j.status === "rejected"
+                                    ? "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30 hover:bg-orange-500/20"
+                                    : ""
+                              }`}
+                            >
+                              {STATUS_LABELS[j.status]}
+                            </Badge>
+                          </div>
+                          {subtitleParts.length > 0 && (
+                            <div className="text-xs text-muted-foreground truncate">
+                              {subtitleParts.join(" · ")}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                          {j.completed_at ? formatDateTime(j.completed_at) : "—"}
+                        </span>
+                      </button>
+                      {canRequeue && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 shrink-0"
+                          disabled={isRequeueing}
+                          onClick={() => void requeueJob(j)}
+                          title={
+                            j.status === "rejected"
+                              ? "Reanudar (limpia rechazo y vuelve a la cola)"
+                              : "Re-encolar (vuelve a la cola)"
+                          }
+                        >
+                          {isRequeueing ? (
+                            <Spinner size="sm" />
+                          ) : (
+                            <RotateCw className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      )}
+                    </div>
                     {expanded && (
                       <div className="px-8 pr-3 pb-3 text-xs space-y-1 bg-muted/20 border-t">
                         <DetailRow k="ID" v={j.id} mono />

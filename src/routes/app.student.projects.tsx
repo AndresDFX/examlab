@@ -43,6 +43,9 @@ import { toast } from "sonner";
 import { StudentProjectTaker } from "@/modules/projects/ProjectFiles";
 import { formatDateTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { DatePicker } from "@/components/ui/date-picker";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -99,6 +102,17 @@ type ProjectDisplayStatus =
   | "overdue"
   | "closed";
 
+/** Comparador de fechas usado por el sort del listado. Tratamos `null`
+ *  como "infinito al final" para ascendente y "menos infinito" para
+ *  descendente — así los ítems sin fecha quedan agrupados al final en
+ *  "próximos primero" / al inicio cuando ordenas al revés. */
+function cmpDate(a: Date | null, b: Date | null, asc: boolean): number {
+  if (!a && !b) return 0;
+  if (!a) return asc ? 1 : -1;
+  if (!b) return asc ? -1 : 1;
+  return asc ? a.getTime() - b.getTime() : b.getTime() - a.getTime();
+}
+
 function getProjectDisplayStatus(row: ProjectRow, now: number): ProjectDisplayStatus {
   const s = row.submission?.status;
   if (s === "calificado") return "graded";
@@ -119,6 +133,14 @@ function StudentProjects() {
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<ProjectDisplayStatus | "all">("all");
+  // Filtros adicionales: rango de fechas (sobre `due_date`) y orden.
+  // Defaults no afectan la UX vieja: dateFrom="" y dateTo="" no filtran
+  // nada; sortBy="due_asc" replica el orden cronológico natural.
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const [sortBy, setSortBy] = useState<
+    "due_asc" | "due_desc" | "start_asc" | "start_desc" | "title_asc"
+  >("due_asc");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<ProjectRow | null>(null);
   // Estado de error explícito para que un fallo en la query base
@@ -345,19 +367,59 @@ function StudentProjects() {
     return { available, submitted, graded, overdue };
   }, [rows, now]);
 
-  // Filtros combinados: búsqueda + curso + estado.
+  // Filtros combinados: búsqueda + curso + estado + rango de fechas, y
+  // luego ordenamiento. Items sin `due_date` no se filtran fuera por el
+  // rango — siguen visibles incluso con dateFrom/dateTo activos.
   const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return rows.filter((r) => {
+    const filtered = rows.filter((r) => {
       if (courseFilter && r.project.course_id !== courseFilter) return false;
       if (statusFilter !== "all" && getProjectDisplayStatus(r, now) !== statusFilter) return false;
+      // Rango de fechas — filtra por due_date (deadline). Vacío = sin
+      // tope en ese lado.
+      const dueAt = r.project.due_date ? new Date(r.project.due_date) : null;
+      if (dueAt) {
+        if (dateFrom && dueAt < new Date(dateFrom)) return false;
+        if (dateTo && dueAt > new Date(`${dateTo}T23:59:59.999`)) return false;
+      }
       if (!q) return true;
       return (
         r.project.title.toLowerCase().includes(q) ||
         (r.project.course?.name?.toLowerCase().includes(q) ?? false)
       );
     });
-  }, [rows, search, courseFilter, statusFilter, now]);
+    const sorted = [...filtered].sort((a, b) => {
+      const aDue = a.project.due_date ? new Date(a.project.due_date) : null;
+      const bDue = b.project.due_date ? new Date(b.project.due_date) : null;
+      const aStart = a.project.start_date ? new Date(a.project.start_date) : null;
+      const bStart = b.project.start_date ? new Date(b.project.start_date) : null;
+      const aTitle = a.project.title.toLowerCase();
+      const bTitle = b.project.title.toLowerCase();
+      switch (sortBy) {
+        case "due_asc":
+          return cmpDate(aDue, bDue, true);
+        case "due_desc":
+          return cmpDate(aDue, bDue, false);
+        case "start_asc":
+          return cmpDate(aStart, bStart, true);
+        case "start_desc":
+          return cmpDate(aStart, bStart, false);
+        case "title_asc":
+          return aTitle.localeCompare(bTitle, "es");
+      }
+    });
+    return sorted;
+  }, [rows, search, courseFilter, statusFilter, now, dateFrom, dateTo, sortBy]);
+
+  // Paginación client-side: las cards son grandes; 12 cabe en ~3 filas
+  // del grid de 2 columnas. resetKey concatena TODOS los filtros activos
+  // para que aplicar cualquiera vuelva a página 1.
+  const pagination = usePagination(visibleRows, {
+    defaultPageSize: 12,
+    pageSizes: [6, 12, 24, 48],
+    storageKey: "examlab_pag:student_projects",
+    resetKey: `${search}|${courseFilter}|${statusFilter}|${dateFrom}|${dateTo}|${sortBy}`,
+  });
 
   const hasActiveFilters =
     search.trim().length > 0 || courseFilter !== null || statusFilter !== "all";
@@ -428,25 +490,50 @@ function StudentProjects() {
         courseId={courseFilter}
         onCourseChange={setCourseFilter}
         courses={availableCourses}
-        onClearExtra={() => setStatusFilter("all")}
+        onClearExtra={() => {
+          setStatusFilter("all");
+          setDateFrom("");
+          setDateTo("");
+          setSortBy("due_asc");
+        }}
         extra={
-          <Select
-            value={statusFilter}
-            onValueChange={(v) => setStatusFilter(v as ProjectDisplayStatus | "all")}
-          >
-            <SelectTrigger className="w-full sm:w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los estados</SelectItem>
-              <SelectItem value="available">Disponible</SelectItem>
-              <SelectItem value="upcoming">Próximo</SelectItem>
-              <SelectItem value="submitted">Entregado</SelectItem>
-              <SelectItem value="graded">Calificado</SelectItem>
-              <SelectItem value="overdue">Vencido</SelectItem>
-              <SelectItem value="closed">Cerrado</SelectItem>
-            </SelectContent>
-          </Select>
+          <>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v as ProjectDisplayStatus | "all")}
+            >
+              <SelectTrigger className="w-full sm:w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                <SelectItem value="available">Disponible</SelectItem>
+                <SelectItem value="upcoming">Próximo</SelectItem>
+                <SelectItem value="submitted">Entregado</SelectItem>
+                <SelectItem value="graded">Calificado</SelectItem>
+                <SelectItem value="overdue">Vencido</SelectItem>
+                <SelectItem value="closed">Cerrado</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="w-full sm:w-44">
+              <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Desde…" />
+            </div>
+            <div className="w-full sm:w-44">
+              <DatePicker value={dateTo} onChange={setDateTo} placeholder="Hasta…" />
+            </div>
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="due_asc">Próximos primero (fecha)</SelectItem>
+                <SelectItem value="due_desc">Más lejanos primero</SelectItem>
+                <SelectItem value="start_asc">Inicio: ascendente</SelectItem>
+                <SelectItem value="start_desc">Inicio: descendente</SelectItem>
+                <SelectItem value="title_asc">Título A→Z</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
         }
       />
 
@@ -465,6 +552,9 @@ function StudentProjects() {
                   setSearch("");
                   setCourseFilter(null);
                   setStatusFilter("all");
+                  setDateFrom("");
+                  setDateTo("");
+                  setSortBy("due_asc");
                 }}
               >
                 Limpiar filtros
@@ -472,7 +562,7 @@ function StudentProjects() {
             )}
           </div>
         )}
-        {visibleRows.map(({ project, submission, groupId }) => {
+        {pagination.paginatedItems.map(({ project, submission, groupId }) => {
           const isOverdue = project.due_date && new Date(project.due_date).getTime() < now;
           const isUpcoming = project.start_date && new Date(project.start_date).getTime() > now;
           const grade = submission?.final_grade ?? submission?.ai_grade;
@@ -642,6 +732,12 @@ function StudentProjects() {
             </Card>
           );
         })}
+      </div>
+
+      {/* Pagination — fuera del grid de cards. Visible solo si hay items
+          (la barra se oculta sola con totalItems=0). */}
+      <div className="px-1">
+        <DataPagination state={pagination} entityNamePlural="proyectos" />
       </div>
 
       <Dialog

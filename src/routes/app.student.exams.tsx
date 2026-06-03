@@ -18,11 +18,22 @@ import {
 } from "@/components/ui/select";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { PendingAiGradeBanner } from "@/modules/ai/PendingAiGradeBanner";
-import { Clock, Play, CheckCircle2, AlertTriangle, MessageSquareText, ShieldAlert, FileText } from "lucide-react";
+import {
+  Clock,
+  Play,
+  CheckCircle2,
+  AlertTriangle,
+  MessageSquareText,
+  ShieldAlert,
+  FileText,
+} from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StudentExamNotes } from "@/modules/exams/ExamNotesManager";
 import { MAX_WARNINGS } from "@/modules/exams/proctoring";
 import { formatDateTime } from "@/shared/lib/format";
+import { DatePicker } from "@/components/ui/date-picker";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 
 export const Route = createFileRoute("/app/student/exams")({ component: StudentExams });
 
@@ -67,6 +78,18 @@ type ExamDisplayStatus =
   | "completed" // completado / sospechoso
   | "closed"; // ventana cerrada sin intentos restantes
 
+/** Comparador de fechas usado por el sort del listado. Tratamos `null`
+ *  como "infinito al final" para ascendente y "menos infinito" para
+ *  descendente — así los ítems sin fecha no se mezclan con los
+ *  cronológicos válidos y quedan agrupados al final cuando ordenas por
+ *  "próximos primero" / al inicio cuando ordenas al revés. */
+function cmpDate(a: Date | null, b: Date | null, asc: boolean): number {
+  if (!a && !b) return 0;
+  if (!a) return asc ? 1 : -1;
+  if (!b) return asc ? -1 : 1;
+  return asc ? a.getTime() - b.getTime() : b.getTime() - a.getTime();
+}
+
 function getExamDisplayStatus(row: ExamRow, now: number): ExamDisplayStatus {
   const s = row.submission?.status;
   if (s === "en_progreso") return "in_progress";
@@ -86,6 +109,16 @@ function StudentExams() {
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<ExamDisplayStatus | "all">("all");
+  // Filtros adicionales: rango de fechas (sobre la fecha relevante de
+  // la entidad — end_time/start_time del examen) y orden. Defaults no
+  // afectan la UX vieja: dateFrom="" y dateTo="" no filtran nada;
+  // sortBy="due_asc" replica el orden cronológico natural (los próximos
+  // a cerrar primero).
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const [sortBy, setSortBy] = useState<
+    "due_asc" | "due_desc" | "start_asc" | "start_desc" | "title_asc"
+  >("due_asc");
   // ErrorState: si la query principal falla, mostramos placeholder con
   // "Reintentar" en vez de la grilla vacía (que el alumno interpretaría
   // como "no tengo exámenes asignados").
@@ -121,10 +154,7 @@ function StudentExams() {
       //     La toma queda bloqueada server-side por app.student.take.
       const exams = (asg ?? [])
         .map((a: any) => a.exam)
-        .filter(
-          (e: any) =>
-            Boolean(e) && !e.is_external && (e.status ?? "published") !== "draft",
-        );
+        .filter((e: any) => Boolean(e) && !e.is_external && (e.status ?? "published") !== "draft");
       const assignedIds = exams.map((e: any) => e.id);
       let makeupRows: { id: string; parent_exam_id: string | null }[] = [];
       if (assignedIds.length) {
@@ -222,19 +252,63 @@ function StudentExams() {
     return { available, inProgress, completed, upcoming };
   }, [rows, now]);
 
-  // Filtros combinados: búsqueda + curso + estado.
+  // Filtros combinados: búsqueda + curso + estado + rango de fechas, y
+  // luego ordenamiento. La "fecha due" del examen es `end_time` (cierre
+  // de la ventana) y la "fecha start" es `start_time` (apertura). Ítems
+  // sin fecha (nunca debería pasar con exams, pero por defensividad)
+  // no se filtran fuera por el rango — siguen visibles incluso con
+  // dateFrom/dateTo activos.
   const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return rows.filter((r) => {
+    const filtered = rows.filter((r) => {
       if (courseFilter && r.exam.course_id !== courseFilter) return false;
       if (statusFilter !== "all" && getExamDisplayStatus(r, now) !== statusFilter) return false;
+      // Rango de fechas — filtra por end_time (deadline). Una fecha
+      // vacía significa sin tope en ese lado.
+      const dueAt = r.exam.end_time ? new Date(r.exam.end_time) : null;
+      if (dueAt) {
+        if (dateFrom && dueAt < new Date(dateFrom)) return false;
+        if (dateTo && dueAt > new Date(`${dateTo}T23:59:59.999`)) return false;
+      }
       if (!q) return true;
       return (
         r.exam.title.toLowerCase().includes(q) ||
         (r.exam.course?.name?.toLowerCase().includes(q) ?? false)
       );
     });
-  }, [rows, search, courseFilter, statusFilter, now]);
+    const sorted = [...filtered].sort((a, b) => {
+      const aDue = a.exam.end_time ? new Date(a.exam.end_time) : null;
+      const bDue = b.exam.end_time ? new Date(b.exam.end_time) : null;
+      const aStart = a.exam.start_time ? new Date(a.exam.start_time) : null;
+      const bStart = b.exam.start_time ? new Date(b.exam.start_time) : null;
+      const aTitle = a.exam.title.toLowerCase();
+      const bTitle = b.exam.title.toLowerCase();
+      switch (sortBy) {
+        case "due_asc":
+          return cmpDate(aDue, bDue, true);
+        case "due_desc":
+          return cmpDate(aDue, bDue, false);
+        case "start_asc":
+          return cmpDate(aStart, bStart, true);
+        case "start_desc":
+          return cmpDate(aStart, bStart, false);
+        case "title_asc":
+          return aTitle.localeCompare(bTitle, "es");
+      }
+    });
+    return sorted;
+  }, [rows, search, courseFilter, statusFilter, now, dateFrom, dateTo, sortBy]);
+
+  // Paginación client-side: las cards son grandes; 12 cabe en ~3 filas
+  // del grid de 2 columnas (6 filas en mobile). El resetKey concatena
+  // TODOS los filtros activos para que aplicar cualquiera vuelva a la
+  // página 1.
+  const pagination = usePagination(visibleRows, {
+    defaultPageSize: 12,
+    pageSizes: [6, 12, 24, 48],
+    storageKey: "examlab_pag:student_exams",
+    resetKey: `${search}|${courseFilter}|${statusFilter}|${dateFrom}|${dateTo}|${sortBy}`,
+  });
 
   const hasActiveFilters =
     search.trim().length > 0 || courseFilter !== null || statusFilter !== "all";
@@ -259,7 +333,6 @@ function StudentExams() {
         title={t("exam.title")}
         subtitle={t("exam.availableSubtitle", { count: visibleRows.length })}
       />
-
 
       {/* Quick-stats de exámenes — métricas estables (no se mueven al
           filtrar). 4 tiles tintados al estilo unificado de los demás
@@ -300,24 +373,49 @@ function StudentExams() {
         courseId={courseFilter}
         onCourseChange={setCourseFilter}
         courses={availableCourses}
-        onClearExtra={() => setStatusFilter("all")}
+        onClearExtra={() => {
+          setStatusFilter("all");
+          setDateFrom("");
+          setDateTo("");
+          setSortBy("due_asc");
+        }}
         extra={
-          <Select
-            value={statusFilter}
-            onValueChange={(v) => setStatusFilter(v as ExamDisplayStatus | "all")}
-          >
-            <SelectTrigger className="w-full sm:w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los estados</SelectItem>
-              <SelectItem value="available">Disponible</SelectItem>
-              <SelectItem value="upcoming">Próximo</SelectItem>
-              <SelectItem value="in_progress">En progreso</SelectItem>
-              <SelectItem value="completed">Completado</SelectItem>
-              <SelectItem value="closed">Cerrado</SelectItem>
-            </SelectContent>
-          </Select>
+          <>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v as ExamDisplayStatus | "all")}
+            >
+              <SelectTrigger className="w-full sm:w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                <SelectItem value="available">Disponible</SelectItem>
+                <SelectItem value="upcoming">Próximo</SelectItem>
+                <SelectItem value="in_progress">En progreso</SelectItem>
+                <SelectItem value="completed">Completado</SelectItem>
+                <SelectItem value="closed">Cerrado</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="w-full sm:w-44">
+              <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Desde…" />
+            </div>
+            <div className="w-full sm:w-44">
+              <DatePicker value={dateTo} onChange={setDateTo} placeholder="Hasta…" />
+            </div>
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="due_asc">Próximos primero (fecha)</SelectItem>
+                <SelectItem value="due_desc">Más lejanos primero</SelectItem>
+                <SelectItem value="start_asc">Inicio: ascendente</SelectItem>
+                <SelectItem value="start_desc">Inicio: descendente</SelectItem>
+                <SelectItem value="title_asc">Título A→Z</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
         }
       />
 
@@ -338,6 +436,9 @@ function StudentExams() {
                   setSearch("");
                   setCourseFilter(null);
                   setStatusFilter("all");
+                  setDateFrom("");
+                  setDateTo("");
+                  setSortBy("due_asc");
                 }}
               >
                 Limpiar filtros
@@ -345,7 +446,7 @@ function StudentExams() {
             )}
           </div>
         )}
-        {visibleRows.map(({ exam, submission, attemptsUsed, maxAttempts }) => {
+        {pagination.paginatedItems.map(({ exam, submission, attemptsUsed, maxAttempts }) => {
           const start = new Date(exam.start_time).getTime();
           const end = new Date(exam.end_time).getTime();
           const isOpen = now >= start && now <= end;
@@ -416,16 +517,15 @@ function StudentExams() {
                       </Badge>
                     )}
                   </div>
-                  {submission?.status === "en_progreso" &&
-                    (submission.focus_warnings ?? 0) > 0 && (
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <ShieldAlert className="h-3 w-3 text-destructive" />
-                        <span className="text-destructive font-medium">
-                          {submission.focus_warnings}/
-                          {(exam as any).max_warnings ?? MAX_WARNINGS} strikes registrados
-                        </span>
-                      </div>
-                    )}
+                  {submission?.status === "en_progreso" && (submission.focus_warnings ?? 0) > 0 && (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <ShieldAlert className="h-3 w-3 text-destructive" />
+                      <span className="text-destructive font-medium">
+                        {submission.focus_warnings}/{(exam as any).max_warnings ?? MAX_WARNINGS}{" "}
+                        strikes registrados
+                      </span>
+                    </div>
+                  )}
                 </div>
                 {/* Solo mostramos el componente de notas de apoyo si
                     el docente las habilitó para este examen. Default
@@ -527,6 +627,12 @@ function StudentExams() {
             </Card>
           );
         })}
+      </div>
+
+      {/* Pagination — vive fuera del grid de cards. Visible cuando hay
+          al menos un item; se oculta sola si totalItems=0. */}
+      <div className="px-1">
+        <DataPagination state={pagination} entityNamePlural="exámenes" />
       </div>
     </div>
   );

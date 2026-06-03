@@ -70,6 +70,7 @@ type Question = {
   points: number;
   position: number;
   language?: string | null;
+  starter_code?: string | null;
 };
 type Student = { id: string; full_name: string; institutional_email: string };
 

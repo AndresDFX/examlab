@@ -4,7 +4,7 @@
  * y compartir el link público de verificación.
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,11 +13,20 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { Award, Download, Copy, ExternalLink, Hash, Lock } from "lucide-react";
 import { formatDateLong, formatDateOnly } from "@/shared/lib/format";
 import { downloadCertificate, buildVerifyUrl } from "@/modules/certificates/certificate-pdf";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 
 export const Route = createFileRoute("/app/student/certificates")({
   component: StudentCertificates,
@@ -55,12 +64,15 @@ interface CertificateRow {
   course?: { end_date: string | null } | null;
 }
 
+type CertSortMode = "issued_desc" | "issued_asc" | "course_asc" | "course_desc";
+
 function StudentCertificates() {
   const { user } = useAuth();
   const [items, setItems] = useState<CertificateRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [sortMode, setSortMode] = useState<CertSortMode>("issued_desc");
 
   useEffect(() => {
     if (!user) return;
@@ -142,6 +154,37 @@ function StudentCertificates() {
     toast.success("Link de verificación copiado");
   };
 
+  // Lista ordenada — la query base ya viene por issued_at desc, pero
+  // mantener el sort en cliente nos permite ofrecer orden alterno sin
+  // refetch.
+  const sortedItems = useMemo(() => {
+    const arr = items.slice();
+    switch (sortMode) {
+      case "issued_asc":
+        arr.sort((a, b) => a.issued_at.localeCompare(b.issued_at));
+        break;
+      case "course_asc":
+        arr.sort((a, b) => a.course_name.localeCompare(b.course_name));
+        break;
+      case "course_desc":
+        arr.sort((a, b) => b.course_name.localeCompare(a.course_name));
+        break;
+      case "issued_desc":
+      default:
+        arr.sort((a, b) => b.issued_at.localeCompare(a.issued_at));
+        break;
+    }
+    return arr;
+  }, [items, sortMode]);
+
+  // Paginación client-side. Cards son densas (datos + acciones) → default 12.
+  const pagination = usePagination(sortedItems, {
+    defaultPageSize: 12,
+    pageSizes: [6, 12, 24, 48],
+    storageKey: "examlab_pag:student_certificates",
+    resetKey: sortMode,
+  });
+
   return (
     <div className="container mx-auto space-y-6 p-4 sm:p-6">
       <PageHeader
@@ -173,117 +216,143 @@ function StudentCertificates() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4">
-          {items.map((cert) => (
-            <Card
-              key={cert.id}
-              className={cert.revoked_at ? "border-destructive/40 bg-destructive/5" : undefined}
-            >
-              <CardContent className="p-4 sm:p-5 space-y-3">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold text-base truncate">{cert.course_name}</h3>
-                      {cert.revoked_at ? (
-                        <Badge variant="destructive" className="text-[10px]">
-                          Revocado
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
-                        >
-                          Válido
-                        </Badge>
-                      )}
-                      {cert.course_period && (
-                        <Badge variant="secondary" className="text-[10px]">
-                          {cert.course_period}
-                        </Badge>
-                      )}
+        <>
+          {/* Selector de orden — útil cuando hay varios certificados de
+              distintos cursos / períodos. */}
+          <div className="flex justify-end">
+            <Select value={sortMode} onValueChange={(v) => setSortMode(v as CertSortMode)}>
+              <SelectTrigger className="h-9 w-full sm:w-64 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="issued_desc" className="text-xs">
+                  Emisión (más reciente)
+                </SelectItem>
+                <SelectItem value="issued_asc" className="text-xs">
+                  Emisión (más antigua)
+                </SelectItem>
+                <SelectItem value="course_asc" className="text-xs">
+                  Curso (A → Z)
+                </SelectItem>
+                <SelectItem value="course_desc" className="text-xs">
+                  Curso (Z → A)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-4">
+            {pagination.paginatedItems.map((cert) => (
+              <Card
+                key={cert.id}
+                className={cert.revoked_at ? "border-destructive/40 bg-destructive/5" : undefined}
+              >
+                <CardContent className="p-4 sm:p-5 space-y-3">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-base truncate">{cert.course_name}</h3>
+                        {cert.revoked_at ? (
+                          <Badge variant="destructive" className="text-[10px]">
+                            Revocado
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
+                          >
+                            Válido
+                          </Badge>
+                        )}
+                        {cert.course_period && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            {cert.course_period}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+                        <Hash className="h-3 w-3" />
+                        <code className="font-mono">{cert.short_code}</code>
+                        <span className="mx-1">·</span>
+                        <span>Emitido el {formatDateLong(new Date(cert.issued_at))}</span>
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
-                      <Hash className="h-3 w-3" />
-                      <code className="font-mono">{cert.short_code}</code>
-                      <span className="mx-1">·</span>
-                      <span>Emitido el {formatDateLong(new Date(cert.issued_at))}</span>
+                    <div className="text-right shrink-0">
+                      <div className="text-2xl font-bold tabular-nums">
+                        {Number(cert.final_grade).toFixed(2)}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        / {cert.grade_scale_max}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-2xl font-bold tabular-nums">
-                      {Number(cert.final_grade).toFixed(2)}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">
-                      / {cert.grade_scale_max}
-                    </div>
-                  </div>
-                </div>
 
-                {cert.revoked_at && cert.revoke_reason && (
-                  <div className="text-xs rounded border border-destructive/30 bg-background p-2.5">
-                    <span className="font-medium">Motivo: </span>
-                    {cert.revoke_reason}
-                  </div>
-                )}
+                  {cert.revoked_at && cert.revoke_reason && (
+                    <div className="text-xs rounded border border-destructive/30 bg-background p-2.5">
+                      <span className="font-medium">Motivo: </span>
+                      {cert.revoke_reason}
+                    </div>
+                  )}
 
-                {/* Aviso de bloqueo previo a end_date — solo si no está
+                  {/* Aviso de bloqueo previo a end_date — solo si no está
                     revocado (revocado tiene prioridad visual). El link
                     público y "Copiar link" siguen activos para que el
                     docente/empleador pueda verificar el cert antes de
                     que el estudiante pueda descargarlo. */}
-                {!cert.revoked_at && !isUnlocked(cert) && cert.course?.end_date && (
-                  <div className="flex items-center gap-2 rounded-md border border-amber-300/60 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 px-3 py-2 text-xs">
-                    <Lock className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300 shrink-0" />
-                    <span className="text-amber-900 dark:text-amber-200">
-                      Disponible para descarga desde el{" "}
-                      <strong>{formatDateOnly(cert.course.end_date)}</strong> (fin del curso).
-                    </span>
-                  </div>
-                )}
+                  {!cert.revoked_at && !isUnlocked(cert) && cert.course?.end_date && (
+                    <div className="flex items-center gap-2 rounded-md border border-amber-300/60 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 px-3 py-2 text-xs">
+                      <Lock className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300 shrink-0" />
+                      <span className="text-amber-900 dark:text-amber-200">
+                        Disponible para descarga desde el{" "}
+                        <strong>{formatDateOnly(cert.course.end_date)}</strong> (fin del curso).
+                      </span>
+                    </div>
+                  )}
 
-                <div className="flex flex-wrap gap-2 justify-end pt-1">
-                  <Button size="sm" variant="outline" onClick={() => handleCopyLink(cert)}>
-                    <Copy className="h-3.5 w-3.5 mr-1" />
-                    Copiar link de verificación
-                  </Button>
-                  <Button size="sm" variant="outline" asChild>
-                    <a
-                      href={buildVerifyUrl(cert.short_code)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                      Abrir verificación
-                    </a>
-                  </Button>
-                  {(() => {
-                    const unlocked = isUnlocked(cert);
-                    const disabled = !!cert.revoked_at || !unlocked;
-                    const lockedTooltip =
-                      !cert.revoked_at && !unlocked && cert.course?.end_date
-                        ? `Disponible desde el ${formatDateOnly(cert.course.end_date)}`
-                        : undefined;
-                    return (
-                      <Button
-                        size="sm"
-                        onClick={() => void handleDownload(cert)}
-                        disabled={disabled}
-                        title={lockedTooltip}
+                  <div className="flex flex-wrap gap-2 justify-end pt-1">
+                    <Button size="sm" variant="outline" onClick={() => handleCopyLink(cert)}>
+                      <Copy className="h-3.5 w-3.5 mr-1" />
+                      Copiar link de verificación
+                    </Button>
+                    <Button size="sm" variant="outline" asChild>
+                      <a
+                        href={buildVerifyUrl(cert.short_code)}
+                        target="_blank"
+                        rel="noopener noreferrer"
                       >
-                        {!unlocked && !cert.revoked_at ? (
-                          <Lock className="h-3.5 w-3.5 mr-1" />
-                        ) : (
-                          <Download className="h-3.5 w-3.5 mr-1" />
-                        )}
-                        Descargar PDF
-                      </Button>
-                    );
-                  })()}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                        <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                        Abrir verificación
+                      </a>
+                    </Button>
+                    {(() => {
+                      const unlocked = isUnlocked(cert);
+                      const disabled = !!cert.revoked_at || !unlocked;
+                      const lockedTooltip =
+                        !cert.revoked_at && !unlocked && cert.course?.end_date
+                          ? `Disponible desde el ${formatDateOnly(cert.course.end_date)}`
+                          : undefined;
+                      return (
+                        <Button
+                          size="sm"
+                          onClick={() => void handleDownload(cert)}
+                          disabled={disabled}
+                          title={lockedTooltip}
+                        >
+                          {!unlocked && !cert.revoked_at ? (
+                            <Lock className="h-3.5 w-3.5 mr-1" />
+                          ) : (
+                            <Download className="h-3.5 w-3.5 mr-1" />
+                          )}
+                          Descargar PDF
+                        </Button>
+                      );
+                    })()}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <DataPagination state={pagination} entityNamePlural="certificados" />
+        </>
       )}
     </div>
   );

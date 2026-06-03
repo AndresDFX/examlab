@@ -51,6 +51,15 @@ import { classNumberFromFilename, isTeacherOnlyFile } from "@/modules/contents/c
 import { buildPptxBlob, type PptxBrand } from "@/modules/contents/contents-pptx";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { ErrorState } from "@/components/ui/empty-state";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/app/student/courses")({ component: StudentCourses });
 
@@ -119,11 +128,14 @@ type ScheduledItem = {
   due: string; // ISO date or datetime
 };
 
+type CourseSortMode = "period_desc" | "name_asc" | "name_desc" | "start_desc";
+
 function StudentCourses() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [search, setSearch] = useState("");
+  const [sortMode, setSortMode] = useState<CourseSortMode>("period_desc");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -171,6 +183,47 @@ function StudentCourses() {
 
   const selected = courses.find((c) => c.id === selectedId) ?? null;
 
+  // Lista filtrada + ordenada. Filtro por nombre / período; orden por
+  // período (default, desc), nombre A→Z / Z→A o fecha de inicio (desc).
+  const filteredCourses = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const base = q
+      ? courses.filter(
+          (c) => c.name.toLowerCase().includes(q) || (c.period?.toLowerCase().includes(q) ?? false),
+        )
+      : courses;
+    const arr = base.slice();
+    switch (sortMode) {
+      case "name_asc":
+        arr.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case "name_desc":
+        arr.sort((a, b) => b.name.localeCompare(a.name));
+        break;
+      case "start_desc":
+        arr.sort((a, b) => (b.start_date ?? "").localeCompare(a.start_date ?? ""));
+        break;
+      case "period_desc":
+      default:
+        arr.sort((a, b) => {
+          const pa = a.period ?? "";
+          const pb = b.period ?? "";
+          if (pa !== pb) return pb.localeCompare(pa);
+          return a.name.localeCompare(b.name);
+        });
+        break;
+    }
+    return arr;
+  }, [courses, search, sortMode]);
+
+  // Paginación client-side. Cards son grandes → default 12, no 25.
+  const pagination = usePagination(filteredCourses, {
+    defaultPageSize: 12,
+    pageSizes: [6, 12, 24, 48],
+    storageKey: "examlab_pag:student_courses",
+    resetKey: `${search}|${sortMode}`,
+  });
+
   if (loading) {
     return <SectionLoader text="Cargando cursos…" />;
   }
@@ -178,10 +231,7 @@ function StudentCourses() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <PageHeader
-          icon={<Calendar className="h-6 w-6" />}
-          title={t("nav.studentCourses")}
-        />
+        <PageHeader icon={<Calendar className="h-6 w-6" />} title={t("nav.studentCourses")} />
         <ErrorState
           message="No pudimos cargar tus cursos"
           hint={loadError}
@@ -207,40 +257,55 @@ function StudentCourses() {
           cursos tiene hoy/esta semana antes de entrar a uno específico. */}
       <WeeklyScheduleView title="Mi semana" />
 
-      <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre o período…" />
+      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+        <div className="flex-1">
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Buscar por nombre o período…"
+          />
+        </div>
+        {/* Selector de orden: período (default), nombre A→Z / Z→A, inicio.
+            Útil cuando el estudiante tiene historial de varios períodos. */}
+        <Select value={sortMode} onValueChange={(v) => setSortMode(v as CourseSortMode)}>
+          <SelectTrigger className="h-9 w-full sm:w-56 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="period_desc" className="text-xs">
+              Período (más reciente)
+            </SelectItem>
+            <SelectItem value="start_desc" className="text-xs">
+              Inicio (más reciente)
+            </SelectItem>
+            <SelectItem value="name_asc" className="text-xs">
+              Nombre (A → Z)
+            </SelectItem>
+            <SelectItem value="name_desc" className="text-xs">
+              Nombre (Z → A)
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-      {(() => {
-        // Filtra por nombre + período. Evita el repintado del grid
-        // entero usando useMemo arriba sería un refactor mayor — para
-        // listas pequeñas (matrículas de un estudiante) un filter
-        // inline es aceptable.
-        const filtered = search.trim()
-          ? courses.filter(
-              (c) =>
-                c.name.toLowerCase().includes(search.toLowerCase()) ||
-                (c.period?.toLowerCase().includes(search.toLowerCase()) ?? false),
-            )
-          : courses;
-        if (filtered.length === 0) {
-          return (
-            <EmptyState
-              text={
-                search.trim() && courses.length > 0
-                  ? "Sin coincidencias"
-                  : t("courseBoard.noEnrollments")
-              }
-              hint={
-                search.trim() && courses.length > 0
-                  ? "Ajusta el buscador para ver más resultados."
-                  : undefined
-              }
-              icon={Calendar}
-            />
-          );
-        }
-        return (
+      {filteredCourses.length === 0 ? (
+        <EmptyState
+          text={
+            search.trim() && courses.length > 0
+              ? "Sin coincidencias"
+              : t("courseBoard.noEnrollments")
+          }
+          hint={
+            search.trim() && courses.length > 0
+              ? "Ajusta el buscador para ver más resultados."
+              : undefined
+          }
+          icon={Calendar}
+        />
+      ) : (
+        <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((c) => (
+            {pagination.paginatedItems.map((c) => (
               <button
                 key={c.id}
                 type="button"
@@ -266,8 +331,9 @@ function StudentCourses() {
               </button>
             ))}
           </div>
-        );
-      })()}
+          <DataPagination state={pagination} entityNamePlural="cursos" />
+        </>
+      )}
     </div>
   );
 }

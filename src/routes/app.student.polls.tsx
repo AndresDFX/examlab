@@ -29,8 +29,11 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { Checkbox } from "@/components/ui/checkbox";
+import { SearchInput } from "@/components/ui/search-input";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import {
   ListChecks,
   CheckSquare,
@@ -110,6 +113,9 @@ function StudentPolls() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  // Filtro compartido entre las dos listas (activas + cerradas). Busca
+  // por título / descripción / nombre del curso.
+  const [search, setSearch] = useState("");
   // Estado de "voting" por poll_id → option_id para mostrar spinner en
   // el botón mientras se ejecuta la RPC.
   const [voting, setVoting] = useState<string | null>(null);
@@ -195,8 +201,34 @@ function StudentPolls() {
     };
   }, [user, retryNonce]);
 
-  const activePolls = useMemo(() => polls.filter((p) => pollIsOpen(p)), [polls]);
-  const closedPolls = useMemo(() => polls.filter((p) => !pollIsOpen(p)), [polls]);
+  // Filtra por título / descripción / curso ANTES de partir en activas /
+  // cerradas, así una sola búsqueda aplica a ambas secciones.
+  const filteredPolls = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return polls;
+    return polls.filter(
+      (p) =>
+        p.title.toLowerCase().includes(q) ||
+        (p.description?.toLowerCase().includes(q) ?? false) ||
+        (p.course_name?.toLowerCase().includes(q) ?? false),
+    );
+  }, [polls, search]);
+
+  const activePolls = useMemo(() => filteredPolls.filter((p) => pollIsOpen(p)), [filteredPolls]);
+  const closedPolls = useMemo(() => filteredPolls.filter((p) => !pollIsOpen(p)), [filteredPolls]);
+
+  // Paginación independiente por sección. defaultPageSize 6 — cards de
+  // encuesta son verticalmente densas (preguntas + opciones + barras).
+  const activePagination = usePagination(activePolls, {
+    defaultPageSize: 6,
+    storageKey: "examlab_pag:student_polls_active",
+    resetKey: search,
+  });
+  const closedPagination = usePagination(closedPolls, {
+    defaultPageSize: 6,
+    storageKey: "examlab_pag:student_polls_closed",
+    resetKey: search,
+  });
 
   const castVote = async (poll: Poll, optionId: string) => {
     setVoting(poll.id);
@@ -287,39 +319,56 @@ function StudentPolls() {
         />
       ) : (
         <div className="space-y-5">
-          {activePolls.length > 0 && (
-            <section className="space-y-3">
-              <h2 className="text-sm font-medium text-muted-foreground">
-                Activas ({activePolls.length})
-              </h2>
-              {activePolls.map((p) => (
-                <PollCard
-                  key={p.id}
-                  poll={p}
-                  voting={voting === p.id}
-                  onVote={castVote}
-                  onToggleMultiple={toggleMultiple}
-                  onRealtimeChange={() => setRetryNonce((n) => n + 1)}
-                />
-              ))}
-            </section>
-          )}
-          {closedPolls.length > 0 && (
-            <section className="space-y-3">
-              <h2 className="text-sm font-medium text-muted-foreground">
-                Cerradas ({closedPolls.length})
-              </h2>
-              {closedPolls.map((p) => (
-                <PollCard
-                  key={p.id}
-                  poll={p}
-                  voting={false}
-                  onVote={castVote}
-                  onToggleMultiple={toggleMultiple}
-                  onRealtimeChange={() => setRetryNonce((n) => n + 1)}
-                />
-              ))}
-            </section>
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Buscar por título, descripción o curso…"
+          />
+          {filteredPolls.length === 0 ? (
+            <EmptyState
+              icon={ListChecks}
+              text="Sin coincidencias"
+              hint="Ajusta el buscador para ver más resultados."
+            />
+          ) : (
+            <>
+              {activePolls.length > 0 && (
+                <section className="space-y-3">
+                  <h2 className="text-sm font-medium text-muted-foreground">
+                    Activas ({activePolls.length})
+                  </h2>
+                  {activePagination.paginatedItems.map((p) => (
+                    <PollCard
+                      key={p.id}
+                      poll={p}
+                      voting={voting === p.id}
+                      onVote={castVote}
+                      onToggleMultiple={toggleMultiple}
+                      onRealtimeChange={() => setRetryNonce((n) => n + 1)}
+                    />
+                  ))}
+                  <DataPagination state={activePagination} entityNamePlural="encuestas" />
+                </section>
+              )}
+              {closedPolls.length > 0 && (
+                <section className="space-y-3">
+                  <h2 className="text-sm font-medium text-muted-foreground">
+                    Cerradas ({closedPolls.length})
+                  </h2>
+                  {closedPagination.paginatedItems.map((p) => (
+                    <PollCard
+                      key={p.id}
+                      poll={p}
+                      voting={false}
+                      onVote={castVote}
+                      onToggleMultiple={toggleMultiple}
+                      onRealtimeChange={() => setRetryNonce((n) => n + 1)}
+                    />
+                  ))}
+                  <DataPagination state={closedPagination} entityNamePlural="encuestas" />
+                </section>
+              )}
+            </>
           )}
         </div>
       )}
