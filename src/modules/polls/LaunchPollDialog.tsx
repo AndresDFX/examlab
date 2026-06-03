@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { RowAction } from "@/components/ui/row-action";
 import { HelpHint } from "@/components/ui/help-hint";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -86,6 +87,12 @@ export function LaunchPollDialog({
   const [title, setTitle] = useState("");
   const [type, setType] = useState<PollType>("single");
   const [visibility, setVisibility] = useState<ResultsVis>("always");
+  // Parámetros del docente (mig 20260603000000). En vivo defaults:
+  // allowChange=true (alumno puede corregirse durante la pregunta) y
+  // autoCloseAll=false (el docente cierra cuando termina, suele ser
+  // antes de que todos respondan).
+  const [allowChange, setAllowChange] = useState(true);
+  const [autoCloseAll, setAutoCloseAll] = useState(false);
   const [options, setOptions] = useState<DraftOption[]>([
     { label: "", max_responses: "" },
     { label: "", max_responses: "" },
@@ -97,6 +104,8 @@ export function LaunchPollDialog({
       setTitle("");
       setType("single");
       setVisibility("always");
+      setAllowChange(true);
+      setAutoCloseAll(false);
       setOptions([
         { label: "", max_responses: "" },
         { label: "", max_responses: "" },
@@ -141,9 +150,12 @@ export function LaunchPollDialog({
           title: title.trim(),
           poll_type: type,
           results_visible_to_students: visibility,
+          allow_change_response: allowChange,
+          auto_close_when_all_responded: autoCloseAll,
           // closes_at NULL = cerrada manualmente. Acorde al caso de
           // uso "in-session": el docente cierra cuando termina la
-          // pregunta.
+          // pregunta. El trigger AFTER INSERT (mig 20260603020000)
+          // se encarga de poblar poll_courses con el curso ancla.
           created_by: user.id,
         })
         .select("id")
@@ -299,6 +311,37 @@ export function LaunchPollDialog({
               </Select>
             </div>
           </div>
+
+          {/* Switches de comportamiento del voto (mig 20260603000000).
+              Compactos para no inflar el dialog del live launch. */}
+          <div className="space-y-1.5 rounded-md border bg-muted/20 p-2 text-xs">
+            <label className="flex items-start justify-between gap-2 cursor-pointer">
+              <span className="flex-1 min-w-0">
+                <span className="font-medium flex items-center gap-1">
+                  Permitir cambiar respuesta
+                  <HelpHint>
+                    Si está activado, el alumno puede corregirse mientras la pregunta esté abierta.
+                    Útil para el típico show-of-hands en clase.
+                  </HelpHint>
+                </span>
+              </span>
+              <Switch checked={allowChange} onCheckedChange={setAllowChange} />
+            </label>
+            <label className="flex items-start justify-between gap-2 cursor-pointer pt-1.5 border-t">
+              <span className="flex-1 min-w-0">
+                <span className="font-medium flex items-center gap-1">
+                  Cerrar al responder todos
+                  <HelpHint>
+                    Si está activado, la pregunta se cierra sola cuando todos los matriculados del
+                    curso ya votaron. En vivo conviene desactivarlo: el docente suele cerrar antes
+                    de que respondan los rezagados.
+                  </HelpHint>
+                </span>
+              </span>
+              <Switch checked={autoCloseAll} onCheckedChange={setAutoCloseAll} />
+            </label>
+          </div>
+
           <div>
             <Label required>
               Opciones{" "}

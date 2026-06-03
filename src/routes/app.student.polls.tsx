@@ -72,6 +72,9 @@ interface Poll {
   description: string | null;
   poll_type: PollType;
   results_visible_to_students: ResultsVis;
+  /** Si false, el alumno no puede cambiar su voto una vez emitido.
+   *  Default true (legacy). Vino con la migración 20260603000000. */
+  allow_change_response: boolean;
   opens_at: string;
   closes_at: string | null;
   closed_manually: boolean;
@@ -158,7 +161,7 @@ function StudentPolls() {
         db
           .from("polls")
           .select(
-            "id, course_id, attendance_session_id, title, description, poll_type, results_visible_to_students, opens_at, closes_at, closed_manually, options:poll_options(id, poll_id, label, position, max_responses, responses_count)",
+            "id, course_id, attendance_session_id, title, description, poll_type, results_visible_to_students, allow_change_response, opens_at, closes_at, closed_manually, options:poll_options(id, poll_id, label, position, max_responses, responses_count)",
           )
           .in("course_id", courseIds)
           .order("created_at", { ascending: false }),
@@ -231,6 +234,13 @@ function StudentPolls() {
   });
 
   const castVote = async (poll: Poll, optionId: string) => {
+    // Guard cliente: si la encuesta NO permite cambiar respuesta y el
+    // alumno ya votó, evitamos siquiera intentarlo. La RPC también lo
+    // rechaza server-side; este guard solo da feedback inmediato.
+    if (poll.poll_type !== "multiple" && poll.my_votes.length > 0 && !poll.allow_change_response) {
+      toast.info("Esta encuesta no permite cambiar el voto una vez emitido");
+      return;
+    }
     setVoting(poll.id);
     try {
       // Para single/slot: si ya voté algo distinto, limpiamos primero
@@ -524,7 +534,9 @@ function PollCard({
         </div>
         {hasVoted && open && poll.poll_type !== "multiple" && (
           <p className="text-[11px] text-muted-foreground">
-            Click otra opción para cambiar tu voto mientras la encuesta esté abierta.
+            {poll.allow_change_response
+              ? "Click otra opción para cambiar tu voto mientras la encuesta esté abierta."
+              : "Tu voto ya quedó registrado. Esta encuesta no permite cambios."}
           </p>
         )}
         {!showResults && (
