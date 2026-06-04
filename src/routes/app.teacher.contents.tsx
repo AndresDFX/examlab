@@ -69,8 +69,6 @@ import {
   Pencil,
   MoreHorizontal,
   MessageSquareText,
-  Send,
-  EyeOff,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
@@ -896,10 +894,32 @@ function TeacherContents() {
                         <div className="font-medium truncate" title={it.display_name ?? it.topic}>
                           {it.display_name ?? it.topic}
                         </div>
-                        {!it.is_published && (
-                          <Badge variant="secondary" className="text-[10px] shrink-0">
-                            Borrador
-                          </Badge>
+                        {/* Selector estándar de estado de publicación —
+                            consistente con workshops/exams/projects/polls.
+                            Solo aparece cuando la generación terminó
+                            (status='done'); antes no hay nada que
+                            publicar. El trigger en DB notifica al curso
+                            al cambiar a 'published'. */}
+                        {it.status === "done" && (
+                          <Select
+                            value={it.is_published ? "published" : "draft"}
+                            onValueChange={(v) => void setPublished(it, v === "published")}
+                          >
+                            <SelectTrigger
+                              className="h-6 w-auto px-2 py-0 text-[10px] gap-1 shrink-0"
+                              aria-label="Estado de publicación"
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="draft" className="text-xs">
+                                Borrador
+                              </SelectItem>
+                              <SelectItem value="published" className="text-xs">
+                                Publicado
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
                         )}
                       </div>
                       {it.display_name && it.display_name !== it.topic && (
@@ -1101,25 +1121,11 @@ function TeacherContents() {
                                 onClick: () => setRawForId(it.id),
                               }
                             : null,
-                          // Publicar / Despublicar para los alumnos.
-                          // Solo cuando el contenido está listo (done) —
-                          // antes de eso no hay nada que publicar. El
-                          // trigger en DB se encarga de notificar + emailar
-                          // al cambiar a `is_published=true`.
-                          it.status === "done" && !it.is_published
-                            ? {
-                                label: "Publicar para los alumnos",
-                                icon: Send,
-                                onClick: () => void setPublished(it, true),
-                              }
-                            : null,
-                          it.status === "done" && it.is_published
-                            ? {
-                                label: "Despublicar",
-                                icon: EyeOff,
-                                onClick: () => void setPublished(it, false),
-                              }
-                            : null,
+                          // Publicación: el Select inline al lado del
+                          // título maneja Borrador/Publicado — no
+                          // duplicamos las acciones acá. Mantener una
+                          // sola UI evita confusión sobre cuál es la
+                          // fuente de verdad.
                           // "Personalizar prompts" — abre el editor de
                           // overrides POR CONTENIDO. Aparece siempre (no
                           // depende de status) porque el docente puede

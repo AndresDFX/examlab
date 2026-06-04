@@ -59,6 +59,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DateTimePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -644,38 +645,42 @@ function CreatePollDialog({
   // y slotEnd con paso slotStepMin y las AÑADIMOS al array existente.
   // Cada opción nueva tiene cupo=1 (default típico para sustentaciones
   // individuales — el docente puede sobreescribir después).
-  const [slotDate, setSlotDate] = useState<string>(""); // yyyy-mm-dd
-  const [slotStartTime, setSlotStartTime] = useState<string>("18:00");
-  const [slotEndTime, setSlotEndTime] = useState<string>("19:00");
+  // Generador unificado: dos DateTimePickers (Inicio + Fin) en lugar
+  // de tres campos sueltos (Fecha + Desde + Hasta). Esto:
+  //  - estandariza el control con el resto de la app (que ya usa
+  //    DateTimePicker para closes_at, scheduled_messages, etc.);
+  //  - permite slots multi-día (inicio = 14 jun 18:00, fin = 15 jun
+  //    19:00 → genera slots cruzando medianoche con paso N min);
+  //  - elimina la fuente de error "elegí fecha pero no hora" — el
+  //    DateTimePicker garantiza ambos campos juntos.
+  // Formato local: "yyyy-MM-ddTHH:mm" (devuelve nuestro DateTimePicker).
+  const [slotRangeStart, setSlotRangeStart] = useState<string>("");
+  const [slotRangeEnd, setSlotRangeEnd] = useState<string>("");
   const [slotStepMin, setSlotStepMin] = useState<string>("15");
   const [slotCupo, setSlotCupo] = useState<string>("1");
 
   // Auto-cálculo del cupo en tiempo real: cuando el docente cambia
-  // hora inicio/fin o periodicidad, recalculamos cupo = ceil(alumnos /
-  // slots) para que todos los matriculados quepan. El docente puede
-  // editar manualmente después; si vuelve a tocar inicio/fin/step, el
-  // valor se re-sugiere (override breve). Si no hay matriculados o
-  // los parámetros no son válidos, mantenemos el último valor.
+  // el rango o la periodicidad, recalculamos cupo = ceil(alumnos /
+  // slots) para que todos los matriculados quepan. Override manual
+  // efímero — si el docente vuelve a tocar el rango, se re-sugiere.
   useEffect(() => {
     if (type !== "slot") return;
     if (enrolledCount == null || enrolledCount <= 0) return;
+    if (!slotRangeStart || !slotRangeEnd) return;
     const step = Math.max(1, Math.floor(Number(slotStepMin) || 0));
     if (!step) return;
-    const [sh, sm] = slotStartTime.split(":").map(Number);
-    const [eh, em] = slotEndTime.split(":").map(Number);
-    if ([sh, sm, eh, em].some((n) => !Number.isFinite(n))) return;
-    const startMin = sh * 60 + sm;
-    const endMin = eh * 60 + em;
-    if (endMin <= startMin) return;
-    const numSlots = Math.floor((endMin - startMin) / step);
+    const startMs = new Date(slotRangeStart).getTime();
+    const endMs = new Date(slotRangeEnd).getTime();
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return;
+    const numSlots = Math.floor((endMs - startMs) / (step * 60_000));
     if (numSlots <= 0) return;
     const suggested = Math.max(1, Math.ceil(enrolledCount / numSlots));
     setSlotCupo(String(suggested));
-  }, [type, enrolledCount, slotStartTime, slotEndTime, slotStepMin]);
+  }, [type, enrolledCount, slotRangeStart, slotRangeEnd, slotStepMin]);
 
   const generateSlots = () => {
-    if (!slotDate) {
-      toast.error("Elegí una fecha para los slots");
+    if (!slotRangeStart || !slotRangeEnd) {
+      toast.error("Elegí fecha y hora de inicio y fin para los slots");
       return;
     }
     const step = Math.max(1, Math.floor(Number(slotStepMin) || 0));
@@ -684,30 +689,42 @@ function CreatePollDialog({
       toast.error("Periodicidad y cupo deben ser enteros mayores que 0");
       return;
     }
-    const [sh, sm] = slotStartTime.split(":").map(Number);
-    const [eh, em] = slotEndTime.split(":").map(Number);
-    const startMin = sh * 60 + sm;
-    const endMin = eh * 60 + em;
-    if (endMin <= startMin) {
-      toast.error("La hora de fin debe ser posterior a la de inicio");
+    const startMs = new Date(slotRangeStart).getTime();
+    const endMs = new Date(slotRangeEnd).getTime();
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+      toast.error("Fechas inválidas — revisá inicio/fin");
       return;
     }
-    // Parse fecha y armamos las etiquetas en es-CO ("vie 14 jun, 6:00 PM").
-    const baseDate = new Date(`${slotDate}T00:00:00`);
+    if (endMs <= startMs) {
+      toast.error("La fecha/hora de fin debe ser posterior a la de inicio");
+      return;
+    }
+    // Formato de etiqueta: si el rango cruza días, mostramos día +
+    // hora ("vie 14 jun, 6:00 PM"); si todos los slots caen el mismo
+    // día, no repetimos la fecha — usamos solo hora. Reduce ruido en
+    // listas largas dentro del mismo día.
+    const startDate = new Date(startMs);
+    const endDate = new Date(endMs);
+    const sameDay =
+      startDate.getFullYear() === endDate.getFullYear() &&
+      startDate.getMonth() === endDate.getMonth() &&
+      startDate.getDate() === endDate.getDate();
     const fmtDate = new Intl.DateTimeFormat("es-CO", {
       weekday: "short",
       day: "numeric",
       month: "short",
     });
-    const datePart = fmtDate.format(baseDate);
     const generated: DraftOption[] = [];
-    for (let m = startMin; m < endMin; m += step) {
-      const hh = Math.floor(m / 60);
-      const mm = m % 60;
-      // Formato 12h con AM/PM (más natural para horario académico).
+    for (let ms = startMs; ms < endMs; ms += step * 60_000) {
+      const d = new Date(ms);
+      const hh = d.getHours();
+      const mm = d.getMinutes();
       const period = hh >= 12 ? "PM" : "AM";
       const h12 = hh % 12 === 0 ? 12 : hh % 12;
-      const label = `${datePart}, ${h12}:${String(mm).padStart(2, "0")} ${period}`;
+      const timePart = `${h12}:${String(mm).padStart(2, "0")} ${period}`;
+      const label = sameDay
+        ? `${fmtDate.format(startDate)}, ${timePart}`
+        : `${fmtDate.format(d)}, ${timePart}`;
       generated.push({ label, max_responses: String(cupo) });
     }
     if (generated.length === 0) {
@@ -1219,25 +1236,52 @@ function CreatePollDialog({
               </div>
               <Switch checked={autoCloseAll} onCheckedChange={setAutoCloseAll} />
             </div>
+          </div>
 
-            <div className="flex items-start justify-between gap-3 pt-1 border-t">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1">
-                  <span className="text-sm font-medium">Publicar ahora</span>
-                  <HelpHint>
-                    Si está OFF, la encuesta queda como borrador (solo tú la ves). Cuando esté
-                    lista, activa este toggle para que tus alumnos puedan votar y reciban una
-                    notificación por correo.
-                  </HelpHint>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {isPublished
-                    ? "Publicada: los alumnos la ven y pueden votar."
-                    : "Borrador: solo vos la ves; los alumnos no reciben notificación."}
-                </p>
-              </div>
-              <Switch checked={isPublished} onCheckedChange={setIsPublished} />
-            </div>
+          {/* Estado de publicación — control estándar Select para
+              alinearse con workshops/exams/projects (que ya usan
+              draft/published vía Select). Se sale del bloque de
+              Switches de comportamiento (allowChange / autoClose) que
+              SÍ son toggles booleanos. */}
+          <div>
+            <Label>
+              Estado{" "}
+              <HelpHint>
+                <strong>Borrador</strong>: solo tú la ves, los alumnos no la encuentran ni reciben
+                notificación. Útil para preparar opciones antes de exponerla.
+                <br />
+                <br />
+                <strong>Publicada</strong>: los alumnos del curso (o cursos linkeados) la ven y
+                pueden votar. Al publicarla se dispara una notificación in-app + correo a cada
+                matriculado (según los toggles del admin de correos).
+              </HelpHint>
+            </Label>
+            <Select
+              value={isPublished ? "published" : "draft"}
+              onValueChange={(v) => setIsPublished(v === "published")}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">
+                  <div className="flex flex-col gap-0.5">
+                    <span>Borrador</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      Oculto para los alumnos
+                    </span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="published">
+                  <div className="flex flex-col gap-0.5">
+                    <span>Publicado</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      Los alumnos lo ven y reciben notificación
+                    </span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
@@ -1282,49 +1326,47 @@ function CreatePollDialog({
                   )}
                 </p>
 
-                {/* Generador de slots de tiempo. Permite definir una
-                    fecha, hora inicio/fin y periodicidad y genera
-                    automáticamente todas las opciones (etiqueta +
-                    cupo). Especialmente útil para sustentaciones. */}
+                {/* Generador de slots de tiempo. Inicio y Fin son dos
+                    DateTimePicker unificados (estándar del proyecto,
+                    igual que `closes_at` o `scheduled_messages`). Si
+                    Inicio y Fin caen en el mismo día → slots dentro
+                    de la ventana del día; si caen en días distintos
+                    → slots multi-día (cruzan medianoche). */}
                 <div className="rounded-md border bg-muted/20 p-3 space-y-2 mb-3">
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-medium">Generar slots de tiempo</span>
                     <HelpHint>
-                      Definí una fecha, hora de inicio/fin y periodicidad, y se generarán las
-                      opciones automáticamente. Ej. <code>14 jun 2026</code>, <code>6:00 PM</code> a{" "}
-                      <code>7:00 PM</code>, cada <code>15 min</code> → genera 4 slots (6:00, 6:15,
-                      6:30, 6:45) con cupo de 1 cada uno. Si ya escribiste opciones a mano, las
-                      nuevas se añaden al final.
+                      Elegí fecha y hora de inicio y fin + periodicidad. Se generarán las opciones
+                      automáticamente. Ej. inicio <code>14 jun 6:00 PM</code> y fin{" "}
+                      <code>14 jun 7:00 PM</code>, cada <code>15 min</code> → 4 slots (6:00, 6:15,
+                      6:30, 6:45). Si el rango cruza días, también funciona — los slots llevan la
+                      fecha de cada uno en la etiqueta. Si ya escribiste opciones a mano, las nuevas
+                      se añaden al final.
                     </HelpHint>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                    <div className="col-span-2 sm:col-span-1">
-                      <Label className="text-[11px]">Fecha</Label>
-                      <Input
-                        type="date"
-                        value={slotDate}
-                        onChange={(e) => setSlotDate(e.target.value)}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[11px]">Inicio</Label>
+                      <DateTimePicker
+                        value={slotRangeStart}
+                        onChange={setSlotRangeStart}
+                        placeholder="Selecciona fecha y hora"
+                        defaultTime="18:00"
                         className="h-8 text-xs"
                       />
                     </div>
                     <div>
-                      <Label className="text-[11px]">Desde</Label>
-                      <Input
-                        type="time"
-                        value={slotStartTime}
-                        onChange={(e) => setSlotStartTime(e.target.value)}
+                      <Label className="text-[11px]">Fin</Label>
+                      <DateTimePicker
+                        value={slotRangeEnd}
+                        onChange={setSlotRangeEnd}
+                        placeholder="Selecciona fecha y hora"
+                        defaultTime="19:00"
                         className="h-8 text-xs"
                       />
                     </div>
-                    <div>
-                      <Label className="text-[11px]">Hasta</Label>
-                      <Input
-                        type="time"
-                        value={slotEndTime}
-                        onChange={(e) => setSlotEndTime(e.target.value)}
-                        className="h-8 text-xs"
-                      />
-                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label className="text-[11px]">Cada (min)</Label>
                       <Input
@@ -1336,7 +1378,7 @@ function CreatePollDialog({
                       />
                     </div>
                     <div>
-                      <Label className="text-[11px]">Cupo</Label>
+                      <Label className="text-[11px]">Cupo por slot</Label>
                       <Input
                         type="number"
                         min={1}
