@@ -22,6 +22,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -153,7 +154,15 @@ function pollIsOpen(p: Poll): boolean {
 }
 
 function TeacherPolls() {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
+  const activeRole = useActiveRole();
+  // SuperAdmin actuando como SA (no enmascarado como otro rol) NO tiene
+  // entradas en `course_teachers` — su UID es el suyo, no el de un
+  // docente del tenant. Si filtráramos cursos por `course_teachers
+  // .eq(user_id)` para él, vería 0 cursos y "Nueva encuesta" quedaría
+  // disabled. Para SA traemos todos los cursos visibles vía RLS
+  // (cross-tenant si está en modo puro, del tenant si tiene override).
+  const isSuperAdminCaller = activeRole === "SuperAdmin" && roles.includes("SuperAdmin");
   const confirm = useConfirm();
   const [polls, setPolls] = useState<Poll[]>([]);
   const [courses, setCourses] = useState<Array<{ id: string; name: string }>>([]);
@@ -176,22 +185,40 @@ function TeacherPolls() {
     void (async () => {
       setLoading(true);
       setLoadError(null);
-      // Cursos del docente para el filtro y el create dialog.
-      const { data: courseRows, error: courseErr } = await db
-        .from("course_teachers")
-        .select("course_id, courses(id, name)")
-        .eq("user_id", user.id);
-      if (cancelled) return;
-      if (courseErr) {
-        setLoadError(friendlyError(courseErr, "No pudimos cargar tus cursos."));
-        setLoading(false);
-        return;
+      // Cursos disponibles para el filtro y el create dialog.
+      // Docente: cursos donde es teacher (course_teachers).
+      // SuperAdmin: todos los cursos visibles vía RLS (cross-tenant si
+      // pure, del tenant si tiene override aplicado por RLS contextual).
+      let myCourses: Array<{ id: string; name: string }> = [];
+      if (isSuperAdminCaller) {
+        const { data: courseRows, error: courseErr } = await db
+          .from("courses")
+          .select("id, name")
+          .order("name");
+        if (cancelled) return;
+        if (courseErr) {
+          setLoadError(friendlyError(courseErr, "No pudimos cargar los cursos."));
+          setLoading(false);
+          return;
+        }
+        myCourses = (courseRows ?? []) as Array<{ id: string; name: string }>;
+      } else {
+        const { data: courseRows, error: courseErr } = await db
+          .from("course_teachers")
+          .select("course_id, courses(id, name)")
+          .eq("user_id", user.id);
+        if (cancelled) return;
+        if (courseErr) {
+          setLoadError(friendlyError(courseErr, "No pudimos cargar tus cursos."));
+          setLoading(false);
+          return;
+        }
+        myCourses = (courseRows ?? [])
+          .map((r: { courses: { id: string; name: string } | null }) => r.courses)
+          .filter((c: { id: string; name: string } | null): c is { id: string; name: string } =>
+            Boolean(c),
+          );
       }
-      const myCourses: Array<{ id: string; name: string }> = (courseRows ?? [])
-        .map((r: { courses: { id: string; name: string } | null }) => r.courses)
-        .filter((c: { id: string; name: string } | null): c is { id: string; name: string } =>
-          Boolean(c),
-        );
       setCourses(myCourses);
       // Polls de esos cursos + sus opciones. RLS ya filtra a los cursos
       // que dicta el docente, pero igual filtramos por course_id IN para

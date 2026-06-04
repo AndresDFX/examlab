@@ -702,9 +702,19 @@ function StudentProjects() {
                     (la submission cuenta el intento, pero al borrar la
                     fila se perdería el contador). RLS valida también en
                     BD (migración 20260508140000). */}
-                {isOpen &&
-                  submission &&
-                  Number(submission.attempt_count ?? 0) < Number(project.max_attempts ?? 1) && (
+                {/* "Intento gastado" = attempt_count alcanzó el cap Y la
+                    entrega previa ya fue calificada. Si está `entregado`
+                    sin nota, el alumno sigue en el MISMO intento y puede
+                    re-editar/borrar — el contador no aumenta hasta
+                    que se califique. Misma regla que en el submit. */}
+                {(() => {
+                  if (!isOpen || !submission) return null;
+                  const isGradedPrev =
+                    submission.status === "calificado" || submission.final_grade != null;
+                  const consumedAll =
+                    Number(submission.attempt_count ?? 0) >= Number(project.max_attempts ?? 1);
+                  const canDelete = !(consumedAll && isGradedPrev);
+                  return canDelete ? (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -714,14 +724,12 @@ function StudentProjects() {
                       <Trash2 className="h-3.5 w-3.5 mr-1" />
                       Eliminar mi entrega
                     </Button>
-                  )}
-                {isOpen &&
-                  submission &&
-                  Number(submission.attempt_count ?? 0) >= Number(project.max_attempts ?? 1) && (
+                  ) : (
                     <p className="text-[11px] text-muted-foreground text-center italic">
                       Ya consumiste todos tus intentos — la entrega no se puede borrar.
                     </p>
-                  )}
+                  );
+                })()}
 
                 {project.status === "published" && isOverdue && !submission && (
                   <p className="text-xs text-destructive text-center">

@@ -919,10 +919,18 @@ export function StudentWorkshopTaker({
   // Enforcement de max_attempts (paralelo a proyectos). `attemptCount`
   // viene de la submission existente (0 si nunca entregó).
   // `effectiveMaxAttempts` = override del taller o el default global.
+  // `lastSubmissionGraded` distingue "intento gastado" (graded) de
+  // "todavía editando el mismo intento" (no graded) — el submit solo
+  // bloquea cuando el cap se alcanzó Y la entrega previa fue
+  // calificada. ai_grade poblado sin final_grade NO cuenta como
+  // calificada (la IA dio una sugerencia, no el docente la fijó).
   const [attemptCount, setAttemptCount] = useState<number>(0);
   const [effectiveMaxAttempts, setEffectiveMaxAttempts] = useState<number>(1);
-  const attemptsExhausted = attemptCount >= effectiveMaxAttempts;
-  const attemptsRemaining = Math.max(0, effectiveMaxAttempts - attemptCount);
+  const [lastSubmissionGraded, setLastSubmissionGraded] = useState<boolean>(false);
+  const attemptsExhausted = attemptCount >= effectiveMaxAttempts && lastSubmissionGraded;
+  const attemptsRemaining = lastSubmissionGraded
+    ? Math.max(0, effectiveMaxAttempts - attemptCount)
+    : Math.max(1, effectiveMaxAttempts - attemptCount); // +1 reedit free
   // Track which workshopId we have already loaded so that auth refresh
   // events (TOKEN_REFRESHED on tab refocus) don't re-fetch and visually
   // "reload" the modal while the student is mid-submission.
@@ -981,7 +989,17 @@ export function StudentWorkshopTaker({
       const { data: sub } = await (groupId
         ? subQuery.eq("group_id", groupId).maybeSingle()
         : subQuery.eq("user_id", user.id).maybeSingle());
-      setAttemptCount(Number((sub as { attempt_count?: number } | null)?.attempt_count ?? 0));
+      const subRowHydrate = sub as {
+        id?: string;
+        attempt_count?: number;
+        status?: string;
+        final_grade?: number | null;
+      } | null;
+      setAttemptCount(Number(subRowHydrate?.attempt_count ?? 0));
+      setLastSubmissionGraded(
+        subRowHydrate != null &&
+          (subRowHydrate.status === "calificado" || subRowHydrate.final_grade != null),
+      );
       if (sub?.id) {
         // Hidratar el set de videos ya vistos desde
         // `workshop_submission_video_views`. Si la submission no existe

@@ -1067,10 +1067,17 @@ export function StudentProjectTaker({
   // Enforcement de max_attempts. `attemptCount` viene de la submission
   // existente (0 si nunca entregó). `effectiveMaxAttempts` = override
   // del proyecto, o el default global de `app_settings`. Cuando
-  // `attemptCount >= effectiveMaxAttempts`, bloqueamos el botón de
-  // entregar — el estudiante ya consumió todos sus intentos.
+  // `attemptCount >= effectiveMaxAttempts` Y la entrega previa ya fue
+  // calificada, bloqueamos el botón de entregar. Si la entrega previa
+  // está `entregado` SIN nota, el alumno todavía puede editar y
+  // re-entregar — el contador no aumenta hasta que se califique
+  // (mismo principio que en el submit).
   const [attemptCount, setAttemptCount] = useState<number>(0);
   const [effectiveMaxAttempts, setEffectiveMaxAttempts] = useState<number>(1);
+  // `lastSubmissionGraded` = la entrega previa tiene nota final o status
+  // 'calificado'. Es el predicado que distingue "ya gastaste tu intento"
+  // (graded) de "todavía estás en el mismo intento" (no graded).
+  const [lastSubmissionGraded, setLastSubmissionGraded] = useState<boolean>(false);
   const loadedForRef = useRef<string | null>(null);
 
   // ¿La entrega tiene archivos de código (codigo_zip)? Si no, el gate
@@ -1079,7 +1086,11 @@ export function StudentProjectTaker({
   const hasCodeQuestion = questions.some((q) => q.type === "codigo_zip");
   const allVideosWatched = introVideos.every((v) => watchedVideoIds.has(v.id));
   const videoGateBlocking = introVideos.length > 0 && hasCodeQuestion && !allVideosWatched;
-  const attemptsExhausted = attemptCount >= effectiveMaxAttempts;
+  // Intento agotado SOLO cuando ya alcanzó el cap Y la entrega anterior
+  // tiene nota. Si attempt_count=1, max=1 y status='entregado' sin nota,
+  // el alumno está corrigiendo su intento — NO bloqueamos. El cap real
+  // se aplica vía `nextAttemptCount > max` dentro del submit().
+  const attemptsExhausted = attemptCount >= effectiveMaxAttempts && lastSubmissionGraded;
 
   useEffect(() => {
     if (!user) return;
@@ -1138,7 +1149,22 @@ export function StudentProjectTaker({
         ? subQuery.eq("group_id", groupId).maybeSingle()
         : subQuery.eq("user_id", user.id).maybeSingle());
       if (sub?.repository_url) setRepositoryUrl(sub.repository_url);
-      setAttemptCount(Number((sub as { attempt_count?: number } | null)?.attempt_count ?? 0));
+      const subRow = sub as {
+        id?: string;
+        attempt_count?: number;
+        status?: string;
+        final_grade?: number | null;
+        repository_url?: string;
+      } | null;
+      setAttemptCount(Number(subRow?.attempt_count ?? 0));
+      // "Calificada" = status calificado o final_grade asignado. Si
+      // alguna de las dos condiciones se cumple, el intento ya se gastó
+      // y el alumno no puede re-entregar (consistente con la regla
+      // del submit). ai_grade=0 NO cuenta como "calificada" porque
+      // el docente todavía no puso final_grade.
+      setLastSubmissionGraded(
+        subRow != null && (subRow.status === "calificado" || subRow.final_grade != null),
+      );
       // Hidratar el set de videos ya vistos desde
       // `project_submission_video_views`. Si la submission no existe
       // todavía (primer abrir del proyecto), el set queda vacío y el

@@ -191,17 +191,18 @@ function StudentExams() {
 
       const countAttempts = (examId: string): number => {
         // Solo cuenta intentos YA CALIFICADOS. Una entrega `completado`
-        // sin nota (ai_grade null y sin override docente) sigue
-        // editable — el alumno puede reanudarla y re-entregar antes de
-        // que IA/docente la califiquen. Si la contáramos, el botón
-        // de "Hacer examen" mostraría "Sin intentos disponibles"
-        // injustamente. Misma regla en el cap dentro de take.$examId.
+        // sin nota sigue editable — el alumno puede reanudarla.
+        // EXCEPCIÓN: `sospechoso` SIEMPRE cuenta (con o sin nota): se
+        // dispara por exceso de warnings de proctoring; permitir que
+        // no contara sería burlar la regla. Misma regla en el cap
+        // dentro de take.$examId.
         const list = (subs ?? []) as SubRow[];
         return list.filter(
           (s) =>
             s.exam_id === examId &&
-            (s.status === "completado" || s.status === "sospechoso") &&
-            (s.ai_grade != null || s.final_override_grade != null),
+            (s.status === "sospechoso" ||
+              (s.status === "completado" &&
+                (s.ai_grade != null || s.final_override_grade != null))),
         ).length;
       };
 

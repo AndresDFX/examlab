@@ -462,19 +462,23 @@ function TakeExam() {
       // que workshops/proyectos: el contador no sube hasta que hay
       // feedback. La "ungraded submitted" más reciente se promueve a
       // intento reanudable más abajo.
+      // SOSPECHOSO siempre cuenta como intento gastado, AUNQUE no tenga
+      // nota: el status `sospechoso` se setea cuando el alumno excedió
+      // MAX_WARNINGS de proctoring y la submission se cerró
+      // automáticamente. Permitir reanudarla burlaría el proctoring.
+      // `completado` sin nota SÍ es reanudable (el alumno entregó
+      // limpio y todavía no hay feedback).
       const finishedCount = allSubs.filter(
         (s: any) =>
-          (s.status === "completado" || s.status === "sospechoso") &&
-          (s.ai_grade != null || s.final_override_grade != null),
+          s.status === "sospechoso" ||
+          (s.status === "completado" && (s.ai_grade != null || s.final_override_grade != null)),
       ).length;
-      // `completado`/`sospechoso` SIN calificación → es el intento activo
-      // que el alumno puede seguir editando. Tomamos el más reciente
-      // (allSubs ya viene ordenado created_at DESC).
+      // Solo `completado` SIN calificación es reanudable. `sospechoso`
+      // queda bloqueado para revisión del docente — el alumno no puede
+      // re-editar para "limpiar" su entrega marcada por proctoring.
       const resumableUngraded = allSubs.find(
         (s: any) =>
-          (s.status === "completado" || s.status === "sospechoso") &&
-          s.ai_grade == null &&
-          s.final_override_grade == null,
+          s.status === "completado" && s.ai_grade == null && s.final_override_grade == null,
       );
       const maxAttempts = Math.max(
         1,

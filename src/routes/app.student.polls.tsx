@@ -156,6 +156,23 @@ function StudentPolls() {
         setLoading(false);
         return;
       }
+      // Multi-curso (mig 20260603010000): el filtro NO puede ser
+      // `.in("course_id", courseIds)` porque eso solo matchea el curso
+      // ancla. Una encuesta linkeada a [X, Y] con ancla X NO le
+      // aparecería al alumno matriculado solo en Y. Usamos la
+      // junction `poll_courses` para resolver los poll_ids visibles.
+      const { data: junctionRows } = await db
+        .from("poll_courses")
+        .select("poll_id")
+        .in("course_id", courseIds);
+      const pollIds = Array.from(
+        new Set(((junctionRows ?? []) as Array<{ poll_id: string }>).map((r) => r.poll_id)),
+      );
+      if (pollIds.length === 0) {
+        setPolls([]);
+        setLoading(false);
+        return;
+      }
       // Polls + opciones + mis votos en paralelo.
       const [pollsRes, mineRes] = await Promise.all([
         db
@@ -163,7 +180,7 @@ function StudentPolls() {
           .select(
             "id, course_id, attendance_session_id, title, description, poll_type, results_visible_to_students, allow_change_response, opens_at, closes_at, closed_manually, options:poll_options(id, poll_id, label, position, max_responses, responses_count)",
           )
-          .in("course_id", courseIds)
+          .in("id", pollIds)
           .order("created_at", { ascending: false }),
         db.from("poll_responses").select("poll_id, option_id").eq("user_id", user.id),
       ]);
