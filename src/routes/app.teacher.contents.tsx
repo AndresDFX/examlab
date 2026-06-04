@@ -69,6 +69,8 @@ import {
   Pencil,
   MoreHorizontal,
   MessageSquareText,
+  Send,
+  EyeOff,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
@@ -148,6 +150,10 @@ interface GeneratedContent {
    *  prompt. Se editan desde el dialog "Regenerar" sin necesidad de
    *  borrar/recrear el contenido. */
   instructions: string | null;
+  /** Si false, el contenido queda como borrador del docente (los alumnos
+   *  no lo ven aunque `status='done'`). Cuando se pone en true, el
+   *  trigger de DB notifica + emaila al curso. */
+  is_published: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -592,6 +598,27 @@ function TeacherContents() {
     toast.success(t("contents.deletedToast"));
   };
 
+  /** Toggle de publicación del contenido. Al pasar a `is_published=true`
+   *  el trigger de DB notifica + emaila a los alumnos del curso. Al
+   *  pasar a false el material queda como borrador (los alumnos dejan
+   *  de verlo). */
+  const setPublished = async (item: GeneratedContent, next: boolean) => {
+    const { error } = await db
+      .from("generated_contents")
+      .update({ is_published: next })
+      .eq("id", item.id);
+    if (error) {
+      toast.error(friendlyError(error));
+      return;
+    }
+    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, is_published: next } : i)));
+    toast.success(
+      next
+        ? "Contenido publicado. Los alumnos del curso recibirán notificación."
+        : "Contenido despublicado. Los alumnos ya no lo ven.",
+    );
+  };
+
   /** Borra UN archivo individual del contenido. Útil cuando al docente
    *  no le gustó solo una parte (ej. la solución del ejercicio salió
    *  mal) y no quiere regenerar el contenido entero. Acciones:
@@ -865,8 +892,15 @@ function TeacherContents() {
                           el contexto del prompt cuando dos contenidos tienen
                           el mismo tema. Fallback al topic si la migración
                           aún no se aplicó (filas pre-display_name). */}
-                      <div className="font-medium truncate" title={it.display_name ?? it.topic}>
-                        {it.display_name ?? it.topic}
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <div className="font-medium truncate" title={it.display_name ?? it.topic}>
+                          {it.display_name ?? it.topic}
+                        </div>
+                        {!it.is_published && (
+                          <Badge variant="secondary" className="text-[10px] shrink-0">
+                            Borrador
+                          </Badge>
+                        )}
                       </div>
                       {it.display_name && it.display_name !== it.topic && (
                         <div
@@ -1065,6 +1099,25 @@ function TeacherContents() {
                                 label: t("contents.viewRaw"),
                                 icon: Eye,
                                 onClick: () => setRawForId(it.id),
+                              }
+                            : null,
+                          // Publicar / Despublicar para los alumnos.
+                          // Solo cuando el contenido está listo (done) —
+                          // antes de eso no hay nada que publicar. El
+                          // trigger en DB se encarga de notificar + emailar
+                          // al cambiar a `is_published=true`.
+                          it.status === "done" && !it.is_published
+                            ? {
+                                label: "Publicar para los alumnos",
+                                icon: Send,
+                                onClick: () => void setPublished(it, true),
+                              }
+                            : null,
+                          it.status === "done" && it.is_published
+                            ? {
+                                label: "Despublicar",
+                                icon: EyeOff,
+                                onClick: () => void setPublished(it, false),
                               }
                             : null,
                           // "Personalizar prompts" — abre el editor de

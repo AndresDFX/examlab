@@ -19,7 +19,7 @@
  * si la encuesta lo permite, los conteos agregados de cada opción.
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
@@ -99,6 +99,10 @@ interface Poll {
   /** Si true, un trigger AFTER INSERT cierra la encuesta cuando todos
    *  los matriculados del curso ya votaron. Default false. */
   auto_close_when_all_responded: boolean;
+  /** Si false, la encuesta es un borrador — solo el docente la ve (la
+   *  RLS oculta `is_published=false` a los alumnos). Cuando se cambia a
+   *  true, el trigger de publicación dispara la notif + correo al curso. */
+  is_published: boolean;
   opens_at: string;
   closes_at: string | null;
   closed_manually: boolean;
@@ -251,7 +255,7 @@ function TeacherPolls() {
       const { data: pollRows, error: pollErr } = await db
         .from("polls")
         .select(
-          "id, course_id, attendance_session_id, title, description, poll_type, results_visible_to_students, allow_change_response, auto_close_when_all_responded, opens_at, closes_at, closed_manually, created_at, options:poll_options(id, poll_id, label, position, max_responses, responses_count), linked_courses:poll_courses(course_id, courses(id, name))",
+          "id, course_id, attendance_session_id, title, description, poll_type, results_visible_to_students, allow_change_response, auto_close_when_all_responded, is_published, opens_at, closes_at, closed_manually, created_at, options:poll_options(id, poll_id, label, position, max_responses, responses_count), linked_courses:poll_courses(course_id, courses(id, name))",
         )
         .in("id", pollIds)
         .order("created_at", { ascending: false });
@@ -465,10 +469,17 @@ function TeacherPolls() {
                           })()}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="text-[10px]">
-                            <Icon className="h-3 w-3 mr-1" />
-                            {POLL_TYPE_LABELS[p.poll_type]}
-                          </Badge>
+                          <div className="flex flex-wrap items-center gap-1">
+                            <Badge variant="outline" className="text-[10px]">
+                              <Icon className="h-3 w-3 mr-1" />
+                              {POLL_TYPE_LABELS[p.poll_type]}
+                            </Badge>
+                            {!p.is_published && (
+                              <Badge variant="secondary" className="text-[10px]">
+                                Borrador
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
                           <DateCell value={p.opens_at} variant="datetime" />
@@ -590,6 +601,10 @@ function CreatePollDialog({
   //    matriculados del curso ya respondieron.
   const [allowChange, setAllowChange] = useState(true);
   const [autoCloseAll, setAutoCloseAll] = useState(false);
+  // Publicación: si false, la encuesta queda como borrador y solo el
+  // docente la ve. Al activarse, los triggers de DB notifican + emailan
+  // al curso. Default false para evitar publicar a medio armar.
+  const [isPublished, setIsPublished] = useState(false);
   const [options, setOptions] = useState<DraftOption[]>([
     { label: "", max_responses: "" },
     { label: "", max_responses: "" },
@@ -634,6 +649,29 @@ function CreatePollDialog({
   const [slotEndTime, setSlotEndTime] = useState<string>("19:00");
   const [slotStepMin, setSlotStepMin] = useState<string>("15");
   const [slotCupo, setSlotCupo] = useState<string>("1");
+
+  // Auto-cálculo del cupo en tiempo real: cuando el docente cambia
+  // hora inicio/fin o periodicidad, recalculamos cupo = ceil(alumnos /
+  // slots) para que todos los matriculados quepan. El docente puede
+  // editar manualmente después; si vuelve a tocar inicio/fin/step, el
+  // valor se re-sugiere (override breve). Si no hay matriculados o
+  // los parámetros no son válidos, mantenemos el último valor.
+  useEffect(() => {
+    if (type !== "slot") return;
+    if (enrolledCount == null || enrolledCount <= 0) return;
+    const step = Math.max(1, Math.floor(Number(slotStepMin) || 0));
+    if (!step) return;
+    const [sh, sm] = slotStartTime.split(":").map(Number);
+    const [eh, em] = slotEndTime.split(":").map(Number);
+    if ([sh, sm, eh, em].some((n) => !Number.isFinite(n))) return;
+    const startMin = sh * 60 + sm;
+    const endMin = eh * 60 + em;
+    if (endMin <= startMin) return;
+    const numSlots = Math.floor((endMin - startMin) / step);
+    if (numSlots <= 0) return;
+    const suggested = Math.max(1, Math.ceil(enrolledCount / numSlots));
+    setSlotCupo(String(suggested));
+  }, [type, enrolledCount, slotStartTime, slotEndTime, slotStepMin]);
 
   const generateSlots = () => {
     if (!slotDate) {
@@ -686,8 +724,17 @@ function CreatePollDialog({
     toast.success(`${generated.length} slot(s) generados`);
   };
 
+  // Ref que captura el último `open` para detectar transiciones
+  // false → true. Esto evita que el reset se dispare cuando solo
+  // cambia `courses` (TOKEN_REFRESHED al volver al tab refetchea
+  // cursos y emite un array nuevo) o cuando el padre re-renderiza
+  // por cualquier otra razón. Sin esto, alternar a otra pestaña y
+  // volver borraba lo que el docente había seleccionado.
+  const prevOpenRef = useRef(false);
   useEffect(() => {
-    if (!open) return;
+    const justOpened = open && !prevOpenRef.current;
+    prevOpenRef.current = open;
+    if (!justOpened) return; // Solo resetear en la transición false → true.
     if (editingPoll) {
       // Modo edición: hidratamos desde la fila. closes_at en DB es
       // timestamptz ISO; el <input type="datetime-local"> espera
@@ -711,6 +758,7 @@ function CreatePollDialog({
       }
       setAllowChange(editingPoll.allow_change_response);
       setAutoCloseAll(editingPoll.auto_close_when_all_responded);
+      setIsPublished(editingPoll.is_published);
       // Las opciones se muestran read-only en modo edit — las hidratamos
       // para mostrar al docente lo que existe sin modificar.
       setOptions(
@@ -729,12 +777,17 @@ function CreatePollDialog({
       setClosesAt("");
       setAllowChange(true);
       setAutoCloseAll(false);
+      setIsPublished(false);
       setOptions([
         { label: "", max_responses: "" },
         { label: "", max_responses: "" },
       ]);
     }
-  }, [open, courses, editingPoll]);
+    // `courses` se lee dentro pero se queda fuera del dep array a
+    // propósito: solo se necesita su valor inicial al abrir; si el
+    // padre refetchea, no debemos resetear el estado del dialog.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editingPoll]);
 
   // Default cupo = "1" cuando type='slot' (típico para sustentaciones
   // individuales). Para otros tipos se ignora el campo.
@@ -797,6 +850,7 @@ function CreatePollDialog({
             closes_at: closesAt ? new Date(closesAt).toISOString() : null,
             allow_change_response: allowChange,
             auto_close_when_all_responded: autoCloseAll,
+            is_published: isPublished,
           })
           .eq("id", editingPoll.id);
         if (updErr) {
@@ -849,6 +903,7 @@ function CreatePollDialog({
           closes_at: closesAt ? new Date(closesAt).toISOString() : null,
           allow_change_response: allowChange,
           auto_close_when_all_responded: autoCloseAll,
+          is_published: isPublished,
           created_by: userId,
         })
         .select("id")
@@ -1164,6 +1219,25 @@ function CreatePollDialog({
               </div>
               <Switch checked={autoCloseAll} onCheckedChange={setAutoCloseAll} />
             </div>
+
+            <div className="flex items-start justify-between gap-3 pt-1 border-t">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1">
+                  <span className="text-sm font-medium">Publicar ahora</span>
+                  <HelpHint>
+                    Si está OFF, la encuesta queda como borrador (solo tú la ves). Cuando esté
+                    lista, activa este toggle para que tus alumnos puedan votar y reciban una
+                    notificación por correo.
+                  </HelpHint>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {isPublished
+                    ? "Publicada: los alumnos la ven y pueden votar."
+                    : "Borrador: solo vos la ves; los alumnos no reciben notificación."}
+                </p>
+              </div>
+              <Switch checked={isPublished} onCheckedChange={setIsPublished} />
+            </div>
           </div>
 
           <div>
@@ -1357,6 +1431,7 @@ function ResultsDialog({
   poll: Poll | null;
   onOpenChange: (v: boolean) => void;
 }) {
+  const confirm = useConfirm();
   // El dialog mantiene SU PROPIA copia de las opciones y respondents,
   // refetcheada por realtime — no depende de que el padre re-renderice
   // su lista. Así los conteos se actualizan al instante cuando un
@@ -1366,6 +1441,47 @@ function ResultsDialog({
     Array<{ option_id: string; user_id: string; full_name: string | null }>
   >([]);
   const [loading, setLoading] = useState(false);
+  // Set de user_ids en proceso de borrado — para mostrar spinner y
+  // evitar dobles clicks. Si el docente clickea borrar dos veces sobre
+  // el mismo alumno, el segundo click no hace nada.
+  const [clearing, setClearing] = useState<Set<string>>(new Set());
+
+  /** Borra TODAS las respuestas de un alumno en esta encuesta. Útil
+   *  cuando el alumno eligió una fecha y necesita re-elegir después,
+   *  sin que `allow_change_response` esté abierto para todos. */
+  const clearVoteFor = async (userId: string, fullName: string | null) => {
+    if (!poll || clearing.has(userId)) return;
+    const label = fullName ?? userId.slice(0, 8);
+    const ok = await confirm({
+      title: "¿Borrar la respuesta?",
+      description: `Vas a borrar las respuestas de "${label}" en esta encuesta. El alumno podrá volver a votar cuando entre. El cupo de la opción que había elegido se libera. Esta acción no se puede deshacer.`,
+      tone: "destructive",
+      confirmLabel: "Borrar respuesta",
+    });
+    if (!ok) return;
+    setClearing((prev) => new Set(prev).add(userId));
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).rpc("teacher_clear_poll_response_for_user", {
+        _poll_id: poll.id,
+        _user_id: userId,
+      });
+      if (error) {
+        toast.error(friendlyError(error, "No se pudo borrar la respuesta"));
+        return;
+      }
+      toast.success(`Respuesta de "${label}" borrada. Ya puede volver a votar.`);
+      // El realtime debería detectar el DELETE y disparar refetch — pero
+      // forzamos uno por si la subscription debounce tarda.
+      void refetch();
+    } finally {
+      setClearing((prev) => {
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
+    }
+  };
 
   const refetch = useCallback(async () => {
     if (!poll) return;
@@ -1460,9 +1576,45 @@ function ResultsDialog({
                     <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
                   </div>
                   {voters.length > 0 && (
-                    <p className="text-[10px] text-muted-foreground truncate">
-                      {voters.map((v) => v.full_name ?? v.user_id.slice(0, 8)).join(", ")}
-                    </p>
+                    // Lista de votantes como chips con botón borrar
+                    // por alumno. Antes era un join de texto plano sin
+                    // acción; ahora el docente puede limpiar la
+                    // respuesta de UN alumno específico (útil para
+                    // Doodle: alumno tuvo un conflicto y necesita
+                    // re-elegir slot, sin tener que abrir el lock
+                    // global de la encuesta).
+                    <div className="flex flex-wrap gap-1">
+                      {voters.map((v) => {
+                        const display = v.full_name ?? v.user_id.slice(0, 8);
+                        const isClearing = clearing.has(v.user_id);
+                        return (
+                          <span
+                            key={v.user_id}
+                            className="inline-flex items-center gap-0.5 rounded border bg-muted/40 pl-1.5 pr-0.5 py-0.5 text-[10px]"
+                          >
+                            <span className="truncate max-w-[140px]" title={display}>
+                              {display}
+                            </span>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-4 w-4 shrink-0 text-muted-foreground hover:text-destructive"
+                              disabled={isClearing}
+                              onClick={() => void clearVoteFor(v.user_id, v.full_name)}
+                              title="Borrar la respuesta de este alumno (libera su cupo)"
+                              aria-label={`Borrar respuesta de ${display}`}
+                            >
+                              {isClearing ? (
+                                <Spinner size="xs" />
+                              ) : (
+                                <Trash2 className="h-2.5 w-2.5" />
+                              )}
+                            </Button>
+                          </span>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
               );

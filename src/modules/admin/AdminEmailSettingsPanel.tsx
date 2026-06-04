@@ -27,6 +27,8 @@ import {
   MessageSquareText,
   Send,
   Server,
+  ListChecks,
+  BookOpen,
 } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
 
@@ -43,6 +45,8 @@ interface EnabledKinds {
   /** Alertas del sistema a admins (storage threshold). Antes este kind
    *  se emailaba sin toggle — la migración 20260603104500 lo registró. */
   system_alerts?: boolean;
+  poll?: boolean;
+  content?: boolean;
 }
 
 interface EmailSettings {
@@ -103,6 +107,20 @@ const CATEGORIES: Array<{
     color: "text-cyan-500",
   },
   {
+    key: "poll",
+    label: "Encuestas",
+    desc: "Cuando se publica una encuesta nueva, cuando se edita una publicada o se programan recordatorios.",
+    icon: ListChecks,
+    color: "text-sky-500",
+  },
+  {
+    key: "content",
+    label: "Contenidos / Materiales",
+    desc: "Cuando el docente publica o actualiza material de clase (PDFs, guías, presentaciones).",
+    icon: BookOpen,
+    color: "text-indigo-500",
+  },
+  {
     key: "system_alerts",
     label: "Alertas del sistema",
     desc: "Notificaciones a admins cuando se cruza un umbral (almacenamiento, errores, etc.). NO afecta correos transaccionales (reset de contraseña, cambio de email).",
@@ -128,11 +146,7 @@ export function AdminEmailSettingsPanel() {
     (async () => {
       setLoading(true);
       setLoadError(null);
-      const { data, error } = await db
-        .from("email_settings")
-        .select("*")
-        .eq("id", 1)
-        .maybeSingle();
+      const { data, error } = await db.from("email_settings").select("*").eq("id", 1).maybeSingle();
       if (cancelled) return;
       if (error) {
         setLoadError(friendlyError(error, "No pudimos cargar la configuración de email."));
@@ -147,7 +161,9 @@ export function AdminEmailSettingsPanel() {
       }
       setLoading(false);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [isAdmin, retryNonce]);
 
   const dirty =
@@ -262,7 +278,10 @@ export function AdminEmailSettingsPanel() {
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
-                    <Label htmlFor={`kind-${cat.key}`} className="text-sm font-medium cursor-pointer">
+                    <Label
+                      htmlFor={`kind-${cat.key}`}
+                      className="text-sm font-medium cursor-pointer"
+                    >
                       {cat.label}
                     </Label>
                     <p className="text-xs text-muted-foreground mt-0.5">{cat.desc}</p>
@@ -272,9 +291,7 @@ export function AdminEmailSettingsPanel() {
                   id={`kind-${cat.key}`}
                   checked={isOn}
                   disabled={!globallyEnabled}
-                  onCheckedChange={(v) =>
-                    setEnabledKinds((prev) => ({ ...prev, [cat.key]: v }))
-                  }
+                  onCheckedChange={(v) => setEnabledKinds((prev) => ({ ...prev, [cat.key]: v }))}
                 />
               </div>
             );
@@ -288,7 +305,12 @@ export function AdminEmailSettingsPanel() {
             Última actualización: {formatDateTime(settings.updated_at)}
           </p>
         )}
-        <Button size="sm" onClick={() => void save()} disabled={saving || !dirty} className="ml-auto">
+        <Button
+          size="sm"
+          onClick={() => void save()}
+          disabled={saving || !dirty}
+          className="ml-auto"
+        >
           {saving ? <Spinner size="sm" className="mr-1" /> : <Save className="h-4 w-4 mr-1" />}
           Guardar cambios
         </Button>

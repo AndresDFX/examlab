@@ -300,7 +300,7 @@ function TeacherExams() {
       schedule_type: "normal",
       retry_mode: "last",
       max_warnings: 3,
-      status: "published",
+      status: "draft",
     } as any);
     setSelectedCourseIds(new Set(first ? [first] : []));
     setCourseCuts(first ? { [first]: { cut_id: null, weight: 1 } } : {});

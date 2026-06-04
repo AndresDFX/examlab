@@ -417,7 +417,13 @@ function MessagesPage() {
     void (async () => {
       const { data } = await db.from("user_roles").select("role").eq("user_id", myUserId);
       const roles = (data ?? []) as Array<{ role: string }>;
-      setIsStaff(roles.some((r) => r.role === "Docente" || r.role === "Admin"));
+      // SuperAdmin también es "staff" para efectos de programar mensajes,
+      // difundir a curso, etc. — paridad con la nav y RBAC del resto
+      // del producto. Sin esto, un SuperAdmin operando 1-a-1 con un
+      // docente no podía programar respuesta para más tarde.
+      setIsStaff(
+        roles.some((r) => r.role === "Docente" || r.role === "Admin" || r.role === "SuperAdmin"),
+      );
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myUserId]);
@@ -1859,83 +1865,116 @@ function MessagesPage() {
                   )}
                 </div>
 
-                {/* Composer + adjuntos */}
+                {/* Composer + adjuntos.
+                    Layout estilo Discord/Slack: textarea full-width arriba
+                    y una toolbar abajo con los secundarios (#, 📎, 🕐) a la
+                    izquierda + Send a la derecha. Antes los 4 botones
+                    estaban stackeados verticalmente al lado del textarea
+                    (flex-col), lo que ocupaba 4 filas de alto y dejaba
+                    el chat en una columna apretada. Este layout corre
+                    bien en mobile (los íconos no compiten con el textarea
+                    por el ancho horizontal) y desktop por igual. */}
                 <div className="border-t p-2 space-y-1.5">
-                  <div className="flex gap-2">
-                    {/* TagTextarea: textarea con autocomplete `#` para
-                        etiquetar contenido + preview de tags. Ctrl/Cmd+
-                        Enter envía. */}
-                    <TagTextarea
-                      value={body}
-                      onChange={setBody}
-                      onSubmit={() => void send()}
-                      placeholder="Escribe un mensaje… (usa # para etiquetar)"
-                      rows={2}
-                      className="text-sm min-h-[2.5rem] resize-none"
-                    />
-                    <div className="flex flex-col gap-1 self-end">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => addFiles(e.target.files)}
-                        aria-label="Adjuntar archivos"
-                        data-testid="message-file-input"
-                      />
-                      {/* Etiquetar contenido: abre el picker con tabs por
-                          tipo (taller/examen/proyecto). Alternativa al
-                          trigger inline `#`. Útil cuando el usuario
-                          prefiere buscar por tabs en vez de escribir. */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => addFiles(e.target.files)}
+                    aria-label="Adjuntar archivos"
+                    data-testid="message-file-input"
+                  />
+                  {/* TagTextarea: textarea con autocomplete `#` para
+                      etiquetar contenido + preview de tags. Ctrl/Cmd+
+                      Enter envía. Placeholder explícito + tip debajo
+                      cuando el body está vacío para que el usuario
+                      descubra el mecanismo de etiquetado. */}
+                  <TagTextarea
+                    value={body}
+                    onChange={setBody}
+                    onSubmit={() => void send()}
+                    placeholder="Escribe un mensaje. Usa # para etiquetar talleres, exámenes, proyectos o cursos…"
+                    rows={2}
+                    className="text-sm min-h-[2.5rem] resize-none"
+                  />
+                  {/* Tip de etiquetado — visible solo cuando el textarea
+                      está vacío, así no satura cuando el usuario ya
+                      escribió. Da un ejemplo concreto en línea para
+                      reducir fricción de descubrimiento. */}
+                  {!body.trim() && (
+                    <p className="text-[11px] text-muted-foreground flex items-center gap-1 px-0.5">
+                      <Hash className="h-3 w-3 shrink-0" />
+                      Tip: escribe <code className="rounded bg-muted px-1">#</code> seguido del
+                      nombre para etiquetar contenido (ej.{" "}
+                      <code className="rounded bg-muted px-1">#VetCare</code>) y enlazarlo en el
+                      mensaje.
+                    </p>
+                  )}
+                  <div className="flex items-center gap-1">
+                    {/* Etiquetar contenido: abre el picker con tabs por
+                        tipo (taller/examen/proyecto). Alternativa al
+                        trigger inline `#`. */}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 shrink-0"
+                      onClick={() => setTagPickerOpen(true)}
+                      disabled={sending}
+                      title="Etiquetar contenido — o escribe # en el mensaje"
+                      aria-label="Etiquetar contenido"
+                    >
+                      <Hash className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 shrink-0"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={sending || pendingFiles.length >= MESSAGE_ATTACHMENT_MAX_COUNT}
+                      title="Adjuntar archivos"
+                      aria-label="Adjuntar archivos"
+                    >
+                      <Paperclip className="h-4 w-4" />
+                    </Button>
+                    {/* Programar mensaje (solo staff): abre una fila con
+                        DateTimePicker para enviar el mensaje más tarde.
+                        Cuando el panel está abierto el botón se resalta
+                        (variant secondary) para indicar el estado. */}
+                    {isStaff && (
                       <Button
                         type="button"
                         size="sm"
-                        variant="outline"
-                        className="h-9 px-2"
-                        onClick={() => setTagPickerOpen(true)}
+                        variant={directScheduleOpen ? "secondary" : "ghost"}
+                        className="h-8 w-8 p-0 shrink-0"
+                        onClick={() => setDirectScheduleOpen((v) => !v)}
                         disabled={sending}
-                        title="Etiquetar contenido — o escribe # en el mensaje"
-                        aria-label="Etiquetar contenido"
+                        title="Programar el envío de este mensaje para más tarde"
+                        aria-label="Programar mensaje"
                       >
-                        <Hash className="h-3.5 w-3.5" />
+                        <Clock className="h-4 w-4" />
                       </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-9 px-2"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={sending || pendingFiles.length >= MESSAGE_ATTACHMENT_MAX_COUNT}
-                        title="Adjuntar archivos"
-                        aria-label="Adjuntar archivos"
-                      >
-                        <Paperclip className="h-3.5 w-3.5" />
-                      </Button>
-                      {/* Programar mensaje (solo staff): abre una fila con
-                          DateTimePicker para enviar el mensaje más tarde
-                          como mensaje directo al otro usuario de la conv. */}
-                      {isStaff && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-9 px-2"
-                          onClick={() => setDirectScheduleOpen((v) => !v)}
-                          disabled={sending || !body.trim()}
-                          title="Programar este mensaje para más tarde"
-                          aria-label="Programar mensaje"
-                        >
-                          <Clock className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                      <Button
-                        onClick={() => void send()}
-                        disabled={(!body.trim() && pendingFiles.length === 0) || sending}
-                        className="h-9"
-                      >
-                        {sending ? <Spinner size="xs" /> : <Send className="h-4 w-4" />}
-                      </Button>
-                    </div>
+                    )}
+                    {/* Indicador de adjuntos pendientes — visible en la
+                        misma toolbar para ahorrar vertical. */}
+                    {pendingFiles.length > 0 && (
+                      <span className="ml-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground tabular-nums">
+                        <Paperclip className="h-3 w-3" />
+                        {pendingFiles.length}/{MESSAGE_ATTACHMENT_MAX_COUNT}
+                      </span>
+                    )}
+                    {/* Spacer empuja Send a la derecha. */}
+                    <div className="flex-1" />
+                    <Button
+                      onClick={() => void send()}
+                      disabled={(!body.trim() && pendingFiles.length === 0) || sending}
+                      className="h-8 gap-1 shrink-0"
+                      size="sm"
+                    >
+                      {sending ? <Spinner size="xs" /> : <Send className="h-3.5 w-3.5" />}
+                      <span className="hidden sm:inline">Enviar</span>
+                    </Button>
                   </div>
                   {/* Fila de programación del mensaje directo. */}
                   {isStaff && directScheduleOpen && (
