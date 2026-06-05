@@ -59,7 +59,8 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DateTimePicker } from "@/components/ui/date-picker";
+import { DateTimePicker, DatePicker } from "@/components/ui/date-picker";
+import { generateSlotsForDates, suggestSlotCupo } from "@/modules/polls/slot-generation";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -75,6 +76,7 @@ import {
   RefreshCw,
   Radio,
   Pencil,
+  X,
 } from "lucide-react";
 import { usePollRealtime } from "@/modules/polls/use-poll-realtime";
 
@@ -639,48 +641,57 @@ function CreatePollDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseIds.join("|")]);
 
-  // ─── Generador de slots de tiempo ────────────────────────────────
-  // Estado del mini-form (visible solo en type='slot'). Cuando el
-  // docente clickea "Generar", calculamos las opciones entre slotStart
-  // y slotEnd con paso slotStepMin y las AÑADIMOS al array existente.
-  // Cada opción nueva tiene cupo=1 (default típico para sustentaciones
-  // individuales — el docente puede sobreescribir después).
-  // Generador unificado: dos DateTimePickers (Inicio + Fin) en lugar
-  // de tres campos sueltos (Fecha + Desde + Hasta). Esto:
-  //  - estandariza el control con el resto de la app (que ya usa
-  //    DateTimePicker para closes_at, scheduled_messages, etc.);
-  //  - permite slots multi-día (inicio = 14 jun 18:00, fin = 15 jun
-  //    19:00 → genera slots cruzando medianoche con paso N min);
-  //  - elimina la fuente de error "elegí fecha pero no hora" — el
-  //    DateTimePicker garantiza ambos campos juntos.
-  // Formato local: "yyyy-MM-ddTHH:mm" (devuelve nuestro DateTimePicker).
-  const [slotRangeStart, setSlotRangeStart] = useState<string>("");
-  const [slotRangeEnd, setSlotRangeEnd] = useState<string>("");
+  // ─── Generador de slots de tiempo (V2) ───────────────────────────
+  // Modelo (refactor 2026-06): el docente agrega MÚLTIPLES FECHAS
+  // manualmente + define UNA ventana horaria + paso + cupo. La
+  // generación produce `fechas × slots-por-día`.
+  //
+  // V1 tenía dos DateTimePickers (Inicio + Fin) que cruzaba días
+  // continuamente — confuso: si querías "9-12 lun, mar, mié" había
+  // que poner inicio=lun 9:00 y fin=mié 12:00, lo cual generaba
+  // también slots de lun 12:00 a lun 18:00 cruzando la noche. V2
+  // separa el concepto: las fechas son los días disponibles y la
+  // ventana horaria aplica DENTRO de cada día.
+  //
+  // La lógica de generación + suggestSlotCupo vive en `slot-generation.ts`
+  // como funciones puras testeables sin React.
+  const [slotDates, setSlotDates] = useState<string[]>([]); // YYYY-MM-DD[]
+  const [slotDraftDate, setSlotDraftDate] = useState<string>(""); // input temporal del DatePicker para agregar
+  const [slotTimeStart, setSlotTimeStart] = useState<string>("09:00");
+  const [slotTimeEnd, setSlotTimeEnd] = useState<string>("12:00");
   const [slotStepMin, setSlotStepMin] = useState<string>("15");
   const [slotCupo, setSlotCupo] = useState<string>("1");
 
-  // Auto-cálculo del cupo en tiempo real: cuando el docente cambia
-  // el rango o la periodicidad, recalculamos cupo = ceil(alumnos /
-  // slots) para que todos los matriculados quepan. Override manual
-  // efímero — si el docente vuelve a tocar el rango, se re-sugiere.
+  const addSlotDate = () => {
+    if (!slotDraftDate) return;
+    setSlotDates((prev) => (prev.includes(slotDraftDate) ? prev : [...prev, slotDraftDate].sort()));
+    setSlotDraftDate("");
+  };
+  const removeSlotDate = (d: string) => {
+    setSlotDates((prev) => prev.filter((x) => x !== d));
+  };
+
+  // Auto-cálculo del cupo: ceil(matriculados / total_slots) para que
+  // TODOS los matriculados quepan. Recalcula al cambiar fechas / ventana
+  // / step. Override manual del docente se sobreescribe — comportamiento
+  // intencional, igual que V1.
   useEffect(() => {
     if (type !== "slot") return;
-    if (enrolledCount == null || enrolledCount <= 0) return;
-    if (!slotRangeStart || !slotRangeEnd) return;
-    const step = Math.max(1, Math.floor(Number(slotStepMin) || 0));
-    if (!step) return;
-    const startMs = new Date(slotRangeStart).getTime();
-    const endMs = new Date(slotRangeEnd).getTime();
-    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return;
-    const numSlots = Math.floor((endMs - startMs) / (step * 60_000));
-    if (numSlots <= 0) return;
-    const suggested = Math.max(1, Math.ceil(enrolledCount / numSlots));
+    if (slotDates.length === 0) return;
+    const step = Math.floor(Number(slotStepMin) || 0);
+    const suggested = suggestSlotCupo(
+      slotDates,
+      slotTimeStart,
+      slotTimeEnd,
+      step,
+      enrolledCount ?? 0,
+    );
     setSlotCupo(String(suggested));
-  }, [type, enrolledCount, slotRangeStart, slotRangeEnd, slotStepMin]);
+  }, [type, enrolledCount, slotDates, slotTimeStart, slotTimeEnd, slotStepMin]);
 
   const generateSlots = () => {
-    if (!slotRangeStart || !slotRangeEnd) {
-      toast.error("Elegí fecha y hora de inicio y fin para los slots");
+    if (slotDates.length === 0) {
+      toast.error("Agregá al menos una fecha");
       return;
     }
     const step = Math.max(1, Math.floor(Number(slotStepMin) || 0));
@@ -689,56 +700,32 @@ function CreatePollDialog({
       toast.error("Periodicidad y cupo deben ser enteros mayores que 0");
       return;
     }
-    const startMs = new Date(slotRangeStart).getTime();
-    const endMs = new Date(slotRangeEnd).getTime();
-    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
-      toast.error("Fechas inválidas — revisá inicio/fin");
+    if (!slotTimeStart || !slotTimeEnd) {
+      toast.error("Definí la ventana horaria (inicio y fin)");
       return;
     }
-    if (endMs <= startMs) {
-      toast.error("La fecha/hora de fin debe ser posterior a la de inicio");
-      return;
-    }
-    // Formato de etiqueta: si el rango cruza días, mostramos día +
-    // hora ("vie 14 jun, 6:00 PM"); si todos los slots caen el mismo
-    // día, no repetimos la fecha — usamos solo hora. Reduce ruido en
-    // listas largas dentro del mismo día.
-    const startDate = new Date(startMs);
-    const endDate = new Date(endMs);
-    const sameDay =
-      startDate.getFullYear() === endDate.getFullYear() &&
-      startDate.getMonth() === endDate.getMonth() &&
-      startDate.getDate() === endDate.getDate();
-    const fmtDate = new Intl.DateTimeFormat("es-CO", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
+    const generated = generateSlotsForDates({
+      dates: slotDates,
+      timeStart: slotTimeStart,
+      timeEnd: slotTimeEnd,
+      stepMin: step,
+      cupo,
     });
-    const generated: DraftOption[] = [];
-    for (let ms = startMs; ms < endMs; ms += step * 60_000) {
-      const d = new Date(ms);
-      const hh = d.getHours();
-      const mm = d.getMinutes();
-      const period = hh >= 12 ? "PM" : "AM";
-      const h12 = hh % 12 === 0 ? 12 : hh % 12;
-      const timePart = `${h12}:${String(mm).padStart(2, "0")} ${period}`;
-      const label = sameDay
-        ? `${fmtDate.format(startDate)}, ${timePart}`
-        : `${fmtDate.format(d)}, ${timePart}`;
-      generated.push({ label, max_responses: String(cupo) });
-    }
     if (generated.length === 0) {
-      toast.error("El rango no produce ningún slot — revisá inicio/fin/periodicidad");
+      toast.error(
+        "La configuración no produce ningún slot — revisá la ventana horaria y la periodicidad",
+      );
       return;
     }
-    // Si las dos opciones iniciales están vacías, REEMPLAZAMOS; si el
-    // docente ya escribió algo, AÑADIMOS al final para no destruir su
-    // trabajo.
+    // Si las opciones iniciales están todas vacías, REEMPLAZAMOS; si el
+    // docente ya escribió algo, AÑADIMOS al final para no destruir su trabajo.
     setOptions((prev) => {
       const allEmpty = prev.every((o) => !o.label.trim());
       return allEmpty ? generated : [...prev, ...generated];
     });
-    toast.success(`${generated.length} slot(s) generados`);
+    toast.success(
+      `${generated.length} slot(s) generados en ${slotDates.length} fecha${slotDates.length === 1 ? "" : "s"}`,
+    );
   };
 
   // Ref que captura el último `open` para detectar transiciones
@@ -1293,11 +1280,29 @@ function CreatePollDialog({
                     Las respuestas que verán los alumnos. Mínimo 2; agrega tantas como necesites.
                   </p>
                   {type === "slot" && (
-                    <p>
-                      <strong>Cupo:</strong> número máximo de alumnos que pueden elegir esa opción.
-                      Por ejemplo, si cada opción es una fecha de sustentación y solo caben 5
-                      estudiantes por día, pon <code>5</code> en cada cupo.
-                    </p>
+                    <>
+                      <p>
+                        <strong>Cupo:</strong> número máximo de alumnos que pueden elegir esa
+                        opción. Por ejemplo, si cada opción es una fecha de sustentación y solo
+                        caben 5 estudiantes por día, pon <code>5</code> en cada cupo.
+                      </p>
+                      <p>
+                        <strong>Modo Doodle:</strong> cada opción se cierra cuando se llena su cupo.
+                        Útil para repartir slots como fechas de sustentación o turnos de
+                        laboratorio.
+                        {enrolledCount != null && enrolledCount > 0 && (
+                          <>
+                            {" "}
+                            Tu{courseIds.length > 1 ? "s curso(s) tienen" : " curso tiene"}{" "}
+                            <strong>
+                              {enrolledCount} alumno{enrolledCount === 1 ? "" : "s"}
+                            </strong>{" "}
+                            en total, y el cupo por opción decide cuántos alumnos pueden elegir esa
+                            misma opción.
+                          </>
+                        )}
+                      </p>
+                    </>
                   )}
                 </div>
               </HelpHint>
@@ -1310,62 +1315,96 @@ function CreatePollDialog({
             )}
             {type === "slot" && !isEdit && (
               <>
-                <p className="text-[11px] text-muted-foreground mt-1 mb-2">
-                  Modo Doodle: cada opción se cierra cuando se llena su cupo. Útil para repartir
-                  slots como fechas de sustentación o turnos de laboratorio.
-                  {enrolledCount != null && enrolledCount > 0 && (
-                    <>
-                      {" "}
-                      <span className="text-foreground font-medium">
-                        Tu{courseIds.length > 1 ? "s curso(s) tienen" : " curso tiene"}{" "}
-                        {enrolledCount} alumno{enrolledCount === 1 ? "" : "s"}
-                      </span>{" "}
-                      en total, y el cupo por opción decide cuántos alumnos pueden elegir esa misma
-                      opción.
-                    </>
-                  )}
-                </p>
-
-                {/* Generador de slots de tiempo. Inicio y Fin son dos
-                    DateTimePicker unificados (estándar del proyecto,
-                    igual que `closes_at` o `scheduled_messages`). Si
-                    Inicio y Fin caen en el mismo día → slots dentro
-                    de la ventana del día; si caen en días distintos
-                    → slots multi-día (cruzan medianoche). */}
-                <div className="rounded-md border bg-muted/20 p-3 space-y-2 mb-3">
+                {/* Generador de slots (V2): el docente agrega múltiples
+                    fechas manualmente + define UNA ventana horaria
+                    compartida + paso + cupo. Genera cross-product
+                    fechas × slots-por-día. Más natural que V1 (dos
+                    DateTimePickers que cruzaban días continuos). */}
+                <div className="rounded-md border bg-muted/20 p-3 space-y-3 mb-3">
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-medium">Generar slots de tiempo</span>
                     <HelpHint>
-                      Elegí fecha y hora de inicio y fin + periodicidad. Se generarán las opciones
-                      automáticamente. Ej. inicio <code>14 jun 6:00 PM</code> y fin{" "}
-                      <code>14 jun 7:00 PM</code>, cada <code>15 min</code> → 4 slots (6:00, 6:15,
-                      6:30, 6:45). Si el rango cruza días, también funciona — los slots llevan la
-                      fecha de cada uno en la etiqueta. Si ya escribiste opciones a mano, las nuevas
-                      se añaden al final.
+                      Agregá las fechas disponibles + ventana horaria + periodicidad. Para cada
+                      fecha se generan los slots de la ventana. Ej. fechas <code>10 jun</code> y{" "}
+                      <code>11 jun</code>, ventana <code>9:00–10:00</code>, cada <code>15 min</code>{" "}
+                      → 8 slots (4 por fecha). Si ya escribiste opciones a mano, las nuevas se
+                      añaden al final.
                     </HelpHint>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+
+                  {/* Lista de fechas elegidas + DatePicker para agregar */}
+                  <div>
+                    <Label className="text-[11px]">Fechas disponibles</Label>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5 mb-2">
+                      {slotDates.length === 0 ? (
+                        <span className="text-[11px] text-muted-foreground italic">
+                          Sin fechas todavía — agregá al menos una abajo.
+                        </span>
+                      ) : (
+                        slotDates.map((d) => (
+                          <Badge
+                            key={d}
+                            variant="secondary"
+                            className="text-[11px] gap-1 pl-2 pr-1"
+                          >
+                            {d}
+                            <button
+                              type="button"
+                              onClick={() => removeSlotDate(d)}
+                              className="hover:text-destructive transition-colors rounded p-0.5"
+                              aria-label={`Quitar ${d}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))
+                      )}
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
+                      <div className="flex-1 min-w-0">
+                        <DatePicker
+                          value={slotDraftDate}
+                          onChange={setSlotDraftDate}
+                          placeholder="Selecciona una fecha"
+                          className="h-8 text-xs w-full"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addSlotDate}
+                        disabled={!slotDraftDate}
+                        className="h-8 text-xs"
+                      >
+                        <Plus className="h-3.5 w-3.5 mr-1" />
+                        Agregar fecha
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Ventana horaria del día (aplica a cada fecha) */}
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <Label className="text-[11px]">Inicio</Label>
-                      <DateTimePicker
-                        value={slotRangeStart}
-                        onChange={setSlotRangeStart}
-                        placeholder="Selecciona fecha y hora"
-                        defaultTime="18:00"
+                      <Label className="text-[11px]">Hora inicio</Label>
+                      <Input
+                        type="time"
+                        value={slotTimeStart}
+                        onChange={(e) => setSlotTimeStart(e.target.value)}
                         className="h-8 text-xs"
                       />
                     </div>
                     <div>
-                      <Label className="text-[11px]">Fin</Label>
-                      <DateTimePicker
-                        value={slotRangeEnd}
-                        onChange={setSlotRangeEnd}
-                        placeholder="Selecciona fecha y hora"
-                        defaultTime="19:00"
+                      <Label className="text-[11px]">Hora fin</Label>
+                      <Input
+                        type="time"
+                        value={slotTimeEnd}
+                        onChange={(e) => setSlotTimeEnd(e.target.value)}
                         className="h-8 text-xs"
                       />
                     </div>
                   </div>
+
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label className="text-[11px]">Cada (min)</Label>
@@ -1388,11 +1427,13 @@ function CreatePollDialog({
                       />
                     </div>
                   </div>
+
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={generateSlots}
+                    disabled={slotDates.length === 0}
                     className="w-full sm:w-auto"
                   >
                     <CalendarRange className="h-3.5 w-3.5 mr-1" />

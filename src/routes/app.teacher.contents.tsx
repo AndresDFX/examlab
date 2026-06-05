@@ -1241,10 +1241,18 @@ function TeacherContents() {
                 {t("contents.topic")}
                 <HelpHint>{t("contents.topicHint")}</HelpHint>
               </Label>
-              <Input
+              {/* Cambiado de Input a Textarea (3 filas, resize-y). El tema
+                  no es solo una etiqueta corta — el docente suele querer
+                  describir el contenido en detalle (objetivos, ejes,
+                  ejemplos) para guiar mejor a la IA en la generación.
+                  Un Input single-line truncaba esa descripción
+                  forzando al docente a sintetizar de más. */}
+              <Textarea
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 placeholder={t("contents.topicPlaceholder")}
+                rows={3}
+                className="resize-y"
               />
             </div>
 
@@ -1427,17 +1435,20 @@ function TeacherContents() {
               />
             </div>
 
-            <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
-              <div className="space-y-1 min-w-0">
-                <Label htmlFor="release-after-session" className="text-sm font-medium">
+            <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+              <Label
+                htmlFor="release-after-session"
+                className="text-sm font-medium inline-flex items-center gap-1.5 cursor-pointer min-w-0"
+              >
+                <span className="truncate">
                   Liberar al estudiante solo desde la fecha de sesión
-                </Label>
-                <p className="text-xs text-muted-foreground">
+                </span>
+                <HelpHint>
                   Si está activo, el estudiante verá el contenido únicamente cuando llegue la fecha
                   de la sesión a la que se asignó. Útil para evitar spoilers de talleres, ejercicios
                   o exámenes.
-                </p>
-              </div>
+                </HelpHint>
+              </Label>
               <Switch
                 id="release-after-session"
                 checked={releaseAfterSessionDate}

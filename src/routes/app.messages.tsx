@@ -381,8 +381,10 @@ function MessagesPage() {
         };
         // Último mensaje + lista corta para contar no-leídos del otro
         // posteriores a MI last_read_at. RLS recorta lo "borrado para
-        // mí" automáticamente.
+        // mí" automáticamente — los mensajes con created_at <= mi
+        // cleared_at no aparecen.
         const lastReadAt = c.user_a === myUserId ? c.user_a_last_read_at : c.user_b_last_read_at;
+        const myClearedAt = c.user_a === myUserId ? c.user_a_cleared_at : c.user_b_cleared_at;
         const { data: recent } = await db
           .from("messages")
           .select("id, sender_id, created_at")
@@ -396,10 +398,20 @@ function MessagesPage() {
           .eq("conversation_id", c.id)
           .order("created_at", { ascending: false })
           .limit(1);
+        const lastMessage = (lastMsgRow?.[0] as MessageLite | undefined) ?? null;
+        // "Borrar para mí": una vez que el usuario clickea Eliminar, el
+        // backend setea su `cleared_at`. La RLS de messages oculta los
+        // mensajes anteriores, así que la conversación quedaba en la
+        // lista con preview vacío — confuso. Filtramos acá: si tengo
+        // cleared_at Y no hay mensajes visibles posteriores, oculto la
+        // conversación de mi lista por completo. Si el otro usuario me
+        // manda un mensaje nuevo, lastMessage tendrá created_at >
+        // cleared_at → la conversación "resucita" automáticamente.
+        if (myClearedAt && !lastMessage) continue;
         enriched.push({
           conv: c,
           other,
-          lastMessage: (lastMsgRow?.[0] as MessageLite | undefined) ?? null,
+          lastMessage,
           unread: unreadCount(recentList, lastReadAt, myUserId),
         });
       }

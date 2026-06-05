@@ -96,6 +96,19 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
+# generate-contents lo invoca ai-generation-worker (Bearer service_role_key)
+# cuando un job de content_generation se drena, y la UI del docente
+# (Bearer user JWT) en el flujo sync. Mismo problema de formato de key
+# que ai-grading-worker — con verify_jwt=true el gateway rebota el
+# service_role con UNAUTHORIZED_INVALID_JWT_FORMAT (caso reportado:
+# "generate-contents HTTP 401: Invalid JWT" desde el panel Cola IA →
+# Generaciones tras intentar drenar). Apagamos verify_jwt; la
+# autorización fina la enforza el body.id + adminClient + RLS al
+# leer/escribir generated_contents.
+[functions."generate-contents"]
+enabled = true
+verify_jwt = false
+
 # ai-generation-worker drena la cola ai_generation_queue (generación de
 # preguntas, archivos y contenido didáctico con IA). Misma arquitectura
 # que ai-grading-worker: invocado por pg_cron + UI con user JWT. El

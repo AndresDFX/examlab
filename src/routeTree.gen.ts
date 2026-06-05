@@ -24,7 +24,6 @@ import { Route as AppPreferencesRouteImport } from './routes/app.preferences'
 import { Route as AppMessagesRouteImport } from './routes/app.messages'
 import { Route as AppCertificatesRouteImport } from './routes/app.certificates'
 import { Route as AppTeacherWorkshopsRouteImport } from './routes/app.teacher.workshops'
-import { Route as AppTeacherWhiteboardsRouteImport } from './routes/app.teacher.whiteboards'
 import { Route as AppTeacherStudentsRouteImport } from './routes/app.teacher.students'
 import { Route as AppTeacherStatisticsRouteImport } from './routes/app.teacher.statistics'
 import { Route as AppTeacherReportsRouteImport } from './routes/app.teacher.reports'
@@ -63,6 +62,7 @@ import { Route as AppAdminAuditLogsRouteImport } from './routes/app.admin.audit-
 import { Route as AppAdminAiPromptsRouteImport } from './routes/app.admin.ai-prompts'
 import { Route as AppAdminAiCronRouteImport } from './routes/app.admin.ai-cron'
 import { Route as AppAdminAcademicRouteImport } from './routes/app.admin.academic'
+import { Route as AppTeacherWhiteboardsIndexRouteImport } from './routes/app.teacher.whiteboards.index'
 import { Route as AppTeacherExamsIndexRouteImport } from './routes/app.teacher.exams.index'
 import { Route as AppStudentTutorIndexRouteImport } from './routes/app.student.tutor.index'
 import { Route as AppTeacherWhiteboardsIdRouteImport } from './routes/app.teacher.whiteboards.$id'
@@ -150,11 +150,6 @@ const AppCertificatesRoute = AppCertificatesRouteImport.update({
 const AppTeacherWorkshopsRoute = AppTeacherWorkshopsRouteImport.update({
   id: '/teacher/workshops',
   path: '/teacher/workshops',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppTeacherWhiteboardsRoute = AppTeacherWhiteboardsRouteImport.update({
-  id: '/teacher/whiteboards',
-  path: '/teacher/whiteboards',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTeacherStudentsRoute = AppTeacherStudentsRouteImport.update({
@@ -347,6 +342,12 @@ const AppAdminAcademicRoute = AppAdminAcademicRouteImport.update({
   path: '/admin/academic',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTeacherWhiteboardsIndexRoute =
+  AppTeacherWhiteboardsIndexRouteImport.update({
+    id: '/teacher/whiteboards/',
+    path: '/teacher/whiteboards/',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppTeacherExamsIndexRoute = AppTeacherExamsIndexRouteImport.update({
   id: '/teacher/exams/',
   path: '/teacher/exams/',
@@ -358,9 +359,9 @@ const AppStudentTutorIndexRoute = AppStudentTutorIndexRouteImport.update({
   getParentRoute: () => AppRoute,
 } as any)
 const AppTeacherWhiteboardsIdRoute = AppTeacherWhiteboardsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AppTeacherWhiteboardsRoute,
+  id: '/teacher/whiteboards/$id',
+  path: '/teacher/whiteboards/$id',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppTeacherMonitorExamIdRoute = AppTeacherMonitorExamIdRouteImport.update({
   id: '/teacher/monitor/$examId',
@@ -470,7 +471,6 @@ export interface FileRoutesByFullPath {
   '/app/teacher/reports': typeof AppTeacherReportsRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/students': typeof AppTeacherStudentsRoute
-  '/app/teacher/whiteboards': typeof AppTeacherWhiteboardsRouteWithChildren
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
@@ -484,6 +484,7 @@ export interface FileRoutesByFullPath {
   '/app/teacher/whiteboards/$id': typeof AppTeacherWhiteboardsIdRoute
   '/app/student/tutor/': typeof AppStudentTutorIndexRoute
   '/app/teacher/exams/': typeof AppTeacherExamsIndexRoute
+  '/app/teacher/whiteboards/': typeof AppTeacherWhiteboardsIndexRoute
   '/app/forum/$courseId/$forumId/$threadId': typeof AppForumCourseIdForumIdThreadIdRoute
 }
 export interface FileRoutesByTo {
@@ -537,7 +538,6 @@ export interface FileRoutesByTo {
   '/app/teacher/reports': typeof AppTeacherReportsRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/students': typeof AppTeacherStudentsRoute
-  '/app/teacher/whiteboards': typeof AppTeacherWhiteboardsRouteWithChildren
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
@@ -551,6 +551,7 @@ export interface FileRoutesByTo {
   '/app/teacher/whiteboards/$id': typeof AppTeacherWhiteboardsIdRoute
   '/app/student/tutor': typeof AppStudentTutorIndexRoute
   '/app/teacher/exams': typeof AppTeacherExamsIndexRoute
+  '/app/teacher/whiteboards': typeof AppTeacherWhiteboardsIndexRoute
   '/app/forum/$courseId/$forumId/$threadId': typeof AppForumCourseIdForumIdThreadIdRoute
 }
 export interface FileRoutesById {
@@ -607,7 +608,6 @@ export interface FileRoutesById {
   '/app/teacher/reports': typeof AppTeacherReportsRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/students': typeof AppTeacherStudentsRoute
-  '/app/teacher/whiteboards': typeof AppTeacherWhiteboardsRouteWithChildren
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
@@ -621,6 +621,7 @@ export interface FileRoutesById {
   '/app/teacher/whiteboards/$id': typeof AppTeacherWhiteboardsIdRoute
   '/app/student/tutor/': typeof AppStudentTutorIndexRoute
   '/app/teacher/exams/': typeof AppTeacherExamsIndexRoute
+  '/app/teacher/whiteboards/': typeof AppTeacherWhiteboardsIndexRoute
   '/app/forum/$courseId/$forumId/$threadId': typeof AppForumCourseIdForumIdThreadIdRoute
 }
 export interface FileRouteTypes {
@@ -678,7 +679,6 @@ export interface FileRouteTypes {
     | '/app/teacher/reports'
     | '/app/teacher/statistics'
     | '/app/teacher/students'
-    | '/app/teacher/whiteboards'
     | '/app/teacher/workshops'
     | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
@@ -692,6 +692,7 @@ export interface FileRouteTypes {
     | '/app/teacher/whiteboards/$id'
     | '/app/student/tutor/'
     | '/app/teacher/exams/'
+    | '/app/teacher/whiteboards/'
     | '/app/forum/$courseId/$forumId/$threadId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -745,7 +746,6 @@ export interface FileRouteTypes {
     | '/app/teacher/reports'
     | '/app/teacher/statistics'
     | '/app/teacher/students'
-    | '/app/teacher/whiteboards'
     | '/app/teacher/workshops'
     | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
@@ -759,6 +759,7 @@ export interface FileRouteTypes {
     | '/app/teacher/whiteboards/$id'
     | '/app/student/tutor'
     | '/app/teacher/exams'
+    | '/app/teacher/whiteboards'
     | '/app/forum/$courseId/$forumId/$threadId'
   id:
     | '__root__'
@@ -814,7 +815,6 @@ export interface FileRouteTypes {
     | '/app/teacher/reports'
     | '/app/teacher/statistics'
     | '/app/teacher/students'
-    | '/app/teacher/whiteboards'
     | '/app/teacher/workshops'
     | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
@@ -828,6 +828,7 @@ export interface FileRouteTypes {
     | '/app/teacher/whiteboards/$id'
     | '/app/student/tutor/'
     | '/app/teacher/exams/'
+    | '/app/teacher/whiteboards/'
     | '/app/forum/$courseId/$forumId/$threadId'
   fileRoutesById: FileRoutesById
 }
@@ -943,13 +944,6 @@ declare module '@tanstack/react-router' {
       path: '/teacher/workshops'
       fullPath: '/app/teacher/workshops'
       preLoaderRoute: typeof AppTeacherWorkshopsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/teacher/whiteboards': {
-      id: '/app/teacher/whiteboards'
-      path: '/teacher/whiteboards'
-      fullPath: '/app/teacher/whiteboards'
-      preLoaderRoute: typeof AppTeacherWhiteboardsRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/teacher/students': {
@@ -1218,6 +1212,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminAcademicRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/teacher/whiteboards/': {
+      id: '/app/teacher/whiteboards/'
+      path: '/teacher/whiteboards'
+      fullPath: '/app/teacher/whiteboards/'
+      preLoaderRoute: typeof AppTeacherWhiteboardsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/teacher/exams/': {
       id: '/app/teacher/exams/'
       path: '/teacher/exams'
@@ -1234,10 +1235,10 @@ declare module '@tanstack/react-router' {
     }
     '/app/teacher/whiteboards/$id': {
       id: '/app/teacher/whiteboards/$id'
-      path: '/$id'
+      path: '/teacher/whiteboards/$id'
       fullPath: '/app/teacher/whiteboards/$id'
       preLoaderRoute: typeof AppTeacherWhiteboardsIdRouteImport
-      parentRoute: typeof AppTeacherWhiteboardsRoute
+      parentRoute: typeof AppRoute
     }
     '/app/teacher/monitor/$examId': {
       id: '/app/teacher/monitor/$examId'
@@ -1337,19 +1338,6 @@ const AppForumCourseIdRouteChildren: AppForumCourseIdRouteChildren = {
 const AppForumCourseIdRouteWithChildren =
   AppForumCourseIdRoute._addFileChildren(AppForumCourseIdRouteChildren)
 
-interface AppTeacherWhiteboardsRouteChildren {
-  AppTeacherWhiteboardsIdRoute: typeof AppTeacherWhiteboardsIdRoute
-}
-
-const AppTeacherWhiteboardsRouteChildren: AppTeacherWhiteboardsRouteChildren = {
-  AppTeacherWhiteboardsIdRoute: AppTeacherWhiteboardsIdRoute,
-}
-
-const AppTeacherWhiteboardsRouteWithChildren =
-  AppTeacherWhiteboardsRoute._addFileChildren(
-    AppTeacherWhiteboardsRouteChildren,
-  )
-
 interface AppRouteChildren {
   AppCertificatesRoute: typeof AppCertificatesRoute
   AppMessagesRoute: typeof AppMessagesRoute
@@ -1395,7 +1383,6 @@ interface AppRouteChildren {
   AppTeacherReportsRoute: typeof AppTeacherReportsRoute
   AppTeacherStatisticsRoute: typeof AppTeacherStatisticsRoute
   AppTeacherStudentsRoute: typeof AppTeacherStudentsRoute
-  AppTeacherWhiteboardsRoute: typeof AppTeacherWhiteboardsRouteWithChildren
   AppTeacherWorkshopsRoute: typeof AppTeacherWorkshopsRoute
   AppStudentProjectProjectIdRoute: typeof AppStudentProjectProjectIdRoute
   AppStudentReviewExamIdRoute: typeof AppStudentReviewExamIdRoute
@@ -1405,8 +1392,10 @@ interface AppRouteChildren {
   AppTeacherExamsExamIdRoute: typeof AppTeacherExamsExamIdRoute
   AppTeacherGradingCourseIdRoute: typeof AppTeacherGradingCourseIdRoute
   AppTeacherMonitorExamIdRoute: typeof AppTeacherMonitorExamIdRoute
+  AppTeacherWhiteboardsIdRoute: typeof AppTeacherWhiteboardsIdRoute
   AppStudentTutorIndexRoute: typeof AppStudentTutorIndexRoute
   AppTeacherExamsIndexRoute: typeof AppTeacherExamsIndexRoute
+  AppTeacherWhiteboardsIndexRoute: typeof AppTeacherWhiteboardsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -1454,7 +1443,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppTeacherReportsRoute: AppTeacherReportsRoute,
   AppTeacherStatisticsRoute: AppTeacherStatisticsRoute,
   AppTeacherStudentsRoute: AppTeacherStudentsRoute,
-  AppTeacherWhiteboardsRoute: AppTeacherWhiteboardsRouteWithChildren,
   AppTeacherWorkshopsRoute: AppTeacherWorkshopsRoute,
   AppStudentProjectProjectIdRoute: AppStudentProjectProjectIdRoute,
   AppStudentReviewExamIdRoute: AppStudentReviewExamIdRoute,
@@ -1464,8 +1452,10 @@ const AppRouteChildren: AppRouteChildren = {
   AppTeacherExamsExamIdRoute: AppTeacherExamsExamIdRoute,
   AppTeacherGradingCourseIdRoute: AppTeacherGradingCourseIdRoute,
   AppTeacherMonitorExamIdRoute: AppTeacherMonitorExamIdRoute,
+  AppTeacherWhiteboardsIdRoute: AppTeacherWhiteboardsIdRoute,
   AppStudentTutorIndexRoute: AppStudentTutorIndexRoute,
   AppTeacherExamsIndexRoute: AppTeacherExamsIndexRoute,
+  AppTeacherWhiteboardsIndexRoute: AppTeacherWhiteboardsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

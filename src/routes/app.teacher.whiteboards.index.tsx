@@ -52,7 +52,15 @@ import {
 } from "@/components/ui/select";
 import { Plus, Trash2, Palette } from "lucide-react";
 
-export const Route = createFileRoute("/app/teacher/whiteboards")({
+// Convención TanStack: para tener LIST en `/app/teacher/whiteboards` y
+// DETALLE en `/app/teacher/whiteboards/$id` SIN tener que renderizar
+// <Outlet /> manualmente en un layout, este archivo se llama
+// `.index.tsx` (mismo patrón que app.teacher.exams.index.tsx). Antes
+// vivía como `app.teacher.whiteboards.tsx` (layout) + `.$id.tsx` (child)
+// — pero el layout no renderizaba Outlet, así que navegar a un id
+// dejaba "la lista visible y el editor invisible". Con `.index.tsx`
+// TanStack auto-crea el layout vacío que sirve de container al child.
+export const Route = createFileRoute("/app/teacher/whiteboards/")({
   component: TeacherWhiteboards,
 });
 

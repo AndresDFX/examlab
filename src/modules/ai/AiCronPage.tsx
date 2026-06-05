@@ -240,7 +240,7 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
           <TabsList className="max-w-full overflow-x-auto">
             <TabsTrigger value="ia" className="gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
-              IA
+              Jobs
             </TabsTrigger>
             {/* Historial — jobs cerrados (done / cancelled / rechazo
                 acusado). Componente read-only con filtros propios
@@ -249,13 +249,6 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
             <TabsTrigger value="history" className="gap-1.5">
               <Archive className="h-3.5 w-3.5" />
               Historial
-            </TabsTrigger>
-            {/* Generaciones — jobs de creación de contenido con IA
-                encolados cuando el modo era async sin código activo.
-                Distinto de "IA" (que es calificación). */}
-            <TabsTrigger value="generation" className="gap-1.5">
-              <Wand2 className="h-3.5 w-3.5" />
-              Generaciones
             </TabsTrigger>
             {/* Configuración: sync/async + códigos override. Antes vivía
                 en Admin → Configuración → 'Cola IA'. Centralizada acá
@@ -273,14 +266,24 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
               </TabsTrigger>
             )}
           </TabsList>
-          <TabsContent value="ia" className="space-y-4 mt-4">
+          {/* "Jobs" unifica calificación (AiQueuePanel) + generación
+              (AiGenerationQueuePanel) en una vista vertical. Antes
+              estaban en tabs separadas (IA + Generaciones), pero el
+              docente quería ver TODO lo que la IA hizo o tiene
+              pendiente sin saltar entre tabs. Cada panel mantiene su
+              propia card + filtros — solo se renderizan juntos. */}
+          <TabsContent value="ia" className="space-y-6 mt-4">
             <AiQueuePanel isAdmin={isAdmin} />
+            <div className="border-t pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Wand2 className="h-4 w-4 text-amber-500" />
+                <h3 className="text-base font-semibold">Generaciones</h3>
+              </div>
+              <AiGenerationQueuePanel isAdmin={isAdmin} />
+            </div>
           </TabsContent>
           <TabsContent value="history" className="space-y-4 mt-4">
             <AiJobsHistoryPanel isAdmin={isAdmin} />
-          </TabsContent>
-          <TabsContent value="generation" className="space-y-4 mt-4">
-            <AiGenerationQueuePanel isAdmin={isAdmin} />
           </TabsContent>
           <TabsContent value="config" className="space-y-4 mt-4">
             <AdminAiGradingPanel />
@@ -292,32 +295,34 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
           )}
         </Tabs>
       ) : (
-        // Docente: tres tabs (Activos + Historial + Generaciones). El
-        // scope lo enforza RLS — el docente solo ve jobs que él encoló
-        // o de cursos que dicta.
+        // Docente: dos tabs (Jobs + Historial). El scope lo enforza
+        // RLS — el docente solo ve jobs que él encoló o de cursos que
+        // dicta. Antes había una tercera tab "Generaciones" — se
+        // unificó dentro de "Jobs" para que el docente vea todo lo de
+        // IA en un solo lugar.
         <Tabs defaultValue="ia">
           <TabsList className="max-w-full overflow-x-auto">
             <TabsTrigger value="ia" className="gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
-              Activos
+              Jobs
             </TabsTrigger>
             <TabsTrigger value="history" className="gap-1.5">
               <Archive className="h-3.5 w-3.5" />
               Historial
             </TabsTrigger>
-            <TabsTrigger value="generation" className="gap-1.5">
-              <Wand2 className="h-3.5 w-3.5" />
-              Generaciones
-            </TabsTrigger>
           </TabsList>
-          <TabsContent value="ia" className="space-y-4 mt-4">
+          <TabsContent value="ia" className="space-y-6 mt-4">
             <AiQueuePanel isAdmin={isAdmin} />
+            <div className="border-t pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Wand2 className="h-4 w-4 text-amber-500" />
+                <h3 className="text-base font-semibold">Generaciones</h3>
+              </div>
+              <AiGenerationQueuePanel isAdmin={isAdmin} />
+            </div>
           </TabsContent>
           <TabsContent value="history" className="space-y-4 mt-4">
             <AiJobsHistoryPanel isAdmin={isAdmin} />
-          </TabsContent>
-          <TabsContent value="generation" className="space-y-4 mt-4">
-            <AiGenerationQueuePanel isAdmin={isAdmin} />
           </TabsContent>
         </Tabs>
       )}
