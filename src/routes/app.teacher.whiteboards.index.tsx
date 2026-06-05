@@ -54,6 +54,12 @@ import { Plus, Trash2, Palette } from "lucide-react";
 import { StatTile } from "@/components/ui/stat-tile";
 import { HelpHint } from "@/components/ui/help-hint";
 import { formatDate } from "@/shared/lib/format";
+import {
+  useMultiSelect,
+  MultiSelectCheckbox,
+  MultiSelectToolbar,
+  BulkDeleteDialog,
+} from "@/components/ui/multi-select";
 
 // Convención TanStack: para tener LIST en `/app/teacher/whiteboards` y
 // DETALLE en `/app/teacher/whiteboards/$id` SIN tener que renderizar
@@ -237,6 +243,26 @@ function TeacherWhiteboards() {
     resetKey: `${search}|${sort}`,
   });
 
+  // Multi-selección + bulk delete — mismo patrón que cursos, usuarios,
+  // exámenes, talleres y proyectos. Opera sobre `filteredAndSorted`
+  // (no sobre `paginatedItems`) para que "seleccionar todos" abarque
+  // todas las páginas del filtro activo.
+  const sel = useMultiSelect(filteredAndSorted);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const bulkDeleteWhiteboards = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    const { error } = await db.from("whiteboards").delete().in("id", ids);
+    if (error) {
+      toast.error(friendlyError(error, "No se pudieron eliminar las pizarras"));
+      throw error;
+    }
+    setItems((prev) => prev.filter((p) => !ids.includes(p.id)));
+    sel.clear();
+    toast.success(
+      `${ids.length} pizarra${ids.length === 1 ? "" : "s"} eliminada${ids.length === 1 ? "" : "s"}`,
+    );
+  };
+
   const resetCreateDialog = () => {
     setDraftName("");
     setDraftDescription("");
@@ -379,6 +405,17 @@ function TeacherWhiteboards() {
         </div>
       )}
 
+      {/* Toolbar de bulk delete — solo se renderiza cuando hay items
+          seleccionados. Mismo patrón que el resto de listados
+          (proyectos, talleres, exámenes, cursos). */}
+      <MultiSelectToolbar
+        count={sel.count}
+        onClear={sel.clear}
+        onDelete={() => setBulkDeleteOpen(true)}
+        entityNameSingular="pizarra"
+        entityNamePlural="pizarras"
+      />
+
       <Card>
         <CardContent className="p-4 space-y-3">
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
@@ -447,48 +484,74 @@ function TeacherWhiteboards() {
             // delete tiene `stopPropagation` para que clickearlo no
             // dispare la navegación del Link.
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {pagination.paginatedItems.map((w) => (
-                <Link
-                  key={w.id}
-                  to="/app/teacher/whiteboards/$id"
-                  params={{ id: w.id }}
-                  className="group relative rounded-lg border bg-card hover:bg-muted/40 hover:border-primary/40 transition-colors p-4 flex flex-col gap-2 min-h-[8rem]"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <Palette className="h-4 w-4 text-violet-500 shrink-0" />
-                      <h3 className="font-semibold text-base leading-tight truncate" title={w.name}>
-                        {w.name}
-                      </h3>
+              {pagination.paginatedItems.map((w) => {
+                const isSelected = sel.isSelected(w.id);
+                return (
+                  // Wrapper `div` (no Link) — necesario para que el
+                  // checkbox quede CLICKABLE sin disparar la navegación.
+                  // El navigate ocurre via onClick del Link interno que
+                  // ocupa la mayor parte del card.
+                  <div
+                    key={w.id}
+                    className={`group relative rounded-lg border bg-card transition-colors p-4 flex flex-col gap-2 min-h-[8rem] ${
+                      isSelected
+                        ? "border-primary ring-2 ring-primary/30"
+                        : "hover:bg-muted/40 hover:border-primary/40"
+                    }`}
+                  >
+                    {/* Checkbox de multi-select arriba a la izquierda.
+                        Z-index para flotar sobre el Link transparente. */}
+                    <div className="absolute top-3 left-3 z-10">
+                      <MultiSelectCheckbox id={w.id} state={sel} />
                     </div>
-                    {/* Delete inline en la card. shrink-0 + tone
-                        destructive. e.preventDefault evita que el click
-                        navegue al editor. Wrapper con padding negativo
-                        hace que el hit area de touch llegue al borde
-                        físico de la card (>= 44px tap target) sin
-                        empujar el layout. */}
-                    <span className="shrink-0 -mt-2 -mr-2">
-                      <RowAction
-                        label="Eliminar"
-                        icon={Trash2}
-                        tone="destructive"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          void deleteWhiteboard(w);
-                        }}
-                      />
-                    </span>
+                    {/* Link transparente que cubre el card (excepto
+                        áreas interactivas con z-10 encima) para mantener
+                        UX de "click en el card abre el editor". */}
+                    <Link
+                      to="/app/teacher/whiteboards/$id"
+                      params={{ id: w.id }}
+                      className="absolute inset-0 rounded-lg z-0"
+                      aria-label={`Abrir pizarra ${w.name}`}
+                    />
+                    <div className="flex items-start justify-between gap-2 relative z-10 pointer-events-none">
+                      <div className="flex items-center gap-2 min-w-0 flex-1 pl-7">
+                        <Palette className="h-4 w-4 text-violet-500 shrink-0" />
+                        <h3
+                          className="font-semibold text-base leading-tight truncate"
+                          title={w.name}
+                        >
+                          {w.name}
+                        </h3>
+                      </div>
+                      {/* Delete por card. pointer-events-auto para que
+                          reciba el click (el padre del flex lo ignora
+                          para que el Link de abajo capture el click en
+                          el área vacía). */}
+                      <span className="shrink-0 -mt-2 -mr-2 pointer-events-auto">
+                        <RowAction
+                          label="Eliminar"
+                          icon={Trash2}
+                          tone="destructive"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void deleteWhiteboard(w);
+                          }}
+                        />
+                      </span>
+                    </div>
+                    {w.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 relative z-10 pointer-events-none pl-7">
+                        {w.description}
+                      </p>
+                    )}
+                    <div className="mt-auto pt-2 text-[11px] text-muted-foreground tabular-nums flex items-center gap-1 relative z-10 pointer-events-none pl-7">
+                      <span>Última edición:</span>
+                      <DateCell value={w.updated_at} variant="datetime" />
+                    </div>
                   </div>
-                  {w.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2">{w.description}</p>
-                  )}
-                  <div className="mt-auto pt-2 text-[11px] text-muted-foreground tabular-nums flex items-center gap-1">
-                    <span>Última edición:</span>
-                    <DateCell value={w.updated_at} variant="datetime" />
-                  </div>
-                </Link>
-              ))}
+                );
+              })}
             </div>
           )}
           <DataPagination state={pagination} entityNamePlural="pizarras" />
@@ -606,6 +669,20 @@ function TeacherWhiteboards() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk delete dialog — abrirá el modal con conteo + preview
+          expandible (5 items + el resto al click "Ver todos"). Llama
+          a `bulkDeleteWhiteboards` que hace `.in('id', ids)` atómico. */}
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        items={filteredAndSorted
+          .filter((w) => sel.isSelected(w.id))
+          .map((w) => ({ id: w.id, label: w.name }))}
+        entityNameSingular="pizarra"
+        entityNamePlural="pizarras"
+        onConfirm={bulkDeleteWhiteboards}
+      />
     </div>
   );
 }

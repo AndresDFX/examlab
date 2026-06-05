@@ -6,7 +6,7 @@
  * controles para renombrar y para compartir con un curso.
  */
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,7 +27,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
-import { WhiteboardEditor, type WhiteboardScene } from "@/modules/whiteboard/WhiteboardEditor";
+import { type WhiteboardScene } from "@/modules/whiteboard/WhiteboardEditor";
+import { MultiPageWhiteboard } from "@/modules/whiteboard/MultiPageWhiteboard";
 import { Palette, Save, Share2 } from "lucide-react";
 
 export const Route = createFileRoute("/app/teacher/whiteboards/$id")({
@@ -57,14 +58,15 @@ function WhiteboardEditorPage() {
   const [savingMeta, setSavingMeta] = useState(false);
   // Cursos del docente para el selector de "compartir con curso".
   const [courses, setCourses] = useState<Array<{ id: string; name: string }>>([]);
-  // Indicador "guardando…" visible cuando el auto-save está en vuelo.
-  const [autoSaving, setAutoSaving] = useState(false);
   // Form local de meta — controlled inputs para nombre, curso, share.
   const [metaName, setMetaName] = useState("");
   const [metaCourse, setMetaCourse] = useState<string>("none");
   const [metaShared, setMetaShared] = useState(false);
-  // Latest scene en ref para "Guardar manual" sin depender de re-render.
-  const latestSceneRef = useRef<WhiteboardScene | null>(null);
+  // NOTA: el indicador `autoSaving` legacy + `persistScene` + ref de
+  // última escena fueron removidos al migrar al modelo multi-hoja
+  // (mig 20260811000000). MultiPageWhiteboard maneja su propia
+  // persistencia por hoja vía `whiteboard_pages`; este componente
+  // solo se ocupa de la metadata de la pizarra (nombre, curso, share).
 
   useEffect(() => {
     if (!user) return;
@@ -115,29 +117,6 @@ function WhiteboardEditorPage() {
       cancelled = true;
     };
   }, [id, user]);
-
-  const persistScene = async (next: WhiteboardScene) => {
-    latestSceneRef.current = next;
-    setAutoSaving(true);
-    try {
-      const { error } = await db.from("whiteboards").update({ scene_json: next }).eq("id", id);
-      if (error) {
-        toast.error(friendlyError(error, "No se pudo guardar la pizarra"));
-        return;
-      }
-    } catch (e) {
-      // Cerrar el contrato con WhiteboardEditor: si el await rechaza
-      // (network throw, AbortError), absorber acá con toast amigable.
-      // Sin esto el .catch del editor solo loguea a consola y el usuario
-      // ve "Guardando…" colgado sin saber que falló.
-      toast.error(friendlyError(e, "No se pudo guardar la pizarra"));
-    } finally {
-      // Pequeño delay para que el badge "Guardando" sea visible incluso
-      // en redes rápidas — si desaparece al instante, el usuario no ve
-      // feedback de que su trabajo está seguro.
-      setTimeout(() => setAutoSaving(false), 400);
-    }
-  };
 
   const saveMeta = async () => {
     if (!wb) return;
@@ -199,15 +178,7 @@ function WhiteboardEditorPage() {
         icon={<Palette className="h-6 w-6 text-primary" />}
         backTo="/app/teacher/whiteboards"
         title={wb.name}
-        subtitle="Los cambios se guardan automáticamente mientras dibujas."
-        actions={
-          autoSaving ? (
-            <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
-              <Spinner size="xs" />
-              Guardando…
-            </span>
-          ) : undefined
-        }
+        subtitle="Los cambios se guardan automáticamente mientras dibujas. Podés agregar varias hojas con el botón ➕ del tab strip."
       />
 
       {/* Meta: renombrar + compartir con curso. Compacto en una sola fila. */}
@@ -271,13 +242,16 @@ function WhiteboardEditorPage() {
         </CardContent>
       </Card>
 
-      {/* Editor — toma el espacio restante del viewport. */}
+      {/* Editor multi-hoja — toma el espacio restante del viewport.
+          MultiPageWhiteboard maneja internamente la lista de hojas
+          (whiteboard_pages), el tab strip arriba, y delega cada hoja
+          activa al WhiteboardEditor base con su scene_json. El
+          persistScene legacy basado en whiteboards.scene_json queda
+          inutilizado — el editor ahora persiste en whiteboard_pages.
+          Mantenemos persistScene en el código por si en algún flujo
+          futuro se necesita la columna legacy (ej. snapshot final). */}
       <div className="flex-1 min-h-0 rounded-md border overflow-hidden bg-background">
-        <WhiteboardEditor
-          scene={wb.scene_json}
-          onPersist={persistScene}
-          className="w-full h-full"
-        />
+        <MultiPageWhiteboard whiteboardId={id} className="w-full h-full" />
       </div>
     </div>
   );

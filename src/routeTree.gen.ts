@@ -41,6 +41,7 @@ import { Route as AppTeacherAiCronRouteImport } from './routes/app.teacher.ai-cr
 import { Route as AppSuperadminTenantsRouteImport } from './routes/app.superadmin.tenants'
 import { Route as AppSuperadminSystemRouteImport } from './routes/app.superadmin.system'
 import { Route as AppStudentWorkshopsRouteImport } from './routes/app.student.workshops'
+import { Route as AppStudentWhiteboardsRouteImport } from './routes/app.student.whiteboards'
 import { Route as AppStudentProjectsRouteImport } from './routes/app.student.projects'
 import { Route as AppStudentPollsRouteImport } from './routes/app.student.polls'
 import { Route as AppStudentGradesRouteImport } from './routes/app.student.grades'
@@ -235,6 +236,11 @@ const AppSuperadminSystemRoute = AppSuperadminSystemRouteImport.update({
 const AppStudentWorkshopsRoute = AppStudentWorkshopsRouteImport.update({
   id: '/student/workshops',
   path: '/student/workshops',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStudentWhiteboardsRoute = AppStudentWhiteboardsRouteImport.update({
+  id: '/student/whiteboards',
+  path: '/student/whiteboards',
   getParentRoute: () => AppRoute,
 } as any)
 const AppStudentProjectsRoute = AppStudentProjectsRouteImport.update({
@@ -454,6 +460,7 @@ export interface FileRoutesByFullPath {
   '/app/student/grades': typeof AppStudentGradesRoute
   '/app/student/polls': typeof AppStudentPollsRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
+  '/app/student/whiteboards': typeof AppStudentWhiteboardsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
   '/app/superadmin/system': typeof AppSuperadminSystemRoute
   '/app/superadmin/tenants': typeof AppSuperadminTenantsRoute
@@ -521,6 +528,7 @@ export interface FileRoutesByTo {
   '/app/student/grades': typeof AppStudentGradesRoute
   '/app/student/polls': typeof AppStudentPollsRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
+  '/app/student/whiteboards': typeof AppStudentWhiteboardsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
   '/app/superadmin/system': typeof AppSuperadminSystemRoute
   '/app/superadmin/tenants': typeof AppSuperadminTenantsRoute
@@ -591,6 +599,7 @@ export interface FileRoutesById {
   '/app/student/grades': typeof AppStudentGradesRoute
   '/app/student/polls': typeof AppStudentPollsRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
+  '/app/student/whiteboards': typeof AppStudentWhiteboardsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
   '/app/superadmin/system': typeof AppSuperadminSystemRoute
   '/app/superadmin/tenants': typeof AppSuperadminTenantsRoute
@@ -662,6 +671,7 @@ export interface FileRouteTypes {
     | '/app/student/grades'
     | '/app/student/polls'
     | '/app/student/projects'
+    | '/app/student/whiteboards'
     | '/app/student/workshops'
     | '/app/superadmin/system'
     | '/app/superadmin/tenants'
@@ -729,6 +739,7 @@ export interface FileRouteTypes {
     | '/app/student/grades'
     | '/app/student/polls'
     | '/app/student/projects'
+    | '/app/student/whiteboards'
     | '/app/student/workshops'
     | '/app/superadmin/system'
     | '/app/superadmin/tenants'
@@ -798,6 +809,7 @@ export interface FileRouteTypes {
     | '/app/student/grades'
     | '/app/student/polls'
     | '/app/student/projects'
+    | '/app/student/whiteboards'
     | '/app/student/workshops'
     | '/app/superadmin/system'
     | '/app/superadmin/tenants'
@@ -1063,6 +1075,13 @@ declare module '@tanstack/react-router' {
       path: '/student/workshops'
       fullPath: '/app/student/workshops'
       preLoaderRoute: typeof AppStudentWorkshopsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/student/whiteboards': {
+      id: '/app/student/whiteboards'
+      path: '/student/whiteboards'
+      fullPath: '/app/student/whiteboards'
+      preLoaderRoute: typeof AppStudentWhiteboardsRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/student/projects': {
@@ -1366,6 +1385,7 @@ interface AppRouteChildren {
   AppStudentGradesRoute: typeof AppStudentGradesRoute
   AppStudentPollsRoute: typeof AppStudentPollsRoute
   AppStudentProjectsRoute: typeof AppStudentProjectsRoute
+  AppStudentWhiteboardsRoute: typeof AppStudentWhiteboardsRoute
   AppStudentWorkshopsRoute: typeof AppStudentWorkshopsRoute
   AppSuperadminSystemRoute: typeof AppSuperadminSystemRoute
   AppSuperadminTenantsRoute: typeof AppSuperadminTenantsRoute
@@ -1426,6 +1446,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppStudentGradesRoute: AppStudentGradesRoute,
   AppStudentPollsRoute: AppStudentPollsRoute,
   AppStudentProjectsRoute: AppStudentProjectsRoute,
+  AppStudentWhiteboardsRoute: AppStudentWhiteboardsRoute,
   AppStudentWorkshopsRoute: AppStudentWorkshopsRoute,
   AppSuperadminSystemRoute: AppSuperadminSystemRoute,
   AppSuperadminTenantsRoute: AppSuperadminTenantsRoute,

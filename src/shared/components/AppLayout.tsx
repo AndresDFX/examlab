@@ -261,6 +261,14 @@ const NAV: NavItem[] = [
     icon: Palette,
     roles: ["Docente", "SuperAdmin"],
   },
+  // Vista del estudiante de las pizarras compartidas por sus docentes
+  // (is_shared_with_course=true). Read-only — la RLS bloquea write.
+  {
+    to: "/app/student/whiteboards",
+    labelKey: "nav.whiteboards",
+    icon: Palette,
+    roles: ["Estudiante"],
+  },
   {
     to: "/app/student/polls",
     labelKey: "nav.polls",
@@ -751,9 +759,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     // Auditoría: variantes Admin y Docente.
     ["/app/teacher/audit-logs", "audit_logs"],
     ["/app/admin/audit-logs", "audit_logs"],
-    // Pizarras (Excalidraw embebido) — módulo del Docente. Una sola ruta
-    // por ahora; si llega vista del alumno se agrega `/app/student/...`.
+    // Pizarras (Excalidraw embebido) — Docente edita, Estudiante ve las
+    // compartidas. Ambas rutas mapean al mismo `module_key`.
     ["/app/teacher/whiteboards", "whiteboards"],
+    ["/app/student/whiteboards", "whiteboards"],
   ];
   // Resuelve módulo para un path (helper local). Si no hay match,
   // null (no controlado por toggles, no participa en sort).
