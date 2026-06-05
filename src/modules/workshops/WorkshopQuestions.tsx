@@ -1232,6 +1232,9 @@ export function StudentWorkshopTaker({
         userAnswer: string;
         maxPoints: number;
         language?: string | null;
+        /** Solo aplica a type='java_gui'. Determina la rúbrica esperada
+         *  por la IA (Swing vs JavaFX). Persistido en q.options. */
+        framework?: string | null;
       }> = [];
       // Encolas async pendientes de `codigo_zip` — se procesan después
       // del upsert porque necesitamos el row id del answer.
@@ -1614,14 +1617,21 @@ export function StudentWorkshopTaker({
           } else {
             // Abierta con respuesta → bucket para batch. NO empujamos a
             // breakdown todavía; se completa después con el resultado IA.
+            // Antes remapeábamos java_gui → "codigo" + language="java",
+            // pero el batch grader perdía el contexto de framework
+            // (Swing vs JavaFX) y calificaba como si fuera código de
+            // consola. Ahora pasamos el type real + framework de
+            // q.options para que la IA aplique la rúbrica correcta.
+            const opts = (q.options as { java_framework?: string } | null) ?? null;
             batchItems.push({
               qid: q.id,
-              type: q.type === "java_gui" ? "codigo" : q.type,
+              type: q.type,
               content: String(q.content ?? ""),
               rubric: String(q.expected_rubric ?? ""),
               userAnswer: String(raw),
               maxPoints: Number(q.points) || 0,
               language: q.type === "java_gui" ? "java" : q.language,
+              framework: q.type === "java_gui" ? (opts?.java_framework ?? "swing") : undefined,
             });
           }
         }

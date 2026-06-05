@@ -1527,6 +1527,9 @@ export function StudentProjectTaker({
         userAnswer: string;
         maxPoints: number;
         language?: string | null;
+        /** Framework GUI para java_gui — la IA usa esto para aplicar
+         *  la rúbrica de Swing vs JavaFX. */
+        framework?: string | null;
       }> = [];
 
       for (const q of questions) {
@@ -1846,15 +1849,20 @@ export function StudentProjectTaker({
             payload.ai_feedback = "Sin respuesta";
           } else {
             // Pregunta abierta con respuesta — bucketea para el batch.
+            // type real (no remapeado a "codigo") + framework para que
+            // la IA aplique la rúbrica correcta a Swing/JavaFX en
+            // lugar de evaluarlo como código de consola genérico.
             payload.content = String(raw);
+            const optsAny = (q.options as { java_framework?: string } | null) ?? null;
             batchItems.push({
               qid: q.id,
-              type: q.type === "java_gui" ? "codigo" : q.type,
+              type: q.type,
               content: String(q.title ?? ""),
               rubric: String(q.expected_rubric ?? ""),
               userAnswer: String(raw),
               maxPoints: Number(q.points) || 0,
               language: q.type === "java_gui" ? "java" : q.language,
+              framework: q.type === "java_gui" ? (optsAny?.java_framework ?? "swing") : undefined,
             });
           }
         }

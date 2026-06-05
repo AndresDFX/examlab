@@ -75,16 +75,12 @@ async function aiChatCompletion(body: {
     url = "https://api.openai.com/v1/chat/completions";
     key = m.openai_api_key ?? Deno.env.get("OPENAI_API_KEY");
     if (!key)
-      throw new Error(
-        "Falta la API key de OpenAI. Configúrala en Configuración → Modelo IA.",
-      );
+      throw new Error("Falta la API key de OpenAI. Configúrala en Configuración → Modelo IA.");
   } else if (m.provider === "gemini") {
     url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
     key = m.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
     if (!key)
-      throw new Error(
-        "Falta la API key de Gemini. Configúrala en Configuración → Modelo IA.",
-      );
+      throw new Error("Falta la API key de Gemini. Configúrala en Configuración → Modelo IA.");
   } else {
     url = "https://ai.gateway.lovable.dev/v1/chat/completions";
     key = m.lovable_api_key ?? Deno.env.get("LOVABLE_API_KEY");
@@ -124,6 +120,74 @@ interface BatchItem {
   rubric: string;
   userAnswer: string;
   maxPoints: number;
+  /** Tipo de pregunta. Determina el preámbulo que se inserta en el
+   *  prompt para que la IA califique correctamente. Si está ausente
+   *  o es 'abierta', se usa el flujo estándar de respuesta abierta.
+   *  Valores conocidos: 'abierta' | 'codigo' | 'java_gui' | 'diagrama'. */
+  type?: string;
+  /** Lenguaje del código (solo aplica a type='codigo' o 'java_gui').
+   *  Ej. 'java', 'python', 'javascript'. Para java_gui siempre 'java'. */
+  language?: string | null;
+  /** Framework GUI (solo aplica a type='java_gui'): 'swing' | 'javafx'.
+   *  Cambia las expectativas de la IA — Swing usa JFrame/JButton,
+   *  JavaFX usa Stage/Scene/Application.launch(). */
+  framework?: string | null;
+}
+
+/**
+ * Construye el preámbulo per-item según el tipo de pregunta. Sin esto
+ * todas las respuestas se evalúan como "open answer" — la IA no
+ * distingue código fuente de prosa, y para java_gui pierde el contexto
+ * de framework. Resultado del bug: feedback genérico tipo "buena
+ * explicación pero falta detalle" sobre código Java GUI.
+ */
+function itemDirectiveForType(it: BatchItem): string {
+  const t = (it.type ?? "abierta").toLowerCase();
+  if (t === "codigo") {
+    const lang = it.language ?? "código";
+    return (
+      `[TIPO DE RESPUESTA: código fuente en ${lang}]\n` +
+      `Evalúa: corrección sintáctica, lógica del algoritmo, manejo de casos borde, ` +
+      `complejidad/eficiencia razonable, y claridad/buenas prácticas. NO califiques ` +
+      `la prosa — esto es código. Si el código no compila o tiene errores graves, ` +
+      `puntúa bajo y explica en el feedback dónde está el problema (línea/expresión).\n`
+    );
+  }
+  if (t === "java_gui") {
+    const fw = (it.framework ?? "swing").toLowerCase();
+    const fwHint =
+      fw === "javafx"
+        ? `JavaFX (Application/Stage/Scene). Esperá ver \`extends Application\`, ` +
+          `\`start(Stage)\`, \`Application.launch(...)\`. Los componentes usan ` +
+          `\`javafx.scene.control.*\` (Button, TextField, Label, etc.) y los layouts ` +
+          `\`HBox\`, \`VBox\`, \`GridPane\`, \`BorderPane\`.`
+        : `Swing/AWT. Esperá ver \`extends JFrame\` o uso directo de \`JFrame\`, ` +
+          `\`JButton\`, \`JTextField\`, \`JLabel\`. Layouts típicos: \`FlowLayout\`, ` +
+          `\`BorderLayout\`, \`GridLayout\`. \`setVisible(true)\` para mostrar la ventana.`;
+    return (
+      `[TIPO DE RESPUESTA: código Java con interfaz gráfica — framework ${fw.toUpperCase()}]\n` +
+      `Marco esperado: ${fwHint}\n` +
+      `Evalúa específicamente: (1) la ventana/escena se construye correctamente para el framework; ` +
+      `(2) los componentes y el layout coinciden con lo pedido en el enunciado; ` +
+      `(3) los handlers de eventos (\`ActionListener\`/lambda en Swing, \`EventHandler\`/lambda en JavaFX) ` +
+      `están bien conectados; (4) no hay errores de compilación obvios; (5) el código realmente ` +
+      `RENDERIZA lo que la rúbrica pide — no solo declara variables.\n` +
+      `NO penalices por falta de \`Thread.sleep\` ni por estructura "main" mínima: el runner del ` +
+      `proyecto envuelve el código en un bootstrap que mantiene la JVM viva (Swing) o llama a ` +
+      `\`Application.launch\` (JavaFX), así que el estudiante no necesita escribir esa plomería.\n`
+    );
+  }
+  if (t === "diagrama") {
+    return (
+      `[TIPO DE RESPUESTA: diagrama (sintaxis Mermaid, PlantUML o ASCII)]\n` +
+      `Evalúa: si el diagrama modela las entidades/relaciones/flujo pedidos en el enunciado, ` +
+      `completitud (no faltan elementos clave), claridad de las etiquetas, dirección/sentido ` +
+      `correcto de las relaciones. Es válido si la sintaxis renderiza aunque tenga pequeños ` +
+      `defectos visuales.\n`
+    );
+  }
+  // 'abierta' o desconocido → sin directiva extra (comportamiento legacy).
+  return "";
 }
 interface BatchScore {
   score: number;
@@ -146,13 +210,16 @@ async function gradeOpenAnswersInBatch(
   langName: string,
 ): Promise<{ results: Map<string, BatchScore> } | BatchError> {
   const itemsBlock = items
-    .map(
-      (it, idx) =>
+    .map((it, idx) => {
+      const directive = itemDirectiveForType(it);
+      return (
         `─── Pregunta #${idx + 1} (qid: ${it.qid}, puntaje máximo: ${it.maxPoints}) ───\n` +
+        (directive ? `${directive}\n` : "") +
         `ENUNCIADO:\n${it.content}\n\n` +
         `RÚBRICA ESPERADA:\n${it.rubric}\n\n` +
-        `RESPUESTA DEL ESTUDIANTE:\n${it.userAnswer}`,
-    )
+        `RESPUESTA DEL ESTUDIANTE:\n${it.userAnswer}`
+      );
+    })
     .join("\n\n");
 
   const aiRes = await aiChatCompletion({
@@ -376,12 +443,9 @@ Deno.serve(async (req) => {
     // origen confiable — y funciona sea cual sea el formato del key
     // (JWT legacy o sb_secret_* nuevo), a diferencia de verify_jwt del
     // gateway que rebota los formatos no-JWT.
-    const bearerToken = (req.headers.get("Authorization") ?? "")
-      .replace(/^Bearer\s+/i, "")
-      .trim();
+    const bearerToken = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const isServiceRoleCaller =
-      bearerToken.length > 0 && bearerToken === serviceRoleKey;
+    const isServiceRoleCaller = bearerToken.length > 0 && bearerToken === serviceRoleKey;
     const isSystemTrigger =
       isServiceRoleCaller ||
       (!!expectedTriggerSecret && !!triggerSecret && triggerSecret === expectedTriggerSecret);
@@ -537,12 +601,18 @@ Deno.serve(async (req) => {
             rubric?: string;
             userAnswer: string;
             maxPoints: number;
+            type?: string;
+            language?: string | null;
+            framework?: string | null;
           }) => ({
             qid: it.qid,
             content: String(it.content ?? ""),
             rubric: String(it.rubric ?? ""),
             userAnswer: String(it.userAnswer),
             maxPoints: Number(it.maxPoints),
+            type: typeof it.type === "string" ? it.type : undefined,
+            language: it.language ?? undefined,
+            framework: it.framework ?? undefined,
           }),
         );
 
@@ -645,11 +715,7 @@ Deno.serve(async (req) => {
       // BatchItem para que gradeOpenAnswersInBatch funcione idéntico.
       const batchInput: BatchItem[] = itemsInput
         .filter(
-          (it: {
-            qid?: unknown;
-            userAnswer?: unknown;
-            maxPoints?: unknown;
-          }) =>
+          (it: { qid?: unknown; userAnswer?: unknown; maxPoints?: unknown }) =>
             typeof it.qid === "string" &&
             it.qid &&
             (typeof it.userAnswer === "string" ? it.userAnswer.trim() : it.userAnswer) &&
@@ -662,12 +728,18 @@ Deno.serve(async (req) => {
             rubric?: string;
             userAnswer: string;
             maxPoints: number;
+            type?: string;
+            language?: string | null;
+            framework?: string | null;
           }) => ({
             qid: it.qid,
             content: String(it.content ?? ""),
             rubric: String(it.rubric ?? ""),
             userAnswer: String(it.userAnswer),
             maxPoints: Number(it.maxPoints),
+            type: typeof it.type === "string" ? it.type : undefined,
+            language: it.language ?? undefined,
+            framework: it.framework ?? undefined,
           }),
         );
 
@@ -676,10 +748,9 @@ Deno.serve(async (req) => {
       // "Pendiente IA…" del client — limpiar lo dejamos al docente o al
       // próximo refresh; por ahora preservamos para diagnóstico.
       if (batchInput.length === 0) {
-        return new Response(
-          JSON.stringify({ ok: true, persistedInternally: true, processed: 0 }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
+        return new Response(JSON.stringify({ ok: true, persistedInternally: true, processed: 0 }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       const customSystemWf = await buildGradingSystemPrompt(
@@ -735,9 +806,7 @@ Deno.serve(async (req) => {
       // Si solo algunas → reportamos en la respuesta pero marcamos done
       // (las que sí persistieron quedaron). Decisión: parcial mejor que cero.
       if (persisted === 0 && persistErrors.length > 0) {
-        throw new Error(
-          `No se pudo persistir ningún resultado: ${persistErrors[0].error}`,
-        );
+        throw new Error(`No se pudo persistir ningún resultado: ${persistErrors[0].error}`);
       }
 
       return new Response(
@@ -822,9 +891,7 @@ Deno.serve(async (req) => {
       if (!aiRes.ok) {
         const errText = await aiRes.text();
         console.error("AI error", aiRes.status, errText);
-        throw new Error(
-          await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText),
-        );
+        throw new Error(await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText));
       }
 
       const aiJson = await aiRes.json();
@@ -891,11 +958,7 @@ Deno.serve(async (req) => {
       // Mismo filter/map que batchGrading / workshopFullGrading.
       const batchInput: BatchItem[] = itemsInput
         .filter(
-          (it: {
-            qid?: unknown;
-            userAnswer?: unknown;
-            maxPoints?: unknown;
-          }) =>
+          (it: { qid?: unknown; userAnswer?: unknown; maxPoints?: unknown }) =>
             typeof it.qid === "string" &&
             it.qid &&
             (typeof it.userAnswer === "string" ? it.userAnswer.trim() : it.userAnswer) &&
@@ -908,20 +971,25 @@ Deno.serve(async (req) => {
             rubric?: string;
             userAnswer: string;
             maxPoints: number;
+            type?: string;
+            language?: string | null;
+            framework?: string | null;
           }) => ({
             qid: it.qid,
             content: String(it.content ?? ""),
             rubric: String(it.rubric ?? ""),
             userAnswer: String(it.userAnswer),
             maxPoints: Number(it.maxPoints),
+            type: typeof it.type === "string" ? it.type : undefined,
+            language: it.language ?? undefined,
+            framework: it.framework ?? undefined,
           }),
         );
 
       if (batchInput.length === 0) {
-        return new Response(
-          JSON.stringify({ ok: true, persistedInternally: true, processed: 0 }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
+        return new Response(JSON.stringify({ ok: true, persistedInternally: true, processed: 0 }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       // Usamos el mismo use_case `project_file` que el modo per-file
@@ -980,9 +1048,7 @@ Deno.serve(async (req) => {
       }
 
       if (persisted === 0 && persistErrors.length > 0) {
-        throw new Error(
-          `No se pudo persistir ningún resultado: ${persistErrors[0].error}`,
-        );
+        throw new Error(`No se pudo persistir ningún resultado: ${persistErrors[0].error}`);
       }
 
       return new Response(
@@ -1093,9 +1159,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       if (!aiRes.ok) {
         const errText = await aiRes.text();
         console.error("AI error", aiRes.status, errText);
-        throw new Error(
-          await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText),
-        );
+        throw new Error(await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText));
       }
 
       const aiJson = await aiRes.json();
@@ -1208,11 +1272,13 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         // incluyen UUIDs que no aportan señal y empeoran el prompt.
         const downloads = await Promise.all(
           cleanedCodePaths.map(async (p) => {
-            const { data, error } = await adminClient.storage
-              .from(sourceBucket)
-              .download(p);
+            const { data, error } = await adminClient.storage.from(sourceBucket).download(p);
             if (error || !data) {
-              return { path: p, bytes: null as Uint8Array | null, error: error?.message ?? "missing" };
+              return {
+                path: p,
+                bytes: null as Uint8Array | null,
+                error: error?.message ?? "missing",
+              };
             }
             return { path: p, bytes: new Uint8Array(await data.arrayBuffer()), error: null };
           }),
@@ -1220,7 +1286,10 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         const failed = downloads.filter((d) => !d.bytes);
         if (failed.length > 0) {
           throw new Error(
-            `No se pudo descargar ${failed.length} archivo(s): ${failed.map((f) => `${f.path} (${f.error})`).slice(0, 3).join("; ")}`,
+            `No se pudo descargar ${failed.length} archivo(s): ${failed
+              .map((f) => `${f.path} (${f.error})`)
+              .slice(0, 3)
+              .join("; ")}`,
           );
         }
         for (const d of downloads) {
@@ -1395,8 +1464,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
             .map((e) => e.toLowerCase().replace(/^\./, "").trim())
             .filter(Boolean)
         : [];
-      const cleanedAllowed =
-        explicitAllowed.length > 0 ? explicitAllowed : Array.from(CODE_EXT);
+      const cleanedAllowed = explicitAllowed.length > 0 ? explicitAllowed : Array.from(CODE_EXT);
       // Veto explícito de archivos config/metadata (rechazar incluso si la
       // extensión coincide o si la subida es legacy ZIP). Espejo de la
       // lista del frontend (`isBlockedFile`).
@@ -1790,9 +1858,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       if (!aiRes.ok) {
         const errText = await aiRes.text();
         console.error("AI error", aiRes.status, errText);
-        throw new Error(
-          await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText),
-        );
+        throw new Error(await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText));
       }
 
       const aiJson = await aiRes.json();
@@ -1922,9 +1988,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       if (!aiRes.ok) {
         const errText = await aiRes.text();
         console.error("AI error", aiRes.status, errText);
-        throw new Error(
-          await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText),
-        );
+        throw new Error(await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText));
       }
 
       const aiJson = await aiRes.json();
@@ -2122,9 +2186,7 @@ Idioma de salida: ${langName}.`,
       if (!aiRes.ok) {
         const errText = await aiRes.text();
         console.error("AI error", aiRes.status, errText);
-        throw new Error(
-          await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText),
-        );
+        throw new Error(await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText));
       }
 
       const aiJson = await aiRes.json();
@@ -2348,8 +2410,7 @@ Idioma de salida: ${langName}.`,
         //      Sin este check la IA gasta tokens evaluando el template
         //      que escribió el propio docente.
         const trimmedAnswer = typeof userAnswer === "string" ? userAnswer.trim() : "";
-        const trimmedStarter =
-          typeof q.starter_code === "string" ? q.starter_code.trim() : "";
+        const trimmedStarter = typeof q.starter_code === "string" ? q.starter_code.trim() : "";
         const isEmpty =
           !userAnswer ||
           trimmedAnswer === "" ||
@@ -2377,13 +2438,24 @@ Idioma de salida: ${langName}.`,
     // las preguntas, distribuyendo los scores por qid al volver. Si la llamada
     // falla en bloque, marcamos cada pregunta del batch con el mismo error.
     if (aiBatch.length > 0) {
-      const batchInput: BatchItem[] = aiBatch.map(({ q, userAnswer }) => ({
-        qid: q.id,
-        content: String(q.content ?? ""),
-        rubric: String(q.expected_rubric ?? ""),
-        userAnswer,
-        maxPoints: Number(q.points),
-      }));
+      const batchInput: BatchItem[] = aiBatch.map(({ q, userAnswer }) => {
+        // q.options puede contener `java_framework` para preguntas
+        // tipo java_gui. Lo extraemos para que la IA sepa si el
+        // código es Swing o JavaFX (cambia la rúbrica esperada).
+        const optsAny = q.options as { java_framework?: string } | null | undefined;
+        const fw = optsAny?.java_framework;
+        return {
+          qid: q.id,
+          content: String(q.content ?? ""),
+          rubric: String(q.expected_rubric ?? ""),
+          userAnswer,
+          maxPoints: Number(q.points),
+          type: q.type,
+          // java_gui implica language=java aunque el campo no esté seteado.
+          language: q.type === "java_gui" ? "java" : (q.language ?? undefined),
+          framework: q.type === "java_gui" ? (fw ?? "swing") : undefined,
+        };
+      });
       const batchOut = await gradeOpenAnswersInBatch(batchInput, customExamSystem, examLangName);
 
       if ("batchError" in batchOut) {
