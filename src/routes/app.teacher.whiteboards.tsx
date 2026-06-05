@@ -35,18 +35,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
-import { Plus, Pencil, Trash2, Palette } from "lucide-react";
+import { Plus, Trash2, Palette } from "lucide-react";
 
 export const Route = createFileRoute("/app/teacher/whiteboards")({
   component: TeacherWhiteboards,
@@ -112,8 +104,13 @@ function TeacherWhiteboards() {
     );
   }, [items, search]);
 
+  // Grid de cards — defaults consistentes con otras vistas de cards del
+  // estudiante (cursos, exámenes, talleres): 12 / 6-12-24-48. Las cards
+  // son más altas que filas de tabla, por eso el page size baja desde
+  // 25 (default de grids) a 12.
   const pagination = usePagination(filtered, {
-    defaultPageSize: 25,
+    defaultPageSize: 12,
+    pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:teacher_whiteboards",
     resetKey: search,
   });
@@ -233,53 +230,54 @@ function TeacherWhiteboards() {
               }
             />
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead className="hidden sm:table-cell">Descripción</TableHead>
-                    <TableHead className="hidden md:table-cell w-32">Última edición</TableHead>
-                    <TableHead className="text-right w-20">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pagination.paginatedItems.map((w) => (
-                    <TableRow key={w.id}>
-                      <TableCell>
-                        <Link
-                          to="/app/teacher/whiteboards/$id"
-                          params={{ id: w.id }}
-                          className="font-medium hover:underline"
-                        >
-                          {w.name}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell text-xs text-muted-foreground max-w-md">
-                        <div className="truncate" title={w.description ?? ""}>
-                          {w.description || "—"}
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell text-xs">
-                        <DateCell value={w.updated_at} variant="datetime" />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="inline-flex items-center gap-1">
-                          <RowAction label="Abrir" icon={Pencil} asChild>
-                            <Link to="/app/teacher/whiteboards/$id" params={{ id: w.id }} />
-                          </RowAction>
-                          <RowAction
-                            label="Eliminar"
-                            icon={Trash2}
-                            tone="destructive"
-                            onClick={() => void deleteWhiteboard(w)}
-                          />
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            // Grid de cards (no Table) — consistente con los otros
+            // listados visuales del producto (cursos, exámenes, talleres
+            // del estudiante). 1 col mobile → 2 sm → 3 lg.
+            //
+            // Cada card es: link al editor (Link wrapper) + descripción +
+            // metadata abajo + ícono delete arriba a la derecha. El
+            // delete tiene `stopPropagation` para que clickearlo no
+            // dispare la navegación del Link.
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {pagination.paginatedItems.map((w) => (
+                <Link
+                  key={w.id}
+                  to="/app/teacher/whiteboards/$id"
+                  params={{ id: w.id }}
+                  className="group relative rounded-lg border bg-card hover:bg-muted/40 hover:border-primary/40 transition-colors p-4 flex flex-col gap-2 min-h-[8rem]"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <Palette className="h-4 w-4 text-violet-500 shrink-0" />
+                      <h3 className="font-semibold text-base leading-tight truncate" title={w.name}>
+                        {w.name}
+                      </h3>
+                    </div>
+                    {/* Delete inline en la card. shrink-0 + tone
+                        destructive. e.preventDefault evita que el click
+                        navegue al editor. */}
+                    <span className="shrink-0 -mt-1 -mr-1">
+                      <RowAction
+                        label="Eliminar"
+                        icon={Trash2}
+                        tone="destructive"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void deleteWhiteboard(w);
+                        }}
+                      />
+                    </span>
+                  </div>
+                  {w.description && (
+                    <p className="text-xs text-muted-foreground line-clamp-2">{w.description}</p>
+                  )}
+                  <div className="mt-auto pt-2 text-[11px] text-muted-foreground tabular-nums flex items-center gap-1">
+                    <span>Última edición:</span>
+                    <DateCell value={w.updated_at} variant="datetime" />
+                  </div>
+                </Link>
+              ))}
             </div>
           )}
           <DataPagination state={pagination} entityNamePlural="pizarras" />

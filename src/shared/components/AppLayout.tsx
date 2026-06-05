@@ -743,6 +743,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     // Auditoría: variantes Admin y Docente.
     ["/app/teacher/audit-logs", "audit_logs"],
     ["/app/admin/audit-logs", "audit_logs"],
+    // Pizarras (Excalidraw embebido) — módulo del Docente. Una sola ruta
+    // por ahora; si llega vista del alumno se agrega `/app/student/...`.
+    ["/app/teacher/whiteboards", "whiteboards"],
   ];
   // Resuelve módulo para un path (helper local). Si no hay match,
   // null (no controlado por toggles, no participa en sort).

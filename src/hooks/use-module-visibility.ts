@@ -47,7 +47,10 @@ export type ModuleKey =
   //   - audit_logs: auditoría de eventos (variantes Docente/Admin).
   | "academic"
   | "polls"
-  | "audit_logs";
+  | "audit_logs"
+  // Pizarras (Excalidraw embebido) — solo Docente por ahora. Su fila en
+  // module_visibility la seedea la migración 20260807000000.
+  | "whiteboards";
 
 // SuperAdmin entró a la matriz (mig 20260803000000) — antes el rol
 // heredaba siempre los items de Admin sin posibilidad de silenciarlos.

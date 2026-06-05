@@ -86,6 +86,8 @@ const MODULES: Array<{
   { key: "exams", label: "Exámenes" },
   { key: "workshops", label: "Talleres" },
   { key: "projects", label: "Proyectos" },
+  // Pizarras (Excalidraw) — solo Docente. Seed en migración 20260807000000.
+  { key: "whiteboards", label: "Pizarras" },
   {
     // Unificación: antes había dos filas separadas (`gradebook`,
     // `grades`); las colapsamos en una sola "Calificaciones" — es el
