@@ -1,26 +1,28 @@
 /**
- * MultiPageWhiteboard — wrapper sobre `WhiteboardEditor` que añade
- * soporte de múltiples hojas (pages) por pizarra standalone.
+ * MultiPageWhiteboard — wrapper que añade soporte multi-hoja a las
+ * pizarras standalone.
  *
- * Modelo (mig 20260811000000):
- *   - Tabla `whiteboard_pages(id, whiteboard_id, position, name, scene_json)`
+ * Cada hoja tiene un `page_type`:
+ *   - 'drawing': escena Excalidraw → renderiza `<WhiteboardEditor>`.
+ *   - 'text': markdown editor → renderiza `<TextPageEditor>`.
+ *
+ * Schema (migs 20260811000000 + 20260812000000):
+ *   - `whiteboard_pages(id, whiteboard_id, position, name, scene_json,
+ *      page_type, text_content)`
  *   - Cada pizarra = N hojas. Position 0-indexed, gaps tolerados.
- *   - SessionWhiteboardDialog (1:1 con sesión) NO usa este wrapper:
- *     sigue con `WhiteboardEditor` directo + `attendance_sessions.whiteboard_scene`.
  *
- * Responsabilidades:
- *   - Cargar la lista de hojas al montar.
- *   - Si la pizarra no tiene hojas (edge case post-creación), crea una.
- *   - Render: tab strip arriba (hoja 1, hoja 2, …, + Agregar) + editor
- *     debajo.
- *   - Al cambiar de tab, re-monta el `WhiteboardEditor` con un nuevo
- *     `key={pageId}` para que el dynamic import de Excalidraw refresque
- *     el initialData (Excalidraw NO re-procesa initialData en updates).
- *   - Add/remove/rename hojas inline.
- *   - Auto-save por hoja: el `onPersist` del editor mapea al UPDATE de
- *     la página activa (debounce 1.5s vive en `WhiteboardEditor`).
+ * UX cuando hay muchas hojas (rediseño V2):
+ *   - Tab strip con scroll horizontal nativo + flechas ← → que
+ *     scrollean ~200px por click.
+ *   - Auto-scroll del active tab a la vista al cambiar de hoja.
+ *   - Dropdown "Ver todas las hojas" con la lista vertical completa +
+ *     búsqueda — para saltar directo a una hoja específica sin
+ *     scrollear el strip.
+ *   - Tab max-w para que nombres largos no consuman el strip.
+ *   - "+ Agregar" se convirtió en DropdownMenu con dos opciones
+ *     (Hoja de dibujo / Hoja de texto).
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,19 +31,44 @@ import { ErrorState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { toast } from "sonner";
-import { Plus, Trash2, Pencil, Check, X } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Pencil,
+  Check,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  List as ListIcon,
+  Palette,
+  FileText,
+  Search,
+} from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { WhiteboardEditor, type WhiteboardScene } from "@/modules/whiteboard/WhiteboardEditor";
+import { TextPageEditor } from "@/modules/whiteboard/TextPageEditor";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
+
+type PageType = "drawing" | "text";
 
 interface WhiteboardPage {
   id: string;
   whiteboard_id: string;
   position: number;
   name: string | null;
+  page_type: PageType;
   scene_json: WhiteboardScene;
+  text_content: string | null;
 }
 
 interface Props {
@@ -54,6 +81,10 @@ interface Props {
   className?: string;
 }
 
+const PAGE_SELECT_COLS = "id, whiteboard_id, position, name, page_type, scene_json, text_content";
+
+const EMPTY_SCENE: WhiteboardScene = { elements: [], appState: {} };
+
 export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props) {
   const confirm = useConfirm();
   const [pages, setPages] = useState<WhiteboardPage[]>([]);
@@ -61,11 +92,12 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
-  // Modo "rename inline" — guarda el id de la página y el draft del nombre.
-  // Cuando es null, no hay rename activo.
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  // Búsqueda dentro del dropdown "Ver todas las hojas".
+  const [pageListSearch, setPageListSearch] = useState("");
+  const [pageListOpen, setPageListOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,7 +105,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
     try {
       const { data, error } = await db
         .from("whiteboard_pages")
-        .select("id, whiteboard_id, position, name, scene_json")
+        .select(PAGE_SELECT_COLS)
         .eq("whiteboard_id", whiteboardId)
         .order("position", { ascending: true });
       if (error) {
@@ -83,16 +115,17 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
       let rows = (data ?? []) as WhiteboardPage[];
       // Edge case: la pizarra existe pero no tiene hojas (la migración
       // backfill no corrió todavía en este entorno, o un admin las
-      // borró). Creamos una hoja en blanco en position=0.
+      // borró). Creamos una hoja de dibujo en blanco en position=0.
       if (rows.length === 0 && !readOnly) {
         const { data: created, error: insErr } = await db
           .from("whiteboard_pages")
           .insert({
             whiteboard_id: whiteboardId,
             position: 0,
-            scene_json: { elements: [], appState: {} },
+            page_type: "drawing",
+            scene_json: EMPTY_SCENE,
           })
-          .select("id, whiteboard_id, position, name, scene_json")
+          .select(PAGE_SELECT_COLS)
           .single();
         if (insErr || !created) {
           setLoadError(friendlyError(insErr, "No pudimos inicializar la primera hoja."));
@@ -115,11 +148,8 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
 
   const activePage = pages.find((p) => p.id === activePageId) ?? null;
 
-  /** Auto-save callback que recibe el WhiteboardEditor con la escena
-   *  actualizada. Guarda en la fila de la página activa. NO mutamos
-   *  el state local porque Excalidraw no re-lee initialData en updates;
-   *  el cambio queda en el componente Excalidraw y persiste server-side. */
-  const persistActivePage = useCallback(
+  /** Persist de hoja DRAWING — guarda en `scene_json`. */
+  const persistDrawingPage = useCallback(
     async (scene: WhiteboardScene) => {
       if (!activePageId) return;
       try {
@@ -127,9 +157,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
           .from("whiteboard_pages")
           .update({ scene_json: scene })
           .eq("id", activePageId);
-        if (error) {
-          toast.error(friendlyError(error, "No se pudo guardar la hoja"));
-        }
+        if (error) toast.error(friendlyError(error, "No se pudo guardar la hoja"));
       } catch (e) {
         toast.error(friendlyError(e, "No se pudo guardar la hoja"));
       }
@@ -137,20 +165,41 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
     [activePageId],
   );
 
-  const addPage = async () => {
+  /** Persist de hoja TEXT — guarda en `text_content`. */
+  const persistTextPage = useCallback(
+    async (text: string) => {
+      if (!activePageId) return;
+      try {
+        const { error } = await db
+          .from("whiteboard_pages")
+          .update({ text_content: text })
+          .eq("id", activePageId);
+        if (error) toast.error(friendlyError(error, "No se pudo guardar la hoja"));
+      } catch (e) {
+        toast.error(friendlyError(e, "No se pudo guardar la hoja"));
+      }
+    },
+    [activePageId],
+  );
+
+  const addPage = async (kind: PageType) => {
     if (busy) return;
     setBusy(true);
     try {
-      // Nueva position = max actual + 1 (gaps tolerados).
       const nextPos = pages.length === 0 ? 0 : Math.max(...pages.map((p) => p.position)) + 1;
+      const insertPayload: Record<string, unknown> = {
+        whiteboard_id: whiteboardId,
+        position: nextPos,
+        page_type: kind,
+      };
+      // Inicializamos el campo correspondiente al tipo de hoja para
+      // que el editor arranque limpio. El otro campo queda NULL/default.
+      if (kind === "drawing") insertPayload.scene_json = EMPTY_SCENE;
+      else insertPayload.text_content = "";
       const { data, error } = await db
         .from("whiteboard_pages")
-        .insert({
-          whiteboard_id: whiteboardId,
-          position: nextPos,
-          scene_json: { elements: [], appState: {} },
-        })
-        .select("id, whiteboard_id, position, name, scene_json")
+        .insert(insertPayload)
+        .select(PAGE_SELECT_COLS)
         .single();
       if (error || !data) {
         toast.error(friendlyError(error, "No se pudo agregar la hoja"));
@@ -168,7 +217,6 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
 
   const deletePage = async (pageId: string) => {
     if (busy) return;
-    // No permitir borrar la última hoja — al menos una debe quedar.
     if (pages.length <= 1) {
       toast.info("La pizarra debe tener al menos una hoja.");
       return;
@@ -192,7 +240,6 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
       }
       const remaining = pages.filter((p) => p.id !== pageId);
       setPages(remaining);
-      // Si la activa fue borrada, switch a la primera restante.
       if (activePageId === pageId) {
         setActivePageId(remaining[0]?.id ?? null);
       }
@@ -236,6 +283,67 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
     }
   };
 
+  // ─── Tab strip scroll behavior ─────────────────────────────────
+  // Tres pedazos clave para que el strip se vea bien con muchas hojas:
+  //  1. `scrollRef` apunta al contenedor scrollable.
+  //  2. `activeTabRef` apunta al tab activo — scrollIntoView al cambiar
+  //     de hoja para que SIEMPRE quede visible.
+  //  3. Flechas ← → que scrollean 200px y se ocultan si no hay overflow.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const activeTabRef = useRef<HTMLDivElement | null>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    updateScrollState();
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => updateScrollState();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    // Re-evaluar overflow cuando cambia el tamaño del contenedor
+    // (resize del viewport, agregar/quitar hojas).
+    const ro = new ResizeObserver(() => updateScrollState());
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      ro.disconnect();
+    };
+  }, [updateScrollState, pages.length]);
+
+  // Auto-scroll del active tab a la vista cuando cambia.
+  useEffect(() => {
+    if (!activeTabRef.current) return;
+    activeTabRef.current.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "nearest",
+    });
+  }, [activePageId]);
+
+  const scrollBy = (delta: number) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: delta, behavior: "smooth" });
+  };
+
+  // Filtrado de la lista en el dropdown "Ver todas".
+  const filteredPagesForList = useMemo(() => {
+    const q = pageListSearch.trim().toLowerCase();
+    if (!q) return pages;
+    return pages.filter((p) => {
+      const label = (p.name ?? `Hoja ${p.position + 1}`).toLowerCase();
+      return label.includes(q);
+    });
+  }, [pages, pageListSearch]);
+
+  // ─── Render ────────────────────────────────────────────────────
   if (loading) {
     return (
       <div
@@ -260,8 +368,6 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
     );
   }
   if (!activePage) {
-    // No debería pasar (load garantiza al menos una hoja en !readOnly),
-    // pero si el alumno entra a una pizarra sin hojas, mostramos vacío.
     return (
       <div
         className={cn(
@@ -276,126 +382,285 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
 
   return (
     <div className={cn("flex flex-col min-h-0", className)}>
-      {/* Tab strip arriba. overflow-x-auto en mobile cuando hay muchas
-          hojas — cada tab tiene whitespace-nowrap. */}
-      <div className="flex items-center gap-1 border-b border-border bg-muted/30 px-2 py-1.5 overflow-x-auto shrink-0">
-        {pages.map((page) => {
-          const isActive = page.id === activePageId;
-          const isRenaming = renamingId === page.id;
-          const label = page.name ?? `Hoja ${page.position + 1}`;
-          return (
-            <div
-              key={page.id}
-              className={cn(
-                "group flex items-center gap-1 rounded-md px-2 py-1 text-xs whitespace-nowrap transition-colors",
-                isActive
-                  ? "bg-background border border-border shadow-sm"
-                  : "hover:bg-background/60 border border-transparent",
-              )}
-            >
-              {isRenaming ? (
-                <>
-                  <Input
-                    value={renameDraft}
-                    onChange={(e) => setRenameDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void saveRename();
-                      if (e.key === "Escape") cancelRename();
-                    }}
-                    autoFocus
-                    placeholder={`Hoja ${page.position + 1}`}
-                    className="h-6 w-32 text-xs px-1.5"
-                    disabled={busy}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void saveRename()}
-                    disabled={busy}
-                    className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
-                    aria-label="Guardar nombre"
-                    title="Guardar"
-                  >
-                    <Check className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={cancelRename}
-                    disabled={busy}
-                    className="text-muted-foreground hover:text-foreground"
-                    aria-label="Cancelar"
-                    title="Cancelar"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setActivePageId(page.id)}
-                    className={cn(
-                      "font-medium",
-                      isActive ? "text-foreground" : "text-muted-foreground",
-                    )}
-                  >
-                    {label}
-                  </button>
-                  {!readOnly && isActive && (
+      {/* ─── Tab strip (rediseñado para muchas hojas) ───
+          Layout: [← flecha] [scroll: tabs] [→ flecha]  |  [Ver todas]  [+ Agregar]
+          Las flechas se ocultan automáticamente cuando no hay overflow
+          en su dirección, sin "saltar" el layout (usamos `invisible` en
+          vez de unmount). */}
+      <div className="flex items-center gap-1 border-b border-border bg-muted/30 px-1 py-1.5 shrink-0">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => scrollBy(-220)}
+          disabled={!canScrollLeft}
+          className={cn("h-7 w-7 p-0 shrink-0", !canScrollLeft && "invisible")}
+          aria-label="Desplazar hojas a la izquierda"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+
+        <div
+          ref={scrollRef}
+          className="flex-1 min-w-0 overflow-x-auto scrollbar-thin"
+          style={{ scrollbarWidth: "none" }}
+        >
+          <div className="flex items-center gap-1 w-max">
+            {pages.map((page) => {
+              const isActive = page.id === activePageId;
+              const isRenaming = renamingId === page.id;
+              const label = page.name ?? `Hoja ${page.position + 1}`;
+              const Icon = page.page_type === "text" ? FileText : Palette;
+              return (
+                <div
+                  key={page.id}
+                  ref={isActive ? activeTabRef : undefined}
+                  className={cn(
+                    "group flex items-center gap-1 rounded-md px-2 py-1 text-xs whitespace-nowrap transition-colors shrink-0",
+                    isActive
+                      ? "bg-background border border-border shadow-sm"
+                      : "hover:bg-background/60 border border-transparent",
+                  )}
+                >
+                  {isRenaming ? (
+                    <>
+                      <Input
+                        value={renameDraft}
+                        onChange={(e) => setRenameDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void saveRename();
+                          if (e.key === "Escape") cancelRename();
+                        }}
+                        autoFocus
+                        placeholder={`Hoja ${page.position + 1}`}
+                        className="h-6 w-32 text-xs px-1.5"
+                        disabled={busy}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void saveRename()}
+                        disabled={busy}
+                        className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+                        aria-label="Guardar nombre"
+                        title="Guardar"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelRename}
+                        disabled={busy}
+                        className="text-muted-foreground hover:text-foreground"
+                        aria-label="Cancelar"
+                        title="Cancelar"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  ) : (
                     <>
                       <button
                         type="button"
-                        onClick={() => startRename(page)}
-                        className="text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100"
-                        aria-label="Renombrar hoja"
-                        title="Renombrar"
-                        disabled={busy}
+                        onClick={() => setActivePageId(page.id)}
+                        className={cn(
+                          "flex items-center gap-1.5 font-medium max-w-[140px] truncate",
+                          isActive ? "text-foreground" : "text-muted-foreground",
+                        )}
+                        title={label}
                       >
-                        <Pencil className="h-3 w-3" />
+                        <Icon
+                          className={cn(
+                            "h-3 w-3 shrink-0",
+                            page.page_type === "text" ? "text-sky-500" : "text-violet-500",
+                          )}
+                        />
+                        <span className="truncate">{label}</span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => void deletePage(page.id)}
-                        className="text-muted-foreground hover:text-destructive opacity-70 hover:opacity-100"
-                        aria-label="Eliminar hoja"
-                        title="Eliminar hoja"
-                        disabled={busy || pages.length <= 1}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
+                      {!readOnly && isActive && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => startRename(page)}
+                            className="text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100"
+                            aria-label="Renombrar hoja"
+                            title="Renombrar"
+                            disabled={busy}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void deletePage(page.id)}
+                            className="text-muted-foreground hover:text-destructive opacity-70 hover:opacity-100"
+                            aria-label="Eliminar hoja"
+                            title="Eliminar hoja"
+                            disabled={busy || pages.length <= 1}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </>
+                      )}
                     </>
                   )}
-                </>
-              )}
-            </div>
-          );
-        })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => scrollBy(220)}
+          disabled={!canScrollRight}
+          className={cn("h-7 w-7 p-0 shrink-0", !canScrollRight && "invisible")}
+          aria-label="Desplazar hojas a la derecha"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+
+        {/* Separador visual antes de los controles globales. */}
+        <span aria-hidden className="h-5 w-px bg-border mx-1 shrink-0" />
+
+        {/* Dropdown "Ver todas las hojas" — útil cuando hay 10+ hojas
+            para saltar directo a una sin scrollear el strip. */}
+        <DropdownMenu open={pageListOpen} onOpenChange={setPageListOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs shrink-0 px-2"
+              title="Ver todas las hojas"
+            >
+              <ListIcon className="h-3.5 w-3.5 mr-1" />
+              <span className="hidden sm:inline">Lista</span>
+              <span className="ml-1 text-muted-foreground tabular-nums">({pages.length})</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-72 max-h-[400px] overflow-y-auto">
+            <DropdownMenuLabel className="flex items-center gap-2">
+              <ListIcon className="h-3.5 w-3.5" />
+              Todas las hojas ({pages.length})
+            </DropdownMenuLabel>
+            {/* Búsqueda interna — útil cuando hay decenas de hojas. */}
+            {pages.length > 8 && (
+              <div className="px-2 pb-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+                  <Input
+                    value={pageListSearch}
+                    onChange={(e) => setPageListSearch(e.target.value)}
+                    placeholder="Buscar hoja…"
+                    className="h-7 pl-7 text-xs"
+                  />
+                </div>
+              </div>
+            )}
+            <DropdownMenuSeparator />
+            {filteredPagesForList.length === 0 ? (
+              <div className="px-2 py-3 text-xs text-muted-foreground text-center">
+                Sin coincidencias.
+              </div>
+            ) : (
+              filteredPagesForList.map((page) => {
+                const isActive = page.id === activePageId;
+                const label = page.name ?? `Hoja ${page.position + 1}`;
+                const Icon = page.page_type === "text" ? FileText : Palette;
+                return (
+                  <DropdownMenuItem
+                    key={page.id}
+                    onSelect={() => {
+                      setActivePageId(page.id);
+                      setPageListSearch("");
+                      setPageListOpen(false);
+                    }}
+                    className={cn(
+                      "flex items-center gap-2 text-xs",
+                      isActive && "bg-muted font-medium",
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        "h-3 w-3 shrink-0",
+                        page.page_type === "text" ? "text-sky-500" : "text-violet-500",
+                      )}
+                    />
+                    <span className="truncate flex-1">{label}</span>
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                      #{page.position + 1}
+                    </span>
+                  </DropdownMenuItem>
+                );
+              })
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         {!readOnly && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => void addPage()}
-            disabled={busy}
-            className="h-7 text-xs shrink-0"
-          >
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            Agregar hoja
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                className="h-7 text-xs shrink-0 px-2"
+                title="Agregar nueva hoja"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                <span className="hidden sm:inline">Agregar</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Tipo de hoja nueva</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => void addPage("drawing")}>
+                <Palette className="h-4 w-4 mr-2 text-violet-500" />
+                <div className="flex flex-col">
+                  <span className="text-sm">Hoja de dibujo</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Canvas Excalidraw para dibujar, anotar y diagramar
+                  </span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void addPage("text")}>
+                <FileText className="h-4 w-4 mr-2 text-sky-500" />
+                <div className="flex flex-col">
+                  <span className="text-sm">Hoja de texto</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Editor markdown con vista previa
+                  </span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
 
       {/* Editor de la página activa. `key={activePageId}` fuerza re-mount
-          al cambiar de hoja: Excalidraw NO re-procesa initialData en
-          updates de prop, así que el key change es la forma estándar
-          de re-inicializar el canvas con la escena de la nueva hoja. */}
+          al cambiar de hoja: tanto Excalidraw como TextPageEditor leen
+          su contenido inicial via prop en mount, por eso el key change
+          es la forma estándar de reset al cambiar de hoja. */}
       <div className="flex-1 min-h-0">
-        <WhiteboardEditor
-          key={activePage.id}
-          scene={activePage.scene_json}
-          onPersist={persistActivePage}
-          readOnly={readOnly}
-          className="w-full h-full"
-        />
+        {activePage.page_type === "text" ? (
+          <TextPageEditor
+            key={activePage.id}
+            text={activePage.text_content ?? ""}
+            onPersist={persistTextPage}
+            readOnly={readOnly}
+            className="w-full h-full"
+          />
+        ) : (
+          <WhiteboardEditor
+            key={activePage.id}
+            scene={activePage.scene_json}
+            onPersist={persistDrawingPage}
+            readOnly={readOnly}
+            className="w-full h-full"
+          />
+        )}
       </div>
     </div>
   );
