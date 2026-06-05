@@ -38,6 +38,18 @@ import {
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import {
+  filterWhiteboards,
+  sortWhiteboards,
+  type WhiteboardSort,
+} from "@/modules/whiteboard/whiteboards-filter";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Plus, Trash2, Palette } from "lucide-react";
 
 export const Route = createFileRoute("/app/teacher/whiteboards")({
@@ -67,6 +79,18 @@ function TeacherWhiteboards() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [search, setSearch] = useState("");
+  // Sort persistido en localStorage para que el docente vuelva al mismo
+  // orden entre sesiones. Default "updated_desc" — la pizarra que tocó
+  // más recientemente es la que típicamente quiere reabrir.
+  const [sort, setSort] = useState<WhiteboardSort>(() => {
+    if (typeof window === "undefined") return "updated_desc";
+    const stored = window.localStorage.getItem("examlab_whiteboards_sort");
+    return (stored as WhiteboardSort) || "updated_desc";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("examlab_whiteboards_sort", sort);
+  }, [sort]);
   // Create dialog state.
   const [createOpen, setCreateOpen] = useState(false);
   const [draftName, setDraftName] = useState("");
@@ -96,23 +120,23 @@ function TeacherWhiteboards() {
     void load();
   }, [load, retryNonce]);
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return items;
-    const q = search.trim().toLowerCase();
-    return items.filter(
-      (w) => w.name.toLowerCase().includes(q) || (w.description ?? "").toLowerCase().includes(q),
-    );
-  }, [items, search]);
+  // Filter + sort extraídos a `whiteboards-filter.ts` para testear sin
+  // React. Encadenados — sort se aplica DESPUÉS del filter (sino los
+  // items ocultos por search seguirían ocupando memoria comparable).
+  const filteredAndSorted = useMemo(
+    () => sortWhiteboards(filterWhiteboards(items, search), sort),
+    [items, search, sort],
+  );
 
   // Grid de cards — defaults consistentes con otras vistas de cards del
   // estudiante (cursos, exámenes, talleres): 12 / 6-12-24-48. Las cards
   // son más altas que filas de tabla, por eso el page size baja desde
   // 25 (default de grids) a 12.
-  const pagination = usePagination(filtered, {
+  const pagination = usePagination(filteredAndSorted, {
     defaultPageSize: 12,
     pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:teacher_whiteboards",
-    resetKey: search,
+    resetKey: `${search}|${sort}`,
   });
 
   const createWhiteboard = async () => {
@@ -202,16 +226,45 @@ function TeacherWhiteboards() {
 
       <Card>
         <CardContent className="p-4 space-y-3">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder="Buscar por nombre o descripción…"
-          />
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <div className="flex-1 min-w-0">
+              <SearchInput
+                value={search}
+                onChange={setSearch}
+                placeholder="Buscar por nombre o descripción…"
+              />
+            </div>
+            {/* Sort persistido en localStorage. En mobile cae debajo del
+                search; en sm+ va a la derecha. Mismo patrón que
+                /app/student/courses. */}
+            <Select value={sort} onValueChange={(v) => setSort(v as WhiteboardSort)}>
+              <SelectTrigger className="h-9 w-full sm:w-56 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="updated_desc" className="text-xs">
+                  Última edición (más reciente)
+                </SelectItem>
+                <SelectItem value="updated_asc" className="text-xs">
+                  Última edición (más antigua)
+                </SelectItem>
+                <SelectItem value="created_desc" className="text-xs">
+                  Creación (más reciente)
+                </SelectItem>
+                <SelectItem value="name_asc" className="text-xs">
+                  Nombre (A → Z)
+                </SelectItem>
+                <SelectItem value="name_desc" className="text-xs">
+                  Nombre (Z → A)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
               <Spinner size="sm" /> Cargando…
             </div>
-          ) : filtered.length === 0 ? (
+          ) : filteredAndSorted.length === 0 ? (
             <TableEmpty
               icon={Palette}
               title="No tienes pizarras todavía"
@@ -255,8 +308,11 @@ function TeacherWhiteboards() {
                     </div>
                     {/* Delete inline en la card. shrink-0 + tone
                         destructive. e.preventDefault evita que el click
-                        navegue al editor. */}
-                    <span className="shrink-0 -mt-1 -mr-1">
+                        navegue al editor. Wrapper con padding negativo
+                        hace que el hit area de touch llegue al borde
+                        físico de la card (>= 44px tap target) sin
+                        empujar el layout. */}
+                    <span className="shrink-0 -mt-2 -mr-2">
                       <RowAction
                         label="Eliminar"
                         icon={Trash2}

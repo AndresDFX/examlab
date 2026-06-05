@@ -246,12 +246,15 @@ const NAV: NavItem[] = [
   },
   // Pizarras (whiteboards) — espacio en blanco para que el docente
   // explique conceptos o piense libremente. Excalidraw embebido.
-  // Mig 20260603060000 + módulo src/modules/whiteboard.
+  // Mig 20260603060000 + módulo src/modules/whiteboard. SuperAdmin
+  // accede para asistir a docentes cross-tenant; Admin no se incluye
+  // porque la pizarra es contenido del Docente — la gestión vive en
+  // su propio rol.
   {
     to: "/app/teacher/whiteboards",
     labelKey: "nav.whiteboards",
     icon: Palette,
-    roles: ["Docente"],
+    roles: ["Docente", "SuperAdmin"],
   },
   {
     to: "/app/student/polls",

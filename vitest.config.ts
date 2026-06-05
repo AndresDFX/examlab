@@ -9,7 +9,14 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    include: [
+      "src/**/*.{test,spec}.{ts,tsx}",
+      // Tests de helpers compartidos entre el frontend y los edge
+      // functions de Deno. Los helpers TS puros viven en
+      // supabase/functions/_shared/ y se importan vía path relativo
+      // desde los edges; los tests vitest les pegan vía path absoluto.
+      "supabase/functions/_shared/**/*.{test,spec}.ts",
+    ],
     css: false,
     // Vitest 4 + setupFiles con `afterEach` crashea ("failed to find
     // current suite") cuando varios workers se inicializan en paralelo.

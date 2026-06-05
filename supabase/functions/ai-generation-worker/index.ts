@@ -32,23 +32,10 @@
  *   { processed: number, succeeded: number, failed: number }
  */
 import { adminClient, corsHeaders, jsonError, jsonResponse } from "../_shared/admin.ts";
+import { isTransientError } from "../_shared/transient-errors.ts";
 
 const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 const MAX_ATTEMPTS = 3;
-
-/** Detecta errores transitorios: rate limits (429), errores de servidor
- *  (5xx), timeouts, quota exceeded. Estos justifican re-encolar el job
- *  en pending para que el próximo tick del cron lo intente otra vez.
- *  Errores NO transitorios (400 bad request, 401 auth, content malformado)
- *  van a failed final — re-intentar no los va a arreglar. */
-function isTransientError(msg: string | null | undefined): boolean {
-  if (!msg) return false;
-  // Mismo patrón que `complete_ai_grading` SQL (mig 20260601001000)
-  // para mantener consistencia entre los dos workers.
-  return /\b429\b|\b5\d\d\b|rate.?limit|too.many.requests|timeout|timed.?out|ECONN(RESET|REFUSED)|ENETUNREACH|fetch.failed|quota.exceeded|service.unavailable|gateway.timeout|internal.server.error/i.test(
-    msg,
-  );
-}
 
 interface QueueRow {
   id: string;

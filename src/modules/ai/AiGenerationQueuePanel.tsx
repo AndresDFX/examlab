@@ -155,6 +155,33 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
     void load();
   }, [load, retryNonce]);
 
+  // Realtime — escucha cambios en `ai_generation_queue` para que la
+  // lista se refresque sola cuando el worker drena jobs. Mismo patrón
+  // que `AiQueuePanel` (debounce 800ms para evitar refresh storm
+  // cuando el worker drena varios jobs seguidos).
+  useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const triggerReload = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        void load();
+      }, 800);
+    };
+    const channel = supabase
+      .channel("ai_generation_queue_panel")
+      .on(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        "postgres_changes" as any,
+        { event: "*", schema: "public", table: "ai_generation_queue" },
+        triggerReload,
+      )
+      .subscribe();
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      void supabase.removeChannel(channel);
+    };
+  }, [load]);
+
   const filtered = useMemo(() => {
     if (statusFilter === "all") return jobs;
     return jobs.filter(

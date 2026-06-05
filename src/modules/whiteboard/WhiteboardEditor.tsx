@@ -33,7 +33,9 @@
  */
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { ComponentType } from "react";
+import { Eye } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { ErrorState } from "@/components/ui/empty-state";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/shared/lib/utils";
 
@@ -81,29 +83,66 @@ export function WhiteboardEditor({ scene, onPersist, readOnly, className }: Prop
   const [Component, setComponent] = useState<ComponentType<Record<string, unknown>> | null>(
     cachedExcalidraw,
   );
+  // Si el dynamic import de Excalidraw falla (chunk corrupto, red caída
+  // a media descarga del chunk grande, etc.), mostramos un ErrorState
+  // con botón "Reintentar" en lugar de un Spinner infinito. Era el bug
+  // de "se queda cargando para siempre" que reportó QA.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const { resolvedTheme } = useTheme();
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Ref a la última escena emitida — evita persists redundantes si el
   // contenido no cambió pero el callback se dispara (cursor moves etc).
   const lastSerializedRef = useRef<string>("");
+  // Ref a la última escena PENDIENTE de persistir (con timer activo).
+  // Si el componente se desmonta antes de que el debounce dispare,
+  // hacemos un flush sincrónico para no perder los últimos cambios.
+  // Era el bug "cerrar el dialog rápido pierde lo último que dibujé".
+  const pendingSceneRef = useRef<WhiteboardScene | null>(null);
+  // El onPersist más reciente — refeado para que el cleanup del
+  // effect (que solo corre al unmount) no pegue contra una closure
+  // stale del primer render.
+  const onPersistRef = useRef(onPersist);
+  useEffect(() => {
+    onPersistRef.current = onPersist;
+  }, [onPersist]);
 
   useEffect(() => {
     if (Component) return;
     let cancelled = false;
-    void loadExcalidraw().then((C) => {
-      if (cancelled) return;
-      setComponent(() => C);
-    });
+    setLoadError(null);
+    loadExcalidraw()
+      .then((C) => {
+        if (cancelled) return;
+        setComponent(() => C);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : "Error desconocido";
+        setLoadError(msg);
+      });
     return () => {
       cancelled = true;
     };
-  }, [Component]);
+  }, [Component, retryNonce]);
 
-  // Limpieza del timer al desmontar — sin esto, una persist tardía
-  // podría disparar después de que el padre cerró el dialog.
+  // Cleanup al desmontar: si hay un timer activo (debounce de 1500ms
+  // sin disparar todavía) Y hay una escena pendiente, hacemos flush
+  // SINCRÓNICO antes de cancelar. Sin esto, cerrar el dialog o salir
+  // de la ruta justo después de dibujar perdía el último cambio. El
+  // flush usa `onPersistRef.current` (fresh) y es fire-and-forget — si
+  // falla server-side el toast queda huérfano pero los datos quedaron
+  // intentados (vs. silenciosamente perdidos).
   useEffect(() => {
     return () => {
-      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+        const pending = pendingSceneRef.current;
+        const fn = onPersistRef.current;
+        if (pending && fn) {
+          void fn(pending);
+        }
+      }
     };
   }, []);
 
@@ -126,14 +165,30 @@ export function WhiteboardEditor({ scene, onPersist, readOnly, className }: Prop
       const serialized = JSON.stringify(next);
       if (serialized === lastSerializedRef.current) return;
       lastSerializedRef.current = serialized;
+      // Guardamos la escena pendiente en ref para que el cleanup del
+      // unmount pueda hacer flush si el timer no alcanzó a dispararse.
+      pendingSceneRef.current = next;
       if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
       persistTimerRef.current = setTimeout(() => {
+        pendingSceneRef.current = null;
+        persistTimerRef.current = null;
         void onPersist(next);
       }, 1500);
     },
     [readOnly, onPersist],
   );
 
+  if (loadError) {
+    return (
+      <div className={cn("flex items-center justify-center p-4", className)}>
+        <ErrorState
+          message="No pudimos cargar el editor de pizarra"
+          hint={loadError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      </div>
+    );
+  }
   if (!Component) {
     return (
       <div
@@ -169,6 +224,18 @@ export function WhiteboardEditor({ scene, onPersist, readOnly, className }: Prop
           },
         }}
       />
+      {/* Badge "Solo lectura" cuando readOnly. Excalidraw oculta los
+          tools de edición en viewModeEnabled, pero la pizarra sigue
+          viéndose idéntica al editor — el alumno no sabe si "ya está
+          en modo lectura" o "le faltan permisos". Este badge lo
+          explicita. pointer-events-none para no bloquear interacción
+          con el canvas (zoom, pan, export). */}
+      {readOnly && (
+        <div className="absolute top-2 right-2 z-10 pointer-events-none rounded-md border border-border bg-background/90 backdrop-blur-sm px-2 py-1 text-[11px] text-muted-foreground inline-flex items-center gap-1 shadow-sm">
+          <Eye className="h-3 w-3" />
+          Solo lectura
+        </div>
+      )}
     </div>
   );
 }
