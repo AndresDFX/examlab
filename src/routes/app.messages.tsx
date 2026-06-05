@@ -535,6 +535,10 @@ function MessagesPage() {
       setBroadcastCourseIds([]);
       setBroadcastSubject("");
       setBroadcastBody("");
+    } catch (e) {
+      // El invoke puede rechazar (network, edge crash). Sin catch: rejection
+      // huérfana → audit log app.unhandled_rejection.
+      toast.error(friendlyError(e, "Error al enviar el mensaje."));
     } finally {
       setBroadcastSending(false);
     }
@@ -577,6 +581,8 @@ function MessagesPage() {
       setBroadcastSubject("");
       setBroadcastBody("");
       setBroadcastScheduleAt("");
+    } catch (e) {
+      toast.error(friendlyError(e, "No se pudo programar la difusión."));
     } finally {
       setBroadcastSending(false);
     }
@@ -596,21 +602,27 @@ function MessagesPage() {
     }
     const otherId =
       activeConv.conv.user_a === myUserId ? activeConv.conv.user_b : activeConv.conv.user_a;
-    const { error } = await db.from("scheduled_messages").insert({
-      creator_id: myUserId,
-      kind: "direct",
-      recipient_id: otherId,
-      body: body.trim(),
-      send_at: localToIso(directScheduleAt),
-    });
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    try {
+      const { error } = await db.from("scheduled_messages").insert({
+        creator_id: myUserId,
+        kind: "direct",
+        recipient_id: otherId,
+        body: body.trim(),
+        send_at: localToIso(directScheduleAt),
+      });
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(`Mensaje programado para ${formatDateTime(localToIso(directScheduleAt))}.`);
+      setBody("");
+      setDirectScheduleAt("");
+      setDirectScheduleOpen(false);
+    } catch (e) {
+      // Caller `void scheduleDirect()` desde onClick. Cubrimos rejection
+      // del insert para no contaminar audit log.
+      toast.error(friendlyError(e, "No se pudo programar el mensaje."));
     }
-    toast.success(`Mensaje programado para ${formatDateTime(localToIso(directScheduleAt))}.`);
-    setBody("");
-    setDirectScheduleAt("");
-    setDirectScheduleOpen(false);
   };
 
   // Carga los mensajes programados del usuario (RLS: solo los suyos).
@@ -698,22 +710,34 @@ function MessagesPage() {
       }
       cancelEditScheduled();
       void loadScheduled();
+    } catch (e) {
+      // `await db.from().update()...` puede rechazar (network, sesión
+      // expirada). Sin catch, el caller `() => void saveEditScheduled()`
+      // produce unhandled rejection → audit log.
+      toast.error(friendlyError(e, "No se pudo guardar el cambio"));
     } finally {
       setSavingEdit(false);
     }
   };
 
   const cancelScheduled = async (id: string) => {
-    const { error } = await db
-      .from("scheduled_messages")
-      .update({ status: "cancelled" })
-      .eq("id", id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    // try/catch defensivo. Caller: `() => void cancelScheduled(it.id)`
+    // desde onClick. Sin esto, una rejection del update (network,
+    // sesión expirada) burbujea al handler global de unhandled rejection.
+    try {
+      const { error } = await db
+        .from("scheduled_messages")
+        .update({ status: "cancelled" })
+        .eq("id", id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success("Programación cancelada.");
+      void loadScheduled();
+    } catch (e) {
+      toast.error(friendlyError(e, "No se pudo cancelar"));
     }
-    toast.success("Programación cancelada.");
-    void loadScheduled();
   };
 
   // Fuerza dispatch inmediato. Útil cuando el cron está atrasado o
@@ -739,6 +763,10 @@ function MessagesPage() {
         toast.success(`${n} mensaje${n === 1 ? "" : "s"} despachado${n === 1 ? "" : "s"}.`);
       }
       void loadScheduled();
+    } catch (e) {
+      // El RPC puede rechazar con throw (función removida, JWT expirado,
+      // network). Sin catch: rejection huérfana → audit log.
+      toast.error(friendlyError(e, "No se pudo procesar la cola"));
     } finally {
       setForcingDispatch(false);
     }

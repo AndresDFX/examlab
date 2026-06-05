@@ -45,22 +45,31 @@ export function SessionWhiteboardDialog({ sessionId, sessionLabel, onOpenChange 
     }
     let cancelled = false;
     void (async () => {
-      setLoading(true);
-      const { data, error } = await db
-        .from("attendance_sessions")
-        .select("whiteboard_scene")
-        .eq("id", sessionId)
-        .maybeSingle();
-      if (cancelled) return;
-      if (error) {
-        toast.error(friendlyError(error, "No pudimos cargar la pizarra."));
+      try {
+        setLoading(true);
+        const { data, error } = await db
+          .from("attendance_sessions")
+          .select("whiteboard_scene")
+          .eq("id", sessionId)
+          .maybeSingle();
+        if (cancelled) return;
+        if (error) {
+          toast.error(friendlyError(error, "No pudimos cargar la pizarra."));
+          setLoading(false);
+          return;
+        }
+        // Si la sesión nunca tuvo pizarra, scene = null → editor arranca
+        // con escena vacía.
+        setScene((data as { whiteboard_scene?: WhiteboardScene } | null)?.whiteboard_scene ?? null);
         setLoading(false);
-        return;
+      } catch (e) {
+        // IIFE async sin try/catch dejaba rejections de la query como
+        // unhandled (network throw, sesión expirada mientras se abre el
+        // dialog). Acá toast amigable + reset loading.
+        if (cancelled) return;
+        toast.error(friendlyError(e, "No pudimos cargar la pizarra."));
+        setLoading(false);
       }
-      // Si la sesión nunca tuvo pizarra, scene = null → editor arranca
-      // con escena vacía.
-      setScene((data as { whiteboard_scene?: WhiteboardScene } | null)?.whiteboard_scene ?? null);
-      setLoading(false);
     })();
     return () => {
       cancelled = true;

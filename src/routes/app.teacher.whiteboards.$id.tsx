@@ -70,34 +70,46 @@ function WhiteboardEditorPage() {
     if (!user) return;
     let cancelled = false;
     void (async () => {
-      setLoading(true);
-      setLoadError(null);
-      const [{ data: wbData, error: wbErr }, { data: courseRows }] = await Promise.all([
-        db
-          .from("whiteboards")
-          .select("id, owner_id, name, description, scene_json, course_id, is_shared_with_course")
-          .eq("id", id)
-          .maybeSingle(),
-        db.from("course_teachers").select("course_id, courses(id, name)").eq("user_id", user.id),
-      ]);
-      if (cancelled) return;
-      if (wbErr || !wbData) {
-        setLoadError(friendlyError(wbErr, "No pudimos cargar la pizarra."));
+      try {
+        setLoading(true);
+        setLoadError(null);
+        const [{ data: wbData, error: wbErr }, { data: courseRows }] = await Promise.all([
+          db
+            .from("whiteboards")
+            .select("id, owner_id, name, description, scene_json, course_id, is_shared_with_course")
+            .eq("id", id)
+            .maybeSingle(),
+          db.from("course_teachers").select("course_id, courses(id, name)").eq("user_id", user.id),
+        ]);
+        if (cancelled) return;
+        if (wbErr || !wbData) {
+          setLoadError(friendlyError(wbErr, "No pudimos cargar la pizarra."));
+          setLoading(false);
+          return;
+        }
+        const row = wbData as Whiteboard;
+        setWb(row);
+        setMetaName(row.name);
+        setMetaCourse(row.course_id ?? "none");
+        setMetaShared(row.is_shared_with_course);
+        const myCourses: Array<{ id: string; name: string }> = (courseRows ?? [])
+          .map((r: { courses: { id: string; name: string } | null }) => r.courses)
+          .filter((c: { id: string; name: string } | null): c is { id: string; name: string } =>
+            Boolean(c),
+          );
+        setCourses(myCourses);
         setLoading(false);
-        return;
+      } catch (e) {
+        // El IIFE async sin try/catch perdía rejections del Promise.all
+        // (network throw, RLS panic) → unhandled rejection en el
+        // handler global. Con `void (async () => ...)`, el rejection
+        // burbujea fuera del effect y no hay nada que lo agarre.
+        // Acá: setear loadError → render del <ErrorState> + reset
+        // loading para no dejar el spinner colgado.
+        if (cancelled) return;
+        setLoadError(friendlyError(e, "No pudimos cargar la pizarra."));
+        setLoading(false);
       }
-      const row = wbData as Whiteboard;
-      setWb(row);
-      setMetaName(row.name);
-      setMetaCourse(row.course_id ?? "none");
-      setMetaShared(row.is_shared_with_course);
-      const myCourses: Array<{ id: string; name: string }> = (courseRows ?? [])
-        .map((r: { courses: { id: string; name: string } | null }) => r.courses)
-        .filter((c: { id: string; name: string } | null): c is { id: string; name: string } =>
-          Boolean(c),
-        );
-      setCourses(myCourses);
-      setLoading(false);
     })();
     return () => {
       cancelled = true;
@@ -154,6 +166,11 @@ function WhiteboardEditorPage() {
         course_id: metaCourse === "none" ? null : metaCourse,
         is_shared_with_course: metaCourse !== "none" && metaShared,
       });
+    } catch (e) {
+      // Caller: `() => void saveMeta()` desde onClick. Sin catch
+      // explícito, una rejection del update burbujea como unhandled
+      // rejection. Mostramos toast amigable usando friendlyError.
+      toast.error(friendlyError(e, "No se pudo guardar"));
     } finally {
       setSavingMeta(false);
     }

@@ -361,6 +361,10 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
       }
       toast.success("Job cancelado");
       await load();
+    } catch (e) {
+      // Caller: `() => void cancelJob(j)` desde RowAction. Sin catch
+      // una rejection del update/load deja unhandled rejection.
+      toast.error(friendlyError(e, "No se pudo cancelar"));
     } finally {
       setCancelling((prev) => {
         const next = new Set(prev);

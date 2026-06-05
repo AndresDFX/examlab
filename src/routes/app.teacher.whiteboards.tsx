@@ -167,6 +167,11 @@ function TeacherWhiteboards() {
       // Navegamos directo al editor — el flujo "click para abrir" es
       // implícito tras crear.
       navigate({ to: "/app/teacher/whiteboards/$id", params: { id: data.id } });
+    } catch (e) {
+      // Caller: `() => void createWhiteboard()` desde onClick del botón
+      // del dialog. Sin catch acá, una rejection del insert (network
+      // throw, RLS panic) burbujea como unhandled rejection → audit log.
+      toast.error(friendlyError(e, "No se pudo crear la pizarra"));
     } finally {
       setSaving(false);
     }
@@ -180,13 +185,20 @@ function TeacherWhiteboards() {
       confirmLabel: "Eliminar",
     });
     if (!ok) return;
-    const { error } = await db.from("whiteboards").delete().eq("id", w.id);
-    if (error) {
-      toast.error(friendlyError(error, "No se pudo eliminar la pizarra"));
-      return;
+    try {
+      const { error } = await db.from("whiteboards").delete().eq("id", w.id);
+      if (error) {
+        toast.error(friendlyError(error, "No se pudo eliminar la pizarra"));
+        return;
+      }
+      toast.success("Pizarra eliminada");
+      setItems((prev) => prev.filter((p) => p.id !== w.id));
+    } catch (e) {
+      // Caller: `() => void deleteWhiteboard(w)` desde RowAction.onClick.
+      // Mismo riesgo que createWhiteboard — envolvemos para capturar
+      // rejections del network/RLS y mostrar toast amigable.
+      toast.error(friendlyError(e, "No se pudo eliminar la pizarra"));
     }
-    toast.success("Pizarra eliminada");
-    setItems((prev) => prev.filter((p) => p.id !== w.id));
   };
 
   if (loadError) {
