@@ -88,6 +88,27 @@ export function TeacherWorkshopQuestionsEditor({
   courseLanguage?: "es" | "en";
 }) {
   const confirm = useConfirm();
+  // Necesitamos el course_id del taller para encolar generaciones (la
+  // cola lo guarda para que el admin sepa de qué curso es). Lo
+  // resolvemos una sola vez con un mini-fetch — el dialog raramente
+  // monta sin contexto del workshop.
+  const [courseId, setCourseId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from("workshops")
+        .select("course_id")
+        .eq("id", workshopId)
+        .maybeSingle();
+      if (cancelled) return;
+      setCourseId((data as { course_id?: string } | null)?.course_id ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workshopId]);
   // Gate IA: en modo async sin override pedimos confirmación antes de
   // gastar cuota Gemini en la generación de preguntas.
   const aiGate = useAiAuthorizationGate();
@@ -347,20 +368,52 @@ export function TeacherWorkshopQuestionsEditor({
     }
     const validRows = aiRows.filter((r) => r.count > 0);
     if (!validRows.length) return toast.error("Configura al menos un tipo con cantidad > 0");
-    // La generación de preguntas con IA NO tiene worker async (a
-    // diferencia de la calificación, que usa `ai_grading_queue`). El gate
-    // se llama con `allowQueue: false` para que el dialog solo ofrezca
-    // "Activar IA inmediata" o "Cancelar". El caso `proceed-async` no
-    // debería ocurrir, pero lo trato defensivamente: antes el código
-    // ignoraba el valor del decision y llamaba al edge igual, lo que
-    // hacía que en modo batch el docente "encolara" pero la IA se
-    // disparara igual (sin código de activación).
-    const decision = await aiGate.ensureAuthorized({ allowQueue: false });
+    // El gate evalúa: modo sync / código de IA inmediata activo / async.
+    // allowQueue=true → si el docente está en async sin código, en lugar
+    // de bloquear, el gate retorna 'proceed-async' y nosotros encolamos
+    // a `ai_generation_queue` (mig 20260603070000). El docente puede
+    // procesarlos después desde el panel de Cola IA cuando tenga
+    // código activo, o un admin los puede ejecutar por él.
+    const decision = await aiGate.ensureAuthorized({ allowQueue: true });
     if (decision === "cancel") return;
     if (decision === "proceed-async") {
-      toast.error(
-        "La generación con IA no soporta modo cola. Activá un código de IA inmediata para continuar.",
+      // Encolar todas las filas de generación pendientes. UNA fila de
+      // cola por cada tipo solicitado (codigo java, abierta x5, etc).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbAny3 = supabase as any;
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) {
+        toast.error("No autenticado");
+        return;
+      }
+      const rows = validRows.map((row) => ({
+        kind: "workshop_questions",
+        invoke_target: "ai-generate-questions",
+        source_table: "workshops",
+        source_id: workshopId,
+        course_id: courseId ?? null,
+        created_by: user.user!.id,
+        body: {
+          topics: aiTopics,
+          type: row.type,
+          count: row.count,
+          examId: workshopId,
+          language: row.type === "codigo" ? row.language : undefined,
+          courseLanguage,
+          targetTable: "workshop_questions",
+        },
+      }));
+      const { error: enqErr } = await dbAny3.from("ai_generation_queue").insert(rows);
+      if (enqErr) {
+        toast.error(friendlyError(enqErr, "No se pudo encolar la generación"));
+        return;
+      }
+      toast.success(
+        `${rows.length} job${rows.length === 1 ? "" : "s"} de generación encolados. ` +
+          `Cuando tengas un código de IA inmediata o un administrador los procese, ` +
+          `las preguntas aparecerán automáticamente. Puedes verlos en el panel de Cola IA.`,
       );
+      setAiTopics("");
       return;
     }
     setAiLoading(true);

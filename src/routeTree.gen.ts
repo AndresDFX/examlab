@@ -24,25 +24,26 @@ import { Route as AppPreferencesRouteImport } from './routes/app.preferences'
 import { Route as AppMessagesRouteImport } from './routes/app.messages'
 import { Route as AppCertificatesRouteImport } from './routes/app.certificates'
 import { Route as AppTeacherWorkshopsRouteImport } from './routes/app.teacher.workshops'
+import { Route as AppTeacherWhiteboardsRouteImport } from './routes/app.teacher.whiteboards'
 import { Route as AppTeacherStudentsRouteImport } from './routes/app.teacher.students'
 import { Route as AppTeacherStatisticsRouteImport } from './routes/app.teacher.statistics'
 import { Route as AppTeacherReportsRouteImport } from './routes/app.teacher.reports'
 import { Route as AppTeacherQuestionBankRouteImport } from './routes/app.teacher.question-bank'
 import { Route as AppTeacherProjectsRouteImport } from './routes/app.teacher.projects'
+import { Route as AppTeacherPollsRouteImport } from './routes/app.teacher.polls'
 import { Route as AppTeacherGradebookRouteImport } from './routes/app.teacher.gradebook'
 import { Route as AppTeacherCoursesRouteImport } from './routes/app.teacher.courses'
 import { Route as AppTeacherContentsRouteImport } from './routes/app.teacher.contents'
 import { Route as AppTeacherCalendarRouteImport } from './routes/app.teacher.calendar'
 import { Route as AppTeacherAuditLogsRouteImport } from './routes/app.teacher.audit-logs'
 import { Route as AppTeacherAttendanceRouteImport } from './routes/app.teacher.attendance'
-import { Route as AppTeacherPollsRouteImport } from './routes/app.teacher.polls'
-import { Route as AppStudentPollsRouteImport } from './routes/app.student.polls'
 import { Route as AppTeacherAiPromptsRouteImport } from './routes/app.teacher.ai-prompts'
 import { Route as AppTeacherAiCronRouteImport } from './routes/app.teacher.ai-cron'
 import { Route as AppSuperadminTenantsRouteImport } from './routes/app.superadmin.tenants'
 import { Route as AppSuperadminSystemRouteImport } from './routes/app.superadmin.system'
 import { Route as AppStudentWorkshopsRouteImport } from './routes/app.student.workshops'
 import { Route as AppStudentProjectsRouteImport } from './routes/app.student.projects'
+import { Route as AppStudentPollsRouteImport } from './routes/app.student.polls'
 import { Route as AppStudentGradesRouteImport } from './routes/app.student.grades'
 import { Route as AppStudentExamsRouteImport } from './routes/app.student.exams'
 import { Route as AppStudentCoursesRouteImport } from './routes/app.student.courses'
@@ -64,6 +65,7 @@ import { Route as AppAdminAiCronRouteImport } from './routes/app.admin.ai-cron'
 import { Route as AppAdminAcademicRouteImport } from './routes/app.admin.academic'
 import { Route as AppTeacherExamsIndexRouteImport } from './routes/app.teacher.exams.index'
 import { Route as AppStudentTutorIndexRouteImport } from './routes/app.student.tutor.index'
+import { Route as AppTeacherWhiteboardsIdRouteImport } from './routes/app.teacher.whiteboards.$id'
 import { Route as AppTeacherMonitorExamIdRouteImport } from './routes/app.teacher.monitor.$examId'
 import { Route as AppTeacherGradingCourseIdRouteImport } from './routes/app.teacher.grading.$courseId'
 import { Route as AppTeacherExamsExamIdRouteImport } from './routes/app.teacher.exams.$examId'
@@ -150,6 +152,11 @@ const AppTeacherWorkshopsRoute = AppTeacherWorkshopsRouteImport.update({
   path: '/teacher/workshops',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTeacherWhiteboardsRoute = AppTeacherWhiteboardsRouteImport.update({
+  id: '/teacher/whiteboards',
+  path: '/teacher/whiteboards',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTeacherStudentsRoute = AppTeacherStudentsRouteImport.update({
   id: '/teacher/students',
   path: '/teacher/students',
@@ -173,6 +180,11 @@ const AppTeacherQuestionBankRoute = AppTeacherQuestionBankRouteImport.update({
 const AppTeacherProjectsRoute = AppTeacherProjectsRouteImport.update({
   id: '/teacher/projects',
   path: '/teacher/projects',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTeacherPollsRoute = AppTeacherPollsRouteImport.update({
+  id: '/teacher/polls',
+  path: '/teacher/polls',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTeacherGradebookRoute = AppTeacherGradebookRouteImport.update({
@@ -205,16 +217,6 @@ const AppTeacherAttendanceRoute = AppTeacherAttendanceRouteImport.update({
   path: '/teacher/attendance',
   getParentRoute: () => AppRoute,
 } as any)
-const AppTeacherPollsRoute = AppTeacherPollsRouteImport.update({
-  id: '/teacher/polls',
-  path: '/teacher/polls',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppStudentPollsRoute = AppStudentPollsRouteImport.update({
-  id: '/student/polls',
-  path: '/student/polls',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppTeacherAiPromptsRoute = AppTeacherAiPromptsRouteImport.update({
   id: '/teacher/ai-prompts',
   path: '/teacher/ai-prompts',
@@ -243,6 +245,11 @@ const AppStudentWorkshopsRoute = AppStudentWorkshopsRouteImport.update({
 const AppStudentProjectsRoute = AppStudentProjectsRouteImport.update({
   id: '/student/projects',
   path: '/student/projects',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStudentPollsRoute = AppStudentPollsRouteImport.update({
+  id: '/student/polls',
+  path: '/student/polls',
   getParentRoute: () => AppRoute,
 } as any)
 const AppStudentGradesRoute = AppStudentGradesRouteImport.update({
@@ -350,6 +357,11 @@ const AppStudentTutorIndexRoute = AppStudentTutorIndexRouteImport.update({
   path: '/student/tutor/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTeacherWhiteboardsIdRoute = AppTeacherWhiteboardsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AppTeacherWhiteboardsRoute,
+} as any)
 const AppTeacherMonitorExamIdRoute = AppTeacherMonitorExamIdRouteImport.update({
   id: '/teacher/monitor/$examId',
   path: '/teacher/monitor/$examId',
@@ -414,8 +426,8 @@ export interface FileRoutesByFullPath {
   '/app/preferences': typeof AppPreferencesRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/videos': typeof AppVideosRoute
-  '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/cancel-email-change': typeof AuthCancelEmailChangeRoute
+  '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app/': typeof AppIndexRoute
@@ -439,6 +451,7 @@ export interface FileRoutesByFullPath {
   '/app/student/courses': typeof AppStudentCoursesRoute
   '/app/student/exams': typeof AppStudentExamsRoute
   '/app/student/grades': typeof AppStudentGradesRoute
+  '/app/student/polls': typeof AppStudentPollsRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
   '/app/superadmin/system': typeof AppSuperadminSystemRoute
@@ -446,18 +459,18 @@ export interface FileRoutesByFullPath {
   '/app/teacher/ai-cron': typeof AppTeacherAiCronRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
-  '/app/teacher/polls': typeof AppTeacherPollsRoute
-  '/app/student/polls': typeof AppStudentPollsRoute
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
   '/app/teacher/calendar': typeof AppTeacherCalendarRoute
   '/app/teacher/contents': typeof AppTeacherContentsRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
+  '/app/teacher/polls': typeof AppTeacherPollsRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
   '/app/teacher/question-bank': typeof AppTeacherQuestionBankRoute
   '/app/teacher/reports': typeof AppTeacherReportsRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/students': typeof AppTeacherStudentsRoute
+  '/app/teacher/whiteboards': typeof AppTeacherWhiteboardsRouteWithChildren
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
@@ -468,6 +481,7 @@ export interface FileRoutesByFullPath {
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
+  '/app/teacher/whiteboards/$id': typeof AppTeacherWhiteboardsIdRoute
   '/app/student/tutor/': typeof AppStudentTutorIndexRoute
   '/app/teacher/exams/': typeof AppTeacherExamsIndexRoute
   '/app/forum/$courseId/$forumId/$threadId': typeof AppForumCourseIdForumIdThreadIdRoute
@@ -479,8 +493,8 @@ export interface FileRoutesByTo {
   '/app/preferences': typeof AppPreferencesRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/videos': typeof AppVideosRoute
-  '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/cancel-email-change': typeof AuthCancelEmailChangeRoute
+  '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app': typeof AppIndexRoute
@@ -504,6 +518,7 @@ export interface FileRoutesByTo {
   '/app/student/courses': typeof AppStudentCoursesRoute
   '/app/student/exams': typeof AppStudentExamsRoute
   '/app/student/grades': typeof AppStudentGradesRoute
+  '/app/student/polls': typeof AppStudentPollsRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
   '/app/superadmin/system': typeof AppSuperadminSystemRoute
@@ -511,18 +526,18 @@ export interface FileRoutesByTo {
   '/app/teacher/ai-cron': typeof AppTeacherAiCronRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
-  '/app/teacher/polls': typeof AppTeacherPollsRoute
-  '/app/student/polls': typeof AppStudentPollsRoute
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
   '/app/teacher/calendar': typeof AppTeacherCalendarRoute
   '/app/teacher/contents': typeof AppTeacherContentsRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
+  '/app/teacher/polls': typeof AppTeacherPollsRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
   '/app/teacher/question-bank': typeof AppTeacherQuestionBankRoute
   '/app/teacher/reports': typeof AppTeacherReportsRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/students': typeof AppTeacherStudentsRoute
+  '/app/teacher/whiteboards': typeof AppTeacherWhiteboardsRouteWithChildren
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
@@ -533,6 +548,7 @@ export interface FileRoutesByTo {
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
+  '/app/teacher/whiteboards/$id': typeof AppTeacherWhiteboardsIdRoute
   '/app/student/tutor': typeof AppStudentTutorIndexRoute
   '/app/teacher/exams': typeof AppTeacherExamsIndexRoute
   '/app/forum/$courseId/$forumId/$threadId': typeof AppForumCourseIdForumIdThreadIdRoute
@@ -547,8 +563,8 @@ export interface FileRoutesById {
   '/app/preferences': typeof AppPreferencesRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/videos': typeof AppVideosRoute
-  '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/cancel-email-change': typeof AuthCancelEmailChangeRoute
+  '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app/': typeof AppIndexRoute
@@ -572,6 +588,7 @@ export interface FileRoutesById {
   '/app/student/courses': typeof AppStudentCoursesRoute
   '/app/student/exams': typeof AppStudentExamsRoute
   '/app/student/grades': typeof AppStudentGradesRoute
+  '/app/student/polls': typeof AppStudentPollsRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
   '/app/superadmin/system': typeof AppSuperadminSystemRoute
@@ -579,18 +596,18 @@ export interface FileRoutesById {
   '/app/teacher/ai-cron': typeof AppTeacherAiCronRoute
   '/app/teacher/ai-prompts': typeof AppTeacherAiPromptsRoute
   '/app/teacher/attendance': typeof AppTeacherAttendanceRoute
-  '/app/teacher/polls': typeof AppTeacherPollsRoute
-  '/app/student/polls': typeof AppStudentPollsRoute
   '/app/teacher/audit-logs': typeof AppTeacherAuditLogsRoute
   '/app/teacher/calendar': typeof AppTeacherCalendarRoute
   '/app/teacher/contents': typeof AppTeacherContentsRoute
   '/app/teacher/courses': typeof AppTeacherCoursesRoute
   '/app/teacher/gradebook': typeof AppTeacherGradebookRoute
+  '/app/teacher/polls': typeof AppTeacherPollsRoute
   '/app/teacher/projects': typeof AppTeacherProjectsRoute
   '/app/teacher/question-bank': typeof AppTeacherQuestionBankRoute
   '/app/teacher/reports': typeof AppTeacherReportsRoute
   '/app/teacher/statistics': typeof AppTeacherStatisticsRoute
   '/app/teacher/students': typeof AppTeacherStudentsRoute
+  '/app/teacher/whiteboards': typeof AppTeacherWhiteboardsRouteWithChildren
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
@@ -601,6 +618,7 @@ export interface FileRoutesById {
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
+  '/app/teacher/whiteboards/$id': typeof AppTeacherWhiteboardsIdRoute
   '/app/student/tutor/': typeof AppStudentTutorIndexRoute
   '/app/teacher/exams/': typeof AppTeacherExamsIndexRoute
   '/app/forum/$courseId/$forumId/$threadId': typeof AppForumCourseIdForumIdThreadIdRoute
@@ -616,8 +634,8 @@ export interface FileRouteTypes {
     | '/app/preferences'
     | '/app/unauthorized'
     | '/app/videos'
-    | '/auth/confirm-email-change'
     | '/auth/cancel-email-change'
+    | '/auth/confirm-email-change'
     | '/auth/reset-password'
     | '/verify/$shortCode'
     | '/app/'
@@ -641,6 +659,7 @@ export interface FileRouteTypes {
     | '/app/student/courses'
     | '/app/student/exams'
     | '/app/student/grades'
+    | '/app/student/polls'
     | '/app/student/projects'
     | '/app/student/workshops'
     | '/app/superadmin/system'
@@ -648,18 +667,18 @@ export interface FileRouteTypes {
     | '/app/teacher/ai-cron'
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
-    | '/app/teacher/polls'
-    | '/app/student/polls'
     | '/app/teacher/audit-logs'
     | '/app/teacher/calendar'
     | '/app/teacher/contents'
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
+    | '/app/teacher/polls'
     | '/app/teacher/projects'
     | '/app/teacher/question-bank'
     | '/app/teacher/reports'
     | '/app/teacher/statistics'
     | '/app/teacher/students'
+    | '/app/teacher/whiteboards'
     | '/app/teacher/workshops'
     | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
@@ -670,6 +689,7 @@ export interface FileRouteTypes {
     | '/app/teacher/exams/$examId'
     | '/app/teacher/grading/$courseId'
     | '/app/teacher/monitor/$examId'
+    | '/app/teacher/whiteboards/$id'
     | '/app/student/tutor/'
     | '/app/teacher/exams/'
     | '/app/forum/$courseId/$forumId/$threadId'
@@ -681,8 +701,8 @@ export interface FileRouteTypes {
     | '/app/preferences'
     | '/app/unauthorized'
     | '/app/videos'
-    | '/auth/confirm-email-change'
     | '/auth/cancel-email-change'
+    | '/auth/confirm-email-change'
     | '/auth/reset-password'
     | '/verify/$shortCode'
     | '/app'
@@ -706,6 +726,7 @@ export interface FileRouteTypes {
     | '/app/student/courses'
     | '/app/student/exams'
     | '/app/student/grades'
+    | '/app/student/polls'
     | '/app/student/projects'
     | '/app/student/workshops'
     | '/app/superadmin/system'
@@ -713,18 +734,18 @@ export interface FileRouteTypes {
     | '/app/teacher/ai-cron'
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
-    | '/app/teacher/polls'
-    | '/app/student/polls'
     | '/app/teacher/audit-logs'
     | '/app/teacher/calendar'
     | '/app/teacher/contents'
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
+    | '/app/teacher/polls'
     | '/app/teacher/projects'
     | '/app/teacher/question-bank'
     | '/app/teacher/reports'
     | '/app/teacher/statistics'
     | '/app/teacher/students'
+    | '/app/teacher/whiteboards'
     | '/app/teacher/workshops'
     | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
@@ -735,6 +756,7 @@ export interface FileRouteTypes {
     | '/app/teacher/exams/$examId'
     | '/app/teacher/grading/$courseId'
     | '/app/teacher/monitor/$examId'
+    | '/app/teacher/whiteboards/$id'
     | '/app/student/tutor'
     | '/app/teacher/exams'
     | '/app/forum/$courseId/$forumId/$threadId'
@@ -748,8 +770,8 @@ export interface FileRouteTypes {
     | '/app/preferences'
     | '/app/unauthorized'
     | '/app/videos'
-    | '/auth/confirm-email-change'
     | '/auth/cancel-email-change'
+    | '/auth/confirm-email-change'
     | '/auth/reset-password'
     | '/verify/$shortCode'
     | '/app/'
@@ -773,6 +795,7 @@ export interface FileRouteTypes {
     | '/app/student/courses'
     | '/app/student/exams'
     | '/app/student/grades'
+    | '/app/student/polls'
     | '/app/student/projects'
     | '/app/student/workshops'
     | '/app/superadmin/system'
@@ -780,18 +803,18 @@ export interface FileRouteTypes {
     | '/app/teacher/ai-cron'
     | '/app/teacher/ai-prompts'
     | '/app/teacher/attendance'
-    | '/app/teacher/polls'
-    | '/app/student/polls'
     | '/app/teacher/audit-logs'
     | '/app/teacher/calendar'
     | '/app/teacher/contents'
     | '/app/teacher/courses'
     | '/app/teacher/gradebook'
+    | '/app/teacher/polls'
     | '/app/teacher/projects'
     | '/app/teacher/question-bank'
     | '/app/teacher/reports'
     | '/app/teacher/statistics'
     | '/app/teacher/students'
+    | '/app/teacher/whiteboards'
     | '/app/teacher/workshops'
     | '/app/forum/$courseId/$forumId'
     | '/app/student/project/$projectId'
@@ -802,6 +825,7 @@ export interface FileRouteTypes {
     | '/app/teacher/exams/$examId'
     | '/app/teacher/grading/$courseId'
     | '/app/teacher/monitor/$examId'
+    | '/app/teacher/whiteboards/$id'
     | '/app/student/tutor/'
     | '/app/teacher/exams/'
     | '/app/forum/$courseId/$forumId/$threadId'
@@ -921,6 +945,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTeacherWorkshopsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/teacher/whiteboards': {
+      id: '/app/teacher/whiteboards'
+      path: '/teacher/whiteboards'
+      fullPath: '/app/teacher/whiteboards'
+      preLoaderRoute: typeof AppTeacherWhiteboardsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/teacher/students': {
       id: '/app/teacher/students'
       path: '/teacher/students'
@@ -954,6 +985,13 @@ declare module '@tanstack/react-router' {
       path: '/teacher/projects'
       fullPath: '/app/teacher/projects'
       preLoaderRoute: typeof AppTeacherProjectsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/teacher/polls': {
+      id: '/app/teacher/polls'
+      path: '/teacher/polls'
+      fullPath: '/app/teacher/polls'
+      preLoaderRoute: typeof AppTeacherPollsRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/teacher/gradebook': {
@@ -998,20 +1036,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTeacherAttendanceRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/teacher/polls': {
-      id: '/app/teacher/polls'
-      path: '/teacher/polls'
-      fullPath: '/app/teacher/polls'
-      preLoaderRoute: typeof AppTeacherPollsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/student/polls': {
-      id: '/app/student/polls'
-      path: '/student/polls'
-      fullPath: '/app/student/polls'
-      preLoaderRoute: typeof AppStudentPollsRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/app/teacher/ai-prompts': {
       id: '/app/teacher/ai-prompts'
       path: '/teacher/ai-prompts'
@@ -1052,6 +1076,13 @@ declare module '@tanstack/react-router' {
       path: '/student/projects'
       fullPath: '/app/student/projects'
       preLoaderRoute: typeof AppStudentProjectsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/student/polls': {
+      id: '/app/student/polls'
+      path: '/student/polls'
+      fullPath: '/app/student/polls'
+      preLoaderRoute: typeof AppStudentPollsRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/student/grades': {
@@ -1201,6 +1232,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStudentTutorIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/teacher/whiteboards/$id': {
+      id: '/app/teacher/whiteboards/$id'
+      path: '/$id'
+      fullPath: '/app/teacher/whiteboards/$id'
+      preLoaderRoute: typeof AppTeacherWhiteboardsIdRouteImport
+      parentRoute: typeof AppTeacherWhiteboardsRoute
+    }
     '/app/teacher/monitor/$examId': {
       id: '/app/teacher/monitor/$examId'
       path: '/teacher/monitor/$examId'
@@ -1299,6 +1337,19 @@ const AppForumCourseIdRouteChildren: AppForumCourseIdRouteChildren = {
 const AppForumCourseIdRouteWithChildren =
   AppForumCourseIdRoute._addFileChildren(AppForumCourseIdRouteChildren)
 
+interface AppTeacherWhiteboardsRouteChildren {
+  AppTeacherWhiteboardsIdRoute: typeof AppTeacherWhiteboardsIdRoute
+}
+
+const AppTeacherWhiteboardsRouteChildren: AppTeacherWhiteboardsRouteChildren = {
+  AppTeacherWhiteboardsIdRoute: AppTeacherWhiteboardsIdRoute,
+}
+
+const AppTeacherWhiteboardsRouteWithChildren =
+  AppTeacherWhiteboardsRoute._addFileChildren(
+    AppTeacherWhiteboardsRouteChildren,
+  )
+
 interface AppRouteChildren {
   AppCertificatesRoute: typeof AppCertificatesRoute
   AppMessagesRoute: typeof AppMessagesRoute
@@ -1325,6 +1376,7 @@ interface AppRouteChildren {
   AppStudentCoursesRoute: typeof AppStudentCoursesRoute
   AppStudentExamsRoute: typeof AppStudentExamsRoute
   AppStudentGradesRoute: typeof AppStudentGradesRoute
+  AppStudentPollsRoute: typeof AppStudentPollsRoute
   AppStudentProjectsRoute: typeof AppStudentProjectsRoute
   AppStudentWorkshopsRoute: typeof AppStudentWorkshopsRoute
   AppSuperadminSystemRoute: typeof AppSuperadminSystemRoute
@@ -1332,18 +1384,18 @@ interface AppRouteChildren {
   AppTeacherAiCronRoute: typeof AppTeacherAiCronRoute
   AppTeacherAiPromptsRoute: typeof AppTeacherAiPromptsRoute
   AppTeacherAttendanceRoute: typeof AppTeacherAttendanceRoute
-  AppTeacherPollsRoute: typeof AppTeacherPollsRoute
-  AppStudentPollsRoute: typeof AppStudentPollsRoute
   AppTeacherAuditLogsRoute: typeof AppTeacherAuditLogsRoute
   AppTeacherCalendarRoute: typeof AppTeacherCalendarRoute
   AppTeacherContentsRoute: typeof AppTeacherContentsRoute
   AppTeacherCoursesRoute: typeof AppTeacherCoursesRoute
   AppTeacherGradebookRoute: typeof AppTeacherGradebookRoute
+  AppTeacherPollsRoute: typeof AppTeacherPollsRoute
   AppTeacherProjectsRoute: typeof AppTeacherProjectsRoute
   AppTeacherQuestionBankRoute: typeof AppTeacherQuestionBankRoute
   AppTeacherReportsRoute: typeof AppTeacherReportsRoute
   AppTeacherStatisticsRoute: typeof AppTeacherStatisticsRoute
   AppTeacherStudentsRoute: typeof AppTeacherStudentsRoute
+  AppTeacherWhiteboardsRoute: typeof AppTeacherWhiteboardsRouteWithChildren
   AppTeacherWorkshopsRoute: typeof AppTeacherWorkshopsRoute
   AppStudentProjectProjectIdRoute: typeof AppStudentProjectProjectIdRoute
   AppStudentReviewExamIdRoute: typeof AppStudentReviewExamIdRoute
@@ -1383,6 +1435,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppStudentCoursesRoute: AppStudentCoursesRoute,
   AppStudentExamsRoute: AppStudentExamsRoute,
   AppStudentGradesRoute: AppStudentGradesRoute,
+  AppStudentPollsRoute: AppStudentPollsRoute,
   AppStudentProjectsRoute: AppStudentProjectsRoute,
   AppStudentWorkshopsRoute: AppStudentWorkshopsRoute,
   AppSuperadminSystemRoute: AppSuperadminSystemRoute,
@@ -1390,18 +1443,18 @@ const AppRouteChildren: AppRouteChildren = {
   AppTeacherAiCronRoute: AppTeacherAiCronRoute,
   AppTeacherAiPromptsRoute: AppTeacherAiPromptsRoute,
   AppTeacherAttendanceRoute: AppTeacherAttendanceRoute,
-  AppTeacherPollsRoute: AppTeacherPollsRoute,
-  AppStudentPollsRoute: AppStudentPollsRoute,
   AppTeacherAuditLogsRoute: AppTeacherAuditLogsRoute,
   AppTeacherCalendarRoute: AppTeacherCalendarRoute,
   AppTeacherContentsRoute: AppTeacherContentsRoute,
   AppTeacherCoursesRoute: AppTeacherCoursesRoute,
   AppTeacherGradebookRoute: AppTeacherGradebookRoute,
+  AppTeacherPollsRoute: AppTeacherPollsRoute,
   AppTeacherProjectsRoute: AppTeacherProjectsRoute,
   AppTeacherQuestionBankRoute: AppTeacherQuestionBankRoute,
   AppTeacherReportsRoute: AppTeacherReportsRoute,
   AppTeacherStatisticsRoute: AppTeacherStatisticsRoute,
   AppTeacherStudentsRoute: AppTeacherStudentsRoute,
+  AppTeacherWhiteboardsRoute: AppTeacherWhiteboardsRouteWithChildren,
   AppTeacherWorkshopsRoute: AppTeacherWorkshopsRoute,
   AppStudentProjectProjectIdRoute: AppStudentProjectProjectIdRoute,
   AppStudentReviewExamIdRoute: AppStudentReviewExamIdRoute,
@@ -1418,15 +1471,15 @@ const AppRouteChildren: AppRouteChildren = {
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 interface AuthRouteChildren {
-  AuthConfirmEmailChangeRoute: typeof AuthConfirmEmailChangeRoute
   AuthCancelEmailChangeRoute: typeof AuthCancelEmailChangeRoute
+  AuthConfirmEmailChangeRoute: typeof AuthConfirmEmailChangeRoute
   AuthResetPasswordRoute: typeof AuthResetPasswordRoute
   AuthIndexRoute: typeof AuthIndexRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
-  AuthConfirmEmailChangeRoute: AuthConfirmEmailChangeRoute,
   AuthCancelEmailChangeRoute: AuthCancelEmailChangeRoute,
+  AuthConfirmEmailChangeRoute: AuthConfirmEmailChangeRoute,
   AuthResetPasswordRoute: AuthResetPasswordRoute,
   AuthIndexRoute: AuthIndexRoute,
 }

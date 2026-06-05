@@ -70,6 +70,7 @@ import {
   CalendarPlus,
   PlayCircle,
   Zap,
+  Palette,
 } from "lucide-react";
 import { toCSV } from "@/shared/lib/csv";
 import { formatDateShort } from "@/shared/lib/format";
@@ -88,6 +89,7 @@ import {
 } from "@/modules/attendance/attendance-code";
 import { GenerateSessionsDialog } from "@/modules/contents/GenerateSessionsDialog";
 import { LaunchPollDialog } from "@/modules/polls/LaunchPollDialog";
+import { SessionWhiteboardDialog } from "@/modules/whiteboard/SessionWhiteboardDialog";
 
 // Columna `cut_name` es OPCIONAL: si está vacía, la sesión queda sin
 // corte (no aporta a la nota de asistencia hasta que el docente la
@@ -225,6 +227,11 @@ function TeacherAttendance() {
   // aparece destacada para los alumnos en /app/student/polls como
   // "🎯 Sesión presencial".
   const [pollLaunchSession, setPollLaunchSession] = useState<Session | null>(null);
+  // Sesión seleccionada para abrir su pizarra. Distinto del whiteboard
+  // standalone — esta queda ligada 1:1 al attendance_session via la
+  // columna `whiteboard_scene JSONB` (mig 20260603060000). Reabrir
+  // recupera el contenido. Solo el docente de la sesión la edita.
+  const [whiteboardSession, setWhiteboardSession] = useState<Session | null>(null);
   /** Abre el dialog "Programar sesiones del curso". Se usa SIN contenido
    *  pre-asociado — el dialog calcula N sesiones a partir de fecha
    *  inicio + días de la semana, las crea con `course_id = courseId` y
@@ -1215,6 +1222,15 @@ function TeacherAttendance() {
                                 <Zap className="h-4 w-4 mr-2 text-sky-500" />
                                 Lanzar encuesta
                               </DropdownMenuItem>
+                              {/* Pizarra de la sesión — abre el editor
+                                  Excalidraw embebido. Persiste en
+                                  attendance_sessions.whiteboard_scene
+                                  (1:1 con la sesión). El docente reabre
+                                  y su contenido reaparece. */}
+                              <DropdownMenuItem onSelect={() => setWhiteboardSession(sess)}>
+                                <Palette className="h-4 w-4 mr-2 text-violet-500" />
+                                Pizarra
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 onSelect={() => deleteSession(sess.id)}
@@ -1637,6 +1653,17 @@ function TeacherAttendance() {
             : undefined
         }
         onCreated={() => setPollLaunchSession(null)}
+      />
+      {/* Pizarra de la sesión — Excalidraw embebido en Dialog full-height.
+          Persiste 1:1 con attendance_sessions.whiteboard_scene. */}
+      <SessionWhiteboardDialog
+        sessionId={whiteboardSession?.id ?? null}
+        sessionLabel={
+          whiteboardSession
+            ? `${whiteboardSession.title ?? "Clase"} · ${formatDateShort(whiteboardSession.session_date)}`
+            : undefined
+        }
+        onOpenChange={(open) => !open && setWhiteboardSession(null)}
       />
     </div>
   );

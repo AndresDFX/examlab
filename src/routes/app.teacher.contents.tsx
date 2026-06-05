@@ -497,15 +497,61 @@ function TeacherContents() {
       toast.error(t("contents.tagsRequired"));
       return;
     }
-    // Generación de contenidos con IA — NO tiene worker async. Pasamos
-    // `allowQueue: false` para que el dialog del gate solo ofrezca
-    // "Activar IA inmediata" o "Cancelar".
-    const decision = await aiGate.ensureAuthorized({ allowQueue: false });
+    // Generación de contenidos con IA. allowQueue=true: si el docente
+    // está en async sin código, encolamos a `ai_generation_queue` en
+    // lugar de bloquear. El worker (o el docente con código) crea la
+    // fila `generated_contents` + invoca la edge cuando la procese.
+    const decision = await aiGate.ensureAuthorized({ allowQueue: true });
     if (decision === "cancel") return;
     if (decision === "proceed-async") {
-      toast.error(
-        "La generación con IA no soporta modo cola. Activá un código de IA inmediata para continuar.",
+      // Construimos el mismo body que se hubiera pasado al flujo sync.
+      // El worker re-construirá la fila de `generated_contents` y
+      // luego invocará la edge `generate-contents` con el id resultante.
+      // NO insertamos en `generated_contents` ahora — esa fila solo
+      // existe cuando la generación arranca, así el listado del docente
+      // no muestra "queued para siempre" de un job que en realidad
+      // está esperando código de IA.
+      const enqueueBody = {
+        contentGeneration: true,
+        teacher_id: user.id,
+        display_name: dn,
+        topic: topic.trim(),
+        mode,
+        language,
+        n_classes: mode === "curso_completo" ? nClasses : null,
+        duration_minutes: durationMinutes,
+        modality,
+        tags,
+        course_id: courseId || null,
+        author: author.trim() || null,
+        instructions: instructions.trim() || null,
+        release_after_session_date: releaseAfterSessionDate,
+      };
+      const { error: enqErr } = await db.from("ai_generation_queue").insert({
+        kind: "content_generation",
+        // El worker primero crea la fila y luego invoca esta edge con
+        // el id resultante; ese paso vive server-side en ai-generation-worker.
+        invoke_target: "ai-generation-worker",
+        body: enqueueBody,
+        source_table: "generated_contents",
+        // Sentinel UUID para satisfacer NOT NULL de source_id antes de
+        // que la fila exista. El worker reemplaza esto con el id real
+        // tras crear la `generated_contents`. NIL UUID (00000...) es
+        // standard para "vacío" sin crear collision.
+        source_id: "00000000-0000-0000-0000-000000000000",
+        course_id: courseId || null,
+        created_by: user.id,
+      });
+      if (enqErr) {
+        toast.error(friendlyError(enqErr, "No se pudo encolar la generación"));
+        return;
+      }
+      toast.success(
+        "Generación encolada. Cuando tengas un código de IA inmediata o un administrador la procese, " +
+          'el contenido aparecerá en tu lista. Puedes verla en "Cola IA → Generaciones".',
       );
+      // Reset del form para no inducir doble-encolado.
+      setDialogOpen(false);
       return;
     }
     setCreating(true);

@@ -84,6 +84,7 @@ import {
   Building2,
   Wrench,
   AlertTriangle,
+  Palette,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useState, useEffect } from "react";
@@ -241,6 +242,15 @@ const NAV: NavItem[] = [
     to: "/app/teacher/polls",
     labelKey: "nav.polls",
     icon: ListChecks,
+    roles: ["Docente"],
+  },
+  // Pizarras (whiteboards) — espacio en blanco para que el docente
+  // explique conceptos o piense libremente. Excalidraw embebido.
+  // Mig 20260603060000 + módulo src/modules/whiteboard.
+  {
+    to: "/app/teacher/whiteboards",
+    labelKey: "nav.whiteboards",
+    icon: Palette,
     roles: ["Docente"],
   },
   {

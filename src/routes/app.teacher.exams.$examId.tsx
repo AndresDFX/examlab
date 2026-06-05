@@ -56,6 +56,7 @@ import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialo
 import { Library } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
+import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 
 export const Route = createFileRoute("/app/teacher/exams/$examId")({ component: ExamEditor });
 
@@ -82,6 +83,11 @@ function ExamEditor() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const { t } = useTranslation();
+  // Gate IA: en modo async sin código activo el gate ofrece "Activar IA
+  // inmediata" / "Encolar" / "Cancelar". Si el docente elige encolar
+  // (`allowQueue: true`), insertamos en `ai_generation_queue` en vez de
+  // bloquear, igual que en talleres (ver WorkshopQuestions.generateWithAI).
+  const aiGate = useAiAuthorizationGate();
   const [exam, setExam] = useState<Exam | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -562,6 +568,54 @@ function ExamEditor() {
     if (!aiTopics.trim()) return toast.error("Ingresa los temas");
     const validRows = aiRows.filter((r) => r.count > 0);
     if (!validRows.length) return toast.error("Configura al menos un tipo con cantidad > 0");
+    // El gate evalúa: modo sync / código de IA inmediata activo / async.
+    // allowQueue=true → si el docente está en async sin código, en lugar
+    // de bloquear, el gate retorna 'proceed-async' y nosotros encolamos
+    // a `ai_generation_queue` (mig 20260603070000). El docente puede
+    // procesarlos después desde el panel de Cola IA cuando tenga
+    // código activo, o un admin los puede ejecutar por él.
+    const decision = await aiGate.ensureAuthorized({ allowQueue: true });
+    if (decision === "cancel") return;
+    if (decision === "proceed-async") {
+      // Encolar una fila por cada tipo solicitado. El `body` se guarda
+      // verbatim con el shape que espera la edge `ai-generate-questions`
+      // — así el panel de Cola IA puede invocarla sin tocar el payload.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbAny = supabase as any;
+      const { data: userRes } = await supabase.auth.getUser();
+      if (!userRes.user) {
+        toast.error("No autenticado");
+        return;
+      }
+      const rows = validRows.map((row) => ({
+        kind: "exam_questions",
+        invoke_target: "ai-generate-questions",
+        source_table: "exams",
+        source_id: examId,
+        course_id: exam?.course_id ?? null,
+        created_by: userRes.user!.id,
+        body: {
+          examId,
+          topics: aiTopics,
+          type: row.type,
+          count: row.count,
+          language: row.type === "codigo" ? row.language : undefined,
+          targetTable: "questions",
+        },
+      }));
+      const { error: enqErr } = await dbAny.from("ai_generation_queue").insert(rows);
+      if (enqErr) {
+        toast.error(friendlyError(enqErr, "No se pudo encolar la generación"));
+        return;
+      }
+      toast.success(
+        `${rows.length} job${rows.length === 1 ? "" : "s"} de generación encolados. ` +
+          `Cuando tengas un código de IA inmediata o un administrador los procese, ` +
+          `las preguntas aparecerán automáticamente. Puedes verlos en el panel de Cola IA.`,
+      );
+      setAiTopics("");
+      return;
+    }
     setAiLoading(true);
     let totalInserted = 0;
     try {
@@ -1679,6 +1733,8 @@ function ExamEditor() {
         targetId={examId}
         onImported={() => void load()}
       />
+
+      <aiGate.GateDialog />
     </div>
   );
 }

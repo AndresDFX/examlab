@@ -374,15 +374,47 @@ export function TeacherProjectFilesEditor({
       );
       return;
     }
-    // Generación de preguntas con IA — NO tiene worker async. Pasamos
-    // `allowQueue: false` para que el dialog del gate solo ofrezca
-    // "Activar IA inmediata" o "Cancelar". Antes en modo batch el
-    // docente "encolaba" y el código llamaba al edge igual sin código.
-    const decision = await aiGate.ensureAuthorized({ allowQueue: false });
+    // El gate evalúa: modo sync / código de IA inmediata activo / async.
+    // allowQueue=true → si el docente está en async sin código, en lugar
+    // de bloquear encolamos a `ai_generation_queue` (mig 20260603070000).
+    // El docente puede procesarlo después desde el panel de Cola IA, o
+    // que un admin lo ejecute. Mismo patrón que talleres.
+    const decision = await aiGate.ensureAuthorized({ allowQueue: true });
     if (decision === "cancel") return;
     if (decision === "proceed-async") {
-      toast.error(
-        "La generación con IA no soporta modo cola. Activá un código de IA inmediata para continuar.",
+      // El auto-generador despacha UN solo job: el body es el payload
+      // exacto que recibe `ai-generate-questions` con el flag
+      // `projectQuestionsAutoGeneration: true`.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbAny = supabase as any;
+      const { data: userRes } = await supabase.auth.getUser();
+      if (!userRes.user) {
+        toast.error("No autenticado");
+        return;
+      }
+      const { error: enqErr } = await dbAny.from("ai_generation_queue").insert({
+        kind: "project_files",
+        invoke_target: "ai-generate-questions",
+        source_table: "projects",
+        source_id: projectId,
+        course_id: autoCourseId,
+        created_by: userRes.user.id,
+        body: {
+          projectQuestionsAutoGeneration: true,
+          projectId,
+          description: autoDescription,
+          courseId: autoCourseId,
+          courseLanguage,
+        },
+      });
+      if (enqErr) {
+        toast.error(friendlyError(enqErr, "No se pudo encolar la generación"));
+        return;
+      }
+      toast.success(
+        "1 job de generación encolado. Cuando tengas un código de IA inmediata o un " +
+          "administrador lo procese, las preguntas aparecerán automáticamente. Puedes verlo " +
+          "en el panel de Cola IA.",
       );
       return;
     }
@@ -430,14 +462,57 @@ export function TeacherProjectFilesEditor({
     }
     const validRows = aiRows.filter((r) => r.count > 0);
     if (!validRows.length) return toast.error("Configura al menos un tipo con cantidad > 0");
-    // Generación de preguntas con IA — NO tiene worker async. Ver
-    // comentario en generateFromDescription arriba.
-    const decision = await aiGate.ensureAuthorized({ allowQueue: false });
+    // Mismo gate que generateFromDescription: allowQueue=true → encolamos
+    // a `ai_generation_queue` cuando el docente está en async sin código.
+    const decision = await aiGate.ensureAuthorized({ allowQueue: true });
     if (decision === "cancel") return;
     if (decision === "proceed-async") {
-      toast.error(
-        "La generación con IA no soporta modo cola. Activá un código de IA inmediata para continuar.",
+      // Necesitamos la descripción del proyecto para el body de cada job
+      // — el flujo sync la lee dentro del try; acá la leemos ANTES de
+      // encolar para que el worker no tenga que volver a buscarla.
+      const { data: proj } = await db
+        .from("projects")
+        .select("description")
+        .eq("id", projectId)
+        .maybeSingle();
+      const projectDescription =
+        (proj as { description?: string | null } | null)?.description ?? null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbAny = supabase as any;
+      const { data: userRes } = await supabase.auth.getUser();
+      if (!userRes.user) {
+        toast.error("No autenticado");
+        return;
+      }
+      const rows = validRows.map((row) => ({
+        kind: "project_files",
+        invoke_target: "ai-generate-questions",
+        source_table: "projects",
+        source_id: projectId,
+        course_id: projectCourseId,
+        created_by: userRes.user!.id,
+        body: {
+          topics: aiTopics,
+          type: row.type,
+          count: row.count,
+          examId: projectId,
+          language: row.type === "codigo_zip" ? row.language : undefined,
+          courseLanguage,
+          targetTable: "project_files",
+          projectDescription,
+        },
+      }));
+      const { error: enqErr } = await dbAny.from("ai_generation_queue").insert(rows);
+      if (enqErr) {
+        toast.error(friendlyError(enqErr, "No se pudo encolar la generación"));
+        return;
+      }
+      toast.success(
+        `${rows.length} job${rows.length === 1 ? "" : "s"} de generación encolados. ` +
+          `Cuando tengas un código de IA inmediata o un administrador los procese, ` +
+          `las preguntas aparecerán automáticamente. Puedes verlos en el panel de Cola IA.`,
       );
+      setAiTopics("");
       return;
     }
     setAiLoading(true);

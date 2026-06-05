@@ -42,6 +42,7 @@ import {
 import { SupabaseCronPanel } from "@/modules/admin/SupabaseCronPanel";
 import { AdminAiGradingPanel } from "@/modules/admin/AdminAiGradingPanel";
 import { AiJobsHistoryPanel } from "@/modules/ai/AiJobsHistoryPanel";
+import { AiGenerationQueuePanel } from "@/modules/ai/AiGenerationQueuePanel";
 import { logEvent } from "@/shared/lib/audit";
 import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
 import { readOverrideExpiry, getProcessingMode } from "@/modules/ai/ai-grading";
@@ -81,6 +82,7 @@ import {
   MessageSquareWarning,
   CheckCheck,
   Archive,
+  Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";
@@ -230,7 +232,12 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
       />
       {isAdmin ? (
         <Tabs defaultValue="ia">
-          <TabsList>
+          {/* Wrapper con overflow-x-auto + max-w-full para que en mobile
+              (375px) los 4-5 tabs no se corten fuera del viewport. La
+              TabsList default es inline-flex con whitespace-nowrap, así
+              que sin scroll wrapper los últimos tabs se vuelven
+              inaccesibles. */}
+          <TabsList className="max-w-full overflow-x-auto">
             <TabsTrigger value="ia" className="gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
               IA
@@ -242,6 +249,13 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
             <TabsTrigger value="history" className="gap-1.5">
               <Archive className="h-3.5 w-3.5" />
               Historial
+            </TabsTrigger>
+            {/* Generaciones — jobs de creación de contenido con IA
+                encolados cuando el modo era async sin código activo.
+                Distinto de "IA" (que es calificación). */}
+            <TabsTrigger value="generation" className="gap-1.5">
+              <Wand2 className="h-3.5 w-3.5" />
+              Generaciones
             </TabsTrigger>
             {/* Configuración: sync/async + códigos override. Antes vivía
                 en Admin → Configuración → 'Cola IA'. Centralizada acá
@@ -265,6 +279,9 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
           <TabsContent value="history" className="space-y-4 mt-4">
             <AiJobsHistoryPanel isAdmin={isAdmin} />
           </TabsContent>
+          <TabsContent value="generation" className="space-y-4 mt-4">
+            <AiGenerationQueuePanel isAdmin={isAdmin} />
+          </TabsContent>
           <TabsContent value="config" className="space-y-4 mt-4">
             <AdminAiGradingPanel />
           </TabsContent>
@@ -275,12 +292,11 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
           )}
         </Tabs>
       ) : (
-        // Docente: dos tabs (Activos + Historial). Antes era panel
-        // inline sin tabs; agregamos la pestaña Historial para paridad
-        // con Admin. El scope del historial lo enforza RLS — el docente
-        // solo ve jobs que él encoló o de cursos que dicta.
+        // Docente: tres tabs (Activos + Historial + Generaciones). El
+        // scope lo enforza RLS — el docente solo ve jobs que él encoló
+        // o de cursos que dicta.
         <Tabs defaultValue="ia">
-          <TabsList>
+          <TabsList className="max-w-full overflow-x-auto">
             <TabsTrigger value="ia" className="gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
               Activos
@@ -289,12 +305,19 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
               <Archive className="h-3.5 w-3.5" />
               Historial
             </TabsTrigger>
+            <TabsTrigger value="generation" className="gap-1.5">
+              <Wand2 className="h-3.5 w-3.5" />
+              Generaciones
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="ia" className="space-y-4 mt-4">
             <AiQueuePanel isAdmin={isAdmin} />
           </TabsContent>
           <TabsContent value="history" className="space-y-4 mt-4">
             <AiJobsHistoryPanel isAdmin={isAdmin} />
+          </TabsContent>
+          <TabsContent value="generation" className="space-y-4 mt-4">
+            <AiGenerationQueuePanel isAdmin={isAdmin} />
           </TabsContent>
         </Tabs>
       )}
