@@ -73,6 +73,8 @@ import {
   FolderKanban,
   Clock,
   CalendarClock,
+  AlertTriangle,
+  Zap,
 } from "lucide-react";
 import {
   parseMessageBody,
@@ -231,12 +233,12 @@ function MessagesPage() {
   // "Enviar ahora". Formato local YYYY-MM-DDTHH:mm del DateTimePicker.
   const [broadcastScheduleAt, setBroadcastScheduleAt] = useState("");
 
-  // ── Mensajes programados (lista + cancelar) ──
+  // ── Mensajes programados (lista + cancelar + editar) ──
   const [scheduledDialogOpen, setScheduledDialogOpen] = useState(false);
   const [scheduledItems, setScheduledItems] = useState<
     Array<{
       id: string;
-      kind: "direct" | "broadcast";
+      kind: "direct" | "broadcast" | "group";
       subject: string | null;
       body: string;
       send_at: string;
@@ -245,6 +247,16 @@ function MessagesPage() {
     }>
   >([]);
   const [scheduledLoading, setScheduledLoading] = useState(false);
+  // Toggle "Ver historial" — por default mostramos solo PENDING (los
+  // únicos accionables). El usuario puede pedir ver enviados / cancelados
+  // / fallidos para auditoría.
+  const [showScheduledHistory, setShowScheduledHistory] = useState(false);
+  // Edit inline: id de la fila en edición + drafts del body y send_at.
+  // El send_at se edita con DateTimePicker (mismo formato YYYY-MM-DDTHH:mm).
+  const [editingScheduledId, setEditingScheduledId] = useState<string | null>(null);
+  const [editDraftBody, setEditDraftBody] = useState("");
+  const [editDraftSendAt, setEditDraftSendAt] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
   // Programación de un mensaje directo desde el composer del chat.
   const [directScheduleOpen, setDirectScheduleOpen] = useState(false);
   const [directScheduleAt, setDirectScheduleAt] = useState("");
@@ -602,14 +614,93 @@ function MessagesPage() {
   };
 
   // Carga los mensajes programados del usuario (RLS: solo los suyos).
+  // Por default trae SOLO pending (lo accionable). Con
+  // `showScheduledHistory=true` también trae sent/cancelled/failed para
+  // auditoría. Esto reemplaza el comportamiento anterior que listaba
+  // TODO mezclado y dejaba al usuario navegando entre estados ya cerrados.
   const loadScheduled = async () => {
     setScheduledLoading(true);
-    const { data } = await db
+    let q = db
       .from("scheduled_messages")
       .select("id, kind, subject, body, send_at, status, error")
       .order("send_at", { ascending: true });
+    if (!showScheduledHistory) {
+      q = q.eq("status", "pending");
+    }
+    const { data } = await q;
     setScheduledItems((data ?? []) as typeof scheduledItems);
     setScheduledLoading(false);
+  };
+
+  // Abre el editor inline para una fila pending. Carga drafts con valores
+  // actuales convertidos al formato local YYYY-MM-DDTHH:mm que espera
+  // DateTimePicker.
+  const beginEditScheduled = (it: (typeof scheduledItems)[number]) => {
+    if (it.status !== "pending") {
+      toast.error("Solo se pueden editar mensajes pendientes.");
+      return;
+    }
+    setEditingScheduledId(it.id);
+    setEditDraftBody(it.body);
+    // ISO → local YYYY-MM-DDTHH:mm. new Date(iso) interpreta UTC y
+    // `getFullYear/getMonth/...` retornan local del navegador.
+    const d = new Date(it.send_at);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    setEditDraftSendAt(local);
+  };
+
+  const cancelEditScheduled = () => {
+    setEditingScheduledId(null);
+    setEditDraftBody("");
+    setEditDraftSendAt("");
+  };
+
+  // Guarda body + send_at. Re-valida la fecha (mínimo 1min en futuro).
+  // El UPDATE incluye `eq("status", "pending")` como guard contra TOCTOU:
+  // si el cron despachó la fila entre que el usuario abrió el editor y
+  // guardó, evitamos modificar un mensaje ya enviado (RLS lo permite,
+  // pero semánticamente no tiene sentido).
+  const saveEditScheduled = async () => {
+    if (!editingScheduledId) return;
+    if (!editDraftBody.trim()) {
+      toast.error("El mensaje no puede quedar vacío.");
+      return;
+    }
+    const validation = validateScheduledSend(editDraftSendAt);
+    if (!validation.ok) {
+      toast.error(validation.error ?? "Fecha inválida.");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const { error, data } = await db
+        .from("scheduled_messages")
+        .update({
+          body: editDraftBody.trim(),
+          send_at: localToIso(editDraftSendAt),
+          error: null,
+        })
+        .eq("id", editingScheduledId)
+        .eq("status", "pending")
+        .select("id")
+        .maybeSingle();
+      if (error) {
+        toast.error(friendlyError(error, "No se pudo guardar el cambio"));
+        return;
+      }
+      if (!data) {
+        // No row → status cambió mientras tanto (cron lo dispatchó o user
+        // lo canceló desde otro tab). Informamos sin mostrar como error.
+        toast.info("El mensaje ya no está pendiente; refrescamos la lista.");
+      } else {
+        toast.success("Cambios guardados.");
+      }
+      cancelEditScheduled();
+      void loadScheduled();
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const cancelScheduled = async (id: string) => {
@@ -623,6 +714,34 @@ function MessagesPage() {
     }
     toast.success("Programación cancelada.");
     void loadScheduled();
+  };
+
+  // Fuerza dispatch inmediato. Útil cuando el cron está atrasado o
+  // pausado y el usuario quiere despachar manualmente. El RPC
+  // `request_dispatch_scheduled_messages` corre `dispatch_scheduled_messages()`
+  // ya re-validando autorización por fila — el caller no puede enviar
+  // mensajes que no le pertenecen.
+  const [forcingDispatch, setForcingDispatch] = useState(false);
+  const forceDispatchNow = async () => {
+    if (forcingDispatch) return;
+    setForcingDispatch(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("request_dispatch_scheduled_messages");
+      if (error) {
+        toast.error(friendlyError(error, "No se pudo procesar la cola"));
+        return;
+      }
+      const n = Number(data ?? 0);
+      if (n === 0) {
+        toast.info("No había mensajes vencidos para procesar.");
+      } else {
+        toast.success(`${n} mensaje${n === 1 ? "" : "s"} despachado${n === 1 ? "" : "s"}.`);
+      }
+      void loadScheduled();
+    } finally {
+      setForcingDispatch(false);
+    }
   };
 
   useEffect(() => {
@@ -2295,26 +2414,95 @@ function MessagesPage() {
           componente para que no compita con z-index del bubble. */}
       <MessageTagPicker open={tagPickerOpen} onOpenChange={setTagPickerOpen} onPick={insertTag} />
 
-      {/* Mensajes programados — lista + cancelar. */}
-      <Dialog open={scheduledDialogOpen} onOpenChange={setScheduledDialogOpen}>
+      {/* Mensajes programados — lista + cancelar + editar.
+          Por default muestra SOLO `pending` (lo accionable). Toggle
+          "Ver historial" trae sent/cancelled/failed. */}
+      <Dialog
+        open={scheduledDialogOpen}
+        onOpenChange={(open) => {
+          setScheduledDialogOpen(open);
+          if (!open) cancelEditScheduled();
+        }}
+      >
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CalendarClock className="h-4 w-4 text-cyan-500" />
-              Mensajes programados
-            </DialogTitle>
+            {/* Header en 2 niveles: título + toggle al lado. ANTES tenía
+                el toggle DENTRO del DialogTitle (que renderiza como h2),
+                violando jerarquía semántica de headings. Ahora va como
+                sibling: el h2 queda limpio, el toggle queda a la derecha
+                con flex-wrap para no desbordar en mobile. */}
+            <div className="flex items-start justify-between gap-2 flex-wrap">
+              <DialogTitle className="flex items-center gap-2">
+                <CalendarClock className="h-4 w-4 text-cyan-500" />
+                Mensajes programados
+              </DialogTitle>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-[11px]"
+                onClick={() => {
+                  setShowScheduledHistory((s) => !s);
+                  void loadScheduled();
+                }}
+              >
+                {showScheduledHistory ? "Solo pendientes" : "Ver historial"}
+              </Button>
+            </div>
             <DialogDescription>
-              Mensajes directos y de difusión que se enviarán automáticamente en su fecha. Puedes
-              cancelar los que sigan pendientes.
+              {showScheduledHistory
+                ? "Todos los mensajes programados, incluidos enviados, cancelados y fallidos."
+                : "Mensajes pendientes de envío. Puedes editarlos, cancelarlos o forzar el envío ahora."}
             </DialogDescription>
           </DialogHeader>
+          {/* Banner "Procesar pendientes ahora" — solo visible si hay
+              filas pending atrasadas (send_at < now). Cuando el cron
+              está al día, no aparece. Llama el RPC
+              `request_dispatch_scheduled_messages` que reusa la misma
+              función de dispatch + autz por fila. */}
+          {scheduledItems.some(
+            (it) => it.status === "pending" && new Date(it.send_at).getTime() < Date.now(),
+          ) && (
+            <div className="flex items-center gap-2 rounded-md border border-amber-300/40 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/20 px-3 py-2">
+              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+              <p className="text-xs text-muted-foreground flex-1">
+                Hay mensajes atrasados. Si el cron está pausado o tarda, puedes forzar el envío
+                ahora.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs shrink-0"
+                disabled={forcingDispatch}
+                onClick={() => void forceDispatchNow()}
+              >
+                {forcingDispatch ? (
+                  <Spinner size="xs" className="mr-1" />
+                ) : (
+                  <Zap className="h-3.5 w-3.5 mr-1" />
+                )}
+                Procesar ahora
+              </Button>
+            </div>
+          )}
           <div className="max-h-[60vh] overflow-y-auto">
             {scheduledLoading ? (
-              <p className="text-sm text-muted-foreground py-6 text-center">Cargando…</p>
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-6">
+                <Spinner size="sm" /> Cargando…
+              </div>
             ) : scheduledItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-6 text-center">
-                No tienes mensajes programados.
-              </p>
+              <EmptyState
+                icon={CalendarClock}
+                text={
+                  showScheduledHistory
+                    ? "No tienes mensajes programados en el historial."
+                    : "No tienes mensajes pendientes de envío."
+                }
+                hint={
+                  showScheduledHistory
+                    ? undefined
+                    : "Programa uno desde el composer del chat (botón ⏰) o desde la difusión."
+                }
+              />
             ) : (
               <ul className="space-y-2">
                 {scheduledItems.map((it) => {
@@ -2326,30 +2514,134 @@ function MessagesPage() {
                         : it.status === "cancelled"
                           ? "text-muted-foreground"
                           : "text-foreground";
+                  // Atrasado: status sigue 'pending' pero send_at ya pasó.
+                  // Indica que el cron no levantó el job (pausado, error,
+                  // o demora puntual). El usuario debería usar "Procesar
+                  // ahora" para forzar el dispatch.
+                  const isOverdue =
+                    it.status === "pending" && new Date(it.send_at).getTime() < Date.now();
+                  const isEditing = editingScheduledId === it.id;
+                  // Label del kind: cubrimos los 3 modos. 'group' depende
+                  // de la migración 20260605000000 (kind_check ampliado).
+                  const kindLabel =
+                    it.kind === "broadcast"
+                      ? "Difusión"
+                      : it.kind === "group"
+                        ? "Grupo"
+                        : "Directo";
                   return (
-                    <li key={it.id} className="rounded-md border p-3 space-y-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
+                    <li
+                      key={it.id}
+                      className={`rounded-md border p-3 space-y-1 ${
+                        isOverdue && !isEditing
+                          ? "border-amber-400/50 bg-amber-50/30 dark:bg-amber-500/5"
+                          : ""
+                      } ${isEditing ? "ring-2 ring-primary/40" : ""}`}
+                    >
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 min-w-0 flex-wrap">
                           <Badge variant="outline" className="text-[10px] shrink-0">
-                            {it.kind === "broadcast" ? "Difusión" : "Directo"}
+                            {kindLabel}
                           </Badge>
                           <span className={`text-xs font-medium ${sevColor}`}>
                             {SCHEDULED_STATUS_LABEL[it.status]}
                           </span>
+                          {isOverdue && !isEditing && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] shrink-0 border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10"
+                            >
+                              <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
+                              Atrasado
+                            </Badge>
+                          )}
                         </div>
-                        <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
-                          {formatDateTime(it.send_at)}
-                        </span>
+                        {!isEditing && (
+                          <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                            {formatDateTime(it.send_at)}
+                          </span>
+                        )}
                       </div>
-                      {it.subject && (
+
+                      {/* Subject sigue siendo NO editable en v1: el editor
+                          se enfoca en body + send_at (lo más común que se
+                          quiere reprogramar). Si se necesita cambiar
+                          subject, recomendamos cancelar + recrear. */}
+                      {it.subject && !isEditing && (
                         <div className="text-sm font-medium truncate">{it.subject}</div>
                       )}
-                      <div className="text-xs text-muted-foreground line-clamp-2">{it.body}</div>
-                      {it.status === "failed" && it.error && (
+
+                      {isEditing ? (
+                        <div className="space-y-2 pt-1">
+                          <div>
+                            <Label htmlFor={`edit-body-${it.id}`} required>
+                              Contenido
+                            </Label>
+                            <Textarea
+                              id={`edit-body-${it.id}`}
+                              value={editDraftBody}
+                              onChange={(e) => setEditDraftBody(e.target.value)}
+                              rows={3}
+                              className="resize-y"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor={`edit-sendat-${it.id}`} required>
+                              Reprogramar envío
+                            </Label>
+                            <DateTimePicker
+                              id={`edit-sendat-${it.id}`}
+                              value={editDraftSendAt}
+                              onChange={setEditDraftSendAt}
+                            />
+                          </div>
+                          <div className="flex justify-end gap-2 pt-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs"
+                              onClick={cancelEditScheduled}
+                              disabled={savingEdit}
+                            >
+                              Descartar
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => void saveEditScheduled()}
+                              disabled={
+                                savingEdit ||
+                                !editDraftBody.trim() ||
+                                !validateScheduledSend(editDraftSendAt).ok
+                              }
+                            >
+                              {savingEdit ? (
+                                <Spinner size="xs" className="mr-1" />
+                              ) : (
+                                <Check className="h-3 w-3 mr-1" />
+                              )}
+                              Guardar
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-muted-foreground line-clamp-2">{it.body}</div>
+                      )}
+
+                      {it.status === "failed" && it.error && !isEditing && (
                         <div className="text-[11px] text-destructive">Error: {it.error}</div>
                       )}
-                      {it.status === "pending" && (
-                        <div className="flex justify-end">
+                      {it.status === "pending" && !isEditing && (
+                        <div className="flex justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => beginEditScheduled(it)}
+                          >
+                            <Pencil className="h-3 w-3 mr-1" />
+                            Editar
+                          </Button>
                           <Button
                             size="sm"
                             variant="outline"

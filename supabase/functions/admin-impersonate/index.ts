@@ -165,13 +165,52 @@ Deno.serve(async (req) => {
     // Generar magic link. La Admin API devuelve `hashed_token` que el
     // cliente puede consumir con verifyOtp sin necesidad de seguir el
     // redirect (auth UI nunca aparece).
-    const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
-      type: "magiclink",
-      email: targetEmail,
-    });
+    //
+    // Envolvemos en try/catch propio para distinguir tres casos del
+    // SDK auth-js que el caller no podía discriminar antes:
+    //   1. `linkErr` poblado → Auth devolvió respuesta con error
+    //      estructurado (ej. "User not found", "Email rate limit
+    //      exceeded"). Devolvemos 502 con el mensaje específico.
+    //   2. `generateLink` THROW (no captura como linkErr) → SDK
+    //      perdió el detalle. Pasa cuando el rate-limit de Supabase
+    //      Auth /admin/generate_link (default ~30/hora por proyecto)
+    //      se agota, o cuando el SMTP del proyecto está mal y el
+    //      fetch interno hace timeout. Caemos al catch local con
+    //      mensaje accionable ("Auth API no respondió: ...").
+    //   3. Respuesta vacía sin hash → defensa por si el SDK cambia
+    //      contrato. 502 con mensaje "respuesta vacía".
+    // Sin este wrapping, el throw burbujeaba al catch global y se
+    // mostraba como "Internal server error" plano (caso real
+    // reportado por andres_dfx@hotmail.com intentando impersonar a
+    // samuel — el usuario veía 500 genérico sin acción posible).
+    let linkData: Awaited<ReturnType<typeof admin.auth.admin.generateLink>>["data"] | null = null;
+    let linkErr: unknown = null;
+    try {
+      const result = await admin.auth.admin.generateLink({
+        type: "magiclink",
+        email: targetEmail,
+      });
+      linkData = result.data;
+      linkErr = result.error;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Auth API no respondió";
+      return jsonError(
+        `Auth API no respondió: ${msg}. Posibles causas: límite de rate de Auth (≤30 magic-links/hora), ` +
+          `cuenta del usuario en estado inválido (no confirmada, baneada o eliminada), o problema temporal de Supabase. ` +
+          `Reintentar en unos minutos.`,
+        502,
+      );
+    }
     const hashedToken = linkData?.properties?.hashed_token;
-    if (linkErr || !hashedToken) {
-      return jsonError(`No se pudo generar el link: ${linkErr?.message ?? "respuesta vacía"}`, 500);
+    if (linkErr) {
+      const msg = (linkErr as { message?: string })?.message ?? "Error desconocido";
+      return jsonError(
+        `Auth rechazó generar el link: ${msg}. Verificá que el usuario esté activo y con email confirmado.`,
+        502,
+      );
+    }
+    if (!hashedToken) {
+      return jsonError("Auth devolvió respuesta sin token (link malformado).", 502);
     }
 
     // Cargar el nombre + tenant del target para devolverlo. El tenant

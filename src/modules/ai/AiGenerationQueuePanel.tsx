@@ -146,6 +146,13 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
         source_title: titleById.get(j.source_id),
       }));
       setJobs(enriched);
+    } catch (e) {
+      // El Promise.all de los lookups (cursos/workshops/exams/projects)
+      // puede rechazar si una de las 4 queries falla con throw (network,
+      // auth expirado). Sin catch, `void load()` desde el useEffect
+      // inicial Y desde el debounce realtime quedaban como rejection
+      // huérfana → audit log "Promesa rechazada sin manejar".
+      setLoadError(friendlyError(e, "No pudimos cargar la cola de generación."));
     } finally {
       setLoading(false);
     }
@@ -178,7 +185,11 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
       .subscribe();
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      void supabase.removeChannel(channel);
+      // `removeChannel` retorna Promise<status>; en navegación con red
+      // caída puede rechazar. Sin .catch, el rechazo se bubble como
+      // unhandled. Swallow silencioso porque ya nos vamos del componente
+      // y el cleanup de red no tiene UX que mostrar.
+      void supabase.removeChannel(channel).catch(() => {});
     };
   }, [load]);
 
@@ -276,6 +287,11 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
         );
       }
       await load();
+    } catch (e) {
+      // Caller usa `() => void processJob(j)` — sin catch, una rejection
+      // del invoke/update/load se vuelve unhandled. Cubrimos con toast
+      // amigable que respeta `friendlyError` para mensajes en español.
+      toast.error(friendlyError(e, "No se pudo procesar el job"));
     } finally {
       setProcessing((prev) => {
         const next = new Set(prev);
@@ -317,6 +333,8 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
         toast.success(`Drenado: ${proc} job(s) procesados — ${ok} ok, ${fail} fallaron.`);
       }
       await load();
+    } catch (e) {
+      toast.error(friendlyError(e, "No se pudo drenar la cola"));
     } finally {
       setDraining(false);
     }

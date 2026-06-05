@@ -72,6 +72,18 @@ describe("computeMembersKey", () => {
     const actual = await computeMembersKey([UID_B, UID_A]);
     expect(actual).toBe(expected);
   });
+
+  it("CONTRATO con SQL — vector verificado contra producción", async () => {
+    // Vector empírico: capturé este hash llamando a la RPC
+    // `compute_members_key` en runtime (Supabase project uxxpzfsfcnqiwwdxoelm)
+    // con input ["00000000-0000-0000-0000-000000000001"]. Si el JS port
+    // produce un valor distinto, las dos implementaciones divergieron y
+    // el dedup de chats ad-hoc fallaría silencioso (mismo set de miembros
+    // produciría chats nuevos en cada compose en lugar de reutilizar).
+    const sqlExpected = "7ac1b8d7010bb6cd3a3e84e7f90136b880bbc899e428ece49333372911ab9052";
+    const jsActual = await computeMembersKey(["00000000-0000-0000-0000-000000000001"]);
+    expect(jsActual).toBe(sqlExpected);
+  });
 });
 
 /** Helper interno: sha256 hex via crypto.subtle. Sirve como

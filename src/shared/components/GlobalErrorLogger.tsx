@@ -71,8 +71,16 @@ export function GlobalErrorLogger() {
 
     const onRejection = (ev: PromiseRejectionEvent) => {
       const reason = ev.reason;
-      const msg =
-        (reason && (reason.message || (typeof reason === "string" ? reason : ""))) || "";
+      // Reject sin reason útil (extensiones del navegador como Grammarly,
+      // password managers, ad-blockers producen rejections vacías). No
+      // aportan info accionable y ensucian el audit log.
+      if (reason == null) return;
+      // AbortError es esperable cuando cancelamos requests al desmontar
+      // (AbortController.abort, fetch cancelado, Excalidraw chunk load
+      // mid-flight). Es comportamiento INTENCIONAL del frontend, no un
+      // bug — filtrar para no generar logs huérfanos.
+      if (reason?.name === "AbortError") return;
+      const msg = (reason && (reason.message || (typeof reason === "string" ? reason : ""))) || "";
       if (isChunkLoadError(msg)) return;
       const url = typeof window !== "undefined" ? window.location.pathname : "";
       const key = `${msg}::${url}`;

@@ -79,6 +79,14 @@ export function SessionWhiteboardDialog({ sessionId, sessionLabel, onOpenChange 
         toast.error(friendlyError(error, "No se pudo guardar la pizarra"));
         return;
       }
+    } catch (e) {
+      // El supabase-js normalmente devuelve `{error}`; pero hay casos
+      // donde el await rechaza (network throw, AbortError, sesión
+      // expirada). Sin catch, la rejection sube al .catch del
+      // WhiteboardEditor (que solo loguea consola) → el docente NO ve
+      // toast amigable. Acá cerramos el contrato: usuario siempre
+      // recibe feedback de que el guardado falló.
+      toast.error(friendlyError(e, "No se pudo guardar la pizarra"));
     } finally {
       setTimeout(() => setAutoSaving(false), 400);
     }

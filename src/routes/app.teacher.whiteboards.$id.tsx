@@ -113,6 +113,12 @@ function WhiteboardEditorPage() {
         toast.error(friendlyError(error, "No se pudo guardar la pizarra"));
         return;
       }
+    } catch (e) {
+      // Cerrar el contrato con WhiteboardEditor: si el await rechaza
+      // (network throw, AbortError), absorber acá con toast amigable.
+      // Sin esto el .catch del editor solo loguea a consola y el usuario
+      // ve "Guardando…" colgado sin saber que falló.
+      toast.error(friendlyError(e, "No se pudo guardar la pizarra"));
     } finally {
       // Pequeño delay para que el badge "Guardando" sea visible incluso
       // en redes rápidas — si desaparece al instante, el usuario no ve

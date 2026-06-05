@@ -129,10 +129,14 @@ export function WhiteboardEditor({ scene, onPersist, readOnly, className }: Prop
   // Cleanup al desmontar: si hay un timer activo (debounce de 1500ms
   // sin disparar todavía) Y hay una escena pendiente, hacemos flush
   // SINCRÓNICO antes de cancelar. Sin esto, cerrar el dialog o salir
-  // de la ruta justo después de dibujar perdía el último cambio. El
-  // flush usa `onPersistRef.current` (fresh) y es fire-and-forget — si
-  // falla server-side el toast queda huérfano pero los datos quedaron
-  // intentados (vs. silenciosamente perdidos).
+  // de la ruta justo después de dibujar perdía el último cambio.
+  //
+  // El padre ya está desmontado al llegar acá, así que NINGÚN error
+  // boundary captura. Sin .catch explícito, una rejection del onPersist
+  // (red caída, sesión expirada, RLS panic) burbujea como
+  // "unhandled rejection" al handler global → audit log ruidoso. Lo
+  // capturamos con Promise.resolve(...).catch — el padre ya hizo lo
+  // que pudo en su propio try/finally; acá solo evitamos el log.
   useEffect(() => {
     return () => {
       if (persistTimerRef.current) {
@@ -140,7 +144,9 @@ export function WhiteboardEditor({ scene, onPersist, readOnly, className }: Prop
         const pending = pendingSceneRef.current;
         const fn = onPersistRef.current;
         if (pending && fn) {
-          void fn(pending);
+          Promise.resolve(fn(pending)).catch((err) => {
+            console.error("[WhiteboardEditor] flush on unmount failed", err);
+          });
         }
       }
     };
@@ -172,7 +178,16 @@ export function WhiteboardEditor({ scene, onPersist, readOnly, className }: Prop
       persistTimerRef.current = setTimeout(() => {
         pendingSceneRef.current = null;
         persistTimerRef.current = null;
-        void onPersist(next);
+        // `void onPersist(next)` cortaba la stack y dejaba la rejection
+        // como unhandled — fuente principal de los logs
+        // `app.unhandled_rejection` TypeError que aparecían en auditoría
+        // (el debounce dispara cada 1.5s mientras se dibuja). Envolver
+        // en Promise.resolve + .catch garantiza que CUALQUIER rejection
+        // (red caída, sesión expirada, RLS panic) se loguea local pero
+        // no llega al handler global.
+        Promise.resolve(onPersist(next)).catch((err) => {
+          console.error("[WhiteboardEditor] auto-save onPersist rejected", err);
+        });
       }, 1500);
     },
     [readOnly, onPersist],
