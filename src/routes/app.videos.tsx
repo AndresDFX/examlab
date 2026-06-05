@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/ui/page-header";
+import { StatTile } from "@/components/ui/stat-tile";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { ListFilters } from "@/components/ui/list-filters";
@@ -226,6 +227,28 @@ function VideoLibrary() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryNonce, tenantFilter, isSuperAdminActive]);
+
+  // Stats compactas arriba del listado — mismo patrón que proyectos /
+  // talleres / exámenes / pizarras / contenidos / encuestas.
+  // Estados conceptuales de un video:
+  //   - Activos: !is_archived (visibles para el docente al referenciar)
+  //   - Archivados: is_archived=true (ocultos por default, recuperables)
+  //   - Globales: tenant_id IS NULL (subidos por SuperAdmin, visibles
+  //     cross-tenant) — distinto de "míos" donde tenant_id = mi tenant
+  //   - En curso: course_id != null (atados a un curso específico)
+  const videoStats = useMemo(() => {
+    let active = 0;
+    let archived = 0;
+    let global = 0;
+    let inCourse = 0;
+    for (const r of rows) {
+      if (r.is_archived) archived += 1;
+      else active += 1;
+      if (r.tenant_id == null) global += 1;
+      if (r.course_id) inCourse += 1;
+    }
+    return { active, archived, global, inCourse };
+  }, [rows]);
 
   const visible = useMemo(
     () =>
@@ -557,6 +580,35 @@ function VideoLibrary() {
           </div>
         }
       />
+
+      {rows.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <StatTile
+            label="Activos"
+            value={videoStats.active}
+            color="text-emerald-600 dark:text-emerald-400"
+            bg="bg-emerald-500/10"
+          />
+          <StatTile
+            label="Archivados"
+            value={videoStats.archived}
+            color="text-muted-foreground"
+            bg="bg-muted/40"
+          />
+          <StatTile
+            label="En curso"
+            value={videoStats.inCourse}
+            color="text-sky-600 dark:text-sky-400"
+            bg="bg-sky-500/10"
+          />
+          <StatTile
+            label="Globales"
+            value={videoStats.global}
+            color="text-violet-600 dark:text-violet-400"
+            bg="bg-violet-500/10"
+          />
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
         <div className="flex-1 min-w-0">

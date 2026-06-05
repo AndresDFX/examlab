@@ -30,6 +30,14 @@ export const ROUTE_RULES: RouteRule[] = [
   // /app/teacher/* solo por historia; mover el path implicaría
   // routeTree.gen.ts + breaking links externos.
   { prefix: "/app/teacher/contents", roles: ["Docente", "Admin", "SuperAdmin"] },
+  // `/app/teacher/whiteboards` y `/app/teacher/polls` también relajados
+  // a SuperAdmin para que pueda revisarlos cross-tenant (paridad con
+  // contents). RLS filtra por owner_id / course visibility — el SA solo
+  // ve lo que la RLS le permite. Sin esto el SA navegaba al módulo
+  // (porque el NAV lo muestra) pero el guard de ruta lo mandaba a
+  // /app/unauthorized.
+  { prefix: "/app/teacher/whiteboards", roles: ["Docente", "SuperAdmin"] },
+  { prefix: "/app/teacher/polls", roles: ["Docente", "SuperAdmin"] },
   { prefix: "/app/teacher", roles: ["Docente"] },
   { prefix: "/app/student", roles: ["Estudiante"] },
   { prefix: "/app/unauthorized", roles: null },

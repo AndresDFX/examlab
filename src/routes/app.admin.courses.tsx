@@ -13,6 +13,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { StatTile } from "@/components/ui/stat-tile";
 import { DateCell } from "@/components/ui/date-cell";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
@@ -254,6 +255,34 @@ export function AdminCourses() {
     return result;
   }, [courses, search, subjectFilter, programFilterUi, subjectFilterUi]);
   const sel = useMultiSelect(filteredCourses);
+
+  // Stats compactas arriba del listado — mismo patrón que el resto de
+  // listados (proyectos / talleres / etc). Para cursos los estados
+  // conceptuales son: total, activos (fecha actual entre start_date y
+  // end_date), próximos (start_date en el futuro), terminados
+  // (end_date en el pasado). Si las fechas no están seteadas, el curso
+  // cuenta como "activo" (interpretamos "sin límite" como abierto).
+  // Nombre `coursesSummary` (no `courseStats`) para no colisionar con
+  // el `courseStats: Map<string, CourseStats>` ya declarado arriba —
+  // ese guarda counts por curso (entregas, alumnos), distinto concepto.
+  const coursesSummary = useMemo(() => {
+    const now = Date.now();
+    let active = 0;
+    let upcoming = 0;
+    let ended = 0;
+    for (const c of courses) {
+      const startMs = c.start_date ? new Date(c.start_date).getTime() : null;
+      const endMs = c.end_date ? new Date(c.end_date).getTime() : null;
+      if (startMs != null && startMs > now) {
+        upcoming += 1;
+      } else if (endMs != null && endMs < now) {
+        ended += 1;
+      } else {
+        active += 1;
+      }
+    }
+    return { total: courses.length, active, upcoming, ended };
+  }, [courses]);
 
   // Paginación client-side. La RLS ya acota a lo que el caller puede
   // ver; partir en páginas evita renderizar 500 filas en tenants
@@ -1271,6 +1300,35 @@ export function AdminCourses() {
           </>
         }
       />
+
+      {courses.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <StatTile
+            label="Total"
+            value={coursesSummary.total}
+            color="text-fuchsia-600 dark:text-fuchsia-400"
+            bg="bg-fuchsia-500/10"
+          />
+          <StatTile
+            label="Activos"
+            value={coursesSummary.active}
+            color="text-emerald-600 dark:text-emerald-400"
+            bg="bg-emerald-500/10"
+          />
+          <StatTile
+            label="Próximos"
+            value={coursesSummary.upcoming}
+            color="text-sky-600 dark:text-sky-400"
+            bg="bg-sky-500/10"
+          />
+          <StatTile
+            label="Terminados"
+            value={coursesSummary.ended}
+            color="text-muted-foreground"
+            bg="bg-muted/40"
+          />
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex-1 min-w-[200px]">

@@ -143,7 +143,10 @@ const NAV: NavItem[] = [
     to: "/app/teacher/contents",
     labelKey: "nav.contents",
     icon: Presentation,
-    roles: ["Docente", "Admin"],
+    // SuperAdmin incluido para paridad con whiteboards / pizarras —
+    // puede revisar y diagnosticar el módulo de contenidos
+    // cross-tenant. RLS filtra a los contenidos visibles.
+    roles: ["Docente", "Admin", "SuperAdmin"],
   },
   // Banco de preguntas reutilizables por curso (Docente). Va aquí —
   // arriba — porque es el repositorio que alimenta los formularios de
@@ -242,7 +245,9 @@ const NAV: NavItem[] = [
     to: "/app/teacher/polls",
     labelKey: "nav.polls",
     icon: ListChecks,
-    roles: ["Docente"],
+    // SuperAdmin agregado para que pueda ver el módulo de encuestas
+    // del docente cross-tenant (paridad con whiteboards / contents).
+    roles: ["Docente", "SuperAdmin"],
   },
   // Pizarras (whiteboards) — espacio en blanco para que el docente
   // explique conceptos o piense libremente. Excalidraw embebido.

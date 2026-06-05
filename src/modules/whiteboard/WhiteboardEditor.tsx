@@ -33,7 +33,7 @@
  */
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { ComponentType } from "react";
-import { Eye } from "lucide-react";
+import { Eye, Maximize2, Minimize2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
 import { useTheme } from "@/hooks/use-theme";
@@ -83,6 +83,34 @@ export function WhiteboardEditor({ scene, onPersist, readOnly, className }: Prop
   const [Component, setComponent] = useState<ComponentType<Record<string, unknown>> | null>(
     cachedExcalidraw,
   );
+  // Ref al contenedor para Fullscreen API: requestFullscreen se llama
+  // sobre el wrapper para que Excalidraw + nuestro badge "Solo lectura"
+  // y el botón "Salir" queden visibles en fullscreen. Excalidraw maneja
+  // sus propios shortcuts dentro del canvas, así que no compite con
+  // nuestro Esc (el SO/browser sale del fullscreen y disparamos el
+  // fullscreenchange handler para sincronizar el state).
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const toggleFullscreen = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      void el.requestFullscreen().catch((err) => {
+        console.warn("[WhiteboardEditor] requestFullscreen failed", err);
+      });
+    } else {
+      void document.exitFullscreen().catch(() => {});
+    }
+  }, []);
+  // Sincronizar state con el evento del navegador — el usuario puede
+  // salir del fullscreen con Esc (no podemos interceptar Esc directo)
+  // o desde el menú del browser. Sin este listener, el botón
+  // "Minimize" mostraría el ícono incorrecto post-Esc.
+  useEffect(() => {
+    const handler = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
   // Si el dynamic import de Excalidraw falla (chunk corrupto, red caída
   // a media descarga del chunk grande, etc.), mostramos un ErrorState
   // con botón "Reintentar" en lugar de un Spinner infinito. Era el bug
@@ -218,7 +246,17 @@ export function WhiteboardEditor({ scene, onPersist, readOnly, className }: Prop
   }
 
   return (
-    <div className={cn("relative", className)}>
+    <div
+      ref={containerRef}
+      className={cn(
+        "relative",
+        // En fullscreen el div toma 100vh/100vw (Fullscreen API ya
+        // expande, pero forzamos bg para que no se vea transparente
+        // sobre la página subyacente en algunos navegadores).
+        isFullscreen && "bg-background",
+        className,
+      )}
+    >
       <Component
         initialData={
           scene
@@ -251,6 +289,20 @@ export function WhiteboardEditor({ scene, onPersist, readOnly, className }: Prop
           Solo lectura
         </div>
       )}
+      {/* Botón de pantalla completa — abajo-derecha para no competir con
+          el toolbar de Excalidraw (arriba) ni el "Solo lectura" badge.
+          Z-index alto para flotar sobre el canvas. El icono cambia
+          según el estado actual (escapamos con Esc → fullscreenchange
+          listener actualiza isFullscreen). */}
+      <button
+        type="button"
+        onClick={toggleFullscreen}
+        aria-label={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+        title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+        className="absolute bottom-2 right-2 z-10 rounded-md border border-border bg-background/90 backdrop-blur-sm p-1.5 text-muted-foreground hover:text-foreground hover:bg-background transition-colors shadow-sm"
+      >
+        {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+      </button>
     </div>
   );
 }

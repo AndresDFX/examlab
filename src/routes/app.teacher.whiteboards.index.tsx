@@ -52,6 +52,8 @@ import {
 } from "@/components/ui/select";
 import { Plus, Trash2, Palette } from "lucide-react";
 import { StatTile } from "@/components/ui/stat-tile";
+import { HelpHint } from "@/components/ui/help-hint";
+import { formatDate } from "@/shared/lib/format";
 
 // Convención TanStack: para tener LIST en `/app/teacher/whiteboards` y
 // DETALLE en `/app/teacher/whiteboards/$id` SIN tener que renderizar
@@ -104,7 +106,75 @@ function TeacherWhiteboards() {
   const [createOpen, setCreateOpen] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
+  const [draftCourseId, setDraftCourseId] = useState<string>("none");
+  const [draftSessionId, setDraftSessionId] = useState<string>("none");
   const [saving, setSaving] = useState(false);
+  // Cursos del docente (cargados al abrir el dialog). Mismo patrón que
+  // /app/teacher/whiteboards/$id (selector de "compartir con curso").
+  const [draftCourses, setDraftCourses] = useState<Array<{ id: string; name: string }>>([]);
+  // Sesiones del curso seleccionado (cargadas cuando draftCourseId
+  // cambia). Si el curso no tiene sesiones, el array queda vacío y
+  // el selector de sesión no se muestra.
+  const [draftSessions, setDraftSessions] = useState<
+    Array<{ id: string; session_date: string; title: string | null }>
+  >([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+
+  // Cargar cursos del docente al abrir el dialog (lazy — no en mount).
+  useEffect(() => {
+    if (!createOpen || !user) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data } = await db
+          .from("course_teachers")
+          .select("course_id, courses(id, name)")
+          .eq("user_id", user.id);
+        if (cancelled) return;
+        const list = ((data ?? []) as Array<{ courses: { id: string; name: string } | null }>)
+          .map((r) => r.courses)
+          .filter((c): c is { id: string; name: string } => Boolean(c));
+        setDraftCourses(list);
+      } catch {
+        /* silent — el draft sigue funcionando sin curso */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [createOpen, user]);
+
+  // Cuando se elige curso, cargar sus sesiones. Si cambia a "none" o a
+  // otro curso, resetear session selector.
+  useEffect(() => {
+    setDraftSessionId("none");
+    if (draftCourseId === "none") {
+      setDraftSessions([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingSessions(true);
+    void (async () => {
+      try {
+        const { data } = await db
+          .from("attendance_sessions")
+          .select("id, session_date, title")
+          .eq("course_id", draftCourseId)
+          .order("session_date", { ascending: false });
+        if (cancelled) return;
+        setDraftSessions(
+          (data ?? []) as Array<{ id: string; session_date: string; title: string | null }>,
+        );
+      } catch {
+        setDraftSessions([]);
+      } finally {
+        if (!cancelled) setLoadingSessions(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [draftCourseId]);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -167,31 +237,47 @@ function TeacherWhiteboards() {
     resetKey: `${search}|${sort}`,
   });
 
+  const resetCreateDialog = () => {
+    setDraftName("");
+    setDraftDescription("");
+    setDraftCourseId("none");
+    setDraftSessionId("none");
+    setDraftSessions([]);
+  };
+
   const createWhiteboard = async () => {
     if (!user) return;
     if (!draftName.trim()) {
       toast.error("Dale un nombre a la pizarra");
       return;
     }
+    // Si se eligió una sesión, también debe haber un curso (la sesión
+    // pertenece a un curso). El trigger SQL valida esto pero atajamos
+    // client-side con un toast más amigable.
+    if (draftSessionId !== "none" && draftCourseId === "none") {
+      toast.error("Si elegís una sesión, primero hay que elegir el curso.");
+      return;
+    }
     setSaving(true);
     try {
-      const { data, error } = await db
-        .from("whiteboards")
-        .insert({
-          owner_id: user.id,
-          name: draftName.trim(),
-          description: draftDescription.trim() || null,
-        })
-        .select("id")
-        .single();
+      const payload: Record<string, unknown> = {
+        owner_id: user.id,
+        name: draftName.trim(),
+        description: draftDescription.trim() || null,
+      };
+      // course_id y attendance_session_id solo se mandan si el usuario
+      // los seleccionó. Mandar `null` también funcionaría pero
+      // omitirlos hace explícito en el payload qué se está creando.
+      if (draftCourseId !== "none") payload.course_id = draftCourseId;
+      if (draftSessionId !== "none") payload.attendance_session_id = draftSessionId;
+      const { data, error } = await db.from("whiteboards").insert(payload).select("id").single();
       if (error || !data) {
         toast.error(friendlyError(error, "No se pudo crear la pizarra"));
         return;
       }
       toast.success("Pizarra creada");
       setCreateOpen(false);
-      setDraftName("");
-      setDraftDescription("");
+      resetCreateDialog();
       // Navegamos directo al editor — el flujo "click para abrir" es
       // implícito tras crear.
       navigate({ to: "/app/teacher/whiteboards/$id", params: { id: data.id } });
@@ -409,13 +495,19 @@ function TeacherWhiteboards() {
         </CardContent>
       </Card>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) resetCreateDialog();
+        }}
+      >
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Nueva pizarra</DialogTitle>
             <DialogDescription>
-              Una pizarra en blanco que solo tú ves. Podés compartirla con un curso después desde la
-              pizarra misma.
+              Crea una pizarra y opcionalmente asóciala a un curso o a una sesión concreta. Si
+              eliges un curso podrás compartirla con sus alumnos desde la pizarra.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -437,6 +529,71 @@ function TeacherWhiteboards() {
                 placeholder="Notas, contexto, recordatorios"
               />
             </div>
+            <div>
+              <Label>
+                Curso (opcional){" "}
+                <HelpHint>
+                  Al asociar la pizarra a un curso, los alumnos del curso podrán verla en modo
+                  solo-lectura cuando actives "Compartir con alumnos" desde la pizarra. Sin curso,
+                  la pizarra es privada (solo vos la ves).
+                </HelpHint>
+              </Label>
+              <Select value={draftCourseId} onValueChange={setDraftCourseId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin curso (privada)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin curso (privada)</SelectItem>
+                  {draftCourses.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* El selector de sesión solo se muestra cuando hay un curso
+                seleccionado Y el curso tiene sesiones registradas. Si el
+                curso es de modelo "sin sesiones" (solo material), el
+                Select no aparece y la pizarra queda asociada al curso
+                en general. Multiple pizarras por sesión están permitidas
+                (sin UNIQUE constraint en attendance_session_id). */}
+            {draftCourseId !== "none" && (
+              <div>
+                <Label>
+                  Sesión del curso (opcional){" "}
+                  <HelpHint>
+                    Si el curso tiene sesiones programadas, podés atar la pizarra a una específica
+                    para que aparezca en el contexto de esa clase. Podés tener varias pizarras por
+                    sesión.
+                  </HelpHint>
+                </Label>
+                {loadingSessions ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                    <Spinner size="xs" /> Cargando sesiones…
+                  </div>
+                ) : draftSessions.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2">
+                    Este curso no tiene sesiones registradas. La pizarra queda asociada al curso.
+                  </p>
+                ) : (
+                  <Select value={draftSessionId} onValueChange={setDraftSessionId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sin sesión específica" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sin sesión específica</SelectItem>
+                      {draftSessions.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {formatDate(s.session_date)}
+                          {s.title ? ` · ${s.title}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={saving}>
