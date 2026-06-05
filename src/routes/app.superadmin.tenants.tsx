@@ -39,6 +39,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -55,6 +56,8 @@ import {
   Trash2,
   UserPlus,
   LogIn,
+  Copy,
+  KeyRound,
 } from "lucide-react";
 import { startImpersonate } from "@/modules/admin/impersonation";
 import { AssignUsersToTenantDialog } from "@/modules/superadmin/AssignUsersToTenantDialog";
@@ -99,6 +102,17 @@ function SuperAdminTenantsPage() {
   });
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  // Credenciales del usuario de prueba recién creado. Se muestran UNA
+  // SOLA VEZ en un dialog separado tras crear la institución (la edge
+  // function `provision-tenant-test-user` no las persiste en plaintext).
+  // null = sin dialog abierto.
+  const [testUserCreds, setTestUserCreds] = useState<{
+    email: string;
+    password: string;
+    full_name: string;
+    roles: string[];
+    tenant_name: string;
+  } | null>(null);
   const logoFileInputRef = useRef<HTMLInputElement>(null);
   // En modo CREAR no existe aún `tenant.id`, así que no se puede subir al
   // bucket todavía (el path es `${tenantId}/logo.ext`). Guardamos el File
@@ -381,6 +395,50 @@ function SuperAdminTenantsPage() {
         clearPendingLogo();
       }
       toast.success("Institución creada");
+
+      // Provisionar usuario de prueba (Admin + Docente + Estudiante).
+      // Es best-effort: si falla, el tenant queda creado igual y el
+      // SuperAdmin puede crear el user manualmente desde /app/admin/users.
+      // Mostramos las credenciales en un dialog separado (la password
+      // solo se entrega una vez — no se guarda en plaintext).
+      if (created?.id) {
+        try {
+          const { data: provData, error: provErr } = await supabase.functions.invoke(
+            "provision-tenant-test-user",
+            {
+              body: {
+                tenant_id: created.id,
+                tenant_name: form.name.trim(),
+                tenant_slug: form.slug.trim(),
+              },
+            },
+          );
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const data = provData as any;
+          if (provErr || !data?.ok) {
+            const msg = data?.error || provErr?.message || "Error desconocido";
+            toast.error(
+              `Institución creada, pero falló crear usuario de prueba: ${msg}`,
+              { duration: 8000 },
+            );
+          } else {
+            setTestUserCreds({
+              email: data.email,
+              password: data.password,
+              full_name: data.full_name,
+              roles: data.roles ?? [],
+              tenant_name: form.name.trim(),
+            });
+          }
+        } catch (e) {
+          toast.error(
+            `Institución creada, pero falló crear usuario de prueba: ${
+              e instanceof Error ? e.message : String(e)
+            }`,
+            { duration: 8000 },
+          );
+        }
+      }
     }
     setSaving(false);
     setDialogOpen(false);
@@ -887,6 +945,115 @@ function SuperAdminTenantsPage() {
         tenants={tenants}
         onAssigned={() => void load()}
       />
+
+      {/* Credenciales del usuario de prueba — se muestran UNA SOLA VEZ
+          tras crear una institución. La password no se persiste en
+          plaintext: si el SuperAdmin cierra sin copiar, tiene que pedir
+          reset desde /auth o crear otro user manualmente. */}
+      <Dialog
+        open={testUserCreds !== null}
+        onOpenChange={(o) => {
+          if (!o) setTestUserCreds(null);
+        }}
+      >
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4 text-amber-500" />
+              Usuario de prueba creado
+            </DialogTitle>
+            <DialogDescription>
+              Se creó un usuario con todos los roles (Admin, Docente, Estudiante) para que puedas
+              probar la institución. <strong>Guarda la contraseña ahora</strong> — no se mostrará
+              de nuevo.
+            </DialogDescription>
+          </DialogHeader>
+          {testUserCreds && (
+            <div className="space-y-3 text-sm">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Institución</Label>
+                <div className="font-medium">{testUserCreds.tenant_name}</div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Nombre completo</Label>
+                <div className="font-medium">{testUserCreds.full_name}</div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Email</Label>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded bg-muted px-2 py-1 text-xs font-mono break-all">
+                    {testUserCreds.email}
+                  </code>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 shrink-0"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(testUserCreds.email);
+                      toast.success("Email copiado");
+                    }}
+                    title="Copiar email"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Contraseña temporal</Label>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded bg-muted px-2 py-1 text-xs font-mono break-all">
+                    {testUserCreds.password}
+                  </code>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 shrink-0"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(testUserCreds.password);
+                      toast.success("Contraseña copiada");
+                    }}
+                    title="Copiar contraseña"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Roles asignados</Label>
+                <div className="flex flex-wrap gap-1">
+                  {testUserCreds.roles.map((r) => (
+                    <Badge key={r} variant="secondary" className="text-[10px]">
+                      {r}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground border-t pt-3">
+                El usuario ya está marcado como confirmado — puede ingresar directamente en
+                <code className="mx-1 rounded bg-muted px-1">/auth</code>
+                con estas credenciales. El email termina en <code>.test</code> (dominio reservado
+                para pruebas — los correos a este dominio no se entregan).
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                if (!testUserCreds) return;
+                void navigator.clipboard.writeText(
+                  `Email: ${testUserCreds.email}\nContraseña: ${testUserCreds.password}`,
+                );
+                toast.success("Credenciales copiadas");
+              }}
+              variant="outline"
+            >
+              <Copy className="h-3.5 w-3.5 mr-1" />
+              Copiar todo
+            </Button>
+            <Button onClick={() => setTestUserCreds(null)}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
