@@ -51,6 +51,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Trash2, Palette } from "lucide-react";
+import { StatTile } from "@/components/ui/stat-tile";
 
 // Convención TanStack: para tener LIST en `/app/teacher/whiteboards` y
 // DETALLE en `/app/teacher/whiteboards/$id` SIN tener que renderizar
@@ -135,6 +136,25 @@ function TeacherWhiteboards() {
     () => sortWhiteboards(filterWhiteboards(items, search), sort),
     [items, search, sort],
   );
+
+  // Stats compactas arriba del listado — mismo patrón que proyectos /
+  // talleres / exámenes (4 tiles de cuenta por estado). Para pizarras
+  // los estados conceptuales son: total, compartidas con curso (visibles
+  // a los alumnos), privadas (solo el docente), y asociadas a un curso
+  // (con o sin compartir). NO hay draft/published — la persistencia
+  // es siempre real-time; el toggle "compartir" hace el rol de
+  // visibilidad para alumnos.
+  const whiteboardStats = useMemo(() => {
+    let shared = 0;
+    let priv = 0;
+    let inCourse = 0;
+    for (const w of items) {
+      if (w.is_shared_with_course) shared += 1;
+      else priv += 1;
+      if (w.course_id) inCourse += 1;
+    }
+    return { total: items.length, shared, priv, inCourse };
+  }, [items]);
 
   // Grid de cards — defaults consistentes con otras vistas de cards del
   // estudiante (cursos, exámenes, talleres): 12 / 6-12-24-48. Las cards
@@ -243,6 +263,35 @@ function TeacherWhiteboards() {
           </Button>
         }
       />
+
+      {items.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <StatTile
+            label="Total"
+            value={whiteboardStats.total}
+            color="text-violet-600 dark:text-violet-400"
+            bg="bg-violet-500/10"
+          />
+          <StatTile
+            label="Compartidas"
+            value={whiteboardStats.shared}
+            color="text-emerald-600 dark:text-emerald-400"
+            bg="bg-emerald-500/10"
+          />
+          <StatTile
+            label="Privadas"
+            value={whiteboardStats.priv}
+            color="text-muted-foreground"
+            bg="bg-muted/40"
+          />
+          <StatTile
+            label="En curso"
+            value={whiteboardStats.inCourse}
+            color="text-sky-600 dark:text-sky-400"
+            bg="bg-sky-500/10"
+          />
+        </div>
+      )}
 
       <Card>
         <CardContent className="p-4 space-y-3">

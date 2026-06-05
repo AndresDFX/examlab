@@ -45,6 +45,7 @@ import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { RowAction } from "@/components/ui/row-action";
 import { DateCell } from "@/components/ui/date-cell";
 import { PageHeader } from "@/components/ui/page-header";
+import { StatTile } from "@/components/ui/stat-tile";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -250,6 +251,29 @@ function TeacherContents() {
     storageKey: "examlab_pag:teacher_contents",
     resetKey: `${search}|${courseFilter ?? ""}|${tenantFilter}`,
   });
+
+  // Stats compactas arriba del listado — mismo patrón que proyectos /
+  // talleres / exámenes. Para contenidos los estados son:
+  //   - Completados: status=done (listos para usar/publicar)
+  //   - Publicados: is_published=true (alumnos los ven en el aula)
+  //   - En proceso: queued + processing (la IA todavía está corriendo)
+  //   - Fallidos: status=failed (necesitan re-generar)
+  // Distinguimos "Completados" vs "Publicados" porque un contenido
+  // puede estar listo (done) pero todavía oculto al alumno hasta que
+  // el docente lo publique manualmente.
+  const contentStats = useMemo(() => {
+    let done = 0;
+    let published = 0;
+    let inProgress = 0;
+    let failed = 0;
+    for (const it of items) {
+      if (it.status === "done") done += 1;
+      if (it.is_published) published += 1;
+      if (it.status === "queued" || it.status === "processing") inProgress += 1;
+      if (it.status === "failed") failed += 1;
+    }
+    return { done, published, inProgress, failed };
+  }, [items]);
   // Conteos de items derivados por contenido (sesiones programadas +
   // evaluaciones creadas con source_content_id). Lo poblamos junto al
   // load() principal y lo mostramos como badges debajo del topic en el
@@ -847,6 +871,35 @@ function TeacherContents() {
           </Button>
         }
       />
+
+      {items.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <StatTile
+            label="Completados"
+            value={contentStats.done}
+            color="text-emerald-600 dark:text-emerald-400"
+            bg="bg-emerald-500/10"
+          />
+          <StatTile
+            label="Publicados"
+            value={contentStats.published}
+            color="text-sky-600 dark:text-sky-400"
+            bg="bg-sky-500/10"
+          />
+          <StatTile
+            label="En proceso"
+            value={contentStats.inProgress}
+            color="text-amber-600 dark:text-amber-400"
+            bg="bg-amber-500/10"
+          />
+          <StatTile
+            label="Fallidos"
+            value={contentStats.failed}
+            color="text-rose-600 dark:text-rose-400"
+            bg="bg-rose-500/10"
+          />
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
         <div className="flex-1 min-w-0">

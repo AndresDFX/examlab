@@ -31,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
+import { StatTile } from "@/components/ui/stat-tile";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { RowAction } from "@/components/ui/row-action";
 import { DateCell } from "@/components/ui/date-cell";
@@ -314,6 +315,32 @@ function TeacherPolls() {
     );
   }, [polls, courseFilter]);
 
+  // Stats compactas — mismo patrón que proyectos / talleres / exámenes.
+  // Estados conceptuales de una encuesta:
+  //   - Borradores: is_published=false (solo el docente la ve)
+  //   - Activas: publicada y NO cerrada (alumnos pueden votar)
+  //   - Cerradas: closed_manually=true O closes_at en el pasado
+  //   - Doodle: poll_type='slot' (cupo por opción — flujo distinto)
+  const pollStats = useMemo(() => {
+    const now = Date.now();
+    let draft = 0;
+    let active = 0;
+    let closed = 0;
+    let slot = 0;
+    for (const p of polls) {
+      if (!p.is_published) {
+        draft += 1;
+        continue;
+      }
+      const isClosed =
+        p.closed_manually || (p.closes_at != null && new Date(p.closes_at).getTime() < now);
+      if (isClosed) closed += 1;
+      else active += 1;
+      if (p.poll_type === "slot") slot += 1;
+    }
+    return { draft, active, closed, slot };
+  }, [polls]);
+
   const toggleClose = async (p: Poll) => {
     const willClose = !p.closed_manually;
     if (willClose) {
@@ -376,6 +403,35 @@ function TeacherPolls() {
           </div>
         }
       />
+
+      {polls.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <StatTile
+            label="Borradores"
+            value={pollStats.draft}
+            color="text-amber-600 dark:text-amber-400"
+            bg="bg-amber-500/10"
+          />
+          <StatTile
+            label="Activas"
+            value={pollStats.active}
+            color="text-emerald-600 dark:text-emerald-400"
+            bg="bg-emerald-500/10"
+          />
+          <StatTile
+            label="Cerradas"
+            value={pollStats.closed}
+            color="text-muted-foreground"
+            bg="bg-muted/40"
+          />
+          <StatTile
+            label="Doodle"
+            value={pollStats.slot}
+            color="text-violet-600 dark:text-violet-400"
+            bg="bg-violet-500/10"
+          />
+        </div>
+      )}
 
       {courses.length > 1 && (
         <div className="flex flex-wrap items-center gap-2">
