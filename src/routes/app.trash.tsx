@@ -90,7 +90,11 @@ interface TrashItem {
  *  migración 20260816000000. */
 const RETENTION_DAYS = 30;
 
-/** Tablas en orden de aparición en el filtro. */
+/** Tablas en orden de aparición en el filtro. `tenants` solo es
+ *  relevante para SuperAdmin — Docente/Admin no tienen SELECT sobre
+ *  filas borradas de tenants por RLS, así que verán empty state si
+ *  filtran por esa categoría. No lo gateamos en el Select para no
+ *  acoplar el componente al rol; la RLS lo enforza naturalmente. */
 const TABLES: TrashTable[] = [
   "courses",
   "exams",
@@ -100,6 +104,7 @@ const TABLES: TrashTable[] = [
   "whiteboards",
   "generated_contents",
   "polls",
+  "tenants",
 ];
 
 function TrashPage() {

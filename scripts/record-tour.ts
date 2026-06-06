@@ -140,6 +140,51 @@ function timestamp(): string {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }
 
+async function listTenants(page: Page): Promise<string[]> {
+  // Helper: abre el dropdown y devuelve los labels visibles de cada opción.
+  // Radix Select NO expone el `value` como atributo DOM (`data-value` no
+  // se setea automáticamente), así que matcheamos por texto visible.
+  await page.locator("#li-tenant").click();
+  await page.waitForSelector('[role="option"]', { timeout: 5000 });
+  const opts = page.locator('[role="option"]');
+  const count = await opts.count();
+  const out: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const label = (await opts.nth(i).textContent())?.trim() ?? "";
+    if (label) out.push(label);
+  }
+  return out;
+}
+
+async function dumpLoginFailure(page: Page, reason: string): Promise<void> {
+  // Cuando el login no redirige, guardamos screenshot + URL + cualquier
+  // texto de error visible. Sin esto el TimeoutError es ciego.
+  const url = page.url();
+  console.log("\n  ── Diagnóstico de fallo de login ──");
+  console.log(`  Razón: ${reason}`);
+  console.log(`  URL actual: ${url}`);
+  try {
+    const errEls = await page
+      .locator('[role="alert"], .text-destructive, [data-sonner-toast]')
+      .allTextContents();
+    if (errEls.length) {
+      console.log("  Mensajes visibles:");
+      for (const e of errEls) console.log(`    - ${e.trim()}`);
+    } else {
+      console.log("  No se detectaron mensajes de error visibles");
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    const shotPath = join(OUTPUT_DIR, `login-error-${timestamp()}.png`);
+    await page.screenshot({ path: shotPath, fullPage: true });
+    console.log(`  Screenshot: ${shotPath}`);
+  } catch (err) {
+    console.log(`  No se pudo guardar screenshot: ${(err as Error).message}`);
+  }
+}
+
 async function login(page: Page): Promise<void> {
   if (!DEMO_EMAIL || !DEMO_PASSWORD) {
     throw new Error(
@@ -148,24 +193,99 @@ async function login(page: Page): Promise<void> {
   }
   console.log(`  → Navegando a ${APP_URL}/auth`);
   await page.goto(`${APP_URL}/auth`, { waitUntil: "domcontentloaded" });
-  // Esperamos el form. La app puede mostrar "Iniciar sesión" o
-  // "Sign in" según el idioma del usuario default.
   await page.waitForSelector('input[type="email"]', { timeout: 15000 });
-  console.log("  → Login form visible, ingresando credenciales");
+  console.log("  → Login form visible");
+
+  // El form tiene un Select de Institución que DEBE estar elegido o el
+  // submit queda disabled (`disabled={loading || !selectedSlug}`).
+  // Radix Select no pone el `value` en el DOM, así que matcheamos por
+  // texto visible:
+  //   - DEMO_TENANT_NAME (label exacto, ej. "Prueba Tenant") si está seteado
+  //   - DEMO_TENANT_SLUG (legacy / fallback parcial) si está seteado
+  //   - Si no, el primer tenant real (NO el "— SuperAdmin: vista cross-tenant —")
+  const wantedLabel = process.env.DEMO_TENANT_NAME;
+  const legacySlug = process.env.DEMO_TENANT_SLUG;
+  const tenants = await listTenants(page);
+  console.log("  → Tenants disponibles en el dropdown:");
+  for (const t of tenants) console.log(`      ${t}`);
+
+  // Filtro de opciones reales: descarta la entrada de cross-tenant
+  // (que arranca con "—" o contiene "SuperAdmin: vista cross-tenant").
+  const isRealTenant = (label: string): boolean =>
+    !!label && !label.startsWith("—") && !/cross-tenant/i.test(label);
+
+  let pickedLabel = "";
+  if (wantedLabel) {
+    const match = tenants.find((t) => t === wantedLabel);
+    if (!match) {
+      throw new Error(
+        `DEMO_TENANT_NAME="${wantedLabel}" no está entre los tenants disponibles. Revisá el listado y ajustá .env.recording.`,
+      );
+    }
+    pickedLabel = match;
+  } else if (legacySlug) {
+    // Slug heurística: matchea si el label contiene el slug
+    // (case-insensitive). Solo como fallback de tránsito hasta migrar a NAME.
+    const match = tenants.find(
+      (t) =>
+        isRealTenant(t) && t.toLowerCase().replace(/\s+/g, "-").includes(legacySlug.toLowerCase()),
+    );
+    if (!match) {
+      throw new Error(
+        `DEMO_TENANT_SLUG="${legacySlug}" no matcheó ningún tenant. Usá DEMO_TENANT_NAME con el label exacto.`,
+      );
+    }
+    pickedLabel = match;
+  } else {
+    const candidate = tenants.find(isRealTenant);
+    if (!candidate) throw new Error("No hay tenants reales en el dropdown");
+    pickedLabel = candidate;
+  }
+  console.log(`  → Seleccionando: ${pickedLabel}`);
+  // Click por texto exacto. Si hubiera ambigüedad (dos tenants con mismo
+  // nombre — improbable) el `first()` toma el primero.
+  await page.getByRole("option", { name: pickedLabel, exact: true }).first().click();
+
+  console.log("  → Ingresando credenciales");
   await page.fill('input[type="email"]', DEMO_EMAIL);
   await page.fill('input[type="password"]', DEMO_PASSWORD);
-  // Click en el botón de submit del form. Buscamos primero por
-  // type="submit"; si no encuentra, fallback a buscar por texto.
+
+  // Capturamos errores de consola para diagnóstico si falla el redirect.
+  const consoleErrors: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") consoleErrors.push(msg.text());
+  });
+
+  // Espera explícita a que el botón se habilite — sin esto, el click
+  // se intenta sobre el botón disabled y Playwright timeoutea.
   const submitBtn = page.locator('button[type="submit"]').first();
-  if ((await submitBtn.count()) > 0) {
-    await submitBtn.click();
-  } else {
-    await page.getByRole("button", { name: /iniciar|sign.in/i }).click();
-  }
+  await submitBtn.waitFor({ state: "visible", timeout: 5000 });
+  await page.waitForFunction(
+    () => {
+      const btn = document.querySelector<HTMLButtonElement>('button[type="submit"]');
+      return btn !== null && !btn.disabled;
+    },
+    { timeout: 10000 },
+  );
+  console.log("  → Submit");
+  await submitBtn.click();
+
   console.log("  → Esperando redirect a /app");
-  await page.waitForURL(/\/app(\/|$)/, { timeout: 20000 });
-  // Esperamos un toque para que el dashboard termine de renderizar
-  // (queries iniciales, sidebar, etc.).
+  try {
+    await page.waitForURL(/\/app(\/|$)/, { timeout: 20000 });
+  } catch (err) {
+    await dumpLoginFailure(page, "redirect a /app no ocurrió en 20s");
+    if (consoleErrors.length) {
+      console.log("  Errores de consola del browser:");
+      for (const e of consoleErrors.slice(0, 5)) console.log(`    - ${e}`);
+    }
+    console.log("\n  Causas comunes:");
+    console.log("    1) DEMO_TENANT_SLUG NO matchea el tenant del user → pasar el slug correcto");
+    console.log("    2) Credenciales inválidas (email/password incorrectos)");
+    console.log("    3) profiles.must_change_password=true → dialog bloqueante");
+    throw err;
+  }
+  // Margen para que dashboard renderice (queries iniciales, sidebar).
   await page.waitForTimeout(2000);
   console.log("  ✓ Login exitoso");
 }

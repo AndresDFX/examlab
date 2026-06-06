@@ -11,10 +11,11 @@
 import { describe, expect, it } from "vitest";
 import { TRASH_TABLE_LABEL, TRASH_NAME_COL, type TrashTable } from "./soft-delete";
 
-/** Set canónico de tablas de papelera — alineado con la migración SQL
- *  20260816000000 (`tbls TEXT[]` del DO block + `allowed TEXT[]` de las
- *  RPCs). Si este set cambia, también deben cambiar:
- *    - La migración 20260816000000 (purge + RPCs).
+/** Set canónico de tablas de papelera — alineado con las migraciones SQL
+ *  20260816000000 (8 entidades base) y 20260818000000 (tenants). Si
+ *  este set cambia, también deben cambiar:
+ *    - La migración 20260816000000 (purge + RPCs trash_*_item).
+ *    - La migración 20260818000000 (purge ampliado + RPCs soft/restore/hard_delete_tenant).
  *    - El seed 20260816000010 (module_visibility).
  *    - El handler de Papelera UI (src/routes/app.trash.tsx → TABLES). */
 const EXPECTED_TABLES = [
@@ -26,6 +27,7 @@ const EXPECTED_TABLES = [
   "whiteboards",
   "generated_contents",
   "polls",
+  "tenants",
 ] as const satisfies readonly TrashTable[];
 
 describe("TRASH_TABLE_LABEL", () => {
@@ -81,5 +83,6 @@ describe("TRASH_NAME_COL", () => {
     expect(TRASH_NAME_COL.whiteboards).toBe("name");
     expect(TRASH_NAME_COL.generated_contents).toBe("topic");
     expect(TRASH_NAME_COL.polls).toBe("title");
+    expect(TRASH_NAME_COL.tenants).toBe("name");
   });
 });

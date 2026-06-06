@@ -15,7 +15,9 @@ import { supabase } from "@/integrations/supabase/client";
 
 /** Tablas que soportan papelera. Mantener sincronizado con la migración
  *  20260816000000 (`allowed TEXT[]` dentro de las RPCs) y con la
- *  trash page. */
+ *  trash page. `tenants` se agrega en 20260818000000 pero usa RPCs
+ *  dedicadas (soft_delete_tenant / restore_tenant) por su cascada
+ *  especial; no pasa por trash_restore_item ni trash_hard_delete_item. */
 export type TrashTable =
   | "courses"
   | "exams"
@@ -24,7 +26,8 @@ export type TrashTable =
   | "attendance_sessions"
   | "whiteboards"
   | "generated_contents"
-  | "polls";
+  | "polls"
+  | "tenants";
 
 /** Label humano por tabla — usado en el módulo Papelera para los tabs. */
 export const TRASH_TABLE_LABEL: Record<TrashTable, string> = {
@@ -36,6 +39,7 @@ export const TRASH_TABLE_LABEL: Record<TrashTable, string> = {
   whiteboards: "Pizarras",
   generated_contents: "Contenidos",
   polls: "Encuestas",
+  tenants: "Instituciones",
 };
 
 /** Columna que la UI muestra como "nombre del item" en la papelera.
@@ -50,6 +54,7 @@ export const TRASH_NAME_COL: Record<TrashTable, string> = {
   whiteboards: "name",
   generated_contents: "topic",
   polls: "title",
+  tenants: "name",
 };
 
 interface SoftDeleteResult {
@@ -112,27 +117,55 @@ export async function softDeleteMany(
 }
 
 /**
- * Restaura una fila de la papelera (UPDATE deleted_at = NULL). Se llama
- * desde la trash page. La RPC `trash_restore_item` valida la tabla y
- * delega el UPDATE bajo RLS del caller (SECURITY INVOKER).
+ * Restaura una fila de la papelera. Para las 8 entidades genéricas usa
+ * la RPC `trash_restore_item` (SECURITY INVOKER, RLS del caller). Para
+ * tenants delega en `restore_tenant` (SECURITY DEFINER, requiere
+ * SuperAdmin) que cascadea la restauración a los children borrados con
+ * el mismo timestamp.
  */
 export async function restoreItem(table: TrashTable, id: string): Promise<SoftDeleteResult> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
+  if (table === "tenants") {
+    const { error } = await db.rpc("restore_tenant", { _tenant_id: id });
+    return { error: error ? { message: error.message } : null };
+  }
   const { error } = await db.rpc("trash_restore_item", { _table: table, _id: id });
   return { error: error ? { message: error.message } : null };
 }
 
 /**
- * Borra DEFINITIVAMENTE una fila (DELETE físico). La RPC
- * `trash_hard_delete_item` exige que la fila esté en papelera
- * (deleted_at IS NOT NULL) para evitar bypass del flujo de soft-delete.
+ * Borra DEFINITIVAMENTE una fila (DELETE físico). Para las 8 entidades
+ * genéricas usa `trash_hard_delete_item` (exige que la fila esté en
+ * papelera). Para tenants usa `hard_delete_tenant` (también valida que
+ * esté en papelera + valida SuperAdmin server-side).
  *
- * Disparar también el cascade ON DELETE de los hijos — irreversible.
+ * Dispara el cascade ON DELETE de los hijos — irreversible.
  */
 export async function hardDeleteItem(table: TrashTable, id: string): Promise<SoftDeleteResult> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
+  if (table === "tenants") {
+    const { error } = await db.rpc("hard_delete_tenant", { _tenant_id: id });
+    return { error: error ? { message: error.message } : null };
+  }
   const { error } = await db.rpc("trash_hard_delete_item", { _table: table, _id: id });
+  return { error: error ? { message: error.message } : null };
+}
+
+/**
+ * Soft-delete cascadeado de un tenant. Marca el tenant + cascadea a las
+ * 8 entidades trashables (cursos, exámenes, talleres, proyectos,
+ * sesiones, pizarras, contenidos, polls) con el MISMO deleted_at, lo
+ * que permite que `restoreItem("tenants", id)` desempaque la cascada.
+ *
+ * Solo SuperAdmin (validado server-side en la RPC). Profiles del tenant
+ * NO se tocan — mantienen su tenant_id pero quedan sin acceso porque el
+ * Select de institución en /auth filtra `deleted_at IS NULL`.
+ */
+export async function softDeleteTenant(tenantId: string): Promise<SoftDeleteResult> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const { error } = await db.rpc("soft_delete_tenant", { _tenant_id: tenantId });
   return { error: error ? { message: error.message } : null };
 }

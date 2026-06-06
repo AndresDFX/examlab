@@ -128,9 +128,13 @@ function SuperAdminTenantsPage() {
   const load = async () => {
     setLoading(true);
     setLoadError(null);
+    // Filtramos las eliminadas (deleted_at IS NOT NULL) — viven en la
+    // papelera (/app/trash) hasta su purga a 30d. El SuperAdmin las
+    // restaura desde allí cuando hace falta.
     const { data, error } = await db
       .from("tenants")
       .select("*")
+      .is("deleted_at", null)
       .order("created_at", { ascending: true });
     if (error) {
       setLoadError(friendlyError(error, "No pudimos cargar las instituciones."));
@@ -482,6 +486,34 @@ function SuperAdminTenantsPage() {
   };
 
   /**
+   * Soft-delete cascadeado: marca el tenant como eliminado + cascadea a
+   * las 8 entidades trashables (cursos, exámenes, talleres, proyectos,
+   * sesiones, pizarras, contenidos, polls) con el mismo timestamp.
+   * Aparece en /app/trash con 30d para revertir vía "Restaurar".
+   *
+   * Los profiles del tenant NO se eliminan — quedan sin acceso porque
+   * el Select de institución en /auth filtra deleted_at IS NULL. Al
+   * restaurar el tenant, vuelven a tener acceso normal.
+   */
+  const softDeleteTenantHandler = async (t: Tenant) => {
+    const ok = await confirm({
+      title: `Eliminar ${t.name}`,
+      description:
+        "La institución y TODO su contenido (cursos, exámenes, talleres, proyectos, sesiones, pizarras, contenidos y encuestas) van a la papelera. Los usuarios pierden acceso hasta que la restaures (queda 30 días disponible para revertir desde /app/trash). Pasados los 30 días, se elimina definitivamente.",
+      confirmLabel: "Enviar a papelera",
+      tone: "destructive",
+    });
+    if (!ok) return;
+    const { error } = await db.rpc("soft_delete_tenant", { _tenant_id: t.id });
+    if (error) {
+      toast.error(friendlyError(error, "No se pudo eliminar la institución"));
+      return;
+    }
+    toast.success(`${t.name} fue enviada a la papelera`);
+    await load();
+  };
+
+  /**
    * Inicia sesión como el Admin de un tenant — el SuperAdmin queda
    * "aislado" hasta que pare la impersonación. A diferencia del
    * "Ver como esta institución" (que solo cambia branding pero mantiene
@@ -672,6 +704,14 @@ function SuperAdminTenantsPage() {
                             icon: Power,
                             onClick: () => void toggleActive(t),
                             tone: t.is_active ? "destructive" : undefined,
+                          },
+                          {
+                            label: "Eliminar institución",
+                            icon: Trash2,
+                            onClick: () => void softDeleteTenantHandler(t),
+                            tone: "destructive",
+                            separatorBefore: true,
+                            hint: "Soft-delete cascadeado a todo el contenido. 30d para revertir desde la papelera.",
                           },
                         ]}
                       />
