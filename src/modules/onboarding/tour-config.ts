@@ -388,16 +388,52 @@ export const TEACHER_TOUR: TourStep[] = [
       "Tus <strong>exámenes</strong>. Cada uno tiene su ventana de tiempo, sus preguntas (selección, abierta, código…) y opcionalmente proctoring para que el alumno no haga trampa.",
     side: "right",
   },
-  // ─── Dialog "Nuevo examen" — demo interactiva ───────────────────────
+  // ─── Demo INTERACTIVA del modal "Nuevo examen" ──────────────────────
+  // 5 sub-steps que recorren los campos clave del modal. clickBefore
+  // del primero abre el dialog; los siguientes navegan internamente
+  // (mismo dialog ya abierto). El último siguiente step de tour
+  // (Talleres) lleva escapeBefore para cerrar el dialog.
   {
     element: '[data-tour-id="dialog-exam"]',
     clickBefore: '[data-tour-id="create-exam"]',
     waitMs: 400,
     title: "Crear un examen",
     description:
-      "<p>Lo que vas a llenar:</p><ol><li><strong>Curso + corte</strong> — al cuál pertenece, qué peso tiene.</li><li><strong>Ventana de fechas + duración</strong> — desde cuándo está disponible y cuántos minutos tiene el alumno.</li><li><strong>Tipo</strong>: <em>normal</em> (en la plataforma) o <em>externo</em> (presencial, solo registrás notas).</li><li><strong>Proctoring</strong> — anti-copia, pantalla completa, navegación secuencial.</li></ol><p>Después agregás las preguntas, manual o desde el banco.</p>",
+      "Te muestro los <strong>campos clave</strong> del formulario en los próximos pasos. Avanzá con <em>Siguiente</em>.",
     side: "left",
     align: "center",
+  },
+  {
+    element: '[data-tour-id="exam-field-external"]',
+    title: "Actividad externa (opcional)",
+    description:
+      "Si el examen ya pasó <strong>fuera de la plataforma</strong> (presencial o en otra herramienta), activá este toggle. Quedan solo los campos para registrar notas y se ocultan duración/proctoring/preguntas.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="exam-field-title"]',
+    title: "Título",
+    description:
+      "El nombre del examen como lo verá el alumno. Sé descriptivo: <em>“Parcial 1 — Recursión y árboles”</em> es mejor que <em>“Parcial 1”</em>.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="exam-field-courses"]',
+    title: "Curso(s)",
+    description:
+      "A qué curso pertenece. Si seleccionás <strong>varios</strong>, el examen se publica idéntico en todos (útil cuando dictás la misma materia a 2 grupos).",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="exam-field-dates"]',
+    title: "Ventana de fechas",
+    description:
+      "Desde cuándo está <strong>disponible</strong> hasta cuándo el alumno puede entregar. La duración (minutos) se auto-calcula al elegir Fin, pero podés ajustarla manualmente. Después del cierre, no se aceptan más intentos.",
+    side: "left",
+    align: "start",
   },
 
   // ─── Talleres ───────────────────────────────────────────────────────

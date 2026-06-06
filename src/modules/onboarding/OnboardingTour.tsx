@@ -85,6 +85,27 @@ function waitForElement(selector: string, timeoutMs: number): Promise<HTMLElemen
   });
 }
 
+/** Cierra el dialog de confirmación "Cambios sin guardar" que algunos
+ *  forms (course/exam/workshop/project) muestran al intentar cerrar
+ *  con `dirty=true`. El tour abre estos dialogs vacíos y al cerrarlos
+ *  con Esc puede aparecer el confirm bloqueando el flow. Buscamos el
+ *  botón "Descartar" dentro de un `[role="dialog"]` y le hacemos click.
+ *
+ *  Idempotente: si no hay confirm visible, no hace nada. Se invoca
+ *  con cada Esc programático del tour. */
+function dismissUnsavedConfirm(): void {
+  const buttons = document.querySelectorAll<HTMLButtonElement>(
+    '[role="dialog"] button, [role="alertdialog"] button',
+  );
+  for (const btn of buttons) {
+    const text = btn.textContent?.trim().toLowerCase() ?? "";
+    if (text === "descartar" || text === "discard") {
+      btn.click();
+      return;
+    }
+  }
+}
+
 export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false }: Props) {
   const driverRef = useRef<Driver | null>(null);
   const router = useRouter();
@@ -152,6 +173,18 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
       }
     };
 
+    // Flag para evitar loop de re-ancla: cuando llamamos `moveTo(idx)`
+    // tras detectar el dialog, driver.js re-dispara `onHighlightStarted`
+    // del mismo step. Sin esta flag, las pre-actions (escapeBefore +
+    // click) corren otra vez → Esc cierra el dialog → click lo reabre
+    // → waitForElement vuelve a disparar moveTo → titileo infinito.
+    //
+    // Setteo la flag al activeIndex ANTES de moveTo. En el siguiente
+    // onHighlightStarted comparo y, si matchea, skipeo pre-actions y
+    // limpio. Si el user avanzó/retrocedió mid-reanchor, el index no
+    // matchea y las pre-actions corren normales.
+    let reanchoringStep: number | null = null;
+
     /** Helper para programar un setTimeout que respeta el abort
      *  controller del step. Si el step termina antes, el callback no
      *  corre. */
@@ -196,6 +229,20 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
         ...(s.route || s.clickBefore || s.escapeBefore
           ? {
               onHighlightStarted: (element) => {
+                // Guard de re-anchor: si entramos al step por moveTo()
+                // (post waitForElement), `reanchoringStep` matchea el
+                // activeIndex. Skipeamos pre-actions — driver.js solo
+                // está re-resolviendo el selector. Sin este guard:
+                // escapeBefore cierra el dialog que recién abrimos →
+                // click lo reabre → moveTo otra vez → loop infinito
+                // (= titileo del popover).
+                const currentIdx = driverObj.getActiveIndex();
+                if (typeof currentIdx === "number" && reanchoringStep === currentIdx) {
+                  reanchoringStep = null;
+                  return;
+                }
+                reanchoringStep = null;
+
                 // Cancelar cualquier async del step anterior. Si el user
                 // clickeó Siguiente antes de que el clickBefore terminara,
                 // queremos descartar ese click pending (no abrir un
@@ -205,6 +252,10 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
                 pendingAbort = abort;
 
                 // 1. Escape: cierra Dialog/Popover del step anterior.
+                //    Tras el Esc puede aparecer el confirm de "Cambios
+                //    sin guardar" si el form estaba dirty. Lo
+                //    descartamos automáticamente para que el flow no
+                //    quede atrapado.
                 if (s.escapeBefore) {
                   try {
                     document.dispatchEvent(
@@ -213,13 +264,17 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
                   } catch {
                     /* no-op */
                   }
+                  // Doble pasada — la primera tras el Esc para el
+                  // dialog directo, la segunda tras un tick por si
+                  // el confirm aparece async.
+                  dismissUnsavedConfirm();
+                  scheduleStepTimer(() => dismissUnsavedConfirm(), 120, abort.signal);
                 }
 
                 // 2. Route: navegar si la ruta actual no coincide.
                 if (s.route) {
                   const wanted = s.route;
-                  const current =
-                    typeof window !== "undefined" ? window.location.pathname : "";
+                  const current = typeof window !== "undefined" ? window.location.pathname : "";
                   if (current !== wanted) {
                     try {
                       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -250,13 +305,9 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
                       const btn = document.querySelector<HTMLElement>(btnSelector);
 
                       // (a) Selector no existe → warn + auto-skip al
-                      //     siguiente step. Casos: refactor, módulo
-                      //     deshabilitado por module_visibility, route
-                      //     no rindió todavía el botón.
+                      //     siguiente step.
                       if (!btn) {
-                        console.warn(
-                          `[tour] clickBefore selector no encontrado: ${btnSelector}`,
-                        );
+                        console.warn(`[tour] clickBefore selector no encontrado: ${btnSelector}`);
                         try {
                           driverObj.moveNext();
                         } catch {
@@ -267,9 +318,7 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
 
                       // (b) Botón disabled → skip el demo. Caso típico:
                       //     Docente sin cursos viendo "Nueva pregunta"
-                      //     / "Nueva encuesta". Sin este check el
-                      //     click es no-op y el popover queda apuntando
-                      //     a un dialog que nunca abrió.
+                      //     / "Nueva encuesta".
                       if (btn instanceof HTMLButtonElement && btn.disabled) {
                         console.info(
                           `[tour] clickBefore button disabled — skipeando demo: ${btnSelector}`,
@@ -290,30 +339,25 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
                         return;
                       }
 
-                      // (d) Esperar a que el dialog se monte y re-anclar.
-                      //
-                      //     driver.refresh() NO re-resuelve el selector;
-                      //     sólo reposiciona contra el __activeElement
-                      //     cacheado (driver-dummy-element en este
-                      //     caso). moveTo(activeIndex) sí re-llama
-                      //     querySelector(s.element) y re-ancla.
-                      //
-                      //     Timeout de 3s — cubre queries Supabase
-                      //     lentas + animación Radix Portal/Dialog en
-                      //     producción.
+                      // (d) Esperar al dialog. moveTo(idx) re-llama
+                      //     querySelector y re-ancla. ANTES del moveTo
+                      //     marcamos `reanchoringStep` para que el
+                      //     onHighlightStarted que dispara moveTo
+                      //     skipee pre-actions (rompe el loop).
                       void waitForElement(s.element, 3000).then((dialogEl) => {
                         if (abort.signal.aborted) return;
                         if (!dialogEl) {
-                          console.warn(
-                            `[tour] dialog no apareció en 3s tras click: ${s.element}`,
-                          );
+                          console.warn(`[tour] dialog no apareció en 3s tras click: ${s.element}`);
                           return;
                         }
                         try {
-                          // moveTo del mismo índice fuerza re-resolución.
                           const idx = driverObj.getActiveIndex();
-                          if (typeof idx === "number") driverObj.moveTo(idx);
+                          if (typeof idx === "number") {
+                            reanchoringStep = idx;
+                            driverObj.moveTo(idx);
+                          }
                         } catch (err) {
+                          reanchoringStep = null;
                           console.warn(`[tour] no se pudo re-anclar al dialog`, err);
                         }
                       });
@@ -339,9 +383,7 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
         // (típicamente "Nuevo X"). Sin esto el user cierra el tour
         // pero queda un formulario flotando sobre la ruta destino.
         try {
-          document.dispatchEvent(
-            new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
-          );
+          document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
         } catch {
           /* no-op */
         }

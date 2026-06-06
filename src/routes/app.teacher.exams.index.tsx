@@ -853,7 +853,10 @@ function TeacherExams() {
              * aplican (duración, navegación, proctoring, padre) y la
              * fecha de fin (la actividad ya pasó, fecha = un instante).
              */}
-            <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5">
+            <div
+              className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5"
+              data-tour-id="exam-field-external"
+            >
               <div className="space-y-0.5">
                 <Label htmlFor="is-external" className="text-sm">
                   Actividad externa
@@ -869,7 +872,7 @@ function TeacherExams() {
                 onCheckedChange={(v) => setForm({ ...form, is_external: v } as any)}
               />
             </div>
-            <div>
+            <div data-tour-id="exam-field-title">
               <Label required>{t("common.title")}</Label>
               <Input
                 value={form.title ?? ""}
@@ -906,7 +909,7 @@ function TeacherExams() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
+            <div data-tour-id="exam-field-courses">
               <Label required>
                 {t("nav.courses")}{" "}
                 <span className="text-xs text-muted-foreground font-normal">
@@ -936,7 +939,7 @@ function TeacherExams() {
                 <p className="text-xs text-muted-foreground mt-1">{t("exam.coursesHelp")}</p>
               )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" data-tour-id="exam-field-dates">
               <div>
                 <Label required>
                   {(form as any).is_external ? "Fecha del parcial" : t("common.start")}
