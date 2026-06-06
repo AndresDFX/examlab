@@ -51,8 +51,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Palette } from "lucide-react";
-import { StatTile } from "@/components/ui/stat-tile";
+import { Plus, Trash2, Palette, Globe, Lock, BookOpen } from "lucide-react";
+import { StatCard } from "@/components/ui/stat-card";
 import { HelpHint } from "@/components/ui/help-hint";
 import { formatDate } from "@/shared/lib/format";
 import {
@@ -379,34 +379,18 @@ function TeacherWhiteboards() {
         }
       />
 
-      {items.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <StatTile
-            label="Total"
-            value={whiteboardStats.total}
-            color="text-violet-600 dark:text-violet-400"
-            bg="bg-violet-500/10"
-          />
-          <StatTile
-            label="Compartidas"
-            value={whiteboardStats.shared}
-            color="text-emerald-600 dark:text-emerald-400"
-            bg="bg-emerald-500/10"
-          />
-          <StatTile
-            label="Privadas"
-            value={whiteboardStats.priv}
-            color="text-muted-foreground"
-            bg="bg-muted/40"
-          />
-          <StatTile
-            label="En curso"
-            value={whiteboardStats.inCourse}
-            color="text-sky-600 dark:text-sky-400"
-            bg="bg-sky-500/10"
-          />
-        </div>
-      )}
+      {/* Stats 4-card — siempre visible. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard icon={Palette} label="Total" value={whiteboardStats.total} />
+        <StatCard
+          icon={Globe}
+          label="Compartidas"
+          value={whiteboardStats.shared}
+          tone={whiteboardStats.shared > 0 ? "success" : "default"}
+        />
+        <StatCard icon={Lock} label="Privadas" value={whiteboardStats.priv} />
+        <StatCard icon={BookOpen} label="En curso" value={whiteboardStats.inCourse} />
+      </div>
 
       {/* Toolbar de bulk delete — solo se renderiza cuando hay items
           seleccionados. Mismo patrón que el resto de listados

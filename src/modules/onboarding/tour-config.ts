@@ -119,7 +119,7 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/admin/academic",
     title: "Académico",
     description:
-      "Plan de estudios institucional: <strong>programas</strong> (Ingeniería, Diseño...), <strong>periodos académicos</strong> (2026-I) y <strong>asignaturas</strong>. Lo configurás una vez por año y se reutiliza al crear cursos.",
+      "Definís de qué se compone tu institución: <strong>programas</strong> (Ingeniería, Diseño…), <strong>periodos</strong> (2026-I, 2026-II) y <strong>asignaturas</strong>. Se configura una vez al año y los docentes reutilizan todo al crear sus cursos.",
     side: "right",
   },
 
@@ -129,7 +129,7 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/teacher/contents",
     title: "Contenidos",
     description:
-      "Biblioteca de material de estudio (PPTX, MD, PDF). Los docentes lo crean para sus cursos y desde acá podés revisar todo lo que produce la institución. Incluye generación con IA a partir de un syllabus.",
+      "Todo el <strong>material de estudio</strong> que producen los docentes (presentaciones, guías, ejercicios). Acá podés revisar lo que se está generando con IA y verificar la calidad antes de que llegue a los alumnos.",
     side: "right",
   },
 
@@ -139,7 +139,7 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/videos",
     title: "Biblioteca de videos",
     description:
-      "Registro centralizado de URLs (YouTube/Vimeo) y archivos MP4 subidos. Los proyectos, talleres y módulos los referencian por ID — un solo lugar de verdad.",
+      "Un solo lugar para todos los <strong>videos del curso</strong> (YouTube, Vimeo, MP4 subidos). Los docentes los enlazan a sus talleres y proyectos. Una vez subido, se reutiliza en cuantos cursos quieras.",
     side: "right",
   },
 
@@ -149,7 +149,7 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/admin/ai-prompts",
     title: "Prompts IA",
     description:
-      "Personalizá los <em>system prompts</em> que la IA usa al calificar entregas (taller, examen, proyecto, archivo de código, pregunta abierta). El override aplica a TODA la institución; los docentes pueden override por curso.",
+      "Acá decidís <strong>cómo califica la IA</strong> en tu institución: el tono, los criterios y qué tan estricta es. Lo definís una vez y aplica a todos los docentes. Cada docente puede ajustarlo para su propio curso.",
     side: "right",
   },
 
@@ -157,9 +157,9 @@ export const ADMIN_TOUR: TourStep[] = [
   {
     element: '[data-tour-module="ai_cron"]',
     route: "/app/admin/ai-cron",
-    title: "Cola de IA + Cron",
+    title: "Cola de IA",
     description:
-      "Cola de calificaciones con IA, cola de generaciones con IA y <strong>jobs de pg_cron</strong>. Reintentá fallos, procesá manualmente, pausá schedules. Útil para diagnosticar latencias o errores transitorios.",
+      "Acá ves <strong>todo lo que la IA está haciendo</strong>: qué entregas está calificando, qué materiales está generando y qué se trabó. Si algo falla, lo reintentás con un click. Útil cuando un docente avisa que su nota no llegó.",
     side: "right",
   },
 
@@ -169,7 +169,7 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/admin/statistics",
     title: "Estadísticas",
     description:
-      "Métricas agregadas de la institución: cursos activos, rendimiento promedio, distribución de notas y uso de la IA. Para presentar a directivos o detectar cursos en riesgo.",
+      "El pulso de la institución de un vistazo: <strong>cuántos cursos están activos</strong>, cómo va el rendimiento general y qué cursos tienen estudiantes en riesgo de perder. Datos listos para mostrarle a tu rector.",
     side: "right",
   },
 
@@ -213,7 +213,7 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/admin/audit-logs",
     title: "Auditoría",
     description:
-      "Historial completo de acciones del sistema: quién, qué, cuándo. <strong>Incluye los Errores</strong> en una tab aparte, con agrupación por tipo y estados (nuevo, revisando, resuelto, ignorado). Filtrá por entidad, severidad o categoría — esencial para soporte y cumplimiento.",
+      "El <strong>quién hizo qué y cuándo</strong> de la plataforma. Te sirve para responder reclamos (“yo nunca recibí esa nota”) y para investigar incidentes. Adentro hay una tab de <strong>Errores</strong> con todo lo que falló — útil para soporte.",
     side: "right",
   },
 
@@ -223,7 +223,7 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/trash",
     title: "Papelera",
     description:
-      "Lo que vos o tus docentes <em>borran</em> queda acá <strong>30 días</strong> antes de purgarse para siempre. Cualquier item de cursos, exámenes, talleres, proyectos, sesiones, pizarras, contenidos o encuestas se puede <strong>Restaurar</strong> o <strong>Eliminar definitivo</strong> uno por uno o en bulk.",
+      "¿Un docente borró un examen por error? Acá lo recuperás. Todo lo que se elimina (cursos, exámenes, talleres, proyectos…) queda <strong>30 días</strong> antes de borrarse para siempre. Click en <em>Restaurar</em> y vuelve a aparecer como si nada.",
     side: "right",
   },
 
@@ -233,7 +233,7 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/admin/settings",
     title: "Configuración",
     description:
-      "Ajustes de la institución: cuotas de IA, branding (logo, colores), dominio de email, integraciones, visibilidad de módulos por rol. Cambios aplican al instante.",
+      "El panel de control de tu institución: cambiás el <strong>logo y los colores</strong> (branding), ajustás cuántos usuarios pueden tener cada rol, y decidís <strong>qué módulos ve cada uno</strong>. Los cambios se aplican al instante.",
     side: "right",
   },
 
@@ -386,7 +386,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/gradebook",
     title: "Calificaciones",
     description:
-      "Gradebook consolidado por curso. Notas de exámenes + talleres + proyectos + asistencia, agrupadas por corte. Editás notas externas (presencial) y exportás CSV para llevar al sistema institucional.",
+      "El <strong>boletín consolidado</strong> de cada curso. Ves todas las notas de tus alumnos (exámenes, talleres, proyectos y asistencia) agrupadas por corte. Acá editás notas de actividades que hiciste por fuera (presencial) y bajás un CSV para subir al sistema de la institución.",
     side: "right",
   },
 
@@ -436,7 +436,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/statistics",
     title: "Estadísticas",
     description:
-      "Métricas por curso: rendimiento promedio, distribución de notas, asistencia, uso de la IA. Útil para detectar alumnos en riesgo antes del cierre del corte.",
+      "El <strong>pulso de cada uno de tus cursos</strong>: cómo va el promedio, qué alumnos están en riesgo de perder, cuántos no entregan. Mejor revisar esto a mitad de corte que enterarte cuando ya es tarde.",
     side: "right",
   },
 
@@ -446,7 +446,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/ai-prompts",
     title: "Prompts IA",
     description:
-      "Personalizá los prompts que la IA usa al calificar TUS entregas. Override por curso del default que define el Admin. Útil cuando necesitás criterios específicos por materia.",
+      "¿No te gusta cómo la IA está calificando? Acá <strong>ajustás el tono y los criterios</strong> para TUS cursos. Por ejemplo: más estricta con la sintaxis en Programación I, más flexible con redacción en Ética. Cada curso puede tener su receta.",
     side: "right",
   },
 
@@ -456,7 +456,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/videos",
     title: "Biblioteca de videos",
     description:
-      "Registro central de URLs (YouTube/Vimeo) y MP4 subidos. Los proyectos y talleres los referencian por ID — agregá una vez, reutilizá en muchos cursos.",
+      "Tu <strong>biblioteca de videos</strong> (YouTube, Vimeo, MP4 propios). Los enlazás en talleres y proyectos como recurso obligatorio o de apoyo. Subís uno y lo reutilizás en todos los cursos donde lo necesites.",
     side: "right",
   },
 
@@ -466,7 +466,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/certificates",
     title: "Certificados",
     description:
-      "Certificados emitidos a tus alumnos al aprobar el curso. El Admin define la plantilla; vos verificás la lista de emisiones y reenvíos.",
+      "Cuando un alumno aprueba el curso, acá podés <strong>ver el certificado emitido</strong> y reenviárselo si lo perdió. El diseño lo define la institución, vos solo confirmás que lleguen.",
     side: "right",
   },
 
@@ -476,7 +476,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/ai-cron",
     title: "Cola IA",
     description:
-      "Cola de calificaciones con IA + generaciones. Reintentá fallos, mirá el estado y los logs. Útil cuando una entrega quedó en <em>pendiente</em> por más de unos minutos.",
+      "¿Un alumno pregunta dónde está su nota? Acá ves <strong>qué está calificando la IA</strong> en este momento, qué se terminó y qué se trabó. Si algo falló, lo reintentás con un click — no hace falta llamar a soporte.",
     side: "right",
   },
 
@@ -486,7 +486,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/reports",
     title: "Informes",
     description:
-      "Generá actas, boletines y reportes en PDF a partir de las plantillas que define el Admin. Filtrás por curso, corte y periodo.",
+      "Generás <strong>actas, boletines y reportes</strong> en PDF a partir de plantillas pre-armadas. Eligís curso + corte + periodo y descargás. Lo que te ahorra rellenar el formato del consejo académico a mano cada semestre.",
     side: "right",
   },
 
@@ -496,7 +496,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/students",
     title: "Mis estudiantes",
     description:
-      "Listado de tus estudiantes con su rendimiento. Opción <em>Ver como</em> para entrar a la vista del alumno (impersonación acotada) y verificar qué le aparece exactamente.",
+      "El <strong>directorio de tus alumnos</strong> con su rendimiento de un vistazo. Si querés saber qué ve un alumno exactamente (porque te dice que no le aparece algo), usás <em>Ver como</em> y entrás a su vista por un rato.",
     side: "right",
   },
 
@@ -506,7 +506,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/audit-logs",
     title: "Auditoría",
     description:
-      "Historial de acciones en TUS cursos: qué se creó, qué se entregó, qué calificó la IA. Útil para responder reclamos de alumnos o investigar incidencias.",
+      "El historial de <strong>todo lo que pasó en tus cursos</strong>: qué creaste, qué entregaron tus alumnos, qué calificó la IA y cuándo. Útil cuando un alumno reclama una nota y necesitás reconstruir qué pasó.",
     side: "right",
   },
 
@@ -516,7 +516,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/trash",
     title: "Papelera",
     description:
-      "Lo que <em>borrás</em> queda acá <strong>30 días</strong>. Cualquier item de cursos, exámenes, talleres, proyectos, sesiones, pizarras, contenidos o encuestas se puede <strong>Restaurar</strong> uno por uno o en bulk. Si lo borraste por error, ¡siempre podés recuperarlo!",
+      "¿Borraste un examen por error? Acá lo recuperás. Todo lo que eliminás (cursos, exámenes, talleres, proyectos…) queda <strong>30 días</strong> antes de borrarse para siempre. Click en <em>Restaurar</em> y vuelve a aparecer como si nada.",
     side: "right",
   },
 

@@ -39,6 +39,8 @@ import {
   FolderKanban,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { StudentProjectTaker } from "@/modules/projects/ProjectFiles";
 import { formatDateTime } from "@/shared/lib/format";
@@ -451,37 +453,23 @@ function StudentProjects() {
         }
       />
 
-      {/* Quick-stats — métricas estables del listado completo. Mismo
-          patrón visual que el dashboard admin + listados de exámenes/
-          talleres del estudiante. */}
-      {rows.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <StatTile
-            label="Disponibles"
-            value={stats.available}
-            color="text-sky-600 dark:text-sky-400"
-            bg="bg-sky-500/10"
-          />
-          <StatTile
-            label="Entregados"
-            value={stats.submitted}
-            color="text-amber-600 dark:text-amber-400"
-            bg="bg-amber-500/10"
-          />
-          <StatTile
-            label="Calificados"
-            value={stats.graded}
-            color="text-emerald-600 dark:text-emerald-400"
-            bg="bg-emerald-500/10"
-          />
-          <StatTile
-            label="Vencidos"
-            value={stats.overdue}
-            color="text-destructive"
-            bg="bg-destructive/10"
-          />
-        </div>
-      )}
+      {/* Stats 4-card — siempre visible, patrón compartido. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard
+          icon={FolderKanban}
+          label="Disponibles"
+          value={stats.available}
+          tone={stats.available > 0 ? "success" : "default"}
+        />
+        <StatCard icon={Send} label="Entregados" value={stats.submitted} />
+        <StatCard icon={CheckCircle2} label="Calificados" value={stats.graded} />
+        <StatCard
+          icon={AlertTriangle}
+          label="Vencidos"
+          value={stats.overdue}
+          tone={stats.overdue > 0 ? "destructive" : "default"}
+        />
+      </div>
 
       <ListFilters
         search={search}
@@ -784,7 +772,8 @@ function StudentProjects() {
   );
 }
 
-/** Mismo helper inline que workshops/exams. Réplica del `EmailStatTile`
+/** @deprecated — reemplazado por `<StatCard />` del design system.
+ *  Inline original que workshops/exams usaban. Réplica del `EmailStatTile`
  *  del dashboard admin para que los tres listados del estudiante usen
  *  el mismo vocabulario visual (bg tintado + número grande + label). */
 function StatTile({

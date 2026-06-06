@@ -85,7 +85,8 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { ListFilters } from "@/components/ui/list-filters";
-import { StatTile } from "@/components/ui/stat-tile";
+import { StatCard } from "@/components/ui/stat-card";
+import { CheckCircle2, Lock, ExternalLink } from "lucide-react";
 import { CourseListCell } from "@/components/ui/course-list-cell";
 import { TeacherProjectFilesEditor } from "@/modules/projects/ProjectFiles";
 import { AssignSelector } from "@/shared/components/AssignSelector";
@@ -1939,34 +1940,18 @@ function TeacherProjects() {
         }
       />
 
-      {projects.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <StatTile
-            label="Borradores"
-            value={projectStats.draft}
-            color="text-amber-600 dark:text-amber-400"
-            bg="bg-amber-500/10"
-          />
-          <StatTile
-            label="Publicados"
-            value={projectStats.published}
-            color="text-emerald-600 dark:text-emerald-400"
-            bg="bg-emerald-500/10"
-          />
-          <StatTile
-            label="Cerrados"
-            value={projectStats.closed}
-            color="text-muted-foreground"
-            bg="bg-muted/40"
-          />
-          <StatTile
-            label="Externos"
-            value={projectStats.external}
-            color="text-sky-600 dark:text-sky-400"
-            bg="bg-sky-500/10"
-          />
-        </div>
-      )}
+      {/* Stats 4-card — siempre visible. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard icon={Pencil} label="Borradores" value={projectStats.draft} />
+        <StatCard
+          icon={CheckCircle2}
+          label="Publicados"
+          value={projectStats.published}
+          tone={projectStats.published > 0 ? "success" : "default"}
+        />
+        <StatCard icon={Lock} label="Cerrados" value={projectStats.closed} />
+        <StatCard icon={ExternalLink} label="Externos" value={projectStats.external} />
+      </div>
 
       <ListFilters
         search={search}

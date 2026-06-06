@@ -61,7 +61,15 @@ const SheetContent = React.forwardRef<
   <SheetPortal>
     <SheetOverlay />
     <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
-      <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
+      {/* Botón cerrar. Antes tenía `data-[state=open]:bg-secondary` que
+          pintaba un cuadrado claro encima del header coloreado de los
+          sheets con fondo branded (ej. drawer mobile del sidebar con
+          `bg-sidebar` naranja del tenant). Quitado a favor de un look
+          ghost: el icono usa `currentColor` heredado (matchea con el
+          color del sheet padre), opacity-70 default, full opacity en
+          hover. Target táctil 32px sin verse como botón hasta que se
+          interactúa con él. */}
+      <SheetPrimitive.Close className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-md opacity-70 hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-opacity disabled:pointer-events-none">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </SheetPrimitive.Close>

@@ -32,6 +32,7 @@ import { StudentExamNotes } from "@/modules/exams/ExamNotesManager";
 import { MAX_WARNINGS } from "@/modules/exams/proctoring";
 import { formatDateTime } from "@/shared/lib/format";
 import { DatePicker } from "@/components/ui/date-picker";
+import { StatCard } from "@/components/ui/stat-card";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 
@@ -344,37 +345,23 @@ function StudentExams() {
         subtitle={t("exam.availableSubtitle", { count: visibleRows.length })}
       />
 
-      {/* Quick-stats de exámenes — métricas estables (no se mueven al
-          filtrar). 4 tiles tintados al estilo unificado de los demás
-          listados del estudiante. */}
-      {rows.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <StatTile
-            label="Disponibles"
-            value={stats.available}
-            color="text-sky-600 dark:text-sky-400"
-            bg="bg-sky-500/10"
-          />
-          <StatTile
-            label="En progreso"
-            value={stats.inProgress}
-            color="text-amber-600 dark:text-amber-400"
-            bg="bg-amber-500/10"
-          />
-          <StatTile
-            label="Completados"
-            value={stats.completed}
-            color="text-emerald-600 dark:text-emerald-400"
-            bg="bg-emerald-500/10"
-          />
-          <StatTile
-            label="Próximos"
-            value={stats.upcoming}
-            color="text-foreground"
-            bg="bg-muted/40"
-          />
-        </div>
-      )}
+      {/* Stats 4-card — patrón compartido (StatCard). Siempre visible. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard
+          icon={Play}
+          label="Disponibles"
+          value={stats.available}
+          tone={stats.available > 0 ? "success" : "default"}
+        />
+        <StatCard
+          icon={Clock}
+          label="En progreso"
+          value={stats.inProgress}
+          tone={stats.inProgress > 0 ? "warning" : "default"}
+        />
+        <StatCard icon={CheckCircle2} label="Completados" value={stats.completed} />
+        <StatCard icon={FileText} label="Próximos" value={stats.upcoming} />
+      </div>
 
       <ListFilters
         search={search}
@@ -648,24 +635,6 @@ function StudentExams() {
   );
 }
 
-/** Mismo helper que app.student.workshops.tsx. Inline acá porque solo
- *  lo usan los dos listados del estudiante y duplicar 10 líneas es más
- *  barato que mantener un módulo compartido para algo tan trivial. */
-function StatTile({
-  label,
-  value,
-  color,
-  bg,
-}: {
-  label: string;
-  value: number;
-  color: string;
-  bg: string;
-}) {
-  return (
-    <div className={`rounded-md p-2.5 ${bg}`}>
-      <div className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
-      <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
-    </div>
-  );
-}
+// StatTile local fue removida — ahora usamos el `<StatCard />` del
+// design system (src/components/ui/stat-card.tsx) compartido por
+// todos los listados.

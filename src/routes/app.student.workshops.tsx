@@ -42,6 +42,8 @@ import {
   Hammer,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { StudentWorkshopTaker } from "@/modules/workshops/WorkshopQuestions";
 import { formatDateTime } from "@/shared/lib/format";
@@ -403,38 +405,23 @@ function StudentWorkshops() {
         subtitle={`${visibleRows.length} ${t("nav.workshops").toLowerCase()}`}
       />
 
-      {/* Quick-stats — métricas estables del curso (no se mueven al
-          filtrar). 4 tiles tintados al estilo unificado del dashboard
-          admin (sky/amber/emerald/destructive). En mobile colapsan a
-          2 columnas para no sacrificar legibilidad. */}
-      {rows.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <StatTile
-            label="Disponibles"
-            value={stats.available}
-            color="text-sky-600 dark:text-sky-400"
-            bg="bg-sky-500/10"
-          />
-          <StatTile
-            label="Entregados"
-            value={stats.submitted}
-            color="text-amber-600 dark:text-amber-400"
-            bg="bg-amber-500/10"
-          />
-          <StatTile
-            label="Calificados"
-            value={stats.graded}
-            color="text-emerald-600 dark:text-emerald-400"
-            bg="bg-emerald-500/10"
-          />
-          <StatTile
-            label="Vencidos"
-            value={stats.overdue}
-            color="text-destructive"
-            bg="bg-destructive/10"
-          />
-        </div>
-      )}
+      {/* Stats 4-card — siempre visible, patrón compartido. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard
+          icon={Hammer}
+          label="Disponibles"
+          value={stats.available}
+          tone={stats.available > 0 ? "success" : "default"}
+        />
+        <StatCard icon={Send} label="Entregados" value={stats.submitted} />
+        <StatCard icon={CheckCircle2} label="Calificados" value={stats.graded} />
+        <StatCard
+          icon={AlertTriangle}
+          label="Vencidos"
+          value={stats.overdue}
+          tone={stats.overdue > 0 ? "destructive" : "default"}
+        />
+      </div>
 
       {/* Búsqueda + curso + estado. ListFilters provee búsqueda + curso;
           el filtro de estado va en el slot `extra` para conservar la
@@ -754,26 +741,6 @@ function StudentWorkshops() {
   );
 }
 
-/** Tile compacto para el resumen de talleres del estudiante. Réplica
- *  del estilo que usa el dashboard admin (`EmailStatTile`) — fondo
- *  tintado, número grande arriba, label chico abajo. Inline acá porque
- *  los conteos del estudiante son específicos del listado y no se
- *  reutilizan en otras pantallas. */
-function StatTile({
-  label,
-  value,
-  color,
-  bg,
-}: {
-  label: string;
-  value: number;
-  color: string;
-  bg: string;
-}) {
-  return (
-    <div className={`rounded-md p-2.5 ${bg}`}>
-      <div className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
-      <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
-    </div>
-  );
-}
+// StatTile local fue removida — ahora usamos el `<StatCard />` del
+// design system (src/components/ui/stat-card.tsx) compartido por
+// todos los listados.

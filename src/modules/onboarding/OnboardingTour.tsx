@@ -138,32 +138,83 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
         // progress + prev + next, así que el skip queda separado.
         popover.footer.insertBefore(skipBtn, popover.footer.firstChild);
       },
-      // Cada step puede declarar `route` para que el tour navegue al
-      // módulo correspondiente ANTES de mostrar el popover. UX: el
-      // usuario ve simultáneamente el item del sidebar resaltado Y el
-      // contenido del módulo cargado. Sin esto, el tour solo recorría
-      // el sidebar y nunca "entraba" a las pantallas.
+      // Cada step puede declarar acciones que el tour ejecuta ANTES de
+      // mostrar el popover. Permiten un tour "interactivo" que abre
+      // diálogos, navega y prepara la UI para mostrar el detalle del
+      // siguiente paso, en lugar de un tour pasivo que solo describe.
       //
-      // Implementación: cada step lleva su propio `onHighlightStarted`.
-      // driver.js lo invoca antes de pintar el popover/highlight. Si la
-      // ruta actual ya coincide, no navegamos (evita flicker en steps
-      // anclados a la misma ruta que el anterior).
+      //   route        → navigate(to) si la ruta no es la actual.
+      //   escapeBefore → dispatch Esc keydown (cierra Dialog/Popover
+      //                  abiertos del paso anterior).
+      //   clickBefore  → click programático en el selector (típico:
+      //                  abrir el dialog "Nuevo X" para mostrar su
+      //                  contenido en el siguiente step).
+      //
+      // Orden: escapeBefore → route → clickBefore. driver.js dispara
+      // `onHighlightStarted` sincrónico antes de pintar, así que las
+      // acciones se ejecutan sin bloquear; el popover aparece y, si el
+      // elemento ancla todavía no existe (dialog rendereando), driver
+      // muestra el popover desanclado por un instante y se acomoda al
+      // siguiente repaint.
       steps: validSteps.map((s) => ({
         element: s.element,
-        ...(s.route
+        ...(s.route || s.clickBefore || s.escapeBefore
           ? {
-              onHighlightStarted: () => {
-                const wanted = s.route!;
-                const current =
-                  typeof window !== "undefined" ? window.location.pathname : "";
-                if (current === wanted) return;
-                try {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  void (routerRef.current as any).navigate({ to: wanted });
-                } catch (err) {
-                  // Si la ruta no existe en el router, no rompemos el
-                  // tour — solo logueamos a consola y seguimos.
-                  console.warn(`[tour] no se pudo navegar a ${wanted}`, err);
+              onHighlightStarted: (element) => {
+                if (s.escapeBefore) {
+                  try {
+                    document.dispatchEvent(
+                      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+                    );
+                  } catch {
+                    /* no-op */
+                  }
+                }
+                if (s.route) {
+                  const wanted = s.route;
+                  const current = typeof window !== "undefined" ? window.location.pathname : "";
+                  if (current !== wanted) {
+                    try {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      void (routerRef.current as any).navigate({ to: wanted });
+                    } catch (err) {
+                      console.warn(`[tour] no se pudo navegar a ${wanted}`, err);
+                    }
+                  }
+                }
+                // Scroll del item al centro de SU contenedor scrolleable
+                // (el sidebar interno). driver.js trae smoothScroll pero
+                // solo scrollea el `window` — el sidebar tiene overflow
+                // propio (`overflow-y-auto`) y items al final de la lista
+                // quedan FUERA del viewport del sidebar aunque la página
+                // no tenga scroll. Sin esto, el tour del Docente apuntaba
+                // a "Calificaciones" pero el item estaba scrolleado abajo
+                // y el alumno solo veía el popover sin el ancla.
+                // scrollIntoView con `block:"center"` sube/baja el item
+                // al centro vertical de su contenedor scrolleable más
+                // cercano (no del window). `behavior:"auto"` evita
+                // animación que retrase el highlight.
+                if (element instanceof HTMLElement) {
+                  try {
+                    element.scrollIntoView({ block: "center", behavior: "auto" });
+                  } catch {
+                    /* no-op */
+                  }
+                }
+                if (s.clickBefore) {
+                  // Esperamos un tick para que el route termine antes
+                  // de buscar el botón en el DOM. 250ms cubre el typical
+                  // render de un dashboard; ajustable via `waitMs` del
+                  // step si hace falta más.
+                  const delay = s.waitMs ?? 250;
+                  setTimeout(() => {
+                    try {
+                      const el = document.querySelector(s.clickBefore!);
+                      if (el instanceof HTMLElement) el.click();
+                    } catch {
+                      /* no-op */
+                    }
+                  }, delay);
                 }
               },
             }

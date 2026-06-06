@@ -70,7 +70,7 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { ListFilters } from "@/components/ui/list-filters";
-import { StatTile } from "@/components/ui/stat-tile";
+import { StatCard } from "@/components/ui/stat-card";
 import { CourseListCell } from "@/components/ui/course-list-cell";
 import { HelpHint } from "@/components/ui/help-hint";
 import { DecimalInput } from "@/components/ui/decimal-input";
@@ -582,34 +582,18 @@ function TeacherExams() {
         }
       />
 
-      {exams.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <StatTile
-            label="Borradores"
-            value={examStats.draft}
-            color="text-amber-600 dark:text-amber-400"
-            bg="bg-amber-500/10"
-          />
-          <StatTile
-            label="Publicados"
-            value={examStats.published}
-            color="text-emerald-600 dark:text-emerald-400"
-            bg="bg-emerald-500/10"
-          />
-          <StatTile
-            label="Cerrados"
-            value={examStats.closed}
-            color="text-muted-foreground"
-            bg="bg-muted/40"
-          />
-          <StatTile
-            label="Externos"
-            value={examStats.external}
-            color="text-sky-600 dark:text-sky-400"
-            bg="bg-sky-500/10"
-          />
-        </div>
-      )}
+      {/* Stats 4-card — siempre visible, mismo patrón que el resto. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard icon={Pencil} label="Borradores" value={examStats.draft} />
+        <StatCard
+          icon={CheckCircle2}
+          label="Publicados"
+          value={examStats.published}
+          tone={examStats.published > 0 ? "success" : "default"}
+        />
+        <StatCard icon={Lock} label="Cerrados" value={examStats.closed} />
+        <StatCard icon={ExternalLink} label="Externos" value={examStats.external} />
+      </div>
 
       <ListFilters
         search={search}

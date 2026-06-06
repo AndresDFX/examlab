@@ -26,7 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatTile } from "@/components/ui/stat-tile";
+import { StatCard } from "@/components/ui/stat-card";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { ListFilters } from "@/components/ui/list-filters";
@@ -586,34 +586,21 @@ function VideoLibrary() {
         }
       />
 
-      {rows.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <StatTile
-            label="Activos"
-            value={videoStats.active}
-            color="text-emerald-600 dark:text-emerald-400"
-            bg="bg-emerald-500/10"
-          />
-          <StatTile
-            label="Archivados"
-            value={videoStats.archived}
-            color="text-muted-foreground"
-            bg="bg-muted/40"
-          />
-          <StatTile
-            label="En curso"
-            value={videoStats.inCourse}
-            color="text-sky-600 dark:text-sky-400"
-            bg="bg-sky-500/10"
-          />
-          <StatTile
-            label="Globales"
-            value={videoStats.global}
-            color="text-violet-600 dark:text-violet-400"
-            bg="bg-violet-500/10"
-          />
-        </div>
-      )}
+      {/* Stats 4-card — patrón compartido (StatCard). Aparece SIEMPRE,
+          incluso cuando rows.length === 0. Un dashboard de zeros es
+          informativo y mantiene consistencia visual con el resto de los
+          módulos cuando el tenant todavía no ha generado contenido. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard
+          icon={VideoIcon}
+          label="Activos"
+          value={videoStats.active}
+          tone={videoStats.active > 0 ? "success" : "default"}
+        />
+        <StatCard icon={Archive} label="Archivados" value={videoStats.archived} />
+        <StatCard icon={LinkIcon} label="En curso" value={videoStats.inCourse} />
+        <StatCard icon={Globe} label="Globales" value={videoStats.global} />
+      </div>
 
       <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
         <div className="flex-1 min-w-0">

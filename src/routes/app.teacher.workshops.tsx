@@ -94,7 +94,8 @@ import {
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { ListFilters } from "@/components/ui/list-filters";
 import { CourseListCell } from "@/components/ui/course-list-cell";
-import { StatTile } from "@/components/ui/stat-tile";
+import { StatCard } from "@/components/ui/stat-card";
+import { Lock } from "lucide-react";
 import { toCSV } from "@/shared/lib/csv";
 import { TeacherWorkshopQuestionsEditor } from "@/modules/workshops/WorkshopQuestions";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
@@ -2282,34 +2283,18 @@ function TeacherWorkshops() {
         }
       />
 
-      {workshops.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <StatTile
-            label="Borradores"
-            value={workshopStats.draft}
-            color="text-amber-600 dark:text-amber-400"
-            bg="bg-amber-500/10"
-          />
-          <StatTile
-            label="Publicados"
-            value={workshopStats.published}
-            color="text-emerald-600 dark:text-emerald-400"
-            bg="bg-emerald-500/10"
-          />
-          <StatTile
-            label="Cerrados"
-            value={workshopStats.closed}
-            color="text-muted-foreground"
-            bg="bg-muted/40"
-          />
-          <StatTile
-            label="Externos"
-            value={workshopStats.external}
-            color="text-sky-600 dark:text-sky-400"
-            bg="bg-sky-500/10"
-          />
-        </div>
-      )}
+      {/* Stats 4-card — siempre visible. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard icon={Pencil} label="Borradores" value={workshopStats.draft} />
+        <StatCard
+          icon={CheckCircle2}
+          label="Publicados"
+          value={workshopStats.published}
+          tone={workshopStats.published > 0 ? "success" : "default"}
+        />
+        <StatCard icon={Lock} label="Cerrados" value={workshopStats.closed} />
+        <StatCard icon={ExternalLink} label="Externos" value={workshopStats.external} />
+      </div>
 
       <ListFilters
         search={search}

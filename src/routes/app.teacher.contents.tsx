@@ -46,7 +46,7 @@ import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { RowAction } from "@/components/ui/row-action";
 import { DateCell } from "@/components/ui/date-cell";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatTile } from "@/components/ui/stat-tile";
+import { StatCard } from "@/components/ui/stat-card";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -875,34 +875,30 @@ function TeacherContents() {
         }
       />
 
-      {items.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <StatTile
-            label="Completados"
-            value={contentStats.done}
-            color="text-emerald-600 dark:text-emerald-400"
-            bg="bg-emerald-500/10"
-          />
-          <StatTile
-            label="Publicados"
-            value={contentStats.published}
-            color="text-sky-600 dark:text-sky-400"
-            bg="bg-sky-500/10"
-          />
-          <StatTile
-            label="En proceso"
-            value={contentStats.inProgress}
-            color="text-amber-600 dark:text-amber-400"
-            bg="bg-amber-500/10"
-          />
-          <StatTile
-            label="Fallidos"
-            value={contentStats.failed}
-            color="text-rose-600 dark:text-rose-400"
-            bg="bg-rose-500/10"
-          />
-        </div>
-      )}
+      {/* Stats 4-card — patrón compartido. Aparece SIEMPRE (incluso con
+          items.length === 0) para mantener consistencia visual con el
+          resto de los módulos cuando todavía no se generó contenido. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard
+          icon={CheckSquare}
+          label="Completados"
+          value={contentStats.done}
+          tone={contentStats.done > 0 ? "success" : "default"}
+        />
+        <StatCard icon={BookOpen} label="Publicados" value={contentStats.published} />
+        <StatCard
+          icon={RefreshCw}
+          label="En proceso"
+          value={contentStats.inProgress}
+          tone={contentStats.inProgress > 0 ? "warning" : "default"}
+        />
+        <StatCard
+          icon={AlertCircle}
+          label="Fallidos"
+          value={contentStats.failed}
+          tone={contentStats.failed > 0 ? "destructive" : "default"}
+        />
+      </div>
 
       <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
         <div className="flex-1 min-w-0">
