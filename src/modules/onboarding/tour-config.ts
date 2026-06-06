@@ -377,6 +377,42 @@ export const TEACHER_TOUR: TourStep[] = [
     side: "right",
   },
 
+  // ─── Estadísticas ───────────────────────────────────────────────────
+  {
+    element: '[data-tour-nav="/app/teacher/statistics"]',
+    title: "Estadísticas",
+    description:
+      "Métricas por curso: rendimiento promedio, distribución de notas, asistencia, uso de la IA. Útil para detectar alumnos en riesgo antes del cierre del corte.",
+    side: "right",
+  },
+
+  // ─── Prompts IA ─────────────────────────────────────────────────────
+  {
+    element: '[data-tour-nav="/app/teacher/ai-prompts"]',
+    title: "Prompts IA",
+    description:
+      "Personalizá los prompts que la IA usa al calificar TUS entregas. Override por curso del default que define el Admin. Útil cuando necesitás criterios específicos por materia.",
+    side: "right",
+  },
+
+  // ─── Videos ─────────────────────────────────────────────────────────
+  {
+    element: '[data-tour-nav="/app/videos"]',
+    title: "Biblioteca de videos",
+    description:
+      "Registro central de URLs (YouTube/Vimeo) y MP4 subidos. Los proyectos y talleres los referencian por ID — agregá una vez, reutilizá en muchos cursos.",
+    side: "right",
+  },
+
+  // ─── Certificados ───────────────────────────────────────────────────
+  {
+    element: '[data-tour-nav="/app/certificates"]',
+    title: "Certificados",
+    description:
+      "Certificados emitidos a tus alumnos al aprobar el curso. El Admin define la plantilla; vos verificás la lista de emisiones y reenvíos.",
+    side: "right",
+  },
+
   // ─── Cola IA ────────────────────────────────────────────────────────
   {
     element: '[data-tour-nav="/app/teacher/ai-cron"]',
@@ -540,6 +576,24 @@ export const STUDENT_TOUR: TourStep[] = [
     title: "Encuestas",
     description:
       "Encuestas del docente: opción única, múltiple o por cupo (estilo Doodle para elegir fecha de sustentación). Tu voto queda registrado y, si el docente lo permite, podés cambiarlo.",
+    side: "right",
+  },
+
+  // ─── Pizarras compartidas ───────────────────────────────────────────
+  {
+    element: '[data-tour-nav="/app/student/whiteboards"]',
+    title: "Pizarras compartidas",
+    description:
+      "Las pizarras que tu docente comparte con el curso. Read-only — podés ver los diagramas que él explicó en clase y volver a consultarlos cuando estudies.",
+    side: "right",
+  },
+
+  // ─── Calendario ─────────────────────────────────────────────────────
+  {
+    element: '[data-tour-nav="/app/student/calendar"]',
+    title: "Calendario",
+    description:
+      "Tu calendario unificado: clases, fechas de exámenes/talleres/proyectos. Exportable a Google Calendar (.ics) — instalá la suscripción y se sincroniza solo.",
     side: "right",
   },
 

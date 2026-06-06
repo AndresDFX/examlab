@@ -17,10 +17,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import {
-  getActiveRoleSignal,
-  subscribeActiveRole,
-} from "@/modules/tenants/active-role-signal";
+import { getActiveRoleSignal, subscribeActiveRole } from "@/modules/tenants/active-role-signal";
 
 type TourableRole = "Admin" | "Docente" | "Estudiante";
 
@@ -76,6 +73,24 @@ export function useOnboarding(): UseOnboardingResult {
     }, 1000);
     return () => clearTimeout(timer);
   }, [authLoading, profile, activeRole, completedLocal]);
+
+  // Registrar la PRIMERA vez que el tour se abre para este usuario.
+  // Reacciona a CUALQUIER transición de `shouldShowFor` a non-null
+  // (auto-trigger de primer login O `restart` manual). RPC idempotente:
+  // si onboarding_first_seen_at ya está seteado, no hace nada.
+  // Fire-and-forget; un fallo de red no bloquea la UX. Migración
+  // 20260817000000 crea la columna + la RPC.
+  useEffect(() => {
+    if (shouldShowFor === null) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    void (supabase as any)
+      .rpc("mark_onboarding_first_seen")
+      .then(({ error }: { error: { message: string } | null }) => {
+        if (error) {
+          console.warn("[onboarding] mark_onboarding_first_seen failed", error);
+        }
+      });
+  }, [shouldShowFor]);
 
   const complete = useCallback(async (role: TourableRole) => {
     // Optimista: actualizamos local primero para que la UI no parpadee
