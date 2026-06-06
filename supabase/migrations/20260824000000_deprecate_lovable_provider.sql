@@ -122,9 +122,29 @@ BEGIN
   END IF;
 END $$;
 
--- ── 4) Backfill: asegurar que tenants existentes sin row tienen una.
+-- ── 4) Dropear el unique partial legacy `idx_ai_model_one_active` que
+-- la mig 20260507110000 creó sobre `(is_active) WHERE is_active=true`
+-- (un singleton global, pre multi-tenant). La mig 20260625000000
+-- intentó reemplazarlo pero dropeó por el nombre equivocado
+-- (`idx_ai_model_settings_active`, con "settings"). El huérfano causa
+-- "duplicate key value violates unique constraint" cuando intentamos
+-- insertar la 2da row con is_active=true (uno por tenant).
+DROP INDEX IF EXISTS public.idx_ai_model_one_active;
+
+-- Re-asegurar que el unique per-tenant existe (idempotente).
+DO $$
+BEGIN
+  IF to_regclass('public.ai_model_settings') IS NOT NULL THEN
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_model_settings_active_per_tenant
+      ON public.ai_model_settings(tenant_id)
+      WHERE is_active = TRUE;
+  END IF;
+END $$;
+
+-- ── 5) Backfill: asegurar que tenants existentes sin row tienen una.
 -- Defensivo — si la mig 20260821100000 no corrió en algún entorno o
 -- algún tenant quedó sin row, la creamos acá con el provider correcto.
+-- DEPENDE del paso 4 (drop del unique legacy) para no fallar.
 DO $$
 BEGIN
   IF to_regclass('public.ai_model_settings') IS NOT NULL THEN

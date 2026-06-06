@@ -18,11 +18,13 @@
  */
 
 import { adminClient } from "./admin.ts";
+import { type AiProvider, normalizeProvider, normalizeModel } from "./ai-model-normalize.ts";
 
 // "lovable" se DEPRECÓ (mig 20260824000000) — el Lovable AI Gateway
 // usaba una key compartida que ya no se mantiene. Los providers
 // activos son Gemini directo (default) y OpenAI.
-export type AiProvider = "openai" | "gemini";
+export type { AiProvider };
+export { normalizeProvider, normalizeModel };
 
 export interface ActiveModel {
   provider: AiProvider;
@@ -118,14 +120,6 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
     gemini_api_key: string | null;
     openai_api_key: string | null;
   };
-  // Normaliza el provider legacy "lovable" a "gemini" en runtime — defensa
-  // para entornos donde la migración 20260824000000 todavía no corrió.
-  // Si llegamos a recibir "lovable" como provider, lo convertimos y
-  // limpiamos el model si trae el prefijo "google/" del gateway.
-  const normalizeProvider = (raw: string): AiProvider =>
-    raw === "openai" ? "openai" : "gemini";
-  const normalizeModel = (raw: string, prov: AiProvider): string =>
-    prov === "gemini" && raw.startsWith("google/") ? raw.slice("google/".length) : raw;
   const toActive = (row: Row, scope: "tenant" | "platform"): ActiveModel => {
     const p = normalizeProvider(row.provider);
     return {
