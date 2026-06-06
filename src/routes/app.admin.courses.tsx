@@ -3003,12 +3003,11 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
           <div className="flex flex-wrap items-end gap-2">
             <div className="space-y-1">
               <Label className="text-[11px]">{t("common.date")}</Label>
-              <Input
-                type="date"
+              <DatePicker
                 value={editingId ? "" : draftDate}
-                onChange={(e) => {
+                onChange={(v) => {
                   if (editingId) setEditingId(null);
-                  setDraftDate(e.target.value);
+                  setDraftDate(v);
                 }}
                 className="h-8 text-xs w-44"
               />
@@ -3114,10 +3113,9 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                       <div className="flex flex-wrap items-end gap-2">
                         <div className="space-y-1">
                           <Label className="text-[11px]">{t("common.date")}</Label>
-                          <Input
-                            type="date"
+                          <DatePicker
                             value={draftDate}
-                            onChange={(e) => setDraftDate(e.target.value)}
+                            onChange={setDraftDate}
                             className="h-8 text-xs w-44"
                           />
                         </div>

@@ -24,6 +24,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { DateTimePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
@@ -402,22 +403,14 @@ function ForumsList() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label>Apertura (opcional)</Label>
-                <Input
-                  type="datetime-local"
-                  value={newOpensAt}
-                  onChange={(e) => setNewOpensAt(e.target.value)}
-                />
+                <DateTimePicker value={newOpensAt} onChange={setNewOpensAt} />
                 <p className="text-xs text-muted-foreground mt-1">
                   Vacío = abierto desde ya.
                 </p>
               </div>
               <div>
                 <Label>Cierre automático (opcional)</Label>
-                <Input
-                  type="datetime-local"
-                  value={newClosesAt}
-                  onChange={(e) => setNewClosesAt(e.target.value)}
-                />
+                <DateTimePicker value={newClosesAt} onChange={setNewClosesAt} />
                 <p className="text-xs text-muted-foreground mt-1">
                   Vacío = sin cierre. Puedes cerrarlo manualmente cuando quieras.
                 </p>

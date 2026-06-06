@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Spinner } from "@/components/ui/spinner";
@@ -280,11 +281,7 @@ export function GenerateSessionsDialog({
                   })}
                 </HelpHint>
               </Label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
+              <DatePicker value={startDate} onChange={setStartDate} />
             </div>
             <div className="space-y-1.5 sm:col-span-1">
               <Label required>

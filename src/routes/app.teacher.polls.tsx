@@ -1326,11 +1326,7 @@ function CreatePollDialog({
                   cierres manualmente desde el listado.
                 </HelpHint>
               </Label>
-              <Input
-                type="datetime-local"
-                value={closesAt}
-                onChange={(e) => setClosesAt(e.target.value)}
-              />
+              <DateTimePicker value={closesAt} onChange={setClosesAt} />
               <p className="text-[11px] text-muted-foreground mt-1">
                 Vacío = abierta hasta que la cierres manualmente.
               </p>

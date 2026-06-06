@@ -10,6 +10,7 @@ import { useActiveRole } from "@/hooks/use-active-role";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -619,7 +620,13 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-4 sm:p-6 max-w-screen-xl mx-auto space-y-4">
+    // Wrapper sin padding/max-width propios — el contenedor padre
+    // (AppLayout o la tab de /app/admin/audit-logs) ya provee el
+    // padding y centrado estándar. Antes tenía `p-4 sm:p-6
+    // max-w-screen-xl mx-auto` que duplicaba el padding cuando se
+    // renderea adentro de Tabs y dejaba el grid más ancho que el
+    // resto de los módulos admin.
+    <div className="space-y-5">
       <PageHeader
         title={t("audit.title")}
         subtitle={mode === "admin" ? t("audit.subtitleAdmin") : t("audit.subtitleTeacher")}
@@ -776,24 +783,28 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
             {/* Separador entre "qué" y "cuándo". */}
             <div className="hidden sm:block w-px h-5 bg-border mx-1" aria-hidden />
 
-            {/* ── Grupo "cuándo" — rango de fechas + Limpiar ── */}
-            <div className="flex items-center gap-1 rounded-md border border-input bg-background h-9 px-1.5">
-              <Input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="h-7 w-32 text-sm border-0 px-1 focus-visible:ring-0 focus-visible:ring-offset-0"
-                title={t("audit.filters.from")}
-              />
-              <span className="text-muted-foreground text-xs">–</span>
-              <Input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="h-7 w-32 text-sm border-0 px-1 focus-visible:ring-0 focus-visible:ring-offset-0"
-                title={t("audit.filters.to")}
-              />
-            </div>
+            {/* ── Grupo "cuándo" — rango de fechas + Limpiar ──
+                Reemplazado <Input type="date"> nativo por DatePicker propio
+                (Popover + Calendar de react-day-picker). Motivos:
+                  - El nativo rendea con look del browser (fondo claro propio,
+                    glifo de calendario inconsistente) y rompía la coherencia
+                    con los Selects de al lado.
+                  - El nativo no respeta dark mode bien en algunos browsers.
+                  - El DatePicker propio usa Button outline que matchea
+                    visualmente con los SelectTrigger del resto de los filtros. */}
+            <DatePicker
+              value={dateFrom}
+              onChange={setDateFrom}
+              placeholder={t("audit.filters.from")}
+              className="h-9 w-40"
+            />
+            <span className="text-muted-foreground text-xs">–</span>
+            <DatePicker
+              value={dateTo}
+              onChange={setDateTo}
+              placeholder={t("audit.filters.to")}
+              className="h-9 w-40"
+            />
 
             {hasFilters && (
               <Button

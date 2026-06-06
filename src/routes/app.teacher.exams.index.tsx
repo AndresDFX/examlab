@@ -39,7 +39,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Pencil, GitBranch, Monitor, Copy, Trash2, FileText } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  GitBranch,
+  Monitor,
+  Copy,
+  Trash2,
+  FileText,
+  CheckCircle2,
+  Lock,
+  ExternalLink,
+} from "lucide-react";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DuplicateAssessmentDialog } from "@/shared/components/DuplicateAssessmentDialog";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
