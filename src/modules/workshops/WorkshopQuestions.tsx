@@ -39,6 +39,7 @@ import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialo
 import { CodeEditor, getStarterCode } from "@/modules/code/CodeEditor";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER, JAVAFX_STARTER } from "@/modules/code/JavaGuiRunner";
+import { PythonGuiRunner, PYTHON_GUI_STARTER } from "@/modules/code/PythonGuiRunner";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { IntroVideoGate, type IntroVideo } from "@/shared/components/IntroVideoGate";
@@ -63,7 +64,15 @@ import {
 export type WorkshopQuestion = {
   id: string;
   workshop_id: string;
-  type: "abierta" | "cerrada" | "cerrada_multi" | "codigo" | "diagrama" | "java_gui" | "codigo_zip";
+  type:
+    | "abierta"
+    | "cerrada"
+    | "cerrada_multi"
+    | "codigo"
+    | "diagrama"
+    | "java_gui"
+    | "python_gui"
+    | "codigo_zip";
   content: string;
   options: any;
   position: number;
@@ -245,7 +254,9 @@ export function TeacherWorkshopQuestionsEditor({
         ? qLanguage
         : qType === "java_gui"
           ? "java"
-          : null;
+          : qType === "python_gui"
+            ? "python"
+            : null;
 
     // Cast a any para `zip_single` — la columna se agrega en la migración
     // 20260607010000 y types.ts se regenera en el próximo publish de Lovable.
@@ -303,9 +314,11 @@ export function TeacherWorkshopQuestionsEditor({
             ? qJavaFramework === "javafx"
               ? JAVAFX_STARTER
               : JAVA_GUI_STARTER
-            : qType === "codigo"
-              ? getStarterCode(language) || null
-              : null,
+            : qType === "python_gui"
+              ? PYTHON_GUI_STARTER
+              : qType === "codigo"
+                ? getStarterCode(language) || null
+                : null,
       });
       if (error) {
         toast.error(friendlyError(error));
@@ -574,6 +587,7 @@ export function TeacherWorkshopQuestionsEditor({
                   <SelectItem value="codigo">Código</SelectItem>
                   <SelectItem value="diagrama">Diagrama (Mermaid)</SelectItem>
                   <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
+                  <SelectItem value="python_gui">Python GUI (tkinter)</SelectItem>
                   <SelectItem value="codigo_zip">Código (ZIP / multi-archivo)</SelectItem>
                 </SelectContent>
               </Select>
@@ -852,6 +866,7 @@ export function TeacherWorkshopQuestionsEditor({
                       <SelectItem value="codigo">Código</SelectItem>
                       <SelectItem value="diagrama">Diagrama</SelectItem>
                       <SelectItem value="java_gui">Java GUI</SelectItem>
+                      <SelectItem value="python_gui">Python GUI (tkinter)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1312,7 +1327,8 @@ export function StudentWorkshopTaker({
           submission_id: submissionId,
           question_id: q.id,
         };
-        if (q.type === "codigo" || q.type === "java_gui") payload.code_content = String(raw);
+        if (q.type === "codigo" || q.type === "java_gui" || q.type === "python_gui")
+          payload.code_content = String(raw);
         else if (q.type === "diagrama") payload.diagram_code = String(raw);
         else if (q.type === "cerrada") payload.selected_option = String(raw);
         else if (q.type === "cerrada_multi") {
@@ -1683,7 +1699,8 @@ export function StudentWorkshopTaker({
               rubric: String(q.expected_rubric ?? ""),
               userAnswer: String(raw),
               maxPoints: Number(q.points) || 0,
-              language: q.type === "java_gui" ? "java" : q.language,
+              language:
+                q.type === "java_gui" ? "java" : q.type === "python_gui" ? "python" : q.language,
               framework: q.type === "java_gui" ? (opts?.java_framework ?? "swing") : undefined,
             });
           }
@@ -2092,6 +2109,13 @@ export function StudentWorkshopTaker({
                   />
                 );
               })()}
+            {q.type === "python_gui" && (
+              <PythonGuiRunner
+                value={answers[q.id] ?? q.starter_code ?? PYTHON_GUI_STARTER}
+                onChange={(v) => updateAnswer(q.id, v)}
+                height="280px"
+              />
+            )}
             {q.type === "codigo_zip" &&
               q.zip_single &&
               (() => {

@@ -1832,12 +1832,17 @@ function TeacherWorkshops() {
           }
           batchItems.push({
             qid: q.id,
-            type: q.type === "java_gui" ? "codigo" : q.type,
+            // Mantenemos los tipos GUI como tales — el AI grader sabe
+            // distinguir java_gui/python_gui de 'codigo' y aplica la
+            // rúbrica específica de framework. Remapearlos a 'codigo'
+            // perdía ese contexto.
+            type: q.type,
             content: q.content,
             rubric: q.expected_rubric ?? "",
             userAnswer: trimmed,
             maxPoints: Number(q.points) || 0,
-            language: q.type === "java_gui" ? "java" : q.language,
+            language:
+              q.type === "java_gui" ? "java" : q.type === "python_gui" ? "python" : q.language,
           });
         }
 

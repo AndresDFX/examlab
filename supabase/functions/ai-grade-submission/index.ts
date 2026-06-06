@@ -123,14 +123,16 @@ interface BatchItem {
   /** Tipo de pregunta. Determina el preámbulo que se inserta en el
    *  prompt para que la IA califique correctamente. Si está ausente
    *  o es 'abierta', se usa el flujo estándar de respuesta abierta.
-   *  Valores conocidos: 'abierta' | 'codigo' | 'java_gui' | 'diagrama'. */
+   *  Valores conocidos: 'abierta' | 'codigo' | 'java_gui' | 'python_gui' | 'diagrama'. */
   type?: string;
-  /** Lenguaje del código (solo aplica a type='codigo' o 'java_gui').
-   *  Ej. 'java', 'python', 'javascript'. Para java_gui siempre 'java'. */
+  /** Lenguaje del código (solo aplica a type='codigo', 'java_gui' o 'python_gui').
+   *  Ej. 'java', 'python', 'javascript'. Para java_gui siempre 'java',
+   *  para python_gui siempre 'python'. */
   language?: string | null;
   /** Framework GUI (solo aplica a type='java_gui'): 'swing' | 'javafx'.
    *  Cambia las expectativas de la IA — Swing usa JFrame/JButton,
-   *  JavaFX usa Stage/Scene/Application.launch(). */
+   *  JavaFX usa Stage/Scene/Application.launch().
+   *  Para python_gui no aplica — solo tkinter está soportado. */
   framework?: string | null;
 }
 
@@ -175,6 +177,26 @@ function itemDirectiveForType(it: BatchItem): string {
       `NO penalices por falta de \`Thread.sleep\` ni por estructura "main" mínima: el runner del ` +
       `proyecto envuelve el código en un bootstrap que mantiene la JVM viva (Swing) o llama a ` +
       `\`Application.launch\` (JavaFX), así que el estudiante no necesita escribir esa plomería.\n`
+    );
+  }
+  if (t === "python_gui") {
+    return (
+      `[TIPO DE RESPUESTA: código Python con interfaz gráfica — framework TKINTER]\n` +
+      `Marco esperado: tkinter (módulo estándar de Python). Esperá ver \`import tkinter as tk\` ` +
+      `o \`from tkinter import ...\`, creación de un \`Tk()\` como ventana raíz, widgets ` +
+      `\`Label\`, \`Button\`, \`Entry\`, \`Frame\`, \`Text\`, \`Canvas\`, layouts con \`pack()\`, ` +
+      `\`grid()\` o \`place()\`, y al final \`root.mainloop()\`. Los handlers de eventos se ` +
+      `conectan con el parámetro \`command=\` de los widgets o con \`bind('<Event>', handler)\`.\n` +
+      `Evalúa específicamente: (1) la ventana raíz se crea correctamente y se ejecuta \`mainloop()\`; ` +
+      `(2) los widgets y el layout (\`pack\`/\`grid\`/\`place\`) coinciden con lo pedido en el enunciado; ` +
+      `(3) los handlers de eventos están bien conectados a los widgets; (4) no hay errores obvios ` +
+      `de sintaxis Python ni typos de nombres de widgets; (5) el código realmente RENDERIZA lo que ` +
+      `la rúbrica pide — no solo declara variables sueltas.\n` +
+      `NO penalices por no cerrar la ventana manualmente (\`root.after(..., root.destroy)\`) ni por ` +
+      `omitir \`root.mainloop()\` si el resto del código es coherente: el runner del proyecto ` +
+      `envuelve el código en un bootstrap que monkey-patchea \`Tk.__init__\` para cerrar ` +
+      `automáticamente y, si falta el \`mainloop()\`, lo invoca él. El estudiante no necesita ` +
+      `escribir esa plomería.\n`
     );
   }
   if (t === "diagrama") {
@@ -2442,8 +2464,17 @@ Idioma de salida: ${langName}.`,
         // q.options puede contener `java_framework` para preguntas
         // tipo java_gui. Lo extraemos para que la IA sepa si el
         // código es Swing o JavaFX (cambia la rúbrica esperada).
+        // python_gui no tiene framework alternativo (solo tkinter).
         const optsAny = q.options as { java_framework?: string } | null | undefined;
         const fw = optsAny?.java_framework;
+        // language implícito según tipo: java_gui → java, python_gui → python.
+        // Para tipos no-GUI usamos el campo q.language (si fue declarado).
+        const impliedLanguage =
+          q.type === "java_gui"
+            ? "java"
+            : q.type === "python_gui"
+              ? "python"
+              : (q.language ?? undefined);
         return {
           qid: q.id,
           content: String(q.content ?? ""),
@@ -2451,8 +2482,7 @@ Idioma de salida: ${langName}.`,
           userAnswer,
           maxPoints: Number(q.points),
           type: q.type,
-          // java_gui implica language=java aunque el campo no esté seteado.
-          language: q.type === "java_gui" ? "java" : (q.language ?? undefined),
+          language: impliedLanguage,
           framework: q.type === "java_gui" ? (fw ?? "swing") : undefined,
         };
       });

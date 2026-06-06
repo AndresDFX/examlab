@@ -29,11 +29,16 @@ const db = supabase as any;
 
 type CodeProvider = "onlinecompiler" | "jdoodle" | "cheerp" | "aws_lambda";
 type JavaGuiProvider = "cheerp" | "aws_screenshot";
+// Solo aws_screenshot por ahora — no existe Pyodide+tkinter en WASM.
+// Modelado como type union para que TS reclame si se añade un valor en
+// el CHECK sin extender el front.
+type PythonGuiProvider = "aws_screenshot";
 
 type ProviderRow = {
   id: string;
   provider: CodeProvider;
   java_gui_provider: JavaGuiProvider;
+  python_gui_provider: PythonGuiProvider;
   is_active: boolean;
 };
 
@@ -51,6 +56,25 @@ const JAVA_GUI_DESCRIPTION: Record<JavaGuiProvider, string> = {
 
 const JAVA_GUI_SECRETS: Record<JavaGuiProvider, string[]> = {
   cheerp: [],
+  aws_screenshot: [
+    "AWS_RUNNER_URL (mismo endpoint que el provider aws_lambda)",
+    "AWS_RUNNER_API_KEY",
+  ],
+};
+
+// Python GUI (tkinter). Hoy solo hay un provider: AWS Lambda con Xvfb
+// + tkinter (server-side, captura PNG). El alumno NO interactúa. No
+// existe equivalente client-side (no hay Pyodide+tkinter en WASM).
+const PYTHON_GUI_LABELS: Record<PythonGuiProvider, string> = {
+  aws_screenshot: "AWS Lambda + Xvfb — captura PNG (no interactivo)",
+};
+
+const PYTHON_GUI_DESCRIPTION: Record<PythonGuiProvider, string> = {
+  aws_screenshot:
+    "AWS Lambda corre la app tkinter bajo Xvfb (display virtual) y devuelve UNA captura PNG. El alumno solo VE la ventana — no puede clickear ni probar eventos. Requiere desplegar la misma Lambda que para Java GUI (ya tiene Python + tkinter en el container).",
+};
+
+const PYTHON_GUI_SECRETS: Record<PythonGuiProvider, string[]> = {
   aws_screenshot: [
     "AWS_RUNNER_URL (mismo endpoint que el provider aws_lambda)",
     "AWS_RUNNER_API_KEY",
@@ -91,6 +115,7 @@ export function AdminCodeExecutionPanel() {
   const [activeRow, setActiveRow] = useState<ProviderRow | null>(null);
   const [draftProvider, setDraftProvider] = useState<CodeProvider>("onlinecompiler");
   const [draftJavaGui, setDraftJavaGui] = useState<JavaGuiProvider>("cheerp");
+  const [draftPythonGui, setDraftPythonGui] = useState<PythonGuiProvider>("aws_screenshot");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -101,7 +126,7 @@ export function AdminCodeExecutionPanel() {
     setLoadError(null);
     const { data, error } = await db
       .from("code_execution_settings")
-      .select("id, provider, java_gui_provider, is_active")
+      .select("id, provider, java_gui_provider, python_gui_provider, is_active")
       .eq("is_active", true)
       .maybeSingle();
     if (error) {
@@ -114,6 +139,7 @@ export function AdminCodeExecutionPanel() {
       setActiveRow(row);
       setDraftProvider(row.provider);
       setDraftJavaGui((row.java_gui_provider as JavaGuiProvider) ?? "cheerp");
+      setDraftPythonGui((row.python_gui_provider as PythonGuiProvider) ?? "aws_screenshot");
     }
     setLoading(false);
   };
@@ -126,7 +152,8 @@ export function AdminCodeExecutionPanel() {
   const dirty =
     !activeRow ||
     draftProvider !== activeRow.provider ||
-    draftJavaGui !== (activeRow.java_gui_provider ?? "cheerp");
+    draftJavaGui !== (activeRow.java_gui_provider ?? "cheerp") ||
+    draftPythonGui !== (activeRow.python_gui_provider ?? "aws_screenshot");
 
   const handleSave = async () => {
     if (!user) return;
@@ -146,6 +173,7 @@ export function AdminCodeExecutionPanel() {
       const { error: insErr } = await db.from("code_execution_settings").insert({
         provider: draftProvider,
         java_gui_provider: draftJavaGui,
+        python_gui_provider: draftPythonGui,
         is_active: true,
         updated_by: user.id,
       });
@@ -159,12 +187,14 @@ export function AdminCodeExecutionPanel() {
         category: "system",
         severity: "warning",
         entityType: "code_execution_settings",
-        entityName: `${draftProvider} / ${draftJavaGui}`,
+        entityName: `${draftProvider} / ${draftJavaGui} / ${draftPythonGui}`,
         metadata: {
           previous_provider: activeRow?.provider ?? null,
           new_provider: draftProvider,
           previous_java_gui_provider: activeRow?.java_gui_provider ?? null,
           new_java_gui_provider: draftJavaGui,
+          previous_python_gui_provider: activeRow?.python_gui_provider ?? null,
+          new_python_gui_provider: draftPythonGui,
         },
       });
 
@@ -295,6 +325,50 @@ export function AdminCodeExecutionPanel() {
             </RadioGroup>
           </div>
 
+          {/* Selector para python_gui (tkinter). Solo un provider posible
+              hoy (aws_screenshot) — lo dejamos como RadioGroup igual para
+              que la UX sea consistente con java_gui y para que extender
+              en el futuro sea solo añadir un valor al array. */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium flex items-center gap-1.5">
+              <MonitorPlay className="h-4 w-4 text-sky-600" />
+              Proveedor para preguntas <code className="text-[11px]">python_gui</code>
+              <HelpHint>
+                Estas preguntas piden al alumno construir una UI con tkinter. El runner corre el
+                código en el servidor (AWS Lambda + Xvfb) y devuelve una captura PNG. No hay
+                equivalente client-side: no existe Pyodide+tkinter en WebAssembly.
+              </HelpHint>
+            </Label>
+            <RadioGroup
+              value={draftPythonGui}
+              onValueChange={(v) => setDraftPythonGui(v as PythonGuiProvider)}
+              className="space-y-2"
+            >
+              {(["aws_screenshot"] as PythonGuiProvider[]).map((p) => (
+                <div
+                  key={p}
+                  className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                    draftPythonGui === p
+                      ? "border-sky-500 bg-sky-50 dark:bg-sky-950/20"
+                      : "hover:bg-muted/50"
+                  }`}
+                  onClick={() => setDraftPythonGui(p)}
+                >
+                  <RadioGroupItem value={p} id={`python-gui-${p}`} className="mt-0.5" />
+                  <div className="space-y-0.5">
+                    <Label
+                      htmlFor={`python-gui-${p}`}
+                      className="text-sm font-medium cursor-pointer"
+                    >
+                      {PYTHON_GUI_LABELS[p]}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">{PYTHON_GUI_DESCRIPTION[p]}</p>
+                  </div>
+                </div>
+              ))}
+            </RadioGroup>
+          </div>
+
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs space-y-2">
@@ -326,6 +400,21 @@ export function AdminCodeExecutionPanel() {
                   </ul>
                 </div>
               )}
+              {PYTHON_GUI_SECRETS[draftPythonGui].length > 0 && (
+                <div>
+                  <p>
+                    Secrets para <strong>{PYTHON_GUI_LABELS[draftPythonGui]}</strong> (tipo{" "}
+                    <code className="text-[11px]">python_gui</code>):
+                  </p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    {PYTHON_GUI_SECRETS[draftPythonGui].map((s) => (
+                      <li key={s}>
+                        <code className="text-[11px]">{s}</code>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <p className="pt-1">
                 Configúralos en Admin → Edge Function Secrets antes de activar.
               </p>
@@ -340,6 +429,9 @@ export function AdminCodeExecutionPanel() {
                 onClick={() => {
                   setDraftProvider(activeRow.provider);
                   setDraftJavaGui((activeRow.java_gui_provider as JavaGuiProvider) ?? "cheerp");
+                  setDraftPythonGui(
+                    (activeRow.python_gui_provider as PythonGuiProvider) ?? "aws_screenshot",
+                  );
                 }}
                 disabled={saving}
               >
@@ -347,11 +439,7 @@ export function AdminCodeExecutionPanel() {
               </Button>
             )}
             <Button size="sm" onClick={handleSave} disabled={saving || !dirty}>
-              {saving ? (
-                <Spinner size="md" className="mr-1" />
-              ) : (
-                <Save className="h-4 w-4 mr-1" />
-              )}
+              {saving ? <Spinner size="md" className="mr-1" /> : <Save className="h-4 w-4 mr-1" />}
               Guardar configuración
             </Button>
           </div>

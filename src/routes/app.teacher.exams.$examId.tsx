@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/dialog";
 import { TeacherExamNotes } from "@/modules/exams/ExamNotesManager";
 import { JAVA_GUI_STARTER, JAVAFX_STARTER } from "@/modules/code/JavaGuiRunner";
+import { PYTHON_GUI_STARTER } from "@/modules/code/PythonGuiRunner";
 import { getStarterCode } from "@/modules/code/CodeEditor";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
@@ -441,10 +442,16 @@ function ExamEditor() {
   const submitQuestion = async () => {
     if (!qContent.trim()) return toast.error("Contenido requerido");
     if (
-      (qType === "abierta" || qType === "codigo" || qType === "diagrama" || qType === "java_gui") &&
+      (qType === "abierta" ||
+        qType === "codigo" ||
+        qType === "diagrama" ||
+        qType === "java_gui" ||
+        qType === "python_gui") &&
       !qRubric.trim()
     )
-      return toast.error("Rúbrica requerida para preguntas abiertas/código/diagrama/Java GUI");
+      return toast.error(
+        "Rúbrica requerida para preguntas abiertas/código/diagrama/Java GUI/Python GUI",
+      );
     // Validaciones específicas para cerrada_multi
     if (qType === "cerrada_multi") {
       if (qCorrectIndices.length === 0) {
@@ -469,7 +476,16 @@ function ExamEditor() {
           : qType === "java_gui"
             ? { java_framework: qJavaFramework }
             : null;
-    const language = qType === "codigo" ? qLanguage : qType === "java_gui" ? "java" : null;
+    // language implícito por tipo: java_gui → java, python_gui → python.
+    // Para 'codigo' usamos lo que eligió el docente.
+    const language =
+      qType === "codigo"
+        ? qLanguage
+        : qType === "java_gui"
+          ? "java"
+          : qType === "python_gui"
+            ? "python"
+            : null;
 
     if (editingId) {
       // UPDATE: no tocamos position ni starter_code para no clobberar lo que
@@ -518,9 +534,11 @@ function ExamEditor() {
             ? qJavaFramework === "javafx"
               ? JAVAFX_STARTER
               : JAVA_GUI_STARTER
-            : qType === "codigo"
-              ? getStarterCode(language) || null
-              : null,
+            : qType === "python_gui"
+              ? PYTHON_GUI_STARTER
+              : qType === "codigo"
+                ? getStarterCode(language) || null
+                : null,
       });
       if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
       toast.success("Pregunta agregada correctamente");
@@ -1218,6 +1236,7 @@ function ExamEditor() {
                           <SelectItem value="codigo">Código</SelectItem>
                           <SelectItem value="diagrama">Diagrama</SelectItem>
                           <SelectItem value="java_gui">Java GUI</SelectItem>
+                          <SelectItem value="python_gui">Python GUI (tkinter)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1346,6 +1365,7 @@ function ExamEditor() {
                       <SelectItem value="codigo">Código</SelectItem>
                       <SelectItem value="diagrama">Diagrama</SelectItem>
                       <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
+                      <SelectItem value="python_gui">Python GUI (tkinter)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

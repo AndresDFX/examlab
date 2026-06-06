@@ -32,6 +32,7 @@ import { CodeEditor, type CodeLanguage, getStarterCode } from "@/modules/code/Co
 import { CodeRunnerPicker, type CodeRunnerProvider } from "@/modules/code/CodeRunnerPicker";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER, JAVAFX_STARTER } from "@/modules/code/JavaGuiRunner";
+import { PythonGuiRunner, PYTHON_GUI_STARTER } from "@/modules/code/PythonGuiRunner";
 import {
   saveAnswersLocally,
   isOnline,
@@ -114,7 +115,7 @@ function isQuestionAnswered(q: Question, answers: Record<string, unknown>): bool
     if (Number.isFinite(min) && min > 0 && v.length < min) return false;
     return true;
   }
-  if (q.type === "codigo" || q.type === "java_gui") {
+  if (q.type === "codigo" || q.type === "java_gui" || q.type === "python_gui") {
     // Si no hay starter_code en la BD pero la pregunta es Java codigo,
     // el editor muestra JAVA_STARTER por defecto — eso cuenta como
     // tener contenido visible (se persistirá en mergeStarterCodeAnswers).
@@ -144,7 +145,7 @@ function mergeStarterCodeAnswers(
 ): Record<string, unknown> {
   const next = { ...answers };
   for (const q of questions) {
-    if (q.type !== "codigo" && q.type !== "java_gui") continue;
+    if (q.type !== "codigo" && q.type !== "java_gui" && q.type !== "python_gui") continue;
     const cur = next[q.id];
     const empty = cur === undefined || cur === null || String(cur).trim() === "";
     if (!empty) continue;
@@ -1886,6 +1887,14 @@ function TakeExam() {
                         />
                       );
                     })()}
+                  </div>
+                ) : q.type === "python_gui" ? (
+                  <div onBlur={saveAnswersNow}>
+                    <PythonGuiRunner
+                      value={answers[q.id] ?? q.starter_code ?? PYTHON_GUI_STARTER}
+                      onChange={(v) => updateAnswer(q.id, v)}
+                      height="280px"
+                    />
                   </div>
                 ) : (
                   (() => {

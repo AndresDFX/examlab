@@ -1,20 +1,28 @@
 """
-AWS Lambda handler — compila y ejecuta código Java del estudiante.
+AWS Lambda handler — compila y ejecuta código del estudiante (Java o Python).
 
-Invocado vía API Gateway HTTP API. El edge function `execute-code` (modo
-consola) o `execute-java-gui-screenshot` (modo GUI) de Supabase llama el
-endpoint con shared secret en `X-API-Key`.
+Invocado vía API Gateway HTTP API. Los edge functions de Supabase
+(`execute-code`, `execute-java-gui-screenshot`, `execute-python-gui-screenshot`)
+llaman el endpoint con shared secret en `X-API-Key`.
 
 Modos (en el body, campo `mode`):
- - `run` (default): compila con javac + ejecuta con java; retorna
-   stdout/stderr/exitCode. Es lo que usa una pregunta tipo `codigo` en
-   lenguaje Java.
+ - `run` (default): ejecuta código por consola. El `language` del body
+   determina el toolchain:
+     - `language='java'` (default): javac + java.
+     - `language='python'`: python3 (AL2023 system python, /usr/bin/python3).
+   Retorna stdout/stderr/exitCode. Es lo que usa una pregunta tipo
+   `codigo` cuando el admin elige AWS Lambda como provider.
  - `gui_screenshot`: arranca Xvfb en :99, compila + ejecuta Java con
    DISPLAY=:99 en background, duerme `delayMs` para que Swing pinte,
-   captura `import -window root` a PNG y lo retorna en base64. Es lo
+   captura el framebuffer raw a PNG y lo retorna en base64. Es lo
    que usa una pregunta tipo `java_gui` cuando el admin configuró
    `java_gui_provider = aws_screenshot`. NO es interactivo — el alumno
    solo ve la captura, no puede clickear.
+ - `tkinter_screenshot`: análogo al `gui_screenshot` de Java pero para
+   tkinter. Arranca Xvfb, corre el código del estudiante a través de
+   `TkinterBootstrap.py` (wrapper que monkey-patchea `Tk.__init__` para
+   auto-destruir la ventana tras `sleepMs`), captura el framebuffer y
+   retorna PNG base64. Usado en preguntas tipo `python_gui`.
 
 Seguridad:
  - Lambda corre en Firecracker microVM (sandbox real por invocación).
@@ -112,6 +120,17 @@ GUI_MAX_PNG_BYTES = 2_000_000
 # Captura del nombre de la clase pública para invocar `java <Name>`.
 # Si no encuentra, asume `Main` (convención del editor del alumno).
 CLASS_RE = re.compile(r"public\s+class\s+([A-Za-z_$][A-Za-z0-9_$]*)")
+
+# ── Python runner ─────────────────────────────────────────────────────
+# Python del estudiante corre con el `python3` que ofrece AL2023 (instalado
+# vía dnf en el Dockerfile junto con `python3-tkinter`). NO usamos el Python
+# bundled del Lambda runtime (/var/lang/bin/python3.13) porque ese no tiene
+# `tkinter` — Amazon Lambda compila su Python sin Tk/Tcl. La JVM y el
+# binario `python3` AL2023 conviven sin choque (rutas distintas).
+PYTHON_BIN = "/usr/bin/python3"
+# Timeout de ejecución para Python (consola). Mismo orden que Java; los
+# scripts del alumno no deberían tardar más que esto.
+PYTHON_EXECUTE_TIMEOUT_S = 20
 
 
 def _resp(status: int, body: dict) -> dict:
@@ -608,6 +627,268 @@ def _handle_gui_screenshot(
         }
 
 
+def _handle_python_run(
+    source: str,
+    stdin: str,
+    request_id: str,
+    start: float,
+) -> dict:
+    """Ejecuta código Python del estudiante con subprocess + timeout.
+
+    Análogo a la rama `run` con `language='java'` pero sin compilación —
+    Python se interpreta directamente. Usamos el `python3` del sistema
+    AL2023 (instalado en el Dockerfile junto con `python3-tkinter`) en
+    lugar del bundled Lambda Python 3.13 porque ese no incluye tkinter
+    (Amazon Lambda lo compila sin Tk/Tcl). Para el modo `run` no
+    necesitamos tkinter pero usamos el mismo binario para que el
+    comportamiento sea idéntico entre `run` y `tkinter_screenshot` (misma
+    versión de Python, mismo PATH, mismas dependencias instaladas).
+
+    -u (unbuffered): garantiza que stdout/stderr lleguen antes del kill
+    por timeout. Sin esto un script con bucle largo + prints podía
+    aparecer vacío en la respuesta aunque hubiera generado output.
+    """
+    with tempfile.TemporaryDirectory(dir="/tmp") as tmp:
+        source_path = os.path.join(tmp, "main.py")
+        with open(source_path, "w", encoding="utf-8") as f:
+            f.write(source)
+        try:
+            proc = subprocess.run(
+                [PYTHON_BIN, "-u", source_path],
+                input=stdin,
+                capture_output=True,
+                text=True,
+                timeout=PYTHON_EXECUTE_TIMEOUT_S,
+                cwd=tmp,
+            )
+            stdout_text = _truncate(proc.stdout or "")
+            stderr_text = _truncate(proc.stderr or "")
+            time_ms = int((time.time() - start) * 1000)
+            logger.info(
+                "◀ RESPONSE id=%s phase=python_executed exit=%d time_ms=%d stdout_len=%d stderr_len=%d",
+                request_id,
+                proc.returncode,
+                time_ms,
+                len(stdout_text),
+                len(stderr_text),
+            )
+            _log_preview("RESPONSE.stdout", stdout_text, max_chars=2000)
+            if stderr_text:
+                _log_preview("RESPONSE.stderr", stderr_text, max_chars=1000)
+            return {
+                "stdout": stdout_text,
+                "stderr": stderr_text,
+                "exitCode": proc.returncode,
+                "executionTimeMs": time_ms,
+            }
+        except subprocess.TimeoutExpired:
+            logger.warning(
+                "◀ RESPONSE id=%s phase=python_execute_timeout time_ms=%d",
+                request_id,
+                PYTHON_EXECUTE_TIMEOUT_S * 1000,
+            )
+            return {
+                "stdout": "",
+                "stderr": (
+                    f"Ejecución excedió el tiempo límite ({PYTHON_EXECUTE_TIMEOUT_S}s). "
+                    "¿Bucle infinito o input que nunca recibe stdin?"
+                ),
+                "exitCode": 124,
+                "executionTimeMs": PYTHON_EXECUTE_TIMEOUT_S * 1000,
+            }
+
+
+def _handle_tkinter_screenshot(
+    source: str,
+    delay_ms: int,
+    request_id: str,
+    start: float,
+) -> dict:
+    """Ejecuta código tkinter del estudiante con Xvfb y retorna captura PNG.
+
+    Mismo flujo que `_handle_gui_screenshot` para Java pero con un wrapper
+    Python (`TkinterBootstrap.py`) en lugar de `GuiBootstrap.java`. El
+    wrapper monkey-patchea `tkinter.Tk.__init__` para programar un
+    `after(sleepMs, destroy)` automáticamente — el alumno NO necesita
+    poner el `mainloop()` ni cerrar la ventana manualmente.
+
+    Tkinter requiere que `mainloop()` corra para que las ventanas se
+    pinten. El bootstrap se encarga: si el script del estudiante lo
+    llama, perfecto; si no, el wrapper lo invoca después de ejecutar el
+    código del estudiante.
+
+    Diferencias vs Java GUI:
+      - No hay compile step (Python es interpretado).
+      - Solo tkinter por ahora — no extendemos a otros frameworks GUI
+        de Python (PyQt, wx, kivy) por footprint del container (~+200MB
+        cada uno). Si en el futuro se requieren, se añadirían como
+        modes adicionales con sus propios paquetes.
+    """
+    delay_ms = max(200, min(GUI_MAX_DELAY_MS, delay_ms))
+
+    with tempfile.TemporaryDirectory(dir="/tmp") as tmp:
+        student_path = os.path.join(tmp, "student.py")
+        with open(student_path, "w", encoding="utf-8") as f:
+            f.write(source)
+
+        # ── Arrancar Xvfb ──
+        try:
+            xvfb_proc = _start_xvfb()
+        except Exception as e:
+            return {
+                "mode": "tkinter_screenshot",
+                "stdout": "",
+                "stderr": f"No se pudo iniciar Xvfb: {e}",
+                "exitCode": 1,
+                "screenshotBase64": None,
+                "executionTimeMs": int((time.time() - start) * 1000),
+            }
+
+        # ── Ejecutar TkinterBootstrap.py en background con DISPLAY ──
+        # El bootstrap lee EXAMLAB_STUDENT_PATH del env y EXAMLAB_GUI_SLEEP_MS
+        # para decidir cuándo destruir la ventana automáticamente. Estamos
+        # 200ms por debajo del delay total para que el wrapper alcance a
+        # llamar destroy() + retornar antes de que matemos el proceso.
+        env = os.environ.copy()
+        env["DISPLAY"] = GUI_DISPLAY
+        env["EXAMLAB_STUDENT_PATH"] = student_path
+        env["EXAMLAB_GUI_SLEEP_MS"] = str(max(500, delay_ms - 200))
+
+        py_proc = subprocess.Popen(
+            [PYTHON_BIN, "-u", "/opt/TkinterBootstrap.py"],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=tmp,
+        )
+
+        # Espera SIEMPRE el delay completo — mismo razonamiento que en
+        # _handle_gui_screenshot: si el alumno no llama `mainloop()` el
+        # wrapper lo hace por él, pero el framebuffer puede tardar en
+        # estabilizarse. Loggeamos early_exit pero no rompemos el wait.
+        deadline = time.time() + (delay_ms / 1000.0)
+        early_exit = None
+        while time.time() < deadline:
+            rc = py_proc.poll()
+            if rc is not None and early_exit is None:
+                early_exit = rc
+            time.sleep(0.05)
+
+        # ── Capturar framebuffer raw → PNG con Pillow ──
+        # Lógica idéntica al handler Java: leemos /tmp/Xvfb_screen0
+        # (mmap del framebuffer de Xvfb con -fbdir /tmp) como BGRX y
+        # codificamos a PNG in-process. Mantener la duplicación a propósito
+        # — extraer a helper acoplaría dos flujos que pueden divergir en
+        # el futuro (ej. resolución distinta para Python).
+        screenshot_path = os.path.join(tmp, "screenshot.png")
+        fb_path = "/tmp/Xvfb_screen0"
+        capture_ok = False
+        capture_err = ""
+        expected_bytes = GUI_WIDTH * GUI_HEIGHT * 4
+        try:
+            if not os.path.exists(fb_path):
+                capture_err = (
+                    f"Xvfb no creó el framebuffer en {fb_path} — "
+                    "verifica que arrancó con '-fbdir /tmp'."
+                )
+            else:
+                fb_size = os.path.getsize(fb_path)
+                if fb_size < expected_bytes:
+                    capture_err = (
+                        f"Framebuffer truncado: {fb_size} bytes, "
+                        f"esperaba >= {expected_bytes}."
+                    )
+                else:
+                    with open(fb_path, "rb") as fh:
+                        fb_data = fh.read(expected_bytes)
+                    from PIL import Image  # noqa: PLC0415
+                    img = Image.frombytes(
+                        "RGB",
+                        (GUI_WIDTH, GUI_HEIGHT),
+                        fb_data,
+                        "raw",
+                        "BGRX",
+                    )
+                    img.save(screenshot_path, "PNG", optimize=True)
+                    capture_ok = os.path.exists(screenshot_path)
+                    if not capture_ok:
+                        capture_err = "Pillow no creó el archivo PNG de salida"
+        except OSError as e:
+            capture_err = f"Error de I/O leyendo framebuffer: {e}"
+        except Exception as e:  # noqa: BLE001
+            capture_err = f"Pillow PNG encode failed: {type(e).__name__}: {e}"
+
+        # ── Cleanup: matar Python y Xvfb ──
+        _kill_quiet(py_proc)
+        _kill_quiet(xvfb_proc)
+
+        # ── Recoger stdout/stderr del proceso Python ──
+        try:
+            stdout_text, stderr_text = py_proc.communicate(timeout=2)
+        except Exception:
+            stdout_text, stderr_text = (b"", b"")
+        stdout_str = _truncate(
+            (stdout_text or b"").decode("utf-8", "replace"), limit=10_000
+        )
+        stderr_str = _truncate(
+            (stderr_text or b"").decode("utf-8", "replace"), limit=10_000
+        )
+
+        time_ms = int((time.time() - start) * 1000)
+
+        if not capture_ok:
+            logger.warning(
+                "◀ RESPONSE id=%s phase=tkinter_capture_failed time_ms=%d err=%s",
+                request_id,
+                time_ms,
+                capture_err[:200],
+            )
+            return {
+                "mode": "tkinter_screenshot",
+                "stdout": stdout_str,
+                "stderr": (
+                    stderr_str
+                    + "\n[runner] No se pudo capturar la pantalla: "
+                    + (capture_err or "razón desconocida")
+                ).strip(),
+                "exitCode": early_exit if early_exit is not None else 1,
+                "screenshotBase64": None,
+                "executionTimeMs": time_ms,
+            }
+
+        with open(screenshot_path, "rb") as f:
+            png_bytes = f.read()
+
+        if len(png_bytes) > GUI_MAX_PNG_BYTES:
+            return {
+                "mode": "tkinter_screenshot",
+                "stdout": stdout_str,
+                "stderr": stderr_str
+                + f"\n[runner] PNG demasiado grande ({len(png_bytes)} bytes)",
+                "exitCode": 1,
+                "screenshotBase64": None,
+                "executionTimeMs": time_ms,
+            }
+
+        b64 = base64.b64encode(png_bytes).decode("ascii")
+        logger.info(
+            "◀ RESPONSE id=%s phase=tkinter_ok time_ms=%d png_bytes=%d early_exit=%s",
+            request_id,
+            time_ms,
+            len(png_bytes),
+            str(early_exit),
+        )
+        return {
+            "mode": "tkinter_screenshot",
+            "stdout": stdout_str,
+            "stderr": stderr_str,
+            "exitCode": early_exit if early_exit is not None else 0,
+            "screenshotBase64": b64,
+            "pngBytes": len(png_bytes),
+            "executionTimeMs": time_ms,
+        }
+
+
 def _handle_diagnose() -> dict:
     """Devuelve un snapshot del runtime para debugar issues de carga de
     .so como `UnsatisfiedLinkError: libawt_xawt.so`. Lo invoca
@@ -659,6 +940,17 @@ def _handle_diagnose() -> dict:
         "pillow_version": run(
             ["python3", "-c", "from PIL import Image; print(Image.__version__)"]
         ),
+        # Python AL2023 (usado para preguntas tipo `codigo` con
+        # language='python' y `python_gui` con tkinter). Distinto del
+        # bundled Lambda Python 3.13 (que ejecuta este handler).
+        "system_python_version": run([PYTHON_BIN, "--version"]),
+        "system_python_path": PYTHON_BIN,
+        "tkinter_version": run(
+            [PYTHON_BIN, "-c", "import tkinter; print('tkinter OK:', tkinter.TkVersion)"]
+        ),
+        "tkinter_bootstrap_exists": run(
+            ["bash", "-c", "ls -la /opt/TkinterBootstrap.py 2>&1 || echo '(no existe)'"]
+        ),
         # /tmp/Xvfb_screen0 solo existe si Xvfb arrancó alguna vez en
         # este container warm. En frío puede no existir todavía — la
         # ausencia no es bug, solo el caso "no se ha hecho captura aún".
@@ -698,14 +990,28 @@ def handler(event, _context):
     source = body.get("sourceCode", "")
     stdin = body.get("stdin", "") or ""
     mode = str(body.get("mode") or "run").lower()
+    # `language` (default 'java') determina el toolchain para `mode='run'`.
+    # Los modos GUI infieren el lenguaje del modo mismo (gui_screenshot→java,
+    # tkinter_screenshot→python), así que el campo se ignora ahí.
+    # Default 'java' para retro-compatibilidad con callers viejos del edge
+    # que no mandaban este campo (solo Java existía).
+    language = str(body.get("language") or "java").lower()
     # `diagnose` no requiere sourceCode — inspecciona el entorno del
     # runtime de Lambda y devuelve datos útiles para debuggear el caso
     # "el build pasó el ldd check pero en runtime el .so no carga".
     # Lo dispara `./deploy.sh` después del GUI self-test cuando éste falla.
     if mode == "diagnose":
         return _resp(200, _handle_diagnose())
-    if mode not in ("run", "gui_screenshot"):
-        return _resp(400, {"error": f"mode inválido: {mode}. Opciones: run, gui_screenshot, diagnose."})
+    if mode not in ("run", "gui_screenshot", "tkinter_screenshot"):
+        return _resp(
+            400,
+            {"error": f"mode inválido: {mode}. Opciones: run, gui_screenshot, tkinter_screenshot, diagnose."},
+        )
+    if mode == "run" and language not in ("java", "python"):
+        return _resp(
+            400,
+            {"error": f"language inválido para mode=run: {language}. Opciones: java, python."},
+        )
     if not isinstance(source, str) or not source.strip():
         return _resp(400, {"error": "sourceCode requerido"})
     if not isinstance(stdin, str):
@@ -715,9 +1021,14 @@ def handler(event, _context):
     if len(stdin.encode("utf-8")) > MAX_STDIN_BYTES:
         return _resp(400, {"error": f"stdin demasiado largo (máx {MAX_STDIN_BYTES} bytes)"})
 
-    # ── Derivar nombre de la clase pública ──
-    m = CLASS_RE.search(source)
-    main_class = m.group(1) if m else "Main"
+    # ── Derivar nombre de la clase pública (solo aplica a Java) ──
+    # En Python no hay concepto de "clase pública" — el bootstrap importa
+    # el archivo entero. Solo lo extraemos para los flujos Java.
+    main_class = "Main"
+    if mode == "gui_screenshot" or (mode == "run" and language == "java"):
+        m = CLASS_RE.search(source)
+        if m:
+            main_class = m.group(1)
 
     # ── Log del request (CloudWatch) ──
     # Útil para auditar qué código está corriendo el alumno cuando algo
@@ -725,10 +1036,11 @@ def handler(event, _context):
     # que no infle storage de logs); el stdin a 500.
     request_id = (_context.aws_request_id if _context and hasattr(_context, "aws_request_id") else "n/a")
     logger.info(
-        "▶ REQUEST id=%s mode=%s class=%s source_length=%d stdin_length=%d",
+        "▶ REQUEST id=%s mode=%s language=%s class=%s source_length=%d stdin_length=%d",
         request_id,
         mode,
-        main_class,
+        language if mode == "run" else "(n/a)",
+        main_class if main_class != "Main" or language == "java" else "(n/a)",
         len(source),
         len(stdin),
     )
@@ -738,7 +1050,16 @@ def handler(event, _context):
 
     start = time.time()
 
-    # ── Dispatch GUI screenshot ──
+    # ── Dispatch tkinter_screenshot (Python GUI) ──
+    if mode == "tkinter_screenshot":
+        try:
+            delay_ms = int(body.get("delayMs", GUI_DEFAULT_DELAY_MS))
+        except (TypeError, ValueError):
+            delay_ms = GUI_DEFAULT_DELAY_MS
+        result = _handle_tkinter_screenshot(source, delay_ms, request_id, start)
+        return _resp(200, result)
+
+    # ── Dispatch GUI screenshot (Java) ──
     if mode == "gui_screenshot":
         try:
             delay_ms = int(body.get("delayMs", GUI_DEFAULT_DELAY_MS))
@@ -752,6 +1073,13 @@ def handler(event, _context):
             source, main_class, delay_ms, request_id, start, framework=framework,
         )
         return _resp(200, result)
+
+    # ── Dispatch run mode (Python) ──
+    if language == "python":
+        result = _handle_python_run(source, stdin, request_id, start)
+        return _resp(200, result)
+
+    # ── Dispatch run mode (Java) — flujo legacy ──
     # /tmp es escribible en Lambda (512MB-10GB ephemeral); TemporaryDirectory
     # se borra al salir del with.
     with tempfile.TemporaryDirectory(dir="/tmp") as tmp:

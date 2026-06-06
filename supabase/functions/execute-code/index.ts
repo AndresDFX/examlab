@@ -284,15 +284,22 @@ async function executeWithJDoodle(
 //   AWS_RUNNER_URL     — output `FunctionUrl` del stack CloudFormation
 //   AWS_RUNNER_API_KEY — shared secret (SSM Parameter `/examlab-code-runner/api-key`)
 // El handler en aws/code-runner/app.py valida el X-API-Key y compila +
-// ejecuta con OpenJDK 21. Solo soporta Java por ahora; si el alumno
-// pide otro lenguaje cae automáticamente a OnlineCompiler.io más abajo.
+// ejecuta. Soporta Java (javac + java) y Python (python3 AL2023 con
+// tkinter incluido). Para lenguajes que el runner no soporta cae
+// automáticamente a OnlineCompiler.io más abajo.
+const AWS_LAMBDA_LANGUAGES = new Set(["java", "python"]);
+
 async function executeWithAwsLambda(
   sourceCode: string,
   language: string,
   stdin: string,
 ): Promise<ExecutionResult> {
-  if (language !== "java") {
-    // Fallback transparente para lenguajes que el runner no soporta.
+  if (!AWS_LAMBDA_LANGUAGES.has(language)) {
+    // Fallback transparente para lenguajes que el runner no soporta
+    // (javascript, c, cpp, etc.). El admin que elige aws_lambda como
+    // default sigue usando OnlineCompiler para esos lenguajes sin
+    // necesidad de configurar otro provider — coherencia con el
+    // comportamiento previo cuando solo Java estaba soportado.
     return executeWithOnlineCompiler(sourceCode, language, stdin);
   }
   const url = Deno.env.get("AWS_RUNNER_URL");
@@ -348,7 +355,11 @@ async function executeWithAwsLambda(
       "Content-Type": "application/json",
       "X-API-Key": apiKey,
     },
-    body: JSON.stringify({ sourceCode, stdin: stdin || "" }),
+    // `language` lo añadimos cuando el runner ganó soporte para Python
+    // (antes solo Java implícito). Mandarlo siempre — el handler default
+    // a 'java' si no llega, así que vieja Lambda + nuevo edge sigue
+    // funcionando para Java mientras se hace el redeploy.
+    body: JSON.stringify({ sourceCode, language, stdin: stdin || "" }),
   });
 
   const executionTimeMs = Date.now() - startTime;

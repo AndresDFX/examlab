@@ -46,6 +46,7 @@ import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialo
 import { CodeEditor } from "@/modules/code/CodeEditor";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER, JAVAFX_STARTER } from "@/modules/code/JavaGuiRunner";
+import { PythonGuiRunner, PYTHON_GUI_STARTER } from "@/modules/code/PythonGuiRunner";
 import { ProjectIntroVideoGate } from "@/modules/projects/ProjectIntroVideoGate";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
@@ -82,7 +83,15 @@ export type ProjectFile = {
   language: string | null;
   starter_code: string | null;
   points: number;
-  type: "abierta" | "cerrada" | "cerrada_multi" | "codigo" | "diagrama" | "java_gui" | "codigo_zip";
+  type:
+    | "abierta"
+    | "cerrada"
+    | "cerrada_multi"
+    | "codigo"
+    | "diagrama"
+    | "java_gui"
+    | "python_gui"
+    | "codigo_zip";
   /** Scaffolding flujo ZIP único: cuando true (y type=codigo_zip), el
    *  estudiante sube UN .zip en vez de varios archivos sueltos, y la
    *  IA califica sin minificar. Default false (multi-file). */
@@ -1936,7 +1945,8 @@ export function StudentProjectTaker({
               rubric: String(q.expected_rubric ?? ""),
               userAnswer: String(raw),
               maxPoints: Number(q.points) || 0,
-              language: q.type === "java_gui" ? "java" : q.language,
+              language:
+                q.type === "java_gui" ? "java" : q.type === "python_gui" ? "python" : q.language,
               framework: q.type === "java_gui" ? (optsAny?.java_framework ?? "swing") : undefined,
             });
           }
@@ -2397,6 +2407,13 @@ export function StudentProjectTaker({
                   />
                 );
               })()}
+            {q.type === "python_gui" && (
+              <PythonGuiRunner
+                value={answers[q.id] ?? q.starter_code ?? PYTHON_GUI_STARTER}
+                onChange={(v) => updateAnswer(q.id, v)}
+                height="280px"
+              />
+            )}
             {q.type === "codigo_zip" &&
               q.zip_single &&
               (() => {

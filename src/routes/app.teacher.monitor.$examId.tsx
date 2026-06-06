@@ -211,7 +211,7 @@ function formatStudentAnswer(
     });
     return `Marcó ${arr.length} opción(es): ${labels.join(" · ")}`;
   }
-  // Tipos de texto libre — abierta, codigo, diagrama, java_gui.
+  // Tipos de texto libre — abierta, codigo, diagrama, java_gui, python_gui.
   const text = typeof raw === "string" ? raw : JSON.stringify(raw, null, 2);
   return text.trim() ? text : null;
 }
@@ -2838,7 +2838,9 @@ function ExamMonitor() {
                                 (numeración de líneas + syntax highlighting),
                                 igual a lo que el alumno tenía en pantalla.
                               - resto → bloque pre con texto plano. */}
-                            {q.type === "codigo" || q.type === "java_gui" ? (
+                            {q.type === "codigo" ||
+                            q.type === "java_gui" ||
+                            q.type === "python_gui" ? (
                               <CodeEditor
                                 value={
                                   ans == null || ans === ""
@@ -2848,7 +2850,13 @@ function ExamMonitor() {
                                       : JSON.stringify(ans, null, 2)
                                 }
                                 onChange={() => {}}
-                                language={(q.language as CodeLanguage) ?? "java"}
+                                language={
+                                  q.type === "python_gui"
+                                    ? "python"
+                                    : q.type === "java_gui"
+                                      ? "java"
+                                      : ((q.language as CodeLanguage) ?? "java")
+                                }
                                 readOnly
                                 showLanguageSelector={false}
                                 showRunButton={false}
@@ -2877,7 +2885,9 @@ function ExamMonitor() {
                               en code_executions del estudiante. Permite al
                               docente ver qué imprimió el programa sin tener
                               que correrlo a mano. */}
-                            {(q.type === "codigo" || q.type === "java_gui") && (
+                            {(q.type === "codigo" ||
+                              q.type === "java_gui" ||
+                              q.type === "python_gui") && (
                               <CodeRunOutput
                                 submissionId={viewingSub.id}
                                 questionId={q.id}
@@ -3589,7 +3599,9 @@ function ExamMonitor() {
                               });
                             })()}
                           </div>
-                        ) : q.type === "codigo" || q.type === "java_gui" ? (
+                        ) : q.type === "codigo" ||
+                          q.type === "java_gui" ||
+                          q.type === "python_gui" ? (
                           <CodeEditor
                             value={
                               peerAns == null || peerAns === ""
@@ -3599,7 +3611,13 @@ function ExamMonitor() {
                                   : JSON.stringify(peerAns, null, 2)
                             }
                             onChange={() => {}}
-                            language={(q.language as CodeLanguage) ?? "java"}
+                            language={
+                              q.type === "python_gui"
+                                ? "python"
+                                : q.type === "java_gui"
+                                  ? "java"
+                                  : ((q.language as CodeLanguage) ?? "java")
+                            }
                             readOnly
                             showLanguageSelector={false}
                             showRunButton={false}

@@ -402,7 +402,9 @@ function StudentExamReview() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-sm"><MarkdownInline>{submission.teacher_feedback!}</MarkdownInline></div>
+            <div className="text-sm">
+              <MarkdownInline>{submission.teacher_feedback!}</MarkdownInline>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -519,7 +521,7 @@ function StudentExamReview() {
                   </div>
                 )}
 
-                {q.type === "codigo" || q.type === "java_gui" ? (
+                {q.type === "codigo" || q.type === "java_gui" || q.type === "python_gui" ? (
                   <CodeEditor
                     value={
                       ans == null || ans === ""
@@ -529,7 +531,13 @@ function StudentExamReview() {
                           : JSON.stringify(ans, null, 2)
                     }
                     onChange={() => {}}
-                    language={(q.language as CodeLanguage) ?? "java"}
+                    language={
+                      q.type === "python_gui"
+                        ? "python"
+                        : q.type === "java_gui"
+                          ? "java"
+                          : ((q.language as CodeLanguage) ?? "java")
+                    }
                     readOnly
                     showLanguageSelector={false}
                     showRunButton={false}
@@ -537,7 +545,8 @@ function StudentExamReview() {
                     height="220px"
                   />
                 ) : (
-                  q.type !== "cerrada" && q.type !== "cerrada_multi" && (
+                  q.type !== "cerrada" &&
+                  q.type !== "cerrada_multi" && (
                     <div className="rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap font-mono min-h-[44px]">
                       {ans == null || ans === "" ? (
                         <span className="text-muted-foreground italic font-sans">
@@ -555,9 +564,15 @@ function StudentExamReview() {
                 {/* Líneas del compilador / consola: la última ejecución
                     registrada por el estudiante en `code_executions`
                     durante la toma del examen. */}
-                {(q.type === "codigo" || q.type === "java_gui") && submission && user && (
-                  <CodeRunOutput submissionId={submission.id} questionId={q.id} userId={user.id} />
-                )}
+                {(q.type === "codigo" || q.type === "java_gui" || q.type === "python_gui") &&
+                  submission &&
+                  user && (
+                    <CodeRunOutput
+                      submissionId={submission.id}
+                      questionId={q.id}
+                      userId={user.id}
+                    />
+                  )}
 
                 {(iaFeedback || teacherFeedback) && (
                   <div className="border-t pt-3">
@@ -576,11 +591,14 @@ function StudentExamReview() {
                   </div>
                 )}
 
-                {!iaFeedback && !teacherFeedback && q.type !== "cerrada" && q.type !== "cerrada_multi" && (
-                  <p className="text-xs text-muted-foreground italic">
-                    {t("exam.review.noFeedback")}
-                  </p>
-                )}
+                {!iaFeedback &&
+                  !teacherFeedback &&
+                  q.type !== "cerrada" &&
+                  q.type !== "cerrada_multi" && (
+                    <p className="text-xs text-muted-foreground italic">
+                      {t("exam.review.noFeedback")}
+                    </p>
+                  )}
 
                 {submission && (
                   <FeedbackThread

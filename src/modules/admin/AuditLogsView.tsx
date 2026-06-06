@@ -293,6 +293,11 @@ const ACTION_LABELS: Record<string, string> = {
   "java_gui.screenshot_failed": "Captura GUI Java fallida",
   "java_gui.screenshot_error": "Error en captura GUI Java",
 
+  // ── Python GUI screenshot (AWS Lambda + tkinter) ──
+  "python_gui.screenshot_executed": "Captura GUI Python generada",
+  "python_gui.screenshot_failed": "Captura GUI Python fallida",
+  "python_gui.screenshot_error": "Error en captura GUI Python",
+
   // ── Reabrir entregas (taller / proyecto) ──
   "workshop.submission_reopened": "Entrega de taller reabierta",
   "project.submission_reopened": "Entrega de proyecto reabierta",

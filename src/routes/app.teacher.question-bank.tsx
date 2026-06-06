@@ -71,7 +71,8 @@ type QuestionType =
   | "codigo_zip"
   | "abierta"
   | "diagrama"
-  | "java_gui";
+  | "java_gui"
+  | "python_gui";
 
 interface BankRow {
   id: string;
@@ -106,6 +107,7 @@ const TYPE_LABEL: Record<QuestionType, string> = {
   abierta: "Abierta",
   diagrama: "Diagrama",
   java_gui: "Java GUI",
+  python_gui: "Python GUI (tkinter)",
 };
 
 function QuestionBankPage() {
@@ -635,7 +637,9 @@ function QuestionBankPage() {
               </div>
             )}
 
-            {(draft.type === "codigo" || draft.type === "java_gui") && (
+            {(draft.type === "codigo" ||
+              draft.type === "java_gui" ||
+              draft.type === "python_gui") && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label>Lenguaje</Label>

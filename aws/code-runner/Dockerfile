@@ -94,6 +94,22 @@ RUN dnf install -y \
       dejavu-sans-fonts \
       dejavu-serif-fonts \
       liberation-sans-fonts \
+      # Python AL2023 + tkinter — para preguntas con language='python' en
+      # mode='run' (consola) y mode='tkinter_screenshot' (GUI). El Lambda
+      # runtime usa su Python bundled (/var/lang/bin/python3.13) — ese
+      # NO tiene tkinter porque AWS lo compila sin Tk/Tcl. Instalamos el
+      # python3 del sistema AL2023 (típicamente 3.9 al momento del build)
+      # vía dnf, que SÍ incluye tkinter como paquete separado:
+      #   python3          — intérprete Python AL2023 (/usr/bin/python3)
+      #   python3-tkinter  — módulo tkinter para ese intérprete (_tkinter.so)
+      #   tk, tcl          — libs nativas que _tkinter linkea
+      # El handler Lambda sigue corriendo en /var/lang/bin/python3.13
+      # (lo invoca el runtime AWS); el código del alumno corre vía
+      # /usr/bin/python3 (lo invoca el handler con subprocess).
+      python3 \
+      python3-tkinter \
+      tk \
+      tcl \
  && dnf clean all \
  && rm -rf /var/cache/dnf /var/log/dnf* \
  # Pre-popular el cache de fontconfig durante BUILD. Lambda monta el
@@ -147,6 +163,13 @@ RUN java -version \
  && javac -version \
  && command -v Xvfb \
  && python3 -c "from PIL import Image; print('PIL OK:', Image.__version__)" \
+ # Validación tkinter: el AL2023 python3 (con el que corremos el código
+ # del alumno) DEBE poder importar tkinter. Si dnf falló silencioso o el
+ # paquete cambió de nombre, atajamos en build en lugar de en runtime.
+ # Forzamos /usr/bin/python3 explícito para no caer al python3 del Lambda
+ # runtime (que NO tiene tkinter — los `print()` que vienen abajo usan
+ # ese binario y darían falso positivo).
+ && /usr/bin/python3 -c "import tkinter; print('tkinter OK:', tkinter.TkVersion, '/ Tcl', tkinter.TclVersion)" \
  && AWT_XAWT="$(ls /usr/lib/jvm/java-21-amazon-corretto*/lib/libawt_xawt.so 2>/dev/null | head -n1)" \
  && if [ -z "$AWT_XAWT" ] || [ ! -f "$AWT_XAWT" ]; then \
       echo "ERROR: libawt_xawt.so NO EXISTE en el filesystem." >&2 ; \
@@ -233,7 +256,18 @@ RUN javac \
       -d /opt /opt/JavaFxBootstrap.java \
  && ls -la /opt/JavaFxBootstrap.class
 
-# Handler de Lambda (Python wrapper que llama a javac + java).
+# Wrapper Python para preguntas tipo `python_gui` (tkinter). Análogo a
+# `GuiBootstrap.java` pero para tkinter: monkey-patchea `Tk.__init__` para
+# programar destroy() automático después de `EXAMLAB_GUI_SLEEP_MS` ms y
+# corre el script del estudiante con `runpy.run_path(...)`. Así el alumno
+# no necesita escribir `root.after(..., destroy)` ni cerrar manualmente.
+# Vive en /opt/ y se invoca con /usr/bin/python3 (AL2023 — el que tiene
+# tkinter), no con el bundled Lambda Python 3.13.
+COPY TkinterBootstrap.py /opt/TkinterBootstrap.py
+RUN /usr/bin/python3 -c "import py_compile; py_compile.compile('/opt/TkinterBootstrap.py', doraise=True)" \
+ && ls -la /opt/TkinterBootstrap.py
+
+# Handler de Lambda (Python wrapper que llama a javac + java + python).
 COPY app.py ${LAMBDA_TASK_ROOT}/
 
 # Lambda invoca este módulo:función al recibir un request.

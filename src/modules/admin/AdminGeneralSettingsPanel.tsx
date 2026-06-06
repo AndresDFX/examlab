@@ -347,7 +347,7 @@ export function AdminGeneralSettingsPanel() {
             />
             <p className="text-[11px] text-muted-foreground mt-1">
               Solo afecta preguntas <code className="text-[10px]">abierta</code>. Las de código,
-              diagrama, java_gui y opción múltiple tienen sus propios límites.
+              diagrama, java_gui, python_gui y opción múltiple tienen sus propios límites.
             </p>
           </div>
           <div className="sm:col-span-3">

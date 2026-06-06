@@ -52,7 +52,8 @@ type QuestionType =
   | "codigo_zip"
   | "abierta"
   | "diagrama"
-  | "java_gui";
+  | "java_gui"
+  | "python_gui";
 
 interface BankRow {
   id: string;
@@ -75,13 +76,23 @@ const TYPE_LABEL: Record<QuestionType, string> = {
   abierta: "Abierta",
   diagrama: "Diagrama",
   java_gui: "Java GUI",
+  python_gui: "Python GUI (tkinter)",
 };
 
 // Tipos que cada destino acepta. codigo_zip solo va a proyectos.
 const ACCEPTED_BY_TARGET: Record<"exam" | "workshop" | "project", QuestionType[]> = {
-  exam: ["cerrada", "cerrada_multi", "codigo", "abierta", "diagrama", "java_gui"],
-  workshop: ["cerrada", "cerrada_multi", "codigo", "abierta", "diagrama", "java_gui"],
-  project: ["cerrada", "cerrada_multi", "codigo", "codigo_zip", "abierta", "diagrama", "java_gui"],
+  exam: ["cerrada", "cerrada_multi", "codigo", "abierta", "diagrama", "java_gui", "python_gui"],
+  workshop: ["cerrada", "cerrada_multi", "codigo", "abierta", "diagrama", "java_gui", "python_gui"],
+  project: [
+    "cerrada",
+    "cerrada_multi",
+    "codigo",
+    "codigo_zip",
+    "abierta",
+    "diagrama",
+    "java_gui",
+    "python_gui",
+  ],
 };
 
 const RPC_BY_TARGET: Record<"exam" | "workshop" | "project", string> = {
@@ -209,9 +220,7 @@ export function QuestionBankImportDialog({
         return;
       }
       const count = Number(data) || 0;
-      toast.success(
-        count === 1 ? "1 pregunta importada" : `${count} preguntas importadas`,
-      );
+      toast.success(count === 1 ? "1 pregunta importada" : `${count} preguntas importadas`);
       onImported?.(count);
       onOpenChange(false);
     } finally {
@@ -359,10 +368,7 @@ export function QuestionBankImportDialog({
                     </div>
                     {/* Override de puntos solo si está seleccionada */}
                     {checked && (
-                      <div
-                        className="shrink-0 w-24"
-                        onClick={(e) => e.preventDefault()}
-                      >
+                      <div className="shrink-0 w-24" onClick={(e) => e.preventDefault()}>
                         <Label className="text-[10px]">Puntos</Label>
                         <Input
                           type="number"
@@ -388,10 +394,7 @@ export function QuestionBankImportDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={importing}>
             Cancelar
           </Button>
-          <Button
-            onClick={() => void submit()}
-            disabled={importing || selectedIds.size === 0}
-          >
+          <Button onClick={() => void submit()} disabled={importing || selectedIds.size === 0}>
             {importing ? <Spinner size="sm" className="mr-1" /> : null}
             Añadir {selectedIds.size} pregunta{selectedIds.size === 1 ? "" : "s"}
           </Button>
