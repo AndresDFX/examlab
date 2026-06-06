@@ -495,6 +495,62 @@ Hasta que el alumno tiene una opción para cambiar de compilador, necesita poder
 - **`JavaGuiRunner`**: `abortRef` interno + botón `Cancelar` en el footer del dialog cuando `running || loadingCJ`.
 - **Limitación documentada**: CheerpJ no se mata; el edge function tampoco se cancela server-side. Pero el alumno ya puede cambiar de compilador y reintentar sin esperar.
 
+### Onboarding tour guiado (driver.js)
+
+Tour interactivo de bienvenida que se dispara la primera vez que un usuario entra a la plataforma con un rol determinado. Anclado al sidebar — un paso por cada ítem visible + brand + role-switcher + footer (notificaciones, mensajes, opciones, logout).
+
+**Estado actual (V1)**:
+- ✅ **Admin**: 20 pasos completos (brand + role-switcher + 14 módulos del sidebar + 4 del footer)
+- ⏳ **Docente**: pendiente — array `TEACHER_TOUR` vacío en [tour-config.ts](src/modules/onboarding/tour-config.ts)
+- ⏳ **Estudiante**: pendiente — array `STUDENT_TOUR` vacío
+- ❌ **SuperAdmin**: NO tiene tour por decisión de producto (operación cross-tenant, ya conoce la plataforma)
+
+**Arquitectura**:
+
+| Archivo | Rol |
+|---|---|
+| [src/modules/onboarding/tour-config.ts](src/modules/onboarding/tour-config.ts) | Arrays de pasos por rol. Cada paso: `{ element: 'selector CSS', title, description, side?, align? }` |
+| [src/modules/onboarding/use-onboarding.ts](src/modules/onboarding/use-onboarding.ts) | Hook: lee `profile.onboarding_completed_roles` + `active-role-signal`. Decide `shouldShowFor` con 1s delay. Expone `complete()`, `restart()`, `dismiss()` |
+| [src/modules/onboarding/OnboardingTour.tsx](src/modules/onboarding/OnboardingTour.tsx) | Wrapper de driver.js. Filtra pasos cuyo selector no exista en DOM. Al cerrar llama `onComplete(role)` (o `onDismiss()` si `manualMode`) |
+| [src/modules/onboarding/onboarding-tour.css](src/modules/onboarding/onboarding-tour.css) | Overrides de `.driver-*` classes para que el popover use `var(--popover)`, `var(--primary)`, etc. Respeta dark mode y branding del tenant automáticamente |
+| [supabase/migrations/20260605000000_onboarding_completed_roles.sql](supabase/migrations/20260605000000_onboarding_completed_roles.sql) | Columna `profiles.onboarding_completed_roles TEXT[]` + RPCs `mark_onboarding_complete(_role)` y `reset_onboarding(_role)` |
+
+**Convenciones de anclaje**:
+
+- **Ítems del sidebar nav**: atributo `data-tour-nav={item.to}` en cada `<Link>` / `<button>` del nav.map en [AppLayout.tsx](src/shared/components/AppLayout.tsx). El selector en el tour-config es `[data-tour-nav="/app/admin/courses"]` (path completo).
+- **Elementos no-nav** (brand, role-switcher, footer): atributo `data-tour-id="<nombre>"` en el elemento. Selector: `[data-tour-id="brand"]`. Nombres existentes: `brand`, `role-switcher`, `user-info`, `notifications-bell`, `messages-bell`, `more-options`, `logout`.
+
+**Cómo agregar un paso nuevo al tour de un rol**:
+1. Identificar el elemento ancla en la UI.
+2. Si es un nav item, ya tiene `data-tour-nav`. Si es otro elemento, agregar `data-tour-id="nombre-único"`.
+3. Agregar entry en el array del rol correspondiente en `tour-config.ts`:
+   ```ts
+   { element: '[data-tour-id="nombre-único"]', title: '...', description: '...', side: 'right' }
+   ```
+4. El tour automáticamente lo incluye al desplegarse. Si el elemento no está en el DOM en ese momento (ej. visible solo en otra ruta), el filtro defensivo lo skipea sin error.
+
+**Cómo agregar el tour de Docente/Estudiante**:
+1. Llenar `TEACHER_TOUR` (o `STUDENT_TOUR`) en `tour-config.ts` con la misma estructura que `ADMIN_TOUR`.
+2. No requiere cambios en `useOnboarding`, `OnboardingTour` ni `AppLayout` — el resto del pipeline ya soporta los 3 roles.
+
+**Trigger del tour**:
+- **Automático**: hook detecta `activeRole NOT IN profile.onboarding_completed_roles` → dispara con 1s delay después del login. Al completar/cerrar llama RPC `mark_onboarding_complete(role)` que agrega el rol al array.
+- **Manual**: ítem "Ver tour guiado" en el dropdown del menú avatar (footer del sidebar). En modo manual NO toca el flag — el usuario puede ver el tour cuantas veces quiera.
+
+**Limitaciones conocidas**:
+- **Mobile**: el sidebar está oculto en `<md`. Los selectores no matchean → tour se cancela silenciosamente (filter elimina todos los pasos). Si se quiere tour en mobile, hay que abrir el drawer + agregar selectores específicos del drawer.
+- **Página de toma de examen**: el sidebar puede estar visible pero los nav items son no-funcionales (`isTakingExam`). El tour igual se mostraría sobre items inactivos. Si se vuelve un problema, agregar guard en `useOnboarding` para no disparar cuando `isTakingExam`.
+
+**Reset manual desde SQL (admin)**:
+```sql
+-- Re-mostrarle el tour a un usuario específico para un rol:
+SELECT public.reset_onboarding('Admin');  -- como el propio usuario
+-- O como service_role para forzar a un user específico:
+UPDATE profiles
+   SET onboarding_completed_roles = array_remove(onboarding_completed_roles, 'Admin')
+ WHERE id = '<user_id>';
+```
+
 ---
 
 ## Convenciones de código
@@ -567,6 +623,7 @@ Esto codifica los criterios que usamos para decidir qué comentarios escribir, q
 | `src/modules/messaging/message-tags.ts` (`buildTagToken`/`parseMessageBody` regex) ↔ `src/modules/messaging/broadcast.ts` (`humanizeTags` regex) ↔ SQL `dispatch_scheduled_messages` (`regexp_replace`)                                                                                                                                                                                                | Formato del token `[[T:type:id:label]]` (whitelist de tipos + id hex + label sin `]`)                                                                | Cambiar el formato del token en uno sin los otros → tags no se parsean, no se humanizan, o se rompe el chip                                                                               |
 | `src/hooks/use-theme.ts` (`STORAGE_KEY` + `EVENT_NAME`) ↔ `src/routes/__root.tsx` (script inline pre-paint que lee `'examlab-theme'`)                                                                                                                                                                                                                                                                  | Nombre de la key en localStorage (`examlab-theme`) + nombre del custom event                                                                         | Cambiar la key en uno sin el otro → el script pre-paint no aplica `.dark` (flash) o el tema se desincroniza entre instancias                                                              |
 | `supabase/functions/ai-generation-worker/index.ts` (`isTransientError`) ↔ `supabase/migrations/20260601001000_*` (regex en `complete_ai_grading` SQL)                                                                                                                                                                                                                                                  | Regex que detecta errores transitorios reintenttables (429, 5xx, rate.limit, timeout, ECONN\*, fetch.failed, quota.exceeded, etc.)                   | Divergen → grading reintenta un error que generación marca failed final (o viceversa). UX inconsistente entre las dos colas                                                               |
+| `src/modules/onboarding/tour-config.ts` (selectores CSS `[data-tour-nav="..."]` / `[data-tour-id="..."]`) ↔ `src/shared/components/AppLayout.tsx` (atributos `data-tour-nav={item.to}` en nav.map + `data-tour-id="brand|role-switcher|user-info|notifications-bell|messages-bell|more-options|logout"` en sidebar)                                                                                                | Conjunto de anclajes del tour guiado: el path del ítem nav o el nombre del data-tour-id en AppLayout debe coincidir con el selector en tour-config | Renombrar / mover un anchor sin actualizar el otro → el paso se filtra silenciosamente (defensivo en OnboardingTour) y el tour pierde ese punto sin error visible |
 
 **Archivos donde no se debe explicar más de lo que ya está:**
 
