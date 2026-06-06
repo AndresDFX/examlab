@@ -50,11 +50,11 @@ describe("tour-config — shape de cada step", () => {
       expect(unique.size).toBe(selectors.length);
     });
 
-    it(`${name}_TOUR selectores son CSS válidos (data-tour-* o id-like)`, () => {
-      // Los selectores válidos son `[data-tour-nav="..."]` o
-      // `[data-tour-id="..."]`. Si alguien introduce un selector
-      // distinto (typo, copy-paste mal), lo atajamos acá.
-      const validRe = /^\[data-tour-(nav|id)="[^"]+"\]$/;
+    it(`${name}_TOUR selectores son CSS válidos (data-tour-{nav|id|module})`, () => {
+      // Selectores válidos: `[data-tour-nav]` (legacy), `[data-tour-id]`
+      // (elementos específicos), o `[data-tour-module]` (preferido para
+      // items del sidebar — estable contra renombres de path/label).
+      const validRe = /^\[data-tour-(nav|id|module)="[^"]+"\]$/;
       for (const step of steps) {
         expect(step.element).toMatch(validRe);
       }
@@ -99,48 +99,56 @@ describe("tour-config — getTourForRole", () => {
 });
 
 describe("tour-config — cobertura de módulos nuevos", () => {
+  // Matchear por module_key (preferido) en lugar de path. Los selectores
+  // ahora son `[data-tour-module="trash"]` etc. — estables a renombres
+  // de path / i18n labels.
   it("ADMIN_TOUR incluye Papelera", () => {
-    const hasTrash = ADMIN_TOUR.some((s) => s.element.includes("/app/trash"));
+    const hasTrash = ADMIN_TOUR.some((s) => s.element.includes('data-tour-module="trash"'));
     expect(hasTrash).toBe(true);
   });
 
   it("TEACHER_TOUR incluye Papelera", () => {
-    const hasTrash = TEACHER_TOUR.some((s) => s.element.includes("/app/trash"));
+    const hasTrash = TEACHER_TOUR.some((s) => s.element.includes('data-tour-module="trash"'));
     expect(hasTrash).toBe(true);
+  });
+
+  it("ADMIN_TOUR incluye Cola IA", () => {
+    const hasAiCron = ADMIN_TOUR.some((s) => s.element.includes('data-tour-module="ai_cron"'));
+    expect(hasAiCron).toBe(true);
+  });
+
+  it("TEACHER_TOUR incluye Cola IA", () => {
+    const hasAiCron = TEACHER_TOUR.some((s) => s.element.includes('data-tour-module="ai_cron"'));
+    expect(hasAiCron).toBe(true);
   });
 
   it("TEACHER_TOUR incluye los módulos académicos clave (cursos, exámenes, talleres, proyectos)", () => {
     const selectors = TEACHER_TOUR.map((s) => s.element).join(" ");
-    expect(selectors).toContain("/app/teacher/courses");
-    expect(selectors).toContain("/app/teacher/exams");
-    expect(selectors).toContain("/app/teacher/workshops");
-    expect(selectors).toContain("/app/teacher/projects");
-    expect(selectors).toContain("/app/teacher/attendance");
-    expect(selectors).toContain("/app/teacher/polls");
-    expect(selectors).toContain("/app/teacher/whiteboards");
+    expect(selectors).toContain('data-tour-module="courses"');
+    expect(selectors).toContain('data-tour-module="exams"');
+    expect(selectors).toContain('data-tour-module="workshops"');
+    expect(selectors).toContain('data-tour-module="projects"');
+    expect(selectors).toContain('data-tour-module="attendance"');
+    expect(selectors).toContain('data-tour-module="polls"');
+    expect(selectors).toContain('data-tour-module="whiteboards"');
   });
 
   it("STUDENT_TOUR incluye los módulos de uso diario (cursos, exámenes, asistencia, calificaciones)", () => {
     const selectors = STUDENT_TOUR.map((s) => s.element).join(" ");
-    expect(selectors).toContain("/app/student/courses");
-    expect(selectors).toContain("/app/student/exams");
-    expect(selectors).toContain("/app/student/grades");
-    expect(selectors).toContain("/app/student/attendance");
+    expect(selectors).toContain('data-tour-module="courses"');
+    expect(selectors).toContain('data-tour-module="exams"');
+    expect(selectors).toContain('data-tour-module="grades"');
+    expect(selectors).toContain('data-tour-module="attendance"');
   });
 });
 
 describe("tour-config — descriptions detalladas tienen instrucciones de creación", () => {
   it("TEACHER_TOUR usa <ol> en los pasos críticos (crear examen, taller, proyecto, encuesta, sesión)", () => {
-    // Buscar steps de creación CRÍTICOS — los más usados por el docente.
-    const criticalPaths = [
-      "/app/teacher/exams",
-      "/app/teacher/workshops",
-      "/app/teacher/projects",
-      "/app/teacher/attendance",
-      "/app/teacher/polls",
-    ];
-    for (const path of criticalPaths) {
-      const step = TEACHER_TOUR.find((s) => s.element.includes(path));
+    // Steps críticos identificados por module_key (estable contra
+    // renombres de path).
+    const criticalModules = ["exams", "workshops", "projects", "attendance", "polls"];
+    for (const mod of criticalModules) {
+      const step = TEACHER_TOUR.find((s) => s.element.includes(`data-tour-module="${mod}"`));
       expect(step).toBeDefined();
       // Description debe incluir lista ordenada con pasos de creación.
       expect(step?.description).toContain("<ol>");
@@ -148,13 +156,9 @@ describe("tour-config — descriptions detalladas tienen instrucciones de creaci
   });
 
   it("STUDENT_TOUR usa <ol> en los pasos de entrega (examen, taller, proyecto)", () => {
-    const criticalPaths = [
-      "/app/student/exams",
-      "/app/student/workshops",
-      "/app/student/projects",
-    ];
-    for (const path of criticalPaths) {
-      const step = STUDENT_TOUR.find((s) => s.element.includes(path));
+    const criticalModules = ["exams", "workshops", "projects"];
+    for (const mod of criticalModules) {
+      const step = STUDENT_TOUR.find((s) => s.element.includes(`data-tour-module="${mod}"`));
       expect(step).toBeDefined();
       expect(step?.description).toContain("<ol>");
     }

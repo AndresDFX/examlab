@@ -15,7 +15,10 @@
     "test:run": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "icons": "node scripts/generate-icons.js"
+    "icons": "node scripts/generate-icons.js",
+    "record:tour:admin": "tsx scripts/record-tour.ts --role=admin",
+    "record:tour:teacher": "tsx scripts/record-tour.ts --role=teacher",
+    "record:tour:student": "tsx scripts/record-tour.ts --role=student"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",
@@ -113,7 +116,9 @@
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
     "jsdom": "^29.0.2",
+    "playwright": "^1.60.0",
     "prettier": "^3.7.3",
+    "tsx": "^4.22.4",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^7.3.1",

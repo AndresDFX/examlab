@@ -19,7 +19,7 @@ import "driver.js/dist/driver.css";
 // Overrides del design system (debe importarse DESPUÉS de driver.css
 // para que las reglas tengan precedencia en cascada).
 import "./onboarding-tour.css";
-import { getTourForRole, type TourStep } from "./tour-config";
+import { getTourForRole, getTourMetaForRole, type TourStep } from "./tour-config";
 
 interface Props {
   /** Rol cuyo tour se muestra. Si null, no se monta nada. */
@@ -54,6 +54,7 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
     if (!role) return;
     const steps = getTourForRole(role);
     if (steps.length === 0) return;
+    const meta = getTourMetaForRole(role);
 
     // Filtrar pasos cuyo elemento no exista en el DOM. driver.js
     // intenta avanzar si no encuentra el selector, pero preferimos
@@ -66,6 +67,25 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
       }
     });
     if (validSteps.length === 0) return;
+
+    // Si el rol tiene un video introductorio configurado (HeyGen output),
+    // injectamos un anchor HTML en la descripción del PRIMER step con
+    // estilo de botón. driver.js renderiza el `description` como HTML,
+    // así que aprovechamos para añadir el CTA "Ver video introductorio".
+    // Target="_blank" + rel para abrir en pestaña nueva sin perder el
+    // tour. El usuario puede continuar el tour en la pestaña original.
+    if (meta.videoUrl && validSteps.length > 0) {
+      const escapedUrl = meta.videoUrl
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+      const videoButton = `<p style="margin-top:0.75rem"><a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:0.375rem;padding:0.375rem 0.75rem;background:var(--primary);color:var(--primary-foreground);border-radius:0.375rem;text-decoration:none;font-weight:500;font-size:0.875rem">▶ Ver video introductorio (1 min)</a></p>`;
+      validSteps[0] = {
+        ...validSteps[0],
+        description: validSteps[0].description + videoButton,
+      };
+    }
 
     const driverObj = driver({
       showProgress: true,

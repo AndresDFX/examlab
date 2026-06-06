@@ -999,12 +999,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             // está seteado, TenantThemeProvider asigna --sidebar-icon-color
             // y aquí el ícono lo toma sin tocar nada más.
             const iconStyle = { color: "var(--sidebar-icon-color, currentColor)" };
+            // data-tour-module: ancla del onboarding tour matching por
+            // module_key (estable) en lugar de por path. Si NAV_PATH_TO_MODULE
+            // tiene el item, lo agregamos; si no, el tour cae al data-tour-nav.
+            // Esto permite que el tour funcione aunque cambie el path
+            // (ej. `/app/admin/ai-cron` → `/app/admin/cron`) o cambien las
+            // labels visibles por i18n — el module_key es la identidad estable.
+            const tourModule = moduleForNav(item.to) ?? undefined;
             if (isTakingExam) {
               return (
                 <button
                   key={item.to}
                   type="button"
                   data-tour-nav={item.to}
+                  data-tour-module={tourModule}
                   className={cn(navClassName, "w-full text-left")}
                   onClick={() => window.dispatchEvent(new CustomEvent("examlab:navAttempt"))}
                 >
@@ -1017,7 +1025,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               );
             }
             return (
-              <Link key={item.to} to={item.to} data-tour-nav={item.to} className={navClassName}>
+              <Link
+                key={item.to}
+                to={item.to}
+                data-tour-nav={item.to}
+                data-tour-module={tourModule}
+                className={navClassName}
+              >
                 <Icon
                   className={cn("h-4 w-4 transition-colors", NAV_ICON_BASE_CLASS)}
                   style={iconStyle}

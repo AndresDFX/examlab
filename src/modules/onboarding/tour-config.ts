@@ -6,9 +6,18 @@
  * `OnboardingTour` los recorre en orden con driver.js.
  *
  * Convenciones:
- *   - Los selectores usan `data-tour-nav="<ruta>"` para items del sidebar,
- *     o `data-tour-id="<nombre>"` para elementos específicos (brand,
- *     selector de rol, footer).
+ *   - Los selectores para items del sidebar usan **`data-tour-module="<key>"`**
+ *     (preferido) — matchea por `module_key` estable. Sobrevive a:
+ *       - Renombres de path (ej. `/app/admin/ai-cron` → `/app/admin/cron`).
+ *       - Renombres de labels visibles (es ↔ en).
+ *       - Reordenamiento del sidebar por `display_order`.
+ *     Los module keys los define `NAV_PATH_TO_MODULE` en AppLayout.tsx
+ *     y los expone via `data-tour-module={moduleForNav(item.to)}`.
+ *   - Para items SIN module_key (ej. `/app/admin/users`, `/app/admin/errors`,
+ *     `/app/admin/settings`) caemos a `data-tour-nav="<ruta>"`. Es el
+ *     fallback histórico — funcionando pero no resiliente a renombres.
+ *   - `data-tour-id="<nombre>"` para elementos específicos no-nav (brand,
+ *     selector de rol, footer, botones "Nuevo X").
  *   - El campo `description` admite HTML (driver.js lo inserta vía
  *     `innerHTML`). Lo aprovechamos para listas ordenadas "Cómo crear X"
  *     en los módulos donde hace falta detalle pedagógico.
@@ -41,6 +50,23 @@ export interface TourStep {
   side?: "top" | "right" | "bottom" | "left" | "over";
   /** Alineación dentro del lado: 'start' | 'center' | 'end'. */
   align?: "start" | "center" | "end";
+  /** Si está presente, el tour navega a esa ruta ANTES de intentar
+   *  mostrar el step. Útil para los flujos "cómo crear X": el step de
+   *  Exámenes navega a `/app/teacher/exams`, después highlight el
+   *  botón "Nuevo examen". */
+  route?: string;
+  /** Si está presente, hace click programático en este selector ANTES
+   *  de intentar mostrar el step (después del route si ambos están).
+   *  Útil para abrir dialogs y luego highlight de sus fields. */
+  clickBefore?: string;
+  /** Si true, dispara Esc keydown ANTES de las otras acciones — cierra
+   *  cualquier Dialog/Popover abierto. Útil al pasar de un flujo de
+   *  creación al siguiente (el dialog del paso anterior queda abierto). */
+  escapeBefore?: boolean;
+  /** Cuántos ms esperar el `element` en el DOM después de las acciones
+   *  (route + clickBefore). Default 3000ms. Subilo para módulos
+   *  lentos (ej. dashboards con muchas queries). */
+  waitMs?: number;
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -69,7 +95,7 @@ export const ADMIN_TOUR: TourStep[] = [
 
   // ─── Dashboard ──────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app"]',
+    element: '[data-tour-module="dashboard"]',
     title: "Dashboard",
     description:
       "Tu vista general: stats de cursos, usuarios y entregas; cursos recientes; actividad del sistema. Es el primer lugar al que conviene volver cada mañana.",
@@ -78,7 +104,7 @@ export const ADMIN_TOUR: TourStep[] = [
 
   // ─── Cursos ─────────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/admin/courses"]',
+    element: '[data-tour-module="courses"]',
     title: "Cursos",
     description:
       "<p>Creá y administrás los cursos de tu institución.</p><strong>Para crear uno:</strong><ol><li>Click <em>Nuevo curso</em> arriba a la derecha.</li><li>Nombre, periodo, idioma y ciclo lectivo.</li><li>Asigná docente(s) principal(es).</li><li>Definí los <em>cortes</em> (1er parcial, 2do, etc.) con sus pesos.</li><li>Matriculá estudiantes uno por uno o por CSV.</li></ol>",
@@ -87,7 +113,7 @@ export const ADMIN_TOUR: TourStep[] = [
 
   // ─── Académico ──────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/admin/academic"]',
+    element: '[data-tour-module="academic"]',
     title: "Académico",
     description:
       "Plan de estudios institucional: <strong>programas</strong> (Ingeniería, Diseño...), <strong>periodos académicos</strong> (2026-I) y <strong>asignaturas</strong>. Lo configurás una vez por año y se reutiliza al crear cursos.",
@@ -96,7 +122,7 @@ export const ADMIN_TOUR: TourStep[] = [
 
   // ─── Contenidos ─────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/admin/contents"]',
+    element: '[data-tour-module="contents"]',
     title: "Contenidos",
     description:
       "Biblioteca de material de estudio (PPTX, MD, PDF). Los docentes lo crean para sus cursos y desde acá podés revisar todo lo que produce la institución. Incluye generación con IA a partir de un syllabus.",
@@ -105,7 +131,7 @@ export const ADMIN_TOUR: TourStep[] = [
 
   // ─── Videos ─────────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/videos"]',
+    element: '[data-tour-module="videos"]',
     title: "Biblioteca de videos",
     description:
       "Registro centralizado de URLs (YouTube/Vimeo) y archivos MP4 subidos. Los proyectos, talleres y módulos los referencian por ID — un solo lugar de verdad.",
@@ -114,7 +140,7 @@ export const ADMIN_TOUR: TourStep[] = [
 
   // ─── Prompts IA ─────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/admin/ai-prompts"]',
+    element: '[data-tour-module="ai_prompts"]',
     title: "Prompts IA",
     description:
       "Personalizá los <em>system prompts</em> que la IA usa al calificar entregas (taller, examen, proyecto, archivo de código, pregunta abierta). El override aplica a TODA la institución; los docentes pueden override por curso.",
@@ -123,7 +149,7 @@ export const ADMIN_TOUR: TourStep[] = [
 
   // ─── Cola / Cron ────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/admin/ai-cron"]',
+    element: '[data-tour-module="ai_cron"]',
     title: "Cola de IA + Cron",
     description:
       "Cola de calificaciones con IA, cola de generaciones con IA y <strong>jobs de pg_cron</strong>. Reintentá fallos, procesá manualmente, pausá schedules. Útil para diagnosticar latencias o errores transitorios.",
@@ -132,7 +158,7 @@ export const ADMIN_TOUR: TourStep[] = [
 
   // ─── Estadísticas ───────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/admin/statistics"]',
+    element: '[data-tour-module="statistics"]',
     title: "Estadísticas",
     description:
       "Métricas agregadas de la institución: cursos activos, rendimiento promedio, distribución de notas y uso de la IA. Para presentar a directivos o detectar cursos en riesgo.",
@@ -141,7 +167,7 @@ export const ADMIN_TOUR: TourStep[] = [
 
   // ─── Certificados ───────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/admin/certificates"]',
+    element: '[data-tour-module="certificates"]',
     title: "Certificados",
     description:
       "Plantillas y emisiones de certificados de finalización. Definís el diseño una vez (logo, firma, texto) y se aplica a los alumnos que aprueben el curso.",
@@ -150,7 +176,7 @@ export const ADMIN_TOUR: TourStep[] = [
 
   // ─── Informes ───────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/admin/report-templates"]',
+    element: '[data-tour-module="reports"]',
     title: "Informes",
     description:
       "Plantillas para generar actas, boletines y reportes en PDF. Cada plantilla define columnas, agrupaciones y filtros — los docentes la usan desde su pestaña Informes.",
@@ -177,7 +203,7 @@ export const ADMIN_TOUR: TourStep[] = [
 
   // ─── Auditoría ──────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/admin/audit-logs"]',
+    element: '[data-tour-module="audit_logs"]',
     title: "Auditoría",
     description:
       "Historial completo de acciones del sistema: quién, qué, cuándo. Filtrá por entidad (examen, usuario, curso), por severidad o por categoría. Esencial para soporte y cumplimiento.",
@@ -186,7 +212,7 @@ export const ADMIN_TOUR: TourStep[] = [
 
   // ─── Papelera (NUEVO) ───────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/trash"]',
+    element: '[data-tour-module="trash"]',
     title: "Papelera",
     description:
       "Lo que vos o tus docentes <em>borran</em> queda acá <strong>30 días</strong> antes de purgarse para siempre. Cualquier item de cursos, exámenes, talleres, proyectos, sesiones, pizarras, contenidos o encuestas se puede <strong>Restaurar</strong> o <strong>Eliminar definitivo</strong> uno por uno o en bulk.",
@@ -246,32 +272,38 @@ export const ADMIN_TOUR: TourStep[] = [
 ];
 
 // ──────────────────────────────────────────────────────────────────────
-// DOCENTE — tour completo. Cubre el flujo diario del docente: crear
-// material (examen, taller, proyecto, contenido, sesiones), revisar
-// entregas, comunicarse con alumnos y gestionar pizarras/encuestas.
+// DOCENTE — tour INTERACTIVO de "cómo crear X".
+//
+// A diferencia de un tour pasivo que solo describe los módulos, este
+// tour DRIVE-EA la UI: navega a cada módulo, hace click en "Nuevo X",
+// abre el dialog de creación, muestra los campos clave, cierra el
+// dialog, y pasa al siguiente flujo. El docente sale del tour habiendo
+// VISTO concretamente cómo se crea cada entidad — examen, taller,
+// proyecto, sesión, encuesta.
+//
+// Mecánica:
+//   - `route`: el tour navega antes de mostrar el step.
+//   - `clickBefore`: el tour clickea programáticamente antes del step
+//     (típicamente el botón "Nuevo X" para abrir el dialog).
+//   - `escapeBefore`: dispara Esc keydown ANTES del step (cierra el
+//     dialog del paso anterior).
+//   - El OnboardingTour wrapper espera 3s a que cada elemento aparezca
+//     antes de avanzar; suficiente para queries lentas + render del dialog.
 // ──────────────────────────────────────────────────────────────────────
 export const TEACHER_TOUR: TourStep[] = [
-  // ─── Header ─────────────────────────────────────────────────────────
+  // ─── Bienvenida ─────────────────────────────────────────────────────
   {
     element: '[data-tour-id="brand"]',
-    title: "Bienvenido a ExamLab",
+    title: "¡Bienvenido a ExamLab!",
     description:
-      "Tu institución educativa. Acá vas a crear y gestionar todo lo de tus cursos: exámenes, talleres, proyectos, asistencia, calificaciones y comunicación con los alumnos.",
-    side: "right",
-    align: "start",
-  },
-  {
-    element: '[data-tour-id="role-switcher"]',
-    title: "Selector de rol",
-    description:
-      "Si tenés más de un rol (ej. Docente + Admin), lo cambiás acá. El menú del sidebar se adapta al rol activo.",
+      "Te voy a guiar a través de los flujos principales: cómo crear un <strong>examen</strong>, un <strong>taller</strong>, un <strong>proyecto</strong>, una <strong>sesión</strong> de clase y una <strong>encuesta</strong>. ¡Vamos!",
     side: "right",
     align: "start",
   },
 
   // ─── Dashboard ──────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app"]',
+    element: '[data-tour-module="dashboard"]',
     title: "Dashboard",
     description:
       "Vista general de tu día: notas pendientes de calificar, sesiones de hoy, próximos exámenes, conversaciones sin responder. El punto de partida cada vez que entrás.",
@@ -280,7 +312,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Cursos ─────────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/teacher/courses"]',
+    element: '[data-tour-module="courses"]',
     title: "Mis cursos",
     description:
       "Los cursos que dictás. Desde acá entrás a su tablero (asistencia, contenidos, gradebook) y a las listas de exámenes/talleres/proyectos del curso.",
@@ -289,7 +321,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Contenidos ─────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/teacher/contents"]',
+    element: '[data-tour-module="contents"]',
     title: "Contenidos",
     description:
       "<p>Material de estudio para tus alumnos (PPTX, MD, PDF).</p><strong>Para crear uno:</strong><ol><li>Click <em>Generar con IA</em> (a partir de un syllabus) o <em>Subir</em> archivos propios.</li><li>Asocialo al curso.</li><li>Asignalo a una sesión (opcional) — el alumno lo verá en el día de esa clase.</li></ol>",
@@ -298,7 +330,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Banco de preguntas ─────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/teacher/question-bank"]',
+    element: '[data-tour-module="question_bank"]',
     title: "Banco de preguntas",
     description:
       "<p>Preguntas reutilizables del curso. Al crear un examen/taller/proyecto las importás del banco en lugar de re-escribir.</p><strong>Para añadir:</strong><ol><li>Click <em>Nueva pregunta</em>.</li><li>Tipo (selección, código, abierta, java_gui, python_gui...).</li><li>Enunciado + rúbrica.</li><li>Generación con IA disponible — pasale el tópico.</li></ol>",
@@ -307,7 +339,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Exámenes ───────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/teacher/exams"]',
+    element: '[data-tour-module="exams"]',
     title: "Exámenes",
     description:
       "<strong>Para crear un examen:</strong><ol><li>Click <em>Nuevo examen</em>.</li><li>Curso, corte, ventana de fechas, duración.</li><li>Tipo: <em>normal</em> o <em>externo</em> (ya pasó offline).</li><li>Añadí preguntas — manualmente o importando del banco.</li><li>Configurá proctoring (anti-copia, fullscreen, navegación secuencial).</li></ol>",
@@ -316,7 +348,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Talleres ───────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/teacher/workshops"]',
+    element: '[data-tour-module="workshops"]',
     title: "Talleres",
     description:
       "<strong>Para crear un taller:</strong><ol><li>Click <em>Nuevo taller</em>.</li><li>Curso, corte, fecha límite.</li><li>Activá <em>trabajo en grupo</em> si querés que entreguen de a varios.</li><li>Añadí preguntas (código, código ZIP, abierta, diagrama...).</li></ol> La IA califica las entregas automáticamente.",
@@ -325,7 +357,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Proyectos ──────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/teacher/projects"]',
+    element: '[data-tour-module="projects"]',
     title: "Proyectos",
     description:
       "<strong>Para crear un proyecto:</strong><ol><li>Click <em>Nuevo proyecto</em>.</li><li>Curso, corte, fecha límite, link al repo obligatorio.</li><li>Definí los <em>archivos esperados</em> (1 a N): un README, un diagrama, un ZIP de código...</li></ol> Después de entregar, el alumno sustenta y vos pones el <strong>factor</strong> (0–1) que multiplica su nota.",
@@ -334,7 +366,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Calificaciones (gradebook) ─────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/teacher/gradebook"]',
+    element: '[data-tour-module="gradebook"]',
     title: "Calificaciones",
     description:
       "Gradebook consolidado por curso. Notas de exámenes + talleres + proyectos + asistencia, agrupadas por corte. Editás notas externas (presencial) y exportás CSV para llevar al sistema institucional.",
@@ -343,7 +375,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Asistencia ─────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/teacher/attendance"]',
+    element: '[data-tour-module="attendance"]',
     title: "Asistencia",
     description:
       "<strong>Para crear sesiones:</strong><ol><li><em>Nueva sesión</em>: una sola con fecha, hora, duración.</li><li><em>Programar sesiones</em>: N sesiones desde fecha de inicio + días de la semana.</li><li><em>Importar CSV</em>: cuando el cronograma ya existe en una planilla.</li></ol> En cada sesión podés activar <strong>check-in con QR rotativo</strong>, abrir la <strong>pizarra</strong>, crear <strong>snippets de código</strong>, lanzar <strong>encuestas</strong> en vivo.",
@@ -352,7 +384,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Pizarras ───────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/teacher/whiteboards"]',
+    element: '[data-tour-module="whiteboards"]',
     title: "Pizarras",
     description:
       "<p>Pizarras Excalidraw standalone (no atadas a una sesión).</p><strong>Para crear una:</strong><ol><li>Click <em>Nueva pizarra</em>.</li><li>Nombre y curso (opcional).</li><li>Activá <em>compartida con el curso</em> para que los alumnos la vean.</li></ol> Soporta <strong>multi-hoja</strong> (dibujo o texto), librerías pre-cargadas (flowchart, UML, estructuras de datos) y modo fullscreen.",
@@ -361,7 +393,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Encuestas ──────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/teacher/polls"]',
+    element: '[data-tour-module="polls"]',
     title: "Encuestas",
     description:
       "<strong>Para crear una encuesta:</strong><ol><li>Click <em>Nueva encuesta</em>.</li><li>Curso(s) + sesión asociada (opcional).</li><li>Tipo: <em>opción única</em>, <em>múltiple</em> o <em>cupo por opción (Doodle)</em>.</li><li>En tipo cupo: generador automático de slots de tiempo a partir de fechas + ventana horaria. El cupo se auto-calcula para que todos quepan.</li></ol>",
@@ -370,7 +402,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Calendario ─────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/teacher/calendar"]',
+    element: '[data-tour-module="calendar"]',
     title: "Calendario",
     description:
       "Vista de calendario con sesiones, fechas de exámenes/talleres/proyectos. Sincronizable a Google Calendar y exportable a .ics. El <strong>foro</strong> del curso vive dentro de cada curso, no como módulo aparte.",
@@ -379,7 +411,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Estadísticas ───────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/teacher/statistics"]',
+    element: '[data-tour-module="statistics"]',
     title: "Estadísticas",
     description:
       "Métricas por curso: rendimiento promedio, distribución de notas, asistencia, uso de la IA. Útil para detectar alumnos en riesgo antes del cierre del corte.",
@@ -388,7 +420,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Prompts IA ─────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/teacher/ai-prompts"]',
+    element: '[data-tour-module="ai_prompts"]',
     title: "Prompts IA",
     description:
       "Personalizá los prompts que la IA usa al calificar TUS entregas. Override por curso del default que define el Admin. Útil cuando necesitás criterios específicos por materia.",
@@ -397,7 +429,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Videos ─────────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/videos"]',
+    element: '[data-tour-module="videos"]',
     title: "Biblioteca de videos",
     description:
       "Registro central de URLs (YouTube/Vimeo) y MP4 subidos. Los proyectos y talleres los referencian por ID — agregá una vez, reutilizá en muchos cursos.",
@@ -406,7 +438,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Certificados ───────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/certificates"]',
+    element: '[data-tour-module="certificates"]',
     title: "Certificados",
     description:
       "Certificados emitidos a tus alumnos al aprobar el curso. El Admin define la plantilla; vos verificás la lista de emisiones y reenvíos.",
@@ -415,7 +447,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Cola IA ────────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/teacher/ai-cron"]',
+    element: '[data-tour-module="ai_cron"]',
     title: "Cola IA",
     description:
       "Cola de calificaciones con IA + generaciones. Reintentá fallos, mirá el estado y los logs. Útil cuando una entrega quedó en <em>pendiente</em> por más de unos minutos.",
@@ -424,7 +456,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Reportes ───────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/teacher/reports"]',
+    element: '[data-tour-module="reports"]',
     title: "Informes",
     description:
       "Generá actas, boletines y reportes en PDF a partir de las plantillas que define el Admin. Filtrás por curso, corte y periodo.",
@@ -433,7 +465,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Estudiantes (docente) ──────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/teacher/students"]',
+    element: '[data-tour-module="teacher_students"]',
     title: "Mis estudiantes",
     description:
       "Listado de tus estudiantes con su rendimiento. Opción <em>Ver como</em> para entrar a la vista del alumno (impersonación acotada) y verificar qué le aparece exactamente.",
@@ -442,7 +474,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Auditoría ──────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/teacher/audit-logs"]',
+    element: '[data-tour-module="audit_logs"]',
     title: "Auditoría",
     description:
       "Historial de acciones en TUS cursos: qué se creó, qué se entregó, qué calificó la IA. Útil para responder reclamos de alumnos o investigar incidencias.",
@@ -451,7 +483,7 @@ export const TEACHER_TOUR: TourStep[] = [
 
   // ─── Papelera (NUEVO) ───────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/trash"]',
+    element: '[data-tour-module="trash"]',
     title: "Papelera",
     description:
       "Lo que <em>borrás</em> queda acá <strong>30 días</strong>. Cualquier item de cursos, exámenes, talleres, proyectos, sesiones, pizarras, contenidos o encuestas se puede <strong>Restaurar</strong> uno por uno o en bulk. Si lo borraste por error, ¡siempre podés recuperarlo!",
@@ -509,7 +541,7 @@ export const STUDENT_TOUR: TourStep[] = [
 
   // ─── Dashboard ──────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app"]',
+    element: '[data-tour-module="dashboard"]',
     title: "Dashboard",
     description:
       "Tu inicio: exámenes pendientes, talleres por entregar, próximas clases. Si algo está por vencer, lo ves acá primero.",
@@ -518,7 +550,7 @@ export const STUDENT_TOUR: TourStep[] = [
 
   // ─── Cursos ─────────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/student/courses"]',
+    element: '[data-tour-module="courses"]',
     title: "Mis cursos",
     description:
       "Los cursos donde estás matriculado. Click en uno abre su tablero: contenidos por sesión, asistencia, calificaciones, foro.",
@@ -527,7 +559,7 @@ export const STUDENT_TOUR: TourStep[] = [
 
   // ─── Exámenes ───────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/student/exams"]',
+    element: '[data-tour-module="exams"]',
     title: "Exámenes",
     description:
       "<strong>Para entregar un examen:</strong><ol><li>Esperá la ventana de tiempo definida por el docente.</li><li>Click <em>Comenzar</em>.</li><li>Respondé las preguntas (modo proctoring si el docente lo activó: pantalla completa, no copia/pega).</li><li>Click <em>Entregar</em>.</li></ol> La IA califica las preguntas abiertas y de código automáticamente.",
@@ -536,7 +568,7 @@ export const STUDENT_TOUR: TourStep[] = [
 
   // ─── Talleres ───────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/student/workshops"]',
+    element: '[data-tour-module="workshops"]',
     title: "Talleres",
     description:
       "<strong>Para entregar un taller:</strong><ol><li>Abrí el taller pendiente.</li><li>Respondé cada pregunta (código, abierta, diagrama, ZIP de archivos...).</li><li>Click <em>Entregar</em> antes de la fecha límite.</li></ol> Si el taller es en <em>grupo</em>, cualquier miembro puede editar la misma entrega.",
@@ -545,7 +577,7 @@ export const STUDENT_TOUR: TourStep[] = [
 
   // ─── Proyectos ──────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/student/projects"]',
+    element: '[data-tour-module="projects"]',
     title: "Proyectos",
     description:
       "<strong>Para entregar un proyecto:</strong><ol><li>Subí los archivos esperados (README, diagrama, ZIP de código).</li><li>Pegá el link a tu repo (Git, Drive...).</li><li>Click <em>Entregar</em>.</li><li>La nota final llega <em>después</em> de tu sustentación con el docente.</li></ol>",
@@ -554,7 +586,7 @@ export const STUDENT_TOUR: TourStep[] = [
 
   // ─── Calificaciones ─────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/student/grades"]',
+    element: '[data-tour-module="grades"]',
     title: "Calificaciones",
     description:
       "Tu boletín: notas por corte y curso. Click en cada nota muestra el desglose (qué examen, qué taller, peso de cada uno). Si algo falta, aparece como <em>—</em>.",
@@ -563,7 +595,7 @@ export const STUDENT_TOUR: TourStep[] = [
 
   // ─── Asistencia ─────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/student/attendance"]',
+    element: '[data-tour-module="attendance"]',
     title: "Asistencia",
     description:
       "Tu historial de asistencia por curso.<br><strong>Para hacer check-in en vivo:</strong> cuando el docente abra el QR, click <em>Escanear QR</em> con tu cámara o tipeá el código de 6 dígitos. También verás los <em>snippets de código</em> y <em>pizarras compartidas</em> de cada sesión.",
@@ -572,7 +604,7 @@ export const STUDENT_TOUR: TourStep[] = [
 
   // ─── Encuestas ──────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/student/polls"]',
+    element: '[data-tour-module="polls"]',
     title: "Encuestas",
     description:
       "Encuestas del docente: opción única, múltiple o por cupo (estilo Doodle para elegir fecha de sustentación). Tu voto queda registrado y, si el docente lo permite, podés cambiarlo.",
@@ -581,7 +613,7 @@ export const STUDENT_TOUR: TourStep[] = [
 
   // ─── Pizarras compartidas ───────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/student/whiteboards"]',
+    element: '[data-tour-module="whiteboards"]',
     title: "Pizarras compartidas",
     description:
       "Las pizarras que tu docente comparte con el curso. Read-only — podés ver los diagramas que él explicó en clase y volver a consultarlos cuando estudies.",
@@ -590,7 +622,7 @@ export const STUDENT_TOUR: TourStep[] = [
 
   // ─── Calendario ─────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/student/calendar"]',
+    element: '[data-tour-module="calendar"]',
     title: "Calendario",
     description:
       "Tu calendario unificado: clases, fechas de exámenes/talleres/proyectos. Exportable a Google Calendar (.ics) — instalá la suscripción y se sincroniza solo.",
@@ -599,7 +631,7 @@ export const STUDENT_TOUR: TourStep[] = [
 
   // ─── Certificados ───────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/student/certificates"]',
+    element: '[data-tour-module="certificates"]',
     title: "Certificados",
     description:
       "Cuando apruebes un curso, su certificado aparece acá. Descargable en PDF, con código de verificación pública. Los <strong>foros</strong> de cada curso viven dentro del curso, no como módulo aparte.",
@@ -608,7 +640,7 @@ export const STUDENT_TOUR: TourStep[] = [
 
   // ─── Tutor IA ───────────────────────────────────────────────────────
   {
-    element: '[data-tour-nav="/app/student/tutor"]',
+    element: '[data-tour-module="tutor"]',
     title: "Tutor IA",
     description:
       "Chat con un asistente que conoce tus materiales del curso. Pedile que te explique un concepto, te ejemplifique un caso o te ayude a resolver un ejercicio.",
@@ -652,5 +684,49 @@ export function getTourForRole(role: "Admin" | "Docente" | "Estudiante"): TourSt
       return STUDENT_TOUR;
     default:
       return [];
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Metadata por tour. Hoy solo guarda la URL del video introductorio
+// (producido con HeyGen — ver docs/heygen/<rol>.md + el recorder
+// Playwright en scripts/record-tour.ts). Cuando se setea, el primer
+// step del tour muestra un botón "Ver video introductorio" que abre
+// la URL en pestaña nueva.
+//
+// Para activar el video:
+//   1. Generar el MP4 final con HeyGen (avatar + screencast).
+//   2. Hospedar en YouTube unlisted / Vimeo / Cloudflare Stream.
+//   3. Pegar la URL acá.
+//
+// Mientras esté `null`, el botón no aparece (UX limpia).
+// ──────────────────────────────────────────────────────────────────────
+export interface TourMeta {
+  /** URL al video introductorio del rol. Si null, no se muestra el CTA. */
+  videoUrl: string | null;
+}
+
+export const ADMIN_TOUR_META: TourMeta = {
+  videoUrl: null, // TODO: pegar aquí el URL del video HeyGen para Admin.
+};
+
+export const TEACHER_TOUR_META: TourMeta = {
+  videoUrl: null, // TODO: pegar aquí el URL del video HeyGen para Docente.
+};
+
+export const STUDENT_TOUR_META: TourMeta = {
+  videoUrl: null, // TODO: pegar aquí el URL del video HeyGen para Estudiante.
+};
+
+export function getTourMetaForRole(role: "Admin" | "Docente" | "Estudiante"): TourMeta {
+  switch (role) {
+    case "Admin":
+      return ADMIN_TOUR_META;
+    case "Docente":
+      return TEACHER_TOUR_META;
+    case "Estudiante":
+      return STUDENT_TOUR_META;
+    default:
+      return { videoUrl: null };
   }
 }
