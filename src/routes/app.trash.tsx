@@ -360,6 +360,30 @@ function TrashPage() {
     }
   };
 
+  // Stats arriba — patrón 4-card compartido con los otros módulos.
+  // Por urgencia de purga: ≤3d en rojo (urgente), ≤7d en ámbar (próxima
+  // semana). Total = items totales. Recuperables = aproximación útil:
+  // cuántos pueden restaurarse con calma (>7d).
+  //
+  // IMPORTANTE: este useMemo va ANTES de cualquier return condicional
+  // (loading/error) para respetar las rules of hooks de React. Antes
+  // estaba después y rompía con #310 (Rendered fewer hooks…) cuando
+  // un tenant tenía error de carga en una de las 8 tablas y el primer
+  // render iba directo al `if (loadError) return`.
+  const trashStats = useMemo(() => {
+    let urgent = 0;
+    let soon = 0;
+    let safe = 0;
+    for (const i of items) {
+      const days = daysUntilPurge(i.deleted_at);
+      if (days <= 3) urgent += 1;
+      else if (days <= 7) soon += 1;
+      else safe += 1;
+    }
+    return { total: items.length, urgent, soon, safe };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
+
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground p-8">
@@ -377,24 +401,6 @@ function TrashPage() {
       />
     );
   }
-
-  // Stats arriba — patrón 4-card compartido con los otros módulos.
-  // Por urgencia de purga: ≤3d en rojo (urgente), ≤7d en ámbar (próxima
-  // semana). Total = items totales. Próximamente = aproximación útil:
-  // cuántos pueden restaurarse con calma (>7d).
-  const trashStats = useMemo(() => {
-    let urgent = 0;
-    let soon = 0;
-    let safe = 0;
-    for (const i of items) {
-      const days = daysUntilPurge(i.deleted_at);
-      if (days <= 3) urgent += 1;
-      else if (days <= 7) soon += 1;
-      else safe += 1;
-    }
-    return { total: items.length, urgent, soon, safe };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items]);
 
   return (
     <div className="space-y-4">
