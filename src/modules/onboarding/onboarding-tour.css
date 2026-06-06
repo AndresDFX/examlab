@@ -100,11 +100,16 @@
 }
 
 /* ─── Footer (progress + botones nav) ────────────────────────────────── */
+/* `flex-wrap: wrap` permite que el botón "Saltar tour" baje a una segunda
+   fila cuando el ancho no alcanza (típicamente en mobile <450px o cuando
+   el popover está a la izquierda del viewport). Sin wrap los botones se
+   solapan al X y al borde. `gap` aplica entre filas también. */
 .driver-popover-footer {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  gap: 0.75rem !important;
+  flex-wrap: wrap !important;
+  gap: 0.5rem 0.75rem !important;
   margin-top: 0 !important;
   padding-top: 0 !important;
   border-top: none !important;
@@ -116,6 +121,9 @@
   color: var(--muted-foreground) !important;
   font-variant-numeric: tabular-nums !important;
   font-weight: 500 !important;
+  /* No shrink — sino el contador queda como "2..." al wrap. */
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
 }
 
 /* ─── Wrapper de botones (anterior + siguiente) ──────────────────────── */
@@ -123,6 +131,7 @@
   display: flex !important;
   gap: 0.5rem !important;
   align-items: center !important;
+  flex-shrink: 0 !important;
 }
 
 /* ─── Botones (base común) ───────────────────────────────────────────── */
@@ -137,6 +146,7 @@
   cursor: pointer !important;
   text-shadow: none !important;
   line-height: 1.25 !important;
+  white-space: nowrap !important;
   transition:
     background-color 0.15s ease,
     border-color 0.15s ease,
@@ -256,5 +266,27 @@
   }
   .driver-popover-description {
     font-size: 0.8125rem !important;
+  }
+  /* Footer reordenado en mobile: "Saltar tour" arriba (toma todo el
+     ancho con order=-1), progress + botones nav abajo. Sin esto el
+     skip queda al lado del progress y rompe la línea de prev/next o
+     fuerza wrap incómodo. */
+  .driver-tour-skip-btn {
+    order: -1 !important;
+    width: 100% !important;
+    text-align: center !important;
+    margin-right: 0 !important;
+  }
+  .driver-popover-progress-text {
+    /* En mobile, progress va a la izquierda; los botones a la derecha. */
+    margin-right: auto !important;
+  }
+  /* Botones más compactos en mobile para que prev + next quepan en una
+     fila sin wrap (en pantallas de 360-400px). El texto "Siguiente →"
+     y "← Anterior" con padding default rompía a varias líneas. */
+  .driver-popover-prev-btn,
+  .driver-popover-next-btn {
+    padding: 0.35rem 0.65rem !important;
+    font-size: 0.75rem !important;
   }
 }

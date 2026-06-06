@@ -138,8 +138,36 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
         // progress + prev + next, así que el skip queda separado.
         popover.footer.insertBefore(skipBtn, popover.footer.firstChild);
       },
+      // Cada step puede declarar `route` para que el tour navegue al
+      // módulo correspondiente ANTES de mostrar el popover. UX: el
+      // usuario ve simultáneamente el item del sidebar resaltado Y el
+      // contenido del módulo cargado. Sin esto, el tour solo recorría
+      // el sidebar y nunca "entraba" a las pantallas.
+      //
+      // Implementación: cada step lleva su propio `onHighlightStarted`.
+      // driver.js lo invoca antes de pintar el popover/highlight. Si la
+      // ruta actual ya coincide, no navegamos (evita flicker en steps
+      // anclados a la misma ruta que el anterior).
       steps: validSteps.map((s) => ({
         element: s.element,
+        ...(s.route
+          ? {
+              onHighlightStarted: () => {
+                const wanted = s.route!;
+                const current =
+                  typeof window !== "undefined" ? window.location.pathname : "";
+                if (current === wanted) return;
+                try {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  void (routerRef.current as any).navigate({ to: wanted });
+                } catch (err) {
+                  // Si la ruta no existe en el router, no rompemos el
+                  // tour — solo logueamos a consola y seguimos.
+                  console.warn(`[tour] no se pudo navegar a ${wanted}`, err);
+                }
+              },
+            }
+          : {}),
         popover: {
           title: s.title,
           description: s.description,
