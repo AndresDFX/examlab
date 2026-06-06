@@ -1,0 +1,124 @@
+/**
+ * OnboardingTour — wrapper de driver.js para mostrar el tour guiado
+ * del rol actual.
+ *
+ * Recibe el rol y dispara el tour correspondiente. Al terminar (Skip,
+ * Finalizar, X o ESC) llama a `onComplete(role)` para que el hook
+ * marque el tour como visto en DB. Si el usuario lo cierra ANTES de
+ * llegar al final (modo manual desde el botón "Ver tour"), llamamos
+ * a `onDismiss()` que solo cierra sin marcar.
+ *
+ * Customización CSS: el design system de ExamLab usa Tailwind v4 con
+ * tokens OKLCH. Sobrescribimos las CSS vars de driver.js para que el
+ * popover use los mismos colores (primary, foreground, etc.) y se vea
+ * coherente con el resto de la app.
+ */
+import { useEffect, useRef } from "react";
+import { driver, type Driver } from "driver.js";
+import "driver.js/dist/driver.css";
+import { getTourForRole, type TourStep } from "./tour-config";
+
+interface Props {
+  /** Rol cuyo tour se muestra. Si null, no se monta nada. */
+  role: "Admin" | "Docente" | "Estudiante" | null;
+  /** Llamado cuando el tour termina (Skip, Finalizar). Marca el rol
+   *  como completado en DB. */
+  onComplete: (role: "Admin" | "Docente" | "Estudiante") => void;
+  /** Llamado cuando el usuario cierra el tour SIN completarlo (X o ESC).
+   *  En modo automático (primer login) lo tratamos igual que onComplete
+   *  para no fastidiar. En modo manual, solo cierra. */
+  onDismiss: () => void;
+  /** Si true, cerrar SIN marcar como visto (modo manual "Ver tour de
+   *  nuevo"). Default false → cerrar = marcar como visto. */
+  manualMode?: boolean;
+}
+
+export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false }: Props) {
+  const driverRef = useRef<Driver | null>(null);
+  // Guardamos role + callbacks en refs para que el effect de instanciar
+  // driver.js NO re-corra cuando cambian. Solo arranca/destruye al
+  // cambiar el `role`.
+  const onCompleteRef = useRef(onComplete);
+  const onDismissRef = useRef(onDismiss);
+  const manualRef = useRef(manualMode);
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+    onDismissRef.current = onDismiss;
+    manualRef.current = manualMode;
+  });
+
+  useEffect(() => {
+    if (!role) return;
+    const steps = getTourForRole(role);
+    if (steps.length === 0) return;
+
+    // Filtrar pasos cuyo elemento no exista en el DOM. driver.js
+    // intenta avanzar si no encuentra el selector, pero preferimos
+    // saltarlos limpiamente para no dejar steps "ciegos".
+    const validSteps: TourStep[] = steps.filter((s) => {
+      try {
+        return document.querySelector(s.element) !== null;
+      } catch {
+        return false;
+      }
+    });
+    if (validSteps.length === 0) return;
+
+    const driverObj = driver({
+      showProgress: true,
+      showButtons: ["next", "previous", "close"],
+      // Texto de los botones en español. driver.js los expone via prop.
+      nextBtnText: "Siguiente →",
+      prevBtnText: "← Anterior",
+      doneBtnText: "Finalizar",
+      progressText: "{{current}} de {{total}}",
+      // Overlay y animación.
+      overlayOpacity: 0.6,
+      animate: true,
+      // No permitir click fuera del popover para no cerrar accidentalmente.
+      allowClose: true,
+      smoothScroll: true,
+      // Click fuera del popover NO debe cerrar — ya hay X y "Saltar".
+      overlayClickBehavior: "nextStep",
+      steps: validSteps.map((s) => ({
+        element: s.element,
+        popover: {
+          title: s.title,
+          description: s.description,
+          side: s.side ?? "right",
+          align: s.align ?? "center",
+        },
+      })),
+      // onDestroyed se dispara cuando el tour termina o el usuario cierra.
+      onDestroyed: () => {
+        // Si el tour llegó al final naturalmente O el usuario hizo X
+        // → marcamos como visto, excepto en modo manual.
+        if (manualRef.current) {
+          onDismissRef.current();
+        } else if (role) {
+          onCompleteRef.current(role);
+        }
+      },
+    });
+
+    driverRef.current = driverObj;
+    // Pequeño delay para que el DOM termine cualquier animación de
+    // entrada del sidebar antes de calcular posiciones.
+    const startTimer = setTimeout(() => {
+      driverObj.drive();
+    }, 100);
+
+    return () => {
+      clearTimeout(startTimer);
+      try {
+        driverObj.destroy();
+      } catch {
+        // driver.js a veces tira al destruir si ya estaba destruido.
+        // No es un error real.
+      }
+      driverRef.current = null;
+    };
+  }, [role]);
+
+  return null;
+}
