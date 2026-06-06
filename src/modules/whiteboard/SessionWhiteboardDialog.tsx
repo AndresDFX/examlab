@@ -15,11 +15,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { HelpHint } from "@/components/ui/help-hint";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { WhiteboardEditor, type WhiteboardScene } from "@/modules/whiteboard/WhiteboardEditor";
-import { Palette } from "lucide-react";
+import { Palette, Users } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -31,16 +34,34 @@ interface Props {
   /** Etiqueta humana para el header — ej "Clase 3 · 28 sep". */
   sessionLabel?: string;
   onOpenChange: (open: boolean) => void;
+  /** Si true, el componente interno trata al usuario como ALUMNO:
+   *   - No muestra el toggle de "compartir".
+   *   - El UPDATE de la escena solo se acepta server-side si la sesión
+   *     tiene whiteboard_shared=true (lo enforce la RPC).
+   *   - El canal Realtime se activa automáticamente si shared=true.
+   *  Si false (default), trata al usuario como DOCENTE — puede toggle. */
+  studentMode?: boolean;
 }
 
-export function SessionWhiteboardDialog({ sessionId, sessionLabel, onOpenChange }: Props) {
+export function SessionWhiteboardDialog({
+  sessionId,
+  sessionLabel,
+  onOpenChange,
+  studentMode,
+}: Props) {
   const [scene, setScene] = useState<WhiteboardScene | null>(null);
   const [loading, setLoading] = useState(false);
   const [autoSaving, setAutoSaving] = useState(false);
+  // Estado del flag whiteboard_shared. Solo el docente puede toggle vía
+  // RPC. El alumno solo lo lee — si es false, su Editor queda en
+  // readOnly (lo decidimos abajo en el render).
+  const [shared, setShared] = useState(false);
+  const [togglingShared, setTogglingShared] = useState(false);
 
   useEffect(() => {
     if (!sessionId) {
       setScene(null);
+      setShared(false);
       return;
     }
     let cancelled = false;
@@ -49,7 +70,7 @@ export function SessionWhiteboardDialog({ sessionId, sessionLabel, onOpenChange 
         setLoading(true);
         const { data, error } = await db
           .from("attendance_sessions")
-          .select("whiteboard_scene")
+          .select("whiteboard_scene, whiteboard_shared")
           .eq("id", sessionId)
           .maybeSingle();
         if (cancelled) return;
@@ -60,7 +81,12 @@ export function SessionWhiteboardDialog({ sessionId, sessionLabel, onOpenChange 
         }
         // Si la sesión nunca tuvo pizarra, scene = null → editor arranca
         // con escena vacía.
-        setScene((data as { whiteboard_scene?: WhiteboardScene } | null)?.whiteboard_scene ?? null);
+        const row = data as {
+          whiteboard_scene?: WhiteboardScene;
+          whiteboard_shared?: boolean;
+        } | null;
+        setScene(row?.whiteboard_scene ?? null);
+        setShared(Boolean(row?.whiteboard_shared));
         setLoading(false);
       } catch (e) {
         // IIFE async sin try/catch dejaba rejections de la query como
@@ -80,10 +106,14 @@ export function SessionWhiteboardDialog({ sessionId, sessionLabel, onOpenChange 
     if (!sessionId) return;
     setAutoSaving(true);
     try {
-      const { error } = await db
-        .from("attendance_sessions")
-        .update({ whiteboard_scene: next })
-        .eq("id", sessionId);
+      // Usamos la RPC `update_session_whiteboard_scene` (mig 20260815000000)
+      // en lugar de UPDATE directo. La RPC enforce que solo el docente o
+      // un alumno matriculado con shared=true pueda escribir. Único path
+      // tanto para docente como alumno — sin condicionales en cliente.
+      const { error } = await db.rpc("update_session_whiteboard_scene", {
+        _session_id: sessionId,
+        _scene: next,
+      });
       if (error) {
         toast.error(friendlyError(error, "No se pudo guardar la pizarra"));
         return;
@@ -101,6 +131,37 @@ export function SessionWhiteboardDialog({ sessionId, sessionLabel, onOpenChange 
     }
   };
 
+  const toggleShared = async (next: boolean) => {
+    if (!sessionId || studentMode) return;
+    setTogglingShared(true);
+    // UI optimista — revertimos si la RPC falla.
+    setShared(next);
+    try {
+      const { error } = await db.rpc("set_session_whiteboard_shared", {
+        _session_id: sessionId,
+        _shared: next,
+      });
+      if (error) {
+        setShared(!next);
+        toast.error(friendlyError(error, "No se pudo cambiar el modo compartido"));
+      } else {
+        toast.success(next ? "Pizarra compartida activada" : "Pizarra compartida desactivada");
+      }
+    } catch (e) {
+      setShared(!next);
+      toast.error(friendlyError(e, "No se pudo cambiar el modo compartido"));
+    } finally {
+      setTogglingShared(false);
+    }
+  };
+
+  // El alumno solo puede ESCRIBIR si shared=true; sino la pizarra
+  // queda visible en readOnly. El docente siempre puede escribir.
+  const editorReadOnly = studentMode && !shared;
+  // Canal Realtime solo cuando shared=true — sino broadcast inútil que
+  // gasta cuota. Tanto docente como alumno se enchufan al mismo canal.
+  const realtimeChannelName = shared && sessionId ? `wb_session:${sessionId}` : undefined;
+
   return (
     <Dialog open={Boolean(sessionId)} onOpenChange={onOpenChange}>
       {/* max-w[calc(100vw-2rem)] sm:max-w-6xl para usar todo el ancho
@@ -109,13 +170,39 @@ export function SessionWhiteboardDialog({ sessionId, sessionLabel, onOpenChange 
           pequeñas (toolbar arriba + canvas abajo). */}
       <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-6xl h-[90vh] flex flex-col p-0 gap-0">
         <DialogHeader className="p-3 border-b">
-          <DialogTitle className="flex items-center gap-2 text-base">
+          <DialogTitle className="flex items-center gap-2 text-base flex-wrap">
             <Palette className="h-5 w-5 text-violet-500" />
             Pizarra {sessionLabel ? `· ${sessionLabel}` : ""}
             {autoSaving && (
               <span className="text-xs text-muted-foreground font-normal inline-flex items-center gap-1 ml-2">
                 <Spinner size="xs" /> Guardando…
               </span>
+            )}
+            {/* Toggle "Compartida" — solo el docente lo ve. El alumno
+                ya recibe la propiedad shared del padre vía load() y se
+                enchufa al canal Realtime automáticamente si está ON. */}
+            {!studentMode && sessionId && (
+              <div className="ml-auto flex items-center gap-2">
+                <Users className="h-4 w-4 text-sky-600" />
+                <Label
+                  htmlFor="wb-shared-toggle"
+                  className="text-xs font-normal cursor-pointer mb-0"
+                >
+                  Pizarra compartida
+                </Label>
+                <HelpHint side="left">
+                  Si la activás, los alumnos matriculados pueden ABRIR y EDITAR esta pizarra desde
+                  su vista de asistencia. Los cambios se sincronizan en vivo entre todos los
+                  participantes (con un pequeño delay). Cuando la desactivás, solo vos volvés a ser
+                  el editor.
+                </HelpHint>
+                <Switch
+                  id="wb-shared-toggle"
+                  checked={shared}
+                  disabled={togglingShared}
+                  onCheckedChange={(v) => void toggleShared(v)}
+                />
+              </div>
             )}
           </DialogTitle>
         </DialogHeader>
@@ -125,7 +212,19 @@ export function SessionWhiteboardDialog({ sessionId, sessionLabel, onOpenChange 
               <Spinner size="sm" /> Cargando pizarra…
             </div>
           ) : (
-            <WhiteboardEditor scene={scene} onPersist={persistScene} className="w-full h-full" />
+            <WhiteboardEditor
+              scene={scene}
+              onPersist={persistScene}
+              className="w-full h-full"
+              readOnly={editorReadOnly}
+              // Viewport persistido en localStorage por sesión — al cerrar
+              // y reabrir el dialog, el zoom/pan se mantienen donde quedaron.
+              viewportStorageKey={`examlab_wb_view:session:${sessionId}`}
+              // Canal Realtime activo solo cuando shared=true. Tanto el
+              // docente como los alumnos se enchufan al mismo canal, y
+              // los broadcasts se filtran por clientId para no eco.
+              realtimeChannelName={realtimeChannelName}
+            />
           )}
         </div>
       </DialogContent>

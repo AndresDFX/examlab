@@ -659,6 +659,12 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
             onPersist={persistDrawingPage}
             readOnly={readOnly}
             className="w-full h-full"
+            // Persistencia del viewport por hoja: cada page tiene SU
+            // propia clave de localStorage, así pan/zoom se respeta al
+            // volver a la pizarra o cambiar de pestaña del navegador.
+            // El whiteboardId queda implícito en el page_id (UUID único
+            // global), no necesitamos prefijar.
+            viewportStorageKey={`examlab_wb_view:page:${activePage.id}`}
           />
         )}
       </div>

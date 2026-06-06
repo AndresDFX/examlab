@@ -629,6 +629,8 @@ function CreatePollDialog({
   userId,
   onCreated,
   editingPoll,
+  prefilledSessionId,
+  prefilledCourseId,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -642,6 +644,12 @@ function CreatePollDialog({
    *  (poll_responses.option_id), así que para reescribirlas hay que
    *  eliminar y recrear la encuesta. */
   editingPoll?: Poll | null;
+  /** Cuando se abre desde la vista de una sesión específica
+   *  (`/app/teacher/attendance` → "Crear encuesta para esta sesión"),
+   *  el padre pre-selecciona la sesión + curso. Modo create únicamente
+   *  — en edit se hidrata de `editingPoll.attendance_session_id`. */
+  prefilledSessionId?: string | null;
+  prefilledCourseId?: string | null;
 }) {
   const isEdit = editingPoll != null;
   const [title, setTitle] = useState("");
@@ -664,6 +672,13 @@ function CreatePollDialog({
   // docente la ve. Al activarse, los triggers de DB notifican + emailan
   // al curso. Default false para evitar publicar a medio armar.
   const [isPublished, setIsPublished] = useState(false);
+  // Sesión asociada (opcional). Cuando se setea, la encuesta aparece
+  // destacada en la pantalla de la sesión (asistencia teacher + tarjeta
+  // de sesión en student). El selector lista las sesiones del curso ancla.
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [availableSessions, setAvailableSessions] = useState<
+    Array<{ id: string; title: string | null; session_date: string }>
+  >([]);
   const [options, setOptions] = useState<DraftOption[]>([
     { label: "", max_responses: "" },
     { label: "", max_responses: "" },
@@ -784,6 +799,58 @@ function CreatePollDialog({
     );
   };
 
+  // Carga sesiones del curso ancla (el primer course del set). Se
+  // dispara cuando cambia el anchor — al abrir el dialog, al cambiar
+  // el set de cursos seleccionados, etc. Las sesiones de OTROS cursos
+  // del set NO se listan (modelo: la encuesta se ata a UNA sola sesión,
+  // y debe pertenecer al curso ancla — los cursos extra son para
+  // ampliar la audiencia, no para multi-sesión).
+  const anchorCourseIdLoaded = courseIds[0] ?? null;
+  useEffect(() => {
+    if (!open || !anchorCourseIdLoaded) {
+      setAvailableSessions([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data, error } = await db
+          .from("attendance_sessions")
+          .select("id, title, session_date")
+          .eq("course_id", anchorCourseIdLoaded)
+          .order("session_date", { ascending: false })
+          .limit(60);
+        if (cancelled) return;
+        if (error) {
+          // No bloqueamos el dialog — el selector quedará vacío con
+          // hint "no hay sesiones". El usuario puede seguir guardando
+          // sin asociar sesión.
+          setAvailableSessions([]);
+          return;
+        }
+        setAvailableSessions(
+          (data ?? []) as Array<{ id: string; title: string | null; session_date: string }>,
+        );
+        // Si el sessionId actual no pertenece al curso ancla, lo limpiamos.
+        // Esto pasa cuando el docente cambia el anchor course después de
+        // haber elegido una sesión: la sesión antigua queda inválida.
+        if (sessionId && !((data ?? []) as Array<{ id: string }>).some((s) => s.id === sessionId)) {
+          setSessionId(null);
+        }
+      } catch {
+        if (cancelled) return;
+        setAvailableSessions([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // sessionId fuera de deps: solo queremos re-leer las sesiones cuando
+    // cambia el anchor course o se abre el dialog; chequeamos sessionId
+    // dentro pero no como trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, anchorCourseIdLoaded]);
+
   // Ref que captura el último `open` para detectar transiciones
   // false → true. Esto evita que el reset se dispare cuando solo
   // cambia `courses` (TOKEN_REFRESHED al volver al tab refetchea
@@ -819,6 +886,7 @@ function CreatePollDialog({
       setAllowChange(editingPoll.allow_change_response);
       setAutoCloseAll(editingPoll.auto_close_when_all_responded);
       setIsPublished(editingPoll.is_published);
+      setSessionId(editingPoll.attendance_session_id ?? null);
       // Las opciones se muestran read-only en modo edit — las hidratamos
       // para mostrar al docente lo que existe sin modificar.
       setOptions(
@@ -828,16 +896,22 @@ function CreatePollDialog({
         })),
       );
     } else {
-      // Reset al abrir en modo create.
+      // Reset al abrir en modo create. Si el padre pasó prefilledCourseId
+      // (desde la vista de una sesión), arrancamos con ese curso ancla.
       setTitle("");
       setDescription("");
-      setCourseIds(courses[0] ? [courses[0].id] : []);
+      const initialCourse =
+        prefilledCourseId && courses.some((c) => c.id === prefilledCourseId)
+          ? prefilledCourseId
+          : (courses[0]?.id ?? null);
+      setCourseIds(initialCourse ? [initialCourse] : []);
       setType("single");
       setVisibility("after_close");
       setClosesAt("");
       setAllowChange(true);
       setAutoCloseAll(false);
       setIsPublished(false);
+      setSessionId(prefilledSessionId ?? null);
       setOptions([
         { label: "", max_responses: "" },
         { label: "", max_responses: "" },
@@ -911,6 +985,7 @@ function CreatePollDialog({
             allow_change_response: allowChange,
             auto_close_when_all_responded: autoCloseAll,
             is_published: isPublished,
+            attendance_session_id: sessionId,
           })
           .eq("id", editingPoll.id);
         if (updErr) {
@@ -964,6 +1039,7 @@ function CreatePollDialog({
           allow_change_response: allowChange,
           auto_close_when_all_responded: autoCloseAll,
           is_published: isPublished,
+          attendance_session_id: sessionId,
           created_by: userId,
         })
         .select("id")
@@ -1091,6 +1167,43 @@ function CreatePollDialog({
               <p className="text-[11px] text-muted-foreground mt-1">
                 {courseIds.length} cursos seleccionados — un alumno matriculado en varios cuenta
                 como uno solo.
+              </p>
+            )}
+          </div>
+          {/* Sesión asociada (opcional). Si se setea, la encuesta aparece
+              destacada en la pantalla de asistencia del docente y en el
+              card de la sesión para el alumno. Solo lista sesiones del
+              curso ancla (primer curso del set). Vacía → encuesta "suelta"
+              del curso. */}
+          <div>
+            <Label className="flex items-center gap-1.5">
+              Asociar a sesión (opcional)
+              <HelpHint side="right">
+                Si elegís una sesión, la encuesta aparecerá destacada en la pantalla de asistencia
+                de esa sesión (docente) y como acción pendiente en el card del alumno. Solo se
+                listan sesiones del primer curso seleccionado.
+              </HelpHint>
+            </Label>
+            <Select
+              value={sessionId ?? "__none__"}
+              onValueChange={(v) => setSessionId(v === "__none__" ? null : v)}
+              disabled={!anchorCourseIdLoaded}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Sin asociar (suelta del curso)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Sin asociar (suelta del curso)</SelectItem>
+                {availableSessions.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.session_date} {s.title ? `· ${s.title}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {anchorCourseIdLoaded && availableSessions.length === 0 && (
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Este curso no tiene sesiones registradas todavía.
               </p>
             )}
           </div>

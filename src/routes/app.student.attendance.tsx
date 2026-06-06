@@ -48,12 +48,16 @@ import {
   Sparkles,
   PlayCircle,
   ExternalLink,
+  Code2,
+  Palette,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { buildVideoEmbedUrl } from "@/shared/lib/video-embed";
 import { AttendanceQRScanner } from "@/modules/attendance/AttendanceQRScanner";
+import { SessionCodeSnippetsDialog } from "@/modules/sessions/SessionCodeSnippetsDialog";
+import { SessionWhiteboardDialog } from "@/modules/whiteboard/SessionWhiteboardDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { ErrorState } from "@/components/ui/empty-state";
 
@@ -80,6 +84,9 @@ type Session = {
   session_date: string;
   title: string | null;
   check_in_open?: boolean;
+  /** Si true, los alumnos matriculados pueden abrir + EDITAR la pizarra
+   *  de la sesión en modo colaborativo (sync via Supabase Realtime). */
+  whiteboard_shared?: boolean;
   /** Enlace libre a la grabación (Meet/Teams/Zoom/Loom…). Se abre en
    *  nueva pestaña — esos servicios bloquean iframe. */
   recording_url?: string | null;
@@ -164,6 +171,21 @@ function StudentAttendance() {
     embedSrc: string;
     kind: "youtube" | "vimeo" | "direct";
   } | null>(null);
+  // Sesión cuyos snippets de código quiere ver el alumno. Cuando se setea,
+  // abrimos el SessionCodeSnippetsDialog en modo readOnly. El componente
+  // interno carga los snippets via RLS (estudiante matriculado ve los del
+  // curso). Si no hay snippets, muestra mensaje friendly en lugar de
+  // dialog vacío.
+  const [snippetsSession, setSnippetsSession] = useState<{ id: string; title: string } | null>(
+    null,
+  );
+  // Sesión cuya pizarra COMPARTIDA quiere abrir el alumno. Solo se
+  // expone el botón cuando session.whiteboard_shared===true. El dialog
+  // se reusa del docente con studentMode=true (oculta el toggle).
+  const [sharedWhiteboardSession, setSharedWhiteboardSession] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
 
   // Cursos donde el alumno está matriculado.
   useEffect(() => {
@@ -226,7 +248,9 @@ function StudentAttendance() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (supabase as any)
           .from("attendance_sessions")
-          .select("id, course_id, session_date, title, recording_url, recording_video_id")
+          .select(
+            "id, course_id, session_date, title, recording_url, recording_video_id, whiteboard_shared",
+          )
           .eq("course_id", selectedCourseId)
           .order("session_date", { ascending: false }),
         // RLS limita a auth.uid() = user_id; igual filtramos explícitamente
@@ -670,6 +694,48 @@ function StudentAttendance() {
                                     </a>
                                   </Button>
                                 )}
+                                {/* Botón "Código" — abre el dialog read-only
+                                    con los snippets compartidos por el docente.
+                                    Lo mostramos SIEMPRE; si la sesión no tiene
+                                    snippets, el dialog renderea un mensaje
+                                    friendly. Pre-cargar el count antes de
+                                    mostrar el botón requeriría una query extra
+                                    por carga — preferimos un click "vacío"
+                                    ocasional a complicar la pantalla. */}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-[11px]"
+                                  onClick={() =>
+                                    setSnippetsSession({
+                                      id: s.id,
+                                      title: s.title ?? formatDateOnly(s.session_date),
+                                    })
+                                  }
+                                >
+                                  <Code2 className="h-3 w-3 mr-1" />
+                                  Código
+                                </Button>
+                                {/* Pizarra compartida — solo cuando el
+                                    docente activó shared. El click abre
+                                    el editor en studentMode, suscrito al
+                                    canal Realtime para colaborar en vivo. */}
+                                {s.whiteboard_shared && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-[11px] border-sky-400/60 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/30"
+                                    onClick={() =>
+                                      setSharedWhiteboardSession({
+                                        id: s.id,
+                                        title: s.title ?? formatDateOnly(s.session_date),
+                                      })
+                                    }
+                                  >
+                                    <Palette className="h-3 w-3 mr-1" />
+                                    Pizarra
+                                  </Button>
+                                )}
                                 {!video && !s.recording_url && (
                                   <span className="text-xs text-muted-foreground">—</span>
                                 )}
@@ -792,6 +858,25 @@ function StudentAttendance() {
           )}
         </DialogContent>
       </Dialog>
+      {/* Dialog read-only de snippets de código de la sesión. RLS de
+          session_code_snippets ya filtra al alumno a SOLO los snippets
+          de cursos donde está matriculado. */}
+      <SessionCodeSnippetsDialog
+        sessionId={snippetsSession?.id ?? null}
+        sessionLabel={snippetsSession?.title}
+        onOpenChange={(open) => !open && setSnippetsSession(null)}
+        readOnly
+      />
+      {/* Pizarra compartida — studentMode=true esconde el toggle y obliga
+          a que el alumno SOLO pueda editar si el docente activó shared.
+          La RPC server-side enforce el flag; el cliente solo abre el
+          dialog. */}
+      <SessionWhiteboardDialog
+        sessionId={sharedWhiteboardSession?.id ?? null}
+        sessionLabel={sharedWhiteboardSession?.title}
+        onOpenChange={(open) => !open && setSharedWhiteboardSession(null)}
+        studentMode
+      />
     </div>
   );
 }

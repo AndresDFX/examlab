@@ -33,11 +33,13 @@
  */
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { ComponentType } from "react";
-import { Eye, Maximize2, Minimize2 } from "lucide-react";
+import { Eye, Maximize2, Minimize2, Users } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/shared/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 /** Forma del JSON que serializamos. Es un subset del formato
  *  Excalidraw — guardamos `elements` (array de figuras) y
@@ -65,6 +67,70 @@ interface Props {
   /** Clase Tailwind del contenedor — el padre controla el alto y el
    *  ancho. La pizarra ocupa el 100% del contenedor. */
   className?: string;
+  /** Clave de localStorage para persistir el viewport (scrollX, scrollY,
+   *  zoom) entre montajes. Cuando se pasa, el editor:
+   *    - Al MONTAR: lee el viewport guardado y lo merge a initialData.appState.
+   *    - Al CAMBIAR el canvas: persiste el viewport con debounce de 500ms.
+   *  Si se omite, viewport se resetea a default cada vez que el componente
+   *  se monta (el comportamiento histórico). Recomendado: `examlab_wb_view:<page_id>`.
+   *  No se persiste a DB para evitar bloat de la escena y para que cada
+   *  device/tab tenga su propia vista. */
+  viewportStorageKey?: string;
+  /** Nombre de canal Supabase Realtime para sincronización colaborativa
+   *  en vivo. Cuando se setea:
+   *    - El editor se suscribe al canal.
+   *    - Cada onChange local emite un broadcast `scene_update` con el
+   *      scene completo + clientId (debounce 200ms para no saturar).
+   *    - Al recibir un broadcast de OTRO clientId, aplica el scene
+   *      a Excalidraw vía `excalidrawAPI.updateScene` con
+   *      `commitToHistory: false`.
+   *  El padre sigue siendo dueño de la persistencia a DB — el broadcast
+   *  es SOLO para sync en vivo (sub-segundo). Si todos cierran el editor
+   *  y vuelven, leen el último scene de DB.
+   *  Ejemplo: `wb_session:<session_id>` para una pizarra de sesión. */
+  realtimeChannelName?: string;
+}
+
+/** Forma persistida del viewport en localStorage. Excalidraw entiende
+ *  estos campos directamente en `appState`. */
+interface PersistedViewport {
+  scrollX: number;
+  scrollY: number;
+  zoom: number;
+}
+
+/** Lee el viewport desde localStorage. Devuelve null si no existe o si
+ *  el JSON está corrupto (no rompe el render — caemos al default). */
+function readViewport(key: string | undefined): PersistedViewport | null {
+  if (!key || typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PersistedViewport>;
+    if (
+      typeof parsed.scrollX !== "number" ||
+      typeof parsed.scrollY !== "number" ||
+      typeof parsed.zoom !== "number" ||
+      !Number.isFinite(parsed.scrollX) ||
+      !Number.isFinite(parsed.scrollY) ||
+      !Number.isFinite(parsed.zoom)
+    ) {
+      return null;
+    }
+    return { scrollX: parsed.scrollX, scrollY: parsed.scrollY, zoom: parsed.zoom };
+  } catch {
+    return null;
+  }
+}
+
+function writeViewport(key: string | undefined, vp: PersistedViewport): void {
+  if (!key || typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(vp));
+  } catch {
+    // Quota exceeded / disabled storage — silently skip. La pérdida del
+    // viewport es benigna; no merece toast ni log.
+  }
 }
 
 /** Importación dinámica de Excalidraw. Cargado UNA vez por sesión
@@ -79,7 +145,29 @@ async function loadExcalidraw() {
   return cachedExcalidraw;
 }
 
-export function WhiteboardEditor({ scene, onPersist, readOnly, className }: Props) {
+/** clientId único de la pestaña — generado UNA vez al cargar el módulo.
+ *  Lo usamos para distinguir nuestros propios broadcasts de los ajenos
+ *  en el canal de Realtime. UUID via crypto.randomUUID() (disponible en
+ *  navegadores modernos + Node 19+); fallback a timestamp+random para
+ *  entornos sin la API (SSR sin polyfill). */
+const TAB_CLIENT_ID: string =
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `tab-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+
+interface ScenePayload {
+  clientId: string;
+  scene: WhiteboardScene;
+}
+
+export function WhiteboardEditor({
+  scene,
+  onPersist,
+  readOnly,
+  className,
+  viewportStorageKey,
+  realtimeChannelName,
+}: Props) {
   const [Component, setComponent] = useState<ComponentType<Record<string, unknown>> | null>(
     cachedExcalidraw,
   );
@@ -180,13 +268,108 @@ export function WhiteboardEditor({ scene, onPersist, readOnly, className }: Prop
     };
   }, []);
 
+  // Debounce separado para el viewport (scrollX/Y/zoom). Cambia con MUCHA
+  // más frecuencia que los elementos (cualquier pan/scroll dispara onChange),
+  // así que usamos 500ms en vez de 1500ms para que el último gesto del
+  // usuario quede guardado rápido pero sin pegar a localStorage en cada
+  // pixel del drag.
+  const viewportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastViewportRef = useRef<string>("");
+
+  // ── Realtime broadcast (pizarra compartida) ──
+  // Referencia al ExcalidrawAPI capturada via initialData callback —
+  // necesaria para llamar `updateScene` cuando llega un broadcast remoto.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const excalidrawAPIRef = useRef<any>(null);
+  // Canal Realtime activo. Lo guardamos para emitir broadcasts desde
+  // handleChange sin pasar el canal por args.
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  // Debounce para el broadcast — independiente del persist (1500ms) y
+  // del viewport (500ms). 200ms es el sweet spot para "sub-segundo
+  // perceived latency" sin saturar Supabase (Realtime tiene quotas).
+  const broadcastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Estado para mostrar "Compartido" badge en el editor (UX feedback
+  // de que la pizarra está en modo colaborativo).
+  const [collabActive, setCollabActive] = useState(false);
+
+  // Suscripción al canal Realtime — solo se activa cuando el padre pasa
+  // `realtimeChannelName`. Se desuscribe al desmontar o al cambiar de
+  // canal. Cada cliente recibe broadcasts de OTROS clientes en el canal
+  // y aplica el scene al Excalidraw API.
+  useEffect(() => {
+    if (!realtimeChannelName) {
+      setCollabActive(false);
+      return;
+    }
+    const channel = supabase.channel(realtimeChannelName, {
+      config: { broadcast: { self: false } },
+    });
+    channelRef.current = channel;
+    channel.on("broadcast", { event: "scene_update" }, (msg) => {
+      const payload = msg.payload as ScenePayload | undefined;
+      if (!payload || payload.clientId === TAB_CLIENT_ID) return;
+      const api = excalidrawAPIRef.current;
+      if (!api || typeof api.updateScene !== "function") return;
+      // commitToHistory:false → el undo del usuario local no debe
+      // deshacer cambios de OTROS clientes. captureUpdate:never es la
+      // nueva API equivalente en versiones recientes de Excalidraw —
+      // pasamos ambas para máxima compat.
+      try {
+        api.updateScene({
+          elements: payload.scene.elements,
+          appState: payload.scene.appState,
+          commitToHistory: false,
+          captureUpdate: "never",
+        });
+      } catch (err) {
+        console.warn("[WhiteboardEditor] updateScene remote failed", err);
+      }
+    });
+    void channel.subscribe((status) => {
+      if (status === "SUBSCRIBED") setCollabActive(true);
+      else if (status === "CLOSED" || status === "CHANNEL_ERROR") setCollabActive(false);
+    });
+    return () => {
+      channelRef.current = null;
+      setCollabActive(false);
+      void supabase.removeChannel(channel);
+    };
+  }, [realtimeChannelName]);
+
   const handleChange = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (elements: readonly any[], appState: Record<string, any>) => {
+      // Persistir viewport en localStorage (no a DB) ANTES del early-return
+      // de readOnly: cuando el alumno ve una pizarra read-only y panea/zoom,
+      // queremos que al volver mantenga su vista. Independiente del save de
+      // contenido — el viewport es local al device del usuario.
+      if (viewportStorageKey) {
+        const vp: PersistedViewport = {
+          scrollX: typeof appState.scrollX === "number" ? appState.scrollX : 0,
+          scrollY: typeof appState.scrollY === "number" ? appState.scrollY : 0,
+          zoom:
+            typeof appState.zoom === "number"
+              ? appState.zoom
+              : typeof appState.zoom?.value === "number"
+                ? appState.zoom.value
+                : 1,
+        };
+        const serialized = JSON.stringify(vp);
+        if (serialized !== lastViewportRef.current) {
+          lastViewportRef.current = serialized;
+          if (viewportTimerRef.current) clearTimeout(viewportTimerRef.current);
+          viewportTimerRef.current = setTimeout(() => {
+            viewportTimerRef.current = null;
+            writeViewport(viewportStorageKey, vp);
+          }, 500);
+        }
+      }
+
       if (readOnly || !onPersist) return;
       // Filtramos `appState` para no guardar info de sesión que cambia
       // todo el tiempo (cursor, zoom, scroll). Mantenemos solo lo que
-      // afecta la apariencia persistente del board.
+      // afecta la apariencia persistente del board. El viewport viaja
+      // por localStorage (ver bloque arriba), no por la escena.
       const persistedAppState = {
         viewBackgroundColor: appState.viewBackgroundColor,
         gridSize: appState.gridSize,
@@ -199,6 +382,20 @@ export function WhiteboardEditor({ scene, onPersist, readOnly, className }: Prop
       const serialized = JSON.stringify(next);
       if (serialized === lastSerializedRef.current) return;
       lastSerializedRef.current = serialized;
+
+      // Broadcast del scene a otros clientes en el canal Realtime. 200ms
+      // de debounce para sub-segundo perceived latency sin saturar.
+      // El receptor ignora su propio clientId (config { broadcast.self:
+      // false } + check explícito en el handler).
+      if (channelRef.current) {
+        if (broadcastTimerRef.current) clearTimeout(broadcastTimerRef.current);
+        const channel = channelRef.current;
+        broadcastTimerRef.current = setTimeout(() => {
+          broadcastTimerRef.current = null;
+          const payload: ScenePayload = { clientId: TAB_CLIENT_ID, scene: next };
+          void channel.send({ type: "broadcast", event: "scene_update", payload });
+        }, 200);
+      }
       // Guardamos la escena pendiente en ref para que el cleanup del
       // unmount pueda hacer flush si el timer no alcanzó a dispararse.
       pendingSceneRef.current = next;
@@ -218,8 +415,25 @@ export function WhiteboardEditor({ scene, onPersist, readOnly, className }: Prop
         });
       }, 1500);
     },
-    [readOnly, onPersist],
+    [readOnly, onPersist, viewportStorageKey],
   );
+
+  // Cleanup del timer de viewport al unmount — sin flush porque el último
+  // valor ya está en `lastViewportRef`; el writeViewport pendiente solo
+  // ahorra ~500ms y no es crítico (la próxima visita usará el penúltimo).
+  // Mismo trato al broadcastTimer — el último broadcast pendiente al
+  // cerrar la pestaña no llega; el peer ve la versión persistida en DB
+  // cuando recarga, así que la pérdida es benigna.
+  useEffect(() => {
+    return () => {
+      if (viewportTimerRef.current) {
+        clearTimeout(viewportTimerRef.current);
+      }
+      if (broadcastTimerRef.current) {
+        clearTimeout(broadcastTimerRef.current);
+      }
+    };
+  }, []);
 
   if (loadError) {
     return (
@@ -258,11 +472,35 @@ export function WhiteboardEditor({ scene, onPersist, readOnly, className }: Prop
       )}
     >
       <Component
-        initialData={
-          scene
-            ? { elements: scene.elements, appState: scene.appState ?? {}, files: scene.files }
-            : undefined
-        }
+        // Captura del ExcalidrawAPI — lo usamos en el effect del canal
+        // Realtime para aplicar scenes remotas via `updateScene`.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        excalidrawAPI={(api: any) => {
+          excalidrawAPIRef.current = api;
+        }}
+        initialData={(() => {
+          // Restauramos viewport (scrollX/scrollY/zoom) desde localStorage
+          // si hay clave configurada. Lo lee UNA vez por mount — Excalidraw
+          // toma `initialData` solo en el primer render. Cambios de page
+          // re-montan el componente (el padre usa `key={pageId}`), así que
+          // cada hoja lee SU viewport guardado.
+          const viewport = readViewport(viewportStorageKey);
+          const sceneAppState = scene?.appState ?? {};
+          const mergedAppState = viewport
+            ? {
+                ...sceneAppState,
+                scrollX: viewport.scrollX,
+                scrollY: viewport.scrollY,
+                zoom: { value: viewport.zoom },
+              }
+            : sceneAppState;
+          if (!scene && !viewport) return undefined;
+          return {
+            elements: scene?.elements ?? [],
+            appState: mergedAppState,
+            files: scene?.files,
+          };
+        })()}
         onChange={handleChange}
         viewModeEnabled={!!readOnly}
         theme={resolvedTheme === "dark" ? "dark" : "light"}
@@ -287,6 +525,23 @@ export function WhiteboardEditor({ scene, onPersist, readOnly, className }: Prop
         <div className="absolute top-2 right-2 z-10 pointer-events-none rounded-md border border-border bg-background/90 backdrop-blur-sm px-2 py-1 text-[11px] text-muted-foreground inline-flex items-center gap-1 shadow-sm">
           <Eye className="h-3 w-3" />
           Solo lectura
+        </div>
+      )}
+      {/* Badge "Compartida" cuando hay canal Realtime activo. Posicionado
+          al lado del badge de readOnly cuando ambos aplican (poco común
+          pero válido — alumno viendo una pizarra compartida con un toggle
+          de read en el padre). El tinte azul lo diferencia visualmente
+          del badge gris de "Solo lectura". */}
+      {collabActive && (
+        <div
+          className={cn(
+            "absolute z-10 pointer-events-none rounded-md border border-sky-300 bg-sky-50/90 dark:bg-sky-950/80 backdrop-blur-sm px-2 py-1 text-[11px] text-sky-700 dark:text-sky-300 inline-flex items-center gap-1 shadow-sm",
+            // Si también hay badge readOnly arriba-derecha, este va debajo.
+            readOnly ? "top-10 right-2" : "top-2 right-2",
+          )}
+        >
+          <Users className="h-3 w-3" />
+          Compartida en vivo
         </div>
       )}
       {/* Botón de pantalla completa — abajo-derecha para no competir con
