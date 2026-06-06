@@ -68,6 +68,22 @@ export function useOnboarding(): UseOnboardingResult {
     if (!isTourableRole(activeRole)) return;
     if (completedLocal.has(activeRole)) return;
 
+    // Guard mobile: el sidebar desktop está oculto en <md, los nav
+    // items NO tienen data-tour-module/data-tour-nav en el drawer, y
+    // el drawer auto-cierra al cambiar pathname (rompe los anchors
+    // entre steps con route). El tour saldría como 20-25 popovers
+    // centrados sin sentido. Solo arrancamos en viewport desktop;
+    // si el user rota a desktop después, el effect re-evalúa.
+    if (typeof window !== "undefined" && window.innerWidth < 768) return;
+
+    // Guard ForceChangePasswordDialog: si el user es Docente recién
+    // creado con must_change_password=true, el dialog bloqueante se
+    // monta encima de TODO (overlay no se cierra con Esc). El tour
+    // arrancando en paralelo correría por debajo, ilegible. Esperamos
+    // a que el user cambie la contraseña primero.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((profile as any)?.must_change_password) return;
+
     const timer = setTimeout(() => {
       setShouldShowFor(activeRole);
     }, 1000);

@@ -115,6 +115,16 @@ function Dashboard() {
    ═══════════════════════════════════════════════════════════ */
 function AdminDashboard() {
   const { t } = useTranslation();
+  const { profile } = useAuth();
+  // tenant_id del Admin actual — necesario para filtrar EXPLÍCITAMENTE
+  // los counts de submissions/workshop_submissions/project_submissions,
+  // que NO tienen columna tenant_id propia y dependen de la cadena
+  // submissions → exam/workshop/project → courses.tenant_id. La RLS
+  // de esas tablas no siempre limita cross-tenant (Admin con rol global
+  // o leak de policy), así que acotamos en el cliente como
+  // defense-in-depth. Sin esto un tenant nuevo veía counts de OTROS
+  // tenants en el card "Por calificar".
+  const adminTenantId = profile?.tenant_id ?? null;
   // ── Stat cards superiores: métricas INSTITUCIONALES ──
   // Antes eran 4 métricas IA (errores 24h, respuestas IA, plagio, pendientes
   // docentes). Reemplazadas por métricas de negocio del Admin: cursos
@@ -159,9 +169,42 @@ function AdminDashboard() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbAny = supabase as any;
 
-      // Métricas institucionales (RLS filtra al tenant del admin).
-      // Plus listas para los cards inferiores admin-céntricos: cursos
-      // recientes y eventos recientes de audit_logs.
+      // Paso 1: resolver IDs del tenant del admin para acotar
+      // explícitamente los counts de submissions. RLS debería hacerlo
+      // pero un tenant nuevo veía counts de otros (51 cuando debería
+      // ser 0). Defense-in-depth a nivel client.
+      let examIds: string[] = [];
+      let workshopIds: string[] = [];
+      let projectIds: string[] = [];
+      if (adminTenantId) {
+        const { data: courseRows } = await dbAny
+          .from("courses")
+          .select("id")
+          .eq("tenant_id", adminTenantId);
+        if (cancelled) return;
+        const courseIds = ((courseRows ?? []) as Array<{ id: string }>).map((r) => r.id);
+        if (courseIds.length > 0) {
+          const [examsRes, workshopsRes, projectsRes] = await Promise.all([
+            dbAny.from("exams").select("id").in("course_id", courseIds),
+            dbAny.from("workshops").select("id").in("course_id", courseIds),
+            dbAny.from("projects").select("id").in("course_id", courseIds),
+          ]);
+          if (cancelled) return;
+          examIds = ((examsRes.data ?? []) as Array<{ id: string }>).map((r) => r.id);
+          workshopIds = ((workshopsRes.data ?? []) as Array<{ id: string }>).map((r) => r.id);
+          projectIds = ((projectsRes.data ?? []) as Array<{ id: string }>).map((r) => r.id);
+        }
+      }
+      // Si no hay items del tenant, los counts son 0 sin pegarle a la DB
+      // (un `.in("col", [])` en PostgREST devuelve TODOS los rows, NO
+      // ninguno — el bug que causaba el leak de "51" cross-tenant).
+      const hasExams = examIds.length > 0;
+      const hasWorkshops = workshopIds.length > 0;
+      const hasProjects = projectIds.length > 0;
+
+      // Métricas institucionales (RLS + filtro explícito por tenant en
+      // submissions). Plus listas para los cards inferiores
+      // admin-céntricos: cursos recientes y eventos recientes.
       const [
         coursesRes,
         usersRes,
@@ -172,31 +215,38 @@ function AdminDashboard() {
         recentCoursesRes,
         recentEventsRes,
       ] = await Promise.all([
+        // courses: RLS filtra al tenant del Admin (la tabla SÍ tiene tenant_id).
         dbAny.from("courses").select("id", { count: "exact", head: true }),
+        // profiles: misma idea.
         dbAny.from("profiles").select("id", { count: "exact", head: true }),
-        // Estado y columna de calificación dependen de la tabla:
-        //   - submissions (exámenes): status `en_progreso|completado|sospechoso`,
-        //     SIN columna `final_grade` — usamos `ai_grade IS NULL` para
-        //     detectar "pendiente de calificar IA".
-        //   - workshop_submissions / project_submissions: status
-        //     `pendiente|entregado|calificado`, sí tienen `final_grade`.
-        // Antes pasábamos "submitted"/"in_progress" (inglés) + filtro a
-        // `final_grade` en exámenes → 400 silencioso del PostgREST.
-        dbAny
-          .from("submissions")
-          .select("id", { count: "exact", head: true })
-          .in("status", ["completado", "sospechoso"])
-          .is("ai_grade", null),
-        dbAny
-          .from("workshop_submissions")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "entregado")
-          .is("final_grade", null),
-        dbAny
-          .from("project_submissions")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "entregado")
-          .is("final_grade", null),
+        // submissions (exámenes): status `en_progreso|completado|sospechoso`,
+        // SIN columna `final_grade` — usamos `ai_grade IS NULL` para
+        // detectar "pendiente de calificar IA". El filtro por
+        // `exam_id IN (...)` acota al tenant.
+        hasExams
+          ? dbAny
+              .from("submissions")
+              .select("id", { count: "exact", head: true })
+              .in("status", ["completado", "sospechoso"])
+              .is("ai_grade", null)
+              .in("exam_id", examIds)
+          : Promise.resolve({ count: 0 }),
+        hasWorkshops
+          ? dbAny
+              .from("workshop_submissions")
+              .select("id", { count: "exact", head: true })
+              .eq("status", "entregado")
+              .is("final_grade", null)
+              .in("workshop_id", workshopIds)
+          : Promise.resolve({ count: 0 }),
+        hasProjects
+          ? dbAny
+              .from("project_submissions")
+              .select("id", { count: "exact", head: true })
+              .eq("status", "entregado")
+              .is("final_grade", null)
+              .in("project_id", projectIds)
+          : Promise.resolve({ count: 0 }),
         // Threads abiertos a nivel plataforma (Admin RLS = sin filtro).
         // Los usamos para calcular cuántos esperan respuesta de un docente.
         dbAny.from("feedback_threads").select("id").eq("closed", false),
@@ -254,7 +304,11 @@ function AdminDashboard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+    // adminTenantId en deps para re-fetch cuando el profile cargue
+    // (en el primer render del dashboard puede venir null mientras
+    // useAuth termina de hidratar) y para re-fetch si el SuperAdmin
+    // cambia de override de tenant.
+  }, [adminTenantId]);
 
   return (
     // Wrapper flex-col + flex-1 + min-h-0 — espeja el patrón del

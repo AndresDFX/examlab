@@ -12,6 +12,28 @@
  * tokens OKLCH. Sobrescribimos las CSS vars de driver.js para que el
  * popover use los mismos colores (primary, foreground, etc.) y se vea
  * coherente con el resto de la app.
+ *
+ * Demo interactivo (clickBefore):
+ * Algunos steps (ej. "Crear curso") abren el dialog "Nuevo X" para
+ * mostrar los campos. Driver.js NO soporta hooks async, así que el
+ * timing es complicado:
+ *   1. driver.js fija `__activeElement` con el resultado de
+ *      `querySelector(s.element)` cuando entra al step. Si el dialog
+ *      no existe todavía, cachea `driver-dummy-element` (centro de
+ *      pantalla). `refresh()` NO re-resuelve el selector — sólo
+ *      reposiciona contra el cache. Verificado leyendo el source de
+ *      driver.js.
+ *   2. Solución: tras el clickBefore, esperamos con MutationObserver
+ *      a que el dialog aparezca y llamamos `moveTo(activeIndex)`
+ *      (que SÍ re-llama `querySelector`). Esto re-ancla el popover
+ *      contra el dialog real.
+ *   3. Si el botón está disabled (caso típico: Docente sin cursos →
+ *      "Nueva pregunta"/"Nueva encuesta" disabled), skipeamos el demo
+ *      con `moveNext()` para no dejar al user con popover huérfano.
+ *   4. Trackeamos todos los timeouts/observers en un ref y los
+ *      cancelamos al destruir el tour Y entre steps (para evitar que
+ *      un click pendiente abra un dialog huérfano si el user clickea
+ *      Siguiente rápido).
  */
 import { useEffect, useRef } from "react";
 import { driver, type Driver } from "driver.js";
@@ -37,12 +59,37 @@ interface Props {
   manualMode?: boolean;
 }
 
+/** Espera a que aparezca un elemento en el DOM. Resuelve con el
+ *  elemento o null si pasó el timeout. Usa MutationObserver para no
+ *  polear el DOM. Útil cuando un click programático monta un dialog
+ *  async vía React y necesitamos saber cuándo está listo. */
+function waitForElement(selector: string, timeoutMs: number): Promise<HTMLElement | null> {
+  // Comprobación rápida: si ya está en el DOM, no creamos observer.
+  const immediate = document.querySelector<HTMLElement>(selector);
+  if (immediate) return Promise.resolve(immediate);
+  return new Promise((resolve) => {
+    let observer: MutationObserver | null = null;
+    const timer = setTimeout(() => {
+      observer?.disconnect();
+      resolve(null);
+    }, timeoutMs);
+    observer = new MutationObserver(() => {
+      const el = document.querySelector<HTMLElement>(selector);
+      if (el) {
+        clearTimeout(timer);
+        observer?.disconnect();
+        resolve(el);
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  });
+}
+
 export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false }: Props) {
   const driverRef = useRef<Driver | null>(null);
   const router = useRouter();
-  // Guardamos role + callbacks + router en refs para que el effect de
-  // instanciar driver.js NO re-corra cuando cambian. Solo arranca/destruye
-  // al cambiar el `role`.
+  // Refs para callbacks/router — el effect que instancia driver.js solo
+  // re-corre al cambiar `role`, así que cualquier valor "vivo" va por ref.
   const onCompleteRef = useRef(onComplete);
   const onDismissRef = useRef(onDismiss);
   const manualRef = useRef(manualMode);
@@ -60,10 +107,13 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
     if (steps.length === 0) return;
     const meta = getTourMetaForRole(role);
 
-    // Filtrar pasos cuyo elemento no exista en el DOM. driver.js
-    // intenta avanzar si no encuentra el selector, pero preferimos
-    // saltarlos limpiamente para no dejar steps "ciegos".
+    // Filtro: un step se considera válido si tiene `route` o
+    // `clickBefore` (ambos pueden traer el element al DOM dinámicamente)
+    // o si su `element` ya existe en el DOM. Esto incluye los demo
+    // steps interactivos (cuyo dialog se crea con clickBefore) que el
+    // filtro estricto anterior excluía.
     const validSteps: TourStep[] = steps.filter((s) => {
+      if (s.route || s.clickBefore) return true;
       try {
         return document.querySelector(s.element) !== null;
       } catch {
@@ -72,12 +122,7 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
     });
     if (validSteps.length === 0) return;
 
-    // Si el rol tiene un video introductorio configurado (HeyGen output),
-    // injectamos un anchor HTML en la descripción del PRIMER step con
-    // estilo de botón. driver.js renderiza el `description` como HTML,
-    // así que aprovechamos para añadir el CTA "Ver video introductorio".
-    // Target="_blank" + rel para abrir en pestaña nueva sin perder el
-    // tour. El usuario puede continuar el tour en la pestaña original.
+    // Video introductorio (HeyGen) en el primer step si el rol lo tiene.
     if (meta.videoUrl && validSteps.length > 0) {
       const escapedUrl = meta.videoUrl
         .replace(/&/g, "&amp;")
@@ -91,41 +136,52 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
       };
     }
 
+    // Tracking de async pendientes para cancelarlos cuando el user
+    // avance manualmente antes de que el demo termine, o cuando el
+    // tour se destruye. Sin esto un click pendiente puede abrir un
+    // dialog huérfano en el siguiente step (o después de cerrar el
+    // tour).
+    const pendingTimers = new Set<ReturnType<typeof setTimeout>>();
+    let pendingAbort: AbortController | null = null;
+    const cancelPending = () => {
+      pendingTimers.forEach((t) => clearTimeout(t));
+      pendingTimers.clear();
+      if (pendingAbort) {
+        pendingAbort.abort();
+        pendingAbort = null;
+      }
+    };
+
+    /** Helper para programar un setTimeout que respeta el abort
+     *  controller del step. Si el step termina antes, el callback no
+     *  corre. */
+    const scheduleStepTimer = (fn: () => void, ms: number, signal: AbortSignal) => {
+      const timer = setTimeout(() => {
+        pendingTimers.delete(timer);
+        if (!signal.aborted) fn();
+      }, ms);
+      pendingTimers.add(timer);
+    };
+
     const driverObj = driver({
       showProgress: true,
       showButtons: ["next", "previous", "close"],
-      // Texto de los botones en español. driver.js los expone via prop.
       nextBtnText: "Siguiente →",
       prevBtnText: "← Anterior",
       doneBtnText: "Finalizar",
       progressText: "{{current}} de {{total}}",
-      // Overlay y animación.
       overlayOpacity: 0.6,
       animate: true,
-      // No permitir click fuera del popover para no cerrar accidentalmente.
       allowClose: true,
       smoothScroll: true,
-      // Click fuera del popover NO debe cerrar — ya hay X y "Saltar".
       overlayClickBehavior: "nextStep",
-      // Inyectamos un botón "Saltar tour" al final del footer del popover.
-      // driver.js NO trae un botón explícito de skip; solo el X minimal en
-      // la esquina, que el usuario suele no notar. Para tours largos (15+
-      // pasos), perder al usuario por no saber cómo cerrar es UX pobre.
-      // El render se ejecuta DESPUÉS de que driver.js crea el footer, así
-      // que solo agregamos el botón si todavía no existe (evita duplicar
-      // al re-renderear). Llama a driver.destroy() → dispara onDestroyed
-      // → marca el tour como visto (igual que el X o terminar).
+      // Botón "Saltar tour" inyectado en el footer del popover.
       onPopoverRender: (popover) => {
         if (popover.footer.querySelector("[data-tour-skip]")) return;
         const skipBtn = document.createElement("button");
         skipBtn.type = "button";
         skipBtn.dataset.tourSkip = "true";
         skipBtn.textContent = "Saltar tour";
-        // Clase propia (`.driver-tour-skip-btn`, estilada en
-        // onboarding-tour.css) — look ghost/muted distinto al primary
-        // de "Siguiente", para no competir como CTA. Posición a la
-        // izquierda del footer (marginRight:auto separa del grupo
-        // progress + nav que queda a la derecha).
         skipBtn.className = "driver-tour-skip-btn";
         skipBtn.style.marginRight = "auto";
         skipBtn.addEventListener("click", (e) => {
@@ -133,34 +189,22 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
           e.stopPropagation();
           driverObj.destroy();
         });
-        // Insertamos al principio del footer (queda alineado a la
-        // izquierda gracias a marginRight: auto). El footer típico tiene
-        // progress + prev + next, así que el skip queda separado.
         popover.footer.insertBefore(skipBtn, popover.footer.firstChild);
       },
-      // Cada step puede declarar acciones que el tour ejecuta ANTES de
-      // mostrar el popover. Permiten un tour "interactivo" que abre
-      // diálogos, navega y prepara la UI para mostrar el detalle del
-      // siguiente paso, en lugar de un tour pasivo que solo describe.
-      //
-      //   route        → navigate(to) si la ruta no es la actual.
-      //   escapeBefore → dispatch Esc keydown (cierra Dialog/Popover
-      //                  abiertos del paso anterior).
-      //   clickBefore  → click programático en el selector (típico:
-      //                  abrir el dialog "Nuevo X" para mostrar su
-      //                  contenido en el siguiente step).
-      //
-      // Orden: escapeBefore → route → clickBefore. driver.js dispara
-      // `onHighlightStarted` sincrónico antes de pintar, así que las
-      // acciones se ejecutan sin bloquear; el popover aparece y, si el
-      // elemento ancla todavía no existe (dialog rendereando), driver
-      // muestra el popover desanclado por un instante y se acomoda al
-      // siguiente repaint.
       steps: validSteps.map((s) => ({
         element: s.element,
         ...(s.route || s.clickBefore || s.escapeBefore
           ? {
               onHighlightStarted: (element) => {
+                // Cancelar cualquier async del step anterior. Si el user
+                // clickeó Siguiente antes de que el clickBefore terminara,
+                // queremos descartar ese click pending (no abrir un
+                // dialog que ya no aplica).
+                cancelPending();
+                const abort = new AbortController();
+                pendingAbort = abort;
+
+                // 1. Escape: cierra Dialog/Popover del step anterior.
                 if (s.escapeBefore) {
                   try {
                     document.dispatchEvent(
@@ -170,9 +214,12 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
                     /* no-op */
                   }
                 }
+
+                // 2. Route: navegar si la ruta actual no coincide.
                 if (s.route) {
                   const wanted = s.route;
-                  const current = typeof window !== "undefined" ? window.location.pathname : "";
+                  const current =
+                    typeof window !== "undefined" ? window.location.pathname : "";
                   if (current !== wanted) {
                     try {
                       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -182,18 +229,10 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
                     }
                   }
                 }
-                // Scroll del item al centro de SU contenedor scrolleable
-                // (el sidebar interno). driver.js trae smoothScroll pero
-                // solo scrollea el `window` — el sidebar tiene overflow
-                // propio (`overflow-y-auto`) y items al final de la lista
-                // quedan FUERA del viewport del sidebar aunque la página
-                // no tenga scroll. Sin esto, el tour del Docente apuntaba
-                // a "Calificaciones" pero el item estaba scrolleado abajo
-                // y el alumno solo veía el popover sin el ancla.
-                // scrollIntoView con `block:"center"` sube/baja el item
-                // al centro vertical de su contenedor scrolleable más
-                // cercano (no del window). `behavior:"auto"` evita
-                // animación que retrase el highlight.
+
+                // 3. Scroll del item del sidebar al centro de su
+                //    contenedor scrolleable (no del window — driver.js
+                //    ya hace eso con smoothScroll).
                 if (element instanceof HTMLElement) {
                   try {
                     element.scrollIntoView({ block: "center", behavior: "auto" });
@@ -201,20 +240,87 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
                     /* no-op */
                   }
                 }
+
+                // 4. ClickBefore: abrir el dialog target.
                 if (s.clickBefore) {
-                  // Esperamos un tick para que el route termine antes
-                  // de buscar el botón en el DOM. 250ms cubre el typical
-                  // render de un dashboard; ajustable via `waitMs` del
-                  // step si hace falta más.
                   const delay = s.waitMs ?? 250;
-                  setTimeout(() => {
-                    try {
-                      const el = document.querySelector(s.clickBefore!);
-                      if (el instanceof HTMLElement) el.click();
-                    } catch {
-                      /* no-op */
-                    }
-                  }, delay);
+                  scheduleStepTimer(
+                    () => {
+                      const btnSelector = s.clickBefore!;
+                      const btn = document.querySelector<HTMLElement>(btnSelector);
+
+                      // (a) Selector no existe → warn + auto-skip al
+                      //     siguiente step. Casos: refactor, módulo
+                      //     deshabilitado por module_visibility, route
+                      //     no rindió todavía el botón.
+                      if (!btn) {
+                        console.warn(
+                          `[tour] clickBefore selector no encontrado: ${btnSelector}`,
+                        );
+                        try {
+                          driverObj.moveNext();
+                        } catch {
+                          /* no-op */
+                        }
+                        return;
+                      }
+
+                      // (b) Botón disabled → skip el demo. Caso típico:
+                      //     Docente sin cursos viendo "Nueva pregunta"
+                      //     / "Nueva encuesta". Sin este check el
+                      //     click es no-op y el popover queda apuntando
+                      //     a un dialog que nunca abrió.
+                      if (btn instanceof HTMLButtonElement && btn.disabled) {
+                        console.info(
+                          `[tour] clickBefore button disabled — skipeando demo: ${btnSelector}`,
+                        );
+                        try {
+                          driverObj.moveNext();
+                        } catch {
+                          /* no-op */
+                        }
+                        return;
+                      }
+
+                      // (c) Disparar click.
+                      try {
+                        btn.click();
+                      } catch (err) {
+                        console.warn(`[tour] click falló en ${btnSelector}`, err);
+                        return;
+                      }
+
+                      // (d) Esperar a que el dialog se monte y re-anclar.
+                      //
+                      //     driver.refresh() NO re-resuelve el selector;
+                      //     sólo reposiciona contra el __activeElement
+                      //     cacheado (driver-dummy-element en este
+                      //     caso). moveTo(activeIndex) sí re-llama
+                      //     querySelector(s.element) y re-ancla.
+                      //
+                      //     Timeout de 3s — cubre queries Supabase
+                      //     lentas + animación Radix Portal/Dialog en
+                      //     producción.
+                      void waitForElement(s.element, 3000).then((dialogEl) => {
+                        if (abort.signal.aborted) return;
+                        if (!dialogEl) {
+                          console.warn(
+                            `[tour] dialog no apareció en 3s tras click: ${s.element}`,
+                          );
+                          return;
+                        }
+                        try {
+                          // moveTo del mismo índice fuerza re-resolución.
+                          const idx = driverObj.getActiveIndex();
+                          if (typeof idx === "number") driverObj.moveTo(idx);
+                        } catch (err) {
+                          console.warn(`[tour] no se pudo re-anclar al dialog`, err);
+                        }
+                      });
+                    },
+                    delay,
+                    abort.signal,
+                  );
                 }
               },
             }
@@ -226,11 +332,19 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
           align: s.align ?? "center",
         },
       })),
-      // onDestroyed se dispara cuando el tour termina o el usuario cierra
-      // (X, ESC, o el botón "Saltar tour" inyectado en onPopoverRender).
       onDestroyed: () => {
-        // Si el tour llegó al final naturalmente O el usuario hizo X
-        // → marcamos como visto, excepto en modo manual.
+        // Cancelar todo lo pendiente para no dejar dialogs huérfanos.
+        cancelPending();
+        // Cerrar el dialog que el último clickBefore haya abierto
+        // (típicamente "Nuevo X"). Sin esto el user cierra el tour
+        // pero queda un formulario flotando sobre la ruta destino.
+        try {
+          document.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+          );
+        } catch {
+          /* no-op */
+        }
         if (manualRef.current) {
           onDismissRef.current();
         } else if (role) {
@@ -240,19 +354,18 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
     });
 
     driverRef.current = driverObj;
-    // Pequeño delay para que el DOM termine cualquier animación de
-    // entrada del sidebar antes de calcular posiciones.
+    // Pequeño delay para animaciones de entrada del sidebar.
     const startTimer = setTimeout(() => {
       driverObj.drive();
     }, 100);
 
     return () => {
       clearTimeout(startTimer);
+      cancelPending();
       try {
         driverObj.destroy();
       } catch {
-        // driver.js a veces tira al destruir si ya estaba destruido.
-        // No es un error real.
+        /* driver.js a veces tira al destruir si ya estaba destruido. */
       }
       driverRef.current = null;
     };
