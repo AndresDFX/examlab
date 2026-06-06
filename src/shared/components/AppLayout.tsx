@@ -85,7 +85,6 @@ import {
   ListOrdered,
   Building2,
   Wrench,
-  AlertTriangle,
   Palette,
   HelpCircle,
   Trash2,
@@ -374,10 +373,10 @@ const NAV: NavItem[] = [
   },
   // Admin-only: gestión de usuarios al final (transversal a la app, no académico).
   { to: "/app/admin/users", labelKey: "nav.users", icon: Users, roles: ["Admin"] },
-  // Errores de la plataforma. Admin ve los de su institución; SuperAdmin
-  // (que hereda los items Admin) los de toda la plataforma + filtro por
-  // institución. Estados aplicables en bulk + conteo de eventos.
-  { to: "/app/admin/errors", labelKey: "nav.errors", icon: AlertTriangle, roles: ["Admin"] },
+  // Errores: el módulo se unificó dentro de Auditoría como tab `?tab=errors`.
+  // La ruta legacy `/app/admin/errors` redirige automáticamente, pero ya no
+  // tiene item propio en el sidebar — todo lo de eventos del sistema vive
+  // bajo el mismo enlace de Auditoría.
   // Papelera: items soft-deletados de cursos/exámenes/talleres/proyectos/
   // sesiones/pizarras/contenidos/encuestas. Visible para Docente y Admin
   // (no para alumno, que no tiene capacidad de borrar entidades).

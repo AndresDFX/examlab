@@ -42,7 +42,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2, Pencil, Users as UsersIcon, Eye, EyeOff } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Pencil,
+  Users as UsersIcon,
+  Eye,
+  EyeOff,
+  GraduationCap,
+  Briefcase,
+  ShieldCheck,
+} from "lucide-react";
+import { StatCard } from "@/components/ui/stat-card";
 import { DateCell } from "@/components/ui/date-cell";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
@@ -241,6 +252,25 @@ function AdminUsers() {
     storageKey: "examlab_pag:admin_users",
     resetKey: `${search}|${roleFilter}|${tenantFilter}`,
   });
+
+  // Stats 4-card sobre los usuarios visibles al caller. Se calcula
+  // sobre `rows` (no `filteredRows`) para que los conteos reflejen el
+  // alcance completo (RLS + tenantFilter del SuperAdmin) y no se vean
+  // afectados por el search/roleFilter local — el conteo "total" tiene
+  // que coincidir con lo que la query trajo.
+  const userStats = useMemo(() => {
+    let students = 0;
+    let teachers = 0;
+    let admins = 0;
+    for (const r of rows) {
+      if (r.roles.includes("Estudiante")) students += 1;
+      if (r.roles.includes("Docente")) teachers += 1;
+      // Cuenta tanto Admin como SuperAdmin acá — ambos son "admins" desde
+      // la óptica de gestión. Un user con ambos roles cuenta una sola vez.
+      if (r.roles.includes("Admin") || r.roles.includes("SuperAdmin")) admins += 1;
+    }
+    return { total: rows.length, students, teachers, admins };
+  }, [rows]);
 
   const handleBulkDelete = async (ids: string[]) => {
     // Borramos vía edge `admin-delete-user` (uno por uno) para que cada
@@ -911,6 +941,17 @@ function AdminUsers() {
           </>
         }
       />
+
+      {/* Stats 4-card — patrón compartido (Videos, Cursos, etc.). Misma
+          estructura para Admin y SuperAdmin; el SA ve los conteos del
+          tenant filtrado (o todos si tenantFilter="all"). Aparece
+          SIEMPRE — un 0 es informativo. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard icon={UsersIcon} label="Total" value={userStats.total} />
+        <StatCard icon={GraduationCap} label="Estudiantes" value={userStats.students} />
+        <StatCard icon={Briefcase} label="Docentes" value={userStats.teachers} />
+        <StatCard icon={ShieldCheck} label="Admins" value={userStats.admins} />
+      </div>
 
       {/* Licencias del tenant — el componente tiene su propio gate
           interno: se auto-oculta cuando es SuperAdmin sin override

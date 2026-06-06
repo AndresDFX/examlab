@@ -14,7 +14,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatTile } from "@/components/ui/stat-tile";
+import { StatCard } from "@/components/ui/stat-card";
 import { DateCell } from "@/components/ui/date-cell";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
@@ -53,6 +53,7 @@ import {
   BookOpen,
   CalendarRange,
   CalendarClock,
+  Archive,
   FileText,
   Hammer,
   FolderKanban,
@@ -1309,34 +1310,21 @@ export function AdminCourses() {
         }
       />
 
-      {courses.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <StatTile
-            label="Total"
-            value={coursesSummary.total}
-            color="text-fuchsia-600 dark:text-fuchsia-400"
-            bg="bg-fuchsia-500/10"
-          />
-          <StatTile
-            label="Activos"
-            value={coursesSummary.active}
-            color="text-emerald-600 dark:text-emerald-400"
-            bg="bg-emerald-500/10"
-          />
-          <StatTile
-            label="Próximos"
-            value={coursesSummary.upcoming}
-            color="text-sky-600 dark:text-sky-400"
-            bg="bg-sky-500/10"
-          />
-          <StatTile
-            label="Terminados"
-            value={coursesSummary.ended}
-            color="text-muted-foreground"
-            bg="bg-muted/40"
-          />
-        </div>
-      )}
+      {/* Stats 4-card — patrón compartido (Videos, Usuarios, etc.). El
+          gate `courses.length > 0` se quitó: un 0 es informativo y
+          mantiene consistencia visual con el resto de los módulos
+          incluso cuando el tenant no tiene cursos cargados todavía. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard icon={BookOpen} label="Total" value={coursesSummary.total} />
+        <StatCard
+          icon={CalendarRange}
+          label="Activos"
+          value={coursesSummary.active}
+          tone={coursesSummary.active > 0 ? "success" : "default"}
+        />
+        <StatCard icon={CalendarClock} label="Próximos" value={coursesSummary.upcoming} />
+        <StatCard icon={Archive} label="Terminados" value={coursesSummary.ended} />
+      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex-1 min-w-[200px]">

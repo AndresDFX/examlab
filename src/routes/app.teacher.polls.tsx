@@ -31,7 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatTile } from "@/components/ui/stat-tile";
+import { StatCard } from "@/components/ui/stat-card";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { RowAction } from "@/components/ui/row-action";
 import { DateCell } from "@/components/ui/date-cell";
@@ -409,34 +409,29 @@ function TeacherPolls() {
         }
       />
 
-      {polls.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <StatTile
-            label="Borradores"
-            value={pollStats.draft}
-            color="text-amber-600 dark:text-amber-400"
-            bg="bg-amber-500/10"
-          />
-          <StatTile
-            label="Activas"
-            value={pollStats.active}
-            color="text-emerald-600 dark:text-emerald-400"
-            bg="bg-emerald-500/10"
-          />
-          <StatTile
-            label="Cerradas"
-            value={pollStats.closed}
-            color="text-muted-foreground"
-            bg="bg-muted/40"
-          />
-          <StatTile
-            label="Doodle"
-            value={pollStats.slot}
-            color="text-violet-600 dark:text-violet-400"
-            bg="bg-violet-500/10"
-          />
-        </div>
-      )}
+      {/* Stats 4-card — patrón compartido (StatCard) con el resto de los
+          módulos. Antes usábamos StatTile compact, pero rompía la
+          consistencia visual: Cursos / Exámenes / Talleres / Proyectos /
+          Pizarras / Contenidos usan el patrón Card con icono+label+value.
+          Aparece SIEMPRE (no gateado por polls.length > 0) — un dashboard
+          vacío con 0s es informativo, ocultarlo le dice al docente
+          "tu rol no tiene este módulo". */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard
+          icon={Pencil}
+          label="Borradores"
+          value={pollStats.draft}
+          tone={pollStats.draft > 0 ? "warning" : "default"}
+        />
+        <StatCard
+          icon={Radio}
+          label="Activas"
+          value={pollStats.active}
+          tone={pollStats.active > 0 ? "success" : "default"}
+        />
+        <StatCard icon={Lock} label="Cerradas" value={pollStats.closed} />
+        <StatCard icon={CalendarRange} label="Doodle (slots)" value={pollStats.slot} />
+      </div>
 
       {courses.length > 1 && (
         <div className="flex flex-wrap items-center gap-2">

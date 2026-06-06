@@ -185,6 +185,36 @@
   filter: brightness(1.08) !important;
 }
 
+/* ─── Botón "Saltar tour" (ghost / muted) ────────────────────────────── */
+/* Inyectado por OnboardingTour.tsx via onPopoverRender. Tono muted para
+   que no compita con el CTA primary "Siguiente". Underline en hover
+   refuerza que es una salida, no un avance. */
+.driver-tour-skip-btn {
+  font-family: inherit !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  padding: 0.35rem 0.6rem !important;
+  border-radius: 0.375rem !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: var(--muted-foreground) !important;
+  cursor: pointer !important;
+  text-shadow: none !important;
+  line-height: 1.25 !important;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease !important;
+}
+.driver-tour-skip-btn:hover {
+  background: var(--accent) !important;
+  color: var(--accent-foreground) !important;
+  text-decoration: underline !important;
+}
+.driver-tour-skip-btn:focus-visible {
+  outline: 2px solid var(--ring) !important;
+  outline-offset: 2px !important;
+}
+
 /* ─── Highlight del elemento anclado ─────────────────────────────────── */
 /* Un anillo sutil con el primary color alrededor del elemento iluminado,
    para reforzar visualmente la conexión popover→elemento. driver.js ya

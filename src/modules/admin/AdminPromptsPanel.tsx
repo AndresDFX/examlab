@@ -26,11 +26,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { RotateCcw, Save, Palette } from "lucide-react";
+import { RotateCcw, Save, Palette, FileText, Pencil, Clock, Filter } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { formatDateTime } from "@/shared/lib/format";
+import { StatCard } from "@/components/ui/stat-card";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -312,6 +314,28 @@ export function AdminPromptsPanel() {
     (uc) => moduleFilter === "all" || uc.module === moduleFilter,
   );
 
+  // Stats compactas — mismo patrón 4-card que el resto de los módulos
+  // (Videos, Cursos, etc.). Estados conceptuales de un prompt:
+  //   - Total: cantidad de use_cases definidos en USE_CASES.
+  //   - Personalizados: el caller tiene una fila propia en ai_prompts
+  //     (override sobre el default hardcoded).
+  //   - Por default: no hay fila persistida — el prompt activo es el
+  //     defaultPrompt del code.
+  //   - Última edición: el updated_at más reciente de los personalizados;
+  //     si no hay overrides, mostramos "—".
+  const promptStats = (() => {
+    const customized = USE_CASES.filter((uc) => rows[uc.key] !== null).length;
+    const total = USE_CASES.length;
+    const fallback = total - customized;
+    const latestIso = USE_CASES.reduce<string | null>((acc, uc) => {
+      const ts = rows[uc.key]?.updated_at ?? null;
+      if (!ts) return acc;
+      if (!acc || ts > acc) return ts;
+      return acc;
+    }, null);
+    return { total, customized, fallback, latestIso };
+  })();
+
   const load = async () => {
     setLoading(true);
     setLoadError(null);
@@ -577,12 +601,30 @@ export function AdminPromptsPanel() {
 
   return (
     <div className="space-y-4">
+      {/* Stats compactas — patrón 4-card compartido con el resto de los
+          módulos (Videos, Cursos, Exámenes, etc.). Reemplazó al badge
+          contador inline "X de Y prompt(s)" para que el panel se vea
+          consistente con el resto de la app. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard icon={FileText} label="Total" value={promptStats.total} />
+        <StatCard icon={Pencil} label="Personalizados" value={promptStats.customized} />
+        <StatCard icon={RotateCcw} label="Por default" value={promptStats.fallback} />
+        <StatCard
+          icon={Clock}
+          label="Última edición"
+          value={promptStats.latestIso ? formatDateTime(promptStats.latestIso) : "—"}
+          valueSize="md"
+        />
+      </div>
+
       {/* Filtro por módulo: agrupa visualmente los use_cases por área de
           la app (Exámenes / Talleres / Proyectos / Detección de fraude).
           Solo afecta el render — no toca la BD. */}
       <div className="flex flex-wrap items-end gap-3 rounded-md border bg-muted/30 p-3">
         <div className="flex-1 min-w-[160px] sm:min-w-48">
-          <Label className="text-xs">Módulo</Label>
+          <Label className="text-xs flex items-center gap-1">
+            <Filter className="h-3 w-3" /> Módulo
+          </Label>
           <Select
             value={moduleFilter}
             onValueChange={(v) => setModuleFilter(v as PromptModule | "all")}
@@ -606,7 +648,7 @@ export function AdminPromptsPanel() {
             propio Card de marca institucional, no use_cases de IA. */}
         {moduleFilter !== "branding" && (
           <Badge variant="outline" className="text-[11px] tabular-nums h-6">
-            {filteredUseCases.length} de {USE_CASES.length} prompt(s)
+            Mostrando {filteredUseCases.length} de {USE_CASES.length}
           </Badge>
         )}
       </div>

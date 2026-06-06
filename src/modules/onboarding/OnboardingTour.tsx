@@ -103,6 +103,37 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
       smoothScroll: true,
       // Click fuera del popover NO debe cerrar — ya hay X y "Saltar".
       overlayClickBehavior: "nextStep",
+      // Inyectamos un botón "Saltar tour" al final del footer del popover.
+      // driver.js NO trae un botón explícito de skip; solo el X minimal en
+      // la esquina, que el usuario suele no notar. Para tours largos (15+
+      // pasos), perder al usuario por no saber cómo cerrar es UX pobre.
+      // El render se ejecuta DESPUÉS de que driver.js crea el footer, así
+      // que solo agregamos el botón si todavía no existe (evita duplicar
+      // al re-renderear). Llama a driver.destroy() → dispara onDestroyed
+      // → marca el tour como visto (igual que el X o terminar).
+      onPopoverRender: (popover) => {
+        if (popover.footer.querySelector("[data-tour-skip]")) return;
+        const skipBtn = document.createElement("button");
+        skipBtn.type = "button";
+        skipBtn.dataset.tourSkip = "true";
+        skipBtn.textContent = "Saltar tour";
+        // Clase propia (`.driver-tour-skip-btn`, estilada en
+        // onboarding-tour.css) — look ghost/muted distinto al primary
+        // de "Siguiente", para no competir como CTA. Posición a la
+        // izquierda del footer (marginRight:auto separa del grupo
+        // progress + nav que queda a la derecha).
+        skipBtn.className = "driver-tour-skip-btn";
+        skipBtn.style.marginRight = "auto";
+        skipBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          driverObj.destroy();
+        });
+        // Insertamos al principio del footer (queda alineado a la
+        // izquierda gracias a marginRight: auto). El footer típico tiene
+        // progress + prev + next, así que el skip queda separado.
+        popover.footer.insertBefore(skipBtn, popover.footer.firstChild);
+      },
       steps: validSteps.map((s) => ({
         element: s.element,
         popover: {
@@ -112,7 +143,8 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
           align: s.align ?? "center",
         },
       })),
-      // onDestroyed se dispara cuando el tour termina o el usuario cierra.
+      // onDestroyed se dispara cuando el tour termina o el usuario cierra
+      // (X, ESC, o el botón "Saltar tour" inyectado en onPopoverRender).
       onDestroyed: () => {
         // Si el tour llegó al final naturalmente O el usuario hizo X
         // → marcamos como visto, excepto en modo manual.

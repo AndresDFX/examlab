@@ -16,6 +16,14 @@
  *  - **Data structures**: nodo de árbol/grafo (círculo), celda de
  *    arreglo (rectángulo con división), nodo de lista enlazada (data +
  *    pointer).
+ *  - **Bases de datos**: tabla relacional (3 zonas: nombre, PK,
+ *    columnas), entidad ER, relación ER (rombo), atributo ER (óvalo).
+ *  - **POO**: interfaz (UML con `<<interface>>`), clase abstracta
+ *    (`<<abstract>>`), enum y flecha de herencia (extends).
+ *  - **AWS**: bloques esquemáticos para EC2, S3, RDS, Lambda, API
+ *    Gateway, SQS, SNS, CloudFront, DynamoDB y VPC (contenedor
+ *    dashed). Aproximación de cajas con label — no replica iconos
+ *    oficiales para no inflar bundle.
  *
  * Cómo se usan: el WhiteboardEditor le pasa `initialData.libraryItems`
  * a Excalidraw. Aparecen en el panel "Library" de la pizarra (icono al
@@ -242,6 +250,311 @@ export const DEFAULT_LIBRARY_ITEMS: Array<Record<string, any>> = [
       // Celda pointer
       makeElement("rectangle", 60, 0, 40, 60, { roundness: null }),
       makeText(60, 20, 40, 20, "•", 18),
+    ],
+  },
+  // ──────────────────────────────────────────────────────────────────
+  // Bases de datos (ER + relacional)
+  // ──────────────────────────────────────────────────────────────────
+  // ── DB: Tabla relacional (estilo MySQL Workbench compacto) ──
+  // 3 zonas: nombre / PK / columnas. Pensada para diagramar esquema
+  // rápido en clase sin armar tabla por columna.
+  {
+    id: "lib-db-table",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "DB · Tabla",
+    elements: [
+      // Header coloreado con el nombre de la tabla
+      makeElement("rectangle", 0, 0, 220, 36, {
+        backgroundColor: FILL_LIGHT,
+        roundness: null,
+      }),
+      makeText(0, 8, 220, 20, "tabla", 18),
+      // Primary key (resaltado con fondo cálido y prefijo PK)
+      makeElement("rectangle", 0, 36, 220, 30, {
+        backgroundColor: FILL_WARM,
+        roundness: null,
+      }),
+      makeText(10, 41, 200, 20, "PK  id : INT", 14),
+      // Columnas comunes
+      makeElement("rectangle", 0, 66, 220, 80, { roundness: null }),
+      makeText(10, 74, 200, 16, "campo1 : VARCHAR\ncampo2 : INT\ncreated_at : DATETIME", 13),
+    ],
+  },
+  // ── DB: Entidad (ER) ──
+  // Forma clásica de los diagramas Entidad-Relación: rectángulo con
+  // nombre adentro. Las relaciones (rombos) se hacen con la herramienta
+  // diamond de Excalidraw + arrow.
+  {
+    id: "lib-db-entity",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "DB · Entidad (ER)",
+    elements: [
+      makeElement("rectangle", 0, 0, 160, 70, {
+        backgroundColor: FILL_LIGHT,
+        roundness: null,
+      }),
+      makeText(0, 25, 160, 20, "Entidad", 18),
+    ],
+  },
+  // ── DB: Relación (ER) ──
+  // Rombo del modelo ER que conecta entidades. Cardinalidad (1, N, M)
+  // se anota encima de los arrows que conectan.
+  {
+    id: "lib-db-relation",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "DB · Relación (ER)",
+    elements: [
+      makeElement("diamond", 0, 0, 160, 90, { backgroundColor: FILL_WARM }),
+      makeText(0, 35, 160, 20, "tiene", 14),
+    ],
+  },
+  // ── DB: Atributo (ER) ──
+  // Óvalo con el nombre del atributo, conectado a su entidad con una
+  // línea recta.
+  {
+    id: "lib-db-attribute",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "DB · Atributo (ER)",
+    elements: [
+      makeElement("ellipse", 0, 0, 120, 50, { backgroundColor: FILL_LIGHT }),
+      makeText(0, 15, 120, 20, "atributo", 14),
+    ],
+  },
+  // ──────────────────────────────────────────────────────────────────
+  // POO — extensiones del UML class que ya estaba arriba
+  // ──────────────────────────────────────────────────────────────────
+  // ── POO: Interfaz ──
+  // Caja UML con stereotype <<interface>> arriba del nombre. Métodos
+  // abstractos en la zona inferior.
+  {
+    id: "lib-poo-interface",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "POO · Interfaz",
+    elements: [
+      makeElement("rectangle", 0, 0, 220, 56, {
+        backgroundColor: FILL_LIGHT,
+        roundness: null,
+      }),
+      makeText(0, 6, 220, 16, "<<interface>>", 12),
+      makeText(0, 26, 220, 20, "IName", 18),
+      // Métodos abstractos
+      makeElement("rectangle", 0, 56, 220, 70, { roundness: null }),
+      makeText(10, 64, 200, 16, "+ method1(): Tipo\n+ method2(): Tipo", 14),
+    ],
+  },
+  // ── POO: Clase abstracta ──
+  {
+    id: "lib-poo-abstract-class",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "POO · Clase abstracta",
+    elements: [
+      makeElement("rectangle", 0, 0, 220, 56, {
+        backgroundColor: FILL_WARM,
+        roundness: null,
+      }),
+      makeText(0, 6, 220, 16, "<<abstract>>", 12),
+      makeText(0, 26, 220, 20, "AbstractName", 18),
+      makeElement("rectangle", 0, 56, 220, 60, { roundness: null }),
+      makeText(10, 64, 200, 16, "# field1: Tipo", 14),
+      makeElement("rectangle", 0, 116, 220, 60, { roundness: null }),
+      makeText(10, 124, 200, 16, "+ abstract method(): Tipo", 14),
+    ],
+  },
+  // ── POO: Enum ──
+  {
+    id: "lib-poo-enum",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "POO · Enum",
+    elements: [
+      makeElement("rectangle", 0, 0, 200, 36, {
+        backgroundColor: FILL_LIGHT,
+        roundness: null,
+      }),
+      makeText(0, 4, 200, 14, "<<enum>>", 11),
+      makeText(0, 18, 200, 16, "Status", 16),
+      makeElement("rectangle", 0, 36, 200, 80, { roundness: null }),
+      makeText(10, 44, 180, 16, "ACTIVE\nINACTIVE\nPENDING", 14),
+    ],
+  },
+  // ── POO: Herencia (flecha) ──
+  // Una flecha simple etiquetada. La cabeza típica UML (triángulo
+  // hueco) no existe nativa en Excalidraw — el docente usa "arrow"
+  // estándar y nombra "is-a" / "implements" en runtime.
+  {
+    id: "lib-poo-inheritance",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "POO · Herencia (is-a)",
+    elements: [
+      makeElement("arrow", 0, 0, 180, 0, {
+        points: [
+          [0, 0],
+          [180, 0],
+        ],
+        endArrowhead: "triangle",
+      }),
+      makeText(40, -22, 100, 18, "extends", 13),
+    ],
+  },
+  // ──────────────────────────────────────────────────────────────────
+  // AWS — bloques esquemáticos para arquitectura de soluciones
+  // ──────────────────────────────────────────────────────────────────
+  // Diseño: cajas rectangulares con label arriba (tipo de servicio) +
+  // texto interno con el nombre del recurso. Aproximación esquemática,
+  // no replica los iconos oficiales (eso requeriría imágenes y crece el
+  // bundle ~150KB). Suficiente para diagramar arquitectura en clase.
+  // ── AWS: EC2 ──
+  {
+    id: "lib-aws-ec2",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "AWS · EC2",
+    elements: [
+      makeElement("rectangle", 0, 0, 140, 90, {
+        backgroundColor: FILL_WARM,
+      }),
+      makeText(0, 8, 140, 16, "EC2", 14),
+      makeText(0, 36, 140, 20, "instance", 16),
+    ],
+  },
+  // ── AWS: S3 (bucket) ──
+  {
+    id: "lib-aws-s3",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "AWS · S3",
+    elements: [
+      makeElement("rectangle", 0, 0, 140, 90, {
+        backgroundColor: FILL_LIGHT,
+      }),
+      makeText(0, 8, 140, 16, "S3", 14),
+      makeText(0, 36, 140, 20, "bucket", 16),
+    ],
+  },
+  // ── AWS: RDS (DB administrada) ──
+  {
+    id: "lib-aws-rds",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "AWS · RDS",
+    elements: [
+      makeElement("rectangle", 0, 0, 140, 90, {
+        backgroundColor: FILL_LIGHT,
+      }),
+      makeText(0, 8, 140, 16, "RDS", 14),
+      makeText(0, 36, 140, 20, "db", 16),
+    ],
+  },
+  // ── AWS: Lambda (función) ──
+  {
+    id: "lib-aws-lambda",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "AWS · Lambda",
+    elements: [
+      makeElement("rectangle", 0, 0, 140, 90, {
+        backgroundColor: FILL_WARM,
+      }),
+      makeText(0, 8, 140, 16, "Lambda", 14),
+      makeText(0, 36, 140, 20, "function", 16),
+    ],
+  },
+  // ── AWS: API Gateway ──
+  {
+    id: "lib-aws-api-gateway",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "AWS · API Gateway",
+    elements: [
+      makeElement("rectangle", 0, 0, 160, 90, {
+        backgroundColor: FILL_LIGHT,
+      }),
+      makeText(0, 8, 160, 16, "API Gateway", 14),
+      makeText(0, 36, 160, 20, "/v1/...", 16),
+    ],
+  },
+  // ── AWS: SQS (queue) ──
+  // Forma de "tubería" — rectángulo + óvalo en el extremo derecho que
+  // simula la cola.
+  {
+    id: "lib-aws-sqs",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "AWS · SQS",
+    elements: [
+      makeElement("rectangle", 0, 0, 140, 60, {
+        backgroundColor: FILL_WARM,
+        roundness: null,
+      }),
+      makeText(0, 4, 140, 14, "SQS", 12),
+      makeText(0, 24, 140, 20, "queue", 16),
+    ],
+  },
+  // ── AWS: SNS (topic) ──
+  {
+    id: "lib-aws-sns",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "AWS · SNS",
+    elements: [
+      makeElement("rectangle", 0, 0, 140, 60, {
+        backgroundColor: FILL_WARM,
+        roundness: null,
+      }),
+      makeText(0, 4, 140, 14, "SNS", 12),
+      makeText(0, 24, 140, 20, "topic", 16),
+    ],
+  },
+  // ── AWS: CloudFront (CDN) ──
+  {
+    id: "lib-aws-cloudfront",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "AWS · CloudFront",
+    elements: [
+      makeElement("rectangle", 0, 0, 160, 90, {
+        backgroundColor: FILL_LIGHT,
+      }),
+      makeText(0, 8, 160, 16, "CloudFront", 14),
+      makeText(0, 36, 160, 20, "CDN", 16),
+    ],
+  },
+  // ── AWS: DynamoDB (NoSQL) ──
+  {
+    id: "lib-aws-dynamodb",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "AWS · DynamoDB",
+    elements: [
+      makeElement("rectangle", 0, 0, 160, 90, {
+        backgroundColor: FILL_LIGHT,
+      }),
+      makeText(0, 8, 160, 16, "DynamoDB", 14),
+      makeText(0, 36, 160, 20, "table", 16),
+    ],
+  },
+  // ── AWS: VPC (contenedor) ──
+  // Rectángulo grande punteado para envolver otros servicios. Se
+  // diferencia del resto por el strokeStyle dashed.
+  {
+    id: "lib-aws-vpc",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "AWS · VPC (contenedor)",
+    elements: [
+      makeElement("rectangle", 0, 0, 360, 220, {
+        backgroundColor: "transparent",
+        strokeStyle: "dashed",
+        roundness: null,
+      }),
+      makeText(10, 8, 200, 18, "VPC", 16),
     ],
   },
 ];

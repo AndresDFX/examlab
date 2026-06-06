@@ -1,13 +1,12 @@
 /**
- * Configuración de IA (Admin).
+ * Configuración de Prompts (Admin).
  *
  * Tabs:
- *   - Prompts: edita los prompts globales por use_case (5 tipos).
+ *   - Prompts: edita los prompts globales por use_case.
  *   - Modelo:  selecciona el provider (Lovable / OpenAI) y el modelo activo.
  *
  * Se mantiene el path `/app/admin/ai-prompts` por compatibilidad con
- * URLs y el routeTree generado, aunque el módulo ahora abarca más que
- * solo prompts.
+ * URLs y el routeTree generado.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
@@ -15,8 +14,7 @@ import { useActiveRole } from "@/hooks/use-active-role";
 import { readTenantOverride } from "@/modules/tenants/use-tenant";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/ui/page-header";
-import { Card, CardContent } from "@/components/ui/card";
-import { Sparkles, Cpu, FileText } from "lucide-react";
+import { FileText, Cpu } from "lucide-react";
 import { AdminPromptsPanel } from "@/modules/admin/AdminPromptsPanel";
 import { AdminModelPanel } from "@/modules/admin/AdminModelPanel";
 
@@ -41,8 +39,8 @@ function AdminAIConfig() {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<Sparkles className="h-6 w-6 text-indigo-500" />}
-        title="IA"
+        icon={<FileText className="h-6 w-6 text-indigo-500" />}
+        title="Prompts"
         subtitle={
           isSuperAdminCrossTenant
             ? "Configurá los prompts default de la plataforma (cada institución puede sobrescribirlos)."

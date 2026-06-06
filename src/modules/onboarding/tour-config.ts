@@ -192,21 +192,16 @@ export const ADMIN_TOUR: TourStep[] = [
     side: "right",
   },
 
-  // ─── Errores ────────────────────────────────────────────────────────
-  {
-    element: '[data-tour-nav="/app/admin/errors"]',
-    title: "Errores",
-    description:
-      "Eventos de error reportados desde el navegador del usuario. Útil para diagnosticar bugs que los docentes no reportan explícito. Estados: nuevo, en revisión, resuelto, ignorado.",
-    side: "right",
-  },
-
-  // ─── Auditoría ──────────────────────────────────────────────────────
+  // ─── Auditoría (incluye Errores como tab) ───────────────────────────
+  // El módulo de Errores se unificó adentro de Auditoría como tab
+  // `?tab=errors`. Si el step de Errores se mantenía aparte, su
+  // selector ya no existía en el DOM (filtrado silenciosamente).
+  // Ahora un único paso cubre los dos flujos.
   {
     element: '[data-tour-module="audit_logs"]',
     title: "Auditoría",
     description:
-      "Historial completo de acciones del sistema: quién, qué, cuándo. Filtrá por entidad (examen, usuario, curso), por severidad o por categoría. Esencial para soporte y cumplimiento.",
+      "Historial completo de acciones del sistema: quién, qué, cuándo. <strong>Incluye los Errores</strong> en una tab aparte, con agrupación por tipo y estados (nuevo, revisando, resuelto, ignorado). Filtrá por entidad, severidad o categoría — esencial para soporte y cumplimiento.",
     side: "right",
   },
 

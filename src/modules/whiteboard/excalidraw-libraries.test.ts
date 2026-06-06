@@ -64,11 +64,35 @@ describe("DEFAULT_LIBRARY_ITEMS", () => {
     }
   });
 
-  it("incluye al menos un item por cada categoría curada (flowchart, UML, data structures)", () => {
+  it("incluye al menos un item por cada categoría curada (flowchart, UML, data structures, DB, POO, AWS)", () => {
     const names = DEFAULT_LIBRARY_ITEMS.map((i) => (i.name as string).toLowerCase());
     expect(names.some((n) => n.includes("flowchart"))).toBe(true);
     expect(names.some((n) => n.includes("uml"))).toBe(true);
     expect(names.some((n) => n.includes("estructura"))).toBe(true);
+    expect(names.some((n) => n.startsWith("db ·"))).toBe(true);
+    expect(names.some((n) => n.startsWith("poo ·"))).toBe(true);
+    expect(names.some((n) => n.startsWith("aws ·"))).toBe(true);
+  });
+
+  it("cubre los servicios AWS clave (EC2, S3, Lambda, RDS, API Gateway, DynamoDB)", () => {
+    const names = DEFAULT_LIBRARY_ITEMS.map((i) => (i.name as string).toLowerCase());
+    for (const svc of ["ec2", "s3", "lambda", "rds", "api gateway", "dynamodb"]) {
+      expect(names.some((n) => n.includes(svc))).toBe(true);
+    }
+  });
+
+  it("DB incluye tabla, entidad y relación (componentes ER fundamentales)", () => {
+    const names = DEFAULT_LIBRARY_ITEMS.map((i) => (i.name as string).toLowerCase());
+    expect(names.some((n) => n.includes("db · tabla"))).toBe(true);
+    expect(names.some((n) => n.includes("db · entidad"))).toBe(true);
+    expect(names.some((n) => n.includes("db · relación"))).toBe(true);
+  });
+
+  it("POO incluye interfaz, abstracta y enum", () => {
+    const names = DEFAULT_LIBRARY_ITEMS.map((i) => (i.name as string).toLowerCase());
+    expect(names.some((n) => n.includes("interfaz"))).toBe(true);
+    expect(names.some((n) => n.includes("abstracta"))).toBe(true);
+    expect(names.some((n) => n.includes("enum"))).toBe(true);
   });
 
   it("cada item con texto tiene fontFamily y text definidos", () => {

@@ -53,7 +53,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Trash2, RotateCcw, X, Clock, Search } from "lucide-react";
+import { Trash2, RotateCcw, X, Clock, Search, AlertTriangle, Archive } from "lucide-react";
+import { StatCard } from "@/components/ui/stat-card";
 import {
   TRASH_TABLE_LABEL,
   TRASH_NAME_COL,
@@ -377,6 +378,24 @@ function TrashPage() {
     );
   }
 
+  // Stats arriba — patrón 4-card compartido con los otros módulos.
+  // Por urgencia de purga: ≤3d en rojo (urgente), ≤7d en ámbar (próxima
+  // semana). Total = items totales. Próximamente = aproximación útil:
+  // cuántos pueden restaurarse con calma (>7d).
+  const trashStats = useMemo(() => {
+    let urgent = 0;
+    let soon = 0;
+    let safe = 0;
+    for (const i of items) {
+      const days = daysUntilPurge(i.deleted_at);
+      if (days <= 3) urgent += 1;
+      else if (days <= 7) soon += 1;
+      else safe += 1;
+    }
+    return { total: items.length, urgent, soon, safe };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -388,6 +407,26 @@ function TrashPage() {
             : `${items.length} item(s) recuperables · purga automática a los ${RETENTION_DAYS} días`
         }
       />
+
+      {/* Stats 4-card — mismo patrón visual que el resto de los módulos.
+          Conteos absolutos sobre `items` (sin aplicar search/filter) —
+          dan contexto general; el detalle filtrado vive en la tabla. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard icon={Trash2} label="Total en papelera" value={trashStats.total} />
+        <StatCard
+          icon={AlertTriangle}
+          label="Próximos a purgar (≤3d)"
+          value={trashStats.urgent}
+          tone={trashStats.urgent > 0 ? "destructive" : "default"}
+        />
+        <StatCard
+          icon={Clock}
+          label="Esta semana (≤7d)"
+          value={trashStats.soon}
+          tone={trashStats.soon > 0 ? "warning" : "default"}
+        />
+        <StatCard icon={Archive} label="Recuperables (>7d)" value={trashStats.safe} />
+      </div>
 
       {/* Toolbar de filtros: search libre + selector de tipo. Stack en
           mobile (full-width), fila en sm+. Espejea el patrón de

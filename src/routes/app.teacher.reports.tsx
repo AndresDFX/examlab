@@ -63,7 +63,11 @@ import {
   Play,
   Printer,
   GitBranch,
+  FileText,
+  Globe,
+  Lock,
 } from "lucide-react";
+import { StatCard } from "@/components/ui/stat-card";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
   TemplateEditor,
@@ -226,6 +230,24 @@ function Inner() {
     }
     return result;
   }, [templates, search, originFilter]);
+
+  // Stats compactas — patrón 4-card compartido con el resto de los
+  // módulos. Distinguen los tres orígenes de plantilla:
+  //   - Globales: gestionadas por Admin, visibles a todos los docentes.
+  //   - Personalizadas: globales con override por curso (propias).
+  //   - Privadas: creadas por el docente, no comparte con nadie.
+  const reportStats = useMemo(() => {
+    let global = 0;
+    let override = 0;
+    let priv = 0;
+    for (const t of templates) {
+      const o = originOf(t);
+      if (o === "global") global += 1;
+      else if (o === "override") override += 1;
+      else priv += 1;
+    }
+    return { total: templates.length, global, override, priv };
+  }, [templates]);
 
   // ── Editor handlers ──────────────────────────────────────────────
 
@@ -551,6 +573,20 @@ function Inner() {
           </Button>
         }
       />
+
+      {/* Stats 4-card — patrón compartido (Videos, Cursos, Pizarras, etc.).
+          Aparece SIEMPRE — un 0 es informativo, no ruido. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard icon={FileText} label="Total" value={reportStats.total} />
+        <StatCard icon={Globe} label="Globales" value={reportStats.global} />
+        <StatCard
+          icon={GitBranch}
+          label="Personalizadas"
+          value={reportStats.override}
+          tone={reportStats.override > 0 ? "success" : "default"}
+        />
+        <StatCard icon={Lock} label="Privadas" value={reportStats.priv} />
+      </div>
 
       <ActasManager onPrintActa={handlePrintActa} />
 

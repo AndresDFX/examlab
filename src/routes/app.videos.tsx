@@ -233,9 +233,14 @@ function VideoLibrary() {
   // Estados conceptuales de un video:
   //   - Activos: !is_archived (visibles para el docente al referenciar)
   //   - Archivados: is_archived=true (ocultos por default, recuperables)
-  //   - Globales: tenant_id IS NULL (subidos por SuperAdmin, visibles
-  //     cross-tenant) — distinto de "míos" donde tenant_id = mi tenant
-  //   - En curso: course_id != null (atados a un curso específico)
+  //   - En curso: course_id != null (atado a un curso específico)
+  //   - Globales: course_id IS NULL (reutilizable, sin curso específico).
+  //     Matchea con el badge "Global" de la columna Curso en la tabla.
+  //     "En curso" + "Globales" cubren el total de videos (complementarios).
+  //
+  // El concepto "catálogo plataforma" (tenant_id IS NULL, publicado por
+  // SuperAdmin) es distinto y se filtra desde el Select de scope
+  // (tenantFilter="global"), no desde un stat.
   const videoStats = useMemo(() => {
     let active = 0;
     let archived = 0;
@@ -244,8 +249,8 @@ function VideoLibrary() {
     for (const r of rows) {
       if (r.is_archived) archived += 1;
       else active += 1;
-      if (r.tenant_id == null) global += 1;
       if (r.course_id) inCourse += 1;
+      else global += 1;
     }
     return { active, archived, global, inCourse };
   }, [rows]);
