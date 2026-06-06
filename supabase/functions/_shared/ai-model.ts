@@ -19,7 +19,10 @@
 
 import { adminClient } from "./admin.ts";
 
-export type AiProvider = "lovable" | "openai" | "gemini";
+// "lovable" se DEPRECÓ (mig 20260824000000) — el Lovable AI Gateway
+// usaba una key compartida que ya no se mantiene. Los providers
+// activos son Gemini directo (default) y OpenAI.
+export type AiProvider = "openai" | "gemini";
 
 export interface ActiveModel {
   provider: AiProvider;
@@ -27,17 +30,17 @@ export interface ActiveModel {
   /** API keys per-tenant. NULL → la edge cae al env legacy. */
   gemini_api_key: string | null;
   openai_api_key: string | null;
-  lovable_api_key: string | null;
   /** Tenant resolved (null si fallback hardcoded). Útil para logging. */
   tenant_id: string | null;
 }
 
+// Fallback hardcoded — Gemini directo, sin key (cae al env GEMINI_API_KEY
+// en la edge si no hay platform default configurado).
 const DEFAULT_MODEL: ActiveModel = {
-  provider: "lovable",
-  model: "google/gemini-2.5-flash",
+  provider: "gemini",
+  model: "gemini-2.5-flash",
   gemini_api_key: null,
   openai_api_key: null,
-  lovable_api_key: null,
   tenant_id: null,
 };
 
@@ -102,7 +105,7 @@ async function resolveTenantId(opts: ResolveOptions): Promise<string | null> {
 /**
  * Devuelve el modelo activo para el tenant resuelto. Si no se puede
  * resolver el tenant O no hay fila activa, devuelve el fallback
- * hardcoded (Lovable Gateway + Gemini Flash).
+ * hardcoded (Gemini directo + gemini-2.5-flash).
  */
 export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<ActiveModel> {
   const tenantId = await resolveTenantId(opts);
@@ -114,22 +117,35 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
     model: string;
     gemini_api_key: string | null;
     openai_api_key: string | null;
-    lovable_api_key: string | null;
   };
-  const toActive = (row: Row, scope: "tenant" | "platform"): ActiveModel => ({
-    provider: row.provider as AiProvider,
-    model: row.model,
-    gemini_api_key: row.gemini_api_key,
-    openai_api_key: row.openai_api_key,
-    lovable_api_key: row.lovable_api_key,
-    tenant_id: scope === "tenant" ? tenantId : null,
-  });
+  // Normaliza el provider legacy "lovable" a "gemini" en runtime — defensa
+  // para entornos donde la migración 20260824000000 todavía no corrió.
+  // Si llegamos a recibir "lovable" como provider, lo convertimos y
+  // limpiamos el model si trae el prefijo "google/" del gateway.
+  const normalizeProvider = (raw: string): AiProvider =>
+    raw === "openai" ? "openai" : "gemini";
+  const normalizeModel = (raw: string, prov: AiProvider): string =>
+    prov === "gemini" && raw.startsWith("google/") ? raw.slice("google/".length) : raw;
+  const toActive = (row: Row, scope: "tenant" | "platform"): ActiveModel => {
+    const p = normalizeProvider(row.provider);
+    return {
+      provider: p,
+      model: normalizeModel(row.model, p),
+      gemini_api_key: row.gemini_api_key,
+      openai_api_key: row.openai_api_key,
+      tenant_id: scope === "tenant" ? tenantId : null,
+    };
+  };
 
-  // 1) Tenant row (más específico).
+  // 1) Tenant row (lo único que aplica para callers con tenant).
+  // CAMBIO IMPORTANTE: ya NO heredamos del platform default. Cada
+  // institución tiene que configurar su propia API key — si no lo hace,
+  // el edge falla con un mensaje claro pidiendo configurarla. Esto evita
+  // que un tenant consuma silenciosamente la cuota del SuperAdmin.
   if (tenantId) {
     const { data } = await adminClient
       .from("ai_model_settings")
-      .select("provider, model, gemini_api_key, openai_api_key, lovable_api_key")
+      .select("provider, model, gemini_api_key, openai_api_key")
       .eq("is_active", true)
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -138,40 +154,38 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
       cache.set(tenantId, resolved);
       return resolved;
     }
+    // Sin row del tenant → devolvemos el DEFAULT_MODEL con keys NULL.
+    // El wrapper de cada edge detectará la falta de key y tirará el
+    // error accionable ("Configúrala en Admin → IA → Modelo").
+    const stub: ActiveModel = { ...DEFAULT_MODEL, tenant_id: tenantId };
+    cache.set(tenantId, stub);
+    console.warn(
+      `[ai-model] tenant ${tenantId} sin fila en ai_model_settings; ` +
+        `el caller verá error pidiendo configurar la API key.`,
+    );
+    return stub;
   }
 
-  // 2) Platform default — mig 20260719000000. Una sola fila activa con
-  // tenant_id IS NULL configurada por el SuperAdmin desde la UI. Sirve
-  // como fallback para tenants que no han elegido su propio provider/key.
+  // 2) Caller sin tenant resolvable (jobs internos, cron, etc.) — usa el
+  // platform default del SuperAdmin. Mig 20260719000000. Una sola fila
+  // activa con tenant_id IS NULL. Esto NO se aplica a tenants; los
+  // edges que sirven a usuarios resuelven el tenant via courseId/auth.
   {
     const { data } = await adminClient
       .from("ai_model_settings")
-      .select("provider, model, gemini_api_key, openai_api_key, lovable_api_key")
+      .select("provider, model, gemini_api_key, openai_api_key")
       .eq("is_active", true)
       .is("tenant_id", null)
       .maybeSingle();
     if (data) {
       const resolved = toActive(data as Row, "platform");
-      // Cacheamos contra el tenantId del caller (no NULL) porque la
-      // resolución es "para este caller" — si después configuran su
-      // tenant row, `clearAiModelCache()` invalida.
-      cache.set(tenantId, resolved);
-      if (tenantId) {
-        console.info(
-          `[ai-model] tenant ${tenantId} sin fila propia; usando platform default del SuperAdmin.`,
-        );
-      }
+      cache.set(null, resolved);
       return resolved;
     }
   }
 
-  // 3) Fallback hardcodeado (Lovable Gateway + Gemini Flash).
+  // 3) Fallback hardcodeado (Gemini directo, key NULL → cae al env).
   cache.set(null, DEFAULT_MODEL);
-  if (tenantId) {
-    console.warn(
-      `[ai-model] tenant ${tenantId} sin fila propia y sin platform default; cayendo a DEFAULT_MODEL hardcoded.`,
-    );
-  }
   return DEFAULT_MODEL;
 }
 

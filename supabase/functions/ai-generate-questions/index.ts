@@ -1,9 +1,6 @@
 // AI question generator. Las llamadas IA se enrutan al provider activo
-// configurado en `ai_model_settings` (lovable | openai | gemini), mismo
-// patrón que `ai-grade-submission` y `generate-contents` — antes esta
-// función iba HARDCODED a `ai.gateway.lovable.dev`, lo que rompía con
-// "Error en gateway de IA" para usuarios con Supabase propio que ya no
-// tenían `LOVABLE_API_KEY` configurada o que cambiaron a Gemini/OpenAI.
+// configurado en `ai_model_settings` (openai | gemini), mismo patrón
+// que `ai-grade-submission` y `generate-contents`.
 import { adminClient, userClientFromRequest } from "../_shared/admin.ts";
 import { auditFromEdge } from "../_shared/audit.ts";
 import { enforceRateLimit } from "../_shared/rate-limit.ts";
@@ -62,18 +59,11 @@ async function aiChatCompletion(body: {
     key = m.openai_api_key ?? Deno.env.get("OPENAI_API_KEY");
     if (!key)
       throw new Error("Falta la API key de OpenAI. Configúrala en Configuración → Modelo IA.");
-  } else if (m.provider === "gemini") {
+  } else {
     url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
     key = m.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
     if (!key)
       throw new Error("Falta la API key de Gemini. Configúrala en Configuración → Modelo IA.");
-  } else {
-    url = "https://ai.gateway.lovable.dev/v1/chat/completions";
-    key = m.lovable_api_key ?? Deno.env.get("LOVABLE_API_KEY");
-    if (!key)
-      throw new Error(
-        "Falta la API key de Lovable AI Gateway. Configúrala en Configuración → Modelo IA.",
-      );
   }
   // El `model` final: si el caller pasó override, lo usa; si no, el de settings.
   const finalModel = body.modelOverride ?? m.model;
@@ -92,10 +82,10 @@ async function aiChatCompletion(body: {
 /**
  * Wrapper sobre el helper compartido. Inyecta el provider activo desde
  * `cachedModel` para que el mensaje de "API key inválida" nombre el
- * secret correcto (LOVABLE / OPENAI / GEMINI). Ver `_shared/ai-error.ts`.
+ * secret correcto (OPENAI / GEMINI). Ver `_shared/ai-error.ts`.
  */
 async function describeAiError(res: Response): Promise<string> {
-  return describeSharedAiError(res, cachedModel?.provider ?? "lovable");
+  return describeSharedAiError(res, cachedModel?.provider ?? "gemini");
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

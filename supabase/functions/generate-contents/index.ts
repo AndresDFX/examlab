@@ -46,12 +46,9 @@ async function aiChat(messages: any[]): Promise<Response> {
   if (m.provider === "openai") {
     url = "https://api.openai.com/v1/chat/completions";
     key = m.openai_api_key ?? Deno.env.get("OPENAI_API_KEY");
-  } else if (m.provider === "gemini") {
+  } else {
     url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
     key = m.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
-  } else {
-    url = "https://ai.gateway.lovable.dev/v1/chat/completions";
-    key = m.lovable_api_key ?? Deno.env.get("LOVABLE_API_KEY");
   }
   if (!key) throw new Error(`${m.provider.toUpperCase()}_API_KEY missing`);
   return fetch(url, {
@@ -434,11 +431,7 @@ Deno.serve(async (req: Request) => {
           }
           // describeAiError detecta API key inválida y devuelve mensaje
           // accionable; en otros casos retorna status + snippet.
-          const detail = await describeAiError(
-            aiRes,
-            activeModel?.provider ?? "lovable",
-            rawText,
-          );
+          const detail = await describeAiError(aiRes, activeModel?.provider ?? "gemini", rawText);
           throw new Error(`[${label}] ${detail}`);
         }
         let aiJson: Record<string, unknown> = {};

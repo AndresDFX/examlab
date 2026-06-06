@@ -167,7 +167,7 @@ function AdminSettings() {
             <Code2 className="h-3.5 w-3.5" />
             Compilador
           </TabsTrigger>
-          <TabsTrigger value="ai-model" className="gap-1.5">
+          <TabsTrigger value="ai-model" className="gap-1.5" data-tour-id="settings-ai-tab">
             <Cpu className="h-3.5 w-3.5" />
             Modelo IA
           </TabsTrigger>

@@ -51,11 +51,11 @@ export type { AiProvider };
  * Wrapper único de chat completions. Internamente decide endpoint/auth/modelo
  * según la config activa en ai_model_settings.
  *
- * - lovable → ai.gateway.lovable.dev/v1/chat/completions + LOVABLE_API_KEY
  * - openai  → api.openai.com/v1/chat/completions + OPENAI_API_KEY
  * - gemini  → generativelanguage.googleapis.com/v1beta/openai/chat/completions + GEMINI_API_KEY
+ *   (default cuando provider no es 'openai', incluyendo legacy 'lovable')
  *
- * Los tres hablan el mismo formato OpenAI chat-completions, así que el body
+ * Ambos hablan el mismo formato OpenAI chat-completions, así que el body
  * (messages/tools/tool_choice) viaja idéntico — solo cambia `model`.
  */
 async function aiChatCompletion(body: {
@@ -76,18 +76,13 @@ async function aiChatCompletion(body: {
     key = m.openai_api_key ?? Deno.env.get("OPENAI_API_KEY");
     if (!key)
       throw new Error("Falta la API key de OpenAI. Configúrala en Configuración → Modelo IA.");
-  } else if (m.provider === "gemini") {
+  } else {
+    // default: gemini directo (los providers legacy ya fueron normalizados
+    // por _shared/ai-model.ts; cualquier valor distinto de 'openai' cae acá).
     url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
     key = m.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
     if (!key)
       throw new Error("Falta la API key de Gemini. Configúrala en Configuración → Modelo IA.");
-  } else {
-    url = "https://ai.gateway.lovable.dev/v1/chat/completions";
-    key = m.lovable_api_key ?? Deno.env.get("LOVABLE_API_KEY");
-    if (!key)
-      throw new Error(
-        "Falta la API key de Lovable AI Gateway. Configúrala en Configuración → Modelo IA.",
-      );
   }
   return fetch(url, {
     method: "POST",
@@ -569,7 +564,7 @@ Deno.serve(async (req) => {
       metadata: { mode: auditMode, model: auditModel },
     });
     // La validación del API key vive ahora en aiChatCompletion según el
-    // provider activo (LOVABLE_API_KEY o OPENAI_API_KEY).
+    // provider activo (GEMINI_API_KEY o OPENAI_API_KEY).
 
     // ── Modo batch genérico — califica N preguntas en UNA llamada ──
     // El caller (UI de workshop, project, exam externo, etc.) manda un
@@ -913,7 +908,7 @@ Deno.serve(async (req) => {
       if (!aiRes.ok) {
         const errText = await aiRes.text();
         console.error("AI error", aiRes.status, errText);
-        throw new Error(await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText));
+        throw new Error(await describeAiError(aiRes, cachedModel?.provider ?? "gemini", errText));
       }
 
       const aiJson = await aiRes.json();
@@ -1181,7 +1176,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       if (!aiRes.ok) {
         const errText = await aiRes.text();
         console.error("AI error", aiRes.status, errText);
-        throw new Error(await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText));
+        throw new Error(await describeAiError(aiRes, cachedModel?.provider ?? "gemini", errText));
       }
 
       const aiJson = await aiRes.json();
@@ -1880,7 +1875,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       if (!aiRes.ok) {
         const errText = await aiRes.text();
         console.error("AI error", aiRes.status, errText);
-        throw new Error(await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText));
+        throw new Error(await describeAiError(aiRes, cachedModel?.provider ?? "gemini", errText));
       }
 
       const aiJson = await aiRes.json();
@@ -2010,7 +2005,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       if (!aiRes.ok) {
         const errText = await aiRes.text();
         console.error("AI error", aiRes.status, errText);
-        throw new Error(await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText));
+        throw new Error(await describeAiError(aiRes, cachedModel?.provider ?? "gemini", errText));
       }
 
       const aiJson = await aiRes.json();
@@ -2208,7 +2203,7 @@ Idioma de salida: ${langName}.`,
       if (!aiRes.ok) {
         const errText = await aiRes.text();
         console.error("AI error", aiRes.status, errText);
-        throw new Error(await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText));
+        throw new Error(await describeAiError(aiRes, cachedModel?.provider ?? "gemini", errText));
       }
 
       const aiJson = await aiRes.json();

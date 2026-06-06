@@ -6,8 +6,8 @@
 //
 //   - Versiones de runtime (Deno, region).
 //   - Presencia (NO valor) de los secrets criticos de edge functions:
-//     LOVABLE_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, VAPID_*,
-//     GOOGLE_OAUTH_*, PUSH_TRIGGER_SECRET.
+//     OPENAI_API_KEY, GEMINI_API_KEY, VAPID_*, GOOGLE_OAUTH_*,
+//     PUSH_TRIGGER_SECRET.
 //   - Provider de IA activo en ai_model_settings (leyendo desde
 //     PostgREST con la service_role).
 //
@@ -33,7 +33,6 @@ type SecretCheck = {
 
 function checkSecrets(): SecretCheck[] {
   const defs: Array<{ name: string; expected_prefix?: string }> = [
-    { name: "LOVABLE_API_KEY", expected_prefix: "sk_" },
     { name: "OPENAI_API_KEY", expected_prefix: "sk-" },
     { name: "GEMINI_API_KEY", expected_prefix: "AIza" },
     { name: "VAPID_PUBLIC_KEY", expected_prefix: "B" },
@@ -294,7 +293,6 @@ Deno.serve(async (req) => {
   let requiredAiSecretName: string | null = null;
   if (aiSettings?.provider) {
     const map: Record<string, string> = {
-      lovable: "LOVABLE_API_KEY",
       openai: "OPENAI_API_KEY",
       gemini: "GEMINI_API_KEY",
     };

@@ -20,6 +20,7 @@
 //    entregas. Si se necesita, se hace en una v2.
 import { adminClient as admin, userClientFromRequest } from "../_shared/admin.ts";
 import { auditFromEdge } from "../_shared/audit.ts";
+import { getActiveAiModel } from "../_shared/ai-model.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -92,9 +93,6 @@ Deno.serve(async (req) => {
   let auditKind: string | null = null;
   let auditRefId: string | null = null;
   try {
-    const KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!KEY) throw new Error("LOVABLE_API_KEY missing");
-
     // ── Authn/Authz ──
     // La detección lee submissions de OTROS estudiantes y ejecuta IA
     // (cuesta créditos). Solo Docente/Admin puede invocarla. Sin esto
@@ -333,6 +331,25 @@ Deno.serve(async (req) => {
     const refCourseId = (refRow as { course_id?: string } | null)?.course_id ?? null;
     const systemPrompt = await resolvePlagiarismPrompt(admin, refCourseId);
 
+    // Resolver provider/key/modelo activo del tenant (vía courseId).
+    // Si el tenant no tiene config o la key falta, getActiveAiModel cae a
+    // fallback hardcoded (Gemini) y el fetch fallará con mensaje claro.
+    const activeModel = await getActiveAiModel({ courseId: refCourseId });
+    let aiUrl: string;
+    let aiKey: string | undefined;
+    if (activeModel.provider === "openai") {
+      aiUrl = "https://api.openai.com/v1/chat/completions";
+      aiKey = activeModel.openai_api_key ?? Deno.env.get("OPENAI_API_KEY");
+    } else {
+      aiUrl = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+      aiKey = activeModel.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
+    }
+    if (!aiKey) {
+      throw new Error(
+        `Falta la API key de ${activeModel.provider}. Configúrala en Admin → IA → Modelo.`,
+      );
+    }
+
     // Borrado idempotente: cualquier corrida re-genera los pares
     // PENDIENTES de revisar. Los pares ya marcados como revisados
     // por el docente (reviewed_at IS NOT NULL) sobreviven la corrida
@@ -370,11 +387,11 @@ Deno.serve(async (req) => {
       const items = group.items.slice(0, MAX_ITEMS_PER_CALL);
       const idxList = items.map((it, i) => `[${i}]\n${it.text}`).join("\n\n---\n\n");
 
-      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const aiRes = await fetch(aiUrl, {
         method: "POST",
-        headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${aiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: activeModel.model,
           messages: [
             {
               role: "system",

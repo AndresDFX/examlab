@@ -38,14 +38,10 @@ async function aiChatCompletion(body: { messages: any[]; tools?: any[]; tool_cho
     url = "https://api.openai.com/v1/chat/completions";
     key = m.openai_api_key ?? Deno.env.get("OPENAI_API_KEY");
     if (!key) throw new Error("Falta la API key de OpenAI");
-  } else if (m.provider === "gemini") {
+  } else {
     url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
     key = m.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
     if (!key) throw new Error("GEMINI_API_KEY missing");
-  } else {
-    url = "https://ai.gateway.lovable.dev/v1/chat/completions";
-    key = m.lovable_api_key ?? Deno.env.get("LOVABLE_API_KEY");
-    if (!key) throw new Error("Falta la API key de Lovable AI Gateway");
   }
   return fetch(url, {
     method: "POST",
@@ -276,7 +272,7 @@ Evalúa si la duración es razonable y sugiere los minutos óptimos.`;
       const errText = await aiRes.text();
       console.error("AI error", aiRes.status, errText);
       throw new Error(
-        await describeAiError(aiRes, cachedModel?.provider ?? "lovable", errText),
+        await describeAiError(aiRes, cachedModel?.provider ?? "gemini", errText),
       );
     }
 

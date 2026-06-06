@@ -1,10 +1,14 @@
 /**
  * Panel de configuración del modelo de IA activo (Admin).
  *
- * V1: una única configuración global. Provider + modelo. Las API keys
- * viven como secrets en Lovable (LOVABLE_API_KEY, OPENAI_API_KEY,
- * GEMINI_API_KEY) — nunca en DB. Si una key expira el admin la rota
- * desde Lovable → Edge Function Secrets, no desde acá.
+ * Una fila activa por tenant. El SuperAdmin cross-tenant edita la fila
+ * platform-default (tenant_id IS NULL) que se usa SOLO para jobs internos
+ * de la plataforma — los tenants ya NO heredan de ahí.
+ *
+ * Providers soportados: OpenAI o Google Gemini directo. Cada tenant DEBE
+ * configurar su propia API key — sin key, los edges de IA fallan con un
+ * mensaje accionable. Esto evita que un tenant consuma silenciosamente la
+ * cuota del SuperAdmin.
  */
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,7 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Save, Info, Cpu } from "lucide-react";
+import { Save, Info, Cpu, AlertTriangle } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -35,32 +39,28 @@ import { friendlyError } from "@/shared/lib/db-errors";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-type Provider = "lovable" | "openai" | "gemini";
+type Provider = "openai" | "gemini";
 
 type ModelRow = {
   id: string;
   provider: Provider;
   model: string;
   is_active: boolean;
-  lovable_api_key: string | null;
   openai_api_key: string | null;
   gemini_api_key: string | null;
 };
 
 const PROVIDER_LABELS: Record<Provider, string> = {
-  lovable: "Lovable AI Gateway (Gemini)",
   openai: "OpenAI",
   gemini: "Google Gemini (directo)",
 };
 
 const MODEL_SUGGESTIONS: Record<Provider, string[]> = {
-  lovable: ["google/gemini-2.5-flash", "google/gemini-2.5-pro", "google/gemini-2.0-flash"],
   openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4.1", "gpt-4.1-mini"],
   gemini: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
 };
 
 const SECRET_NAME: Record<Provider, string> = {
-  lovable: "LOVABLE_API_KEY",
   openai: "OPENAI_API_KEY",
   gemini: "GEMINI_API_KEY",
 };
@@ -69,21 +69,19 @@ export function AdminModelPanel() {
   const { user, profile, roles } = useAuth();
   const activeRole = useActiveRole();
   // Scope: SuperAdmin cross-tenant edita la fila PLATFORM-DEFAULT
-  // (tenant_id IS NULL, mig 20260719000000). Cualquier otro caller
-  // (Admin común o SuperAdmin con "Ver como") edita la fila de su
-  // tenant. Cada Admin puede no configurar nada y caer al platform
-  // default que el SuperAdmin haya dejado — incluyendo su Gemini /
-  // OpenAI key, así no todos los tenants tienen que pegar la suya.
+  // (tenant_id IS NULL). Cualquier otro caller (Admin común o SuperAdmin
+  // con "Ver como") edita la fila de su tenant. CAMBIO: los tenants ya
+  // NO heredan de la fila platform-default; cada Admin debe configurar
+  // su propia API key.
   const isGlobalScope =
     roles.includes("SuperAdmin") && activeRole === "SuperAdmin" && readTenantOverride() === null;
   const scopeTenantId: string | null = isGlobalScope ? null : (profile?.tenant_id ?? null);
   const [activeRow, setActiveRow] = useState<ModelRow | null>(null);
-  const [draftProvider, setDraftProvider] = useState<Provider>("lovable");
-  const [draftModel, setDraftModel] = useState<string>("google/gemini-2.5-flash");
+  const [draftProvider, setDraftProvider] = useState<Provider>("gemini");
+  const [draftModel, setDraftModel] = useState<string>("gemini-2.5-flash");
   // API keys per-tenant. Sentinel `"__keep"` indica "no cambiar la existente"
   // (cuando el admin abre el panel sin tocar el campo, no la sobrescribimos).
   // Cualquier otro string la reemplaza; "" la borra.
-  const [draftLovableKey, setDraftLovableKey] = useState<string>("__keep");
   const [draftOpenaiKey, setDraftOpenaiKey] = useState<string>("__keep");
   const [draftGeminiKey, setDraftGeminiKey] = useState<string>("__keep");
   const [loading, setLoading] = useState(true);
@@ -94,15 +92,14 @@ export function AdminModelPanel() {
   const load = async () => {
     setLoading(true);
     setLoadError(null);
-    // En scope global, la fila activa es la única con tenant_id IS NULL
-    // (mig 20260719000000). En tenant scope, la fila del tenant del
-    // caller. Filtramos explícitamente para no confundir filas — RLS
-    // post-mig SELECT también deja al SuperAdmin ver TODAS las filas,
-    // así que sin el filtro `.eq`/`.is` el `.maybeSingle()` se rompería
-    // con multiple rows.
+    // En scope global, la fila activa es la única con tenant_id IS NULL.
+    // En tenant scope, la fila del tenant del caller. Filtramos
+    // explícitamente para no confundir filas — RLS deja al SuperAdmin
+    // ver TODAS las filas, así que sin el filtro `.eq`/`.is` el
+    // `.maybeSingle()` se rompería con multiple rows.
     let q = db
       .from("ai_model_settings")
-      .select("id, provider, model, is_active, lovable_api_key, openai_api_key, gemini_api_key")
+      .select("id, provider, model, is_active, openai_api_key, gemini_api_key")
       .eq("is_active", true);
     if (isGlobalScope) {
       q = q.is("tenant_id", null);
@@ -117,10 +114,18 @@ export function AdminModelPanel() {
     }
     if (data) {
       const row = data as ModelRow;
-      setActiveRow(row);
-      setDraftProvider(row.provider);
-      setDraftModel(row.model);
-      setDraftLovableKey("__keep");
+      // Normaliza provider legacy 'lovable' a 'gemini' para que el form
+      // arranque consistente (la migración 20260824000000 ya hizo el
+      // backfill server-side, pero si quedó algo viejo, lo manejamos).
+      const normalized: Provider =
+        row.provider === "openai" ? "openai" : "gemini";
+      const normalizedModel =
+        normalized === "gemini" && row.model.startsWith("google/")
+          ? row.model.slice("google/".length)
+          : row.model;
+      setActiveRow({ ...row, provider: normalized, model: normalizedModel });
+      setDraftProvider(normalized);
+      setDraftModel(normalizedModel);
       setDraftOpenaiKey("__keep");
       setDraftGeminiKey("__keep");
     } else {
@@ -128,7 +133,6 @@ export function AdminModelPanel() {
       // formulario muestre los defaults y la siguiente save haga INSERT
       // sin pre-asumir keys del scope anterior.
       setActiveRow(null);
-      setDraftLovableKey("__keep");
       setDraftOpenaiKey("__keep");
       setDraftGeminiKey("__keep");
     }
@@ -145,7 +149,6 @@ export function AdminModelPanel() {
     !activeRow ||
     draftProvider !== activeRow.provider ||
     draftModel !== activeRow.model ||
-    draftLovableKey !== "__keep" ||
     draftOpenaiKey !== "__keep" ||
     draftGeminiKey !== "__keep";
 
@@ -153,6 +156,18 @@ export function AdminModelPanel() {
   // admin no la está editando. Si la key no existe, muestra placeholder.
   const maskKey = (k: string | null | undefined): string =>
     k && k.length > 4 ? `••••${k.slice(-4)}` : "";
+
+  // Para el scope tenant: ¿esta save dejaría al tenant SIN key del provider
+  // activo? Si sí, bloqueamos guardado y mostramos error claro. El scope
+  // global (SuperAdmin) sigue permitiendo key NULL — su row es solo para
+  // jobs internos de la plataforma; los tenants ya no heredan.
+  const activeProviderKeyDraft =
+    draftProvider === "openai" ? draftOpenaiKey : draftGeminiKey;
+  const activeProviderKeyStored =
+    draftProvider === "openai" ? activeRow?.openai_api_key : activeRow?.gemini_api_key;
+  const resolvedKeyAfterSave =
+    activeProviderKeyDraft === "__keep" ? activeProviderKeyStored : activeProviderKeyDraft || null;
+  const tenantNeedsKey = !isGlobalScope && !resolvedKeyAfterSave;
 
   const handleProviderChange = (p: Provider) => {
     setDraftProvider(p);
@@ -167,55 +182,60 @@ export function AdminModelPanel() {
       toast.error("Especifica un modelo");
       return;
     }
+    // Bloqueo: tenant sin key del provider activo. SuperAdmin no entra
+    // acá (isGlobalScope=true).
+    if (tenantNeedsKey) {
+      toast.error(
+        `Configura la API key de ${PROVIDER_LABELS[draftProvider]} antes de guardar. ` +
+          `Tu institución debe usar su propia key (la del SuperAdmin no se hereda).`,
+      );
+      return;
+    }
     setSaving(true);
     try {
       // Resolución de keys: si el admin no las tocó ("__keep"), heredan
       // las del activeRow. Si las cambió, usa el nuevo valor (incluido "" = borrar).
-      const nextLovableKey =
-        draftLovableKey === "__keep"
-          ? (activeRow?.lovable_api_key ?? null)
-          : draftLovableKey || null;
       const nextOpenaiKey =
         draftOpenaiKey === "__keep" ? (activeRow?.openai_api_key ?? null) : draftOpenaiKey || null;
       const nextGeminiKey =
         draftGeminiKey === "__keep" ? (activeRow?.gemini_api_key ?? null) : draftGeminiKey || null;
 
-      // Desactivamos la fila activa del MISMO scope antes de insertar la
-      // nueva (mantenemos un singleton "active" por scope via los unique
-      // partial idx). Sin el filtro de tenant_id, un SuperAdmin
-      // accidentalmente desactivaría TODAS las filas activas
-      // cross-tenant (RLS lo deja escribir cualquier fila).
-      let deactQ = db
-        .from("ai_model_settings")
-        .update({ is_active: false, updated_by: user.id })
-        .eq("is_active", true);
-      if (isGlobalScope) {
-        deactQ = deactQ.is("tenant_id", null);
-      } else if (scopeTenantId) {
-        deactQ = deactQ.eq("tenant_id", scopeTenantId);
-      }
-      const { error: deactErr } = await deactQ;
-      if (deactErr) {
-        toast.error(friendlyError(deactErr));
-        return;
-      }
-      // Insert: SuperAdmin (global scope) envía tenant_id: null explícito;
-      // el trigger respeta. Admin no envía tenant_id → trigger lo auto-
-      // setea con current_tenant_id().
-      const insertPayload: Record<string, unknown> = {
-        provider: draftProvider,
-        model: draftModel.trim(),
-        is_active: true,
-        updated_by: user.id,
-        lovable_api_key: nextLovableKey,
-        openai_api_key: nextOpenaiKey,
-        gemini_api_key: nextGeminiKey,
-      };
-      if (isGlobalScope) insertPayload.tenant_id = null;
-      const { error: insErr } = await db.from("ai_model_settings").insert(insertPayload);
-      if (insErr) {
-        toast.error(friendlyError(insErr));
-        return;
+      // UPSERT correcto: si la fila del scope ya existe, hacemos UPDATE.
+      // Si no, INSERT. Antes hacíamos UPDATE-to-false + INSERT, que con
+      // tenants existentes que tenían is_active=true rompía contra el
+      // unique partial index (síntoma: "Ya existe un registro con esos
+      // datos"). Ahora tocamos la fila existente in-place.
+      if (activeRow?.id) {
+        const { error: updErr } = await db
+          .from("ai_model_settings")
+          .update({
+            provider: draftProvider,
+            model: draftModel.trim(),
+            is_active: true,
+            updated_by: user.id,
+            openai_api_key: nextOpenaiKey,
+            gemini_api_key: nextGeminiKey,
+          })
+          .eq("id", activeRow.id);
+        if (updErr) {
+          toast.error(friendlyError(updErr));
+          return;
+        }
+      } else {
+        const insertPayload: Record<string, unknown> = {
+          provider: draftProvider,
+          model: draftModel.trim(),
+          is_active: true,
+          updated_by: user.id,
+          openai_api_key: nextOpenaiKey,
+          gemini_api_key: nextGeminiKey,
+        };
+        if (isGlobalScope) insertPayload.tenant_id = null;
+        const { error: insErr } = await db.from("ai_model_settings").insert(insertPayload);
+        if (insErr) {
+          toast.error(friendlyError(insErr));
+          return;
+        }
       }
       void logEvent({
         action: "ai_model.activated",
@@ -275,12 +295,10 @@ export function AdminModelPanel() {
         <p className="text-xs text-muted-foreground mt-1">
           Define qué modelo usa el edge function de calificación con IA.
         </p>
-        {/* Banner de scope: el SuperAdmin (cross-tenant) edita el
-            "platform default" que TODOS los tenants heredan cuando no
-            tienen su propia fila. El Admin común edita el override de
-            su institución. Si el Admin no configura nada, la calificación
-            cae al platform default del SuperAdmin (incluyendo la
-            Gemini/OpenAI key si la dejó configurada acá). */}
+        {/* Banner de scope: el SuperAdmin (cross-tenant) edita el platform
+            default usado por jobs internos. El Admin común edita la
+            configuración de su institución — que es OBLIGATORIA: sin
+            key, la IA no funciona en su tenant. */}
         <div
           className={`mt-2 rounded-md border px-3 py-2 text-xs ${
             isGlobalScope
@@ -290,15 +308,15 @@ export function AdminModelPanel() {
         >
           {isGlobalScope ? (
             <>
-              <strong>Default global de la plataforma.</strong> Lo que guardes acá es el modelo +
-              keys que reciben TODAS las instituciones que no configuraron el suyo. Cada Admin puede
-              sobrescribirlo desde su propio panel.
+              <strong>Default global de la plataforma.</strong> Lo que guardes acá lo usan jobs
+              internos de la plataforma. Las instituciones NO heredan de esta configuración: cada
+              Admin debe pegar su propia API key en su panel.
             </>
           ) : (
             <>
-              <strong>Configuración de tu institución.</strong> Si no configuras nada, la
-              calificación usará el default global de la plataforma. Las keys que pongas acá tienen
-              prioridad sobre la del SuperAdmin.
+              <strong>Configuración obligatoria de tu institución.</strong> Pegá la API key del
+              provider que vas a usar — cobra a tu cuenta. La calificación con IA no funciona
+              hasta que esté configurada.
             </>
           )}
         </div>
@@ -309,11 +327,6 @@ export function AdminModelPanel() {
             Proveedor{" "}
             <HelpHint>
               <div className="space-y-1.5">
-                <p>
-                  <strong>Lovable AI Gateway:</strong> usa los créditos de IA prepagados de Lovable.
-                  Sin necesidad de tener tarjeta propia con OpenAI/Google. Modelos Gemini enrutados
-                  por el gateway.
-                </p>
                 <p>
                   <strong>OpenAI:</strong> conecta directo con tu cuenta de platform.openai.com.
                   Acceso a modelos gpt-4o / gpt-4.1 / etc. Cobra a tu billing de OpenAI.
@@ -330,9 +343,8 @@ export function AdminModelPanel() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="lovable">{PROVIDER_LABELS.lovable}</SelectItem>
-              <SelectItem value="openai">{PROVIDER_LABELS.openai}</SelectItem>
               <SelectItem value="gemini">{PROVIDER_LABELS.gemini}</SelectItem>
+              <SelectItem value="openai">{PROVIDER_LABELS.openai}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -350,10 +362,6 @@ export function AdminModelPanel() {
                   <strong>Ejemplos por provider:</strong>
                 </p>
                 <ul className="list-disc pl-4 space-y-0.5">
-                  <li>
-                    <strong>Lovable / Gemini:</strong> <code>google/gemini-2.5-flash</code> (rápido,
-                    barato), <code>google/gemini-2.5-pro</code> (mejor razonamiento).
-                  </li>
                   <li>
                     <strong>OpenAI:</strong> <code>gpt-4o-mini</code> (default barato),{" "}
                     <code>gpt-4o</code>, <code>gpt-4.1</code>.
@@ -384,41 +392,32 @@ export function AdminModelPanel() {
           </datalist>
         </div>
 
-        {/* API key del provider ACTIVO solamente. Mostrar las 3 era
-            ruido — el admin solo usa uno. Si cambia el provider arriba,
-            el input correspondiente aparece debajo.
+        {/* API key del provider ACTIVO solamente. Mostrar las 2 era ruido —
+            el admin solo usa uno. Si cambia el provider arriba, el input
+            correspondiente aparece debajo.
             UX: sentinel "__keep" = no tocar el valor previo (placeholder
-            "••••XXXX"); "" = borrar y caer al env legacy; cualquier otro
-            string = reemplazar. */}
+            "••••XXXX"); "" = borrar (solo permitido en scope global);
+            cualquier otro string = reemplazar. */}
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            Cada institución usa su propia API key del provider activo (cobra a su cuenta). Si la
-            dejás vacía, la calificación cae al secret <code>{SECRET_NAME[draftProvider]}</code>{" "}
-            configurado por el SuperAdmin como fallback. La key se guarda cifrada en la DB y nunca
-            se muestra completa (solo los últimos 4 caracteres).
+            {isGlobalScope ? (
+              <>
+                Esta key se usa para jobs internos de la plataforma. Si la dejás vacía, los jobs
+                caen al secret <code>{SECRET_NAME[draftProvider]}</code> en Supabase → Edge
+                Function Secrets como último fallback.
+              </>
+            ) : (
+              <>
+                Cada institución usa su propia API key del provider activo (cobra a su cuenta).
+                <strong> La key es obligatoria</strong> — sin ella la IA no funciona en tu tenant.
+                La key se guarda cifrada en la DB y nunca se muestra completa (solo los últimos 4
+                caracteres).
+              </>
+            )}
           </AlertDescription>
         </Alert>
 
-        {draftProvider === "lovable" && (
-          <ApiKeyInput
-            label="API key — Lovable AI Gateway"
-            stored={activeRow?.lovable_api_key ?? null}
-            value={draftLovableKey}
-            onChange={setDraftLovableKey}
-            maskFn={maskKey}
-            helpHint={
-              <div className="space-y-1">
-                <p>
-                  Variable <code>LOVABLE_API_KEY</code>. Se obtiene desde el dashboard de Lovable,
-                  sección AI Credits.
-                </p>
-                <p>Los costos los administra Lovable según tus créditos contratados.</p>
-              </div>
-            }
-            help="Empieza con un prefijo de Lovable. Pegalo completo; lo enmascaramos al guardar."
-          />
-        )}
         {draftProvider === "openai" && (
           <ApiKeyInput
             label="API key — OpenAI"
@@ -426,6 +425,7 @@ export function AdminModelPanel() {
             value={draftOpenaiKey}
             onChange={setDraftOpenaiKey}
             maskFn={maskKey}
+            isGlobalScope={isGlobalScope}
             helpHint={
               <div className="space-y-1">
                 <p>
@@ -456,6 +456,7 @@ export function AdminModelPanel() {
             value={draftGeminiKey}
             onChange={setDraftGeminiKey}
             maskFn={maskKey}
+            isGlobalScope={isGlobalScope}
             helpHint={
               <div className="space-y-1">
                 <p>
@@ -480,6 +481,16 @@ export function AdminModelPanel() {
           />
         )}
 
+        {tenantNeedsKey && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Falta la API key de <strong>{PROVIDER_LABELS[draftProvider]}</strong>. Sin la key, la
+              calificación con IA no funciona en tu institución. Pegala arriba antes de guardar.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="flex flex-wrap gap-2 justify-end pt-1">
           {dirty && activeRow && (
             <Button
@@ -488,13 +499,15 @@ export function AdminModelPanel() {
               onClick={() => {
                 setDraftProvider(activeRow.provider);
                 setDraftModel(activeRow.model);
+                setDraftOpenaiKey("__keep");
+                setDraftGeminiKey("__keep");
               }}
               disabled={saving}
             >
               Cancelar
             </Button>
           )}
-          <Button size="sm" onClick={handleSave} disabled={saving || !dirty}>
+          <Button size="sm" onClick={handleSave} disabled={saving || !dirty || tenantNeedsKey}>
             {saving ? <Spinner size="md" className="mr-1" /> : <Save className="h-4 w-4 mr-1" />}
             Guardar configuración
           </Button>
@@ -511,8 +524,8 @@ export function AdminModelPanel() {
  * "••••XXXX" para no exponer la key completa. El admin puede:
  *   - Dejar el campo en "Mantener actual" → no se modifica.
  *   - Tipear una nueva key → reemplaza al guardar.
- *   - Click "Borrar" → setea "" (vacío) → al guardar la columna queda NULL
- *     y la edge cae al env legacy.
+ *   - Click "Borrar" → setea "" (vacío). Solo visible en scope global —
+ *     en scope tenant la key es obligatoria.
  */
 function ApiKeyInput({
   label,
@@ -522,6 +535,7 @@ function ApiKeyInput({
   maskFn,
   help,
   helpHint,
+  isGlobalScope,
 }: {
   label: string;
   stored: string | null;
@@ -533,12 +547,22 @@ function ApiKeyInput({
   /** Contenido del HelpHint (?) al lado del label — explicación más
    *  detallada con links/listas. Acepta ReactNode para markup rico. */
   helpHint?: React.ReactNode;
+  /** Si es scope global (SuperAdmin), la key puede quedar vacía. En
+   *  tenant scope, es obligatoria y no mostramos el botón "Borrar". */
+  isGlobalScope: boolean;
 }) {
   const isKeep = value === "__keep";
   const masked = maskFn(stored);
+  // Placeholder distinto según scope: en tenant scope, la key es
+  // obligatoria, así que el placeholder lo refleja.
+  const placeholder = isKeep && masked
+    ? masked
+    : isGlobalScope
+      ? "Sin configurar — los jobs internos caen al env secret"
+      : "Pegá tu API key (obligatorio)";
   return (
     <div>
-      <Label>
+      <Label required={!isGlobalScope && !stored}>
         {label}
         {helpHint && <HelpHint>{helpHint}</HelpHint>}
       </Label>
@@ -546,7 +570,7 @@ function ApiKeyInput({
         <Input
           type="password"
           value={isKeep ? "" : value}
-          placeholder={isKeep && masked ? masked : "Sin configurar — usa env legacy"}
+          placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
           className="flex-1 font-mono text-xs"
         />
@@ -555,12 +579,14 @@ function ApiKeyInput({
             Cancelar
           </Button>
         )}
-        {isKeep && stored && (
+        {/* Borrar key: solo en scope global. En scope tenant la key es
+            obligatoria, así que no exponemos la acción de eliminarla. */}
+        {isKeep && stored && isGlobalScope && (
           <Button
             variant="ghost"
             size="sm"
             onClick={() => onChange("")}
-            title="Borrar y usar env legacy"
+            title="Borrar y caer al env secret"
           >
             Borrar
           </Button>

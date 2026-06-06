@@ -216,17 +216,30 @@ export function AdminCertificateSettingsPanel() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Award className="h-4 w-4 text-amber-500" />
-            Configuración global de certificaciones
+            Certificados de tu institución
             <HelpHint>
-              Estos valores se usan al emitir certificados. Cada docente puede sobrescribirlos por
-              curso desde el detalle del curso. Lo que el alumno descarga es un snapshot inmutable
-              al momento de emisión.
+              Estos valores son los que la institución usa por defecto al emitir un certificado.
+              Cada docente puede ajustarlos para su propio curso desde el detalle del curso. Lo
+              que el alumno descarga es un snapshot inmutable al momento de emisión.
             </HelpHint>
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
             Cambios aquí afectan certificados que se emitan a partir de ahora. Los certificados ya
             emitidos preservan los datos con los que fueron creados.
           </p>
+          {/* Banner explicando la jerarquía de resolución de cada campo
+              al emitir un certificado. Antes el panel decía "global de
+              certificaciones" — ambiguo: el usuario interpretaba que
+              era cross-tenant. En realidad es per-tenant, y los docentes
+              pueden sobrescribir por curso. */}
+          <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+            <strong>Cómo se resuelve cada campo al emitir:</strong>{" "}
+            <span className="font-mono text-[11px]">
+              override del curso (docente) → este panel (institución) → texto por defecto
+            </span>
+            . Lo que dejes vacío acá lo manda al texto por defecto. Lo que el docente sobrescriba
+            en su curso, gana.
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Institución */}

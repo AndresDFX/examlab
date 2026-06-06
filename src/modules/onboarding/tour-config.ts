@@ -291,6 +291,22 @@ export const ADMIN_TOUR: TourStep[] = [
     side: "right",
   },
 
+  // ─── Configuración → Modelo IA (CRÍTICO en primer login) ────────────
+  // Cada institución DEBE configurar su propia API key. Sin ella, la
+  // calificación con IA, la generación de contenidos y la detección de
+  // copia no funcionan. El step abre la tab "Modelo IA" via click y la
+  // resalta para que el Admin la encuentre rápido en el primer onboarding.
+  {
+    element: '[data-tour-id="settings-ai-tab"]',
+    route: "/app/admin/settings",
+    clickBefore: '[data-tour-id="settings-ai-tab"]',
+    title: "Configurá tu API key de IA",
+    description:
+      "<p><strong>Importante:</strong> tu institución necesita su propia API key para usar la calificación con IA, generación de contenidos y detección de copia.</p><ol><li>Entrá a esta pestaña <em>Modelo IA</em>.</li><li>Elegí proveedor: <em>Google Gemini</em> (recomendado, hay tier gratuito) u <em>OpenAI</em>.</li><li>Pegá la API key generada en tu cuenta del proveedor.</li><li>Guardá.</li></ol><p>El costo se cobra a tu cuenta del proveedor — no a ExamLab. Sin esta key, las funciones de IA no funcionan en tu tenant.</p>",
+    side: "bottom",
+    waitMs: 4000,
+  },
+
   // ─── Footer del sidebar ──────────────────────────────────────────────
   {
     element: '[data-tour-id="user-info"]',

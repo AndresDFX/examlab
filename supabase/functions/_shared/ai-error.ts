@@ -1,6 +1,6 @@
 /**
  * Helper compartido: traduce una Response de error del proveedor de IA
- * (Gemini/OpenAI/Lovable Gateway) a un mensaje accionable en español.
+ * (Gemini/OpenAI) a un mensaje accionable en español.
  *
  * Caso especial: API key inválida (401/403 o body con "API_KEY_INVALID"
  * / "invalid api key" / "api key not valid"). El docente que ve "Error
@@ -16,10 +16,9 @@
  * con sus propias particularidades de manejo de respuestas).
  */
 
-export type AiProvider = "lovable" | "openai" | "gemini";
+export type AiProvider = "openai" | "gemini";
 
 const SECRET_FOR_PROVIDER: Record<AiProvider, string> = {
-  lovable: "LOVABLE_API_KEY",
   openai: "OPENAI_API_KEY",
   gemini: "GEMINI_API_KEY",
 };
@@ -30,11 +29,11 @@ const SECRET_FOR_PROVIDER: Record<AiProvider, string> = {
  * "body already consumed".
  *
  * `provider` se usa solo para nombrar el secret a renovar en el mensaje
- * de "API key inválida". Si no se conoce, default "lovable".
+ * de "API key inválida". Si no se conoce, default "gemini".
  */
 export async function describeAiError(
   res: Response,
-  provider: AiProvider = "lovable",
+  provider: AiProvider = "gemini",
   preReadBody?: string,
 ): Promise<string> {
   let body = preReadBody ?? "";
@@ -57,9 +56,9 @@ export async function describeAiError(
     const secret = SECRET_FOR_PROVIDER[provider];
     return (
       `La API key del proveedor de IA (${provider}) está inválida o expirada. ` +
-      `Pídele al administrador que actualice el secret ${secret} en ` +
-      `Lovable → Edge Function Secrets, o que cambie el proveedor activo ` +
-      `desde Admin → IA → Modelo.`
+      `Pídele al administrador que configure la key correcta en ` +
+      `Admin → IA → Modelo, o que actualice el secret ${secret} en ` +
+      `Supabase → Edge Function Secrets.`
     );
   }
 

@@ -61,19 +61,16 @@ function setRequestModelHint(h: { courseId?: string | null; authHeader?: string 
 
 async function callAi(messages: Array<{ role: string; content: string }>) {
   // Resolve modelo + API keys per-tenant (tutor-chat usa el shared helper
-  // que ya incluye lovable/openai/gemini keys del tenant).
+  // que incluye openai/gemini keys del tenant).
   const m = await resolveActiveModel(requestModelHint);
   let url: string;
   let key: string | undefined;
   if (m.provider === "openai") {
     url = "https://api.openai.com/v1/chat/completions";
     key = m.openai_api_key ?? Deno.env.get("OPENAI_API_KEY");
-  } else if (m.provider === "gemini") {
+  } else {
     url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
     key = m.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
-  } else {
-    url = "https://ai.gateway.lovable.dev/v1/chat/completions";
-    key = m.lovable_api_key ?? Deno.env.get("LOVABLE_API_KEY");
   }
   if (!key) throw new Error(`API key del provider ${m.provider} no configurada`);
 
@@ -98,7 +95,7 @@ async function callAi(messages: Array<{ role: string; content: string }>) {
       throw new Error(
         `La API key del proveedor de IA (${m.provider}) está inválida o expirada. ` +
           `Pídele al administrador que actualice el secret correspondiente ` +
-          `(${m.provider === "gemini" ? "GEMINI_API_KEY" : m.provider === "openai" ? "OPENAI_API_KEY" : "LOVABLE_API_KEY"}) ` +
+          `(${m.provider === "openai" ? "OPENAI_API_KEY" : "GEMINI_API_KEY"}) ` +
           `o que cambie el proveedor activo desde Admin → IA → Modelo.`,
       );
     }
