@@ -3,10 +3,12 @@
 ## Plataforma y despliegue
 
 - **Hospedado en Lovable** (lovable.dev). Lovable gestiona Supabase automáticamente.
-- El usuario **NO tiene acceso directo al dashboard de Supabase**.
+- El usuario **SÍ tiene acceso al dashboard de Supabase** (proyecto `uxxpzfsfcnqiwwdxoelm`). Para diagnósticos podemos darle queries SQL one-shot que él corre en el SQL Editor del dashboard.
 - Flujo de despliegue: `git push origin main` → usuario da click en **Publish** en Lovable.
 - Las migraciones van en `supabase/migrations/*.sql` — Lovable las aplica en Publish.
+- **Defensiva clave**: cada migración nueva DEBE envolver `ALTER TABLE` en `DO $$ BEGIN IF to_regclass('public.X') IS NOT NULL THEN ... END IF; END $$` por si la tabla NO existe en el entorno del usuario. Lovable a veces marca migraciones como aplicadas aunque el CREATE TABLE no haya corrido — sin el guard, la migración falla y se aborta todo el deploy. Patrón confirmado al fallar `question_bank` en 20260813000000.
 - Remote git: `git@github-vivetori:vivetori/examlab.git` (nombre: `origin`)
+- Lockfile: el repo usa **`bun.lock`** (NO `package-lock.json` ni `pnpm-lock.yaml`). Cualquier cambio en `package.json` requiere `bun install` para regenerar el lockfile y commitear AMBOS — el CI valida sincronía.
 
 ## Stack
 
@@ -550,6 +552,95 @@ UPDATE profiles
    SET onboarding_completed_roles = array_remove(onboarding_completed_roles, 'Admin')
  WHERE id = '<user_id>';
 ```
+
+### Papelera (soft-delete) — `/app/trash`
+
+Sistema de "borrado reversible" para 8 entidades padre: `courses`, `exams`, `workshops`, `projects`, `attendance_sessions`, `whiteboards`, `generated_contents`, `polls`. Toda eliminación de estas entidades pasa por el flujo soft → trash → purge a 30 días.
+
+- **DB** ([20260816000000_trash_soft_delete.sql](supabase/migrations/20260816000000_trash_soft_delete.sql)): columnas `deleted_at TIMESTAMPTZ` + `deleted_by UUID REFERENCES auth.users` en las 8 tablas. Index parcial `WHERE deleted_at IS NOT NULL` por tabla. RPCs `trash_restore_item(_table, _id)` y `trash_hard_delete_item(_table, _id)` con `SECURITY INVOKER` (la RLS del caller aplica). Función `purge_deleted_items(_ttl INTERVAL DEFAULT '30 days')` con `SECURITY DEFINER` invocada por pg_cron job `purge-deleted-items-daily` a las 03:00 UTC.
+- **Seed** ([20260816000010_seed_trash_module_visibility.sql](supabase/migrations/20260816000010_seed_trash_module_visibility.sql)): fila en `module_visibility` (`tenant_id IS NULL`) con `display_order=250`, enabled para Docente/Admin/SuperAdmin, disabled para Estudiante.
+- **Helpers** ([src/modules/trash/soft-delete.ts](src/modules/trash/soft-delete.ts)): `softDelete(table, id)` y `softDeleteMany(table, ids)` para los handlers; `restoreItem(table, id)` y `hardDeleteItem(table, id)` invocan las RPCs. `TRASH_TABLE_LABEL` + `TRASH_NAME_COL` para mapping UI.
+- **UI** ([src/routes/app.trash.tsx](src/routes/app.trash.tsx)): tabla unificada de las 8 tablas con `usePagination` + search + `useMultiSelect`. Bulk restore + bulk hard-delete. Badge "días restantes" colorado (rojo ≤3d, ámbar ≤7d). RBAC: solo Docente/Admin/SuperAdmin (en `src/shared/lib/rbac.ts`).
+- **Handlers convertidos**: `app.admin.courses.tsx`, `app.teacher.exams.index.tsx`, `app.teacher.workshops.tsx`, `app.teacher.projects.tsx`, `app.teacher.attendance.tsx`, `app.teacher.whiteboards.index.tsx`, `app.teacher.contents.tsx`, `app.teacher.polls.tsx`. TODOS los listados principales filtran `is('deleted_at', null)` en su query inicial.
+- **Tipo `ModuleKey`** en `use-module-visibility.ts` incluye `"trash"`. NAV path `/app/trash` mapeado en `NAV_PATH_TO_MODULE` para que respete display_order configurable.
+- **Limitación V1**: `generated_contents` soft-delete NO borra archivos del Storage. Quedan disponibles al restaurar; al hard-delete físico quedan huérfanos hasta cleanup manual (TODO v2 — job que limpie storage al purge).
+- **Tests** ([src/modules/trash/soft-delete.test.ts](src/modules/trash/soft-delete.test.ts)): cobertura del set canónico de tablas + `TRASH_TABLE_LABEL` / `TRASH_NAME_COL`.
+
+### Snippets de código por sesión
+
+Cada `attendance_session` puede tener N snippets de código (Java/Python/JavaScript) que el docente prepara en clase y los alumnos ven (y opcionalmente ejecutan) desde su vista de asistencia.
+
+- **DB** ([20260814000000_session_code_snippets.sql](supabase/migrations/20260814000000_session_code_snippets.sql)): tabla `session_code_snippets(id, session_id, position, title, language, source_code, last_stdout, last_stderr, last_exit_code, last_executed_at)`. RLS: docente del curso CRUD, alumno SELECT.
+- **UI** ([src/modules/sessions/SessionCodeSnippets.tsx](src/modules/sessions/SessionCodeSnippets.tsx) + [Dialog wrapper](src/modules/sessions/SessionCodeSnippetsDialog.tsx)): Monaco editor por snippet, autosave debounced 1.5s, botón Run via edge `execute-code` (pasa snippet.id como `questionId`), cacheado del último output. Modo readOnly para alumno: puede ejecutar pero output no persiste.
+- **Integración**: dropdown "Snippets de código" en `app.teacher.attendance.tsx` (icono `Code2`); botón "Código" en `app.student.attendance.tsx` por fila de sesión. El dialog muestra mensaje friendly cuando alumno entra y no hay snippets.
+
+### Pizarra de sesión COMPARTIDA con realtime broadcast
+
+Toggle "Pizarra compartida" en el dialog de pizarra de sesión. Cuando ON, los alumnos matriculados pueden EDITAR la misma pizarra y los cambios se sincronizan en vivo via Supabase Realtime.
+
+- **DB** ([20260815000000_session_shared_whiteboard.sql](supabase/migrations/20260815000000_session_shared_whiteboard.sql)): columna `attendance_sessions.whiteboard_shared BOOLEAN`. RPCs `update_session_whiteboard_scene(_session_id, _scene)` y `set_session_whiteboard_shared(_session_id, _shared)` ambas `SECURITY DEFINER` — la primera valida que el alumno solo puede escribir si `whiteboard_shared=true`, la segunda solo docente.
+- **WhiteboardEditor** ([src/modules/whiteboard/WhiteboardEditor.tsx](src/modules/whiteboard/WhiteboardEditor.tsx)): nueva prop `realtimeChannelName?: string`. Cuando se pasa, se suscribe al canal Supabase Realtime; cada local change emite broadcast `scene_update` (debounce 200ms) con `clientId` único por pestaña; al recibir broadcast ajeno aplica `updateScene` con `commitToHistory:false / captureUpdate:never`. Badge "Compartida en vivo" cuando SUBSCRIBED.
+- **Limitación**: last-write-wins en DB (no OT). Si dos personas dibujan EXACTAMENTE al mismo tiempo, puede haber ~1.5s de ping-pong hasta estabilizar.
+- **Student access**: botón "Pizarra" (azul cielo) en `app.student.attendance.tsx` aparece SOLO cuando `session.whiteboard_shared=true`. Reusa `SessionWhiteboardDialog` con `studentMode=true` (oculta el toggle).
+
+### Viewport persistente Excalidraw
+
+`WhiteboardEditor` acepta `viewportStorageKey?: string`. Cuando se pasa:
+- Al mount lee `scrollX/scrollY/zoom` de localStorage y los merge a `initialData.appState`.
+- En cada onChange persiste con debounce 500ms.
+
+Usado por `MultiPageWhiteboard` (`examlab_wb_view:page:<id>`) y `SessionWhiteboardDialog` (`examlab_wb_view:session:<id>`). Antes el viewport se perdía al cerrar/reabrir — bug reportado por usuarios.
+
+### Librerías predefinidas en Excalidraw
+
+[src/modules/whiteboard/excalidraw-libraries.ts](src/modules/whiteboard/excalidraw-libraries.ts) — 8 items curados (flowchart proceso/decisión/inicio/IO, UML clase, data structures nodo/array/linked-list). Pasados al editor via `initialData.libraryItems` → aparecen en el panel "Library" del aside derecho. Hand-crafted para no inflar el bundle.
+
+- **Tests** ([src/modules/whiteboard/excalidraw-libraries.test.ts](src/modules/whiteboard/excalidraw-libraries.test.ts)): cobertura de shape válido (id único, elements con campos required, fontFamily en texts).
+
+### Python execution + tkinter GUI en AWS Lambda
+
+Lambda runner extendido para Python (no solo Java). Soporta `mode='run'` con `language='python'` (subprocess `/usr/bin/python3` AL2023) y `mode='tkinter_screenshot'` (paralelo a `gui_screenshot` de Java) con `TkinterBootstrap.py` que monkey-patchea `Tk.__init__` para programar destroy automático.
+
+- **Dockerfile**: `dnf install -y python3 python3-tkinter tk tcl unzip` (este último crítico — la base image AL2023 NO lo trae y el OpenJFX install lo necesita).
+- **Migration 20260813000000**: añade `python_gui` al CHECK de `questions`, `workshop_questions`, `project_files`, `question_bank`. Columna `code_execution_settings.python_gui_provider`. Defensiva con `to_regclass` por si la tabla `question_bank` no existe (caso real en producción).
+- **PythonGuiRunner** ([src/modules/code/PythonGuiRunner.tsx](src/modules/code/PythonGuiRunner.tsx)): paralelo a `JavaGuiRunner` pero solo `aws_screenshot` (no hay Pyodide+tkinter en WASM).
+- **AI grading**: nuevo directive `python_gui` con rúbrica tkinter (Label/Button/pack/grid/mainloop).
+- **Admin panel**: nuevo RadioGroup `python_gui_provider` (color sky).
+
+### Polls — UX del generador de slots (modo Auto/Manual)
+
+Generador de slots tipo Doodle (`/app/teacher/polls` → tipo `slot`):
+- Badge "Auto" / "Manual" sobre el input de cupo.
+- Auto-cálculo `ceil(matriculados / total_slots)` solo cuando `cupoManual=false`. Si el docente tipea, pasa a Manual y el useEffect deja de sobreescribir. Botón "← Volver a auto" revierte.
+- Panel resumen en vivo: `N fechas × M slots/día = Z slots · Capacidad total: X / Y` verde si alcanza, ámbar accionable si faltan cupos.
+- `setCupoManual(false)` en el reset del dialog para no heredar manual de poll anterior.
+
+### Polls asociadas a sesión
+
+`polls.attendance_session_id` ya existía en schema; ahora hay UI:
+- **Form de crear/editar encuesta** ([app.teacher.polls.tsx](src/routes/app.teacher.polls.tsx)): Select "Asociar a sesión (opcional)" que lista sesiones del curso ancla. Acepta `prefilledSessionId`/`prefilledCourseId` para abrir desde una sesión concreta.
+- **`LaunchPollDialog`** (existente) abre desde el dropdown del docente en `app.teacher.attendance.tsx`.
+
+### Sessions import/export — 7 columnas (round-trip preservado)
+
+`SESSIONS_TEMPLATE` extendido en [app.teacher.attendance.tsx](src/routes/app.teacher.attendance.tsx) a `session_date, title, cut_name, start_time, duration_minutes, meeting_url, recording_url`. Importer parsea start_time (HH:MM o HH:MM:SS), duration_minutes (int >= 0), URLs (tal cual). Filas con session_date inválido se descartan; filas con campos opcionales inválidos NO abortan (los campos quedan null).
+
+Generador paramétrico de sesiones (`GenerateSessionsDialog`) ya existía en `src/modules/contents/`.
+
+### Onboarding tour — tours completos para 3 roles
+
+[src/modules/onboarding/tour-config.ts](src/modules/onboarding/tour-config.ts) tiene ADMIN_TOUR (~22 steps), TEACHER_TOUR (~24 steps), STUDENT_TOUR (~15 steps). Cada tour incluye:
+- Bienvenida (brand + role switcher).
+- Recorrido por TODOS los módulos del sidebar del rol.
+- Step "Papelera" en Admin y Docente.
+- **Flujos "Cómo crear X"** con HTML `<ol>` en cada description para los módulos críticos: en Docente — crear curso/examen/taller/proyecto/sesión/pizarra/encuesta; en Estudiante — entregar examen/taller/proyecto + check-in de asistencia.
+- Footer (4 items: user-info, notifs, mensajes, more-options).
+
+`description` admite HTML simple (`<strong>`, `<em>`, `<ol>`, `<ul>`, `<li>`, `<code>`) — driver.js usa `innerHTML`. Mantener bajo ~600 chars para que el popover no se salga del viewport en mobile.
+
+`OnboardingTour.tsx` filtra steps cuyo selector NO existe en DOM — útil para módulos opcionales (Banco de preguntas se puede ocultar globalmente).
+
+- **Tests** ([src/modules/onboarding/tour-config.test.ts](src/modules/onboarding/tour-config.test.ts)): integridad estructural de los 3 tours, no hay selectores duplicados, descriptions con `<ol>` en flujos críticos, cobertura de módulos clave por rol.
 
 ---
 
