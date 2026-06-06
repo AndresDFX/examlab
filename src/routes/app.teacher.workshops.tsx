@@ -2578,7 +2578,10 @@ function TeacherWorkshops() {
             <DialogTitle>{form.id ? "Editar" : "Nuevo"} taller</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5">
+            <div
+              className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5"
+              data-tour-id="workshop-field-external"
+            >
               <div className="space-y-0.5">
                 <Label htmlFor="ws-is-external" className="text-sm">
                   Actividad externa
@@ -2606,7 +2609,7 @@ function TeacherWorkshops() {
                 entregar) y 'teacher_assigned' (Mixto: quien tenga grupo
                 entrega en grupo, los demas individual). */}
             {!(form as any).is_external && (
-              <div className="space-y-1">
+              <div className="space-y-1" data-tour-id="workshop-field-group-mode">
                 <Label>Modo de trabajo</Label>
                 <Select
                   value={(form as any).group_mode ?? "individual"}
@@ -2637,14 +2640,14 @@ function TeacherWorkshops() {
                 </p>
               </div>
             )}
-            <div>
+            <div data-tour-id="workshop-field-title">
               <Label required>Título</Label>
               <Input
                 value={form.title ?? ""}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
               />
             </div>
-            <div>
+            <div data-tour-id="workshop-field-courses">
               <Label required>
                 Cursos{" "}
                 <span className="text-xs text-muted-foreground font-normal">

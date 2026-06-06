@@ -1458,7 +1458,7 @@ function TeacherAttendance() {
             <DialogTitle>Nueva sesión de asistencia</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div>
+            <div data-tour-id="session-field-date">
               <Label required>Fecha</Label>
               <DatePicker value={newDate} onChange={setNewDate} />
             </div>
@@ -1467,7 +1467,7 @@ function TeacherAttendance() {
                 hardcodeábamos 09:00/90min. Mobile-first: 1 col en xs
                 (TimePicker + input se ven completos sin truncar), 2
                 en sm+. */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" data-tour-id="session-field-time">
               <div>
                 <Label>
                   Hora inicio{" "}
@@ -1493,7 +1493,7 @@ function TeacherAttendance() {
                 />
               </div>
             </div>
-            <div>
+            <div data-tour-id="session-field-title">
               <Label>Título (opcional)</Label>
               <Input
                 value={newTitle}
@@ -1501,7 +1501,7 @@ function TeacherAttendance() {
                 placeholder="Ej: Clase 5, Laboratorio 2"
               />
             </div>
-            <div>
+            <div data-tour-id="session-field-cut">
               <Label>
                 Corte{" "}
                 <HelpHint>

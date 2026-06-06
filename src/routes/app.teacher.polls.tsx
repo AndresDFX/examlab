@@ -1140,7 +1140,7 @@ function CreatePollDialog({
           <DialogTitle>{isEdit ? "Editar encuesta" : "Nueva encuesta"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div>
+          <div data-tour-id="poll-field-title">
             <Label required>Título</Label>
             <Input
               value={title}
@@ -1161,7 +1161,7 @@ function CreatePollDialog({
               El primer curso seleccionado es el "ancla" (polls.course_id)
               y los demás se insertan en poll_courses. Cualquier alumno
               matriculado en CUALQUIERA de los cursos puede votar. */}
-          <div>
+          <div data-tour-id="poll-field-courses">
             <div className="flex items-center justify-between mb-1">
               <Label required>
                 Cursos{" "}
@@ -1252,7 +1252,7 @@ function CreatePollDialog({
               </p>
             )}
           </div>
-          <div>
+          <div data-tour-id="poll-field-type">
             <Label required>
               Tipo{" "}
               <HelpHint side="right">

@@ -403,16 +403,39 @@ export const TEACHER_TOUR: TourStep[] = [
       "Tu <strong>biblioteca de preguntas reutilizables</strong> por curso. Una vez que armás una buena pregunta, la guardás acá y la importás desde cualquier examen/taller/proyecto en vez de reescribirla.",
     side: "right",
   },
-  // ─── Dialog "Nueva pregunta" — demo interactiva ─────────────────────
+  // ─── Demo INTERACTIVA del modal "Nueva pregunta" ────────────────────
   {
     element: '[data-tour-id="dialog-question"]',
     clickBefore: '[data-tour-id="create-question"]',
     waitMs: 400,
     title: "Crear una pregunta",
-    description:
-      "<ol><li><strong>Tipo</strong>: selección, múltiple, abierta, código (con runner), java_gui, python_gui, diagrama…</li><li><strong>Enunciado</strong> con formato (negrita, listas, código).</li><li><strong>Rúbrica</strong> — qué espera tu respuesta ideal. La IA usa esto para calificar.</li><li><strong>Generación con IA</strong>: pasale un tópico (“herencia en Java”) y te propone preguntas listas para editar.</li></ol>",
+    description: "Te muestro los <strong>campos clave</strong>. Avanzá con <em>Siguiente</em>.",
     side: "left",
     align: "center",
+  },
+  {
+    element: '[data-tour-id="question-field-type"]',
+    title: "Tipo de pregunta",
+    description:
+      "Selección única, múltiple, abierta, código (con runner), java_gui, python_gui, diagrama. El tipo determina cómo entrega el alumno y cómo la IA califica.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="question-field-content"]',
+    title: "Enunciado",
+    description:
+      "La pregunta como la verá el alumno. Admite formato markdown (negrita, listas, código). Sé claro y específico — la IA usa esto + la rúbrica para evaluar.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="question-field-rubric"]',
+    title: "Rúbrica esperada",
+    description:
+      "Lo que esperás como respuesta ideal: <strong>la IA califica usando esto</strong>. Definí criterios concretos (no solo “bien explicado”) para que las notas sean consistentes. No aplica para preguntas cerradas.",
+    side: "left",
+    align: "start",
   },
 
   // ─── Exámenes ───────────────────────────────────────────────────────
@@ -484,16 +507,47 @@ export const TEACHER_TOUR: TourStep[] = [
       "Los <strong>talleres</strong> son tareas más relajadas que un examen: el alumno tiene días/semanas para entregar, puede ser individual o en grupo. La IA califica las respuestas automáticamente.",
     side: "right",
   },
-  // ─── Dialog "Nuevo taller" — demo interactiva ───────────────────────
+  // ─── Demo INTERACTIVA del modal "Nuevo taller" ──────────────────────
   {
     element: '[data-tour-id="dialog-workshop"]',
     clickBefore: '[data-tour-id="create-workshop"]',
     waitMs: 400,
     title: "Crear un taller",
-    description:
-      "<ol><li><strong>Curso + corte</strong> + <strong>fecha límite</strong>.</li><li><strong>Trabajo en grupo</strong>: si está activado, varios alumnos comparten una sola entrega.</li><li><strong>Preguntas</strong>: código (con runner), código ZIP (proyecto completo), abierta, diagrama. Cada una con su rúbrica.</li></ol><p>Cuando el alumno entrega, la IA califica usando esa rúbrica y vos ves la nota propuesta.</p>",
+    description: "Te muestro los <strong>campos clave</strong>. Avanzá con <em>Siguiente</em>.",
     side: "left",
     align: "center",
+  },
+  {
+    element: '[data-tour-id="workshop-field-external"]',
+    title: "Actividad externa (opcional)",
+    description:
+      "Si el taller pasó <strong>fuera de la plataforma</strong> (presencial), activá el toggle. Solo quedará el campo de notas — sin preguntas ni IA.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="workshop-field-group-mode"]',
+    title: "Modo de trabajo",
+    description:
+      "Individual, grupal (todos en grupo) o mixto (quien tenga grupo entrega en grupo, los demás solos). Los grupos los administrás desde el botón <em>Grupos</em> del grid.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="workshop-field-title"]',
+    title: "Título",
+    description:
+      "Nombre del taller como lo verá el alumno (ej. <em>“Taller 3 — POO en Python”</em>).",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="workshop-field-courses"]',
+    title: "Curso(s)",
+    description:
+      "Curso(s) donde aplica. Podés asociarlo a varios — un solo registro de taller que viven N alumnos de distintos cursos.",
+    side: "left",
+    align: "start",
   },
 
   // ─── Proyectos ──────────────────────────────────────────────────────
@@ -506,16 +560,47 @@ export const TEACHER_TOUR: TourStep[] = [
       "Los <strong>proyectos</strong> son entregas finales más grandes. El alumno sube archivos + link al repo, vos lo sustentás en persona y le ponés un factor (0-1) que multiplica la nota.",
     side: "right",
   },
-  // ─── Dialog "Nuevo proyecto" — demo interactiva ─────────────────────
+  // ─── Demo INTERACTIVA del modal "Nuevo proyecto" ────────────────────
   {
     element: '[data-tour-id="dialog-project"]',
     clickBefore: '[data-tour-id="create-project"]',
     waitMs: 400,
     title: "Crear un proyecto",
-    description:
-      "<ol><li><strong>Curso + corte</strong> + <strong>fecha límite</strong>.</li><li><strong>Link al repo obligatorio</strong> — Git, Drive, Notion. El alumno lo pega al entregar.</li><li><strong>Archivos esperados</strong> — definís 1 a N (ej. README, diagrama UML, ZIP de código). Cada uno con su tipo y rúbrica.</li></ol><p>Tras entregar, vos sustentás cara a cara y aplicás el <strong>factor 0-1</strong> que ajusta la nota.</p>",
+    description: "Te muestro los <strong>campos clave</strong>. Avanzá con <em>Siguiente</em>.",
     side: "left",
     align: "center",
+  },
+  {
+    element: '[data-tour-id="project-field-external"]',
+    title: "Actividad externa (opcional)",
+    description:
+      "Si el proyecto pasó <strong>fuera de la plataforma</strong> (presentación presencial, etc.), activá el toggle. Solo registras notas y observaciones por alumno.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="project-field-group-mode"]',
+    title: "Modo de trabajo",
+    description:
+      "Individual, grupal o mixto. Los proyectos típicamente son grupales — definí grupos desde el botón <em>Grupos</em> del grid antes de la fecha de entrega.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="project-field-title"]',
+    title: "Título",
+    description:
+      "Nombre del proyecto. Sé específico — <em>“Proyecto Final — Sistema de Inventario en Java”</em> es mejor que <em>“Proyecto Final”</em>.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="project-field-description"]',
+    title: "Descripción (importante para la IA)",
+    description:
+      "Esta es la <strong>descripción global del proyecto</strong>. La IA la usa al calificar CADA entrega como contexto — sin esto califica las preguntas aisladas y pierde sentido del conjunto. Definí propósito + alcance + restricciones en 3-6 oraciones.",
+    side: "left",
+    align: "start",
   },
 
   // ─── Calificaciones (gradebook) ─────────────────────────────────────
@@ -549,9 +634,40 @@ export const TEACHER_TOUR: TourStep[] = [
     waitMs: 400,
     title: "Crear una sesión",
     description:
-      "<p>Tres formas:</p><ol><li><strong>Nueva sesión</strong> (este dialog): una sola con fecha y hora.</li><li><strong>Programar</strong>: arma N sesiones automáticas a partir de días de la semana.</li><li><strong>Importar CSV</strong>: si el cronograma ya está en planilla.</li></ol><p>Luego en cada sesión: <strong>QR de check-in</strong>, <strong>pizarra</strong>, <strong>snippets</strong> y <strong>encuestas en vivo</strong>.</p>",
+      "Una sesión = una clase. Te muestro los campos clave del modal — para crear MUCHAS sesiones a la vez podés usar <em>Programar sesiones</em> o <em>Importar CSV</em> desde el botón al lado.",
     side: "left",
     align: "center",
+  },
+  {
+    element: '[data-tour-id="session-field-date"]',
+    title: "Fecha",
+    description: "El día de la clase. Usá el calendar picker — respeta zona horaria de Bogotá.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="session-field-time"]',
+    title: "Hora + duración",
+    description:
+      "Hora de inicio (local) y duración en minutos (default 90). La sincronización a Google Calendar usa estos valores para crear el evento a la hora real, sin hardcodear 09:00.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="session-field-title"]',
+    title: "Título (opcional)",
+    description:
+      "Descripción corta de la clase (ej. <em>“Clase 5 — Recursión”</em>, <em>“Lab 2”</em>). Si lo dejás vacío, aparece como <em>“Clase del DD-MM-YYYY”</em>.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="session-field-cut"]',
+    title: "Corte",
+    description:
+      "A qué corte aporta la asistencia. Si dejás <em>Sin corte</em>, la sesión queda visible pero no cuenta para la nota. Reasignable después desde la columna <em>Corte</em> del tablero.",
+    side: "left",
+    align: "start",
   },
 
   // ─── Pizarras ───────────────────────────────────────────────────────
@@ -565,16 +681,39 @@ export const TEACHER_TOUR: TourStep[] = [
       "Tus <strong>pizarras digitales</strong> (Excalidraw embebido). Las usás para explicar conceptos en clase, dejar diagramas que los alumnos puedan consultar, o trabajar con ellos en tiempo real.",
     side: "right",
   },
-  // ─── Dialog "Nueva pizarra" — demo interactiva ──────────────────────
+  // ─── Demo INTERACTIVA del modal "Nueva pizarra" ─────────────────────
   {
     element: '[data-tour-id="dialog-whiteboard"]',
     clickBefore: '[data-tour-id="create-whiteboard"]',
     waitMs: 400,
     title: "Crear una pizarra",
-    description:
-      "<ol><li><strong>Nombre</strong> de la pizarra.</li><li><strong>Curso</strong> (opcional) — para asociarla a uno de tus cursos.</li><li><strong>Compartida con el curso</strong> — si está activado, todos los alumnos del curso la ven en su panel.</li></ol><p>Adentro tenés librerías pre-cargadas (flowchart, UML, estructuras de datos, AWS) y multi-hoja por pizarra.</p>",
+    description: "Te muestro los <strong>campos clave</strong>. Avanzá con <em>Siguiente</em>.",
     side: "left",
     align: "center",
+  },
+  {
+    element: '[data-tour-id="whiteboard-field-name"]',
+    title: "Nombre",
+    description:
+      "Cómo se va a llamar la pizarra. Sé descriptivo — vas a tener varias por curso (<em>“Clase 3 — Recursión”</em>, <em>“Diagrama BD final”</em>).",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="whiteboard-field-description"]',
+    title: "Descripción (opcional)",
+    description:
+      "Notas internas para vos: contexto, qué temas cubre, etc. Los alumnos NO la ven — es solo para que vos te ubiques cuando tengas muchas.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="whiteboard-field-course"]',
+    title: "Curso (opcional)",
+    description:
+      "Si la asociás a un curso, podés <strong>compartirla con sus alumnos</strong> en modo read-only desde la pizarra. Sin curso, la pizarra es privada — solo vos la ves.",
+    side: "left",
+    align: "start",
   },
 
   // ─── Encuestas ──────────────────────────────────────────────────────
@@ -587,16 +726,39 @@ export const TEACHER_TOUR: TourStep[] = [
       "Encuestas rápidas para los alumnos. Sirven para <strong>votar en vivo en clase</strong> (opción única o múltiple) o para <strong>coordinar fechas tipo Doodle</strong> (cada slot tiene cupo).",
     side: "right",
   },
-  // ─── Dialog "Nueva encuesta" — demo interactiva ─────────────────────
+  // ─── Demo INTERACTIVA del modal "Nueva encuesta" ────────────────────
   {
     element: '[data-tour-id="dialog-poll"]',
     clickBefore: '[data-tour-id="create-poll"]',
     waitMs: 400,
     title: "Crear una encuesta",
-    description:
-      "<ol><li><strong>Curso(s)</strong> donde aplica + sesión asociada (opcional, si va a usarse en vivo).</li><li><strong>Tipo</strong>: opción única (votar X), múltiple (marcar varias), o por <em>cupo</em> (Doodle).</li><li>Si elegís <strong>cupo</strong>, el generador arma slots automáticos a partir de fechas + ventana horaria, y calcula el cupo para que todos los alumnos entren.</li></ol>",
+    description: "Te muestro los <strong>campos clave</strong>. Avanzá con <em>Siguiente</em>.",
     side: "left",
     align: "center",
+  },
+  {
+    element: '[data-tour-id="poll-field-title"]',
+    title: "Título",
+    description:
+      "La pregunta o tema central. Sé directo — <em>“¿Quedó claro el concepto?”</em>, <em>“Elegí tu fecha de sustentación”</em>.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="poll-field-courses"]',
+    title: "Curso(s)",
+    description:
+      "Podés asociar la encuesta a <strong>uno o varios cursos</strong>. Los alumnos matriculados en cualquiera pueden votar. Útil si dictás la misma materia a varios grupos.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="poll-field-type"]',
+    title: "Tipo de encuesta",
+    description:
+      "<strong>Opción única</strong> (una respuesta), <strong>múltiple</strong> (marca varias) o <strong>cupo (Doodle)</strong> — cada opción tiene cupo limitado. Doodle es ideal para repartir slots de sustentación.",
+    side: "left",
+    align: "start",
   },
 
   // ─── Calendario ─────────────────────────────────────────────────────

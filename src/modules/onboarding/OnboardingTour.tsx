@@ -296,7 +296,47 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
                   }
                 }
 
-                // 4. ClickBefore: abrir el dialog target.
+                // 4. Skip-en-runtime: si el step NO abre un dialog
+                //    dinámico (no tiene clickBefore) y su element no
+                //    existe en el DOM tras dar tiempo al route + render
+                //    del sidebar, skipear con moveNext().
+                //
+                //    Caso típico: el step apunta a un item del nav
+                //    (ej. data-tour-module="teacher_students") que NO
+                //    está visible para el rol activo (Admin no tiene
+                //    "Mis estudiantes" en su sidebar) o está oculto por
+                //    module_visibility. Sin este skip, driver.js deja
+                //    el highlight del step anterior pegado y el
+                //    popover dice "Mis estudiantes" apuntando a
+                //    "Usuarios" — bug visible reportado.
+                //
+                //    400ms cubre: route navigate (~100ms) + React
+                //    re-render del sidebar (~50-100ms) + margen.
+                if (!s.clickBefore) {
+                  scheduleStepTimer(
+                    () => {
+                      try {
+                        const exists = document.querySelector(s.element);
+                        if (!exists) {
+                          console.info(
+                            `[tour] element no encontrado en runtime — skipeando step: ${s.element}`,
+                          );
+                          try {
+                            driverObj.moveNext();
+                          } catch {
+                            /* no-op */
+                          }
+                        }
+                      } catch {
+                        /* no-op */
+                      }
+                    },
+                    400,
+                    abort.signal,
+                  );
+                }
+
+                // 5. ClickBefore: abrir el dialog target.
                 if (s.clickBefore) {
                   const delay = s.waitMs ?? 250;
                   scheduleStepTimer(

@@ -582,7 +582,7 @@ function QuestionBankPage() {
 
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
+              <div data-tour-id="question-field-type">
                 <Label required>Tipo</Label>
                 <Select
                   value={draft.type ?? "abierta"}
@@ -614,7 +614,7 @@ function QuestionBankPage() {
               </div>
             </div>
 
-            <div>
+            <div data-tour-id="question-field-content">
               <Label required>Enunciado</Label>
               <Textarea
                 value={draft.content ?? ""}
@@ -625,7 +625,7 @@ function QuestionBankPage() {
             </div>
 
             {draft.type !== "cerrada" && draft.type !== "cerrada_multi" && (
-              <div>
+              <div data-tour-id="question-field-rubric">
                 <Label>
                   Rúbrica esperada{" "}
                   <HelpHint>

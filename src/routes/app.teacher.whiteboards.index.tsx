@@ -564,7 +564,7 @@ function TeacherWhiteboards() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div>
+            <div data-tour-id="whiteboard-field-name">
               <Label required>Nombre</Label>
               <Input
                 value={draftName}
@@ -573,7 +573,7 @@ function TeacherWhiteboards() {
                 autoFocus
               />
             </div>
-            <div>
+            <div data-tour-id="whiteboard-field-description">
               <Label>Descripción (opcional)</Label>
               <Textarea
                 value={draftDescription}
@@ -582,7 +582,7 @@ function TeacherWhiteboards() {
                 placeholder="Notas, contexto, recordatorios"
               />
             </div>
-            <div>
+            <div data-tour-id="whiteboard-field-course">
               <Label>
                 Curso (opcional){" "}
                 <HelpHint>

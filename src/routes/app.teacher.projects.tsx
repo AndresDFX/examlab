@@ -2174,7 +2174,10 @@ function TeacherProjects() {
              * no aplican (instrucciones, link, archivos esperados) y al editar
              * la calificación se muestra el editor de notas externas.
              */}
-            <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5">
+            <div
+              className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5"
+              data-tour-id="project-field-external"
+            >
               <div className="space-y-0.5">
                 <Label htmlFor="project-is-external" className="text-sm">
                   Actividad externa
@@ -2196,7 +2199,7 @@ function TeacherProjects() {
                 grupo o no pueden entregar; 'teacher_assigned' (Mixto) =
                 quien tenga grupo entrega en grupo, los demas individual. */}
             {!(form as any).is_external && (
-              <div className="space-y-1">
+              <div className="space-y-1" data-tour-id="project-field-group-mode">
                 <Label>Modo de trabajo</Label>
                 <Select
                   value={form.group_mode ?? "individual"}
@@ -2224,14 +2227,14 @@ function TeacherProjects() {
                 </p>
               </div>
             )}
-            <div>
+            <div data-tour-id="project-field-title">
               <Label required>Título</Label>
               <Input
                 value={form.title ?? ""}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
               />
             </div>
-            <div>
+            <div data-tour-id="project-field-description">
               <div className="flex items-center justify-between gap-2 mb-1">
                 <Label className="m-0">
                   {t("common.description")}{" "}
