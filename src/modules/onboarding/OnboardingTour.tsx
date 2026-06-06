@@ -16,6 +16,9 @@
 import { useEffect, useRef } from "react";
 import { driver, type Driver } from "driver.js";
 import "driver.js/dist/driver.css";
+// Overrides del design system (debe importarse DESPUÉS de driver.css
+// para que las reglas tengan precedencia en cascada).
+import "./onboarding-tour.css";
 import { getTourForRole, type TourStep } from "./tour-config";
 
 interface Props {
