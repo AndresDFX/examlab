@@ -47,6 +47,8 @@ import { setActiveRoleSignal } from "@/modules/tenants/active-role-signal";
 import { ImpersonationBanner } from "@/modules/admin/ImpersonationBanner";
 import { IMPERSONATION_TRANSITION_FLAG } from "@/modules/admin/impersonation";
 import { TenantOverrideBanner } from "@/modules/tenants/TenantOverrideBanner";
+import { OnboardingTour } from "@/modules/onboarding/OnboardingTour";
+import { useOnboarding } from "@/modules/onboarding/use-onboarding";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
@@ -85,6 +87,7 @@ import {
   Wrench,
   AlertTriangle,
   Palette,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useState, useEffect } from "react";
@@ -650,6 +653,24 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     navigate({ to: "/app" });
   };
 
+  // ─── Onboarding tour ──────────────────────────────────────────────────
+  // El hook decide si mostrar el tour para el activeRole actual. Si el
+  // perfil ya tiene ese rol en `onboarding_completed_roles`, no muestra
+  // nada. Si NO, dispara con 1s delay después de que carga la UI.
+  //
+  // `manualTrigger` lo activamos cuando el usuario clickea "Ver tour"
+  // desde el menú de avatar — en ese caso ya no marcamos el rol como
+  // completado al cerrar (ya lo estaba o lo quiere re-ver).
+  const onboarding = useOnboarding();
+  const [tourManualMode, setTourManualMode] = useState(false);
+  const startManualTour = () => {
+    const r = activeRole;
+    if (r === "Admin" || r === "Docente" || r === "Estudiante") {
+      setTourManualMode(true);
+      onboarding.restart(r);
+    }
+  };
+
   // RBAC route guard: when the active role doesn't match the required roles
   // for the current path, redirect to /app/unauthorized (or /auth if no role).
   // RLS remains the authoritative guard at the API layer; this is UX.
@@ -840,7 +861,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             : "hidden md:flex md:fixed md:top-0 md:left-0 md:bottom-0 md:w-64 md:z-30",
         )}
       >
-        <div className="px-4 py-3 border-b border-sidebar-border">
+        <div className="px-4 py-3 border-b border-sidebar-border" data-tour-id="brand">
           <div className="flex items-center gap-2">
             {/* Logo del tenant si está configurado, sino fallback al
                 ícono de plataforma. El logo entra como <img> con
@@ -898,7 +919,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Role selector */}
         {roles.length > 1 ? (
-          <div className="px-3 py-3 border-b border-sidebar-border">
+          <div className="px-3 py-3 border-b border-sidebar-border" data-tour-id="role-switcher">
             <Select value={activeRole ?? undefined} onValueChange={handleRoleChange}>
               <SelectTrigger className="w-full h-9 bg-sidebar-accent/60 border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent text-sm gap-2 [&>svg:last-child]:hidden">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -933,7 +954,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         ) : (
           activeRole && (
-            <div className="px-3 py-3 border-b border-sidebar-border">
+            <div className="px-3 py-3 border-b border-sidebar-border" data-tour-id="role-switcher">
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-sidebar-accent/60 text-sm">
                 <ActiveIcon className={cn("h-4 w-4 shrink-0", activeCfg?.accent)} />
                 <span>{activeCfg ? t(activeCfg.labelKey) : ""}</span>
@@ -972,6 +993,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <button
                   key={item.to}
                   type="button"
+                  data-tour-nav={item.to}
                   className={cn(navClassName, "w-full text-left")}
                   onClick={() => window.dispatchEvent(new CustomEvent("examlab:navAttempt"))}
                 >
@@ -984,7 +1006,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               );
             }
             return (
-              <Link key={item.to} to={item.to} className={navClassName}>
+              <Link key={item.to} to={item.to} data-tour-nav={item.to} className={navClassName}>
                 <Icon
                   className={cn("h-4 w-4 transition-colors", NAV_ICON_BASE_CLASS)}
                   style={iconStyle}
@@ -996,7 +1018,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="p-2.5 border-t border-sidebar-border">
-          <div className="px-2 pt-1 pb-1.5">
+          <div className="px-2 pt-1 pb-1.5" data-tour-id="user-info">
             <div className="text-xs font-medium truncate">{profile?.full_name ?? user.email}</div>
             <div className="text-[10px] text-sidebar-foreground/60 truncate">
               {profile?.institutional_email}
@@ -1009,12 +1031,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             // aparte porque el badge de no leídas es awareness crítica.
             <div className="flex items-center justify-between gap-1">
               <div className="flex items-center gap-0.5">
-                <NotificationBell
-                  userId={user.id}
-                  variant="sidebar"
-                  viewerRole={activeRole ?? roles[0]}
-                />
-                <MessagesBell />
+                <div data-tour-id="notifications-bell">
+                  <NotificationBell
+                    userId={user.id}
+                    variant="sidebar"
+                    viewerRole={activeRole ?? roles[0]}
+                  />
+                </div>
+                <div data-tour-id="messages-bell">
+                  <MessagesBell />
+                </div>
               </div>
 
               <DropdownMenu>
@@ -1023,6 +1049,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     variant="ghost"
                     size="sm"
                     title={t("nav.options")}
+                    data-tour-id="more-options"
                     className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                   >
                     <MoreHorizontal className="h-4 w-4" />
@@ -1048,6 +1075,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     <Bell className="h-4 w-4" />
                     {t("nav.notificationPreferences")}
                   </DropdownMenuItem>
+                  {/* Ver tour: solo disponible para roles con tour
+                      configurado (Admin/Docente/Estudiante). SuperAdmin
+                      no tiene tour, así que el item no se renderiza
+                      cuando ese es el rol activo. */}
+                  {(activeRole === "Admin" ||
+                    activeRole === "Docente" ||
+                    activeRole === "Estudiante") && (
+                    <DropdownMenuItem onClick={startManualTour} className="gap-2">
+                      <HelpCircle className="h-4 w-4" />
+                      Ver tour guiado
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger className="gap-2">
@@ -1110,6 +1149,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     void handleSignOut();
                   }
                 }}
+                data-tour-id="logout"
                 className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                 title={t("nav.signOut")}
               >
@@ -1122,6 +1162,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       <ChangePasswordDialog open={pwDialogOpen} onOpenChange={setPwDialogOpen} />
       <EditProfileDialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen} />
+
+      {/* Tour guiado de bienvenida. Solo se monta cuando el hook indica
+          mostrarlo (primer login del rol activo, o al clickear "Ver
+          tour" del menú avatar). Al completar/cerrar se desmonta. */}
+      <OnboardingTour
+        role={onboarding.shouldShowFor}
+        manualMode={tourManualMode}
+        onComplete={(r) => {
+          void onboarding.complete(r);
+          setTourManualMode(false);
+        }}
+        onDismiss={() => {
+          onboarding.dismiss();
+          setTourManualMode(false);
+        }}
+      />
       {/* Cambio de contraseña forzado en el primer login: diálogo
           bloqueante mientras `profile.must_change_password` sea true.
           Al guardar baja el flag y `refreshRoles` re-carga el perfil →
