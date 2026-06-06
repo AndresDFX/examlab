@@ -1,34 +1,33 @@
 // ──────────────────────────────────────────────────────────────────────
-// confirm-email-change — paso 2 del flujo custom (con delay de 24h).
+// confirm-email-change — paso 2 del flujo custom.
 //
-// IMPORTANTE: a diferencia del flujo anterior, este endpoint YA NO
-// aplica el cambio en auth.users — solo marca `confirmed_at` y agenda
-// `apply_after = NOW + 24h`. El cron job
-// `apply_pending_email_changes_15min` aplica los cambios pasado ese
-// delay (si no fueron cancelados desde el correo viejo).
+// CAMBIO 2026-08: ahora el confirm APLICA EL CAMBIO INMEDIATO en
+// auth.users + profiles via la RPC `apply_email_change_now`. La ventana
+// de 24h pasa a ser para REVERTIR si el cambio fue malicioso (link en
+// el aviso que mandamos al correo ANTERIOR).
+//
+// Antes: confirm marcaba confirmed_at y agendaba apply_after=NOW+24h;
+// un cron aplicaba a las 24h. UX: usuario esperaba 24h para ver el
+// correo nuevo activo. Ahora se ve activo al instante; el dueño legítimo
+// del correo anterior tiene la misma ventana para revertir.
 //
 // Flow:
 //  1. Recibe { token } por POST. Anon-callable.
 //  2. Busca el token. Valida: existe, no usado, no expirado, no
 //     confirmado todavia, no cancelado.
-//  3. Verifica que el new_email no este tomado por otro user.
-//  4. Marca confirmed_at = NOW + apply_after = NOW + DELAY_MS.
-//  5. Manda un SEGUNDO aviso al correo VIEJO: "tu cambio fue
-//     confirmado y se aplicara en 24h, cancela aqui si no fuiste tu".
-//     Best-effort: si falla, igualmente respondemos OK al usuario que
-//     confirmo desde el nuevo correo — el primer aviso ya se envio
-//     al solicitar el cambio.
-//  6. Audit log.
-//  7. Retorna { ok: true, newEmail, applyAfter } al cliente.
+//  3. RPC `apply_email_change_now(token_id)` aplica el cambio + retorna
+//     (previous_email, apply_after). La RPC valida unicidad de email
+//     dentro de la misma transacción.
+//  4. Manda un aviso al previous_email: "tu correo fue cambiado a X;
+//     si NO fuiste vos, revertí dentro de 24h con este link".
+//     Best-effort: si el SMTP falla, igualmente respondemos OK — el
+//     cambio ya está aplicado.
+//  5. Audit log lo hace la RPC.
+//  6. Retorna { ok: true, newEmail, applyAfter, previousEmail }.
 // ──────────────────────────────────────────────────────────────────────
 
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { adminClient, corsHeaders, jsonError, jsonResponse } from "../_shared/admin.ts";
-
-// Delay de seguridad ANTES de aplicar el cambio confirmado. 24h es el
-// estandar de la industria (GitHub, Google) — balance entre UX y
-// ventana defensiva contra toma de cuenta.
-const DELAY_MS = 24 * 60 * 60 * 1000;
 
 function escapeHtml(input: string): string {
   return input
@@ -40,14 +39,14 @@ function escapeHtml(input: string): string {
 }
 
 /**
- * Segundo aviso al correo VIEJO: notifica que el cambio fue confirmado
- * desde el nuevo correo, y se aplicara en 24h salvo cancelacion.
+ * Aviso al correo ANTERIOR: notifica que el cambio FUE APLICADO y
+ * ofrece un link de revertir válido dentro de la ventana de 24h.
  */
-function renderConfirmedNoticeHtml(params: {
+function renderAppliedNoticeHtml(params: {
   recipientName: string | null;
   newEmail: string;
   cancelUrl: string;
-  applyAt: Date;
+  revertUntil: Date;
   brandName: string;
 }): string {
   const brand = escapeHtml(params.brandName);
@@ -56,8 +55,8 @@ function renderConfirmedNoticeHtml(params: {
   const greeting = params.recipientName
     ? `Hola ${escapeHtml(params.recipientName.split(" ")[0] ?? params.recipientName)},`
     : "Hola,";
-  const applyAtStr = escapeHtml(
-    params.applyAt.toLocaleString("es-CO", {
+  const deadlineStr = escapeHtml(
+    params.revertUntil.toLocaleString("es-CO", {
       day: "numeric",
       month: "long",
       year: "numeric",
@@ -68,7 +67,7 @@ function renderConfirmedNoticeHtml(params: {
   );
   return `<!DOCTYPE html>
 <html lang="es">
-<head><meta charset="utf-8"><title>Cambio de correo confirmado — pendiente de aplicar</title></head>
+<head><meta charset="utf-8"><title>Tu correo en ${brand} fue cambiado</title></head>
 <body style="margin:0; padding:0; background-color:#f4f4f5; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; color:#1f2937;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f4f4f5; padding:24px 0;">
     <tr><td align="center">
@@ -79,37 +78,34 @@ function renderConfirmedNoticeHtml(params: {
         <tr><td style="padding:28px 32px 8px 32px;">
           <p style="margin:0 0 16px 0; font-size:14px; color:#6b7280;">${greeting}</p>
           <p style="margin:0 0 12px 0; font-size:16px; font-weight:600; color:#111827; line-height:1.4;">
-            ⏳ El cambio de tu correo fue confirmado
+            ✅ El correo de tu cuenta fue cambiado
           </p>
           <p style="margin:0 0 12px 0; font-size:14px; color:#374151; line-height:1.6;">
-            Alguien confirmó (desde el nuevo correo) el cambio a:
+            Tu cuenta ahora usa este correo para iniciar sesión:
           </p>
           <p style="margin:0 0 16px 0; font-size:14px; font-weight:600; color:#111827; padding:10px 12px; background-color:#f3f4f6; border-radius:6px; word-break:break-all;">
             ${newEmail}
           </p>
-          <p style="margin:0 0 12px 0; font-size:14px; color:#374151; line-height:1.6;">
-            Por seguridad, el cambio se aplicará el:
-          </p>
-          <p style="margin:0 0 16px 0; font-size:14px; font-weight:600; color:#92400e; padding:10px 12px; background-color:#fef3c7; border-radius:6px;">
-            ${applyAtStr} (Colombia)
-          </p>
           <p style="margin:0; font-size:14px; color:#374151; line-height:1.6;">
-            Si ese fuiste tú y reconoces la solicitud, no hace falta hacer nada — el cambio se aplicará automáticamente. Tu correo actual seguirá funcionando hasta ese momento.
+            Si <strong>vos solicitaste</strong> este cambio, no tenés que hacer nada — ya está listo.
           </p>
         </td></tr>
         <tr><td style="padding:20px 32px 8px 32px;">
-          <p style="margin:0 0 12px 0; font-size:14px; font-weight:600; color:#dc2626;">
-            ¿No lo solicitaste? Cancela antes de que se aplique:
+          <p style="margin:0 0 8px 0; font-size:14px; font-weight:600; color:#dc2626;">
+            ¿No lo solicitaste? Podés revertirlo:
+          </p>
+          <p style="margin:0 0 12px 0; font-size:14px; color:#374151; line-height:1.6;">
+            Tenés hasta el <strong>${deadlineStr}</strong> (Colombia) para restaurar tu correo anterior con un click.
           </p>
         </td></tr>
         <tr><td style="padding:0 0 8px 0; text-align:center;">
           <a href="${url}" style="display:inline-block; background-color:#dc2626; color:#ffffff; text-decoration:none; padding:12px 24px; border-radius:6px; font-weight:500; font-size:14px;">
-            Cancelar el cambio
+            Revertir al correo anterior
           </a>
         </td></tr>
         <tr><td style="padding:16px 32px 24px 32px; border-top:1px solid #e5e7eb;">
           <p style="margin:0 0 10px 0; padding:10px 12px; font-size:12px; color:#7f1d1d; background-color:#fee2e2; border-left:3px solid #dc2626; line-height:1.5;">
-            <strong>🚨 Si sospechas un intento de toma de cuenta,</strong> cancela arriba y cambia tu contraseña inmediatamente.
+            <strong>🚨 Si sospechás un intento de toma de cuenta,</strong> revertí arriba y cambiá tu contraseña inmediatamente.
           </p>
           <p style="margin:0; font-size:11px; color:#9ca3af; line-height:1.5;">
             Este correo es automático. No respondas a este mensaje.
@@ -135,11 +131,14 @@ Deno.serve(async (req: Request) => {
   const token = body?.token?.trim();
   if (!token) return jsonError("missing_token", 400);
 
-  // 1) Buscar token + validar estado.
+  // 1) Buscar token + validar estado básico (la RPC re-valida con lock,
+  //    pero un check temprano evita pegarle a la DB en errores comunes).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: row, error: lookupErr } = await (adminClient as any)
     .from("email_change_tokens")
-    .select("id, user_id, new_email, cancel_token, used_at, expires_at, confirmed_at, cancelled_at")
+    .select(
+      "id, user_id, new_email, cancel_token, used_at, expires_at, confirmed_at, cancelled_at, applied_at",
+    )
     .eq("token", token)
     .maybeSingle();
 
@@ -148,52 +147,50 @@ Deno.serve(async (req: Request) => {
     return jsonError("internal_error", 500);
   }
   if (!row) return jsonError("token_invalid", 400);
-  if (row.used_at) return jsonError("token_invalid", 400);
+  if (row.used_at || row.applied_at) return jsonError("token_invalid", 400);
   if (row.cancelled_at) return jsonError("token_cancelled", 400);
   if (row.confirmed_at) return jsonError("token_already_confirmed", 400);
   if (new Date(row.expires_at).getTime() < Date.now()) {
     return jsonError("token_expired", 400);
   }
 
-  // 2) Re-verificar que el new_email no este tomado por otro user en el
-  //    ínterin entre request y confirm.
+  // 2) Aplicar el cambio INMEDIATO via RPC. La RPC:
+  //    - Re-valida en lock (no usado, no cancelado, no expirado).
+  //    - Verifica que el new_email no esté tomado.
+  //    - UPDATE auth.users.email + profiles.institutional_email.
+  //    - Guarda previous_email y setea apply_after = NOW+24h (ahora
+  //      es deadline de revert, no de aplicar).
+  //    - Retorna (previous_email, apply_after).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: takenData, error: takenErr } = await (adminClient as any).rpc("check_email_taken", {
-    p_email: row.new_email,
-    p_exclude_user_id: row.user_id,
-  });
-  if (takenErr) {
-    console.error("[confirm-email-change] check_email_taken", takenErr);
+  const { data: applyData, error: applyErr } = await (adminClient as any).rpc(
+    "apply_email_change_now",
+    { _token_id: row.id },
+  );
+  if (applyErr) {
+    const msg = String(applyErr.message ?? "");
+    // Mapear los códigos P0001 que tira la RPC a HTTP friendly.
+    if (msg.includes("email_already_taken")) return jsonError("email_already_taken", 409);
+    if (msg.includes("token_expired")) return jsonError("token_expired", 400);
+    if (msg.includes("token_cancelled")) return jsonError("token_cancelled", 400);
+    if (msg.includes("token_already_used") || msg.includes("token_not_found")) {
+      return jsonError("token_invalid", 400);
+    }
+    console.error("[confirm-email-change] apply RPC failed", applyErr);
     return jsonError("internal_error", 500);
   }
-  if (takenData === true) {
-    return jsonError("email_already_taken", 409);
-  }
+  // RPC retorna TABLE(previous_email, apply_after) — un array de 1 fila.
+  const applyResult = Array.isArray(applyData) ? applyData[0] : applyData;
+  const previousEmail: string = applyResult?.previous_email ?? "";
+  const applyAfterIso: string = applyResult?.apply_after ?? new Date().toISOString();
+  const applyAfter = new Date(applyAfterIso);
 
-  // 3) Marcar como CONFIRMADO + agendar apply_after. NO aplica todavía.
-  const now = new Date();
-  const applyAfter = new Date(now.getTime() + DELAY_MS);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: confErr } = await (adminClient as any)
-    .from("email_change_tokens")
-    .update({
-      confirmed_at: now.toISOString(),
-      apply_after: applyAfter.toISOString(),
-    })
-    .eq("id", row.id);
-  if (confErr) {
-    console.error("[confirm-email-change] mark confirmed", confErr);
-    return jsonError("internal_error", 500);
-  }
-
-  // 4) Best-effort: SEGUNDO aviso al correo VIEJO (auth.users.email
-  //    actual). Si falla, igual respondemos OK — el aviso #1 fue al
-  //    solicitar; este es defensa-en-profundidad.
+  // 3) Best-effort: aviso al correo ANTERIOR ofreciendo revert. Si el
+  //    SMTP falla, igualmente respondemos OK — el cambio ya está
+  //    aplicado y persistido. El user puede pedir reset si descubre el
+  //    cambio sin el aviso.
   void (async () => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: userRow } = await (adminClient as any).auth.admin.getUserById(row.user_id);
-      const oldEmail: string | null = userRow?.user?.email ?? null;
+      const oldEmail = previousEmail;
       if (!oldEmail) return;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -216,18 +213,18 @@ Deno.serve(async (req: Request) => {
       if (!Number.isFinite(port)) return;
 
       const cancelUrl = `${appUrl.replace(/\/+$/, "")}/auth/cancel-email-change?token=${encodeURIComponent(row.cancel_token)}`;
-      const html = renderConfirmedNoticeHtml({
+      const html = renderAppliedNoticeHtml({
         recipientName,
         newEmail: row.new_email,
         cancelUrl,
-        applyAt: applyAfter,
+        revertUntil: applyAfter,
         brandName: fromName,
       });
       const text =
-        `Tu cambio de correo en ${fromName} fue confirmado.\n\n` +
-        `Nuevo correo: ${row.new_email}\n` +
-        `Se aplicará: ${applyAfter.toISOString()}\n\n` +
-        `Si NO fuiste tú, cancela: ${cancelUrl}\n`;
+        `Tu correo en ${fromName} fue cambiado a:\n` +
+        `  ${row.new_email}\n\n` +
+        `Si NO fuiste vos, podés revertir hasta ${applyAfter.toISOString()}:\n` +
+        `  ${cancelUrl}\n`;
 
       const client = new SMTPClient({
         connection: {
@@ -241,11 +238,11 @@ Deno.serve(async (req: Request) => {
         from: `${fromName} <${from}>`,
         to: oldEmail,
         replyTo: from,
-        subject: `${fromName}: ⏳ Cambio de correo confirmado — se aplicará en 24h`,
+        subject: `${fromName}: ✅ Tu correo fue cambiado — 24h para revertir si no fuiste vos`,
         content: text,
         html,
         headers: {
-          "X-Entity-Ref-ID": `email-change-confirmed-${row.user_id}-${Date.now()}`,
+          "X-Entity-Ref-ID": `email-change-applied-${row.user_id}-${Date.now()}`,
         },
       });
       await client.close();
@@ -254,25 +251,13 @@ Deno.serve(async (req: Request) => {
     }
   })();
 
-  // 5) Audit log.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (adminClient as any)
-    .rpc("log_audit_event", {
-      p_action: "user.email_change_confirmed",
-      p_category: "user",
-      p_severity: "info",
-      p_actor_role: "Sistema",
-      p_entity_type: "user",
-      p_entity_id: row.user_id,
-      p_entity_name: row.new_email,
-      p_metadata: { token_id: row.id, apply_after: applyAfter.toISOString() },
-    })
-    .then?.(() => undefined)
-    .catch?.(() => undefined);
+  // Audit ya lo hace la RPC `apply_email_change_now` (action
+  // user.email_changed). No duplicamos acá.
 
   return jsonResponse({
     ok: true,
     newEmail: row.new_email,
+    previousEmail,
     applyAfter: applyAfter.toISOString(),
   });
 });

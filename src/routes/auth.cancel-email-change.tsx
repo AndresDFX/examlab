@@ -34,7 +34,13 @@ export const Route = createFileRoute("/auth/cancel-email-change")({
 
 type State =
   | { kind: "checking" }
-  | { kind: "success"; alreadyCancelled: boolean }
+  | {
+      kind: "success";
+      alreadyCancelled: boolean;
+      alreadyReverted: boolean;
+      wasRevert: boolean;
+      restoredEmail: string;
+    }
   | { kind: "error"; code: string };
 
 function CancelEmailChangePage() {
@@ -61,18 +67,39 @@ function CancelEmailChangePage() {
         setState({ kind: "error", code });
         return;
       }
-      const alreadyCancelled = Boolean(
-        (data as { alreadyCancelled?: boolean } | null)?.alreadyCancelled,
-      );
-      setState({ kind: "success", alreadyCancelled });
+      const d = data as {
+        alreadyCancelled?: boolean;
+        alreadyReverted?: boolean;
+        wasRevert?: boolean;
+        restoredEmail?: string;
+      } | null;
+      setState({
+        kind: "success",
+        alreadyCancelled: Boolean(d?.alreadyCancelled),
+        alreadyReverted: Boolean(d?.alreadyReverted),
+        wasRevert: Boolean(d?.wasRevert),
+        restoredEmail: d?.restoredEmail ?? "",
+      });
     })();
   }, []);
 
   const errorMessage = (code: string): string => {
-    if (code === "already_applied") {
-      return t("auth.cancelEmailChange.errorAlreadyApplied", {
+    if (code === "revert_window_expired") {
+      return t("auth.cancelEmailChange.errorWindowExpired", {
         defaultValue:
-          "El cambio de correo ya fue aplicado y no puede revertirse desde acá. Contacta a soporte si no reconoces esta acción.",
+          "Pasaron más de 24h desde el cambio; la ventana para revertir desde este link ya cerró. Si no reconocés el cambio, contactá a soporte y reseteá tu contraseña.",
+      });
+    }
+    if (code === "revert_not_available_legacy_token") {
+      return t("auth.cancelEmailChange.errorLegacyToken", {
+        defaultValue:
+          "Este link corresponde a un cambio previo al nuevo flujo de reverso. El cambio fue cancelado, pero no podemos restaurar automáticamente. Si necesitás tu correo anterior, contactá a soporte.",
+      });
+    }
+    if (code === "previous_email_taken_by_other") {
+      return t("auth.cancelEmailChange.errorPreviousTaken", {
+        defaultValue:
+          "Tu correo anterior fue tomado por otra cuenta. No podemos revertir automáticamente — contactá a soporte para resolverlo.",
       });
     }
     if (code === "missing_token") {
@@ -122,20 +149,38 @@ function CancelEmailChangePage() {
                 <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0" />
                 <div>
                   <p className="font-medium">
-                    {state.alreadyCancelled
-                      ? t("auth.cancelEmailChange.alreadyCancelledTitle", {
-                          defaultValue: "Ya estaba cancelado",
+                    {state.alreadyReverted
+                      ? t("auth.cancelEmailChange.alreadyRevertedTitle", {
+                          defaultValue: "Ya estaba revertido",
                         })
-                      : t("auth.cancelEmailChange.successTitle", {
-                          defaultValue: "Cambio cancelado",
-                        })}
+                      : state.alreadyCancelled
+                        ? t("auth.cancelEmailChange.alreadyCancelledTitle", {
+                            defaultValue: "Ya estaba cancelado",
+                          })
+                        : state.wasRevert
+                          ? t("auth.cancelEmailChange.successRevertTitle", {
+                              defaultValue: "Cambio revertido — correo restaurado",
+                            })
+                          : t("auth.cancelEmailChange.successTitle", {
+                              defaultValue: "Cambio cancelado",
+                            })}
                   </p>
                   <p className="mt-1 text-muted-foreground">
-                    {t("auth.cancelEmailChange.successBody", {
-                      defaultValue:
-                        "El correo de tu cuenta NO se cambiará. Tu acceso sigue funcionando con tu correo actual.",
-                    })}
+                    {state.wasRevert
+                      ? t("auth.cancelEmailChange.successRevertBody", {
+                          defaultValue:
+                            "Tu cuenta volvió a usar tu correo anterior. Iniciá sesión con él:",
+                        })
+                      : t("auth.cancelEmailChange.successBody", {
+                          defaultValue:
+                            "El correo de tu cuenta NO se cambiará. Tu acceso sigue funcionando con tu correo actual.",
+                        })}
                   </p>
+                  {state.wasRevert && state.restoredEmail && (
+                    <p className="mt-1 font-mono text-xs break-all text-foreground">
+                      {state.restoredEmail}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm">

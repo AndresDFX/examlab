@@ -103,7 +103,7 @@ function ConfirmEmailChangePage() {
     if (code === "token_already_confirmed") {
       return t("auth.confirmEmailChange.errorAlreadyConfirmed", {
         defaultValue:
-          "Este cambio ya fue confirmado. Espera a que se aplique (24h tras la confirmación) o cancela desde el correo anterior si no fuiste tú.",
+          "Este cambio ya fue confirmado y aplicado. Si necesitás revertirlo, usá el link del correo de aviso que mandamos al correo anterior (válido por 24h).",
       });
     }
     if (code === "email_already_taken") {
@@ -156,18 +156,18 @@ function ConfirmEmailChangePage() {
 
           {state.kind === "success" && (
             <div className="space-y-4">
-              <div className="flex items-start gap-2 p-3 rounded-md border border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-400 text-sm">
+              <div className="flex items-start gap-2 p-3 rounded-md border border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 text-sm">
                 <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
                 <div>
                   <p className="font-medium">
-                    {t("auth.confirmEmailChange.pendingTitle", {
-                      defaultValue: "Cambio confirmado — pendiente de aplicar",
+                    {t("auth.confirmEmailChange.appliedTitle", {
+                      defaultValue: "Cambio aplicado — tu correo fue actualizado",
                     })}
                   </p>
                   <p className="mt-1 text-muted-foreground">
-                    {t("auth.confirmEmailChange.pendingBody", {
+                    {t("auth.confirmEmailChange.appliedBody", {
                       defaultValue:
-                        "Tu nuevo correo quedará activo, por seguridad, 24 horas después de la confirmación:",
+                        "A partir de ahora iniciás sesión con este correo:",
                     })}
                   </p>
                   <p className="mt-1 font-mono text-xs break-all text-foreground">
@@ -176,17 +176,17 @@ function ConfirmEmailChangePage() {
                   {state.applyAfter && (
                     <p className="mt-2 text-xs">
                       <span className="text-muted-foreground">
-                        {t("auth.confirmEmailChange.willApplyAt", {
-                          defaultValue: "Se aplicará el:",
+                        {t("auth.confirmEmailChange.revertUntil", {
+                          defaultValue: "Podés revertir hasta el:",
                         })}{" "}
                       </span>
                       <span className="font-semibold">{formatApplyAt(state.applyAfter)}</span>
                     </p>
                   )}
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {t("auth.confirmEmailChange.cancelHint", {
+                    {t("auth.confirmEmailChange.revertHint", {
                       defaultValue:
-                        "Mientras tanto, tu correo actual sigue funcionando. Si recibís un correo de cancelación en tu correo anterior, ese link permite frenar el cambio.",
+                        "Mandamos un aviso a tu correo anterior con un link para revertir por seguridad. Si no fuiste vos, usá ese link antes de las 24h.",
                     })}
                   </p>
                 </div>

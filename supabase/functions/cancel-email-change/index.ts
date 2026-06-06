@@ -1,19 +1,19 @@
 // ──────────────────────────────────────────────────────────────────────
-// cancel-email-change — accion del aviso al correo VIEJO.
+// cancel-email-change — acción del aviso al correo ANTERIOR.
 //
-// Permite al duenho del correo anterior cancelar un cambio de email en
-// curso. Acepta dos estados:
-//   - Solicitado pero no confirmado todavia → cancela igual.
-//   - Confirmado pero apply_after no se cumple aun (dentro de la
-//     ventana de 24h) → cancela el aplicado.
+// CAMBIO 2026-08: el flow nuevo aplica el cambio INMEDIATO al
+// confirmar. Por lo tanto este endpoint REVIERTE en la mayoría de
+// casos (UPDATE auth.users.email = previous_email). Solo se queda en
+// "cancel" cuando el token nunca llegó a aplicarse (caso legacy
+// pre-migración o race extremadamente improbable).
 //
-// Una vez applied_at IS NOT NULL, no se puede revertir desde aca — el
-// cambio ya esta en auth.users. El duenho tendria que recuperar la
-// cuenta por otros medios (soporte, password reset al nuevo correo).
+// La RPC `revert_email_change_to_previous(cancel_token)` decide qué
+// hacer y retorna `(restored_email, was_revert)`. El cliente solo
+// distingue para mostrar el copy correcto al usuario.
 //
 // Body: { cancelToken }
-// Anon-callable (el link del correo va al duenho legitimo del correo
-// anterior, no requiere sesion).
+// Anon-callable — el link va al dueño legítimo del correo anterior y
+// no debería requerir sesión.
 // ──────────────────────────────────────────────────────────────────────
 
 import { adminClient, corsHeaders, jsonError, jsonResponse } from "../_shared/admin.ts";
@@ -31,71 +31,45 @@ Deno.serve(async (req: Request) => {
   const cancelToken = body?.cancelToken?.trim();
   if (!cancelToken) return jsonError("missing_token", 400);
 
-  // 1) Buscar por cancel_token.
+  // RPC unificada: revierte si el cambio ya fue aplicado, cancela si
+  // todavía no. Retorna (restored_email, was_revert). La RPC también
+  // hace el audit log con la severity apropiada.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: row, error: lookupErr } = await (adminClient as any)
-    .from("email_change_tokens")
-    .select("id, user_id, new_email, used_at, expires_at, cancelled_at, applied_at")
-    .eq("cancel_token", cancelToken)
-    .maybeSingle();
+  const { data, error } = await (adminClient as any).rpc("revert_email_change_to_previous", {
+    _cancel_token: cancelToken,
+  });
 
-  if (lookupErr) {
-    console.error("[cancel-email-change] lookup", lookupErr);
-    return jsonError("internal_error", 500);
-  }
-  if (!row) return jsonError("token_invalid", 400);
-  if (row.cancelled_at) {
-    // Ya cancelado — idempotente, devolvemos ok.
-    return jsonResponse({ ok: true, alreadyCancelled: true });
-  }
-  if (row.applied_at) {
-    return jsonError("already_applied", 409);
-  }
-  // Aceptamos cancelar inclusive si used_at IS NOT NULL — used_at puede
-  // estar seteado por "invalidacion por nuevo request del mismo user",
-  // pero el duenho del correo viejo igual deberia poder cancelar
-  // explicitamente para evitar confusiones futuras. Sin embargo, si
-  // expires_at ya paso, no tiene sentido: la confirmacion ya no es
-  // posible y el cambio nunca se aplicara.
-  if (new Date(row.expires_at).getTime() < Date.now() && !row.used_at) {
-    // Token vencido; lo marcamos como usado de paso (mantenimiento).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (adminClient as any)
-      .from("email_change_tokens")
-      .update({ used_at: new Date().toISOString(), cancelled_at: new Date().toISOString() })
-      .eq("id", row.id);
-    return jsonResponse({ ok: true, expired: true });
-  }
-
-  // 2) Cancelar: marca cancelled_at + used_at (para que el unique
-  //    constraint libere el slot y el user pueda solicitar otro).
-  const now = new Date().toISOString();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: cancelErr } = await (adminClient as any)
-    .from("email_change_tokens")
-    .update({ cancelled_at: now, used_at: now })
-    .eq("id", row.id);
-  if (cancelErr) {
-    console.error("[cancel-email-change] cancel update", cancelErr);
+  if (error) {
+    const msg = String(error.message ?? "");
+    if (msg.includes("token_not_found")) return jsonError("token_invalid", 400);
+    if (msg.includes("already_reverted")) return jsonResponse({ ok: true, alreadyReverted: true });
+    if (msg.includes("already_cancelled")) return jsonResponse({ ok: true, alreadyCancelled: true });
+    if (msg.includes("revert_window_expired")) return jsonError("revert_window_expired", 410);
+    if (msg.includes("previous_email_not_recorded")) {
+      // Token legacy: no se grabó previous_email. No podemos revertir,
+      // pero podemos al menos cancelar para liberar el slot.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (adminClient as any)
+        .from("email_change_tokens")
+        .update({ cancelled_at: new Date().toISOString(), used_at: new Date().toISOString() })
+        .eq("cancel_token", cancelToken);
+      return jsonError("revert_not_available_legacy_token", 410);
+    }
+    if (msg.includes("previous_email_taken_by_other")) {
+      return jsonError("previous_email_taken_by_other", 409);
+    }
+    console.error("[cancel-email-change] RPC failed", error);
     return jsonError("internal_error", 500);
   }
 
-  // 3) Audit log con severity warning — la cancelacion es una senhal
-  //    posible de intento de toma de cuenta. Vale la pena monitorearla.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (adminClient as any)
-    .rpc("log_audit_event", {
-      p_action: "user.email_change_cancelled",
-      p_category: "user",
-      p_severity: "warning",
-      p_actor_role: "Sistema",
-      p_entity_type: "user",
-      p_entity_id: row.user_id,
-      p_entity_name: row.new_email,
-      p_metadata: { token_id: row.id, source: "old_email_link" },
-    })
-    .then?.(() => undefined)
-    .catch?.(() => undefined);
+  // RPC retorna TABLE(restored_email, was_revert) — array de 1 fila.
+  const result = Array.isArray(data) ? data[0] : data;
+  const restoredEmail: string = result?.restored_email ?? "";
+  const wasRevert: boolean = result?.was_revert === true;
 
-  return jsonResponse({ ok: true });
+  return jsonResponse({
+    ok: true,
+    restoredEmail,
+    wasRevert,
+  });
 });

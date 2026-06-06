@@ -1638,7 +1638,7 @@ export function AdminCourses() {
           </DialogHeader>
           {editing && (
             <div className="space-y-3">
-              <div>
+              <div data-tour-id="course-field-name">
                 <Label required>Nombre</Label>
                 <Input
                   value={editing.name ?? ""}
@@ -1654,7 +1654,7 @@ export function AdminCourses() {
                   Si NO hay periodos definidos todavía, el dropdown está
                   vacío y el admin puede igual escribir el texto en
                   "Periodo (texto libre)" abajo. */}
-              <div>
+              <div data-tour-id="course-field-period">
                 <Label required>Periodo académico</Label>
                 <Select
                   value={editing.period_id ?? "__manual__"}
@@ -1747,7 +1747,7 @@ export function AdminCourses() {
                   se heredan automáticamente — el form no pide grado/
                   semestre como input separado. Filtrada por el programa
                   seleccionado arriba (si no hay programa → todas). */}
-              <div>
+              <div data-tour-id="course-field-subject">
                 <Label>Asignatura del plan</Label>
                 <Select
                   value={editing.subject_id ?? "__none__"}
@@ -1841,7 +1841,10 @@ export function AdminCourses() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div
+                className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                data-tour-id="course-field-dates"
+              >
                 <div>
                   <Label required>Fecha inicio</Label>
                   <DatePicker
@@ -1969,7 +1972,7 @@ export function AdminCourses() {
                 ) : null}
 
                 {/* ── Cortes evaluativos (inline, en memoria) ── */}
-                <div className="rounded-md border p-3 space-y-3">
+                <div className="rounded-md border p-3 space-y-3" data-tour-id="course-field-cuts">
                   <div className="flex flex-wrap items-end justify-between gap-2">
                     <div>
                       <Label className="text-xs">

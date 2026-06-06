@@ -65,6 +65,31 @@ Deno.serve(async (req) => {
       if (u.email) emailToId.set(u.email.toLowerCase(), u.id);
     });
 
+    // Pre-fetch cursos del tenant del caller para resolver course_name →
+    // course_id en O(1) y validar la existencia ANTES de crear el user.
+    // Lookup case-insensitive. La RLS de courses limita a SU tenant
+    // automáticamente para Admin; SuperAdmin ve cross-tenant pero acá
+    // solo importamos al tenant del CSV (definido por la session del
+    // caller).
+    const { data: callerProfile } = await adminClient
+      .from("profiles")
+      .select("tenant_id")
+      .eq("id", u.user.id)
+      .maybeSingle();
+    const callerTenantId = callerProfile?.tenant_id as string | null;
+
+    const courseNameToId = new Map<string, string>();
+    if (callerTenantId) {
+      const { data: coursesList } = await adminClient
+        .from("courses")
+        .select("id, name")
+        .eq("tenant_id", callerTenantId)
+        .is("deleted_at", null);
+      for (const c of (coursesList ?? []) as Array<{ id: string; name: string }>) {
+        courseNameToId.set(c.name.trim().toLowerCase(), c.id);
+      }
+    }
+
     // Pre-fetch profiles (institutional + personal emails) — son el set
     // canónico para detectar duplicados cruzados ("este personal_email
     // ya es el institutional_email de otro estudiante" o viceversa).
@@ -96,6 +121,7 @@ Deno.serve(async (req) => {
         password,
         roles: rolesStr,
         course_name,
+        student_code,
         // Opcional, default true: si true, al crear se marca
         // `must_change_password=true` para que el primer login pida
         // cambio. El admin puede pasar false para cuentas de sistema /
@@ -110,6 +136,26 @@ Deno.serve(async (req) => {
           reason: "Faltan campos requeridos (nombre o email)",
         });
         continue;
+      }
+
+      // Pre-validación del curso ANTES de crear el user. Si llega
+      // course_name pero NO matchea ningún curso del tenant, abortamos
+      // la fila — no crear el user para luego dejarlo sin matricular.
+      // course_name vacío/null = no matricular (válido).
+      const courseNameRaw =
+        typeof course_name === "string" ? course_name.trim() : "";
+      let resolvedCourseId: string | null = null;
+      if (courseNameRaw.length > 0) {
+        const found = courseNameToId.get(courseNameRaw.toLowerCase());
+        if (!found) {
+          result.push({
+            email: institutional_email,
+            ok: false,
+            reason: `El curso "${courseNameRaw}" no existe en tu institución. Créalo primero o ajusta el nombre en el CSV (debe coincidir EXACTO).`,
+          });
+          continue;
+        }
+        resolvedCourseId = found;
       }
       const emailKey = institutional_email.toLowerCase().trim();
       const personalKey = (personal_email ?? "").toLowerCase().trim();
@@ -256,20 +302,43 @@ Deno.serve(async (req) => {
               .upsert({ user_id: userId, role: r }, { onConflict: "user_id,role" });
           }
         }
-        if (course_name) {
-          const { data: course } = await adminClient
-            .from("courses")
-            .select("id")
-            .eq("name", course_name)
-            .maybeSingle();
-          if (course) {
-            await adminClient
-              .from("course_enrollments")
-              .upsert(
-                { course_id: course.id, user_id: userId },
-                { onConflict: "course_id,user_id" },
+        // student_code: solo persistir si el role asignado incluye
+        // Estudiante (los Docentes/Admins no tienen matrícula). Si la
+        // fila lo trae pero el role no es Estudiante, lo ignoramos
+        // silenciosamente — typo común del admin no debe romper el
+        // import.
+        const studentCodeRaw =
+          typeof student_code === "string" ? student_code.trim() : "";
+        if (studentCodeRaw.length > 0 && roleList.includes("Estudiante")) {
+          try {
+            const { error: codeErr } = await adminClient
+              .from("profiles")
+              .update({ student_code: studentCodeRaw })
+              .eq("id", userId);
+            if (codeErr) {
+              // No abortamos — el user ya está creado y matriculado. El
+              // admin puede corregir el código manualmente desde
+              // /app/admin/users. Lo más típico: clash con otro
+              // student_code (unique partial por tenant).
+              console.warn(
+                `[bulk-import-users] no se pudo setear student_code "${studentCodeRaw}" para ${institutional_email}:`,
+                codeErr.message,
               );
+            }
+          } catch (codeEx) {
+            console.warn(`[bulk-import-users] student_code update threw`, codeEx);
           }
+        }
+
+        // Matrícula al curso (ya validado arriba; resolvedCourseId está
+        // garantizado si llegamos acá con course_name).
+        if (resolvedCourseId) {
+          await adminClient
+            .from("course_enrollments")
+            .upsert(
+              { course_id: resolvedCourseId, user_id: userId },
+              { onConflict: "course_id,user_id" },
+            );
         }
         result.push({ email: institutional_email, ok: true, userId });
       } catch (e) {

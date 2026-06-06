@@ -143,15 +143,27 @@ describe("tour-config — cobertura de módulos nuevos", () => {
 });
 
 describe("tour-config — descriptions detalladas tienen instrucciones de creación", () => {
-  it("TEACHER_TOUR usa <ol> en los pasos críticos (crear examen, taller, proyecto, encuesta, sesión)", () => {
-    // Steps críticos identificados por module_key (estable contra
-    // renombres de path).
-    const criticalModules = ["exams", "workshops", "projects", "attendance", "polls"];
-    for (const mod of criticalModules) {
-      const step = TEACHER_TOUR.find((s) => s.element.includes(`data-tour-module="${mod}"`));
-      expect(step).toBeDefined();
-      // Description debe incluir lista ordenada con pasos de creación.
-      expect(step?.description).toContain("<ol>");
+  it("TEACHER_TOUR tiene demo interactivo (clickBefore) para los módulos críticos", () => {
+    // Antes el test verificaba `<ol>` en el step del nav. Refactor:
+    // los pasos de "cómo crear X" se movieron a sub-steps interactivos
+    // que abren el dialog real con clickBefore + apuntan a campos
+    // específicos. Ahora verificamos que cada módulo crítico tenga al
+    // menos un step con clickBefore apuntando a su botón "Nuevo X".
+    const criticalCreators = [
+      "create-exam",
+      "create-workshop",
+      "create-project",
+      "create-session",
+      "create-poll",
+    ];
+    for (const creator of criticalCreators) {
+      const demoStep = TEACHER_TOUR.find((s) =>
+        s.clickBefore?.includes(`data-tour-id="${creator}"`),
+      );
+      expect(demoStep, `falta demo interactivo para ${creator}`).toBeDefined();
+      // El demo step debe apuntar al dialog correspondiente y traer waitMs
+      // suficiente para que React monte el dialog tras el click.
+      expect(demoStep?.element).toContain("dialog-");
     }
   });
 

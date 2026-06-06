@@ -112,19 +112,57 @@ export const ADMIN_TOUR: TourStep[] = [
       "Acá <strong>creás y administrás los cursos</strong> de tu institución. Cada curso vive su propia vida: tiene docentes, cortes con pesos, estudiantes matriculados y todo el contenido pedagógico adentro.",
     side: "right",
   },
-  // ─── Dialog "Nuevo curso" — demo interactiva ────────────────────────
-  // clickBefore abre el dialog. El popover apunta al dialog mismo
-  // (`data-tour-id="dialog-course"`) y la descripción nombra los
-  // campos clave. Al pasar al siguiente step, escapeBefore lo cierra.
+  // ─── Demo INTERACTIVA del modal "Nuevo curso" ───────────────────────
+  // 5 sub-steps: intro + nombre + periodo + asignatura + fechas + cortes.
   {
     element: '[data-tour-id="dialog-course"]',
     clickBefore: '[data-tour-id="create-course"]',
     waitMs: 400,
     title: "Crear un curso",
     description:
-      "<p>Este es el formulario. Los campos clave son:</p><ol><li><strong>Nombre + periodo</strong> (ej. “Cálculo II — 2026-I”).</li><li><strong>Idioma + ciclo lectivo</strong> — afecta el formato de fechas y los certificados.</li><li><strong>Docente principal</strong> — quien va a editar exámenes, talleres y notas.</li><li><strong>Cortes con pesos</strong> — 1er parcial 30%, 2do 30%, final 40%.</li></ol><p>Después matriculás estudiantes uno por uno o por CSV.</p>",
+      "Te muestro los <strong>campos clave</strong> del formulario en los próximos pasos. Avanzá con <em>Siguiente</em>.",
     side: "left",
     align: "center",
+  },
+  {
+    element: '[data-tour-id="course-field-name"]',
+    title: "Nombre",
+    description:
+      "El nombre del curso como lo verán los alumnos. Sé específico — incluye periodo si vas a tener varios grupos: <em>“Cálculo II — Grupo A”</em>.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="course-field-period"]',
+    title: "Periodo académico",
+    description:
+      "El periodo al que pertenece este curso (ej. 2026-1). Si tu institución gestiona periodos centralmente, elegís del dropdown — el código se sincroniza automáticamente.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="course-field-subject"]',
+    title: "Asignatura del plan",
+    description:
+      "La asignatura es la <strong>fuente de verdad</strong> para programa + semestre. Al elegirla, ambos se heredan — no tenés que duplicar la info.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="course-field-dates"]',
+    title: "Fechas del curso",
+    description:
+      "Desde cuándo arranca y cuándo termina. Estas fechas marcan el rango activo del curso — afectan el dashboard del alumno y los certificados.",
+    side: "left",
+    align: "start",
+  },
+  {
+    element: '[data-tour-id="course-field-cuts"]',
+    title: "Cortes evaluativos",
+    description:
+      "Definí cuántos cortes tiene (1er parcial, 2do, final). Cada uno suma a la nota final con su peso (ej. 30/30/40). Los pesos por tipo (exámenes/talleres/proyectos) se editan adentro de cada corte.",
+    side: "left",
+    align: "start",
   },
 
   // ─── Académico ──────────────────────────────────────────────────────
@@ -511,7 +549,7 @@ export const TEACHER_TOUR: TourStep[] = [
     waitMs: 400,
     title: "Crear una sesión",
     description:
-      "<p>Una sesión = una clase. Tres formas de crearla:</p><ol><li><strong>Nueva sesión</strong> (este dialog): una sola, con fecha, hora y duración. Ideal para clases puntuales.</li><li><strong>Programar sesiones</strong>: arma N sesiones automáticas a partir de fecha de inicio + días de la semana (ej. lunes y miércoles, 16 sesiones).</li><li><strong>Importar CSV</strong>: cuando tu cronograma ya vive en una planilla.</li></ol><p>Una vez creada, podés activar <strong>QR rotativo de check-in</strong>, abrir <strong>pizarra compartida</strong>, agregar <strong>snippets de código</strong> o lanzar <strong>encuestas en vivo</strong> desde esa sesión.</p>",
+      "<p>Tres formas:</p><ol><li><strong>Nueva sesión</strong> (este dialog): una sola con fecha y hora.</li><li><strong>Programar</strong>: arma N sesiones automáticas a partir de días de la semana.</li><li><strong>Importar CSV</strong>: si el cronograma ya está en planilla.</li></ol><p>Luego en cada sesión: <strong>QR de check-in</strong>, <strong>pizarra</strong>, <strong>snippets</strong> y <strong>encuestas en vivo</strong>.</p>",
     side: "left",
     align: "center",
   },

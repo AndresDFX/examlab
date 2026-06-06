@@ -413,6 +413,13 @@ Deno.serve(async (req: Request) => {
         rawOutput: string;
       }> => {
         const fullMsg = userMessage + teacherInstructions;
+        // Resolvemos el modelo activo ANTES del aiChat para tener su
+        // provider disponible si la respuesta falla (describeAiError
+        // necesita saber qué proveedor falló para dar el mensaje
+        // accionable). Antes se referenciaba `cachedModel` que NO
+        // estaba declarado → ReferenceError silencioso enmascarado
+        // como "Error de generación".
+        const activeModel = await getActiveAiModel();
         const aiRes = await aiChat([
           { role: "system", content: systemPrompt },
           { role: "user", content: fullMsg },
@@ -429,7 +436,7 @@ Deno.serve(async (req: Request) => {
           // accionable; en otros casos retorna status + snippet.
           const detail = await describeAiError(
             aiRes,
-            cachedModel?.provider ?? "lovable",
+            activeModel?.provider ?? "lovable",
             rawText,
           );
           throw new Error(`[${label}] ${detail}`);

@@ -126,6 +126,12 @@ const EMPTY_NEW: Row = {
   last_sign_in_at: null,
 };
 
+// Template CSV de import. Incluye:
+//   - student_code: matrícula institucional (REQUERIDO para Estudiante,
+//     opcional para Docente/Admin — la edge lo ignora si no es Est.).
+//   - course_name: debe coincidir EXACTO con un curso existente del
+//     tenant (case-insensitive). Si no matchea, la fila se rechaza con
+//     mensaje claro.
 const USERS_TEMPLATE_CSV = toCSV([
   {
     full_name: "Juan Pérez",
@@ -133,6 +139,7 @@ const USERS_TEMPLATE_CSV = toCSV([
     personal_email: "juan.perez@gmail.com",
     password: "Temporal#123",
     roles: "Estudiante",
+    student_code: "2026100123",
     course_name: "Programación II",
   },
 ]);

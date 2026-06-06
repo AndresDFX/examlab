@@ -31,6 +31,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
+import { LinkCalendarEventsDialog } from "@/modules/calendar/LinkCalendarEventsDialog";
 import { CalendarDays, Link2, Unlink, RefreshCw, CheckCircle2 } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
@@ -108,6 +109,10 @@ function CalendarPage() {
   const [disconnecting, setDisconnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+  // Estado del dialog de "vincular eventos existentes" (flujo reverso:
+  // Google Calendar → ExamLab). Asocia sesiones a eventos que ya
+  // existen en el calendario en vez de crearlos desde ExamLab.
+  const [linkEventsOpen, setLinkEventsOpen] = useState(false);
 
   // ── Status (siempre, no depende de connect) ──
   const loadStatus = useCallback(async () => {
@@ -518,19 +523,33 @@ function CalendarPage() {
                   </SelectContent>
                 </Select>
               )}
-              <Button
-                onClick={handleSync}
-                disabled={
-                  !selectedCourseId || !status?.calendar_id || syncing || courses.length === 0
-                }
-              >
-                {syncing ? (
-                  <Spinner size="sm" className="mr-2" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                {t("calendar.syncAction")}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  onClick={handleSync}
+                  disabled={
+                    !selectedCourseId || !status?.calendar_id || syncing || courses.length === 0
+                  }
+                >
+                  {syncing ? (
+                    <Spinner size="sm" className="mr-2" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  {t("calendar.syncAction")}
+                </Button>
+                {/* Flujo INVERSO: cuando el docente ya tiene los eventos
+                    en Google Calendar (con links de Meet) y quiere
+                    asociarlos a sesiones existentes sin re-crearlos. */}
+                <Button
+                  variant="outline"
+                  onClick={() => setLinkEventsOpen(true)}
+                  disabled={!selectedCourseId || !status?.calendar_id || courses.length === 0}
+                  title="Asociar sesiones a eventos que ya existen en tu Google Calendar"
+                >
+                  <Link2 className="h-4 w-4 mr-2" />
+                  Vincular desde calendario
+                </Button>
+              </div>
               {!status?.calendar_id && (
                 <p className="text-sm text-muted-foreground">{t("calendar.saveCalendarFirst")}</p>
               )}
@@ -565,6 +584,14 @@ function CalendarPage() {
           </Card>
         </>
       )}
+
+      {/* Dialog del flujo reverso. Solo importa cuando connected y con
+          calendario seleccionado — el botón que lo abre ya lo gatea. */}
+      <LinkCalendarEventsDialog
+        open={linkEventsOpen}
+        onOpenChange={setLinkEventsOpen}
+        courseId={selectedCourseId}
+      />
     </div>
   );
 }

@@ -25,7 +25,15 @@ import {
 } from "../_shared/calendar-google.ts";
 
 interface BaseBody {
-  action: "status" | "init" | "list" | "select" | "disconnect" | "sync";
+  action:
+    | "status"
+    | "init"
+    | "list"
+    | "select"
+    | "disconnect"
+    | "sync"
+    | "list_events"
+    | "link_events_to_sessions";
   provider?: "google" | "microsoft";
 }
 interface InitBody extends BaseBody {
@@ -40,6 +48,31 @@ interface SelectBody extends BaseBody {
 interface SyncBody extends BaseBody {
   action: "sync";
   courseId: string;
+}
+/** Lista eventos del calendario seleccionado dentro de una ventana
+ *  temporal. Se usa en el flujo INVERSO al sync: el docente ya tiene
+ *  los eventos creados en Google Calendar (con sus Meet/Zoom URLs) y
+ *  quiere ASOCIAR uno a uno con las sesiones existentes en ExamLab —
+ *  caso típico de cursos donde el cronograma fue armado en Google
+ *  antes que en ExamLab. */
+interface ListEventsBody extends BaseBody {
+  action: "list_events";
+  /** ISO date (YYYY-MM-DD). Inclusive. */
+  fromDate: string;
+  /** ISO date (YYYY-MM-DD). Inclusive (end of day, hora 23:59). */
+  toDate: string;
+}
+/** Asocia uno o más eventos de Google Calendar a sesiones existentes
+ *  en ExamLab. NO crea eventos nuevos (eso lo hace `sync`). Pull desde
+ *  el calendar: setea `attendance_sessions.google_event_id` +
+ *  `meeting_url` con los datos del evento. */
+interface LinkEventsBody extends BaseBody {
+  action: "link_events_to_sessions";
+  courseId: string;
+  /** Mapping uno-a-uno session → event. Si una sesión ya tenía un
+   *  google_event_id, se reemplaza por el nuevo. Para desvincular,
+   *  pasar `eventId: null`. */
+  links: Array<{ sessionId: string; eventId: string | null }>;
 }
 
 Deno.serve(async (req) => {
@@ -76,6 +109,10 @@ Deno.serve(async (req) => {
         return await handleDisconnect(userId);
       case "sync":
         return await handleSync(userId, body as SyncBody);
+      case "list_events":
+        return await handleListEvents(userId, body as ListEventsBody);
+      case "link_events_to_sessions":
+        return await handleLinkEventsToSessions(userId, body as LinkEventsBody);
       default:
         return jsonError("unknown_action", 400);
     }
@@ -526,5 +563,180 @@ async function handleSync(userId: string, body: SyncBody) {
     failed,
     total: (sessions ?? []).length,
     errors,
+  });
+}
+
+// ────────── Reverse sync: Google Calendar → ExamLab ──────────
+// Caso de uso: el docente ya tiene los eventos del semestre creados en
+// Google Calendar (con sus links de Meet/Zoom). En ExamLab tiene las N
+// sesiones armadas pero sin meeting_url. En vez de copiar/pegar links
+// uno por uno, abre el dialog "Vincular desde calendario", lista los
+// eventos de Google en una ventana de tiempo, y asocia uno-a-uno.
+
+/** Tipo subset del evento de Google Calendar API v3. Solo los campos
+ *  que necesitamos para mostrar al docente + persistir. */
+interface GoogleEvent {
+  id: string;
+  summary?: string;
+  description?: string;
+  start?: { dateTime?: string; date?: string; timeZone?: string };
+  end?: { dateTime?: string; date?: string; timeZone?: string };
+  hangoutLink?: string;
+  htmlLink?: string;
+  status?: string;
+}
+
+async function handleListEvents(userId: string, body: ListEventsBody) {
+  if (!body.fromDate || !body.toDate) return jsonError("date_range_required", 400);
+  // Sanity check de formato (no consultamos Google si los datos son
+  // basura — el endpoint igual rechazaría con 400 pero el mensaje no
+  // ayuda al docente).
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(body.fromDate) || !/^\d{4}-\d{2}-\d{2}$/.test(body.toDate)) {
+    return jsonError("invalid_date_format", 400);
+  }
+
+  // Verificar conexión + calendario seleccionado.
+  const { data: tok } = await adminClient
+    .from("teacher_google_tokens")
+    .select("calendar_id")
+    .eq("teacher_id", userId)
+    .maybeSingle();
+  if (!tok?.calendar_id) return jsonError("no_calendar_selected", 400);
+  const calId = encodeURIComponent(tok.calendar_id);
+
+  // Google Calendar API espera RFC3339 con offset. Usamos -05:00
+  // (Bogotá) como en handleSync. fromDate=00:00, toDate=23:59:59.
+  const timeMin = `${body.fromDate}T00:00:00-05:00`;
+  const timeMax = `${body.toDate}T23:59:59-05:00`;
+  const url =
+    `/calendar/v3/calendars/${calId}/events` +
+    `?timeMin=${encodeURIComponent(timeMin)}` +
+    `&timeMax=${encodeURIComponent(timeMax)}` +
+    `&singleEvents=true` + // expandir recurrentes a instancias
+    `&orderBy=startTime` +
+    `&maxResults=250`;
+
+  try {
+    const res = await callGoogle<{ items?: GoogleEvent[] }>(userId, url, { method: "GET" });
+    const items = (res.items ?? [])
+      // Filtrar los cancelados — Google los devuelve igual con
+      // status="cancelled" cuando se borraron de una serie recurrente.
+      .filter((e) => e.status !== "cancelled")
+      .map((e) => ({
+        id: e.id,
+        summary: e.summary ?? "(sin título)",
+        description: e.description ?? null,
+        start: e.start?.dateTime ?? e.start?.date ?? null,
+        end: e.end?.dateTime ?? e.end?.date ?? null,
+        hangoutLink: e.hangoutLink ?? null,
+        htmlLink: e.htmlLink ?? null,
+      }));
+    return jsonOk({ events: items });
+  } catch (e) {
+    if (isGoogleEventGoneError(e)) {
+      return jsonError("calendar_not_accessible", 410);
+    }
+    return jsonError(`google_api_error: ${(e as Error).message}`, 502);
+  }
+}
+
+async function handleLinkEventsToSessions(userId: string, body: LinkEventsBody) {
+  if (!body.courseId) return jsonError("course_required", 400);
+  if (!Array.isArray(body.links) || body.links.length === 0) {
+    return jsonError("links_required", 400);
+  }
+
+  // 1) Validar docente del curso.
+  const { data: ct } = await adminClient
+    .from("course_teachers")
+    .select("course_id")
+    .eq("course_id", body.courseId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!ct) return jsonError("not_teacher_of_course", 403);
+
+  // 2) Calendario seleccionado (necesario para fetch del meeting URL).
+  const { data: tok } = await adminClient
+    .from("teacher_google_tokens")
+    .select("calendar_id")
+    .eq("teacher_id", userId)
+    .maybeSingle();
+  if (!tok?.calendar_id) return jsonError("no_calendar_selected", 400);
+  const calId = encodeURIComponent(tok.calendar_id);
+
+  // 3) Pre-validación: todas las sesiones deben ser del curso del
+  //    docente. Filtro silenciosamente las que no — defensa contra
+  //    bugs de UI que mandarían sesiones de otros cursos.
+  const sessionIds = body.links.map((l) => l.sessionId);
+  const { data: validSessions } = await adminClient
+    .from("attendance_sessions")
+    .select("id")
+    .eq("course_id", body.courseId)
+    .in("id", sessionIds);
+  const validIdSet = new Set(
+    (validSessions ?? []).map((s: { id: string }) => s.id),
+  );
+
+  // 4) Procesar uno a uno. Para cada link válido:
+  //    - Si eventId es null → desvincular (clear google_event_id +
+  //      meeting_url).
+  //    - Si eventId es string → fetchear el evento de Google para
+  //      sacar hangoutLink (Meet URL); UPDATE en attendance_sessions.
+  let linked = 0;
+  let unlinked = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  for (const link of body.links) {
+    if (!validIdSet.has(link.sessionId)) {
+      failed += 1;
+      errors.push(`session_not_in_course: ${link.sessionId}`);
+      continue;
+    }
+    try {
+      if (link.eventId === null) {
+        // Desvincular.
+        await adminClient
+          .from("attendance_sessions")
+          .update({ google_event_id: null, meeting_url: null })
+          .eq("id", link.sessionId);
+        unlinked += 1;
+        continue;
+      }
+      // Fetch del evento para extraer meeting_url.
+      const ev = await callGoogle<GoogleEvent>(
+        userId,
+        `/calendar/v3/calendars/${calId}/events/${encodeURIComponent(link.eventId)}`,
+        { method: "GET" },
+      );
+      const meetingUrl = ev.hangoutLink ?? ev.htmlLink ?? null;
+      await adminClient
+        .from("attendance_sessions")
+        .update({
+          google_event_id: ev.id,
+          meeting_url: meetingUrl,
+        })
+        .eq("id", link.sessionId);
+      linked += 1;
+    } catch (e) {
+      failed += 1;
+      errors.push(`${link.sessionId}: ${(e as Error).message}`);
+    }
+  }
+
+  await audit(userId, "calendar.events_linked_to_sessions", "info", {
+    provider: "google",
+    course_id: body.courseId,
+    linked,
+    unlinked,
+    failed,
+  });
+
+  return jsonOk({
+    linked,
+    unlinked,
+    failed,
+    total: body.links.length,
+    errors: errors.slice(0, 20), // cap por si hay muchos
   });
 }
