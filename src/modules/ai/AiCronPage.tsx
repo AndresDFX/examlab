@@ -42,7 +42,7 @@ import {
 import { SupabaseCronPanel } from "@/modules/admin/SupabaseCronPanel";
 import { AdminAiGradingPanel } from "@/modules/admin/AdminAiGradingPanel";
 import { AiJobsHistoryPanel } from "@/modules/ai/AiJobsHistoryPanel";
-import { AiGenerationQueuePanel } from "@/modules/ai/AiGenerationQueuePanel";
+import { UnifiedAiQueuePanel } from "@/modules/ai/UnifiedAiQueuePanel";
 import { logEvent } from "@/shared/lib/audit";
 import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
 import { readOverrideExpiry, getProcessingMode } from "@/modules/ai/ai-grading";
@@ -266,21 +266,15 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
               </TabsTrigger>
             )}
           </TabsList>
-          {/* "Jobs" unifica calificación (AiQueuePanel) + generación
-              (AiGenerationQueuePanel) en una vista vertical. Antes
-              estaban en tabs separadas (IA + Generaciones), pero el
-              docente quería ver TODO lo que la IA hizo o tiene
-              pendiente sin saltar entre tabs. Cada panel mantiene su
-              propia card + filtros — solo se renderizan juntos. */}
-          <TabsContent value="ia" className="space-y-6 mt-4">
-            <AiQueuePanel isAdmin={isAdmin} />
-            <div className="border-t pt-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Wand2 className="h-4 w-4 text-amber-500" />
-                <h3 className="text-base font-semibold">Generaciones</h3>
-              </div>
-              <AiGenerationQueuePanel isAdmin={isAdmin} />
-            </div>
+          {/* "Jobs" muestra UNA sola tabla con calificación + generación.
+              Antes eran dos paneles apilados con divisor; ahora vive
+              todo en UnifiedAiQueuePanel — cada fila tiene un badge
+              "Calificación"/"Generación" que identifica su cola, y las
+              acciones rutean al backend correcto según el source.
+              Filtros: estado + tipo (todos / grading / generation) +
+              tenant (SA). */}
+          <TabsContent value="ia" className="space-y-4 mt-4">
+            <UnifiedAiQueuePanel isAdmin={isAdmin} />
           </TabsContent>
           <TabsContent value="history" className="space-y-4 mt-4">
             <AiJobsHistoryPanel isAdmin={isAdmin} />
@@ -311,15 +305,8 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
               Historial
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="ia" className="space-y-6 mt-4">
-            <AiQueuePanel isAdmin={isAdmin} />
-            <div className="border-t pt-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Wand2 className="h-4 w-4 text-amber-500" />
-                <h3 className="text-base font-semibold">Generaciones</h3>
-              </div>
-              <AiGenerationQueuePanel isAdmin={isAdmin} />
-            </div>
+          <TabsContent value="ia" className="space-y-4 mt-4">
+            <UnifiedAiQueuePanel isAdmin={isAdmin} />
           </TabsContent>
           <TabsContent value="history" className="space-y-4 mt-4">
             <AiJobsHistoryPanel isAdmin={isAdmin} />

@@ -19,6 +19,7 @@ import "driver.js/dist/driver.css";
 // Overrides del design system (debe importarse DESPUÉS de driver.css
 // para que las reglas tengan precedencia en cascada).
 import "./onboarding-tour.css";
+import { useRouter } from "@tanstack/react-router";
 import { getTourForRole, getTourMetaForRole, type TourStep } from "./tour-config";
 
 interface Props {
@@ -38,16 +39,19 @@ interface Props {
 
 export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false }: Props) {
   const driverRef = useRef<Driver | null>(null);
-  // Guardamos role + callbacks en refs para que el effect de instanciar
-  // driver.js NO re-corra cuando cambian. Solo arranca/destruye al
-  // cambiar el `role`.
+  const router = useRouter();
+  // Guardamos role + callbacks + router en refs para que el effect de
+  // instanciar driver.js NO re-corra cuando cambian. Solo arranca/destruye
+  // al cambiar el `role`.
   const onCompleteRef = useRef(onComplete);
   const onDismissRef = useRef(onDismiss);
   const manualRef = useRef(manualMode);
+  const routerRef = useRef(router);
   useEffect(() => {
     onCompleteRef.current = onComplete;
     onDismissRef.current = onDismiss;
     manualRef.current = manualMode;
+    routerRef.current = router;
   });
 
   useEffect(() => {
