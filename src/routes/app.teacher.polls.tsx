@@ -401,7 +401,12 @@ function TeacherPolls() {
               <RefreshCw className="h-4 w-4 mr-1" />
               Actualizar
             </Button>
-            <Button size="sm" onClick={() => setDialogOpen(true)} disabled={courses.length === 0}>
+            <Button
+              size="sm"
+              onClick={() => setDialogOpen(true)}
+              disabled={courses.length === 0}
+              data-tour-id="create-poll"
+            >
               <Plus className="h-4 w-4 mr-1" />
               Nueva encuesta
             </Button>
@@ -1130,7 +1135,7 @@ function CreatePollDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" data-tour-id="dialog-poll">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Editar encuesta" : "Nueva encuesta"}</DialogTitle>
         </DialogHeader>

@@ -1303,7 +1303,7 @@ export function AdminCourses() {
         actions={
           <>
             <ImportExportMenu resourceName="cursos" onExport={exportCoursesCsv} />
-            <Button size="sm" onClick={openNew}>
+            <Button size="sm" onClick={openNew} data-tour-id="create-course">
               <Plus className="h-4 w-4 mr-1" /> Nuevo curso
             </Button>
           </>
@@ -1629,7 +1629,10 @@ export function AdminCourses() {
 
       {/* ── Create/Edit Dialog ── */}
       <Dialog open={open} onOpenChange={courseDirty.guardOpenChange(setOpen)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          className="max-w-3xl max-h-[90vh] overflow-y-auto"
+          data-tour-id="dialog-course"
+        >
           <DialogHeader>
             <DialogTitle>{editing?.id ? "Editar" : "Nuevo"} curso</DialogTitle>
           </DialogHeader>

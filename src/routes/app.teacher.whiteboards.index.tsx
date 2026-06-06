@@ -372,7 +372,7 @@ function TeacherWhiteboards() {
             : "Crea pizarras en blanco para explicar conceptos a tus alumnos o pensar en libertad."
         }
         actions={
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
+          <Button size="sm" onClick={() => setCreateOpen(true)} data-tour-id="create-whiteboard">
             <Plus className="h-4 w-4 mr-1" />
             Nueva pizarra
           </Button>
@@ -552,7 +552,10 @@ function TeacherWhiteboards() {
           if (!open) resetCreateDialog();
         }}
       >
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
+        <DialogContent
+          className="max-w-[calc(100vw-2rem)] sm:max-w-md"
+          data-tour-id="dialog-whiteboard"
+        >
           <DialogHeader>
             <DialogTitle>Nueva pizarra</DialogTitle>
             <DialogDescription>

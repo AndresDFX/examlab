@@ -2275,7 +2275,7 @@ function TeacherWorkshops() {
                 return `${created} talleres creados · ${skipped} omitidos`;
               }}
             />
-            <Button size="sm" onClick={openNew}>
+            <Button size="sm" onClick={openNew} data-tour-id="create-workshop">
               <Plus className="h-4 w-4 mr-1" />
               Nuevo taller
             </Button>
@@ -2570,7 +2570,10 @@ function TeacherWorkshops() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={open} onOpenChange={workshopDirty.guardOpenChange(setOpen)}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          className="max-w-lg max-h-[90vh] overflow-y-auto"
+          data-tour-id="dialog-workshop"
+        >
           <DialogHeader>
             <DialogTitle>{form.id ? "Editar" : "Nuevo"} taller</DialogTitle>
           </DialogHeader>

@@ -574,7 +574,7 @@ function TeacherExams() {
                 return t("import.imported", { created, skipped });
               }}
             />
-            <Button size="sm" onClick={openNew}>
+            <Button size="sm" onClick={openNew} data-tour-id="create-exam">
               <Plus className="h-4 w-4 mr-1" />
               {t("exam.newExam")}
             </Button>
@@ -841,7 +841,7 @@ function TeacherExams() {
       </Card>
 
       <Dialog open={open} onOpenChange={examDirty.guardOpenChange(setOpen)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg" data-tour-id="dialog-exam">
           <DialogHeader>
             <DialogTitle>{t("exam.newExam")}</DialogTitle>
           </DialogHeader>

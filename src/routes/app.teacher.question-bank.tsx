@@ -386,7 +386,7 @@ function QuestionBankPage() {
               onExport={exportBankCsv}
               disabled={!courseId}
             />
-            <Button onClick={openCreate} disabled={!courseId}>
+            <Button onClick={openCreate} disabled={!courseId} data-tour-id="create-question">
               <Plus className="h-4 w-4 mr-1" />
               Nueva pregunta
             </Button>
@@ -567,7 +567,10 @@ function QuestionBankPage() {
 
       {/* Dialog crear/editar */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto"
+          data-tour-id="dialog-question"
+        >
           <DialogHeader>
             <DialogTitle>
               {editing ? "Editar pregunta del banco" : "Nueva pregunta para el banco"}

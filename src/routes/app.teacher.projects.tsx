@@ -1933,7 +1933,7 @@ function TeacherProjects() {
         actions={
           <>
             <ImportExportMenu resourceName="proyectos" onExport={exportProjectsCsv} />
-            <Button onClick={openNew}>
+            <Button onClick={openNew} data-tour-id="create-project">
               <Plus className="h-4 w-4 mr-1" /> Nuevo proyecto
             </Button>
           </>
@@ -2163,7 +2163,7 @@ function TeacherProjects() {
 
       {/* New / edit project dialog */}
       <Dialog open={open} onOpenChange={projectDirty.guardOpenChange(setOpen)}>
-        <DialogContent>
+        <DialogContent data-tour-id="dialog-project">
           <DialogHeader>
             <DialogTitle>{editing ? "Editar proyecto" : "Nuevo proyecto"}</DialogTitle>
           </DialogHeader>

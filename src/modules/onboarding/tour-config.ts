@@ -109,14 +109,30 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/admin/courses",
     title: "Cursos",
     description:
-      "<p>Creá y administrás los cursos de tu institución.</p><strong>Para crear uno:</strong><ol><li>Click <em>Nuevo curso</em> arriba a la derecha.</li><li>Nombre, periodo, idioma y ciclo lectivo.</li><li>Asigná docente(s) principal(es).</li><li>Definí los <em>cortes</em> (1er parcial, 2do, etc.) con sus pesos.</li><li>Matriculá estudiantes uno por uno o por CSV.</li></ol>",
+      "Acá <strong>creás y administrás los cursos</strong> de tu institución. Cada curso vive su propia vida: tiene docentes, cortes con pesos, estudiantes matriculados y todo el contenido pedagógico adentro.",
     side: "right",
+  },
+  // ─── Dialog "Nuevo curso" — demo interactiva ────────────────────────
+  // clickBefore abre el dialog. El popover apunta al dialog mismo
+  // (`data-tour-id="dialog-course"`) y la descripción nombra los
+  // campos clave. Al pasar al siguiente step, escapeBefore lo cierra.
+  {
+    element: '[data-tour-id="dialog-course"]',
+    clickBefore: '[data-tour-id="create-course"]',
+    waitMs: 400,
+    title: "Crear un curso",
+    description:
+      "<p>Este es el formulario. Los campos clave son:</p><ol><li><strong>Nombre + periodo</strong> (ej. “Cálculo II — 2026-I”).</li><li><strong>Idioma + ciclo lectivo</strong> — afecta el formato de fechas y los certificados.</li><li><strong>Docente principal</strong> — quien va a editar exámenes, talleres y notas.</li><li><strong>Cortes con pesos</strong> — 1er parcial 30%, 2do 30%, final 40%.</li></ol><p>Después matriculás estudiantes uno por uno o por CSV.</p>",
+    side: "left",
+    align: "center",
   },
 
   // ─── Académico ──────────────────────────────────────────────────────
   {
     element: '[data-tour-module="academic"]',
     route: "/app/admin/academic",
+    // Cierra el dialog "Nuevo curso" abierto en el step anterior.
+    escapeBefore: true,
     title: "Académico",
     description:
       "Definís de qué se compone tu institución: <strong>programas</strong> (Ingeniería, Diseño…), <strong>periodos</strong> (2026-I, 2026-II) y <strong>asignaturas</strong>. Se configura una vez al año y los docentes reutilizan todo al crear sus cursos.",
@@ -346,44 +362,94 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/question-bank",
     title: "Banco de preguntas",
     description:
-      "<p>Preguntas reutilizables del curso. Al crear un examen/taller/proyecto las importás del banco en lugar de re-escribir.</p><strong>Para añadir:</strong><ol><li>Click <em>Nueva pregunta</em>.</li><li>Tipo (selección, código, abierta, java_gui, python_gui...).</li><li>Enunciado + rúbrica.</li><li>Generación con IA disponible — pasale el tópico.</li></ol>",
+      "Tu <strong>biblioteca de preguntas reutilizables</strong> por curso. Una vez que armás una buena pregunta, la guardás acá y la importás desde cualquier examen/taller/proyecto en vez de reescribirla.",
     side: "right",
+  },
+  // ─── Dialog "Nueva pregunta" — demo interactiva ─────────────────────
+  {
+    element: '[data-tour-id="dialog-question"]',
+    clickBefore: '[data-tour-id="create-question"]',
+    waitMs: 400,
+    title: "Crear una pregunta",
+    description:
+      "<ol><li><strong>Tipo</strong>: selección, múltiple, abierta, código (con runner), java_gui, python_gui, diagrama…</li><li><strong>Enunciado</strong> con formato (negrita, listas, código).</li><li><strong>Rúbrica</strong> — qué espera tu respuesta ideal. La IA usa esto para calificar.</li><li><strong>Generación con IA</strong>: pasale un tópico (“herencia en Java”) y te propone preguntas listas para editar.</li></ol>",
+    side: "left",
+    align: "center",
   },
 
   // ─── Exámenes ───────────────────────────────────────────────────────
   {
     element: '[data-tour-module="exams"]',
     route: "/app/teacher/exams",
+    // Cierra el dialog "Nueva pregunta" abierto en el demo anterior.
+    escapeBefore: true,
     title: "Exámenes",
     description:
-      "<strong>Para crear un examen:</strong><ol><li>Click <em>Nuevo examen</em>.</li><li>Curso, corte, ventana de fechas, duración.</li><li>Tipo: <em>normal</em> o <em>externo</em> (ya pasó offline).</li><li>Añadí preguntas — manualmente o importando del banco.</li><li>Configurá proctoring (anti-copia, fullscreen, navegación secuencial).</li></ol>",
+      "Tus <strong>exámenes</strong>. Cada uno tiene su ventana de tiempo, sus preguntas (selección, abierta, código…) y opcionalmente proctoring para que el alumno no haga trampa.",
     side: "right",
+  },
+  // ─── Dialog "Nuevo examen" — demo interactiva ───────────────────────
+  {
+    element: '[data-tour-id="dialog-exam"]',
+    clickBefore: '[data-tour-id="create-exam"]',
+    waitMs: 400,
+    title: "Crear un examen",
+    description:
+      "<p>Lo que vas a llenar:</p><ol><li><strong>Curso + corte</strong> — al cuál pertenece, qué peso tiene.</li><li><strong>Ventana de fechas + duración</strong> — desde cuándo está disponible y cuántos minutos tiene el alumno.</li><li><strong>Tipo</strong>: <em>normal</em> (en la plataforma) o <em>externo</em> (presencial, solo registrás notas).</li><li><strong>Proctoring</strong> — anti-copia, pantalla completa, navegación secuencial.</li></ol><p>Después agregás las preguntas, manual o desde el banco.</p>",
+    side: "left",
+    align: "center",
   },
 
   // ─── Talleres ───────────────────────────────────────────────────────
   {
     element: '[data-tour-module="workshops"]',
     route: "/app/teacher/workshops",
+    escapeBefore: true,
     title: "Talleres",
     description:
-      "<strong>Para crear un taller:</strong><ol><li>Click <em>Nuevo taller</em>.</li><li>Curso, corte, fecha límite.</li><li>Activá <em>trabajo en grupo</em> si querés que entreguen de a varios.</li><li>Añadí preguntas (código, código ZIP, abierta, diagrama...).</li></ol> La IA califica las entregas automáticamente.",
+      "Los <strong>talleres</strong> son tareas más relajadas que un examen: el alumno tiene días/semanas para entregar, puede ser individual o en grupo. La IA califica las respuestas automáticamente.",
     side: "right",
+  },
+  // ─── Dialog "Nuevo taller" — demo interactiva ───────────────────────
+  {
+    element: '[data-tour-id="dialog-workshop"]',
+    clickBefore: '[data-tour-id="create-workshop"]',
+    waitMs: 400,
+    title: "Crear un taller",
+    description:
+      "<ol><li><strong>Curso + corte</strong> + <strong>fecha límite</strong>.</li><li><strong>Trabajo en grupo</strong>: si está activado, varios alumnos comparten una sola entrega.</li><li><strong>Preguntas</strong>: código (con runner), código ZIP (proyecto completo), abierta, diagrama. Cada una con su rúbrica.</li></ol><p>Cuando el alumno entrega, la IA califica usando esa rúbrica y vos ves la nota propuesta.</p>",
+    side: "left",
+    align: "center",
   },
 
   // ─── Proyectos ──────────────────────────────────────────────────────
   {
     element: '[data-tour-module="projects"]',
     route: "/app/teacher/projects",
+    escapeBefore: true,
     title: "Proyectos",
     description:
-      "<strong>Para crear un proyecto:</strong><ol><li>Click <em>Nuevo proyecto</em>.</li><li>Curso, corte, fecha límite, link al repo obligatorio.</li><li>Definí los <em>archivos esperados</em> (1 a N): un README, un diagrama, un ZIP de código...</li></ol> Después de entregar, el alumno sustenta y vos pones el <strong>factor</strong> (0–1) que multiplica su nota.",
+      "Los <strong>proyectos</strong> son entregas finales más grandes. El alumno sube archivos + link al repo, vos lo sustentás en persona y le ponés un factor (0-1) que multiplica la nota.",
     side: "right",
+  },
+  // ─── Dialog "Nuevo proyecto" — demo interactiva ─────────────────────
+  {
+    element: '[data-tour-id="dialog-project"]',
+    clickBefore: '[data-tour-id="create-project"]',
+    waitMs: 400,
+    title: "Crear un proyecto",
+    description:
+      "<ol><li><strong>Curso + corte</strong> + <strong>fecha límite</strong>.</li><li><strong>Link al repo obligatorio</strong> — Git, Drive, Notion. El alumno lo pega al entregar.</li><li><strong>Archivos esperados</strong> — definís 1 a N (ej. README, diagrama UML, ZIP de código). Cada uno con su tipo y rúbrica.</li></ol><p>Tras entregar, vos sustentás cara a cara y aplicás el <strong>factor 0-1</strong> que ajusta la nota.</p>",
+    side: "left",
+    align: "center",
   },
 
   // ─── Calificaciones (gradebook) ─────────────────────────────────────
   {
     element: '[data-tour-module="gradebook"]',
     route: "/app/teacher/gradebook",
+    // Cierra el dialog "Nuevo proyecto" abierto en el demo anterior.
+    escapeBefore: true,
     title: "Calificaciones",
     description:
       "El <strong>boletín consolidado</strong> de cada curso. Ves todas las notas de tus alumnos (exámenes, talleres, proyectos y asistencia) agrupadas por corte. Acá editás notas de actividades que hiciste por fuera (presencial) y bajás un CSV para subir al sistema de la institución.",
@@ -396,34 +462,75 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/attendance",
     title: "Asistencia",
     description:
-      "<strong>Para crear sesiones:</strong><ol><li><em>Nueva sesión</em>: una sola con fecha, hora, duración.</li><li><em>Programar sesiones</em>: N sesiones desde fecha de inicio + días de la semana.</li><li><em>Importar CSV</em>: cuando el cronograma ya existe en una planilla.</li></ol> En cada sesión podés activar <strong>check-in con QR rotativo</strong>, abrir la <strong>pizarra</strong>, crear <strong>snippets de código</strong>, lanzar <strong>encuestas</strong> en vivo.",
+      "Tu <strong>tablero de asistencia</strong>: una columna por sesión, una fila por alumno. Tenés <strong>3 modos</strong> de crear sesiones: una sola, programar varias automáticas (días de la semana), o importar de CSV. Cada sesión es además el contenedor de pizarra, snippets y encuestas en vivo.",
     side: "right",
+  },
+  // ─── Dialog "Nueva sesión" — demo interactiva ───────────────────────
+  // Mostramos el dialog "Nueva sesión" (la opción más simple). Los
+  // otros 2 modos (Programar, Importar CSV) los nombramos en la
+  // descripción para no abrir 3 dialogs distintos.
+  {
+    element: '[data-tour-id="dialog-session"]',
+    clickBefore: '[data-tour-id="create-session"]',
+    waitMs: 400,
+    title: "Crear una sesión",
+    description:
+      "<p>Una sesión = una clase. Tres formas de crearla:</p><ol><li><strong>Nueva sesión</strong> (este dialog): una sola, con fecha, hora y duración. Ideal para clases puntuales.</li><li><strong>Programar sesiones</strong>: arma N sesiones automáticas a partir de fecha de inicio + días de la semana (ej. lunes y miércoles, 16 sesiones).</li><li><strong>Importar CSV</strong>: cuando tu cronograma ya vive en una planilla.</li></ol><p>Una vez creada, podés activar <strong>QR rotativo de check-in</strong>, abrir <strong>pizarra compartida</strong>, agregar <strong>snippets de código</strong> o lanzar <strong>encuestas en vivo</strong> desde esa sesión.</p>",
+    side: "left",
+    align: "center",
   },
 
   // ─── Pizarras ───────────────────────────────────────────────────────
   {
     element: '[data-tour-module="whiteboards"]',
     route: "/app/teacher/whiteboards",
+    // Cierra el dialog "Nueva sesión" abierto en el demo anterior.
+    escapeBefore: true,
     title: "Pizarras",
     description:
-      "<p>Pizarras Excalidraw standalone (no atadas a una sesión).</p><strong>Para crear una:</strong><ol><li>Click <em>Nueva pizarra</em>.</li><li>Nombre y curso (opcional).</li><li>Activá <em>compartida con el curso</em> para que los alumnos la vean.</li></ol> Soporta <strong>multi-hoja</strong> (dibujo o texto), librerías pre-cargadas (flowchart, UML, estructuras de datos) y modo fullscreen.",
+      "Tus <strong>pizarras digitales</strong> (Excalidraw embebido). Las usás para explicar conceptos en clase, dejar diagramas que los alumnos puedan consultar, o trabajar con ellos en tiempo real.",
     side: "right",
+  },
+  // ─── Dialog "Nueva pizarra" — demo interactiva ──────────────────────
+  {
+    element: '[data-tour-id="dialog-whiteboard"]',
+    clickBefore: '[data-tour-id="create-whiteboard"]',
+    waitMs: 400,
+    title: "Crear una pizarra",
+    description:
+      "<ol><li><strong>Nombre</strong> de la pizarra.</li><li><strong>Curso</strong> (opcional) — para asociarla a uno de tus cursos.</li><li><strong>Compartida con el curso</strong> — si está activado, todos los alumnos del curso la ven en su panel.</li></ol><p>Adentro tenés librerías pre-cargadas (flowchart, UML, estructuras de datos, AWS) y multi-hoja por pizarra.</p>",
+    side: "left",
+    align: "center",
   },
 
   // ─── Encuestas ──────────────────────────────────────────────────────
   {
     element: '[data-tour-module="polls"]',
     route: "/app/teacher/polls",
+    escapeBefore: true,
     title: "Encuestas",
     description:
-      "<strong>Para crear una encuesta:</strong><ol><li>Click <em>Nueva encuesta</em>.</li><li>Curso(s) + sesión asociada (opcional).</li><li>Tipo: <em>opción única</em>, <em>múltiple</em> o <em>cupo por opción (Doodle)</em>.</li><li>En tipo cupo: generador automático de slots de tiempo a partir de fechas + ventana horaria. El cupo se auto-calcula para que todos quepan.</li></ol>",
+      "Encuestas rápidas para los alumnos. Sirven para <strong>votar en vivo en clase</strong> (opción única o múltiple) o para <strong>coordinar fechas tipo Doodle</strong> (cada slot tiene cupo).",
     side: "right",
+  },
+  // ─── Dialog "Nueva encuesta" — demo interactiva ─────────────────────
+  {
+    element: '[data-tour-id="dialog-poll"]',
+    clickBefore: '[data-tour-id="create-poll"]',
+    waitMs: 400,
+    title: "Crear una encuesta",
+    description:
+      "<ol><li><strong>Curso(s)</strong> donde aplica + sesión asociada (opcional, si va a usarse en vivo).</li><li><strong>Tipo</strong>: opción única (votar X), múltiple (marcar varias), o por <em>cupo</em> (Doodle).</li><li>Si elegís <strong>cupo</strong>, el generador arma slots automáticos a partir de fechas + ventana horaria, y calcula el cupo para que todos los alumnos entren.</li></ol>",
+    side: "left",
+    align: "center",
   },
 
   // ─── Calendario ─────────────────────────────────────────────────────
   {
     element: '[data-tour-module="calendar"]',
     route: "/app/teacher/calendar",
+    // Cierra el dialog "Nueva encuesta" abierto en el demo anterior.
+    escapeBefore: true,
     title: "Calendario",
     description:
       "Vista de calendario con sesiones, fechas de exámenes/talleres/proyectos. Sincronizable a Google Calendar y exportable a .ics. El <strong>foro</strong> del curso vive dentro de cada curso, no como módulo aparte.",

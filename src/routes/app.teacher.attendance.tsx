@@ -1054,7 +1054,11 @@ function TeacherAttendance() {
               onExport={buildAttendanceCsv}
               disabled={!courseId}
             />
-            <Button size="sm" onClick={() => setNewSessionOpen(true)}>
+            <Button
+              size="sm"
+              onClick={() => setNewSessionOpen(true)}
+              data-tour-id="create-session"
+            >
               <Plus className="h-4 w-4 mr-1" />
               Nueva sesión
             </Button>
@@ -1449,7 +1453,7 @@ function TeacherAttendance() {
 
       {/* New session dialog */}
       <Dialog open={newSessionOpen} onOpenChange={setNewSessionOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm" data-tour-id="dialog-session">
           <DialogHeader>
             <DialogTitle>Nueva sesión de asistencia</DialogTitle>
           </DialogHeader>
