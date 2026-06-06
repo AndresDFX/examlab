@@ -1,6 +1,7 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { logEvent } from "@/shared/lib/audit";
@@ -318,10 +319,14 @@ export function AdminCourses() {
   };
 
   const handleBulkDelete = async (ids: string[]) => {
-    // ON DELETE CASCADE arrastra examenes/talleres/proyectos/etc.
-    const { error } = await supabase.from("courses").delete().in("id", ids);
+    // Soft-delete a papelera. La fila queda invisible para las listas
+    // (filtran is('deleted_at', null)) pero recuperable desde /app/trash
+    // hasta que el cron de purga (30 días) la borre físicamente. Como
+    // NO hacemos DELETE físico ya, los hijos (examenes/talleres/etc.)
+    // tampoco se borran — el restore reactiva el árbol intacto.
+    const { error } = await softDeleteMany("courses", ids);
     if (error) throw new Error(error.message);
-    toast.success(`${ids.length} curso(s) eliminado(s) correctamente`);
+    toast.success(`${ids.length} curso(s) enviado(s) a papelera`);
     void logEvent({
       action: "course.deleted",
       category: "course",
@@ -429,6 +434,9 @@ export function AdminCourses() {
     let q: any = supabase
       .from("courses")
       .select("*")
+      // Excluir cursos en papelera. Visibles desde /app/trash hasta
+      // que el cron de purga (30 días) los borre físicamente.
+      .is("deleted_at", null)
       .order("period", { ascending: false, nullsFirst: false })
       .order("name");
     if (isSuperAdminCaller && tenantFilter !== "all") {
@@ -929,7 +937,7 @@ export function AdminCourses() {
     });
     if (!ok) return;
     const course = courses.find((c) => c.id === id);
-    const { error } = await supabase.from("courses").delete().eq("id", id);
+    const { error } = await softDelete("courses", id);
     if (error) return toast.error(friendlyError(error));
     toast.success(t("course.deletedToast"));
     void logEvent({
@@ -2577,6 +2585,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
             "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, meeting_url",
           )
           .eq("course_id", course.id)
+          .is("deleted_at", null)
           .order("session_date", { ascending: true }),
         // status='done' del propio docente; "available" se filtra por
         // RLS al teacher_id. Incluimos contenidos del curso O sin curso
@@ -2931,7 +2940,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await db.from("attendance_sessions").delete().eq("id", s.id);
+    const { error } = await softDelete("attendance_sessions", s.id);
     if (error) {
       toast.error(friendlyError(error));
       return;

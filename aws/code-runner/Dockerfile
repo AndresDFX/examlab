@@ -110,6 +110,13 @@ RUN dnf install -y \
       python3-tkinter \
       tk \
       tcl \
+      # `unzip` no viene en la imagen base AL2023 minimal y el paso de
+      # OpenJFX más abajo lo necesita para descomprimir el SDK
+      # (`unzip -q /tmp/openjfx.zip -d /opt`). Antes lo arrastraba algún
+      # paquete X transitivamente, pero versiones más recientes de la
+      # base image lo dejaron de incluir → build fallaba con
+      # `/bin/sh: line 1: unzip: command not found`. Lo pedimos explícito.
+      unzip \
  && dnf clean all \
  && rm -rf /var/cache/dnf /var/log/dnf* \
  # Pre-popular el cache de fontconfig durante BUILD. Lambda monta el

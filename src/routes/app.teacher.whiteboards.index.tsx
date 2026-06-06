@@ -13,6 +13,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -191,6 +192,8 @@ function TeacherWhiteboards() {
       .select(
         "id, owner_id, name, description, created_at, updated_at, course_id, is_shared_with_course",
       )
+      // Ocultar pizarras en papelera de la lista del docente.
+      .is("deleted_at", null)
       .order("updated_at", { ascending: false });
     if (error) {
       setLoadError(friendlyError(error, "No pudimos cargar tus pizarras."));
@@ -251,15 +254,15 @@ function TeacherWhiteboards() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const bulkDeleteWhiteboards = async (ids: string[]) => {
     if (ids.length === 0) return;
-    const { error } = await db.from("whiteboards").delete().in("id", ids);
+    const { error } = await softDeleteMany("whiteboards", ids);
     if (error) {
-      toast.error(friendlyError(error, "No se pudieron eliminar las pizarras"));
+      toast.error(friendlyError(error, "No se pudieron enviar las pizarras a papelera"));
       throw error;
     }
     setItems((prev) => prev.filter((p) => !ids.includes(p.id)));
     sel.clear();
     toast.success(
-      `${ids.length} pizarra${ids.length === 1 ? "" : "s"} eliminada${ids.length === 1 ? "" : "s"}`,
+      `${ids.length} pizarra${ids.length === 1 ? "" : "s"} enviada${ids.length === 1 ? "" : "s"} a papelera`,
     );
   };
 
@@ -326,12 +329,12 @@ function TeacherWhiteboards() {
     });
     if (!ok) return;
     try {
-      const { error } = await db.from("whiteboards").delete().eq("id", w.id);
+      const { error } = await softDelete("whiteboards", w.id);
       if (error) {
-        toast.error(friendlyError(error, "No se pudo eliminar la pizarra"));
+        toast.error(friendlyError(error, "No se pudo enviar la pizarra a papelera"));
         return;
       }
-      toast.success("Pizarra eliminada");
+      toast.success("Pizarra enviada a papelera");
       setItems((prev) => prev.filter((p) => p.id !== w.id));
     } catch (e) {
       // Caller: `() => void deleteWhiteboard(w)` desde RowAction.onClick.

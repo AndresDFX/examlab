@@ -40,6 +40,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/shared/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { DEFAULT_LIBRARY_ITEMS } from "@/modules/whiteboard/excalidraw-libraries";
 
 /** Forma del JSON que serializamos. Es un subset del formato
  *  Excalidraw — guardamos `elements` (array de figuras) y
@@ -494,11 +495,21 @@ export function WhiteboardEditor({
                 zoom: { value: viewport.zoom },
               }
             : sceneAppState;
-          if (!scene && !viewport) return undefined;
+          // `libraryItems` se pasa SIEMPRE — el panel "Library" del
+          // Excalidraw los lista en el aside derecho. El usuario puede
+          // arrastrarlos al canvas; cada drag crea nuevos elements,
+          // así que el template no muta. Si el usuario tiene libs en
+          // localStorage agregadas por su cuenta, Excalidraw las
+          // muestra junto a estas (no las pisa — `initialData` es
+          // additive en este campo).
+          if (!scene && !viewport) {
+            return { libraryItems: DEFAULT_LIBRARY_ITEMS };
+          }
           return {
             elements: scene?.elements ?? [],
             appState: mergedAppState,
             files: scene?.files,
+            libraryItems: DEFAULT_LIBRARY_ITEMS,
           };
         })()}
         onChange={handleChange}

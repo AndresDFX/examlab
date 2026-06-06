@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -319,9 +320,9 @@ function TeacherWorkshops() {
   });
 
   const handleBulkDelete = async (ids: string[]) => {
-    const { error } = await supabase.from("workshops").delete().in("id", ids);
+    const { error } = await softDeleteMany("workshops", ids);
     if (error) throw new Error(error.message);
-    toast.success(`${ids.length} taller(es) eliminado(s) correctamente`);
+    toast.success(`${ids.length} taller(es) enviado(s) a papelera`);
     void logEvent({
       action: "workshop.deleted",
       category: "workshop",
@@ -554,6 +555,8 @@ function TeacherWorkshops() {
       supabase
         .from("workshops")
         .select("*, course:courses(name, period)")
+        // Ocultar talleres en papelera de la lista del docente.
+        .is("deleted_at", null)
         .order("created_at", { ascending: false }),
       (supabase as any)
         .from("grade_cuts")
@@ -1038,7 +1041,7 @@ function TeacherWorkshops() {
     });
     if (!ok) return;
     const ws = workshops.find((w) => w.id === id);
-    const { error } = await supabase.from("workshops").delete().eq("id", id);
+    const { error } = await softDelete("workshops", id);
     if (error) return toast.error(friendlyError(error));
     toast.success(t("workshop.deletedToast"));
     void logEvent({

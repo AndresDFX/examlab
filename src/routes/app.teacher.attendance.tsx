@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { softDelete } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
@@ -97,10 +98,20 @@ import { SessionCodeSnippetsDialog } from "@/modules/sessions/SessionCodeSnippet
 // corte (no aporta a la nota de asistencia hasta que el docente la
 // reasigne en la UI). Si tiene texto, se hace match case-insensitive
 // contra `grade_cuts.name` del curso seleccionado.
-const SESSIONS_TEMPLATE = `session_date,title,cut_name
-2025-08-01,Clase introductoria,Corte 1
-2025-08-03,Laboratorio 1,Corte 1
-2025-08-08,,`;
+// Template de sesiones. Columnas:
+//   - session_date (YYYY-MM-DD, OBLIGATORIA)
+//   - title (texto libre, opcional)
+//   - cut_name (case-insensitive match contra grade_cuts.name, opcional)
+//   - start_time (HH:MM 24h, opcional — hora de inicio de la clase)
+//   - duration_minutes (entero, opcional — duración en minutos)
+//   - meeting_url (URL Meet/Zoom/Teams, opcional — link para clase virtual)
+//   - recording_url (URL libre a la grabación, opcional)
+// El round-trip export→import preserva todos los campos. Filas con
+// session_date faltante o mal formado se descartan; el resto va INSERT.
+const SESSIONS_TEMPLATE = `session_date,title,cut_name,start_time,duration_minutes,meeting_url,recording_url
+2025-08-01,Clase introductoria,Corte 1,14:00,60,https://meet.google.com/abc-defg-hij,
+2025-08-03,Laboratorio 1,Corte 1,14:00,90,,
+2025-08-08,Repaso,,,,,`;
 
 const ATTENDANCE_TEMPLATE = `email,session_date,status,note
 estudiante1@uni.edu,2025-08-01,presente,
@@ -134,6 +145,13 @@ type Session = {
   /** Referencia opcional a un video de la biblioteca con la grabación.
    *  Cuando está poblado, la UI lo embebe en el detalle de la sesión. */
   recording_video_id?: string | null;
+  /** Hora de inicio de la clase (HH:MM:SS, Postgres TIME). NULL si no se
+   *  registró. El CSV export la recorta a HH:MM. */
+  start_time?: string | null;
+  /** Duración en minutos. NULL si no se registró. */
+  duration_minutes?: number | null;
+  /** Link a la sala virtual (Meet/Zoom/Teams). Apertura en nueva pestaña. */
+  meeting_url?: string | null;
 };
 /** Contenido generado disponible para asignar a una sesión. Solo
  *  status='done' y solo del docente actual (RLS lo asegura igual,
@@ -283,6 +301,8 @@ function TeacherAttendance() {
         .from("attendance_sessions")
         .select("*")
         .eq("course_id", courseId)
+        // Ocultar sesiones en papelera del tablero del docente.
+        .is("deleted_at", null)
         .order("session_date"),
       supabase.from("course_enrollments").select("user_id").eq("course_id", courseId),
       // grade_cuts no está en types.ts auto-generado todavía
@@ -604,24 +624,52 @@ function TeacherAttendance() {
     return toCSV(csvRows);
   };
 
-  // Build CSV de exportación de sesiones/clases. Incluye `cut_name`
-  // para que el round-trip (export → import) preserve la asignación.
+  // Build CSV de exportación de sesiones/clases. Incluye TODOS los
+  // campos que el round-trip (export → import) preserva: corte, hora de
+  // inicio, duración, link de reunión, link de grabación. Si un campo
+  // está NULL en DB lo dejamos vacío en CSV — el importer entiende vacío
+  // como "no setear".
   const buildSessionsCsv = (): string => {
     if (!sessions.length) return "";
     const cutNameById = new Map(cuts.map((c) => [c.id, c.name]));
     return toCSV(
-      sessions.map((s) => ({
-        session_date: s.session_date,
-        title: s.title ?? "",
-        cut_name: s.cut_id ? (cutNameById.get(s.cut_id) ?? "") : "",
-      })),
+      sessions.map((s) => {
+        // start_time en DB es TIME (HH:MM:SS). Recortamos a HH:MM para
+        // que el CSV sea más legible y compatible con planillas. El
+        // importer acepta ambos formatos.
+        const startTimeShort = s.start_time ? String(s.start_time).slice(0, 5) : "";
+        return {
+          session_date: s.session_date,
+          title: s.title ?? "",
+          cut_name: s.cut_id ? (cutNameById.get(s.cut_id) ?? "") : "",
+          start_time: startTimeShort,
+          duration_minutes: s.duration_minutes != null ? String(s.duration_minutes) : "",
+          meeting_url: s.meeting_url ?? "",
+          recording_url: s.recording_url ?? "",
+        };
+      }),
+      // Orden explícito de columnas — sin esto toCSV usa Object.keys del
+      // primer row, que no garantiza orden estable y rompía el round-trip
+      // si la primera sesión tenía un campo NULL/undefined.
+      [
+        "session_date",
+        "title",
+        "cut_name",
+        "start_time",
+        "duration_minutes",
+        "meeting_url",
+        "recording_url",
+      ],
     );
   };
 
-  // Importar sesiones desde CSV. Soporta columna opcional `cut_name`
-  // que matchea contra `grade_cuts.name` del curso (case-insensitive).
-  // Si no hay match (o la columna está vacía), la sesión queda sin
-  // corte y el docente la reasigna desde la UI.
+  // Importar sesiones desde CSV. Columnas opcionales:
+  //   - cut_name: match case-insensitive contra grade_cuts.name del curso.
+  //   - start_time: HH:MM o HH:MM:SS. Valor inválido se descarta sin abortar.
+  //   - duration_minutes: entero >= 0. Valor no entero se descarta sin abortar.
+  //   - meeting_url / recording_url: pasan tal cual (sin validar URL — el
+  //     docente podría pegar texto que no es URL; UI lo muestra).
+  // Filas con session_date faltante o mal formado se descartan completas.
   const importSessions = async (rows: Record<string, string>[]) => {
     if (!courseId || !user) throw new Error("Selecciona un curso");
     const valid = rows.filter((r) => r.session_date && /^\d{4}-\d{2}-\d{2}$/.test(r.session_date));
@@ -632,12 +680,24 @@ function TeacherAttendance() {
       const cutKey = (r.cut_name || "").trim().toLowerCase();
       const cutId = cutKey ? (cutByName.get(cutKey) ?? null) : null;
       if (cutKey && !cutId) unmatched++;
+      // start_time: aceptamos HH:MM y HH:MM:SS. Postgres TIME normaliza
+      // ambos. Otros formatos quedan como null (no abortamos la fila).
+      const rawTime = (r.start_time || "").trim();
+      const startTime = /^\d{1,2}:\d{2}(:\d{2})?$/.test(rawTime) ? rawTime : null;
+      // duration_minutes: parseamos a entero. NaN o negativo → null.
+      const rawDur = (r.duration_minutes || "").trim();
+      const durNum = rawDur ? Number.parseInt(rawDur, 10) : NaN;
+      const duration = Number.isFinite(durNum) && durNum >= 0 ? durNum : null;
       return {
         course_id: courseId,
         session_date: r.session_date,
         title: r.title || null,
         created_by: user.id,
         cut_id: cutId,
+        start_time: startTime,
+        duration_minutes: duration,
+        meeting_url: (r.meeting_url || "").trim() || null,
+        recording_url: (r.recording_url || "").trim() || null,
       };
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -887,7 +947,7 @@ function TeacherAttendance() {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await supabase.from("attendance_sessions").delete().eq("id", id);
+    const { error } = await softDelete("attendance_sessions", id);
     if (error) {
       toast.error(friendlyError(error));
       return;

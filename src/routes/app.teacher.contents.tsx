@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { softDelete } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { useTranslation } from "react-i18next";
@@ -407,6 +408,8 @@ function TeacherContents() {
     let contentsQuery = db
       .from("generated_contents")
       .select("*")
+      // Ocultar contenidos en papelera del listado del docente.
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
     if (!isAdminLikeView) {
       contentsQuery = contentsQuery.eq("teacher_id", user.id);
@@ -652,12 +655,12 @@ function TeacherContents() {
       tone: "destructive",
     });
     if (!ok) return;
-    // Borra los archivos del bucket (en el patrón <teacher>/<id>/*) y la fila.
-    const paths = (item.files ?? []).map((f) => f.path).filter(Boolean);
-    if (paths.length) {
-      await supabase.storage.from("generated-contents").remove(paths);
-    }
-    const { error } = await db.from("generated_contents").delete().eq("id", item.id);
+    // Soft-delete: marcamos la fila como borrada (deleted_at = now()).
+    // NO borramos los archivos del Storage todavía — quedan disponibles
+    // hasta que el cron de purga (30 días) ejecute el hard-delete.
+    // Trade-off conocido: si el cron purga la fila, los archivos quedan
+    // huérfanos en Storage. Un job de cleanup manual los recoge (TODO v2).
+    const { error } = await softDelete("generated_contents", item.id);
     if (error) {
       toast.error(friendlyError(error));
       return;

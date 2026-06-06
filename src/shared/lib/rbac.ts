@@ -40,6 +40,10 @@ export const ROUTE_RULES: RouteRule[] = [
   { prefix: "/app/teacher/polls", roles: ["Docente", "SuperAdmin"] },
   { prefix: "/app/teacher", roles: ["Docente"] },
   { prefix: "/app/student", roles: ["Estudiante"] },
+  // Papelera: solo staff. El alumno no tiene capacidad de borrar las
+  // entidades soft-deletadas, así que la UI no le aplica. SuperAdmin la
+  // ve heredada de Admin (mismo patrón que /app/admin).
+  { prefix: "/app/trash", roles: ["Docente", "Admin", "SuperAdmin"] },
   { prefix: "/app/unauthorized", roles: null },
   { prefix: "/app", roles: null },
 ];

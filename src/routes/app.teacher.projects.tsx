@@ -14,6 +14,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
+import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
 import { scoreCerradaMulti } from "@/modules/exams/question-scoring";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
@@ -276,10 +277,9 @@ function TeacherProjects() {
   };
 
   const handleBulkDelete = async (ids: string[]) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).from("projects").delete().in("id", ids);
+    const { error } = await softDeleteMany("projects", ids);
     if (error) throw new Error(error.message);
-    toast.success(`${ids.length} proyecto(s) eliminado(s) correctamente`);
+    toast.success(`${ids.length} proyecto(s) enviado(s) a papelera`);
     void logEvent({
       action: "project.deleted",
       category: "project",
@@ -552,10 +552,17 @@ function TeacherProjects() {
       let ps = await db
         .from("projects")
         .select("*, course:courses(name, period, language)")
+        // Ocultar proyectos en papelera de la lista del docente.
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (ps.error) {
         console.warn("[projects] projects+join failed, retrying without join", ps.error);
-        ps = await db.from("projects").select("*").order("created_at", { ascending: false });
+        ps = await db
+          .from("projects")
+          .select("*")
+          // Ocultar proyectos en papelera de la lista del docente.
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false });
       }
       if (ps.error) throw new Error(`projects: ${ps.error.message}`);
 
@@ -1134,7 +1141,7 @@ function TeacherProjects() {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await db.from("projects").delete().eq("id", p.id);
+    const { error } = await softDelete("projects", p.id);
     if (error) return toast.error(friendlyError(error));
     toast.success(t("project.deletedToast"));
     void logEvent({

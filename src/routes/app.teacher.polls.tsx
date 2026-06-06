@@ -80,6 +80,8 @@ import {
   X,
 } from "lucide-react";
 import { usePollRealtime } from "@/modules/polls/use-poll-realtime";
+import { cn } from "@/shared/lib/utils";
+import { softDelete } from "@/modules/trash/soft-delete";
 
 export const Route = createFileRoute("/app/teacher/polls")({ component: TeacherPolls });
 
@@ -262,6 +264,9 @@ function TeacherPolls() {
           "id, course_id, attendance_session_id, title, description, poll_type, results_visible_to_students, allow_change_response, auto_close_when_all_responded, is_published, opens_at, closes_at, closed_manually, created_at, options:poll_options(id, poll_id, label, position, max_responses, responses_count), linked_courses:poll_courses(course_id, courses(id, name))",
         )
         .in("id", pollIds)
+        // Ocultar encuestas en papelera. El docente puede restaurar
+        // desde /app/trash si fue accidental.
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (cancelled) return;
       if (pollErr) {
@@ -370,12 +375,12 @@ function TeacherPolls() {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await db.from("polls").delete().eq("id", p.id);
+    const { error } = await softDelete("polls", p.id);
     if (error) {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Encuesta eliminada");
+    toast.success("Encuesta enviada a papelera");
     setRetryNonce((n) => n + 1);
   };
 
@@ -732,6 +737,12 @@ function CreatePollDialog({
   const [slotTimeEnd, setSlotTimeEnd] = useState<string>("12:00");
   const [slotStepMin, setSlotStepMin] = useState<string>("15");
   const [slotCupo, setSlotCupo] = useState<string>("1");
+  // Modo del cupo: "auto" recalcula con cada cambio de fechas/horas/step
+  // para que TODOS los matriculados quepan. "manual" respeta lo que el
+  // docente tipeó (se setea en true cuando el user edita el input cupo).
+  // V1 sobrescribía ciegamente el cupo en cada cambio incluso cuando el
+  // docente ya lo había ajustado a un valor específico — UX confusa.
+  const [cupoManual, setCupoManual] = useState<boolean>(false);
 
   const addSlotDate = () => {
     if (!slotDraftDate) return;
@@ -744,11 +755,12 @@ function CreatePollDialog({
 
   // Auto-cálculo del cupo: ceil(matriculados / total_slots) para que
   // TODOS los matriculados quepan. Recalcula al cambiar fechas / ventana
-  // / step. Override manual del docente se sobreescribe — comportamiento
-  // intencional, igual que V1.
+  // / step. SOLO aplica cuando cupoManual=false; si el docente tipeó un
+  // valor propio, respetamos su decisión hasta que clickee "Volver a auto".
   useEffect(() => {
     if (type !== "slot") return;
     if (slotDates.length === 0) return;
+    if (cupoManual) return;
     const step = Math.floor(Number(slotStepMin) || 0);
     const suggested = suggestSlotCupo(
       slotDates,
@@ -758,7 +770,36 @@ function CreatePollDialog({
       enrolledCount ?? 0,
     );
     setSlotCupo(String(suggested));
-  }, [type, enrolledCount, slotDates, slotTimeStart, slotTimeEnd, slotStepMin]);
+  }, [type, enrolledCount, slotDates, slotTimeStart, slotTimeEnd, slotStepMin, cupoManual]);
+
+  // ── Resumen del cálculo de slots ──
+  // Memoizado: cambia cuando cambian las dimensiones. Lo usa el panel
+  // "Resumen" debajo de los inputs para que el docente vea en vivo
+  // cuántos slots producirá la config actual + qué capacidad total dará
+  // ese cupo. Sin ejecutar la generación completa (cara con muchas fechas).
+  const slotSummary = useMemo(() => {
+    const step = Math.floor(Number(slotStepMin) || 0);
+    const cupo = Math.max(1, Math.floor(Number(slotCupo) || 0));
+    const [sh, sm] = slotTimeStart.split(":").map(Number);
+    const [eh, em] = slotTimeEnd.split(":").map(Number);
+    const startMin = sh * 60 + sm;
+    const endMin = eh * 60 + em;
+    const validWindow =
+      Number.isFinite(startMin) && Number.isFinite(endMin) && endMin > startMin && step > 0;
+    const slotsPerDay = validWindow ? Math.floor((endMin - startMin) / step) : 0;
+    const days = slotDates.length;
+    const totalSlots = days * slotsPerDay;
+    const totalCapacity = totalSlots * cupo;
+    return {
+      slotsPerDay,
+      days,
+      totalSlots,
+      totalCapacity,
+      cupo,
+      validWindow,
+      enough: enrolledCount == null || totalCapacity >= enrolledCount,
+    };
+  }, [slotDates.length, slotTimeStart, slotTimeEnd, slotStepMin, slotCupo, enrolledCount]);
 
   const generateSlots = () => {
     if (slotDates.length === 0) {
@@ -912,6 +953,10 @@ function CreatePollDialog({
       setAutoCloseAll(false);
       setIsPublished(false);
       setSessionId(prefilledSessionId ?? null);
+      // Cupo arranca en modo auto en cada apertura — sino la siguiente
+      // encuesta heredaba el "manual" de la anterior y el auto-cálculo
+      // no disparaba aunque cambiaras fechas.
+      setCupoManual(false);
       setOptions([
         { label: "", max_responses: "" },
         { label: "", max_responses: "" },
@@ -1586,16 +1631,90 @@ function CreatePollDialog({
                       />
                     </div>
                     <div>
-                      <Label className="text-[11px]">Cupo por slot</Label>
+                      <div className="flex items-center justify-between gap-1 mb-0.5">
+                        <Label className="text-[11px]">Cupo por slot</Label>
+                        {/* Badge auto/manual. En modo auto el cupo se
+                            recalcula con cada cambio de fechas/horas/step
+                            usando ceil(matriculados / total_slots). Pasa
+                            a manual cuando el docente tipea su propio valor;
+                            el botón "Auto" abajo del input revierte. */}
+                        {cupoManual ? (
+                          <Badge variant="outline" className="text-[9px] h-4 px-1">
+                            Manual
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="secondary"
+                            className="text-[9px] h-4 px-1 bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border-sky-300/50"
+                          >
+                            Auto
+                          </Badge>
+                        )}
+                      </div>
                       <Input
                         type="number"
                         min={1}
                         value={slotCupo}
-                        onChange={(e) => setSlotCupo(e.target.value)}
+                        onChange={(e) => {
+                          setSlotCupo(e.target.value);
+                          // Si el docente tipea, pasamos a modo manual
+                          // para que el useEffect deje de sobreescribir.
+                          if (!cupoManual) setCupoManual(true);
+                        }}
                         className="h-8 text-xs"
                       />
+                      {cupoManual && (
+                        <button
+                          type="button"
+                          className="text-[10px] text-primary hover:underline mt-0.5"
+                          onClick={() => setCupoManual(false)}
+                        >
+                          ← Volver a auto
+                        </button>
+                      )}
                     </div>
                   </div>
+
+                  {/* Resumen del cálculo. Aparece tan pronto haya al menos
+                      una fecha y una ventana válida. Muestra la matemática
+                      en vivo + warning si la capacidad total no alcanza
+                      para todos los matriculados (ej. el docente bajó el
+                      cupo en modo manual a un número que no cubre al
+                      grupo). */}
+                  {slotDates.length > 0 && slotSummary.validWindow && (
+                    <div
+                      className={cn(
+                        "rounded-md border px-2.5 py-2 text-[11px] space-y-0.5",
+                        slotSummary.enough
+                          ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-300/50 text-emerald-900 dark:text-emerald-200"
+                          : "bg-amber-50/70 dark:bg-amber-950/30 border-amber-400/60 text-amber-900 dark:text-amber-200",
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="font-medium">
+                          {slotSummary.days} fecha{slotSummary.days === 1 ? "" : "s"} ×{" "}
+                          {slotSummary.slotsPerDay} slot
+                          {slotSummary.slotsPerDay === 1 ? "" : "s"}/día ={" "}
+                          <span className="tabular-nums">{slotSummary.totalSlots}</span> slot
+                          {slotSummary.totalSlots === 1 ? "" : "s"}
+                        </span>
+                        <span className="tabular-nums">
+                          Capacidad total:{" "}
+                          <strong>
+                            {slotSummary.totalCapacity}
+                            {enrolledCount != null && enrolledCount > 0 && <> / {enrolledCount}</>}
+                          </strong>
+                        </span>
+                      </div>
+                      {!slotSummary.enough && enrolledCount != null && enrolledCount > 0 && (
+                        <p className="text-[10px] opacity-90">
+                          Faltan {enrolledCount - slotSummary.totalCapacity} cupos para que todos
+                          los alumnos quepan. Subí el cupo por slot, agregá más fechas o ampliá la
+                          ventana horaria.
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   <Button
                     type="button"

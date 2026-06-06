@@ -88,6 +88,7 @@ import {
   AlertTriangle,
   Palette,
   HelpCircle,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useState, useEffect } from "react";
@@ -377,6 +378,12 @@ const NAV: NavItem[] = [
   // (que hereda los items Admin) los de toda la plataforma + filtro por
   // institución. Estados aplicables en bulk + conteo de eventos.
   { to: "/app/admin/errors", labelKey: "nav.errors", icon: AlertTriangle, roles: ["Admin"] },
+  // Papelera: items soft-deletados de cursos/exámenes/talleres/proyectos/
+  // sesiones/pizarras/contenidos/encuestas. Visible para Docente y Admin
+  // (no para alumno, que no tiene capacidad de borrar entidades).
+  // SuperAdmin la ve heredada de Admin. RLS de cada tabla acota qué
+  // items ven en la papelera (docente: su curso; admin: su tenant).
+  { to: "/app/trash", labelKey: "nav.trash", icon: Trash2, roles: ["Docente", "Admin"] },
   // SuperAdmin: panel cross-tenant para gestionar instituciones. Se muestra
   // siempre que el usuario tenga el rol SuperAdmin, independiente del
   // activeRole (ver lógica especial en visibleNav filter más abajo).
@@ -784,6 +791,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     // compartidas. Ambas rutas mapean al mismo `module_key`.
     ["/app/teacher/whiteboards", "whiteboards"],
     ["/app/student/whiteboards", "whiteboards"],
+    // Papelera (mig 20260816000000 + seed 20260816000010): Docente / Admin
+    // / SuperAdmin acceden al módulo; Estudiante no aplica (no borra
+    // entidades soft-deletables). RLS de cada tabla acota qué ve cada uno.
+    ["/app/trash", "trash"],
   ];
   // Resuelve módulo para un path (helper local). Si no hay match,
   // null (no controlado por toggles, no participa en sort).

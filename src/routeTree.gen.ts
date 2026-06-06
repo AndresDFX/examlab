@@ -20,6 +20,7 @@ import { Route as AuthConfirmEmailChangeRouteImport } from './routes/auth.confir
 import { Route as AuthCancelEmailChangeRouteImport } from './routes/auth.cancel-email-change'
 import { Route as AppVideosRouteImport } from './routes/app.videos'
 import { Route as AppUnauthorizedRouteImport } from './routes/app.unauthorized'
+import { Route as AppTrashRouteImport } from './routes/app.trash'
 import { Route as AppPreferencesRouteImport } from './routes/app.preferences'
 import { Route as AppMessagesRouteImport } from './routes/app.messages'
 import { Route as AppCertificatesRouteImport } from './routes/app.certificates'
@@ -126,6 +127,11 @@ const AuthCancelEmailChangeRoute = AuthCancelEmailChangeRouteImport.update({
 const AppVideosRoute = AppVideosRouteImport.update({
   id: '/videos',
   path: '/videos',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTrashRoute = AppTrashRouteImport.update({
+  id: '/trash',
+  path: '/trash',
   getParentRoute: () => AppRoute,
 } as any)
 const AppUnauthorizedRoute = AppUnauthorizedRouteImport.update({
@@ -431,6 +437,7 @@ export interface FileRoutesByFullPath {
   '/app/certificates': typeof AppCertificatesRoute
   '/app/messages': typeof AppMessagesRoute
   '/app/preferences': typeof AppPreferencesRoute
+  '/app/trash': typeof AppTrashRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/videos': typeof AppVideosRoute
   '/auth/cancel-email-change': typeof AuthCancelEmailChangeRoute
@@ -499,6 +506,7 @@ export interface FileRoutesByTo {
   '/app/certificates': typeof AppCertificatesRoute
   '/app/messages': typeof AppMessagesRoute
   '/app/preferences': typeof AppPreferencesRoute
+  '/app/trash': typeof AppTrashRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/videos': typeof AppVideosRoute
   '/auth/cancel-email-change': typeof AuthCancelEmailChangeRoute
@@ -570,6 +578,7 @@ export interface FileRoutesById {
   '/app/certificates': typeof AppCertificatesRoute
   '/app/messages': typeof AppMessagesRoute
   '/app/preferences': typeof AppPreferencesRoute
+  '/app/trash': typeof AppTrashRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/videos': typeof AppVideosRoute
   '/auth/cancel-email-change': typeof AuthCancelEmailChangeRoute
@@ -642,6 +651,7 @@ export interface FileRouteTypes {
     | '/app/certificates'
     | '/app/messages'
     | '/app/preferences'
+    | '/app/trash'
     | '/app/unauthorized'
     | '/app/videos'
     | '/auth/cancel-email-change'
@@ -710,6 +720,7 @@ export interface FileRouteTypes {
     | '/app/certificates'
     | '/app/messages'
     | '/app/preferences'
+    | '/app/trash'
     | '/app/unauthorized'
     | '/app/videos'
     | '/auth/cancel-email-change'
@@ -780,6 +791,7 @@ export interface FileRouteTypes {
     | '/app/certificates'
     | '/app/messages'
     | '/app/preferences'
+    | '/app/trash'
     | '/app/unauthorized'
     | '/app/videos'
     | '/auth/cancel-email-change'
@@ -921,6 +933,13 @@ declare module '@tanstack/react-router' {
       path: '/videos'
       fullPath: '/app/videos'
       preLoaderRoute: typeof AppVideosRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/trash': {
+      id: '/app/trash'
+      path: '/trash'
+      fullPath: '/app/trash'
+      preLoaderRoute: typeof AppTrashRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/unauthorized': {
@@ -1361,6 +1380,7 @@ interface AppRouteChildren {
   AppCertificatesRoute: typeof AppCertificatesRoute
   AppMessagesRoute: typeof AppMessagesRoute
   AppPreferencesRoute: typeof AppPreferencesRoute
+  AppTrashRoute: typeof AppTrashRoute
   AppUnauthorizedRoute: typeof AppUnauthorizedRoute
   AppVideosRoute: typeof AppVideosRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -1422,6 +1442,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppCertificatesRoute: AppCertificatesRoute,
   AppMessagesRoute: AppMessagesRoute,
   AppPreferencesRoute: AppPreferencesRoute,
+  AppTrashRoute: AppTrashRoute,
   AppUnauthorizedRoute: AppUnauthorizedRoute,
   AppVideosRoute: AppVideosRoute,
   AppIndexRoute: AppIndexRoute,

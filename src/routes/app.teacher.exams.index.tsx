@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import { supabase } from "@/integrations/supabase/client";
+import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
@@ -150,9 +151,12 @@ function TeacherExams() {
   });
 
   const handleBulkDelete = async (ids: string[]) => {
-    const { error } = await supabase.from("exams").delete().in("id", ids);
+    // Soft-delete: la fila queda invisible para las queries (filtran
+    // is('deleted_at', null)) pero recuperable desde /app/trash hasta
+    // que el cron de purga (30 días) la borre físicamente.
+    const { error } = await softDeleteMany("exams", ids);
     if (error) throw new Error(error.message);
-    toast.success(`${ids.length} examen(es) eliminado(s) correctamente`);
+    toast.success(`${ids.length} examen(es) enviado(s) a papelera`);
     void logEvent({
       action: "exam.deleted",
       category: "exam",
@@ -183,19 +187,19 @@ function TeacherExams() {
 
   const remove = async (exam: Exam) => {
     const ok = await confirm({
-      title: t("exam.deleteTitle", { defaultValue: "Eliminar examen" }),
+      title: t("exam.deleteTitle", { defaultValue: "Enviar a papelera" }),
       description: t("exam.deleteDesc", {
         defaultValue:
-          'Se eliminarán las preguntas, asignaciones y entregas asociadas al examen "{{title}}". Esta acción no se puede deshacer.',
+          'El examen "{{title}}" se ocultará de la lista pero quedará en papelera por 30 días por si querés restaurarlo. Las preguntas, asignaciones y entregas no se borran todavía.',
         title: exam.title,
       }),
-      confirmLabel: t("common.delete", { defaultValue: "Eliminar" }),
-      tone: "destructive",
+      confirmLabel: t("common.delete", { defaultValue: "Enviar a papelera" }),
+      tone: "warning",
     });
     if (!ok) return;
-    const { error } = await supabase.from("exams").delete().eq("id", exam.id);
+    const { error } = await softDelete("exams", exam.id);
     if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
-    toast.success(t("exam.deleted", { defaultValue: "Examen eliminado" }));
+    toast.success(t("exam.deleted", { defaultValue: "Examen enviado a papelera" }));
     void logEvent({
       action: "exam.deleted",
       category: "exam",
@@ -246,10 +250,17 @@ function TeacherExams() {
   const load = async () => {
     const [{ data: cs, error: csErr }, { data: es, error: esErr }, { data: cs2 }] =
       await Promise.all([
-        supabase.from("courses").select("id, name, period").order("name"),
+        supabase
+          .from("courses")
+          .select("id, name, period")
+          // Ocultar cursos en papelera del selector de filtro.
+          .is("deleted_at", null)
+          .order("name"),
         supabase
           .from("exams")
           .select("*, course:courses(name, period)")
+          // Ocultar exámenes en papelera de la lista del docente.
+          .is("deleted_at", null)
           .order("start_time", { ascending: false }),
         (supabase as any)
           .from("grade_cuts")

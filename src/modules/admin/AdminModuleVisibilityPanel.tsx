@@ -114,6 +114,9 @@ const MODULES: Array<{
   { key: "reports", label: "Informes" },
   // Auditoría: variantes Admin y Docente apuntan al mismo módulo.
   { key: "audit_logs", label: "Auditoría" },
+  // Papelera (mig 20260816000000): items soft-deletados de las 8
+  // entidades principales. Solo staff (Docente / Admin / SuperAdmin).
+  { key: "trash", label: "Papelera" },
 ];
 
 /** Resuelve la fila virtual + rol a su `module_key` físico (en DB). */

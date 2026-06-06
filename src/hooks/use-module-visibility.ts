@@ -50,7 +50,11 @@ export type ModuleKey =
   | "audit_logs"
   // Pizarras (Excalidraw embebido) — solo Docente por ahora. Su fila en
   // module_visibility la seedea la migración 20260807000000.
-  | "whiteboards";
+  | "whiteboards"
+  // Papelera — items soft-deletados de las 8 entidades principales.
+  // Solo staff (Docente/Admin/SuperAdmin); el alumno no aplica.
+  // Seed en migración 20260816000010_seed_trash_module_visibility.
+  | "trash";
 
 // SuperAdmin entró a la matriz (mig 20260803000000) — antes el rol
 // heredaba siempre los items de Admin sin posibilidad de silenciarlos.
