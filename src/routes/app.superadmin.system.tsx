@@ -17,11 +17,12 @@ import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/ui/page-header";
-import { Database, KeyRound, Wrench, ShieldEllipsis, Settings2 } from "lucide-react";
+import { Database, KeyRound, Wrench, ShieldEllipsis, Settings2, Mail } from "lucide-react";
 import { AdminEdgeSecretsPanel } from "@/modules/admin/AdminEdgeSecretsPanel";
 import { SystemDiagnosticsPanel } from "@/modules/admin/SystemDiagnosticsPanel";
 import { DbBackupsPanel } from "@/modules/admin/DbBackupsPanel";
 import { PlatformSettingsPanel } from "@/modules/superadmin/PlatformSettingsPanel";
+import { AdminEmailSettingsPanel } from "@/modules/admin/AdminEmailSettingsPanel";
 import { SectionLoader } from "@/components/ui/loaders";
 
 export const Route = createFileRoute("/app/superadmin/system")({
@@ -47,6 +48,10 @@ function SuperAdminSystem() {
             <Settings2 className="h-3.5 w-3.5" />
             Plataforma
           </TabsTrigger>
+          <TabsTrigger value="emails" className="gap-1.5">
+            <Mail className="h-3.5 w-3.5" />
+            Correos
+          </TabsTrigger>
           <TabsTrigger value="backups" className="gap-1.5">
             <Database className="h-3.5 w-3.5" />
             Backups
@@ -62,6 +67,13 @@ function SuperAdminSystem() {
         </TabsList>
         <TabsContent value="platform" className="space-y-4 mt-4">
           <PlatformSettingsPanel />
+        </TabsContent>
+        <TabsContent value="emails" className="space-y-4 mt-4">
+          {/* Mismo panel que el Admin del tenant ve en /app/admin/settings.
+              Edita la fila global de email_settings (id=1) que aplica a
+              TODA la plataforma. El SA ahora puede toggle kinds de email
+              cross-tenant sin tener que cambiar de rol. */}
+          <AdminEmailSettingsPanel />
         </TabsContent>
         <TabsContent value="backups" className="space-y-4 mt-4">
           <DbBackupsPanel />

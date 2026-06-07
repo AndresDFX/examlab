@@ -20,6 +20,7 @@ import {
   Clock,
   Bell,
   Send,
+  Mail,
 } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -1215,6 +1216,78 @@ export function SystemDiagnosticsPanel() {
             </div>
           )}
         </StatusCard>
+
+        {/* Email (SMTP) — contraparte natural de "Web Push": el otro
+            canal de notificación de la plataforma. Antes el grid tenía 9
+            cards y la última (Cron) quedaba huérfana — este décimo la
+            empareja y agrega cobertura útil. Valida los 5 secrets que
+            send-email/index.ts lee en runtime: SMTP_HOST, SMTP_PORT,
+            SMTP_USER, SMTP_PASSWORD, EMAIL_FROM. */}
+        {(() => {
+          const smtpKeys = [
+            "SMTP_HOST",
+            "SMTP_PORT",
+            "SMTP_USER",
+            "SMTP_PASSWORD",
+            "EMAIL_FROM",
+          ] as const;
+          const missing = smtpKeys.filter(
+            (k) => !(secrets.find((s) => s.name === k)?.present ?? false),
+          );
+          const smtpState: "idle" | "ok" | "warning" | "error" = !hcData
+            ? "idle"
+            : missing.length === 0
+              ? "ok"
+              : missing.length === smtpKeys.length
+                ? "error"
+                : "warning";
+          return (
+            <StatusCard
+              title="Email (SMTP)"
+              description="Secrets del relay SMTP que send-email lee en runtime para enviar notificaciones por correo."
+              icon={<Mail className="h-4 w-4 text-rose-500" />}
+              state={smtpState}
+            >
+              {!hcData ? (
+                <p className="text-muted-foreground">Refresca el diagnóstico para ver el estado.</p>
+              ) : (
+                <>
+                  {smtpKeys.map((name) => {
+                    const present = secrets.find((s) => s.name === name)?.present ?? false;
+                    return (
+                      <div key={name} className="flex items-center justify-between text-xs">
+                        <span className="font-mono text-muted-foreground">{name}</span>
+                        {present ? (
+                          <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                            <CheckCircle2 className="h-3 w-3" />
+                            presente
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-destructive">
+                            <XCircle className="h-3 w-3" />
+                            ausente
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {missing.length > 0 && (
+                    <p className="pt-1 text-xs text-amber-600 dark:text-amber-400">
+                      Faltan {missing.length} secret(s): los correos transaccionales (welcome,
+                      reset password, notificaciones) NO se enviarán hasta configurarlos en
+                      Secretos infra.
+                    </p>
+                  )}
+                  {smtpState === "ok" && (
+                    <p className="pt-1 text-xs text-emerald-600 dark:text-emerald-400">
+                      Todos los secrets del SMTP están configurados.
+                    </p>
+                  )}
+                </>
+              )}
+            </StatusCard>
+          );
+        })()}
       </div>
     </div>
   );

@@ -144,7 +144,11 @@ const CATEGORIES: Array<{
 
 export function AdminEmailSettingsPanel() {
   const { roles } = useAuth();
-  const isAdmin = roles.includes("Admin");
+  // El panel se abre tanto para Admin del tenant como para SuperAdmin
+  // (que opera cross-tenant). La RLS de `email_settings` ya enforza
+  // quién puede UPDATE — acá solo gateamos el LOAD inicial. Antes solo
+  // aceptaba Admin y el SA no veía el panel — bug reportado.
+  const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
   const [settings, setSettings] = useState<EmailSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
