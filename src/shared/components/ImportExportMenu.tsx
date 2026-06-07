@@ -16,6 +16,8 @@ import { friendlyError } from "@/shared/lib/db-errors";
 interface ImportExportMenuProps {
   /** Etiqueta del botón principal (ej: "Datos") */
   label?: string;
+  /** data-tour-id opcional para anclaje del onboarding tour (ej. "bulk-import-users"). */
+  tourId?: string;
   /** Nombre base para el archivo (ej: "asistencia"). Se usa también para template-{name}.csv */
   resourceName: string;
   /** Plantilla CSV ya formateada (con header + ejemplo). Opcional cuando
@@ -35,6 +37,7 @@ interface ImportExportMenuProps {
 
 export function ImportExportMenu({
   label = "Datos",
+  tourId,
   resourceName,
   templateCsv,
   onExport,
@@ -92,7 +95,12 @@ export function ImportExportMenu({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="outline" disabled={disabled}>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={disabled}
+            {...(tourId ? { "data-tour-id": tourId } : {})}
+          >
             <Download className="h-4 w-4 mr-1" />
             {label}
           </Button>

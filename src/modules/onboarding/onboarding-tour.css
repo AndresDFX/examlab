@@ -194,6 +194,20 @@
      azul, rojo o el branded color del tenant. */
   filter: brightness(1.08) !important;
 }
+/* Disabled mientras el siguiente step todavía no tiene su elemento en el
+   DOM. OnboardingTour.tsx alterna el atributo `disabled` en runtime para
+   evitar que el usuario avance a un step antes de que la pantalla destino
+   esté renderizada. */
+.driver-popover-next-btn[disabled],
+.driver-popover-next-btn:disabled {
+  opacity: 0.5 !important;
+  cursor: progress !important;
+  filter: none !important;
+}
+.driver-popover-next-btn[disabled]:hover,
+.driver-popover-next-btn:disabled:hover {
+  filter: none !important;
+}
 
 /* ─── Botón "Saltar tour" (ghost / muted) ────────────────────────────── */
 /* Inyectado por OnboardingTour.tsx via onPopoverRender. Tono muted para

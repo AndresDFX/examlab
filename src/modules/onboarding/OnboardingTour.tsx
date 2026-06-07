@@ -196,6 +196,61 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
       pendingTimers.add(timer);
     };
 
+    // ── Gate del botón "Siguiente" ───────────────────────────────────
+    // El usuario tiende a clickear "Siguiente" repetidamente cuando el
+    // tour está cargando una nueva pantalla (transición SPA / fetch /
+    // render del dialog). Si avanza antes de que el step actual termine
+    // de anclarse, driver.js le muestra popovers huérfanos en el centro.
+    //
+    // Gate: mientras el `element` del step actual no esté en el DOM, el
+    // botón "Siguiente" queda disabled. Polleamos cada 200ms (max 3s).
+    // Si timeout sin encontrarlo, lo habilitamos igual (fallback — para
+    // no dejarlo bloqueado en steps que se filtran post-render).
+    let gateTimers: ReturnType<typeof setTimeout>[] = [];
+    const clearGateTimers = () => {
+      gateTimers.forEach((t) => clearTimeout(t));
+      gateTimers = [];
+    };
+    const findNextBtn = (): HTMLButtonElement | null =>
+      document.querySelector<HTMLButtonElement>(".driver-popover-next-btn");
+    const setNextBtnDisabled = (disabled: boolean) => {
+      const btn = findNextBtn();
+      if (!btn) return;
+      if (disabled) {
+        btn.setAttribute("disabled", "true");
+        btn.setAttribute("aria-busy", "true");
+      } else {
+        btn.removeAttribute("disabled");
+        btn.removeAttribute("aria-busy");
+      }
+    };
+    /** Gate el "Siguiente" hasta que `selector` exista en el DOM, o
+     *  hasta `timeoutMs`. Llamar después de cada onHighlightStarted. */
+    const gateNext = (selector: string, timeoutMs = 3000) => {
+      clearGateTimers();
+      // Si el elemento YA está en DOM, no gate.
+      if (document.querySelector(selector)) {
+        setNextBtnDisabled(false);
+        return;
+      }
+      setNextBtnDisabled(true);
+      const startedAt = Date.now();
+      const poll = () => {
+        if (document.querySelector(selector)) {
+          setNextBtnDisabled(false);
+          return;
+        }
+        if (Date.now() - startedAt >= timeoutMs) {
+          setNextBtnDisabled(false);
+          return;
+        }
+        const t = setTimeout(poll, 200);
+        gateTimers.push(t);
+      };
+      const t0 = setTimeout(poll, 200);
+      gateTimers.push(t0);
+    };
+
     const driverObj = driver({
       showProgress: true,
       showButtons: ["next", "previous", "close"],
@@ -209,20 +264,37 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
       smoothScroll: true,
       overlayClickBehavior: "nextStep",
       // Botón "Saltar tour" inyectado en el footer del popover.
-      onPopoverRender: (popover) => {
-        if (popover.footer.querySelector("[data-tour-skip]")) return;
-        const skipBtn = document.createElement("button");
-        skipBtn.type = "button";
-        skipBtn.dataset.tourSkip = "true";
-        skipBtn.textContent = "Saltar tour";
-        skipBtn.className = "driver-tour-skip-btn";
-        skipBtn.style.marginRight = "auto";
-        skipBtn.addEventListener("click", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          driverObj.destroy();
-        });
-        popover.footer.insertBefore(skipBtn, popover.footer.firstChild);
+      // También re-aplicamos el gate del "Siguiente" — driver.js renderiza
+      // el popover de cero al cambiar de step y nuestro estado de
+      // disabled se pierde si no lo re-aplicamos aquí.
+      onPopoverRender: (popover, opts) => {
+        if (!popover.footer.querySelector("[data-tour-skip]")) {
+          const skipBtn = document.createElement("button");
+          skipBtn.type = "button";
+          skipBtn.dataset.tourSkip = "true";
+          skipBtn.textContent = "Saltar tour";
+          skipBtn.className = "driver-tour-skip-btn";
+          skipBtn.style.marginRight = "auto";
+          skipBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            driverObj.destroy();
+          });
+          popover.footer.insertBefore(skipBtn, popover.footer.firstChild);
+        }
+        const activeStep = opts.state.activeStep;
+        if (activeStep?.element && typeof activeStep.element === "string") {
+          gateNext(activeStep.element);
+        }
+      },
+      // Tras completar el highlight (incluye la animación de scroll +
+      // posicionamiento), re-verificamos el gate. Si el element ya
+      // está en DOM, libera el "Siguiente" inmediatamente; si no, deja
+      // el poll corriendo del onPopoverRender.
+      onHighlighted: (_el, step) => {
+        if (step?.element && typeof step.element === "string") {
+          gateNext(step.element);
+        }
       },
       steps: validSteps.map((s) => ({
         element: s.element,
@@ -419,6 +491,7 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
       onDestroyed: () => {
         // Cancelar todo lo pendiente para no dejar dialogs huérfanos.
         cancelPending();
+        clearGateTimers();
         // Cerrar el dialog que el último clickBefore haya abierto
         // (típicamente "Nuevo X"). Sin esto el user cierra el tour
         // pero queda un formulario flotando sobre la ruta destino.
@@ -444,6 +517,7 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
     return () => {
       clearTimeout(startTimer);
       cancelPending();
+      clearGateTimers();
       try {
         driverObj.destroy();
       } catch {

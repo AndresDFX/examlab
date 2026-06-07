@@ -744,6 +744,8 @@ function TeacherProjects() {
   const openNew = () => {
     setEditing(null);
     const first = courses[0]?.id;
+    const now = new Date();
+    const due = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // +2 semanas
     setForm({
       title: "",
       description: "",
@@ -755,6 +757,12 @@ function TeacherProjects() {
       max_score: 100,
       status: "draft",
       linked_course_ids: first ? [first] : [],
+      // "Visible desde" arranca AHORA y "Fecha límite" en 2 semanas por
+      // defecto. El docente típicamente quiere publicar inmediato y
+      // ajusta el due_date a la fecha real del proyecto. Antes ambos
+      // quedaban vacíos y obligaban a escribir desde cero.
+      start_date: toLocal(now.toISOString()),
+      due_date: toLocal(due.toISOString()),
     });
     setCourseCuts(first ? { [first]: { cut_id: null, weight: 1 } } : {});
     setFormIntroVideos([]);
@@ -2028,7 +2036,6 @@ function TeacherProjects() {
                 <TableHead className="w-24">{t("common.status")}</TableHead>
                 <TableHead className="hidden md:table-cell w-28">{t("common.start")}</TableHead>
                 <TableHead className="hidden sm:table-cell w-28">{t("common.end")}</TableHead>
-                <TableHead className="hidden md:table-cell w-24 text-right">Errores IA</TableHead>
                 <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -2074,19 +2081,6 @@ function TeacherProjects() {
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     <DateCell value={p.due_date} variant="datetime" />
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-right tabular-nums">
-                    {aiErrorsByProject[p.id] ? (
-                      <Badge
-                        variant="destructive"
-                        className="text-[10px]"
-                        title={`${aiErrorsByProject[p.id]} entrega(s) con error de IA. El cron reintenta cada 30 min.`}
-                      >
-                        {aiErrorsByProject[p.id]}
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <RowActionsMenu

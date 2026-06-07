@@ -253,8 +253,29 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/admin/users",
     title: "Usuarios",
     description:
-      "<p>Creá y gestionás los usuarios de la institución.</p><strong>Para crear uno solo:</strong><ol><li>Click <em>Nuevo usuario</em>.</li><li>Email, nombre, rol(es).</li><li>Contraseña temporal (el usuario la cambia en su primer login).</li></ol><strong>Para crear muchos:</strong> usá el botón <em>Importar CSV</em> con la plantilla descargable.",
+      "<p>Creá y gestionás los <strong>usuarios</strong> de tu institución: docentes, estudiantes y otros administradores. Asignás roles y los matriculás en cursos. En los próximos pasos te muestro las dos formas de crearlos.",
     side: "right",
+  },
+  // ─── Demo INTERACTIVA: crear un usuario ─────────────────────────────
+  {
+    element: '[data-tour-id="dialog-user"]',
+    clickBefore: '[data-tour-id="create-user"]',
+    waitMs: 400,
+    title: "Crear un usuario",
+    description:
+      "<p>Click en <em>Nuevo usuario</em> abre este modal.</p><ol><li>Email + nombre completo.</li><li>Rol(es): Estudiante, Docente, Admin (o varios).</li><li>Contraseña temporal — el usuario la cambia en su primer login.</li><li>Si es Estudiante, podés asignarle código institucional.</li></ol>",
+    side: "left",
+    align: "center",
+  },
+  // ─── Bulk import: CSV ───────────────────────────────────────────────
+  {
+    element: '[data-tour-id="bulk-import-users"]',
+    escapeBefore: true,
+    title: "Importar usuarios en lote",
+    description:
+      "<p>Para crear <strong>muchos usuarios a la vez</strong>:</p><ol><li>Abrí el menú <em>Datos</em>.</li><li>Click <em>Descargar plantilla</em> — bajás un CSV de ejemplo.</li><li>Llenala con los usuarios (email, nombre, rol, código).</li><li>Click <em>Importar desde CSV</em> y subí el archivo.</li></ol><p>Se crea uno cada ~500ms para no saturar la API.</p>",
+    side: "bottom",
+    align: "end",
   },
 
   // ─── Auditoría (incluye Errores como tab) ───────────────────────────
@@ -912,8 +933,18 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="messages-bell"]',
     title: "Mensajes",
     description:
-      "Chat 1-a-1 con alumnos y otros docentes. También <em>difundís</em> mensajes a uno o varios cursos (con etiquetas para vincular contenido relevante).",
+      "Chat 1-a-1 con alumnos y otros docentes. Acá llegan mensajes nuevos. El badge rojo indica cuántas conversaciones no leídas tenés.",
     side: "right",
+    align: "end",
+  },
+  // ─── Difundir a curso (botón header /app/messages) ──────────────────
+  {
+    element: '[data-tour-id="broadcast-messages"]',
+    route: "/app/messages",
+    title: "Difundir a curso(s)",
+    description:
+      "<p>Desde Mensajes podés <strong>enviar un aviso a TODO un curso</strong> (o a varios) de una sola vez.</p><ol><li>Click <em>Enviar a todos los estudiantes</em>.</li><li>Seleccioná uno o varios cursos.</li><li>Escribí asunto + cuerpo. Etiquetá talleres/exámenes con <code>#</code>.</li><li>Enviar ahora o <em>programar</em> para más tarde.</li></ol><p>Cada alumno recibe notif in-app + correo BCC.</p>",
+    side: "bottom",
     align: "end",
   },
   {

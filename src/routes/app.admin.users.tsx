@@ -1073,12 +1073,13 @@ function AdminUsers() {
             </Select>
             <ImportExportMenu
               resourceName="usuarios"
+              tourId="bulk-import-users"
               templateCsv={USERS_TEMPLATE_CSV}
               onExport={exportUsersCsv}
               onImport={handleImportRows}
               disabled={importing}
             />
-            <Button size="sm" onClick={openNew}>
+            <Button size="sm" onClick={openNew} data-tour-id="create-user">
               <Plus className="h-4 w-4 mr-1" />
               <span className="hidden xs:inline">Nuevo usuario</span>
               <span className="xs:hidden">Nuevo</span>
@@ -1320,7 +1321,7 @@ function AdminUsers() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent data-tour-id="dialog-user">
           <DialogHeader>
             <DialogTitle>{editing?.id ? "Editar" : "Nuevo"} usuario</DialogTitle>
           </DialogHeader>

@@ -1337,6 +1337,7 @@ function MessagesPage() {
                   variant="outline"
                   onClick={() => setBroadcastDialogOpen(true)}
                   title="Enviar (o programar) un mensaje a todos los estudiantes de uno o más cursos."
+                  data-tour-id="broadcast-messages"
                 >
                   <Megaphone className="h-4 w-4 mr-1" />
                   <span className="hidden sm:inline">Enviar a todos los estudiantes</span>

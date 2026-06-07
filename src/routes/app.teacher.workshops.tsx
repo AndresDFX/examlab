@@ -704,6 +704,7 @@ function TeacherWorkshops() {
   }, [gradingOpen, highlightWsQuestionId, highlightSubId, wsSubs]);
 
   const openNew = () => {
+    const now = new Date();
     const due = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const first = courses[0]?.id;
     setForm({
@@ -713,6 +714,11 @@ function TeacherWorkshops() {
       description: "",
       instructions: "",
       external_link: "",
+      // "Visible desde" arranca AHORA — el docente típicamente quiere
+      // que el taller se publique inmediato. Si necesita programar al
+      // futuro, edita el campo. Antes quedaba vacío y obligaba a un
+      // paso extra para escribir la fecha.
+      start_date: toLocal(now),
       due_date: toLocal(due),
       max_score: 100,
       status: "draft",
@@ -2376,7 +2382,6 @@ function TeacherWorkshops() {
                 <TableHead className="hidden md:table-cell w-28">{t("common.start")}</TableHead>
                 <TableHead className="hidden sm:table-cell w-28">{t("common.end")}</TableHead>
                 <TableHead className="w-24">{t("common.status")}</TableHead>
-                <TableHead className="hidden md:table-cell w-24 text-right">Errores IA</TableHead>
                 <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -2472,19 +2477,6 @@ function TeacherWorkshops() {
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={ws.status} />
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-right tabular-nums">
-                    {aiErrorsByWorkshop[ws.id] ? (
-                      <Badge
-                        variant="destructive"
-                        className="text-[10px]"
-                        title={`${aiErrorsByWorkshop[ws.id]} entrega(s) con error de IA. El cron reintenta cada 30 min.`}
-                      >
-                        {aiErrorsByWorkshop[ws.id]}
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <RowActionsMenu
@@ -3135,40 +3127,13 @@ function TeacherWorkshops() {
                 </div>
               </div>
             )}
-            {!(form as any).is_external && (
-              <div>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Label>Rúbrica de calificación IA</Label>
-                  <HelpHint>
-                    <p className="font-medium text-foreground mb-1">JSON opcional</p>
-                    <p>
-                      Define los criterios que la IA usará para calificar. Array JSON donde cada
-                      objeto tiene <code className="bg-muted/40 px-1 rounded">criterio</code>{" "}
-                      (nombre) y <code className="bg-muted/40 px-1 rounded">peso</code> (% del
-                      puntaje total, deben sumar 100).
-                    </p>
-                    <pre className="bg-muted/40 mt-1 p-1.5 rounded text-[10px] overflow-x-auto">{`[
-  {"criterio":"Claridad","peso":25},
-  {"criterio":"Completitud","peso":40},
-  {"criterio":"Conceptos","peso":35}
-]`}</pre>
-                  </HelpHint>
-                </div>
-                <Textarea
-                  rows={3}
-                  placeholder='[{"criterio": "Claridad", "peso": 30}, {"criterio": "Completitud", "peso": 70}]'
-                  value={form.rubric ? JSON.stringify(form.rubric, null, 2) : ""}
-                  onChange={(e) => {
-                    try {
-                      setForm({ ...form, rubric: JSON.parse(e.target.value) });
-                    } catch {
-                      /* allow typing */
-                    }
-                  }}
-                  className="font-mono text-xs"
-                />
-              </div>
-            )}
+            {/* Rúbrica IA del taller: OCULTA del form principal. Antes
+                era un Textarea de JSON crudo que el docente no entendía.
+                La rúbrica REAL la administran los prompts globales en
+                `/app/admin/ai-prompts` (o el override por curso del
+                docente). El campo `rubric` queda en el schema para
+                back-compat con talleres existentes — el save NO lo
+                resetea (sigue siendo `form.rubric ?? null`). */}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
