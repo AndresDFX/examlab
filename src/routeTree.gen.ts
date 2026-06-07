@@ -15,10 +15,10 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthIndexRouteImport } from './routes/auth.index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as VerifyShortCodeRouteImport } from './routes/verify.$shortCode'
+import { Route as AuthSsoCallbackRouteImport } from './routes/auth.sso-callback'
 import { Route as AuthResetPasswordRouteImport } from './routes/auth.reset-password'
 import { Route as AuthConfirmEmailChangeRouteImport } from './routes/auth.confirm-email-change'
 import { Route as AuthCancelEmailChangeRouteImport } from './routes/auth.cancel-email-change'
-import { Route as AuthSsoCallbackRouteImport } from './routes/auth.sso-callback'
 import { Route as AppVideosRouteImport } from './routes/app.videos'
 import { Route as AppUnauthorizedRouteImport } from './routes/app.unauthorized'
 import { Route as AppTrashRouteImport } from './routes/app.trash'
@@ -112,6 +112,11 @@ const VerifyShortCodeRoute = VerifyShortCodeRouteImport.update({
   path: '/verify/$shortCode',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthSsoCallbackRoute = AuthSsoCallbackRouteImport.update({
+  id: '/sso-callback',
+  path: '/sso-callback',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
@@ -127,24 +132,19 @@ const AuthCancelEmailChangeRoute = AuthCancelEmailChangeRouteImport.update({
   path: '/cancel-email-change',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthSsoCallbackRoute = AuthSsoCallbackRouteImport.update({
-  id: '/sso-callback',
-  path: '/sso-callback',
-  getParentRoute: () => AuthRoute,
-} as any)
 const AppVideosRoute = AppVideosRouteImport.update({
   id: '/videos',
   path: '/videos',
   getParentRoute: () => AppRoute,
 } as any)
-const AppTrashRoute = AppTrashRouteImport.update({
-  id: '/trash',
-  path: '/trash',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppUnauthorizedRoute = AppUnauthorizedRouteImport.update({
   id: '/unauthorized',
   path: '/unauthorized',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTrashRoute = AppTrashRouteImport.update({
+  id: '/trash',
+  path: '/trash',
   getParentRoute: () => AppRoute,
 } as any)
 const AppPreferencesRoute = AppPreferencesRouteImport.update({
@@ -943,6 +943,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VerifyShortCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/sso-callback': {
+      id: '/auth/sso-callback'
+      path: '/sso-callback'
+      fullPath: '/auth/sso-callback'
+      preLoaderRoute: typeof AuthSsoCallbackRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/auth/reset-password': {
       id: '/auth/reset-password'
       path: '/reset-password'
@@ -964,13 +971,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCancelEmailChangeRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/auth/sso-callback': {
-      id: '/auth/sso-callback'
-      path: '/sso-callback'
-      fullPath: '/auth/sso-callback'
-      preLoaderRoute: typeof AuthSsoCallbackRouteImport
-      parentRoute: typeof AuthRoute
-    }
     '/app/videos': {
       id: '/app/videos'
       path: '/videos'
@@ -978,18 +978,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppVideosRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/trash': {
-      id: '/app/trash'
-      path: '/trash'
-      fullPath: '/app/trash'
-      preLoaderRoute: typeof AppTrashRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/app/unauthorized': {
       id: '/app/unauthorized'
       path: '/unauthorized'
       fullPath: '/app/unauthorized'
       preLoaderRoute: typeof AppUnauthorizedRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/trash': {
+      id: '/app/trash'
+      path: '/trash'
+      fullPath: '/app/trash'
+      preLoaderRoute: typeof AppTrashRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/preferences': {
