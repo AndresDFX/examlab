@@ -389,16 +389,20 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       setBrand((br as BrandRow) ?? null);
 
       // 4. Asistencia del estudiante en este curso
-      const { data: att } = await supabase
-        .from("attendance_records")
-        .select("session_id, status")
-        .eq("user_id", user.id)
-        .in(
-          "session_id",
-          sessRows.map((s) => s.id),
-        );
+      const sessionIds = sessRows.map((s) => s.id);
       const attMap = new Map<string, AttendanceStatus>();
-      for (const r of (att ?? []) as AttendanceRecord[]) attMap.set(r.session_id, r.status);
+      // PostgREST devuelve TODAS las filas cuando `.in("col", [])` recibe
+      // array vacío — bug documentado en CLAUDE.md. Cortar antes de la
+      // query evita traer attendance de OTROS cursos al alumno y
+      // contaminar los stats agregados.
+      if (sessionIds.length > 0) {
+        const { data: att } = await supabase
+          .from("attendance_records")
+          .select("session_id, status")
+          .eq("user_id", user.id)
+          .in("session_id", sessionIds);
+        for (const r of (att ?? []) as AttendanceRecord[]) attMap.set(r.session_id, r.status);
+      }
       setAttendance(attMap);
 
       // 5. Tareas calendarizadas: exámenes, talleres, proyectos del

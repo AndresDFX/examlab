@@ -1165,9 +1165,18 @@ export function AdminCourses() {
         if (enrErr) console.error("read enrollments:", enrErr);
         if (enr?.length) {
           const rows = enr.map((e: any) => ({ course_id: newCourse.id, user_id: e.user_id }));
+          // upsert con ignoreDuplicates evita 23505 si el doble-click
+          // del admin (o un retry post-error) re-corre la copia.
+          // UNIQUE constraint en (course_id, user_id) — sin upsert, el
+          // 2do intento abortaba TODA la copia dejando el curso destino
+          // con 0 alumnos.
           const { error: insErr, count } = await supabase
             .from("course_enrollments")
-            .insert(rows, { count: "exact" });
+            .upsert(rows, {
+              onConflict: "course_id,user_id",
+              ignoreDuplicates: true,
+              count: "exact",
+            });
           if (insErr) {
             console.error("copy enrollments:", insErr);
             toast.error(`No se pudieron copiar las matrículas: ${friendlyError(insErr)}`);
@@ -1184,9 +1193,13 @@ export function AdminCourses() {
           .select("user_id")
           .eq("course_id", dupSource.id);
         if (ct?.length) {
+          // upsert ignoreDuplicates — mismo motivo que enrollments.
           await supabase
             .from("course_teachers")
-            .insert(ct.map((t: any) => ({ course_id: newCourse.id, user_id: t.user_id })));
+            .upsert(
+              ct.map((t: any) => ({ course_id: newCourse.id, user_id: t.user_id })),
+              { onConflict: "course_id,user_id", ignoreDuplicates: true },
+            );
         }
       }
 

@@ -1096,7 +1096,14 @@ function TakeExam() {
       const event = {
         type,
         at: new Date(now).toISOString(),
-        questionIdx: exam?.navigation_type === "secuencial" ? currentIdx : null,
+        // currentIdxRef.current (no `currentIdx` del closure): el
+        // useEffect que define recordWarning/Copy/Screenshot tiene deps
+        // [started, performSubmit, maxWarnings, requireFullscreen] —
+        // NO incluye currentIdx, así que al avanzar de pregunta los
+        // listeners seguían registrando el índice viejo. El monitor del
+        // docente veía strikes anclados a la pregunta equivocada.
+        questionIdx:
+          exam?.navigation_type === "secuencial" ? currentIdxRef.current : null,
       };
       warningEventsRef.current = [...warningEventsRef.current, event];
 
@@ -1151,7 +1158,14 @@ function TakeExam() {
       const event = {
         type: eventType,
         at: new Date(now).toISOString(),
-        questionIdx: exam?.navigation_type === "secuencial" ? currentIdx : null,
+        // currentIdxRef.current (no `currentIdx` del closure): el
+        // useEffect que define recordWarning/Copy/Screenshot tiene deps
+        // [started, performSubmit, maxWarnings, requireFullscreen] —
+        // NO incluye currentIdx, así que al avanzar de pregunta los
+        // listeners seguían registrando el índice viejo. El monitor del
+        // docente veía strikes anclados a la pregunta equivocada.
+        questionIdx:
+          exam?.navigation_type === "secuencial" ? currentIdxRef.current : null,
       };
       warningEventsRef.current = [...warningEventsRef.current, event];
 
@@ -1189,7 +1203,14 @@ function TakeExam() {
       const event = {
         type: "screenshot_attempt",
         at: new Date(now).toISOString(),
-        questionIdx: exam?.navigation_type === "secuencial" ? currentIdx : null,
+        // currentIdxRef.current (no `currentIdx` del closure): el
+        // useEffect que define recordWarning/Copy/Screenshot tiene deps
+        // [started, performSubmit, maxWarnings, requireFullscreen] —
+        // NO incluye currentIdx, así que al avanzar de pregunta los
+        // listeners seguían registrando el índice viejo. El monitor del
+        // docente veía strikes anclados a la pregunta equivocada.
+        questionIdx:
+          exam?.navigation_type === "secuencial" ? currentIdxRef.current : null,
       };
       warningEventsRef.current = [...warningEventsRef.current, event];
 
