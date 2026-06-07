@@ -402,9 +402,15 @@ function QuestionBankPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
               <Label className="text-xs">Curso</Label>
-              <Select value={courseId} onValueChange={setCourseId}>
+              <Select value={courseId} onValueChange={setCourseId} disabled={courses.length === 0}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un curso" />
+                  <SelectValue
+                    placeholder={
+                      courses.length === 0
+                        ? "No tenés cursos asignados"
+                        : "Selecciona un curso"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {courses.map((c) => (
@@ -414,6 +420,17 @@ function QuestionBankPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {courses.length === 0 && (
+                // Mensaje accionable cuando el docente no está en
+                // course_teachers de ningún curso. Sin esto, el botón
+                // "Nueva pregunta" aparece disabled sin contexto y el
+                // user no sabe qué hacer. El banco de preguntas vive
+                // POR CURSO (RLS lo enforza), así que sin curso no
+                // hay forma de crear.
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Pedile al Admin del tenant que te asigne a un curso para empezar.
+                </p>
+              )}
             </div>
             <div>
               <Label className="text-xs">Tipo</Label>
@@ -494,14 +511,16 @@ function QuestionBankPage() {
                 {filtered.length === 0 ? (
                   <TableEmpty
                     colSpan={8}
-                    text="Sin preguntas"
+                    text={!courseId ? "Elegí un curso" : "Sin preguntas"}
                     hint={
-                      rows.length === 0
-                        ? "Aún no tienes preguntas en el banco de este curso."
-                        : "Ninguna pregunta coincide con los filtros."
+                      !courseId
+                        ? "Seleccioná un curso arriba para ver o crear preguntas del banco."
+                        : rows.length === 0
+                          ? "Aún no tienes preguntas en el banco de este curso."
+                          : "Ninguna pregunta coincide con los filtros."
                     }
                     action={
-                      rows.length === 0 ? (
+                      courseId && rows.length === 0 ? (
                         <Button size="sm" onClick={openCreate}>
                           <Plus className="h-4 w-4 mr-1" />
                           Crear la primera

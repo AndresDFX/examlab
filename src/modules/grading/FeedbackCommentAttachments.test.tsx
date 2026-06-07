@@ -1,3 +1,4 @@
+import type React from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -51,6 +52,16 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
+// El componente usa useConfirm() en lugar de window.confirm nativo.
+// Mockeamos el hook para que siempre resuelva según `confirmResult` —
+// evita rendering del AlertDialog real (portal + radix) y permite
+// controlar el flujo de confirmación por test.
+const confirmResult = { value: true };
+vi.mock("@/shared/components/ConfirmDialog", () => ({
+  useConfirm: () => async () => confirmResult.value,
+  ConfirmProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 import { FeedbackCommentAttachments } from "./FeedbackCommentAttachments";
 import type { AttachmentRow } from "@/modules/grading/feedback-attachments";
 
@@ -83,8 +94,9 @@ beforeEach(() => {
   mockState.lastDeletePath = null;
   mockState.lastDeleteId = null;
   mockState.deleteError = null;
-  // Stub window.confirm para que la prueba de remove no se cuelgue
-  vi.spyOn(window, "confirm").mockReturnValue(true);
+  // Default: confirm() resuelve true. Tests que necesiten cancelar lo
+  // setean a false explícitamente.
+  confirmResult.value = true;
 });
 
 describe("FeedbackCommentAttachments — render", () => {
@@ -123,14 +135,14 @@ describe("FeedbackCommentAttachments — borrado", () => {
     const onChanged = vi.fn();
     render(<FeedbackCommentAttachments attachments={[ROW_MINE]} onChanged={onChanged} />);
     await userEvent.click(screen.getByRole("button", { name: /Quitar foto.png/ }));
-    // Window.confirm devolvió true → ejecuta el delete
+    // useConfirm devolvió true → ejecuta el delete
     expect(mockState.lastDeletePath).toBe(ROW_MINE.path);
     expect(mockState.lastDeleteId).toBe(ROW_MINE.id);
     expect(onChanged).toHaveBeenCalled();
   });
 
   it("NO borra si el usuario cancela el confirm", async () => {
-    vi.spyOn(window, "confirm").mockReturnValueOnce(false);
+    confirmResult.value = false;
     const onChanged = vi.fn();
     render(<FeedbackCommentAttachments attachments={[ROW_MINE]} onChanged={onChanged} />);
     await userEvent.click(screen.getByRole("button", { name: /Quitar foto.png/ }));
