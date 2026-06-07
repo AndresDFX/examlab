@@ -59,6 +59,38 @@ function setRequestModelHint(h: { courseId?: string | null; authHeader?: string 
   requestModelHint = h;
 }
 
+/**
+ * Llama al proveedor de IA con retry exponencial en errores transitorios.
+ *
+ * IMPORTANTE: el tutor IA es síncrono por diseño — no respeta el modo
+ * `processing_mode='async'` global. Una conversación con el alumno no
+ * tiene sentido encolada: el alumno está esperando la respuesta en vivo.
+ * Por eso ningún caller (front o edge) gatea el tutor con
+ * `useAiAuthorizationGate` — siempre se envía directo.
+ *
+ * Reintentos: cubren errores transitorios típicos del lado de Gemini /
+ * OpenAI ({"code":500,"status":"INTERNAL"}, 502, 503, 504, 429 por rate
+ * limit). Hasta 3 intentos con backoff 800ms → 1600ms → 3200ms. El alumno
+ * vio antes el JSON crudo `[{"error":{"code":500,...}}]`; con retry
+ * típicamente ni se entera del fallo transitorio.
+ */
+const MAX_AI_RETRIES = 3;
+const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+
+function isRetryableAiBody(text: string): boolean {
+  // Algunos providers devuelven 200 con body de error indicando rate
+  // limit / overload. Detectamos las cadenas típicas. Conservador —
+  // si no matchea, no reintentamos para no esconder bugs reales.
+  const lower = text.toLowerCase();
+  return (
+    lower.includes('"status":"internal"') ||
+    lower.includes('"status":"unavailable"') ||
+    lower.includes('"status":"resource_exhausted"') ||
+    lower.includes("rate limit") ||
+    lower.includes("overloaded")
+  );
+}
+
 async function callAi(messages: Array<{ role: string; content: string }>) {
   // Resolve modelo + API keys per-tenant (tutor-chat usa el shared helper
   // que incluye openai/gemini keys del tenant).
@@ -74,17 +106,28 @@ async function callAi(messages: Array<{ role: string; content: string }>) {
   }
   if (!key) throw new Error(`API key del provider ${m.provider} no configurada`);
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: m.model, messages }),
-  });
-  if (!res.ok) {
+  let lastErr: { status: number; text: string } | null = null;
+  for (let attempt = 1; attempt <= MAX_AI_RETRIES; attempt++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: m.model, messages }),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      const content = json.choices?.[0]?.message?.content ?? "";
+      const usage = json.usage ?? {};
+      return {
+        content,
+        promptTokens: usage.prompt_tokens ?? null,
+        completionTokens: usage.completion_tokens ?? null,
+      };
+    }
     const errText = await res.text();
-    // Detectamos el caso típico de API key inválida y devolvemos un
-    // mensaje accionable en lugar del JSON crudo del provider. El
-    // alumno no debería ver "API_KEY_INVALID" — eso es config del
-    // admin, no algo que él pueda arreglar.
+    lastErr = { status: res.status, text: errText };
+
+    // API key inválida → error terminal, no reintentar (no se va a
+    // arreglar mágicamente entre intentos).
     const isKeyInvalid =
       res.status === 401 ||
       res.status === 403 ||
@@ -99,16 +142,28 @@ async function callAi(messages: Array<{ role: string; content: string }>) {
           `o que cambie el proveedor activo desde Admin → IA → Modelo.`,
       );
     }
-    throw new Error(`AI error ${res.status}: ${errText.slice(0, 500)}`);
+
+    // Reintentar en transientes (5xx, 429) o body con marca de overload.
+    const shouldRetry =
+      attempt < MAX_AI_RETRIES && (RETRYABLE_STATUS.has(res.status) || isRetryableAiBody(errText));
+    if (!shouldRetry) break;
+
+    // Backoff exponencial: 800ms, 1600ms, 3200ms.
+    const backoff = 800 * Math.pow(2, attempt - 1);
+    await new Promise((r) => setTimeout(r, backoff));
   }
-  const json = await res.json();
-  const content = json.choices?.[0]?.message?.content ?? "";
-  const usage = json.usage ?? {};
-  return {
-    content,
-    promptTokens: usage.prompt_tokens ?? null,
-    completionTokens: usage.completion_tokens ?? null,
-  };
+
+  // Si llegamos acá agotamos los retries. Mensaje friendly según patrón.
+  if (lastErr) {
+    const isOverload = RETRYABLE_STATUS.has(lastErr.status) || isRetryableAiBody(lastErr.text);
+    if (isOverload) {
+      throw new Error(
+        "El proveedor de IA está saturado en este momento. Intenta de nuevo en unos segundos.",
+      );
+    }
+    throw new Error(`AI error ${lastErr.status}: ${lastErr.text.slice(0, 500)}`);
+  }
+  throw new Error("AI sin respuesta tras 3 intentos.");
 }
 
 // ── Resolver del system prompt: override por curso > global > fallback ──

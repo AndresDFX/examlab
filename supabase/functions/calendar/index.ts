@@ -23,6 +23,13 @@ import {
   getUserIdFromRequest,
   isGoogleEventGoneError,
 } from "../_shared/calendar-google.ts";
+import {
+  buildMicrosoftAuthUrl,
+  callMicrosoft,
+  isMicrosoftEventGoneError,
+} from "../_shared/calendar-microsoft.ts";
+
+type Provider = "google" | "microsoft";
 
 interface BaseBody {
   action:
@@ -90,29 +97,26 @@ Deno.serve(async (req) => {
   } catch {
     return jsonError("invalid_json", 400);
   }
-  const provider = body.provider ?? "google";
-  if (provider !== "google") {
-    return jsonError("provider_not_supported_yet", 400);
-  }
+  const provider: Provider = body.provider === "microsoft" ? "microsoft" : "google";
 
   try {
     switch (body.action) {
       case "status":
         return await handleStatus(userId);
       case "init":
-        return await handleInit(userId, body as InitBody);
+        return await handleInit(userId, body as InitBody, provider);
       case "list":
-        return await handleList(userId);
+        return await handleList(userId, provider);
       case "select":
         return await handleSelect(userId, body as SelectBody);
       case "disconnect":
         return await handleDisconnect(userId);
       case "sync":
-        return await handleSync(userId, body as SyncBody);
+        return await handleSync(userId, body as SyncBody, provider);
       case "list_events":
-        return await handleListEvents(userId, body as ListEventsBody);
+        return await handleListEvents(userId, body as ListEventsBody, provider);
       case "link_events_to_sessions":
-        return await handleLinkEventsToSessions(userId, body as LinkEventsBody);
+        return await handleLinkEventsToSessions(userId, body as LinkEventsBody, provider);
       default:
         return jsonError("unknown_action", 400);
     }
@@ -169,7 +173,7 @@ function isAllowedOrigin(o: string): boolean {
   }
 }
 
-async function handleInit(userId: string, body: InitBody) {
+async function handleInit(userId: string, body: InitBody, provider: Provider) {
   if (!body.origin || !/^https?:\/\//.test(body.origin)) {
     return jsonError("origin_required", 400);
   }
@@ -178,21 +182,24 @@ async function handleInit(userId: string, body: InitBody) {
   }
   const nonce = crypto.randomUUID();
   // state opaco — el callback lo cruza contra calendar_oauth_states para
-  // validar one-time + extraer origin sin confiar en lo que mande Google.
+  // validar one-time + extraer origin sin confiar en lo que mande el provider.
   const originB64 = btoa(body.origin).replace(/=+$/, "");
   const state = `${userId}:${nonce}:${originB64}`;
 
-  // OAUTH-1/2: persistir el state con expiración 10min para validación one-time.
+  // OAUTH-1/2: persistir el state con provider para que el callback
+  // sepa a qué proveedor pedir el token exchange. Expiración 10min.
   const { error: stErr } = await adminClient.from("calendar_oauth_states").insert({
     state,
     teacher_id: userId,
-    provider: "google",
+    provider,
     origin: body.origin,
     nonce,
   });
   if (stErr) throw new Error(`oauth_state_insert_failed: ${stErr.message}`);
 
-  return jsonOk({ url: buildGoogleAuthUrl(state) });
+  const url =
+    provider === "microsoft" ? buildMicrosoftAuthUrl(state) : buildGoogleAuthUrl(state);
+  return jsonOk({ url });
 }
 
 interface GCalListItem {
@@ -202,7 +209,29 @@ interface GCalListItem {
   accessRole: string;
 }
 
-async function handleList(userId: string) {
+interface MsCalendarListItem {
+  id: string;
+  name: string;
+  isDefaultCalendar?: boolean;
+  canEdit?: boolean;
+  owner?: { name?: string; address?: string };
+}
+
+async function handleList(userId: string, provider: Provider) {
+  if (provider === "microsoft") {
+    // Microsoft Graph: `/me/calendars` no soporta filter por permiso.
+    // Filtramos client-side por `canEdit:true` para que el docente no
+    // vea calendarios de solo lectura (compartidos) donde no podría
+    // crear eventos.
+    const res = await callMicrosoft<{ value: MsCalendarListItem[] }>(
+      userId,
+      "/me/calendars?$select=id,name,isDefaultCalendar,canEdit,owner&$top=100",
+    );
+    const calendars = (res.value ?? [])
+      .filter((c) => c.canEdit !== false)
+      .map((c) => ({ id: c.id, name: c.name, primary: !!c.isDefaultCalendar }));
+    return jsonOk({ calendars });
+  }
   const res = await callGoogle<{ items: GCalListItem[] }>(
     userId,
     "/calendar/v3/users/me/calendarList?minAccessRole=writer",
@@ -270,19 +299,27 @@ async function handleDisconnect(userId: string) {
     .eq("teacher_id", userId)
     .maybeSingle();
 
-  // OAUTH-4: revocar el token en Google ANTES de borrar localmente.
-  // Best-effort — si falla (ya revocado, red caída) seguimos con el delete
-  // local: el docente igual queda desconectado del lado app.
-  const tokenToRevoke = tok?.refresh_token ?? tok?.access_token;
-  if (tokenToRevoke) {
-    try {
-      await fetch("https://oauth2.googleapis.com/revoke", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ token: tokenToRevoke }),
-      });
-    } catch (_) {
-      /* best-effort */
+  const providerRow = (tok?.provider ?? "google") as Provider;
+  let revoked = false;
+  // Revoke en Google: best-effort vía /revoke. Microsoft NO expone un
+  // endpoint análogo público; el token se invalida cuando borrás la
+  // fila local (el siguiente refresh fallará y obligará reconexión).
+  // Para revocación inmediata MS pediría `/me/revokeSignInSessions`,
+  // pero eso desloguea TODAS las sesiones del usuario en el tenant —
+  // demasiado invasivo para este flujo.
+  if (providerRow === "google") {
+    const tokenToRevoke = tok?.refresh_token ?? tok?.access_token;
+    if (tokenToRevoke) {
+      try {
+        await fetch("https://oauth2.googleapis.com/revoke", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ token: tokenToRevoke }),
+        });
+        revoked = true;
+      } catch (_) {
+        /* best-effort */
+      }
     }
   }
 
@@ -292,11 +329,11 @@ async function handleDisconnect(userId: string) {
     "calendar.disconnected",
     "info",
     {
-      provider: tok?.provider ?? "google",
+      provider: providerRow,
       provider_email: tok?.provider_email ?? tok?.google_email ?? null,
-      revoked: !!tokenToRevoke,
+      revoked,
     },
-    "Google Calendar",
+    providerRow === "microsoft" ? "Outlook / Microsoft 365" : "Google Calendar",
   );
   return jsonOk({});
 }
@@ -306,6 +343,24 @@ interface GCalEvent {
   hangoutLink?: string;
   htmlLink?: string;
   conferenceData?: { entryPoints?: Array<{ uri: string; entryPointType: string }> };
+}
+
+/** Subset de Microsoft Graph Event que usamos. La response completa es
+ *  más grande — pedimos solo lo necesario. */
+interface MsEvent {
+  id: string;
+  subject?: string;
+  bodyPreview?: string;
+  webLink?: string;
+  /** Cuando el evento se creó con isOnlineMeeting=true Y la cuenta tiene
+   *  licencia Teams habilitada, este campo trae el joinUrl. Si la
+   *  cuenta NO puede crear Teams (sin licencia, Conditional Access
+   *  bloqueado, tenant restringido), `onlineMeeting` viene null y el
+   *  evento queda sin link. No falla — solo no hay Teams. */
+  onlineMeeting?: { joinUrl?: string } | null;
+  start?: { dateTime?: string; timeZone?: string };
+  end?: { dateTime?: string; timeZone?: string };
+  isCancelled?: boolean;
 }
 
 function toIsoEvent(
@@ -326,7 +381,7 @@ function toIsoEvent(
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-async function handleSync(userId: string, body: SyncBody) {
+async function handleSync(userId: string, body: SyncBody, provider: Provider) {
   if (!body.courseId) return jsonError("course_required", 400);
 
   // 1) Validar que el docente es del curso.
@@ -338,27 +393,41 @@ async function handleSync(userId: string, body: SyncBody) {
     .maybeSingle();
   if (!ct) return jsonError("not_teacher_of_course", 403);
 
-  // 2) Verificar conexión + calendario seleccionado.
+  // 2) Verificar conexión + calendario seleccionado. Validamos también
+  // que la fila corresponda al provider solicitado — si el docente
+  // está conectado a Google y la UI llama con provider=microsoft,
+  // devolvemos un error claro en vez de hacer un fetch que falla.
   const { data: tok } = await adminClient
     .from("teacher_google_tokens")
-    .select("calendar_id")
+    .select("calendar_id, provider")
     .eq("teacher_id", userId)
     .maybeSingle();
   if (!tok?.calendar_id) return jsonError("no_calendar_selected", 400);
+  if ((tok.provider ?? "google") !== provider) {
+    return jsonError("provider_mismatch", 409);
+  }
   const calId = encodeURIComponent(tok.calendar_id);
 
   // Pre-check: ¿existe todavía el calendario? Si el docente lo borró en
-  // Google Calendar o perdió acceso, el GET de metadata responde 404
-  // y NO tiene sentido intentar crear N eventos uno por uno (cada uno
-  // dará 404 igual y la UI muestra "Total: N · Fallidas: N"). Detectamos
-  // el caso una sola vez, limpiamos el binding en DB y devolvemos un
-  // error claro pidiendo al docente que reconecte/elija calendario.
+  // su Calendar / Outlook o perdió acceso, el GET de metadata responde
+  // 404 y NO tiene sentido intentar crear N eventos uno por uno (cada
+  // uno daría 404 igual). Detectamos el caso una sola vez, limpiamos el
+  // binding en DB y devolvemos un error claro pidiendo al docente que
+  // reconecte / elija otro calendario.
   try {
-    await callGoogle<{ id: string }>(userId, `/calendar/v3/calendars/${calId}`, {
-      method: "GET",
-    });
+    if (provider === "microsoft") {
+      await callMicrosoft<{ id: string }>(userId, `/me/calendars/${calId}`, {
+        method: "GET",
+      });
+    } else {
+      await callGoogle<{ id: string }>(userId, `/calendar/v3/calendars/${calId}`, {
+        method: "GET",
+      });
+    }
   } catch (e) {
-    if (isGoogleEventGoneError(e)) {
+    const isGone =
+      provider === "microsoft" ? isMicrosoftEventGoneError(e) : isGoogleEventGoneError(e);
+    if (isGone) {
       // 404/410 → el calendario seleccionado ya no es accesible.
       // Limpiamos `calendar_id` para que la UI pida re-seleccionar.
       await adminClient
@@ -366,7 +435,7 @@ async function handleSync(userId: string, body: SyncBody) {
         .update({ calendar_id: null, calendar_name: null })
         .eq("teacher_id", userId);
       await audit(userId, "calendar.calendar_missing", "warning", {
-        provider: "google",
+        provider,
         course_id: body.courseId,
         calendar_id: tok.calendar_id,
       });
@@ -401,27 +470,39 @@ async function handleSync(userId: string, body: SyncBody) {
   ]);
 
   const studentIds = (enrolls ?? []).map((e: { user_id: string }) => e.user_id);
-  // Pre-aceptamos a los attendees con responseStatus="accepted" para
-  // que el evento aparezca automaticamente en SU Google Calendar sin
-  // que tengan que RSVP. Esto es importante porque Google Meet muestra
-  // el `summary` del evento como nombre de la reunion SOLO si el
-  // usuario tiene el evento en su calendar. Si entra al Meet por la
-  // URL sin tener el evento, ve el meeting code (abc-defg-hij) en vez
-  // del titulo legible. Pre-aceptar resuelve el caso comun.
-  // (Funciona dentro del mismo Google Workspace que el organizer; para
-  // emails externos Google igual respeta el responseStatus pero algunos
-  // clientes muestran "tentative" hasta confirmar manualmente.)
-  let attendees: Array<{ email: string; responseStatus: "accepted" }> = [];
+  // Emails canónicos de los alumnos matriculados — la transformación al
+  // shape esperado por cada proveedor (responseStatus vs emailAddress)
+  // ocurre cuando armamos cada eventBody, no acá.
+  let studentEmails: string[] = [];
   if (studentIds.length > 0) {
     const { data: profs } = await adminClient
       .from("profiles")
       .select("institutional_email")
       .in("id", studentIds);
-    attendees = (profs ?? [])
+    studentEmails = (profs ?? [])
       .map((p: { institutional_email: string | null }) => p.institutional_email)
-      .filter((e: string | null): e is string => !!e && e.includes("@"))
-      .map((email: string) => ({ email, responseStatus: "accepted" as const }));
+      .filter((e: string | null): e is string => !!e && e.includes("@"));
   }
+  // Google: pre-aceptamos a los attendees con responseStatus="accepted"
+  // para que el evento aparezca automaticamente en SU Google Calendar
+  // sin que tengan que RSVP. Esto es importante porque Google Meet
+  // muestra el `summary` del evento como nombre de la reunion SOLO si
+  // el usuario tiene el evento en su calendar. Si entra al Meet por la
+  // URL sin tener el evento, ve el meeting code (abc-defg-hij) en vez
+  // del titulo legible. Pre-aceptar resuelve el caso comun.
+  const googleAttendees = studentEmails.map((email) => ({
+    email,
+    responseStatus: "accepted" as const,
+  }));
+  // Microsoft: no permite pre-aceptar (responseStatus es read-only en
+  // Graph). Cada attendee recibe la invitación normal en Outlook y
+  // decide RSVP. `type=required` mantiene el comportamiento de "te
+  // pediremos confirmación" — usar `optional` para ocultar la columna
+  // de respuesta. Mantenemos `required` para paridad con Google.
+  const msAttendees = studentEmails.map((email) => ({
+    emailAddress: { address: email, name: email.split("@")[0] },
+    type: "required" as const,
+  }));
 
   let created = 0,
     updated = 0,
@@ -438,12 +519,92 @@ async function handleSync(userId: string, body: SyncBody) {
       const summary = s.title
         ? `${course?.name ?? "Curso"}: ${s.title}`
         : `${course?.name ?? "Curso"} — ${s.session_date}`;
+      const description = `Sesión sincronizada desde ExamLab.\nCurso: ${course?.name ?? ""}`;
+
+      if (provider === "microsoft") {
+        // ── MICROSOFT GRAPH ──
+        // Schema distinto a Google: `subject` no `summary`, `body`
+        // con `{contentType, content}` no `description`. timeZone va
+        // explícito por campo (Graph es estricto). attendees con
+        // `emailAddress.address`. isOnlineMeeting+onlineMeetingProvider
+        // dispara auto-creación de meeting de Teams — si la cuenta no
+        // tiene licencia Teams o el tenant lo bloquea, el evento se
+        // crea sin link de Teams (no falla; el docente puede pegar
+        // uno manual en meeting_url).
+        const eventBody = {
+          subject: summary,
+          body: { contentType: "Text", content: description },
+          start: { dateTime: start.replace("Z", ""), timeZone: "America/Bogota" },
+          end: { dateTime: end.replace("Z", ""), timeZone: "America/Bogota" },
+          attendees: msAttendees,
+          isOnlineMeeting: true,
+          onlineMeetingProvider: "teamsForBusiness",
+          // hideAttendees=false (default): los attendees ven a los otros.
+          // Si querés ocultarlos, set `isHideAttendees: true` (Graph beta).
+        };
+        const extractTeamsLink = (ev: MsEvent): string | null =>
+          ev.onlineMeeting?.joinUrl ?? null;
+        const insertMsEvent = async (): Promise<MsEvent> => {
+          return await callMicrosoft<MsEvent>(
+            userId,
+            `/me/calendars/${calId}/events`,
+            { method: "POST", body: JSON.stringify(eventBody) },
+          );
+        };
+
+        if (s.google_event_id) {
+          let ev: MsEvent | null = null;
+          let recreatedFromGone = false;
+          try {
+            ev = await callMicrosoft<MsEvent>(
+              userId,
+              `/me/events/${encodeURIComponent(s.google_event_id)}`,
+              { method: "PATCH", body: JSON.stringify(eventBody) },
+            );
+          } catch (e) {
+            if (isMicrosoftEventGoneError(e)) {
+              recreatedFromGone = true;
+            } else {
+              throw e;
+            }
+          }
+          if (recreatedFromGone) {
+            ev = await insertMsEvent();
+            const teamsLink = extractTeamsLink(ev);
+            await adminClient
+              .from("attendance_sessions")
+              .update({ google_event_id: ev.id, meeting_url: teamsLink })
+              .eq("id", s.id);
+            created++;
+          } else if (ev) {
+            const teamsLink = extractTeamsLink(ev);
+            if (teamsLink) {
+              await adminClient
+                .from("attendance_sessions")
+                .update({ meeting_url: teamsLink })
+                .eq("id", s.id);
+            }
+            updated++;
+          }
+        } else {
+          const ev = await insertMsEvent();
+          const teamsLink = extractTeamsLink(ev);
+          await adminClient
+            .from("attendance_sessions")
+            .update({ google_event_id: ev.id, meeting_url: teamsLink })
+            .eq("id", s.id);
+          created++;
+        }
+        continue;
+      }
+
+      // ── GOOGLE CALENDAR ──
       const eventBody = {
         summary,
-        description: `Sesión sincronizada desde ExamLab.\nCurso: ${course?.name ?? ""}`,
+        description,
         start: { dateTime: start, timeZone: "America/Bogota" },
         end: { dateTime: end, timeZone: "America/Bogota" },
-        attendees,
+        attendees: googleAttendees,
         guestsCanSeeOtherGuests: false,
         reminders: { useDefault: true },
       };
@@ -544,7 +705,7 @@ async function handleSync(userId: string, body: SyncBody) {
     failed > 0 && created + updated === 0 ? "calendar.sync_failed" : "calendar.synced",
     failed > 0 && created + updated === 0 ? "error" : "info",
     {
-      provider: "google",
+      provider,
       course_id: body.courseId,
       course_name: course?.name ?? null,
       calendar_id: tok.calendar_id,
@@ -586,23 +747,59 @@ interface GoogleEvent {
   status?: string;
 }
 
-async function handleListEvents(userId: string, body: ListEventsBody) {
+async function handleListEvents(userId: string, body: ListEventsBody, provider: Provider) {
   if (!body.fromDate || !body.toDate) return jsonError("date_range_required", 400);
-  // Sanity check de formato (no consultamos Google si los datos son
-  // basura — el endpoint igual rechazaría con 400 pero el mensaje no
-  // ayuda al docente).
+  // Sanity check de formato (no consultamos al proveedor si los datos
+  // son basura — el endpoint igual rechazaría con 400 pero el mensaje
+  // no ayuda al docente).
   if (!/^\d{4}-\d{2}-\d{2}$/.test(body.fromDate) || !/^\d{4}-\d{2}-\d{2}$/.test(body.toDate)) {
     return jsonError("invalid_date_format", 400);
   }
 
-  // Verificar conexión + calendario seleccionado.
+  // Verificar conexión + calendario seleccionado + provider coincide.
   const { data: tok } = await adminClient
     .from("teacher_google_tokens")
-    .select("calendar_id")
+    .select("calendar_id, provider")
     .eq("teacher_id", userId)
     .maybeSingle();
   if (!tok?.calendar_id) return jsonError("no_calendar_selected", 400);
+  if ((tok.provider ?? "google") !== provider) return jsonError("provider_mismatch", 409);
   const calId = encodeURIComponent(tok.calendar_id);
+
+  if (provider === "microsoft") {
+    // Graph: `calendarView` expande recurrentes (paralelo a Google
+    // `singleEvents=true`). startDateTime/endDateTime van en ISO UTC
+    // sin offset; Graph asume UTC salvo header `Prefer: outlook.timezone`.
+    const url =
+      `/me/calendars/${calId}/calendarView` +
+      `?startDateTime=${encodeURIComponent(`${body.fromDate}T00:00:00`)}` +
+      `&endDateTime=${encodeURIComponent(`${body.toDate}T23:59:59`)}` +
+      `&$top=250&$orderby=start/dateTime` +
+      `&$select=id,subject,bodyPreview,webLink,onlineMeeting,start,end,isCancelled`;
+    try {
+      const res = await callMicrosoft<{ value?: MsEvent[] }>(userId, url, {
+        method: "GET",
+        headers: { Prefer: 'outlook.timezone="America/Bogota"' },
+      });
+      const items = (res.value ?? [])
+        .filter((e) => e.isCancelled !== true)
+        .map((e) => ({
+          id: e.id,
+          summary: e.subject ?? "(sin título)",
+          description: e.bodyPreview ?? null,
+          start: e.start?.dateTime ?? null,
+          end: e.end?.dateTime ?? null,
+          hangoutLink: e.onlineMeeting?.joinUrl ?? null,
+          htmlLink: e.webLink ?? null,
+        }));
+      return jsonOk({ events: items });
+    } catch (e) {
+      if (isMicrosoftEventGoneError(e)) {
+        return jsonError("calendar_not_accessible", 410);
+      }
+      return jsonError(`microsoft_api_error: ${(e as Error).message}`, 502);
+    }
+  }
 
   // Google Calendar API espera RFC3339 con offset. Usamos -05:00
   // (Bogotá) como en handleSync. fromDate=00:00, toDate=23:59:59.
@@ -640,7 +837,11 @@ async function handleListEvents(userId: string, body: ListEventsBody) {
   }
 }
 
-async function handleLinkEventsToSessions(userId: string, body: LinkEventsBody) {
+async function handleLinkEventsToSessions(
+  userId: string,
+  body: LinkEventsBody,
+  provider: Provider,
+) {
   if (!body.courseId) return jsonError("course_required", 400);
   if (!Array.isArray(body.links) || body.links.length === 0) {
     return jsonError("links_required", 400);
@@ -655,13 +856,14 @@ async function handleLinkEventsToSessions(userId: string, body: LinkEventsBody) 
     .maybeSingle();
   if (!ct) return jsonError("not_teacher_of_course", 403);
 
-  // 2) Calendario seleccionado (necesario para fetch del meeting URL).
+  // 2) Calendario seleccionado + provider coincide.
   const { data: tok } = await adminClient
     .from("teacher_google_tokens")
-    .select("calendar_id")
+    .select("calendar_id, provider")
     .eq("teacher_id", userId)
     .maybeSingle();
   if (!tok?.calendar_id) return jsonError("no_calendar_selected", 400);
+  if ((tok.provider ?? "google") !== provider) return jsonError("provider_mismatch", 409);
   const calId = encodeURIComponent(tok.calendar_id);
 
   // 3) Pre-validación: todas las sesiones deben ser del curso del
@@ -703,17 +905,32 @@ async function handleLinkEventsToSessions(userId: string, body: LinkEventsBody) 
         unlinked += 1;
         continue;
       }
-      // Fetch del evento para extraer meeting_url.
-      const ev = await callGoogle<GoogleEvent>(
-        userId,
-        `/calendar/v3/calendars/${calId}/events/${encodeURIComponent(link.eventId)}`,
-        { method: "GET" },
-      );
-      const meetingUrl = ev.hangoutLink ?? ev.htmlLink ?? null;
+      // Fetch del evento para extraer meeting_url. Distinto path por
+      // provider: Google `/calendars/{id}/events/{id}`, Microsoft
+      // `/me/events/{id}` (cualquier calendario del usuario).
+      let eventId: string;
+      let meetingUrl: string | null;
+      if (provider === "microsoft") {
+        const ev = await callMicrosoft<MsEvent>(
+          userId,
+          `/me/events/${encodeURIComponent(link.eventId)}?$select=id,subject,webLink,onlineMeeting`,
+          { method: "GET" },
+        );
+        eventId = ev.id;
+        meetingUrl = ev.onlineMeeting?.joinUrl ?? ev.webLink ?? null;
+      } else {
+        const ev = await callGoogle<GoogleEvent>(
+          userId,
+          `/calendar/v3/calendars/${calId}/events/${encodeURIComponent(link.eventId)}`,
+          { method: "GET" },
+        );
+        eventId = ev.id;
+        meetingUrl = ev.hangoutLink ?? ev.htmlLink ?? null;
+      }
       await adminClient
         .from("attendance_sessions")
         .update({
-          google_event_id: ev.id,
+          google_event_id: eventId,
           meeting_url: meetingUrl,
         })
         .eq("id", link.sessionId);
@@ -725,7 +942,7 @@ async function handleLinkEventsToSessions(userId: string, body: LinkEventsBody) 
   }
 
   await audit(userId, "calendar.events_linked_to_sessions", "info", {
-    provider: "google",
+    provider,
     course_id: body.courseId,
     linked,
     unlinked,

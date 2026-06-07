@@ -5,9 +5,46 @@
 # las siguientes solo actualizan la imagen del runner.
 #
 # Pre-reqs (en tu máquina local):
-#   - aws CLI configurado (`aws configure`)
+#   - aws CLI v2 instalada (NO hace falta `aws configure` si vas a usar
+#     env vars — ver "Autenticación" abajo).
 #   - docker corriendo
 #   - openssl (para generar API key aleatoria)
+#
+# Autenticación con AWS — DOS opciones:
+#
+#   (a) `aws configure` (perfil persistente en ~/.aws/credentials).
+#       La forma clásica. Una vez por máquina.
+#
+#   (b) Variables de entorno (NO se persiste nada en disco). Recomendado
+#       para CI o cuando rotás keys con frecuencia. La aws CLI las
+#       reconoce automáticamente — no hace falta tocar nada del script.
+#
+#         export AWS_ACCESS_KEY_ID=AKIA...
+#         export AWS_SECRET_ACCESS_KEY=...
+#         export AWS_REGION=us-east-1            # o AWS_DEFAULT_REGION
+#         # Opcional, solo si son creds temporales (SSO/STS/AssumeRole):
+#         # export AWS_SESSION_TOKEN=...
+#         ./deploy.sh
+#
+#       Inline en una sola línea (no quedan en el shell history si
+#       prefijás un espacio):
+#         AWS_ACCESS_KEY_ID=AKIA... AWS_SECRET_ACCESS_KEY=... \
+#           AWS_REGION=us-east-1 ./deploy.sh
+#
+#       Windows PowerShell (correr el script desde Git Bash o WSL):
+#         $env:AWS_ACCESS_KEY_ID = "AKIA..."
+#         $env:AWS_SECRET_ACCESS_KEY = "..."
+#         $env:AWS_REGION = "us-east-1"          # o AWS_DEFAULT_REGION
+#         # Opcional para creds temporales:
+#         # $env:AWS_SESSION_TOKEN = "..."
+#         bash ./deploy.sh
+#
+#       En PowerShell el `$env:VAR` solo dura la sesión actual de la
+#       terminal — al cerrarla, las creds desaparecen (intencional, no
+#       quedan en disco). Si querés persistirlas para tu usuario:
+#         [Environment]::SetEnvironmentVariable("AWS_ACCESS_KEY_ID","AKIA...","User")
+#       (pero entonces es equivalente a `aws configure`; preferí
+#       seguir con `$env:` por sesión para minimizar superficie.)
 #
 # Uso:
 #   ./deploy.sh                # build con cache + push :latest + tag único

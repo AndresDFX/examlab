@@ -124,6 +124,11 @@ function CalendarPage() {
       });
       setStatus(r);
       if (r.calendar_id) setSelectedCalId(r.calendar_id);
+      // Si el docente ya está conectado a un provider, alineamos el
+      // selector. Sin esto el toggle quedaba en "google" aunque la
+      // conexión real fuera "microsoft", y handleList/handleSync
+      // devolvían `provider_mismatch`.
+      if (r.connected && r.provider) setProvider(r.provider);
     } catch (e) {
       toast.error(`${t("calendar.statusError")}: ${(e as Error).message}`);
     } finally {
@@ -361,9 +366,11 @@ function CalendarPage() {
         icon={<CalendarDays className="h-6 w-6 text-primary" />}
       />
 
-      {/* Provider selector — Google único disponible por ahora; Outlook
-          aparece deshabilitado para que el docente sepa que está en hoja
-          de ruta. */}
+      {/* Provider selector — Google + Outlook/Microsoft 365 (Teams).
+          Solo se puede tener UNA conexión activa por docente: al
+          conectar uno, se desconecta el otro. Si ya hay una conexión
+          activa de otro provider, el selector se sincroniza con el
+          provider actual al cargar status. */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">{t("calendar.providerLabel")}</CardTitle>
@@ -376,11 +383,16 @@ function CalendarPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="google">Google Calendar</SelectItem>
-              <SelectItem value="microsoft" disabled>
-                Outlook / Microsoft 365 ({t("calendar.comingSoon")})
-              </SelectItem>
+              <SelectItem value="microsoft">Outlook / Microsoft 365 (Teams)</SelectItem>
             </SelectContent>
           </Select>
+          {status?.connected && status.provider && status.provider !== provider && (
+            <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+              Estás conectado a{" "}
+              <strong>{status.provider === "google" ? "Google" : "Outlook"}</strong>. Si conectás{" "}
+              {provider === "google" ? "Google" : "Outlook"} se reemplaza la conexión actual.
+            </p>
+          )}
         </CardContent>
       </Card>
 

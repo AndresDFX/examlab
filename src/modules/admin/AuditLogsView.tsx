@@ -435,7 +435,11 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
     if (!isSuperAdminCaller) return;
     let cancelled = false;
     void (async () => {
-      const { data } = await db.from("tenants").select("id, slug, name").order("name");
+      const { data } = await db
+        .from("tenants")
+        .select("id, slug, name")
+        .is("deleted_at", null)
+        .order("name");
       if (cancelled) return;
       setTenants((data ?? []) as Array<{ id: string; slug: string; name: string }>);
     })();

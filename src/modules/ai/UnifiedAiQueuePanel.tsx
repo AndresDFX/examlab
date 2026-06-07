@@ -209,7 +209,13 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
     if (!isSuperAdminCaller) return;
     let cancelled = false;
     void (async () => {
-      const { data } = await db.from("tenants").select("id, name").order("name");
+      // .is("deleted_at", null): los tenants en papelera no aparecen
+      // en filtros del SuperAdmin (mig 20260818000000).
+      const { data } = await db
+        .from("tenants")
+        .select("id, name")
+        .is("deleted_at", null)
+        .order("name");
       if (cancelled) return;
       setTenants((data ?? []) as Array<{ id: string; name: string }>);
     })();

@@ -105,7 +105,11 @@ export function RegenerateContentDialog({
     if (decision === "cancel") return;
     if (decision === "proceed-async") {
       if (!user?.id) {
-        toast.error("Sesión no válida. Recargá la página.");
+        toast.error(
+          t("contents.regenerateSessionInvalid", {
+            defaultValue: "Sesión no válida. Recargá la página.",
+          }),
+        );
         return;
       }
       const enqueueBody: Record<string, unknown> = {
@@ -143,8 +147,14 @@ export function RegenerateContentDialog({
       }
       toast.success(
         target.mode === "full"
-          ? 'Regeneración encolada. Aparecerá en "Cola IA → Generaciones" hasta que se procese.'
-          : `Regeneración de la clase ${target.classNumber} encolada. Aparecerá en "Cola IA → Generaciones".`,
+          ? t("contents.regenerateQueuedFull", {
+              defaultValue:
+                'Regeneración encolada. Aparecerá en "Cola IA → Generaciones" hasta que se procese.',
+            })
+          : t("contents.regenerateQueuedClass", {
+              class: target.classNumber,
+              defaultValue: `Regeneración de la clase ${target.classNumber} encolada. Aparecerá en "Cola IA → Generaciones".`,
+            }),
       );
       onStarted();
       onClose();

@@ -431,7 +431,11 @@ function TeacherContents() {
         // recorta al suyo y el array queda en 1 → el Select abajo no se
         // renderiza (`tenants.length > 0` gate).
         isSuperAdminCaller
-          ? db.from("tenants").select("id, slug, name").order("name")
+          ? db
+              .from("tenants")
+              .select("id, slug, name")
+              .is("deleted_at", null)
+              .order("name")
           : Promise.resolve({ data: [] }),
       ]);
     // generated_contents es la query crítica — sin contenidos no hay

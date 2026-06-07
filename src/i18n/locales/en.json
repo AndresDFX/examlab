@@ -876,6 +876,9 @@
     "regenerateDialogClassSubtitle": "Edit topic or instructions to refine ONLY this class. The intro and other classes stay untouched.",
     "regenerateDialogSubmitFull": "Regenerate all",
     "regenerateDialogSubmitClass": "Regenerate this class",
+    "regenerateQueuedClass": "Class {{class}} regeneration queued. It will appear in \"AI Queue → Generations\".",
+    "regenerateQueuedFull": "Regeneration queued. It will appear in \"AI Queue → Generations\" until processed.",
+    "regenerateSessionInvalid": "Invalid session. Please reload the page.",
     "classSessionCol": "Session",
     "classMaterialsCol": "Materials",
     "classActionsCol": "Actions",
@@ -1055,5 +1058,70 @@
         "desc": "New material assigned to a session (push/in-app, no email)"
       }
     }
+  },
+  "studentCalendar": {
+    "kinds": {
+      "clase": "Class",
+      "examen": "Exam",
+      "fin_curso": "Course end",
+      "inicio_curso": "Course start",
+      "proyecto": "Project",
+      "taller": "Workshop"
+    },
+    "legend": {
+      "empty": "No events this month.",
+      "label": "Legend:"
+    },
+    "monthLabels": {
+      "april": "April",
+      "august": "August",
+      "december": "December",
+      "february": "February",
+      "january": "January",
+      "july": "July",
+      "june": "June",
+      "march": "March",
+      "may": "May",
+      "november": "November",
+      "october": "October",
+      "september": "September"
+    },
+    "nav": {
+      "nextMonth": "Next month",
+      "prevMonth": "Previous month",
+      "today": "Today"
+    },
+    "weekdaysShort": ["M", "T", "W", "T", "F", "S", "S"]
+  },
+  "aiModel": {
+    "activeTitle": "Active model",
+    "apiKeyEmptyGlobal": "Not configured — internal jobs fall back to the env secret",
+    "apiKeyEmptyTenant": "Paste your API key (required)",
+    "apiKeyMissingAlert": "Missing the <strong>{{provider}}</strong> API key. Without it, AI grading won't work for your institution. Paste it above before saving.",
+    "apiKeyRequiredToast": "Configure the {{provider}} API key before saving. Your institution must use its own key (the SuperAdmin's key is not inherited).",
+    "scopeGlobal": "Platform global default.",
+    "scopeGlobalBody": "What you save here is used by internal platform jobs. Institutions do NOT inherit this configuration: each Admin must paste their own API key in their panel.",
+    "scopeTenant": "Required configuration for your institution.",
+    "scopeTenantBody": "Paste the API key for the provider you'll use — billed to your account. AI grading won't work until it's configured.",
+    "subtitle": "Defines which model the AI grading edge function uses."
+  },
+  "certSettings": {
+    "resolutionHelp": "How each field is resolved when issuing:",
+    "resolutionHelpChain": "course override (teacher) → this panel (institution) → default text",
+    "resolutionHelpHint": ". Anything left empty here falls back to the default text. Whatever the teacher overrides for their course wins.",
+    "title": "Certificates for your institution",
+    "titleHelpHint": "These values are what the institution uses by default when issuing a certificate. Each teacher can adjust them for their own course from the course detail. What the student downloads is an immutable snapshot at the moment of issuance."
+  },
+  "moduleVisibility": {
+    "modules": {
+      "calificaciones": "Grades",
+      "forum": "Forum",
+      "messages": "Messages",
+      "teacher_students": "Users"
+    },
+    "scopeGlobal": "Platform global configuration.",
+    "scopeGlobalBody": "What you save here is the default that ALL institutions receive. Each Admin can override it for their institution from their own panel.",
+    "scopeTenant": "Per-institution override.",
+    "scopeTenantBody": "What you save here applies ONLY to this institution and overlays on top of the platform global configuration. Anything you leave untouched is inherited from the global default."
   }
 }

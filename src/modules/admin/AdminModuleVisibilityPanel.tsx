@@ -19,6 +19,7 @@
  *   filas (module, role) al guardar.
  */
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
@@ -69,6 +70,13 @@ type ModuleRoleKey = "Admin" | "Docente" | "Estudiante" | "SuperAdmin";
  *     a `gradebook` (override-friendly: si lo prendés, Admin igual ve
  *     todo por has_role).
  */
+// Labels alineados al sidebar (fuente de verdad: `nav.*` en
+// src/i18n/locales/es.json). Si renombrás un item del nav, sincronizar
+// acá también — el panel y el sidebar deben mostrar el mismo texto.
+// Casos donde el i18n del nav tiene una variante "studentX" usamos la
+// del rol staff para no descolocar (los labels para el alumno difieren
+// solo cuando el módulo se llama distinto, ej. /app/student/certificates
+// → "Certificaciones" es el mismo nombre para los 3 roles).
 const MODULES: Array<{
   key: string;
   label: string;
@@ -86,7 +94,8 @@ const MODULES: Array<{
   { key: "exams", label: "Exámenes" },
   { key: "workshops", label: "Talleres" },
   { key: "projects", label: "Proyectos" },
-  // Pizarras (Excalidraw) — solo Docente. Seed en migración 20260807000000.
+  // Pizarras (Excalidraw) — Docente edita, Estudiante ve compartidas.
+  // Seed en migración 20260807000000.
   { key: "whiteboards", label: "Pizarras" },
   {
     // Unificación: antes había dos filas separadas (`gradebook`,
@@ -100,17 +109,33 @@ const MODULES: Array<{
   // Encuestas (mig 20260720000000) — Docente y Estudiante. Tipos:
   // single/multiple/slot. Async tipo Doodle o en vivo en sesión.
   { key: "polls", label: "Encuestas" },
+  // Foro: módulo histórico — no tiene item directo en el sidebar (vive
+  // dentro del detalle de cada curso). Lo dejamos togglable acá para
+  // que el admin pueda ocultarlo a estudiantes globalmente.
   { key: "forum", label: "Foro" },
   { key: "calendar", label: "Calendario" },
-  { key: "certificates", label: "Certificados" },
+  // Mismo nombre que el sidebar (`nav.studentCertificates: "Certificaciones"`).
+  { key: "certificates", label: "Certificaciones" },
   { key: "tutor", label: "Tutor IA" },
-  { key: "question_bank", label: "Banco de preguntas" },
-  { key: "ai_prompts", label: "Prompts IA" },
+  // Sidebar usa "Banco preguntas" (sin "de") para que entre completo en
+  // el ancho del nav. Mantenemos esa forma para que el admin vea lo
+  // mismo en ambos lados.
+  { key: "question_bank", label: "Banco preguntas" },
+  // Sidebar dice solo "Prompts" — eliminamos el sufijo "IA".
+  { key: "ai_prompts", label: "Prompts" },
   { key: "ai_cron", label: "Cola" },
   { key: "statistics", label: "Estadísticas" },
+  // Mensajes vive en la campana del header (no es item del sidebar
+  // independiente), pero el toggle existe para poder apagar el módulo
+  // a un rol entero.
   { key: "messages", label: "Mensajes" },
-  { key: "videos", label: "Biblioteca de videos" },
-  { key: "teacher_students", label: "Usuarios (Docente)" },
+  // Sidebar dice "Videos" — quitamos "Biblioteca de" del label aunque
+  // el módulo SEA conceptualmente una biblioteca.
+  { key: "videos", label: "Videos" },
+  // "Usuarios" a secas — el sidebar usa el mismo nombre para
+  // `/app/admin/users` y `/app/teacher/students`. Como acá solo hay
+  // una fila (la del docente), no hay ambigüedad para el admin.
+  { key: "teacher_students", label: "Usuarios" },
   { key: "reports", label: "Informes" },
   // Auditoría: variantes Admin y Docente apuntan al mismo módulo.
   { key: "audit_logs", label: "Auditoría" },
@@ -139,7 +164,39 @@ const ROLES: Array<{ key: ModuleRoleKey; label: string }> = [
   { key: "Estudiante", label: "Estudiante" },
 ];
 
+/**
+ * Mapeo virtualKey → key del namespace `nav.*` cuando aplica. Si la
+ * entrada está presente, el label del módulo se lee desde `nav.X` (la
+ * misma fuente que el sidebar — así renombrar uno se propaga al otro).
+ * Para módulos sin equivalente en `nav.*` (ej. "calificaciones",
+ * "forum", "messages", "teacher_students") se usa `moduleVisibility.modules.<key>`.
+ */
+const MODULE_NAV_KEY: Record<string, string> = {
+  dashboard: "dashboard",
+  academic: "academic",
+  courses: "courses",
+  contents: "contents",
+  exams: "exams",
+  workshops: "workshops",
+  projects: "projects",
+  whiteboards: "whiteboards",
+  attendance: "attendance",
+  polls: "polls",
+  calendar: "calendar",
+  certificates: "studentCertificates",
+  tutor: "tutor",
+  question_bank: "questionBank",
+  ai_prompts: "aiPrompts",
+  ai_cron: "aiCron",
+  statistics: "statistics",
+  videos: "videos",
+  reports: "reports",
+  audit_logs: "auditLogs",
+  trash: "trash",
+};
+
 export function AdminModuleVisibilityPanel() {
+  const { t } = useTranslation();
   const { user, profile, roles } = useAuth();
   const activeRole = useActiveRole();
   // Scope global = SuperAdmin actuando como SuperAdmin sin "Ver como"
@@ -149,6 +206,13 @@ export function AdminModuleVisibilityPanel() {
   const isGlobalScope =
     roles.includes("SuperAdmin") && activeRole === "SuperAdmin" && readTenantOverride() === null;
   const scopeTenantId: string | null = isGlobalScope ? null : (profile?.tenant_id ?? null);
+  // En scope tenant ocultamos la columna SuperAdmin: el menú del
+  // SuperAdmin se administra desde la fila global (`tenant_id IS NULL`),
+  // no desde el panel de una institución. Un Admin de tenant NO puede
+  // (ni debería poder) sobrescribir lo que ve el SuperAdmin cuando
+  // entra a su tenant — ese rol opera cross-tenant y su menú lo define
+  // el SuperAdmin desde su propio panel global.
+  const visibleRoles = isGlobalScope ? ROLES : ROLES.filter((r) => r.key !== "SuperAdmin");
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -160,6 +224,18 @@ export function AdminModuleVisibilityPanel() {
   const [togglingKey, setTogglingKey] = useState<string | null>(null);
   // Para el drag and drop nativo necesitamos tracker el item arrastrado.
   const [dragKey, setDragKey] = useState<string | null>(null);
+
+  /**
+   * Label del módulo: si está mapeado a `nav.*` lo lee de ahí (fuente
+   * compartida con el sidebar). Si no, intenta `moduleVisibility.modules.<key>`.
+   * En ambos casos cae al `defaultLabel` (texto hardcodeado del array
+   * MODULES) si la key no existe en i18n.
+   */
+  const moduleLabel = (key: string, defaultLabel: string): string => {
+    const navKey = MODULE_NAV_KEY[key];
+    if (navKey) return t(`nav.${navKey}`, { defaultValue: defaultLabel });
+    return t(`moduleVisibility.modules.${key}`, { defaultValue: defaultLabel });
+  };
 
   const load = async () => {
     setLoading(true);
@@ -399,7 +475,9 @@ export function AdminModuleVisibilityPanel() {
       // 3 filas distintas: (gradebook, Admin), (gradebook, Docente),
       // (grades, Estudiante) — todas con el MISMO display_order, así
       // los physical keys quedan sincronizados en posición.
-      for (const r of ROLES) {
+      // visibleRoles excluye SuperAdmin en scope tenant — no creamos
+      // overrides para ese rol desde el panel de una institución.
+      for (const r of visibleRoles) {
         const physicalKey = moduleDef ? physicalKeyFor(moduleDef, r.key) : virtualKey;
         updates.push({
           module_key: physicalKey,
@@ -455,15 +533,25 @@ export function AdminModuleVisibilityPanel() {
         >
           {isGlobalScope ? (
             <>
-              <strong>Configuración global de la plataforma.</strong> Lo que guardás acá es el
-              default que reciben TODAS las instituciones. Cada Admin puede sobrescribirlo para su
-              institución desde su propio panel.
+              <strong>
+                {t("moduleVisibility.scopeGlobal", {
+                  defaultValue: "Configuración global de la plataforma.",
+                })}
+              </strong>{" "}
+              {t("moduleVisibility.scopeGlobalBody", {
+                defaultValue:
+                  "Lo que guardás acá es el default que reciben TODAS las instituciones. Cada Admin puede sobrescribirlo para su institución desde su propio panel.",
+              })}
             </>
           ) : (
             <>
-              <strong>Override por institución.</strong> Lo que guardás acá aplica SOLO a esta
-              institución y se superpone sobre la configuración global de la plataforma. Si dejás un
-              módulo o estado sin tocar, se hereda del default global.
+              <strong>
+                {t("moduleVisibility.scopeTenant", { defaultValue: "Override por institución." })}
+              </strong>{" "}
+              {t("moduleVisibility.scopeTenantBody", {
+                defaultValue:
+                  "Lo que guardás acá aplica SOLO a esta institución y se superpone sobre la configuración global de la plataforma. Si dejás un módulo o estado sin tocar, se hereda del default global.",
+              })}
             </>
           )}
         </div>
@@ -492,7 +580,7 @@ export function AdminModuleVisibilityPanel() {
                 <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-2 pb-1 text-[10px] uppercase font-medium text-muted-foreground tracking-wide">
                   <span>Módulo</span>
                   <div className="flex gap-2">
-                    {ROLES.map((r) => (
+                    {visibleRoles.map((r) => (
                       // w-20 (antes w-16): "SuperAdmin" (10 chars) no entra
                       // en 64px y se truncaba. 80px deja el label completo
                       // en todos los roles, sin afectar layout — el
@@ -531,14 +619,16 @@ export function AdminModuleVisibilityPanel() {
                             <GripVertical className="h-4 w-4" />
                           </span>
                           <div className="min-w-0">
-                            <div className="font-medium text-sm truncate">{m.label}</div>
+                            <div className="font-medium text-sm truncate">
+                              {moduleLabel(m.key, m.label)}
+                            </div>
                             <div className="text-[10px] text-muted-foreground font-mono truncate">
                               {m.key}
                             </div>
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          {ROLES.map((r) => {
+                          {visibleRoles.map((r) => {
                             const key = `${m.key}::${r.key}`;
                             return (
                               // Cada slot del switch matchea el ancho del

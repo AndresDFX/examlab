@@ -171,7 +171,11 @@ export function ErrorsPanel({ embedded = false }: Props) {
     if (!isSuperAdmin) return;
     let cancelled = false;
     void (async () => {
-      const { data } = await db.from("tenants").select("id, name").order("name");
+      const { data } = await db
+        .from("tenants")
+        .select("id, name")
+        .is("deleted_at", null)
+        .order("name");
       if (cancelled) return;
       setTenants((data ?? []) as Array<{ id: string; name: string }>);
     })();

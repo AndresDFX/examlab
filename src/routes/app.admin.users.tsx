@@ -190,6 +190,19 @@ function AdminUsers() {
   // creado. NULL = sin inscripción automática (el admin lo matricula
   // manualmente después si quiere).
   const [enrollCourseId, setEnrollCourseId] = useState<string | null>(null);
+  // Curso "por defecto" para el flujo de IMPORT MASIVO de usuarios. Si
+  // el admin lo elige, todas las filas del CSV importado que NO traigan
+  // `course_name` se enrollan automáticamente a este curso (best-effort:
+  // si la fila trae `course_name` propia, gana esa). UX: evita tener que
+  // pegar la misma `course_name` en cada fila del CSV cuando se importa
+  // una lista que va completa a un solo curso.
+  // Cargado lazy al primer click del dropdown de import; cacheado en
+  // `coursesForBulkImport`. Vacío "" = sin curso por defecto.
+  const [bulkImportCourseId, setBulkImportCourseId] = useState<string>("");
+  const [coursesForBulkImport, setCoursesForBulkImport] = useState<
+    Array<{ id: string; name: string; period: string | null }>
+  >([]);
+  const [coursesForBulkImportLoaded, setCoursesForBulkImportLoaded] = useState(false);
   // El filtro de institución solo debe aparecer cuando el usuario está
   // ACTIVAMENTE actuando como SuperAdmin (no por solo tener el rol). Un
   // usuario con SuperAdmin + Admin que cambia a Admin con el role-switcher
@@ -400,6 +413,7 @@ function AdminUsers() {
     const { data: tens } = await (supabase as any)
       .from("tenants")
       .select("id, slug, name")
+      .is("deleted_at", null)
       .order("name");
     setTenants((tens ?? []) as Array<{ id: string; slug: string; name: string }>);
     setLoading(false);
@@ -856,11 +870,50 @@ function AdminUsers() {
     return toCSV(data);
   };
 
+  // Carga lazy de los cursos disponibles para el "curso por defecto" del
+  // import masivo. Se dispara al abrir el dropdown de import por primera
+  // vez. RLS limita a su tenant para Admin; el SuperAdmin sin override
+  // ve cross-tenant pero ese flujo no aplica acá (el bulk import siempre
+  // va al tenant del caller, no cross-tenant).
+  const loadCoursesForBulkImport = async () => {
+    if (coursesForBulkImportLoaded) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
+      .from("courses")
+      .select("id, name, period")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (!error) {
+      setCoursesForBulkImport(
+        (data ?? []) as Array<{ id: string; name: string; period: string | null }>,
+      );
+    }
+    setCoursesForBulkImportLoaded(true);
+  };
+
   const handleImportRows = async (parsed: Record<string, string>[]): Promise<string> => {
     setImporting(true);
     try {
+      // Inyectar el course_name del "curso por defecto" en las filas
+      // que NO lo traen. Si el admin eligió un curso en el Select pre-
+      // import, todas las filas del CSV sin `course_name` heredan ese
+      // curso. Filas con `course_name` propio NO se tocan — gana lo
+      // explícito del CSV. La edge resuelve el name → id case-insensitive
+      // contra el tenant del caller; pasar el `name` (no el id) mantiene
+      // el contrato actual y evita cambios server-side.
+      const defaultCourse = bulkImportCourseId
+        ? coursesForBulkImport.find((c) => c.id === bulkImportCourseId)
+        : null;
+      const rows = defaultCourse
+        ? parsed.map((r) =>
+            (r.course_name ?? "").trim().length > 0
+              ? r
+              : { ...r, course_name: defaultCourse.name },
+          )
+        : parsed;
       const { data, error } = await supabase.functions.invoke("bulk-import-users", {
-        body: { rows: parsed },
+        body: { rows },
       });
       if (error) {
         const detail = await extractEdgeError(error, data);
@@ -933,6 +986,39 @@ function AdminUsers() {
         }
         actions={
           <>
+            {/* Curso por defecto para el bulk import. Carga lazy al primer
+                hover/focus para no traer 500 cursos al pintar la pantalla.
+                Cuando el admin elige un curso acá, todas las filas del
+                CSV importado sin `course_name` propio se enrollan al
+                curso elegido. Las filas con `course_name` lo respetan. */}
+            <Select
+              value={bulkImportCourseId || "__none__"}
+              onValueChange={(v) => setBulkImportCourseId(v === "__none__" ? "" : v)}
+              onOpenChange={(open) => {
+                if (open) void loadCoursesForBulkImport();
+              }}
+            >
+              <SelectTrigger
+                className="h-8 max-w-[200px] hidden md:flex text-xs"
+                title="Curso para el bulk import (opcional). Solo aplica al importar CSV."
+              >
+                <SelectValue placeholder="Curso al importar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Sin curso por defecto</SelectItem>
+                {coursesForBulkImport.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                    {c.period ? ` · ${c.period}` : ""}
+                  </SelectItem>
+                ))}
+                {coursesForBulkImportLoaded && coursesForBulkImport.length === 0 && (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    No hay cursos disponibles.
+                  </div>
+                )}
+              </SelectContent>
+            </Select>
             <ImportExportMenu
               resourceName="usuarios"
               templateCsv={USERS_TEMPLATE_CSV}

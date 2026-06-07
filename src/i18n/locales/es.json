@@ -876,6 +876,9 @@
     "regenerateDialogClassSubtitle": "Modifica tema o instrucciones para refinar SOLO esta clase. La intro y el resto de las clases se conservan tal cual.",
     "regenerateDialogSubmitFull": "Regenerar todo",
     "regenerateDialogSubmitClass": "Regenerar esta clase",
+    "regenerateQueuedClass": "Regeneración de la clase {{class}} encolada. Aparecerá en \"Cola IA → Generaciones\".",
+    "regenerateQueuedFull": "Regeneración encolada. Aparecerá en \"Cola IA → Generaciones\" hasta que se procese.",
+    "regenerateSessionInvalid": "Sesión no válida. Recargá la página.",
     "classSessionCol": "Sesión",
     "classMaterialsCol": "Materiales",
     "classActionsCol": "Acciones",
@@ -1055,5 +1058,70 @@
         "desc": "Material nuevo asignado a una sesión (push/in-app, sin email)"
       }
     }
+  },
+  "studentCalendar": {
+    "kinds": {
+      "clase": "Clase",
+      "examen": "Examen",
+      "fin_curso": "Fin de curso",
+      "inicio_curso": "Inicio de curso",
+      "proyecto": "Proyecto",
+      "taller": "Taller"
+    },
+    "legend": {
+      "empty": "Sin eventos en este mes.",
+      "label": "Leyenda:"
+    },
+    "monthLabels": {
+      "april": "Abril",
+      "august": "Agosto",
+      "december": "Diciembre",
+      "february": "Febrero",
+      "january": "Enero",
+      "july": "Julio",
+      "june": "Junio",
+      "march": "Marzo",
+      "may": "Mayo",
+      "november": "Noviembre",
+      "october": "Octubre",
+      "september": "Septiembre"
+    },
+    "nav": {
+      "nextMonth": "Mes siguiente",
+      "prevMonth": "Mes anterior",
+      "today": "Hoy"
+    },
+    "weekdaysShort": ["L", "M", "M", "J", "V", "S", "D"]
+  },
+  "aiModel": {
+    "activeTitle": "Modelo activo",
+    "apiKeyEmptyGlobal": "Sin configurar — los jobs internos caen al env secret",
+    "apiKeyEmptyTenant": "Pegá tu API key (obligatorio)",
+    "apiKeyMissingAlert": "Falta la API key de <strong>{{provider}}</strong>. Sin la key, la calificación con IA no funciona en tu institución. Pegala arriba antes de guardar.",
+    "apiKeyRequiredToast": "Configura la API key de {{provider}} antes de guardar. Tu institución debe usar su propia key (la del SuperAdmin no se hereda).",
+    "scopeGlobal": "Default global de la plataforma.",
+    "scopeGlobalBody": "Lo que guardes acá lo usan jobs internos de la plataforma. Las instituciones NO heredan de esta configuración: cada Admin debe pegar su propia API key en su panel.",
+    "scopeTenant": "Configuración obligatoria de tu institución.",
+    "scopeTenantBody": "Pegá la API key del provider que vas a usar — cobra a tu cuenta. La calificación con IA no funciona hasta que esté configurada.",
+    "subtitle": "Define qué modelo usa el edge function de calificación con IA."
+  },
+  "certSettings": {
+    "resolutionHelp": "Cómo se resuelve cada campo al emitir:",
+    "resolutionHelpChain": "override del curso (docente) → este panel (institución) → texto por defecto",
+    "resolutionHelpHint": ". Lo que dejes vacío acá lo manda al texto por defecto. Lo que el docente sobrescriba en su curso, gana.",
+    "title": "Certificados de tu institución",
+    "titleHelpHint": "Estos valores son los que la institución usa por defecto al emitir un certificado. Cada docente puede ajustarlos para su propio curso desde el detalle del curso. Lo que el alumno descarga es un snapshot inmutable al momento de emisión."
+  },
+  "moduleVisibility": {
+    "modules": {
+      "calificaciones": "Calificaciones",
+      "forum": "Foro",
+      "messages": "Mensajes",
+      "teacher_students": "Usuarios"
+    },
+    "scopeGlobal": "Configuración global de la plataforma.",
+    "scopeGlobalBody": "Lo que guardás acá es el default que reciben TODAS las instituciones. Cada Admin puede sobrescribirlo para su institución desde su propio panel.",
+    "scopeTenant": "Override por institución.",
+    "scopeTenantBody": "Lo que guardás acá aplica SOLO a esta institución y se superpone sobre la configuración global de la plataforma. Si dejás un módulo o estado sin tocar, se hereda del default global."
   }
 }

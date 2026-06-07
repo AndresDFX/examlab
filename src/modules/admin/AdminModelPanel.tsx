@@ -11,6 +11,7 @@
  * cuota del SuperAdmin.
  */
 import { useEffect, useState } from "react";
+import { useTranslation, Trans } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
@@ -66,6 +67,7 @@ const SECRET_NAME: Record<Provider, string> = {
 };
 
 export function AdminModelPanel() {
+  const { t } = useTranslation();
   const { user, profile, roles } = useAuth();
   const activeRole = useActiveRole();
   // Scope: SuperAdmin cross-tenant edita la fila PLATFORM-DEFAULT
@@ -186,8 +188,12 @@ export function AdminModelPanel() {
     // acá (isGlobalScope=true).
     if (tenantNeedsKey) {
       toast.error(
-        `Configura la API key de ${PROVIDER_LABELS[draftProvider]} antes de guardar. ` +
-          `Tu institución debe usar su propia key (la del SuperAdmin no se hereda).`,
+        t("aiModel.apiKeyRequiredToast", {
+          provider: PROVIDER_LABELS[draftProvider],
+          defaultValue:
+            `Configura la API key de ${PROVIDER_LABELS[draftProvider]} antes de guardar. ` +
+            `Tu institución debe usar su propia key (la del SuperAdmin no se hereda).`,
+        }),
       );
       return;
     }
@@ -285,7 +291,7 @@ export function AdminModelPanel() {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Cpu className="h-4 w-4 text-indigo-500" />
-          Modelo activo
+          {t("aiModel.activeTitle", { defaultValue: "Modelo activo" })}
           {activeRow && (
             <Badge variant="secondary" className="text-[10px]">
               {PROVIDER_LABELS[activeRow.provider]} · {activeRow.model}
@@ -293,7 +299,9 @@ export function AdminModelPanel() {
           )}
         </CardTitle>
         <p className="text-xs text-muted-foreground mt-1">
-          Define qué modelo usa el edge function de calificación con IA.
+          {t("aiModel.subtitle", {
+            defaultValue: "Define qué modelo usa el edge function de calificación con IA.",
+          })}
         </p>
         {/* Banner de scope: el SuperAdmin (cross-tenant) edita el platform
             default usado por jobs internos. El Admin común edita la
@@ -308,15 +316,25 @@ export function AdminModelPanel() {
         >
           {isGlobalScope ? (
             <>
-              <strong>Default global de la plataforma.</strong> Lo que guardes acá lo usan jobs
-              internos de la plataforma. Las instituciones NO heredan de esta configuración: cada
-              Admin debe pegar su propia API key en su panel.
+              <strong>
+                {t("aiModel.scopeGlobal", { defaultValue: "Default global de la plataforma." })}
+              </strong>{" "}
+              {t("aiModel.scopeGlobalBody", {
+                defaultValue:
+                  "Lo que guardes acá lo usan jobs internos de la plataforma. Las instituciones NO heredan de esta configuración: cada Admin debe pegar su propia API key en su panel.",
+              })}
             </>
           ) : (
             <>
-              <strong>Configuración obligatoria de tu institución.</strong> Pegá la API key del
-              provider que vas a usar — cobra a tu cuenta. La calificación con IA no funciona
-              hasta que esté configurada.
+              <strong>
+                {t("aiModel.scopeTenant", {
+                  defaultValue: "Configuración obligatoria de tu institución.",
+                })}
+              </strong>{" "}
+              {t("aiModel.scopeTenantBody", {
+                defaultValue:
+                  "Pegá la API key del provider que vas a usar — cobra a tu cuenta. La calificación con IA no funciona hasta que esté configurada.",
+              })}
             </>
           )}
         </div>
@@ -426,6 +444,12 @@ export function AdminModelPanel() {
             onChange={setDraftOpenaiKey}
             maskFn={maskKey}
             isGlobalScope={isGlobalScope}
+            placeholderEmptyGlobal={t("aiModel.apiKeyEmptyGlobal", {
+              defaultValue: "Sin configurar — los jobs internos caen al env secret",
+            })}
+            placeholderEmptyTenant={t("aiModel.apiKeyEmptyTenant", {
+              defaultValue: "Pegá tu API key (obligatorio)",
+            })}
             helpHint={
               <div className="space-y-1">
                 <p>
@@ -457,6 +481,12 @@ export function AdminModelPanel() {
             onChange={setDraftGeminiKey}
             maskFn={maskKey}
             isGlobalScope={isGlobalScope}
+            placeholderEmptyGlobal={t("aiModel.apiKeyEmptyGlobal", {
+              defaultValue: "Sin configurar — los jobs internos caen al env secret",
+            })}
+            placeholderEmptyTenant={t("aiModel.apiKeyEmptyTenant", {
+              defaultValue: "Pegá tu API key (obligatorio)",
+            })}
             helpHint={
               <div className="space-y-1">
                 <p>
@@ -485,8 +515,12 @@ export function AdminModelPanel() {
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Falta la API key de <strong>{PROVIDER_LABELS[draftProvider]}</strong>. Sin la key, la
-              calificación con IA no funciona en tu institución. Pegala arriba antes de guardar.
+              <Trans
+                i18nKey="aiModel.apiKeyMissingAlert"
+                values={{ provider: PROVIDER_LABELS[draftProvider] }}
+                defaults="Falta la API key de <strong>{{provider}}</strong>. Sin la key, la calificación con IA no funciona en tu institución. Pegala arriba antes de guardar."
+                components={{ strong: <strong /> }}
+              />
             </AlertDescription>
           </Alert>
         )}
@@ -536,6 +570,8 @@ function ApiKeyInput({
   help,
   helpHint,
   isGlobalScope,
+  placeholderEmptyGlobal,
+  placeholderEmptyTenant,
 }: {
   label: string;
   stored: string | null;
@@ -550,16 +586,17 @@ function ApiKeyInput({
   /** Si es scope global (SuperAdmin), la key puede quedar vacía. En
    *  tenant scope, es obligatoria y no mostramos el botón "Borrar". */
   isGlobalScope: boolean;
+  /** Placeholder traducido para scope global cuando no hay key guardada. */
+  placeholderEmptyGlobal: string;
+  /** Placeholder traducido para scope tenant cuando no hay key guardada. */
+  placeholderEmptyTenant: string;
 }) {
   const isKeep = value === "__keep";
   const masked = maskFn(stored);
   // Placeholder distinto según scope: en tenant scope, la key es
   // obligatoria, así que el placeholder lo refleja.
-  const placeholder = isKeep && masked
-    ? masked
-    : isGlobalScope
-      ? "Sin configurar — los jobs internos caen al env secret"
-      : "Pegá tu API key (obligatorio)";
+  const placeholder =
+    isKeep && masked ? masked : isGlobalScope ? placeholderEmptyGlobal : placeholderEmptyTenant;
   return (
     <div>
       <Label required={!isGlobalScope && !stored}>

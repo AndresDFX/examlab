@@ -13,6 +13,7 @@
  * course override → global → legacy content_brand_config → defaults.
  */
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
@@ -47,6 +48,7 @@ interface CertSettings {
 }
 
 export function AdminCertificateSettingsPanel() {
+  const { t } = useTranslation();
   const { user, profile } = useAuth();
   const [row, setRow] = useState<CertSettings | null>(null);
   const [draft, setDraft] = useState<CertSettings | null>(null);
@@ -216,11 +218,12 @@ export function AdminCertificateSettingsPanel() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Award className="h-4 w-4 text-amber-500" />
-            Certificados de tu institución
+            {t("certSettings.title", { defaultValue: "Certificados de tu institución" })}
             <HelpHint>
-              Estos valores son los que la institución usa por defecto al emitir un certificado.
-              Cada docente puede ajustarlos para su propio curso desde el detalle del curso. Lo
-              que el alumno descarga es un snapshot inmutable al momento de emisión.
+              {t("certSettings.titleHelpHint", {
+                defaultValue:
+                  "Estos valores son los que la institución usa por defecto al emitir un certificado. Cada docente puede ajustarlos para su propio curso desde el detalle del curso. Lo que el alumno descarga es un snapshot inmutable al momento de emisión.",
+              })}
             </HelpHint>
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
@@ -233,12 +236,21 @@ export function AdminCertificateSettingsPanel() {
               era cross-tenant. En realidad es per-tenant, y los docentes
               pueden sobrescribir por curso. */}
           <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-            <strong>Cómo se resuelve cada campo al emitir:</strong>{" "}
+            <strong>
+              {t("certSettings.resolutionHelp", {
+                defaultValue: "Cómo se resuelve cada campo al emitir:",
+              })}
+            </strong>{" "}
             <span className="font-mono text-[11px]">
-              override del curso (docente) → este panel (institución) → texto por defecto
+              {t("certSettings.resolutionHelpChain", {
+                defaultValue:
+                  "override del curso (docente) → este panel (institución) → texto por defecto",
+              })}
             </span>
-            . Lo que dejes vacío acá lo manda al texto por defecto. Lo que el docente sobrescriba
-            en su curso, gana.
+            {t("certSettings.resolutionHelpHint", {
+              defaultValue:
+                ". Lo que dejes vacío acá lo manda al texto por defecto. Lo que el docente sobrescriba en su curso, gana.",
+            })}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

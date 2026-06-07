@@ -117,6 +117,7 @@ function AdminStatistics() {
       const { data } = await (supabase as any)
         .from("tenants")
         .select("id, slug, name")
+        .is("deleted_at", null)
         .order("name");
       if (cancelled) return;
       setTenants((data ?? []) as Array<{ id: string; slug: string; name: string }>);

@@ -498,6 +498,7 @@ export function AdminCourses() {
     const { data: tens } = await (supabase as any)
       .from("tenants")
       .select("id, slug, name")
+      .is("deleted_at", null)
       .order("name");
     setTenants((tens ?? []) as Array<{ id: string; slug: string; name: string }>);
     setCourses((data ?? []) as unknown as Course[]);
@@ -1792,7 +1793,7 @@ export function AdminCourses() {
                         <SelectItem key={s.id} value={s.id}>
                           {s.name}
                           {s.code ? ` (${s.code})` : ""}
-                          {s.semestre ? ` · Sem ${s.semestre}` : ""}
+                          {s.semestre ? ` · Sem/Cuat ${s.semestre}` : ""}
                         </SelectItem>
                       ))}
                   </SelectContent>
@@ -1809,7 +1810,7 @@ export function AdminCourses() {
                     const prog = programs.find((p) => p.id === subj.program_id);
                     if (prog) parts.push(`Programa: ${prog.name}`);
                   }
-                  if (subj.semestre) parts.push(`Semestre: ${subj.semestre}`);
+                  if (subj.semestre) parts.push(`Semestre/Cuatrimestre: ${subj.semestre}`);
                   if (parts.length === 0) return null;
                   return (
                     <p className="text-[11px] text-muted-foreground mt-1">

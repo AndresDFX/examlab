@@ -531,7 +531,7 @@ export function AdminAcademicSubjectsPanel() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Grado / Semestre</Label>
+                <Label>Grado / Semestre / Cuatrimestre</Label>
                 <Input
                   type="number"
                   min={1}

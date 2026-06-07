@@ -17,6 +17,7 @@ import {
   studentPendingResponseCount,
 } from "@/modules/grading/feedback-stats";
 import { AiGradingQueueWidget } from "@/modules/ai/AiGradingQueueWidget";
+import { StudentEventsCalendar } from "@/modules/dashboard/StudentEventsCalendar";
 import {
   FileText,
   Hammer,
@@ -1041,6 +1042,12 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         />
       </div>
 
+      {/* Calendario de eventos del estudiante — vista de mes con dots
+          de color por tipo (Examen / Taller / Proyecto / Clase /
+          Inicio-Fin de curso). Reemplaza al widget "Mi semana" que
+          vivía en /app/student/courses. */}
+      <StudentEventsCalendar userId={userId} />
+
       {/* 2 cards abajo que ocupan el alto restante. Antes eran 4
           (clases / proyectos / exámenes / talleres); talleres y
           proyectos pendientes se ven en sus módulos dedicados, el
@@ -1317,7 +1324,12 @@ function SuperAdminDashboard() {
       ] = await Promise.all([
         // Tenants completos: derivamos active/inactive/new30d/uso en memoria
         // (1 query en vez de 4 counts separados).
-        dbAny.from("tenants").select("id, slug, name, is_active, created_at"),
+        // Excluye tenants en papelera (deleted_at IS NOT NULL) para que
+        // no inflen los conteos del dashboard SuperAdmin (mig 20260818000000).
+        dbAny
+          .from("tenants")
+          .select("id, slug, name, is_active, created_at")
+          .is("deleted_at", null),
         // tenant_id de cada profile → total + conteo por institución.
         dbAny.from("profiles").select("tenant_id"),
         // tenant_id de cada curso → total + conteo por institución.

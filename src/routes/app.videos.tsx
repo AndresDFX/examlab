@@ -221,7 +221,11 @@ function VideoLibrary() {
     // Tenants — solo el SuperAdmin los necesita para el Select.
     if (isSuperAdminActive) {
       void (async () => {
-        const { data } = await db.from("tenants").select("id, slug, name").order("name");
+        const { data } = await db
+          .from("tenants")
+          .select("id, slug, name")
+          .is("deleted_at", null)
+          .order("name");
         setTenants((data ?? []) as Array<{ id: string; slug: string; name: string }>);
       })();
     }
