@@ -318,19 +318,42 @@ async function selectActiveRole(page: Page, role: Role): Promise<void> {
   };
   const target = ROLE_LABEL[role];
   try {
-    const switcher = page.locator('[data-tour-id="role-switcher"]').first();
-    if ((await switcher.count()) === 0) {
-      console.log(`  → Role-switcher no visible (cuenta single-rol o panel oculto). Sigo con el rol default.`);
+    // El sidebar puede tardar en hidratar después de un goto. Esperamos
+    // explícitamente. Si no aparece en 8s, la cuenta es single-role o
+    // el sidebar está oculto por viewport — devolvemos silenciosamente.
+    try {
+      await page.waitForSelector('[data-tour-id="role-switcher"]', { timeout: 8000 });
+    } catch {
+      console.log(`  → Role-switcher no apareció en 8s (cuenta single-rol o sidebar oculto). Sigo con el rol default.`);
       return;
     }
-    console.log(`  → Activando rol "${target}" desde el role-switcher`);
-    await switcher.click({ timeout: 3000 });
+    // Verificá si el rol activo YA es el target — si sí, skip (evita
+    // re-clicks innecesarios entre scenes con goto).
+    const currentLabel = (
+      await page
+        .locator('[data-tour-id="role-switcher"] [role="combobox"] span, [data-tour-id="role-switcher"] .truncate')
+        .first()
+        .textContent()
+        .catch(() => "")
+    )?.trim();
+    if (currentLabel === target) {
+      // Ya en el rol correcto, no logueamos para no inflar el output.
+      return;
+    }
+    console.log(`  → Activando rol "${target}" (actual: "${currentLabel ?? "??"}")`);
+    // Click en el SelectTrigger (botón role=combobox de Radix), no en el
+    // container div. Sin esto el click cae en el padding del div y no
+    // abre el dropdown.
+    const trigger = page.locator('[data-tour-id="role-switcher"] [role="combobox"]').first();
+    if ((await trigger.count()) === 0) {
+      // Cuenta single-rol — el sidebar renderea un div estático sin trigger.
+      return;
+    }
+    await trigger.click({ timeout: 3000 });
     await page.waitForTimeout(400);
-    // El switcher es un dropdown — buscamos la opción por texto.
     const opt = page.getByRole("option", { name: target, exact: false }).first();
     if ((await opt.count()) === 0) {
       console.log(`  → Opción "${target}" no encontrada en el dropdown. Sigo con el rol default.`);
-      // Cerrar dropdown abierto.
       await page.keyboard.press("Escape");
       return;
     }
@@ -342,12 +365,42 @@ async function selectActiveRole(page: Page, role: Role): Promise<void> {
   }
 }
 
-async function recordScenes(context: BrowserContext, page: Page, scenes: Scene[]): Promise<void> {
+async function recordScenes(
+  context: BrowserContext,
+  page: Page,
+  scenes: Scene[],
+  role: Role,
+): Promise<void> {
   for (let i = 0; i < scenes.length; i++) {
     const s = scenes[i];
     const url = `${APP_URL}${s.path}`;
     console.log(`  [${i + 1}/${scenes.length}] ${s.label ?? s.path} (${s.dwellMs}ms)`);
-    await page.goto(url, { waitUntil: "domcontentloaded" });
+    // CRÍTICO: el active role NO persiste entre recargas (es módulo state,
+    // no localStorage — ver `active-role-signal.ts`). Si hacemos `goto`
+    // siempre, después del primer scene el sidebar revierte al rol
+    // default (Admin para cuentas multi-rol) y el video sale con nav
+    // del rol equivocado. Solución: navegar via CLICK en el sidebar
+    // (`data-tour-nav="..."`) — eso es SPA navigation y NO recarga.
+    // Para rutas que NO están en el sidebar (ej. /app/trash, /app/messages
+    // global), fallback a goto + re-seleccionar el rol.
+    const navLink = page.locator(`[data-tour-nav="${s.path}"]`).first();
+    if ((await navLink.count()) > 0) {
+      try {
+        await navLink.click({ timeout: 3000 });
+        await page.waitForURL(new RegExp(`${s.path.replace(/[/$]/g, "\\$&")}(?:[?#]|$)`), {
+          timeout: 5000,
+        });
+      } catch {
+        // Si el click falla, fallback a goto + reselect role
+        await page.goto(url, { waitUntil: "domcontentloaded" });
+        await selectActiveRole(page, role);
+      }
+    } else {
+      // Ruta no presente en el sidebar (papelera global, mensajes, etc.).
+      // goto recarga la página → el active role se pierde → re-seleccionar.
+      await page.goto(url, { waitUntil: "domcontentloaded" });
+      await selectActiveRole(page, role);
+    }
     // Esperamos un instante para que la query principal del módulo
     // termine. Sin esto el video muestra skeletons/spinners.
     await page.waitForTimeout(800);
@@ -422,7 +475,7 @@ async function main(): Promise<void> {
     // Si la cuenta es multi-rol, activamos explícitamente el rol target
     // para que el sidebar muestre el nav correcto durante la grabación.
     await selectActiveRole(page, role);
-    await recordScenes(context, page, scenes);
+    await recordScenes(context, page, scenes, role);
     // Playwright nombra el video como un hash random. Lo renombramos
     // al patrón <role>-<ts>.webm para que sea identificable.
     const videoPath = await page.video()?.path();
