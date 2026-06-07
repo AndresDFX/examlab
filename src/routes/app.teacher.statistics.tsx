@@ -16,6 +16,7 @@ import { PageLoader } from "@/components/ui/loaders";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { toast } from "sonner";
 import {
   ChartContainer,
   ChartTooltip,
@@ -114,16 +115,34 @@ function TeacherStatistics() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, roles.join(","), retryNonce]);
 
-  // Cargar dataset del curso seleccionado
+  // Cargar dataset del curso seleccionado.
+  // Guard `cancelled` evita race condition cuando el docente cambia
+  // de curso rápido (Select): la query del curso A puede resolver
+  // DESPUÉS de B y sobrescribir el dataset. Además, .catch() asegura
+  // que un fallo (RLS, red) no deje el spinner colgado.
   useEffect(() => {
     if (!courseId) {
       setDataset(null);
       return;
     }
+    let cancelled = false;
     setLoading(true);
     loadCourseDataset(courseId)
-      .then(setDataset)
-      .finally(() => setLoading(false));
+      .then((data) => {
+        if (!cancelled) setDataset(data);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        console.error("loadCourseDataset failed:", e);
+        toast.error(friendlyError(e, "No pudimos cargar los datos del curso"));
+        setDataset(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [courseId]);
 
   if (!isTeacher) {

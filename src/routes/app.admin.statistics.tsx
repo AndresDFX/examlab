@@ -11,6 +11,7 @@ import { PageLoader, SectionLoader } from "@/components/ui/loaders";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -244,16 +245,32 @@ function AdminStatistics() {
     };
   }, [isAdmin, retryNonce, isSuperAdminCaller, tenantFilter]);
 
-  // Drill-down: carga el dataset completo del curso seleccionado
+  // Drill-down: carga el dataset completo del curso seleccionado.
+  // Guard `cancelled` + .catch evitan que cambios rápidos de curso
+  // sobreescriban el dataset o dejen el PageLoader colgado.
   useEffect(() => {
     if (!drillCourseId) {
       setDrillDataset(null);
       return;
     }
+    let cancelled = false;
     setDrillLoading(true);
     loadCourseDataset(drillCourseId)
-      .then(setDrillDataset)
-      .finally(() => setDrillLoading(false));
+      .then((data) => {
+        if (!cancelled) setDrillDataset(data);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        console.error("loadCourseDataset failed:", e);
+        toast.error(friendlyError(e, "No pudimos cargar los datos del curso"));
+        setDrillDataset(null);
+      })
+      .finally(() => {
+        if (!cancelled) setDrillLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [drillCourseId]);
 
   // Aplicar filtros institucionales sobre `summaries`. Filtramos

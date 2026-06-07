@@ -372,11 +372,17 @@ function AdminUsers() {
       await startImpersonate(r.id);
       // startImpersonate dispara window.location.href → no llegamos aquí.
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error al iniciar la impersonación");
+      toast.error(friendlyError(e, "Error al iniciar la impersonación"));
     }
   };
 
+  // Epoch que se incrementa con cada load() — permite descartar setStates
+  // de una corrida vieja cuando el SA cambia tenantFilter rápido entre
+  // varias opciones. Sin esto, la respuesta más lenta sobrescribía la
+  // más reciente y el grid mostraba usuarios del tenant equivocado.
+  const loadEpochRef = useRef(0);
   const load = async () => {
+    const myEpoch = ++loadEpochRef.current;
     setLoading(true);
     setLoadError(null);
     // SuperAdmin con filtro de institución activo: aplicamos
@@ -398,19 +404,20 @@ function AdminUsers() {
       }
     }
     const { data: profs, error: profsErr } = await q;
+    if (loadEpochRef.current !== myEpoch) return; // stale — superado
     if (profsErr) {
       setLoadError(friendlyError(profsErr, "No pudimos cargar la lista de usuarios."));
       setLoading(false);
       return;
     }
     const { data: rs } = await supabase.from("user_roles").select("user_id, role");
+    if (loadEpochRef.current !== myEpoch) return;
     const grouped = new Map<string, AppRole[]>();
     (rs ?? []).forEach((r: any) => {
       const arr = grouped.get(r.user_id) ?? [];
       arr.push(r.role);
       grouped.set(r.user_id, arr);
     });
-    setRows((profs ?? []).map((p: any) => ({ ...p, roles: grouped.get(p.id) ?? [] })));
     // Programas activos (best-effort — si la migración no se aplicó, el
     // dropdown queda vacío pero el form no se rompe: programa_id es opcional).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -419,7 +426,7 @@ function AdminUsers() {
       .select("id, name")
       .eq("active", true)
       .order("name");
-    setPrograms((progs ?? []) as Array<{ id: string; name: string }>);
+    if (loadEpochRef.current !== myEpoch) return;
     // Tenants visibles (RLS-filtrado): Admin ve solo el suyo; SuperAdmin
     // ve todos. Solo expone el filtro cuando hay >1 institución cargada.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -428,6 +435,11 @@ function AdminUsers() {
       .select("id, slug, name")
       .is("deleted_at", null)
       .order("name");
+    if (loadEpochRef.current !== myEpoch) return;
+    // Commit final: todos los setStates juntos al cierre, una sola
+    // corrida ganadora.
+    setRows((profs ?? []).map((p: any) => ({ ...p, roles: grouped.get(p.id) ?? [] })));
+    setPrograms((progs ?? []) as Array<{ id: string; name: string }>);
     setTenants((tens ?? []) as Array<{ id: string; slug: string; name: string }>);
     setLoading(false);
   };
@@ -450,6 +462,23 @@ function AdminUsers() {
     const newSet = new Set(newRoles);
     const toAdd = newRoles.filter((r) => !currentSet.has(r));
     const toRemove = [...currentSet].filter((r) => !newSet.has(r));
+    // Eliminamos los roles a quitar PRIMERO para que un fallo en el
+    // INSERT subsecuente no deje al usuario con todos los roles (los
+    // nuevos + los viejos que debían salir). Si el DELETE falla, ningún
+    // cambio se aplicó — comportamiento atómico desde la perspectiva
+    // del usuario aunque sean 2 operaciones.
+    if (toRemove.length) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from("user_roles")
+        .delete()
+        .eq("user_id", userId)
+        .in("role", toRemove);
+      if (error) {
+        toast.error(friendlyError(error));
+        return false;
+      }
+    }
     if (toAdd.length) {
       // Cast: el tipo regenerado de supabase aún no incluye 'SuperAdmin'
       // en el enum app_role (Lovable lo regenera en el próximo Publish).
@@ -460,19 +489,13 @@ function AdminUsers() {
         .from("user_roles")
         .insert(toAdd.map((role) => ({ user_id: userId, role })));
       if (error) {
-        toast.error(friendlyError(error));
-        return false;
-      }
-    }
-    if (toRemove.length) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
-        .from("user_roles")
-        .delete()
-        .eq("user_id", userId)
-        .in("role", toRemove);
-      if (error) {
-        toast.error(friendlyError(error));
+        // Si el INSERT falla aquí, los roles a remover YA están fuera
+        // — el usuario queda con un subset incorrecto. Reportar al admin
+        // explícitamente para que reintente; no podemos auto-revertir
+        // sin riesgo (el DELETE ya fue confirmado por la DB).
+        toast.error(
+          `${friendlyError(error)}. Los roles a quitar SÍ se eliminaron; revisa el estado del usuario y reintentá agregar los nuevos.`,
+        );
         return false;
       }
     }
@@ -857,7 +880,9 @@ function AdminUsers() {
     });
     const respError = (data as { error?: string } | null)?.error;
     if (edgeErr || respError) {
-      toast.error(respError ?? edgeErr?.message ?? "No se pudo eliminar el usuario");
+      // El primer respError es el mensaje friendly que viene de la edge.
+      // Si no llegó, traducimos el error técnico del transport con friendlyError.
+      toast.error(respError ?? friendlyError(edgeErr, "No se pudo eliminar el usuario"));
       return;
     }
     toast.success(t("users.deletedToast"));
