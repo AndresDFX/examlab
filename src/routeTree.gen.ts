@@ -18,6 +18,7 @@ import { Route as VerifyShortCodeRouteImport } from './routes/verify.$shortCode'
 import { Route as AuthResetPasswordRouteImport } from './routes/auth.reset-password'
 import { Route as AuthConfirmEmailChangeRouteImport } from './routes/auth.confirm-email-change'
 import { Route as AuthCancelEmailChangeRouteImport } from './routes/auth.cancel-email-change'
+import { Route as AuthSsoCallbackRouteImport } from './routes/auth.sso-callback'
 import { Route as AppVideosRouteImport } from './routes/app.videos'
 import { Route as AppUnauthorizedRouteImport } from './routes/app.unauthorized'
 import { Route as AppTrashRouteImport } from './routes/app.trash'
@@ -122,6 +123,11 @@ const AuthConfirmEmailChangeRoute = AuthConfirmEmailChangeRouteImport.update({
 const AuthCancelEmailChangeRoute = AuthCancelEmailChangeRouteImport.update({
   id: '/cancel-email-change',
   path: '/cancel-email-change',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthSsoCallbackRoute = AuthSsoCallbackRouteImport.update({
+  id: '/sso-callback',
+  path: '/sso-callback',
   getParentRoute: () => AuthRoute,
 } as any)
 const AppVideosRoute = AppVideosRouteImport.update({
@@ -443,6 +449,7 @@ export interface FileRoutesByFullPath {
   '/auth/cancel-email-change': typeof AuthCancelEmailChangeRoute
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
+  '/auth/sso-callback': typeof AuthSsoCallbackRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
@@ -512,6 +519,7 @@ export interface FileRoutesByTo {
   '/auth/cancel-email-change': typeof AuthCancelEmailChangeRoute
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
+  '/auth/sso-callback': typeof AuthSsoCallbackRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app': typeof AppIndexRoute
   '/auth': typeof AuthIndexRoute
@@ -584,6 +592,7 @@ export interface FileRoutesById {
   '/auth/cancel-email-change': typeof AuthCancelEmailChangeRoute
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
+  '/auth/sso-callback': typeof AuthSsoCallbackRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
@@ -657,6 +666,7 @@ export interface FileRouteTypes {
     | '/auth/cancel-email-change'
     | '/auth/confirm-email-change'
     | '/auth/reset-password'
+    | '/auth/sso-callback'
     | '/verify/$shortCode'
     | '/app/'
     | '/auth/'
@@ -726,6 +736,7 @@ export interface FileRouteTypes {
     | '/auth/cancel-email-change'
     | '/auth/confirm-email-change'
     | '/auth/reset-password'
+    | '/auth/sso-callback'
     | '/verify/$shortCode'
     | '/app'
     | '/auth'
@@ -797,6 +808,7 @@ export interface FileRouteTypes {
     | '/auth/cancel-email-change'
     | '/auth/confirm-email-change'
     | '/auth/reset-password'
+    | '/auth/sso-callback'
     | '/verify/$shortCode'
     | '/app/'
     | '/auth/'
@@ -926,6 +938,13 @@ declare module '@tanstack/react-router' {
       path: '/cancel-email-change'
       fullPath: '/auth/cancel-email-change'
       preLoaderRoute: typeof AuthCancelEmailChangeRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/auth/sso-callback': {
+      id: '/auth/sso-callback'
+      path: '/sso-callback'
+      fullPath: '/auth/sso-callback'
+      preLoaderRoute: typeof AuthSsoCallbackRouteImport
       parentRoute: typeof AuthRoute
     }
     '/app/videos': {
@@ -1506,6 +1525,7 @@ interface AuthRouteChildren {
   AuthCancelEmailChangeRoute: typeof AuthCancelEmailChangeRoute
   AuthConfirmEmailChangeRoute: typeof AuthConfirmEmailChangeRoute
   AuthResetPasswordRoute: typeof AuthResetPasswordRoute
+  AuthSsoCallbackRoute: typeof AuthSsoCallbackRoute
   AuthIndexRoute: typeof AuthIndexRoute
 }
 
@@ -1513,6 +1533,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthCancelEmailChangeRoute: AuthCancelEmailChangeRoute,
   AuthConfirmEmailChangeRoute: AuthConfirmEmailChangeRoute,
   AuthResetPasswordRoute: AuthResetPasswordRoute,
+  AuthSsoCallbackRoute: AuthSsoCallbackRoute,
   AuthIndexRoute: AuthIndexRoute,
 }
 

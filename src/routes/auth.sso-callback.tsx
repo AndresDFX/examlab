@@ -25,10 +25,12 @@ import { GraduationCap, AlertTriangle } from "lucide-react";
 import { logEvent } from "@/shared/lib/audit";
 
 // El path "/auth/sso-callback" se agrega a FileRoutesByPath cuando
-// vite-plugin-router regenera routeTree.gen.ts (al próximo `bun dev`
-// o `bun build`). Hasta entonces, tsc no lo encuentra en la unión —
-// la aserción `as never` mantiene tsc verde sin afectar runtime.
-export const Route = createFileRoute("/auth/sso-callback" as never)({
+// vite-plugin-router regenera routeTree.gen.ts en build. El plugin
+// no tolera la aserción `as never` en el literal — su parser estático
+// no la reconoce y aborta la generación con "Crawling result not
+// available" (rompía `bun build` en Publish). Path como string literal
+// puro: el plugin lo detecta y crea la entry en FileRoutesByPath.
+export const Route = createFileRoute("/auth/sso-callback")({
   head: () => ({
     meta: [{ title: "Iniciando sesión — ExamLab" }],
   }),
