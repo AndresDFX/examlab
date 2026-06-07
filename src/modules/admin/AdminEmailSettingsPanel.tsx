@@ -29,6 +29,7 @@ import {
   Server,
   ListChecks,
   BookOpen,
+  UserPlus,
 } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
 
@@ -47,6 +48,11 @@ interface EnabledKinds {
   system_alerts?: boolean;
   poll?: boolean;
   content?: boolean;
+  /** "Bienvenida a ExamLab — Define tu contraseña" enviado al crear un
+   *  usuario nuevo (single o bulk import). Default true para no romper
+   *  flujos existentes; el admin puede apagar este toggle cuando reparte
+   *  contraseñas manualmente o usa SSO y no quiere generar links de reset. */
+  welcome?: boolean;
 }
 
 interface EmailSettings {
@@ -126,6 +132,13 @@ const CATEGORIES: Array<{
     desc: "Notificaciones a admins cuando se cruza un umbral (almacenamiento, errores, etc.). NO afecta correos transaccionales (reset de contraseña, cambio de email).",
     icon: Server,
     color: "text-slate-500",
+  },
+  {
+    key: "welcome",
+    label: "Bienvenida (nuevos usuarios)",
+    desc: "Correo automático con link para definir contraseña, enviado al crear un usuario nuevo (form individual o bulk import CSV). Apágalo si repartes contraseñas manualmente o usas SSO.",
+    icon: UserPlus,
+    color: "text-fuchsia-500",
   },
 ];
 

@@ -977,6 +977,8 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                         onClick={() => setExpandedId(expanded ? null : j.id)}
                         className="shrink-0 text-muted-foreground hover:text-foreground"
                         title={expanded ? "Ocultar detalle" : "Ver detalle"}
+                        aria-expanded={expanded}
+                        aria-label={expanded ? "Ocultar detalle del job" : "Ver detalle del job"}
                       >
                         {expanded ? (
                           <ChevronDown className="h-3.5 w-3.5" />

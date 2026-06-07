@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -38,11 +38,6 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
   // https://www.chromium.org/developers/design-documents/create-amazing-password-forms/
   const { profile, user } = useAuth();
   const username = profile?.institutional_email || user?.email || "";
-  // Re-foco después de abrir para que el password manager detecte el form
-  // (algunos browsers solo escanean cuando hay focus inicial).
-  useEffect(() => {
-    if (!open) return;
-  }, [open]);
 
   const reset = () => {
     setNewPassword("");

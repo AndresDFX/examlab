@@ -42,6 +42,7 @@ import { toast } from "sonner";
 import { Send, Paperclip, Download, X, UserCheck, CheckCircle2 } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -148,6 +149,7 @@ export function SupportTicketDetailDialog({
   currentUserId,
   onMutate,
 }: Props) {
+  const confirm = useConfirm();
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [attachments, setAttachments] = useState<SupportAttachment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -246,18 +248,46 @@ export function SupportTicketDetailDialog({
 
   const sendReply = async () => {
     if (!ticket || !currentUserId || sending || reply.trim().length === 0) return;
+    // Optimistic send: agregamos el mensaje a la lista local INMEDIATAMENTE
+    // con un id temporal (`tmp-<random>`). El usuario ve su mensaje al
+    // instante en vez de esperar 1-2s al ack del INSERT + realtime. Si
+    // el INSERT falla, removemos el mensaje optimista. Si tiene éxito,
+    // realtime trae la fila real (con id de la DB); el filter por id
+    // temporal lo reemplaza implícitamente cuando `load()` lo trae con
+    // su id real. Para evitar duplicado breve, removemos el temporal
+    // al success y dejamos que realtime/load pinte el real.
+    const tmpId = `tmp-${crypto.randomUUID()}`;
+    const tmpMessage: SupportMessage = {
+      id: tmpId,
+      ticket_id: ticket.id,
+      sender_id: currentUserId,
+      body: reply.trim(),
+      created_at: new Date().toISOString(),
+      sender_name: null,
+    };
+    setMessages((prev) => [...prev, tmpMessage]);
+    const draftBody = reply.trim();
+    setReply("");
     setSending(true);
     try {
       const { error } = await db.from("support_ticket_messages").insert({
         ticket_id: ticket.id,
         sender_id: currentUserId,
-        body: reply.trim(),
+        body: draftBody,
       });
       if (error) {
+        // Rollback optimistic: removemos el temporal y restauramos el
+        // textarea con el draft para que el usuario pueda reintentar.
+        setMessages((prev) => prev.filter((m) => m.id !== tmpId));
+        setReply(draftBody);
         toast.error(friendlyError(error, "No se pudo enviar"));
         return;
       }
-      setReply("");
+      // Success: NO removemos el tmp acá — el realtime subscription
+      // (postgres_changes ON INSERT) dispara load() que reemplaza
+      // messages con la lista server-side (sin el tmp), eliminándolo
+      // de forma natural. Removerlo explícitamente acá puede crear
+      // un flicker si realtime tarda en llegar.
       // El SA que responde por primera vez puede auto-mover a in_progress
       // si todavía está "open" — opcional. Lo dejamos manual para no
       // confundir.
@@ -270,6 +300,8 @@ export function SupportTicketDetailDialog({
       }
       onMutate?.();
     } catch (e) {
+      setMessages((prev) => prev.filter((m) => m.id !== tmpId));
+      setReply(draftBody);
       toast.error(friendlyError(e, "No se pudo enviar"));
     } finally {
       setSending(false);
@@ -378,6 +410,17 @@ export function SupportTicketDetailDialog({
 
   const closeMyTicket = async () => {
     if (!ticket || mode !== "admin" || ticket.created_by !== currentUserId) return;
+    // Cerrar el ticket es irreversible para el Admin (solo el SuperAdmin
+    // puede reabrirlo). Pedimos confirmación con tono `warning` (no
+    // destructive — los datos no se pierden, solo el estado cambia).
+    const ok = await confirm({
+      title: "¿Cerrar este ticket?",
+      description:
+        "Una vez cerrado, no podrás reabrirlo desde tu vista. Si lo necesitas reabierto, el SuperAdmin puede hacerlo. Esta acción no se puede deshacer desde tu rol.",
+      tone: "warning",
+      confirmLabel: "Cerrar ticket",
+    });
+    if (!ok) return;
     try {
       const { error } = await db
         .from("support_tickets")
@@ -404,7 +447,14 @@ export function SupportTicketDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+      {/* `DialogContent` ya tiene `max-h-[calc(100dvh-2rem)] overflow-y-auto`
+          por default (ver dialog.tsx). Dejamos solo el max-w para mobile.
+          Antes el override `max-h-[90vh]` redundante daba problemas en
+          dialogs muy altos donde el composer del chat se iba al fondo y
+          requería scrollear todo el modal. Ahora el composer queda en
+          flujo normal y el área de mensajes scrollea independientemente
+          (su propio `max-h-72` interno). */}
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl">
         <DialogHeader>
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="min-w-0 flex-1">
@@ -458,10 +508,10 @@ export function SupportTicketDetailDialog({
                   key={a.id}
                   size="sm"
                   variant="outline"
-                  className="h-7 text-xs"
+                  className="h-8 text-xs"
                   onClick={() => void downloadAttachment(a)}
                 >
-                  <Download className="h-3 w-3 mr-1" />
+                  <Download className="h-3.5 w-3.5 mr-1" />
                   {a.file_name}
                 </Button>
               ))}
@@ -563,7 +613,7 @@ export function SupportTicketDetailDialog({
                       {formatDateTime(m.created_at)}
                     </div>
                     <div
-                      className={`text-sm px-3 py-2 rounded-lg max-w-[85%] whitespace-pre-wrap break-words ${
+                      className={`text-sm px-3 py-2 rounded-lg max-w-[90%] sm:max-w-[85%] whitespace-pre-wrap break-words ${
                         isMine ? "bg-primary text-primary-foreground" : "bg-background border"
                       }`}
                     >
@@ -575,9 +625,20 @@ export function SupportTicketDetailDialog({
             )}
           </div>
 
-          {/* Composer — disabled si ticket cerrado */}
+          {/* Composer — disabled si ticket cerrado. Envuelto en <form>
+              para que en mobile (donde Ctrl+Enter no es accesible con
+              teclados táctiles) el submit del form mande el mensaje, y
+              para asociar semánticamente Textarea + botón "Enviar" para
+              lectores de pantalla. El submit del form llama sendReply. */}
           {status !== "closed" && (
-            <div className="space-y-2">
+            <form
+              className="space-y-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (sending || reply.trim().length === 0) return;
+                void sendReply();
+              }}
+            >
               <Textarea
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}
@@ -590,6 +651,7 @@ export function SupportTicketDetailDialog({
                     void sendReply();
                   }
                 }}
+                aria-label="Mensaje de respuesta"
               />
               <div className="flex items-center gap-2">
                 <input
@@ -600,6 +662,7 @@ export function SupportTicketDetailDialog({
                     const f = e.target.files?.[0];
                     if (f) void uploadFile(f);
                   }}
+                  aria-label="Adjuntar archivo al ticket"
                 />
                 <Button
                   size="sm"
@@ -607,6 +670,7 @@ export function SupportTicketDetailDialog({
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
                   type="button"
+                  aria-label="Adjuntar archivo"
                 >
                   {uploading ? (
                     <Spinner size="sm" className="mr-1" />
@@ -617,7 +681,7 @@ export function SupportTicketDetailDialog({
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => void sendReply()}
+                  type="submit"
                   disabled={sending || reply.trim().length === 0}
                   className="ml-auto"
                 >
@@ -629,7 +693,7 @@ export function SupportTicketDetailDialog({
                   Enviar (Ctrl+Enter)
                 </Button>
               </div>
-            </div>
+            </form>
           )}
 
           {/* Cerrar ticket — solo admin sobre su ticket si no está cerrado */}

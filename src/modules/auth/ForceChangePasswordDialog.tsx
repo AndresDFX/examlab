@@ -98,7 +98,7 @@ export function ForceChangePasswordDialog({ userId, onChanged, onSignOut }: Prop
   return (
     <Dialog open onOpenChange={() => {}}>
       <DialogContent
-        className="max-w-sm"
+        className="max-w-[calc(100vw-2rem)] sm:max-w-sm"
         hideCloseButton
         // Bloqueante: no cerrar al click afuera ni con Escape.
         onEscapeKeyDown={(e) => e.preventDefault()}

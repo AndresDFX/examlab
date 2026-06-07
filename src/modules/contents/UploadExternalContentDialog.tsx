@@ -225,7 +225,16 @@ export function UploadExternalContentDialog({
       n_classes: null,
       duration_minutes: 60,
       modality: "teorica",
-      tags: ["material_externo"],
+      // `tags` está restringido por CHECK constraint
+      // `generated_contents_tags_check` (mig 20260513230000): solo acepta
+      // valores del set {teorico, practico, examen}. El valor
+      // "material_externo" rompía el INSERT con error 23514 al subir
+      // contenido externo. Usamos "teorico" como default que matchea
+      // la modality "teorica" del payload. La marca de "externo" queda
+      // implícita por `status='done'` (saltó el pipeline IA) + ausencia
+      // de archivos `kind: 'pptx-source'` o `kind: 'md'` (todos los
+      // uploads externos usan `kind: 'uploaded'`).
+      tags: ["teorico"],
       course_id: anchorCourseId,
       author: null,
       instructions: null,

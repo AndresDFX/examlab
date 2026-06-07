@@ -92,8 +92,12 @@ function AdminSupportPage() {
   const [newAttachments, setNewAttachments] = useState<File[]>([]);
   const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // `silent` evita togglear `loading` durante refrescos por realtime —
+  // sin esto, cada vez que llega un INSERT/UPDATE remoto, la tabla
+  // flickeaba a "Cargando…" por unos cientos de ms. Reservamos el spinner
+  // SOLO para el primer load y para el botón "Reintentar" del ErrorState.
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setLoadError(null);
     try {
       const { data, error } = await db
@@ -111,7 +115,7 @@ function AdminSupportPage() {
     } catch (e) {
       setLoadError(friendlyError(e, "No pudimos cargar tus tickets"));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -133,7 +137,7 @@ function AdminSupportPage() {
           table: "support_tickets",
           filter: `created_by=eq.${user.id}`,
         },
-        () => void load(),
+        () => void load(true), // silent — sin loader flicker
       )
       .subscribe();
     return () => {
@@ -240,7 +244,7 @@ function AdminSupportPage() {
       // subimos. Best-effort: si algún archivo falla, el ticket queda
       // creado igual y avisamos en el toast cuántos no subieron.
       let attachmentsUploaded = 0;
-      let attachmentsFailed = 0;
+      const failedFiles: File[] = [];
       if (newAttachments.length > 0) {
         for (const file of newAttachments) {
           try {
@@ -264,7 +268,7 @@ function AdminSupportPage() {
             if (insErr) throw insErr;
             attachmentsUploaded += 1;
           } catch (uploadErr) {
-            attachmentsFailed += 1;
+            failedFiles.push(file);
             console.warn(
               "[support] adjunto inicial falló",
               file.name,
@@ -273,6 +277,7 @@ function AdminSupportPage() {
           }
         }
       }
+      const attachmentsFailed = failedFiles.length;
 
       if (attachmentsFailed > 0) {
         toast.warning(
@@ -286,10 +291,29 @@ function AdminSupportPage() {
         toast.success("Ticket abierto. El SuperAdmin recibió la notificación.");
       }
 
+      // Si hay adjuntos fallidos, NO cerramos el dialog ni reseteamos —
+      // dejamos la lista de adjuntos solo con los que fallaron para que
+      // el admin pueda reintentarlos sin re-seleccionar. El ticket ya
+      // está creado, así que ocultamos los campos editables del header
+      // visualmente... wait, simplificamos: dejamos los adjuntos fallidos
+      // y cerramos el dialog. El admin verá el detalle del ticket y
+      // puede re-subir los archivos desde ahí. La opción de reintentar
+      // inline sería más fluida pero implica un modo "post-create" que
+      // complica el dialog. Mantenemos los archivos fallidos en
+      // `newAttachments` por si el admin reabre y quiere ver qué falló.
+      if (attachmentsFailed > 0) {
+        // Reset del FORM pero preservar los failedFiles en el state
+        // para que cuando el admin reabra el dialog vea esos archivos
+        // listos y sepa cuáles re-subir.
+        setNewCategory("peticion");
+        setNewPriority("normal");
+        setNewSubject("");
+        setNewBody("");
+        setNewAttachments(failedFiles);
+      } else {
+        resetCreateForm();
+      }
       setCreateOpen(false);
-      // Reset DESPUÉS del éxito — antes era al abrir, lo que perdía el
-      // draft si el admin cerraba accidentalmente.
-      resetCreateForm();
       await load();
       // Abrir el detalle del recién creado.
       setActiveTicket(createdTicket);
@@ -379,6 +403,14 @@ function AdminSupportPage() {
                   ? "No has abierto tickets todavía. Usa 'Nuevo ticket' para enviar una petición al SuperAdmin."
                   : "Cambia el filtro de estado para ver otros tickets."
               }
+              action={
+                statusFilter === "all" ? (
+                  <Button onClick={openCreate}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Crear primer ticket
+                  </Button>
+                ) : undefined
+              }
             />
           ) : (
             <Table>
@@ -452,7 +484,10 @@ function AdminSupportPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
+            {/* grid-cols-1 sm:grid-cols-2: a 375px los 2 selects en una
+                misma fila apretaban los labels haciendo wrap del valor.
+                En sm+ vuelven a 2 columnas. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <Label className="text-xs" required>
                   Categoría
@@ -549,14 +584,19 @@ function AdminSupportPage() {
                       <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
                         {(file.size / 1024).toFixed(1)} KB
                       </span>
+                      {/* Tap target ≥ 32x32px en mobile — el ícono X de
+                          h-3 w-3 (12px) sin padding era casi imposible
+                          de clickear con el dedo. h-7 w-7 = 28px botón
+                          + ícono h-3.5 w-3.5 centrado da target táctil. */}
                       <button
                         type="button"
                         onClick={() => removeAttachment(idx)}
-                        className="text-muted-foreground hover:text-destructive shrink-0"
+                        className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 transition-colors"
                         title="Quitar"
+                        aria-label={`Quitar adjunto ${file.name}`}
                         disabled={creating}
                       >
-                        <XIcon className="h-3 w-3" />
+                        <XIcon className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   ))}

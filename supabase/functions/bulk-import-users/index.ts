@@ -90,6 +90,23 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Pre-fetch: setting `enabled_kinds.welcome` de email_settings (id=1).
+    // Si está en false o falta, el admin desactivó los welcome emails y
+    // omitimos la creación de token + notification al crear usuarios.
+    // Default true (backward-compat: antes siempre se enviaba sin toggle).
+    // deno-lint-ignore no-explicit-any
+    const { data: emailSettingsRow } = await (adminClient as any)
+      .from("email_settings")
+      .select("globally_enabled, enabled_kinds")
+      .eq("id", 1)
+      .maybeSingle();
+    const emailSettings = emailSettingsRow as
+      | { globally_enabled?: boolean; enabled_kinds?: { welcome?: boolean } }
+      | null;
+    const sendWelcomeEmails =
+      (emailSettings?.globally_enabled ?? true) &&
+      (emailSettings?.enabled_kinds?.welcome ?? true);
+
     // Pre-fetch profiles (institutional + personal emails) — son el set
     // canónico para detectar duplicados cruzados ("este personal_email
     // ya es el institutional_email de otro estudiante" o viceversa).
@@ -343,7 +360,14 @@ Deno.serve(async (req) => {
           // — el admin gestiona la entrega de la contraseña directamente
           // (cuentas de sistema, integraciones, o casos donde el admin
           // coordina la contraseña offline con el usuario).
-          if (mustChange)
+          // Gate del welcome email: además de `mustChange`, respetamos
+          // el toggle `enabled_kinds.welcome` de email_settings (UI:
+          // Admin → Configuración → Correos). Si el admin lo apagó,
+          // omitimos la generación del token + notification — el admin
+          // reparte la contraseña offline o usa SSO. El usuario igual
+          // queda con `must_change_password=true` así el primer login le
+          // exige cambio.
+          if (mustChange && sendWelcomeEmails)
             try {
               const welcomeToken = generateWelcomeToken();
               const expiresAt = new Date(
@@ -439,10 +463,36 @@ Deno.serve(async (req) => {
         }
         result.push({ email: institutional_email, ok: true, userId });
       } catch (e) {
+        const reason = e instanceof Error ? e.message : String(e);
         result.push({
           email: institutional_email,
           ok: false,
-          reason: e instanceof Error ? e.message : String(e),
+          reason,
+        });
+        // Auditoría POR FILA fallida — antes solo había un evento de
+        // resumen al final con `first_emails`, sin detalle de las 92 que
+        // fallaron. Ahora cada fallo de createUser/upsert deja una fila
+        // en `audit_logs` visible en `/app/admin/audit-logs?tab=errors`
+        // con el mensaje del error real (rate limit, unique violation,
+        // database error, etc.) para que el admin sepa qué pasó sin
+        // tener que abrir los logs de la edge en el dashboard de Supabase.
+        // deno-lint-ignore no-explicit-any
+        const errAny = e as any;
+        void auditFromEdge(adminClient, {
+          actorId: u.user.id,
+          action: "user.bulk_import_row_failed",
+          category: "user",
+          severity: "error",
+          entityType: "user",
+          entityName: institutional_email,
+          metadata: {
+            email: institutional_email,
+            full_name: full_name ?? null,
+            error_message: reason,
+            error_status: errAny?.status ?? null,
+            error_code: errAny?.code ?? null,
+            error_name: errAny?.name ?? null,
+          },
         });
       }
     }

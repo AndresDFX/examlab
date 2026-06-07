@@ -67,8 +67,10 @@ function SuperAdminSupportPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [activeTicket, setActiveTicket] = useState<SupportTicket | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // `silent` evita togglear `loading` durante refrescos por realtime —
+  // sin esto el SA veía "Cargando…" en cada update remoto sobre su lista.
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setLoadError(null);
     try {
       const { data, error } = await db
@@ -117,7 +119,7 @@ function SuperAdminSupportPage() {
     } catch (e) {
       setLoadError(friendlyError(e, "No pudimos cargar la bandeja"));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -145,7 +147,7 @@ function SuperAdminSupportPage() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         "postgres_changes" as any,
         { event: "*", schema: "public", table: "support_tickets" },
-        () => void load(),
+        () => void load(true), // silent — sin loader flicker
       )
       .subscribe();
     return () => {
