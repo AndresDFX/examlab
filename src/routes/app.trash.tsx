@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/select";
 import { Trash2, RotateCcw, X, Clock, Search, AlertTriangle, Archive } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import {
   TRASH_TABLE_LABEL,
   TRASH_NAME_COL,
@@ -416,6 +417,12 @@ function TrashPage() {
 
   return (
     <div className="space-y-4">
+      {bulkBusy && (
+        <LoadingOverlay
+          title="Procesando papelera…"
+          subtitle={`Aplicando la operación a ${selectedItems.length} item(s) en paralelo. Cada uno puede llevar varios segundos cuando arrastra entregas, archivos o cascadas. No cierres esta pestaña.`}
+        />
+      )}
       <PageHeader
         icon={<Trash2 className="h-6 w-6 text-primary" />}
         title="Papelera"

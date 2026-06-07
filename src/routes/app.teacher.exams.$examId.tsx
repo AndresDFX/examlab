@@ -50,6 +50,7 @@ import { DecimalInput } from "@/components/ui/decimal-input";
 import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
 import { RowAction } from "@/components/ui/row-action";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { ErrorState } from "@/components/ui/empty-state";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -749,6 +750,12 @@ function ExamEditor() {
 
   return (
     <div className="space-y-5">
+      {aiLoading && (
+        <LoadingOverlay
+          title="Generando preguntas con IA…"
+          subtitle="Cada tipo de pregunta toma 10-30 segundos. Si configuraste varios tipos, esto puede tardar 1-2 minutos. No cierres esta pestaña."
+        />
+      )}
       <PageHeader backTo="/app/teacher/exams" title={exam.title} />
 
       <Tabs defaultValue={(exam as any).is_external ? "external-grades" : "config"}>

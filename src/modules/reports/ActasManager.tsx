@@ -22,6 +22,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { Badge } from "@/components/ui/badge";
@@ -205,6 +206,12 @@ export function ActasManager({ onPrintActa }: Props) {
 
   return (
     <Card>
+      {generating && (
+        <LoadingOverlay
+          title="Generando acta oficial…"
+          subtitle="Estamos consolidando la cohorte de estudiantes matriculados y calculando notas finales. Puede tardar varios segundos según el tamaño del curso. No cierres esta pestaña."
+        />
+      )}
       <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
         <CardTitle className="text-base flex items-center gap-2">
           <Stamp className="h-4 w-4 text-amber-500" />

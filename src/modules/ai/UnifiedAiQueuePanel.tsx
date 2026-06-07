@@ -36,6 +36,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import {
   useMultiSelect,
@@ -770,6 +771,12 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
 
   return (
     <div className="space-y-4">
+      {draining && (
+        <LoadingOverlay
+          title="Drenando cola IA…"
+          subtitle="Invocando los workers de calificación y generación. Puede tardar varios minutos según cuántos jobs estén pendientes. No cierres esta pestaña."
+        />
+      )}
       {/* Stats 4-card — suman AMBAS colas. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard

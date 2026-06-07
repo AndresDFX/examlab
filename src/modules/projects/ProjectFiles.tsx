@@ -43,6 +43,7 @@ import {
   Library,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
 import { CodeEditor } from "@/modules/code/CodeEditor";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
@@ -579,6 +580,12 @@ export function TeacherProjectFilesEditor({
 
   return (
     <div className="space-y-4">
+      {aiLoading && (
+        <LoadingOverlay
+          title="Generando preguntas con IA…"
+          subtitle="Cada tipo de pregunta toma 10-30 segundos. Si configuraste varios tipos, esto puede tardar 1-2 minutos. No cierres esta pestaña."
+        />
+      )}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList>
           <TabsTrigger value="list">Preguntas ({questions.length})</TabsTrigger>

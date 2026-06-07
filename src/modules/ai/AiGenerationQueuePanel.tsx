@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { RowAction } from "@/components/ui/row-action";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -376,6 +377,12 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
 
   return (
     <div className="space-y-4">
+      {draining && (
+        <LoadingOverlay
+          title="Drenando cola de generación…"
+          subtitle="El worker server-side procesa hasta 10 jobs por invocación. Puede tardar varios minutos. No cierres esta pestaña."
+        />
+      )}
       {/* Banner explicativo */}
       <div className="flex flex-wrap items-center gap-3 rounded-md border bg-amber-50/40 dark:bg-amber-500/5 border-amber-300/40 dark:border-amber-500/20 px-3 py-2">
         <Wand2 className="h-4 w-4 text-amber-500 shrink-0" />
