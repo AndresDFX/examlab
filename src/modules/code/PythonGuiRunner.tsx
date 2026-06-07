@@ -322,16 +322,9 @@ export function PythonGuiRunner({
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-3 pb-3 pt-0 flex-1 min-h-0 overflow-hidden">
-                <div
-                  className="w-full h-full rounded border overflow-auto flex items-start justify-start p-2 relative"
-                  style={{
-                    backgroundColor: "#f4f4f5",
-                    backgroundImage:
-                      "linear-gradient(45deg, #e4e4e7 25%, transparent 25%, transparent 75%, #e4e4e7 75%), linear-gradient(45deg, #e4e4e7 25%, transparent 25%, transparent 75%, #e4e4e7 75%)",
-                    backgroundSize: "16px 16px",
-                    backgroundPosition: "0 0, 8px 8px",
-                  }}
-                >
+                {/* `bg-checkerboard` utility (src/styles.css) — antes
+                    inline style con linear-gradient hex literal. */}
+                <div className="w-full h-full rounded border overflow-auto flex items-start justify-start p-2 relative bg-checkerboard">
                   {screenshotData?.png ? (
                     <>
                       <img

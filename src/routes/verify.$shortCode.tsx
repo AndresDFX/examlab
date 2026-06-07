@@ -99,7 +99,7 @@ function VerifyPage() {
 
         {loading ? (
           <Card>
-            <CardContent className="p-12 text-center text-muted-foreground">
+            <CardContent className="p-4 sm:p-12 text-center text-muted-foreground">
               <Spinner size="md" inline className="mr-2" />
               Verificando código <code>{shortCode}</code>…
             </CardContent>

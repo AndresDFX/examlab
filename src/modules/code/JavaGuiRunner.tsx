@@ -784,18 +784,9 @@ export function JavaGuiRunner({
                   // visores de imágenes (Figma, Photoshop, Preview) para
                   // distinguir contenido del "vacío"; aquí cumple lo
                   // mismo: el JFrame queda visualmente recortado contra
-                  // el patrón. Implementado con un linear-gradient inline
-                  // para no agregar config Tailwind nueva.
-                  <div
-                    className="w-full h-full rounded border overflow-auto flex items-start justify-start p-2 relative"
-                    style={{
-                      backgroundColor: "#f4f4f5",
-                      backgroundImage:
-                        "linear-gradient(45deg, #e4e4e7 25%, transparent 25%, transparent 75%, #e4e4e7 75%), linear-gradient(45deg, #e4e4e7 25%, transparent 25%, transparent 75%, #e4e4e7 75%)",
-                      backgroundSize: "16px 16px",
-                      backgroundPosition: "0 0, 8px 8px",
-                    }}
-                  >
+                  // el patrón. Usa la utility `bg-checkerboard` centralizada
+                  // en src/styles.css (respeta dark mode automáticamente).
+                  <div className="w-full h-full rounded border overflow-auto flex items-start justify-start p-2 relative bg-checkerboard">
                     {screenshotData?.png ? (
                       <>
                         <img

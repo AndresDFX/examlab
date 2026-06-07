@@ -219,7 +219,7 @@ export function AdminEmailSettingsPanel() {
   if (loading) {
     return (
       <Card>
-        <CardContent className="p-8 text-center text-muted-foreground">
+        <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
           <Spinner size="md" /> Cargando…
         </CardContent>
       </Card>

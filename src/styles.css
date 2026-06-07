@@ -325,3 +325,35 @@ iframe[src*="gpteng"] {
   pointer-events: none !important;
 }
 
+
+/* ────────────────────────────────────────────────────────────────────
+ * Utility: bg-checkerboard
+ * ────────────────────────────────────────────────────────────────────
+ * Patrón de damero gris claro / blanco usado para distinguir contenido
+ * pintado (PNG screenshots, color swatches) del fondo transparente.
+ * Antes vivía como inline `background-image: linear-gradient(...)` en
+ * JavaGuiRunner, PythonGuiRunner y hex-color-input. Centralizamos acá
+ * para que cualquier nuevo lugar use `className="bg-checkerboard"`
+ * en vez de copiar el background-image gigante.
+ *
+ * Dark mode: ajustamos a tonos zinc-800/zinc-700 — el contraste
+ * claro/blanco quema en oscuro.
+ */
+.bg-checkerboard {
+  background-image:
+    linear-gradient(45deg, #e4e4e7 25%, transparent 25%),
+    linear-gradient(-45deg, #e4e4e7 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e4e4e7 75%),
+    linear-gradient(-45deg, transparent 75%, #e4e4e7 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-color: #f4f4f5;
+}
+.dark .bg-checkerboard {
+  background-image:
+    linear-gradient(45deg, #3f3f46 25%, transparent 25%),
+    linear-gradient(-45deg, #3f3f46 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #3f3f46 75%),
+    linear-gradient(-45deg, transparent 75%, #3f3f46 75%);
+  background-color: #27272a;
+}

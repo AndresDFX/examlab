@@ -402,7 +402,7 @@ export function ErrorsPanel({ embedded = false }: Props) {
       )}
 
       {loading ? (
-        <div className="p-8 flex items-center justify-center text-sm text-muted-foreground">
+        <div className="p-4 sm:p-8 flex items-center justify-center text-sm text-muted-foreground">
           <Spinner size="sm" className="mr-2" /> Cargando…
         </div>
       ) : loadError ? (

@@ -17,6 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
+import { RowAction } from "@/components/ui/row-action";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -640,26 +641,20 @@ export function FeedbackThread({
                     </span>
                     {mine && !isEditing && !closed && (
                       <>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5"
+                        <RowAction
+                          label="Editar"
+                          icon={Pencil}
                           onClick={() => startEdit(c)}
-                          title="Editar"
                           disabled={isDeletingThis}
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 text-destructive hover:text-destructive"
+                        />
+                        <RowAction
+                          label="Eliminar"
+                          icon={Trash2}
+                          tone="destructive"
                           onClick={() => removeComment(c)}
-                          title="Eliminar"
                           disabled={isDeletingThis}
-                        >
-                          {isDeletingThis ? <Spinner size="xs" /> : <Trash2 className="h-3 w-3" />}
-                        </Button>
+                          loading={isDeletingThis}
+                        />
                       </>
                     )}
                   </span>

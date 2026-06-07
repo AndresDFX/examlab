@@ -19,6 +19,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
+import { RowAction } from "@/components/ui/row-action";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -195,17 +196,16 @@ export function AssessmentTemplateMenu<T extends Record<string, unknown>>({
                     </div>
                   )}
                 </div>
-                <button
-                  type="button"
+                <RowAction
+                  label="Eliminar"
+                  icon={Trash2}
+                  tone="destructive"
+                  className="shrink-0"
                   onClick={(e) => {
                     e.stopPropagation();
                     void remove(t);
                   }}
-                  className="shrink-0 text-muted-foreground hover:text-destructive p-0.5"
-                  title="Eliminar"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
+                />
               </DropdownMenuItem>
             ))
           )}

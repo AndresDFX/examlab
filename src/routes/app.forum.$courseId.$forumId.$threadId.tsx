@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
+import { ForumStatusBadge } from "@/modules/forum/ForumStatusBadge";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { toast } from "sonner";
 import {
@@ -28,7 +29,6 @@ import {
   ArrowUp,
   Pin,
   Lock,
-  CheckCircle2,
   Trash2,
   Send,
   Crown,
@@ -392,18 +392,8 @@ function ThreadDetail() {
         subtitle={
           <>
             Por {thread.author?.full_name ?? "Anónimo"} · {formatDateTime(thread.created_at)}
-            {thread.is_pinned && (
-              <Badge variant="outline" className="ml-2 text-[10px] text-indigo-700 dark:text-indigo-300 border-indigo-500/40">
-                <Pin className="h-2.5 w-2.5 mr-0.5" />
-                Fijado
-              </Badge>
-            )}
-            {thread.is_locked && (
-              <Badge variant="outline" className="ml-1 text-[10px] text-amber-700 dark:text-amber-300 border-amber-500/40">
-                <Lock className="h-2.5 w-2.5 mr-0.5" />
-                Cerrado
-              </Badge>
-            )}
+            {thread.is_pinned && <ForumStatusBadge status="pinned" className="ml-2" />}
+            {thread.is_locked && <ForumStatusBadge status="locked" className="ml-1" />}
           </>
         }
         actions={
@@ -519,12 +509,7 @@ function ThreadDetail() {
                   onClick={() => void toggleUpvote("reply", r.id)}
                 />
                 <div className="flex-1 min-w-0 space-y-2">
-                  {r.is_official && (
-                    <Badge variant="outline" className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10">
-                      <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />
-                      Respuesta oficial del docente
-                    </Badge>
-                  )}
+                  {r.is_official && <ForumStatusBadge status="official" />}
                   {editingReplyId === r.id ? (
                     <div className="space-y-2">
                       <Textarea

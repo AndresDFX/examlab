@@ -148,7 +148,7 @@ function SsoCallbackPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-background">
       <Card className="w-full max-w-md shadow-sm">
-        <CardContent className="p-8 space-y-4 text-center">
+        <CardContent className="p-4 sm:p-8 space-y-4 text-center">
           <div className="flex justify-center">
             <div className="h-11 w-11 rounded-xl bg-primary flex items-center justify-center">
               <GraduationCap className="h-6 w-6 text-primary-foreground" />

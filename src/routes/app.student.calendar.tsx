@@ -448,7 +448,7 @@ function StudentCalendar() {
       {/* Eventos por mes */}
       {loading ? (
         <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
+          <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
             <Spinner size="md" /> Cargando eventos…
           </CardContent>
         </Card>
@@ -495,7 +495,7 @@ function StudentCalendar() {
 function EventRow({ event }: { event: CalendarEvent }) {
   const Icon = KIND_ICON[event.kind];
   return (
-    <Card className="border-l-4" style={borderLeftStyle(event.kind)}>
+    <Card className={`border-l-4 ${BORDER_LEFT_CLASS[event.kind]}`}>
       <CardContent className="p-3 flex items-start gap-3">
         <div className={`shrink-0 rounded-md p-2 ${KIND_COLOR[event.kind]}`}>
           <Icon className="h-4 w-4" />
@@ -548,15 +548,17 @@ function EventRow({ event }: { event: CalendarEvent }) {
   );
 }
 
-function borderLeftStyle(kind: CalendarEvent["kind"]): React.CSSProperties {
-  const colorMap: Record<CalendarEvent["kind"], string> = {
-    exam: "rgb(139, 92, 246)",
-    workshop: "rgb(245, 158, 11)",
-    project: "rgb(244, 63, 94)",
-    session: "rgb(59, 130, 246)",
-  };
-  return { borderLeftColor: colorMap[kind] };
-}
+// Borde izquierdo coloreado por tipo de evento. Antes era un inline
+// `style={{ borderLeftColor }}` con RGB literal; ahora delegamos al
+// design system (paleta Tailwind con tokens del theme). Si el theme
+// del tenant redefine violet/amber/rose/blue, este border lo respeta
+// automáticamente — el inline style hardcoded NO lo hacía.
+const BORDER_LEFT_CLASS: Record<CalendarEvent["kind"], string> = {
+  exam: "border-l-violet-500",
+  workshop: "border-l-amber-500",
+  project: "border-l-rose-500",
+  session: "border-l-blue-500",
+};
 
 function monthLabel(key: string): string {
   const [yStr, mStr] = key.split("-");

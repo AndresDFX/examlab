@@ -399,7 +399,7 @@ function TrashPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground p-8">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground p-4 sm:p-8">
         <Spinner size="sm" /> Cargando papelera…
       </div>
     );

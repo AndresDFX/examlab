@@ -269,7 +269,7 @@ function PreferencesPage() {
 
       {loading ? (
         <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
+          <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
             <Spinner size="md" /> {t("common.loading")}
           </CardContent>
         </Card>

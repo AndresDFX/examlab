@@ -38,7 +38,7 @@ function AdminAuditLogs() {
   const initialTab: AuditTab = search.tab ?? "logs";
 
   if (!roles.includes("Admin") && !roles.includes("SuperAdmin")) {
-    return <p className="text-muted-foreground p-8">Necesitas rol Admin o SuperAdmin.</p>;
+    return <p className="text-muted-foreground p-4 sm:p-8">Necesitas rol Admin o SuperAdmin.</p>;
   }
 
   // El padding y max-width los pone AppLayout en el contenedor de la

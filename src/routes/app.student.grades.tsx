@@ -519,7 +519,7 @@ function StudentGrades() {
 
       {courses.length === 0 ? (
         <Card>
-          <CardContent className="p-10 text-center text-muted-foreground text-sm">
+          <CardContent className="p-4 sm:p-10 text-center text-muted-foreground text-sm">
             <ClipboardList className="h-10 w-10 mx-auto text-muted-foreground/60 mb-2" />
             No estás matriculado en ningún curso.
           </CardContent>
@@ -610,7 +610,7 @@ function StudentGrades() {
             </Card>
           ) : cutsBreakdown.length === 0 ? (
             <Card>
-              <CardContent className="p-10 text-center text-sm text-muted-foreground">
+              <CardContent className="p-4 sm:p-10 text-center text-sm text-muted-foreground">
                 Este curso aún no tiene cortes evaluativos configurados.
               </CardContent>
             </Card>
