@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
   attachmentIconKind,
   formatAttachmentSize,
@@ -55,6 +56,7 @@ interface Props {
 }
 
 export function MessageAttachments({ attachments, canDelete, onChanged, inverted }: Props) {
+  const confirm = useConfirm();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -83,7 +85,15 @@ export function MessageAttachments({ attachments, canDelete, onChanged, inverted
   };
 
   const remove = async (a: MessageAttachmentRow) => {
-    if (!confirm(`¿Quitar el adjunto "${a.name}"?`)) return;
+    // useConfirm en lugar de window.confirm nativo — consistente con
+    // el resto del repo y respeta el theme/branding del tenant.
+    const ok = await confirm({
+      tone: "destructive",
+      title: "Quitar adjunto",
+      description: `¿Quitar el adjunto "${a.name}"? Esta acción no se puede deshacer.`,
+      confirmLabel: "Quitar",
+    });
+    if (!ok) return;
     setDeletingId(a.id);
     try {
       await supabase.storage.from("message-attachments").remove([a.path]);

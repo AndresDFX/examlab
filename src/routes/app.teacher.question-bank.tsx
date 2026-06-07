@@ -465,7 +465,7 @@ function QuestionBankPage() {
 
       {/* Tabla */}
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           {loading ? (
             <div className="p-8 text-center text-muted-foreground">
               <Spinner size="md" /> Cargando…

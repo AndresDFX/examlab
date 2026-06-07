@@ -47,6 +47,7 @@ import { computeWeightedGrade } from "@/modules/grading/grade";
 import { computeAttemptGrade, type RetryMode } from "@/modules/exams/exam-attempts";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ErrorState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { friendlyError } from "@/shared/lib/db-errors";
 
@@ -603,7 +604,9 @@ function StudentGrades() {
           {/* Detalle por corte */}
           {loading ? (
             <Card>
-              <CardContent className="p-6 text-sm text-muted-foreground">Cargando…</CardContent>
+              <CardContent className="p-4">
+                <TableSkeleton rows={3} cols={4} />
+              </CardContent>
             </Card>
           ) : cutsBreakdown.length === 0 ? (
             <Card>

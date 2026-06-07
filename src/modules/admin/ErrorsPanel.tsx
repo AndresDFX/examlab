@@ -421,7 +421,7 @@ export function ErrorsPanel({ embedded = false }: Props) {
                     <MultiSelectHeaderCheckbox state={sel} />
                   </TableHead>
                   <TableHead className="w-8" />
-                  <TableHead className="min-w-48">Error</TableHead>
+                  <TableHead className="min-w-36 sm:min-w-48">Error</TableHead>
                   <TableHead className="hidden md:table-cell w-28">Categoría</TableHead>
                   {isSuperAdmin && (
                     <TableHead className="hidden lg:table-cell w-40">Institución</TableHead>

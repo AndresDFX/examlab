@@ -251,7 +251,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                 `EmailStatTile`): bloque con bg tintado, número grande
                 arriba, label abajo. Unifica la apariencia de los dos
                 widgets de salud del dashboard. */}
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {/* Pendientes = pending + failed: un job fallado sigue sin
                   calificar. Los failed se desglosan en su propio tile. */}
               <Stat

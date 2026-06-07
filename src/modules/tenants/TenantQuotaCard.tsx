@@ -105,7 +105,7 @@ export function TenantQuotaCard({
   }
 
   const tiles = (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
       <QuotaTile label="Administradores" current={counts.admins} max={tenant.max_admins} />
       <QuotaTile label="Docentes" current={counts.teachers} max={tenant.max_teachers} />
       <QuotaTile label="Estudiantes" current={counts.students} max={tenant.max_students} />

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { HelpHint } from "@/components/ui/help-hint";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Input } from "@/components/ui/input";
@@ -1188,7 +1189,9 @@ function AdminUsers() {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-6 text-sm text-muted-foreground">Cargando…</div>
+            <div className="p-4">
+              <TableSkeleton rows={6} cols={5} />
+            </div>
           ) : (
             <div className="overflow-x-auto">
               {/* table-fixed: emails y nombres largos truncan. */}

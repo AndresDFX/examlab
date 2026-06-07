@@ -3252,7 +3252,7 @@ function TeacherWorkshops() {
           if (!o) setViewingSubId(null);
         }}
       >
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Calificaciones — {gradingWs?.title}</DialogTitle>
           </DialogHeader>

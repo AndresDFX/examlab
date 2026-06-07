@@ -347,7 +347,7 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
                     <TableRow>
                       <TableHead className="min-w-32">Sesión</TableHead>
                       <TableHead className="hidden sm:table-cell w-32">Fecha</TableHead>
-                      <TableHead className="min-w-48">Evento del calendario</TableHead>
+                      <TableHead className="min-w-36 sm:min-w-48">Evento del calendario</TableHead>
                       <TableHead className="w-8" />
                     </TableRow>
                   </TableHeader>

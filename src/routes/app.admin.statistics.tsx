@@ -546,7 +546,7 @@ function AdminStatistics() {
               <CardTitle className="text-base">Detalle por curso</CardTitle>
               <CardDescription>Click en un curso para ver su dashboard completo.</CardDescription>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>

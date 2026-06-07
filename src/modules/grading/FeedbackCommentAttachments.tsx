@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
   attachmentIconKind,
   formatAttachmentSize,
@@ -57,6 +58,7 @@ interface Props {
 }
 
 export function FeedbackCommentAttachments({ attachments, onChanged, closed }: Props) {
+  const confirm = useConfirm();
   const { user } = useAuth();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -87,7 +89,15 @@ export function FeedbackCommentAttachments({ attachments, onChanged, closed }: P
   };
 
   const remove = async (a: AttachmentRow) => {
-    if (!confirm(`¿Quitar el adjunto "${a.name}"?`)) return;
+    // useConfirm en lugar de window.confirm nativo — consistente con
+    // el resto del repo y respeta el theme/branding del tenant.
+    const ok = await confirm({
+      tone: "destructive",
+      title: "Quitar adjunto",
+      description: `¿Quitar el adjunto "${a.name}"? Esta acción no se puede deshacer.`,
+      confirmLabel: "Quitar",
+    });
+    if (!ok) return;
     setDeletingId(a.id);
     try {
       // Borra primero del bucket (idempotente — si no existe igual sigue).

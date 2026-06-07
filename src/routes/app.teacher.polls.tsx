@@ -526,7 +526,7 @@ function TeacherPolls() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-48">Encuesta</TableHead>
+                  <TableHead className="min-w-36 sm:min-w-48">Encuesta</TableHead>
                   <TableHead className="hidden md:table-cell w-40">Curso</TableHead>
                   <TableHead className="w-32">Tipo</TableHead>
                   <TableHead className="hidden lg:table-cell w-36">Ventana</TableHead>
