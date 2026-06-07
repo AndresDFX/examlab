@@ -82,6 +82,7 @@ import {
 import { usePollRealtime } from "@/modules/polls/use-poll-realtime";
 import { cn } from "@/shared/lib/utils";
 import { softDelete } from "@/modules/trash/soft-delete";
+import { useTranslation } from "react-i18next";
 
 export const Route = createFileRoute("/app/teacher/polls")({ component: TeacherPolls });
 
@@ -164,6 +165,7 @@ function pollIsOpen(p: Poll): boolean {
 }
 
 function TeacherPolls() {
+  const { t } = useTranslation();
   const { user, roles } = useAuth();
   const activeRole = useActiveRole();
   // SuperAdmin actuando como SA (no enmascarado como otro rol) NO tiene
@@ -708,6 +710,7 @@ function CreatePollDialog({
   prefilledSessionId?: string | null;
   prefilledCourseId?: string | null;
 }) {
+  const { t } = useTranslation();
   const isEdit = editingPoll != null;
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -1217,12 +1220,7 @@ function CreatePollDialog({
             <div className="flex items-center justify-between mb-1">
               <Label required>
                 Cursos{" "}
-                <HelpHint side="right">
-                  Una sola encuesta puede aplicar a varios cursos. Los alumnos matriculados en
-                  CUALQUIERA de los cursos seleccionados pueden votar. Los cupos y el cierre
-                  automático suman los matriculados de todos los cursos. Útil cuando dictás el mismo
-                  material en varios cursos y querés consolidar resultados.
-                </HelpHint>
+                <HelpHint side="right">{t("help.pollMulticourseHint")}</HelpHint>
               </Label>
               {courses.length > 1 && (
                 <button
@@ -1275,11 +1273,7 @@ function CreatePollDialog({
           <div>
             <Label className="flex items-center gap-1.5">
               Asociar a sesión (opcional)
-              <HelpHint side="right">
-                Si elegís una sesión, la encuesta aparecerá destacada en la pantalla de asistencia
-                de esa sesión (docente) y como acción pendiente en el card del alumno. Solo se
-                listan sesiones del primer curso seleccionado.
-              </HelpHint>
+              <HelpHint side="right">{t("help.pollSessionAssociationHint")}</HelpHint>
             </Label>
             <Select
               value={sessionId ?? "__none__"}
@@ -1376,12 +1370,7 @@ function CreatePollDialog({
             <div>
               <Label>
                 Cierra el (opcional){" "}
-                <HelpHint side="right">
-                  Fecha y hora en que la encuesta deja de aceptar respuestas. Después de ese momento
-                  los alumnos ya no pueden votar y, según la configuración de resultados, recién ahí
-                  podrían verlos. Si lo dejas vacío, la encuesta permanece abierta hasta que la
-                  cierres manualmente desde el listado.
-                </HelpHint>
+                <HelpHint side="right">{t("help.pollCloseDatetimeHint")}</HelpHint>
               </Label>
               <DateTimePicker value={closesAt} onChange={setClosesAt} />
               <p className="text-[11px] text-muted-foreground mt-1">
@@ -1450,11 +1439,7 @@ function CreatePollDialog({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1">
                   <span className="text-sm font-medium">Permitir cambiar la respuesta</span>
-                  <HelpHint>
-                    Si está activado, el alumno puede modificar su voto mientras la encuesta siga
-                    abierta. Si lo desactivás, una vez que vote queda en piedra hasta el cierre.
-                    Útil cuando la decisión es definitiva (ej. confirmar asistencia).
-                  </HelpHint>
+                  <HelpHint>{t("help.pollAllowChangeResponseHint")}</HelpHint>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   {allowChange
@@ -1469,13 +1454,7 @@ function CreatePollDialog({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1">
                   <span className="text-sm font-medium">Cerrar al responder todos</span>
-                  <HelpHint>
-                    Si está activado, la encuesta se cierra sola en cuanto todos los alumnos
-                    matriculados (de los cursos asociados) hayan respondido al menos una vez. Útil
-                    para no dejarla "abierta para siempre" tras que el último alumno elija. Si algún
-                    alumno nunca responde, el cierre automático no se dispara y tenés que cerrarla a
-                    mano.
-                  </HelpHint>
+                  <HelpHint>{t("help.pollAutoCloseAllRespondedHint")}</HelpHint>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   {autoCloseAll

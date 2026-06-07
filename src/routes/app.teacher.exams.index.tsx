@@ -889,11 +889,7 @@ function TeacherExams() {
             <div>
               <Label>
                 Estado{" "}
-                <HelpHint>
-                  Borrador lo deja oculto para los estudiantes — útil para preparar el examen sin
-                  que aparezca en sus listas. Publicado se muestra dentro de la ventana de fechas.
-                  Cerrado bloquea intentos nuevos manualmente.
-                </HelpHint>
+                <HelpHint>{t("help.examStatusHelp")}</HelpHint>
               </Label>
               <Select
                 value={(form as any).status ?? "published"}
@@ -1052,10 +1048,7 @@ function TeacherExams() {
               <div>
                 <Label>
                   Modo de calificación con reintentos{" "}
-                  <HelpHint>
-                    Aplica solo si se permite más de un intento. Define cómo se calcula la
-                    calificación final cuando hay varios intentos.
-                  </HelpHint>
+                  <HelpHint>{t("help.examRetryModeHelp")}</HelpHint>
                 </Label>
                 <Select
                   value={(form as any).retry_mode ?? "last"}
@@ -1085,10 +1078,7 @@ function TeacherExams() {
               <div>
                 <Label>
                   Advertencias máximas{" "}
-                  <HelpHint>
-                    Cuántas veces el alumno puede cambiar de pestaña, copiar/pegar, salir de
-                    pantalla completa, etc. antes de marcar la entrega como sospechosa.
-                  </HelpHint>
+                  <HelpHint>{t("help.examMaxWarningsHelp")}</HelpHint>
                 </Label>
                 <Input
                   type="number"
@@ -1112,10 +1102,7 @@ function TeacherExams() {
               <div className="space-y-2">
                 <Label>
                   Corte y peso por curso{" "}
-                  <HelpHint>
-                    Asigna cada curso a un corte y configura el peso del examen. El presupuesto
-                    disponible se valida independientemente por corte.
-                  </HelpHint>
+                  <HelpHint>{t("help.examCutWeightPerCourseHelp")}</HelpHint>
                 </Label>
                 {[...selectedCourseIds].map((cid) => {
                   const course = courses.find((c) => c.id === cid);
@@ -1212,10 +1199,7 @@ function TeacherExams() {
                 <div>
                   <Label>
                     Corte de evaluación{" "}
-                    <HelpHint>
-                      Opcional. Asigna el examen a un corte para que su peso cuente en el cálculo de
-                      la nota final del curso.
-                    </HelpHint>
+                    <HelpHint>{t("help.examCutWeightHelp")}</HelpHint>
                   </Label>
                   {(() => {
                     const targetCourseId = [...selectedCourseIds][0];

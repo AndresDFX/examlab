@@ -1297,11 +1297,7 @@ function TeacherContents() {
             <div className="space-y-1.5">
               <Label required>
                 Nombre del contenido
-                <HelpHint>
-                  Nombre único para identificar este contenido en el tablero y en los selectores.
-                  Por ejemplo: "Semana 5 — Estructuras de control" o "Cohorte 2026-I · Algoritmos".
-                  Es distinto del tema (lo que se le pide a la IA).
-                </HelpHint>
+                <HelpHint>{t("help.contentDisplayNameHint")}</HelpHint>
               </Label>
               <Input
                 value={displayName}
@@ -1517,11 +1513,7 @@ function TeacherContents() {
                 <span className="truncate">
                   Liberar al estudiante solo desde la fecha de sesión
                 </span>
-                <HelpHint>
-                  Si está activo, el estudiante verá el contenido únicamente cuando llegue la fecha
-                  de la sesión a la que se asignó. Útil para evitar spoilers de talleres, ejercicios
-                  o exámenes.
-                </HelpHint>
+                <HelpHint>{t("help.contentReleaseAfterSessionHint")}</HelpHint>
               </Label>
               <Switch
                 id="release-after-session"

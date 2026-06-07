@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { logEvent } from "@/shared/lib/audit";
@@ -135,6 +136,7 @@ function scoreVariant(score: number): "destructive" | "default" | "secondary" {
 }
 
 export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
+  const { t } = useTranslation();
   // Gate IA: detect-plagiarism consume cuota Gemini (N²/2 comparaciones).
   // En modo async sin override pedimos confirmación antes de gastar.
   const aiGate = useAiAuthorizationGate();
@@ -681,10 +683,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                     <TableHead className="w-24 text-right">
                       <span className="inline-flex items-center gap-1 justify-end">
                         Sugerida
-                        <HelpHint>
-                          La nota se ingresa en la escala del item (0 al puntaje máximo del
-                          examen/taller/proyecto). Decimales con coma (ej. 4,5).
-                        </HelpHint>
+                        <HelpHint>{t("help.gradeInputScale")}</HelpHint>
                       </span>
                     </TableHead>
                     <TableHead className="w-28 text-right">Aplicar</TableHead>
@@ -958,10 +957,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                         <TableHead className="w-24 text-right">
                           <span className="inline-flex items-center gap-1 justify-end">
                             Sugerida
-                            <HelpHint>
-                              La nota se ingresa en la escala del item (0 al puntaje máximo del
-                              examen/taller/proyecto). Decimales con coma (ej. 4,5).
-                            </HelpHint>
+                            <HelpHint>{t("help.gradeInputScaleDeep")}</HelpHint>
                           </span>
                         </TableHead>
                         <TableHead className="w-28 text-right">Aplicar</TableHead>

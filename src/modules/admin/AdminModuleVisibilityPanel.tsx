@@ -149,6 +149,18 @@ const MODULES: Array<{
   // independiente), pero el toggle existe para poder apagar el módulo
   // a un rol entero.
   { key: "messages", label: "Mensajes" },
+  // Notificaciones — campana del header. Apagado por rol gate-ea el
+  // fetch + realtime + toasts del hook useNotifications. Para SuperAdmin
+  // tiene además el efecto de silenciar la mensajería cross-tenant
+  // (que ya está restringida por can_message a Admin↔SA, pero el toggle
+  // permite cortar la campana entera si el SA quiere usar la
+  // plataforma en modo "solo gestión"). Cuando OFF, el bell se oculta.
+  { key: "notifications", label: "Notificaciones" },
+  // Soporte — canal Admin (tenant) → SuperAdmin para PQRS. Solo aplica
+  // a Admin (abre tickets) y SuperAdmin (los gestiona). Docente y
+  // Estudiante no tienen pantalla — sus toggles quedan no-op. Cuando el
+  // Admin abre un ticket, dispara una notif a todos los SA.
+  { key: "support", label: "Soporte" },
   // Sidebar dice "Videos" — quitamos "Biblioteca de" del label aunque
   // el módulo SEA conceptualmente una biblioteca.
   { key: "videos", label: "Videos" },
@@ -593,9 +605,7 @@ export function AdminModuleVisibilityPanel() {
         <CardTitle className="text-base flex items-center gap-2">
           <Layers className="h-4 w-4 text-violet-500" />
           Visibilidad y orden de módulos
-          <HelpHint>
-            {`Habilita o deshabilita módulos por rol (3 switches a la derecha de cada fila). El orden vertical define cómo aparecen en el sidebar — arrastra una fila, o usa las flechas ▲▼. Los cambios de orden se guardan al pulsar "Guardar orden". Los switches se guardan al instante.`}
-          </HelpHint>
+          <HelpHint>{t("help.moduleVisibilityHelp")}</HelpHint>
         </CardTitle>
         <p className="text-xs text-muted-foreground mt-1">
           Admin siempre ve todo (override). Tras un cambio los usuarios deben recargar para verlo.

@@ -343,18 +343,7 @@ export function AdminModelPanel() {
         <div>
           <Label>
             Proveedor{" "}
-            <HelpHint>
-              <div className="space-y-1.5">
-                <p>
-                  <strong>OpenAI:</strong> conecta directo con tu cuenta de platform.openai.com.
-                  Acceso a modelos gpt-4o / gpt-4.1 / etc. Cobra a tu billing de OpenAI.
-                </p>
-                <p>
-                  <strong>Google Gemini (directo):</strong> tu propio proyecto en Google AI Studio /
-                  Vertex. Cobra a tu cuenta GCP. Más control sobre cuotas y residencia de datos.
-                </p>
-              </div>
-            </HelpHint>
+            <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.providerComparison") }} /></HelpHint>
           </Label>
           <Select value={draftProvider} onValueChange={(v) => handleProviderChange(v as Provider)}>
             <SelectTrigger>

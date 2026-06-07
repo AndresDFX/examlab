@@ -8,6 +8,7 @@
  *                    usan OnlineCompiler.io igualmente)
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
@@ -111,6 +112,7 @@ const PROVIDER_SECRETS: Record<CodeProvider, string[]> = {
 };
 
 export function AdminCodeExecutionPanel() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [activeRow, setActiveRow] = useState<ProviderRow | null>(null);
   const [draftProvider, setDraftProvider] = useState<CodeProvider>("onlinecompiler");
@@ -237,11 +239,7 @@ export function AdminCodeExecutionPanel() {
                 {PROVIDER_LABELS[activeRow.provider]}
               </Badge>
             )}
-            <HelpHint>
-              Define el motor por defecto para preguntas tipo "código". El estudiante puede elegir
-              un compilador alterno por pregunta desde el examen (caso de fallo transitorio del
-              default). El cambio aquí aplica de inmediato a las próximas ejecuciones.
-            </HelpHint>
+            <HelpHint>{t("help.defaultCodeProviderHelp")}</HelpHint>
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
             Configuración global para toda la plataforma. Si un proveedor falla, cambia aquí sin
@@ -292,11 +290,7 @@ export function AdminCodeExecutionPanel() {
             <Label className="text-sm font-medium flex items-center gap-1.5">
               <MonitorPlay className="h-4 w-4 text-amber-600" />
               Proveedor para preguntas <code className="text-[11px]">java_gui</code>
-              <HelpHint>
-                Estas preguntas piden al alumno construir una UI con Swing/AWT/JavaFX. Como ningún
-                proveedor de consola puede renderizar UI, hay un selector aparte. Ver
-                docs/JAVA-GUI-OPTIONS.md.
-              </HelpHint>
+              <HelpHint>{t("help.javaGuiProviderHelp")}</HelpHint>
             </Label>
             <RadioGroup
               value={draftJavaGui}
@@ -333,11 +327,7 @@ export function AdminCodeExecutionPanel() {
             <Label className="text-sm font-medium flex items-center gap-1.5">
               <MonitorPlay className="h-4 w-4 text-sky-600" />
               Proveedor para preguntas <code className="text-[11px]">python_gui</code>
-              <HelpHint>
-                Estas preguntas piden al alumno construir una UI con tkinter. El runner corre el
-                código en el servidor (AWS Lambda + Xvfb) y devuelve una captura PNG. No hay
-                equivalente client-side: no existe Pyodide+tkinter en WebAssembly.
-              </HelpHint>
+              <HelpHint>{t("help.pythonGuiProviderHelp")}</HelpHint>
             </Label>
             <RadioGroup
               value={draftPythonGui}

@@ -56,6 +56,7 @@ import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { toCSV } from "@/shared/lib/csv";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
+import { useTranslation } from "react-i18next";
 
 export const Route = createFileRoute("/app/teacher/question-bank")({
   component: QuestionBankPage,
@@ -111,6 +112,7 @@ const TYPE_LABEL: Record<QuestionType, string> = {
 };
 
 function QuestionBankPage() {
+  const { t } = useTranslation();
   const { user, roles } = useAuth();
   const confirm = useConfirm();
 
@@ -628,9 +630,7 @@ function QuestionBankPage() {
               <div data-tour-id="question-field-rubric">
                 <Label>
                   Rúbrica esperada{" "}
-                  <HelpHint>
-                    Criterios para que la IA califique. Para tipos cerrada/multi no aplica.
-                  </HelpHint>
+                  <HelpHint>{t("help.rubricHelpCriteria")}</HelpHint>
                 </Label>
                 <Textarea
                   value={draft.expected_rubric ?? ""}

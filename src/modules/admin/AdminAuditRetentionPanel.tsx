@@ -7,6 +7,7 @@
  *     $$ SELECT public.purge_audit_logs(); $$);
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
@@ -34,6 +35,7 @@ interface RetentionRow {
 }
 
 export function AdminAuditRetentionPanel() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [row, setRow] = useState<RetentionRow | null>(null);
   const [draft, setDraft] = useState({ info: 0, warning: 0, error: 0 });
@@ -161,10 +163,7 @@ export function AdminAuditRetentionPanel() {
           <CardTitle className="text-base flex items-center gap-2">
             <ScrollText className="h-4 w-4 text-indigo-500" />
             Retención de auditoría
-            <HelpHint>
-              Define cuántos días conservar registros de cada severidad. 0 = sin límite (default).
-              La purga la dispara un cron mensual configurado en Supabase.
-            </HelpHint>
+            <HelpHint>{t("help.retentionHelp")}</HelpHint>
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
             Los registros antiguos se borran automáticamente. Severidades más altas suelen

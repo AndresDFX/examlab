@@ -8,6 +8,7 @@
  * curso (no sobre talleres).
  */
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { logEvent } from "@/shared/lib/audit";
 import { useAuth } from "@/hooks/use-auth";
@@ -110,6 +111,7 @@ export function TeacherProjectFilesEditor({
   projectId: string;
   courseLanguage?: "es" | "en";
 }) {
+  const { t } = useTranslation();
   const confirm = useConfirm();
   // Gate IA: en modo async sin override pedimos confirmación antes de
   // gastar cuota en generación de preguntas (auto + manual).
@@ -681,12 +683,7 @@ export function TeacherProjectFilesEditor({
             <div>
               <Label required>
                 Tipo{" "}
-                <HelpHint>
-                  En proyectos, <strong>Código</strong> significa que el estudiante selecciona
-                  varios archivos de código fuente directo (sin comprimir). La IA recibe todos los
-                  archivos minificados en un solo prompt y los califica con la rúbrica y los puntos
-                  de esta pregunta. Diagramas y documentos van en preguntas separadas.
-                </HelpHint>
+                <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.projectCodeTypeHint") }} /></HelpHint>
               </Label>
               <Select value={qType} onValueChange={(v) => setQType(v as any)}>
                 <SelectTrigger>
@@ -805,18 +802,7 @@ export function TeacherProjectFilesEditor({
             <div>
               <Label className="flex items-center gap-1.5">
                 Framework
-                <HelpHint>
-                  <span>
-                    <strong>Swing/AWT</strong>: framework built-in del JDK, soportado por CheerpJ
-                    (navegador) y AWS Lambda.
-                  </span>
-                  <br />
-                  <span>
-                    <strong>JavaFX</strong>: requiere OpenJFX 21 (runner Lambda). NO funciona con
-                    CheerpJ. La clase del alumno debe <code>extends Application</code>; el wrapper
-                    server-side llama <code>Application.launch()</code>.
-                  </span>
-                </HelpHint>
+                <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.projectJavaFrameworkHint") }} /></HelpHint>
               </Label>
               <Select
                 value={qJavaFramework}
@@ -842,11 +828,7 @@ export function TeacherProjectFilesEditor({
               <div>
                 <Label required>
                   Lenguaje principal{" "}
-                  <HelpHint>
-                    El lenguaje fija qué extensiones aceptará el selector de archivos del
-                    estudiante. Java → .java, Python → .py, etc. Cualquier archivo con otra
-                    extensión queda bloqueado antes de subir.
-                  </HelpHint>
+                  <HelpHint>{t("help.projectLanguageExtensionHint")}</HelpHint>
                 </Label>
                 <Select value={qLanguage} onValueChange={setQLanguage}>
                   <SelectTrigger>
@@ -885,12 +867,7 @@ export function TeacherProjectFilesEditor({
                 <div className="space-y-0.5 min-w-0">
                   <Label htmlFor="qZipSingle" className="text-sm">
                     Modo ZIP único{" "}
-                    <HelpHint>
-                      Scaffolding del flujo ZIP. ON: el estudiante sube un único .zip; el servidor
-                      lo descomprime y la IA recibe todos los archivos íntegros (sin minify, sin
-                      truncar por archivo). OFF: flujo actual de varios archivos sueltos con
-                      minificación.
-                    </HelpHint>
+                    <HelpHint>{t("help.projectZipSingleModeHint")}</HelpHint>
                   </Label>
                   <p className="text-[11px] text-muted-foreground leading-tight">
                     POC para probar grading con código sin minificar.

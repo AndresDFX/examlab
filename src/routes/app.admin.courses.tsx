@@ -1978,12 +1978,7 @@ export function AdminCourses() {
                     <div>
                       <Label className="text-xs">
                         Cantidad de cortes{" "}
-                        <HelpHint>
-                          Define cuántos cortes evaluativos tiene este curso. <strong>0</strong> =
-                          sin cortes (los pesos por tipo se editan en este mismo dialog). Si pones
-                          1+, los pesos por tipo (exámenes / talleres / proyectos / asistencia) se
-                          configuran dentro de cada corte abajo.
-                        </HelpHint>
+                        <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.courseCutsDefinition") }} /></HelpHint>
                       </Label>
                     </div>
                     <div className="flex items-center gap-2">
@@ -2188,13 +2183,7 @@ export function AdminCourses() {
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-medium inline-flex items-center gap-1.5">
                     Intentos por examen
-                    <HelpHint>
-                      Número máximo de veces que un estudiante puede presentar un examen de este
-                      curso (útil para quices). Al superar el límite, el último intento queda
-                      registrado y el examen se marca como suspendido. Cada examen del curso hereda
-                      este valor por defecto y puede ajustarse individualmente desde el editor del
-                      examen.
-                    </HelpHint>
+                    <HelpHint>{t("help.maxExamAttemptsHelp")}</HelpHint>
                   </p>
                   <Input
                     type="number"

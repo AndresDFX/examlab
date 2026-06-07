@@ -1360,7 +1360,7 @@ function AdminUsers() {
                 <div>
                   <Label>
                     Nueva contraseña{" "}
-                    <HelpHint>Déjalo vacío para no cambiar la contraseña actual.</HelpHint>
+                    <HelpHint>{t("help.newPasswordLeaveEmpty")}</HelpHint>
                   </Label>
                   <div className="relative">
                     <Input
@@ -1471,10 +1471,7 @@ function AdminUsers() {
                 <div className="rounded-md border p-3 space-y-3">
                   <p className="text-sm font-medium flex items-center gap-1.5">
                     Identidad estudiantil
-                    <HelpHint>
-                      Datos institucionales que aparecen en actas y certificados oficiales. Todos
-                      opcionales, pero recomendados.
-                    </HelpHint>
+                    <HelpHint>{t("help.studentIdentityOfficialData")}</HelpHint>
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>

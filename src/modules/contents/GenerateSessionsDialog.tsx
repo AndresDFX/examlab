@@ -319,10 +319,7 @@ export function GenerateSessionsDialog({
               <div className="space-y-1.5 sm:col-span-1">
                 <Label required>
                   Cantidad de sesiones
-                  <HelpHint>
-                    Número de sesiones a programar. En modo "con contenido" este número se
-                    deriva automáticamente de las clases del contenido.
-                  </HelpHint>
+                  <HelpHint>{t("help.sessionCountHint")}</HelpHint>
                 </Label>
                 <Input
                   type="number"

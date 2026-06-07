@@ -96,6 +96,7 @@ export function TeacherWorkshopQuestionsEditor({
   workshopId: string;
   courseLanguage?: "es" | "en";
 }) {
+  const { t } = useTranslation();
   const confirm = useConfirm();
   // Necesitamos el course_id del taller para encolar generaciones (la
   // cola lo guarda para que el admin sepa de qué curso es). Lo
@@ -711,18 +712,7 @@ export function TeacherWorkshopQuestionsEditor({
             <div>
               <Label className="flex items-center gap-1.5">
                 Framework
-                <HelpHint>
-                  <span>
-                    <strong>Swing/AWT</strong>: framework built-in del JDK, soportado por CheerpJ
-                    (navegador) y AWS Lambda. Default histórico.
-                  </span>
-                  <br />
-                  <span>
-                    <strong>JavaFX</strong>: requiere OpenJFX 21 (instalado en el runner Lambda). NO
-                    funciona con CheerpJ. La clase del alumno debe <code>extends Application</code>;
-                    el wrapper server-side llama <code>Application.launch()</code> automáticamente.
-                  </span>
-                </HelpHint>
+                <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.workshopJavaFrameworkHelp") }} /></HelpHint>
               </Label>
               <Select
                 value={qJavaFramework}
@@ -748,10 +738,7 @@ export function TeacherWorkshopQuestionsEditor({
               <div>
                 <Label required className="flex items-center gap-1.5">
                   Lenguaje
-                  <HelpHint>
-                    Whitelist de extensiones aceptadas — Java solo .java, Python solo .py. Lo que
-                    quede fuera (PDFs, README, configs) se rechaza antes de subir.
-                  </HelpHint>
+                  <HelpHint>{t("help.codigoZipLanguageWhitelist")}</HelpHint>
                 </Label>
                 <Select value={qLanguage} onValueChange={setQLanguage}>
                   <SelectTrigger>
@@ -779,14 +766,7 @@ export function TeacherWorkshopQuestionsEditor({
                 <div className="space-y-0.5">
                   <Label className="flex items-center gap-1.5">
                     Modo ZIP único (scaffolding)
-                    <HelpHint>
-                      <strong>OFF (default):</strong> el alumno sube N archivos individuales del
-                      lenguaje. Se filtran por extensión y se minifican antes de IA.
-                      <br />
-                      <strong>ON:</strong> el alumno sube UN archivo .zip con todo su proyecto. El
-                      backend descomprime y la IA recibe archivos crudos sin minify ni truncar —
-                      ideal para entregas chicas donde quieres que la IA "vea" todo el código.
-                    </HelpHint>
+                    <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.codigoZipSingleModeToggle") }} /></HelpHint>
                   </Label>
                   <p className="text-[11px] text-muted-foreground">
                     {qZipSingle

@@ -1523,9 +1523,7 @@ function TeacherAttendance() {
               <div>
                 <Label>
                   Hora inicio{" "}
-                  <HelpHint>
-                    Hora local (Bogotá). Se usa al sincronizar con tu calendario externo.
-                  </HelpHint>
+                  <HelpHint>{t("help.startTimeTimezoneHint")}</HelpHint>
                 </Label>
                 <Input
                   type="time"
@@ -1556,11 +1554,7 @@ function TeacherAttendance() {
             <div data-tour-id="session-field-cut">
               <Label>
                 Corte{" "}
-                <HelpHint>
-                  La sesión aporta a la nota de asistencia del corte que elijas. Si la dejas en "Sin
-                  corte", quedará visible pero no contará para la nota. Puedes reasignarla después
-                  desde la columna "Corte" de la tabla.
-                </HelpHint>
+                <HelpHint>{t("help.cutSelectionHelp")}</HelpHint>
               </Label>
               <Select
                 value={newCutId || "__none"}
@@ -1587,12 +1581,7 @@ function TeacherAttendance() {
             <div className="border-t pt-3 space-y-2">
               <Label>
                 Grabación de la clase (opcional){" "}
-                <HelpHint>
-                  Puedes pegar el enlace de la grabación (Meet, Teams, Zoom, Loom…), elegir un video
-                  de la biblioteca de la plataforma o ambos. Si subiste la grabación a la
-                  biblioteca, el estudiante la verá embebida en la sesión; si es un enlace externo
-                  se mostrará como botón "Ver grabación".
-                </HelpHint>
+                <HelpHint>{t("help.recordingOptionsHelp")}</HelpHint>
               </Label>
               <Input
                 value={newRecordingUrl}
@@ -1693,10 +1682,7 @@ function TeacherAttendance() {
             <div>
               <Label>
                 Duración de la ventana (minutos){" "}
-                <HelpHint>
-                  Cuánto tiempo permanece abierta la ventana antes de cerrarse automáticamente.
-                  Default 10 min.
-                </HelpHint>
+                <HelpHint>{t("help.checkinDurationHelp")}</HelpHint>
               </Label>
               <Input
                 type="number"
@@ -1713,10 +1699,7 @@ function TeacherAttendance() {
             <div>
               <Label>
                 Rotación del código (segundos){" "}
-                <HelpHint>
-                  Cada cuánto cambia el código de 6 dígitos. Más corto = más seguro, más fricción si
-                  la red está lenta. Default 60s.
-                </HelpHint>
+                <HelpHint>{t("help.checkinRotationHelp")}</HelpHint>
               </Label>
               <Input
                 type="number"

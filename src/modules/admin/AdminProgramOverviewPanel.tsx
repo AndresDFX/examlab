@@ -16,6 +16,7 @@
  * administrativa que no se carga cada 30s.
  */
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
@@ -148,6 +149,7 @@ function computeStats({
 }
 
 export function AdminProgramOverviewPanel() {
+  const { t } = useTranslation();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [periods, setPeriods] = useState<Period[]>([]);
   const [stats, setStats] = useState<ProgramStats[]>([]);
@@ -242,11 +244,7 @@ export function AdminProgramOverviewPanel() {
         <CardTitle className="text-base flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-indigo-500" />
           Resumen institucional
-          <HelpHint>
-            KPIs agregados por programa/nivel — asignaturas activas, cursos totales
-            (instancias), estudiantes y docentes únicos. Filtra por periodo para ver solo lo
-            activo en ese ciclo.
-          </HelpHint>
+          <HelpHint>{t("help.programOverviewHelp")}</HelpHint>
         </CardTitle>
         <div className="w-44">
           <Select value={periodFilter} onValueChange={setPeriodFilter}>

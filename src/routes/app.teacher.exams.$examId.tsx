@@ -840,11 +840,7 @@ function ExamEditor() {
               <div>
                 <Label>
                   Estado{" "}
-                  <HelpHint>
-                    Draft (Borrador) lo deja oculto para los estudiantes — útil para preparar el
-                    examen sin que aparezca en sus listas. Publicado se ve durante la ventana de
-                    fechas. Cerrado lo bloquea manualmente antes de que termine la ventana.
-                  </HelpHint>
+                  <HelpHint>{t("help.examStatusDescriptionDetail")}</HelpHint>
                 </Label>
                 <Select
                   value={(exam as any).status ?? "published"}
@@ -984,10 +980,7 @@ function ExamEditor() {
                     <div>
                       <Label>
                         Advertencias máximas{" "}
-                        <HelpHint>
-                          Cuántas veces el alumno puede cambiar de pestaña, copiar/pegar, salir de
-                          pantalla completa, etc. antes de marcar la entrega como sospechosa.
-                        </HelpHint>
+                        <HelpHint>{t("help.examMaxWarningsHelp")}</HelpHint>
                       </Label>
                       <Input
                         type="number"
@@ -1064,10 +1057,7 @@ function ExamEditor() {
                   <div>
                     <Label>
                       Modo de calificación con reintentos{" "}
-                      <HelpHint>
-                        Solo aplica si hay más de un intento permitido. Define cómo se calcula la
-                        calificación final del examen cuando el estudiante presenta varios intentos.
-                      </HelpHint>
+                      <HelpHint>{t("help.retryModeExplanation")}</HelpHint>
                     </Label>
                     <Select
                       value={(exam as any).retry_mode ?? "last"}
@@ -1457,10 +1447,7 @@ function ExamEditor() {
                   <div className="space-y-2">
                     <Label required>
                       Opciones{" "}
-                      <HelpHint>
-                        Marca todas las correctas. El estudiante recibe puntaje proporcional según
-                        cuántas correctas marque (sin penalización por incorrectas).
-                      </HelpHint>
+                      <HelpHint>{t("help.multiChoiceExplanation")}</HelpHint>
                     </Label>
                     {qChoices.map((c, i) => (
                       <div key={i} className="flex items-center gap-2">
@@ -1491,10 +1478,7 @@ function ExamEditor() {
                     <div>
                       <Label>
                         Mínimo de marcadas{" "}
-                        <HelpHint>
-                          Si lo defines, el estudiante DEBE marcar al menos esta cantidad para que
-                          cuente como respondida.
-                        </HelpHint>
+                        <HelpHint>{t("help.minSelectionsExplanation")}</HelpHint>
                       </Label>
                       <Input
                         type="number"
@@ -1509,10 +1493,7 @@ function ExamEditor() {
                     <div>
                       <Label>
                         Máximo de marcadas{" "}
-                        <HelpHint>
-                          Si lo defines, el estudiante NO puede marcar más de esta cantidad (puntaje
-                          = 0 si excede).
-                        </HelpHint>
+                        <HelpHint>{t("help.maxSelectionsExplanation")}</HelpHint>
                       </Label>
                       <Input
                         type="number"

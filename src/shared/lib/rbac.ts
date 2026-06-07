@@ -68,6 +68,12 @@ export const ROUTE_RULES: RouteRule[] = [
   // entidades soft-deletadas, así que la UI no le aplica. SuperAdmin la
   // ve heredada de Admin (mismo patrón que /app/admin).
   { prefix: "/app/trash", roles: ["Docente", "Admin", "SuperAdmin"] },
+  // Soporte (PQRS): canal Admin↔SuperAdmin. La ruta del Admin vive
+  // bajo /app/admin/support (cubierta por la regla genérica /app/admin
+  // más arriba que ya incluye Admin+SuperAdmin). La del SuperAdmin
+  // vive bajo /app/superadmin/support (cubierta por /app/superadmin
+  // que ya es SA-only). No requiere reglas adicionales acá — el match
+  // longest-prefix las resuelve correctamente.
   { prefix: "/app/unauthorized", roles: null },
   { prefix: "/app", roles: null },
 ];

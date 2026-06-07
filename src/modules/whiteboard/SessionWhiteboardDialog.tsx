@@ -13,6 +13,7 @@
  *    perder contexto.
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
@@ -49,6 +50,7 @@ export function SessionWhiteboardDialog({
   onOpenChange,
   studentMode,
 }: Props) {
+  const { t } = useTranslation();
   const [scene, setScene] = useState<WhiteboardScene | null>(null);
   const [loading, setLoading] = useState(false);
   const [autoSaving, setAutoSaving] = useState(false);
@@ -190,12 +192,7 @@ export function SessionWhiteboardDialog({
                 >
                   Pizarra compartida
                 </Label>
-                <HelpHint side="left">
-                  Si la activás, los alumnos matriculados pueden ABRIR y EDITAR esta pizarra desde
-                  su vista de asistencia. Los cambios se sincronizan en vivo entre todos los
-                  participantes (con un pequeño delay). Cuando la desactivás, solo vos volvés a ser
-                  el editor.
-                </HelpHint>
+                <HelpHint side="left">{t("help.sharedWhiteboardHelp")}</HelpHint>
                 <Switch
                   id="wb-shared-toggle"
                   checked={shared}

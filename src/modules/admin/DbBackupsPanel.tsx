@@ -17,6 +17,7 @@
  * UTC) — visible y pausable desde el módulo Cola → tab Tareas programadas.
  */
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -99,6 +100,7 @@ function formatBytes(bytes: number | null | undefined): string {
 }
 
 export function DbBackupsPanel() {
+  const { t } = useTranslation();
   const confirm = useConfirm();
 
   const [backups, setBackups] = useState<BackupRow[]>([]);
@@ -325,12 +327,7 @@ export function DbBackupsPanel() {
           <CardTitle className="text-base flex items-center gap-2">
             <Database className="h-4 w-4 text-indigo-500" />
             Backups de la base de datos
-            <HelpHint>
-              Snapshots lógicos de las tablas a un ZIP en Storage. El cron `db-backup-weekly`
-              corre los domingos 03:05 UTC y crea uno con todas las tablas; el botón "Crear
-              backup" deja generar uno manual eligiendo qué tablas incluir. NO hay restore
-              desde la UI por seguridad — descargá el ZIP y aplicá vía SQL si hace falta.
-            </HelpHint>
+            <HelpHint>{t("help.backupSnapshotsExplanation")}</HelpHint>
             <Button
               variant="ghost"
               size="icon"

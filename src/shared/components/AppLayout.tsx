@@ -88,6 +88,7 @@ import {
   Palette,
   HelpCircle,
   Trash2,
+  LifeBuoy,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useState, useEffect } from "react";
@@ -403,6 +404,22 @@ const NAV: NavItem[] = [
   // SuperAdmin la ve heredada de Admin. RLS de cada tabla acota qué
   // items ven en la papelera (docente: su curso; admin: su tenant).
   { to: "/app/trash", labelKey: "nav.trash", icon: Trash2, roles: ["Docente", "Admin"] },
+  // Soporte (PQRS) — Admin abre tickets hacia el SuperAdmin; el SA los
+  // gestiona en su propia ruta. Ambos items mapean al MISMO module_key
+  // "support" para que el orden/visibility del panel "Módulos" actúe
+  // sincronizado entre roles.
+  {
+    to: "/app/admin/support",
+    labelKey: "nav.support",
+    icon: LifeBuoy,
+    roles: ["Admin"],
+  },
+  {
+    to: "/app/superadmin/support",
+    labelKey: "nav.support",
+    icon: LifeBuoy,
+    roles: ["SuperAdmin"],
+  },
   // SuperAdmin: panel cross-tenant para gestionar instituciones. Se muestra
   // siempre que el usuario tenga el rol SuperAdmin, independiente del
   // activeRole (ver lógica especial en visibleNav filter más abajo).
@@ -826,6 +843,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     // mapping el ítem del sidebar ignoraba el toggle de orden/visibility
     // del panel "Módulos" — bug detectado en auditoría 2026-09.
     ["/app/superadmin/tenants", "tenants"],
+    // Soporte (Admin + SuperAdmin): el panel "Módulos" tiene UNA fila
+    // "support" que decide visibility/orden para ambos lados a la vez.
+    ["/app/admin/support", "support"],
+    ["/app/superadmin/support", "support"],
     // Configuración (Admin / SuperAdmin): el toggle controla SOLO el
     // sidebar (orden + visibility). La ruta queda siempre accesible por
     // URL — escape hatch documentado en ModuleRouteGuard. Por eso este

@@ -14,6 +14,7 @@
  *   inservible.
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +56,7 @@ interface SecretRow {
 }
 
 export function AdminEdgeSecretsPanel() {
+  const { t } = useTranslation();
   const confirm = useConfirm();
   const [secrets, setSecrets] = useState<SecretRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -156,11 +158,7 @@ export function AdminEdgeSecretsPanel() {
           <CardTitle className="text-base flex items-center gap-2">
             <KeyRound className="h-4 w-4 text-amber-500" />
             Edge Function Secrets
-            <HelpHint>
-              Variables de entorno que ven las edge functions de Supabase. Aquí editas API keys
-              (Gemini, OpenAI, OnlineCompiler, AWS Runner, etc.) sin tener que ir al dashboard de
-              Supabase ni redeployar.
-            </HelpHint>
+            <HelpHint>{t("help.edgeFunctionSecretsDescription")}</HelpHint>
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
             Los valores nunca se muestran en claro — Supabase Management API los enmascara para

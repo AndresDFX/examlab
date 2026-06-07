@@ -69,12 +69,18 @@ Deno.serve(async (req) => {
           .from("user_roles")
           .select("role")
           .eq("user_id", u.user.id);
-        authorized = (roles ?? []).some((r: { role: string }) => r.role === "Admin");
+        // SuperAdmin hereda capacidades operativas de Admin (CLAUDE.md
+        // convención). Sin esto, un SuperAdmin invocando "Procesar
+        // ahora" desde la UI recibe 401 — bug reportado al crear
+        // backup manual desde el panel del SA.
+        authorized = (roles ?? []).some(
+          (r: { role: string }) => r.role === "Admin" || r.role === "SuperAdmin",
+        );
       }
     }
     if (!authorized) {
       return new Response(
-        JSON.stringify({ ok: false, error: "Solo Admin puede ejecutar backups" }),
+        JSON.stringify({ ok: false, error: "Solo Admin o SuperAdmin puede ejecutar backups" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }

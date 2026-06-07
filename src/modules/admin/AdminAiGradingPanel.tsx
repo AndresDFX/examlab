@@ -15,6 +15,7 @@
  *      sync (saltea la cola).
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -77,6 +78,7 @@ function randomCode(len = 8): string {
 }
 
 export function AdminAiGradingPanel() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const confirm = useConfirm();
   const [mode, setMode] = useState<"sync" | "async">("async");
@@ -340,12 +342,7 @@ export function AdminAiGradingPanel() {
           <CardTitle className="text-base flex items-center gap-2">
             <Zap className="h-4 w-4 text-amber-500" />
             Códigos override — IA inmediata
-            <HelpHint>
-              Si el modo global es <strong>cola</strong> pero un docente necesita una nota IA ya
-              (ej. cierre de un curso), genera un código aquí y pásaselo por canal externo
-              (email/Slack). Cuando el docente lo activa en la app, su sesión queda en modo
-              sincrónico durante <strong>ventana</strong> minutos.
-            </HelpHint>
+            <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.overrideCodesPurpose") }} /></HelpHint>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -361,9 +358,7 @@ export function AdminAiGradingPanel() {
             <div>
               <Label className="text-[11px]">
                 Ventana (min)
-                <HelpHint>
-                  Duración de la ventana sync tras activar el código. Cae en async cuando expira.
-                </HelpHint>
+                <HelpHint>{t("help.windowDurationHelp")}</HelpHint>
               </Label>
               <Input
                 type="number"
@@ -376,10 +371,7 @@ export function AdminAiGradingPanel() {
             <div>
               <Label className="text-[11px]">
                 Máx. activaciones
-                <HelpHint>
-                  Cuántos docentes (o veces) pueden activar este mismo código antes de quedar
-                  agotado. Típico: 1 = uso único.
-                </HelpHint>
+                <HelpHint>{t("help.maxActivationsHelp")}</HelpHint>
               </Label>
               <Input
                 type="number"
@@ -391,10 +383,7 @@ export function AdminAiGradingPanel() {
             <div>
               <Label className="text-[11px]">
                 Máx. mensajes
-                <HelpHint>
-                  Cuántas calificaciones IA sync puede consumir UNA activación antes de caer en
-                  async. Protege la cuota de Gemini. Vacío = sin tope.
-                </HelpHint>
+                <HelpHint>{t("help.maxMessagesHelp")}</HelpHint>
               </Label>
               <Input
                 type="number"

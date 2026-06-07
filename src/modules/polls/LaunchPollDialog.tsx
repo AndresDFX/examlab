@@ -20,6 +20,7 @@
  * "encuesta suelta", solo le importa el course_id).
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -83,6 +84,7 @@ export function LaunchPollDialog({
   sessionLabel,
   onCreated,
 }: Props) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [type, setType] = useState<PollType>("single");
@@ -319,10 +321,7 @@ export function LaunchPollDialog({
               <span className="flex-1 min-w-0">
                 <span className="font-medium flex items-center gap-1">
                   Permitir cambiar respuesta
-                  <HelpHint>
-                    Si está activado, el alumno puede corregirse mientras la pregunta esté abierta.
-                    Útil para el típico show-of-hands en clase.
-                  </HelpHint>
+                  <HelpHint>{t("help.pollAllowChangeResponseShort")}</HelpHint>
                 </span>
               </span>
               <Switch checked={allowChange} onCheckedChange={setAllowChange} />
@@ -331,11 +330,7 @@ export function LaunchPollDialog({
               <span className="flex-1 min-w-0">
                 <span className="font-medium flex items-center gap-1">
                   Cerrar al responder todos
-                  <HelpHint>
-                    Si está activado, la pregunta se cierra sola cuando todos los matriculados del
-                    curso ya votaron. En vivo conviene desactivarlo: el docente suele cerrar antes
-                    de que respondan los rezagados.
-                  </HelpHint>
+                  <HelpHint>{t("help.pollAutoCloseAllRespondedShort")}</HelpHint>
                 </span>
               </span>
               <Switch checked={autoCloseAll} onCheckedChange={setAutoCloseAll} />

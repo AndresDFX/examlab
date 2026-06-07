@@ -11,6 +11,7 @@
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -77,6 +78,7 @@ const KIND_COLOR: Record<CalendarEvent["kind"], string> = {
 };
 
 function StudentCalendar() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -342,10 +344,7 @@ function StudentCalendar() {
           <CardTitle className="text-base flex items-center gap-2">
             <CalendarIcon className="h-4 w-4 text-blue-500" />
             Suscribir a calendario externo
-            <HelpHint>
-              Esta URL es PRIVADA — quien la tenga ve tus eventos. Si la compartiste por error
-              presiona "Regenerar URL".
-            </HelpHint>
+            <HelpHint>{t("help.privateUrlWarning")}</HelpHint>
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
             Pega esta URL en Google Calendar (Otros calendarios → Agregar → De URL), Apple

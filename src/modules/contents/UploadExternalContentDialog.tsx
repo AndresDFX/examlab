@@ -359,9 +359,7 @@ export function UploadExternalContentDialog({
           <div className="space-y-1.5">
             <Label required>
               {t("contents.displayName", { defaultValue: "Nombre" })}
-              <HelpHint>
-                Nombre con el que verás este material en tu listado. Único por docente.
-              </HelpHint>
+              <HelpHint>{t("help.displayNameHint")}</HelpHint>
             </Label>
             <Input
               value={displayName}
@@ -396,10 +394,7 @@ export function UploadExternalContentDialog({
               {t("contents.coursesTarget", {
                 defaultValue: "Cursos donde aparecerá",
               })}
-              <HelpHint>
-                El material aparecerá en el tablero de cada curso seleccionado. Puedes asociarlo
-                a más cursos más tarde editando el contenido.
-              </HelpHint>
+              <HelpHint>{t("help.coursesTargetHint")}</HelpHint>
             </Label>
             {courses.length === 0 ? (
               <Alert>

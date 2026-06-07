@@ -34,6 +34,17 @@ export type ModuleKey =
   | "ai_cron"
   | "statistics"
   | "messages"
+  // Notificaciones — campana del header (NotificationBell). El toggle
+  // gate-ea el fetch + realtime del hook `useNotifications` para el rol
+  // dado. Útil principalmente para SuperAdmin (silenciar el ruido
+  // cross-tenant cuando opera como dueño de plataforma). Cuando OFF: no
+  // se monta el bell, no hay polling, no se renderizan toasts.
+  | "notifications"
+  // Soporte — canal Admin↔SuperAdmin para PQRS (peticiones, quejas,
+  // reclamos, sugerencias). Admin abre tickets desde /app/admin/support,
+  // SuperAdmin los gestiona desde /app/superadmin/support. No aplica a
+  // Docente/Estudiante. Adjuntos en bucket `support-attachments`.
+  | "support"
   | "dashboard"
   | "videos"
   | "contents"

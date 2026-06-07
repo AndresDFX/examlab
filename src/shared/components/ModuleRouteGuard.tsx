@@ -39,6 +39,10 @@ const PREFIX_TO_MODULE: Array<[string, ModuleKey]> = [
   // ── SuperAdmin ────────────────────────────────────────────────────
   ["/app/superadmin/tenants", "tenants"],
   ["/app/superadmin/system", "system"],
+  ["/app/superadmin/support", "support"],
+
+  // ── Soporte Admin ─────────────────────────────────────────────────
+  ["/app/admin/support", "support"],
 
   // ── Docente ───────────────────────────────────────────────────────
   ["/app/teacher/courses", "courses"],

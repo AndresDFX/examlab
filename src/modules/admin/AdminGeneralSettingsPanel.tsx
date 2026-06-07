@@ -9,6 +9,7 @@
  * Singleton: una sola fila en `app_settings` (default sembrada por migración).
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
@@ -53,6 +54,7 @@ interface AppSettings {
 }
 
 export function AdminGeneralSettingsPanel() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [row, setRow] = useState<AppSettings | null>(null);
   const [draft, setDraft] = useState<AppSettings | null>(null);
@@ -171,10 +173,7 @@ export function AdminGeneralSettingsPanel() {
           <CardTitle className="text-base flex items-center gap-2">
             <GraduationCap className="h-4 w-4 text-blue-500" />
             Defaults para cursos nuevos
-            <HelpHint>
-              Estos valores se aplican al crear un curso. El docente/admin puede modificarlos por
-              curso.
-            </HelpHint>
+            <HelpHint>{t("help.courseDefaultsHint")}</HelpHint>
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -221,9 +220,7 @@ export function AdminGeneralSettingsPanel() {
           <CardTitle className="text-base flex items-center gap-2">
             <FileText className="h-4 w-4 text-violet-500" />
             Defaults para exámenes nuevos
-            <HelpHint>
-              Valores precargados al crear un examen. Cada docente puede sobrescribir por examen.
-            </HelpHint>
+            <HelpHint>{t("help.examDefaultsHint")}</HelpHint>
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -283,10 +280,7 @@ export function AdminGeneralSettingsPanel() {
           <div>
             <Label className="flex items-center gap-1.5">
               Intentos máx. talleres
-              <HelpHint>
-                Cuántas veces puede entregar un alumno un taller. Default global; el docente puede
-                sobreescribirlo por taller individual.
-              </HelpHint>
+              <HelpHint>{t("help.workshopMaxAttempts")}</HelpHint>
             </Label>
             <Input
               type="number"
@@ -304,10 +298,7 @@ export function AdminGeneralSettingsPanel() {
           <div>
             <Label className="flex items-center gap-1.5">
               Intentos máx. proyectos
-              <HelpHint>
-                Cuántas veces puede entregar un alumno un proyecto. Default global; el docente puede
-                sobreescribirlo por proyecto.
-              </HelpHint>
+              <HelpHint>{t("help.projectMaxAttempts")}</HelpHint>
             </Label>
             <Input
               type="number"
@@ -361,11 +352,7 @@ export function AdminGeneralSettingsPanel() {
               <div className="flex-1">
                 <div className="flex items-center gap-1.5 text-sm font-medium">
                   Requerir pantalla completa
-                  <HelpHint>
-                    Si está activo (recomendado), los exámenes exigen pantalla completa y la salida
-                    cuenta como strike. Desactívalo solo para depuración/soporte — sin pantalla
-                    completa el alumno puede tener herramientas externas a la vista.
-                  </HelpHint>
+                  <HelpHint>{t("help.requireExamFullscreen")}</HelpHint>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   {draft.require_exam_fullscreen
@@ -391,11 +378,7 @@ export function AdminGeneralSettingsPanel() {
           <CardTitle className="text-base flex items-center gap-2">
             <Mail className="h-4 w-4 text-cyan-500" />
             Alerta de volumen de correos
-            <HelpHint>
-              Si los correos enviados en las últimas 24h exceden el umbral, todos los admins reciben
-              una notificación. Útil para detectar bucles de notificación o picos de actividad
-              inesperados.
-            </HelpHint>
+            <HelpHint>{t("help.emailAlertThreshold")}</HelpHint>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">

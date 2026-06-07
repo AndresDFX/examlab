@@ -2238,13 +2238,7 @@ function TeacherProjects() {
               <div className="flex items-center justify-between gap-2 mb-1">
                 <Label className="m-0">
                   {t("common.description")}{" "}
-                  <HelpHint>
-                    <strong>Importante:</strong> esta descripción es el{" "}
-                    <strong>contexto global</strong> del proyecto. La IA la usa al calificar{" "}
-                    <em>cada</em> pregunta para que las notas tengan sentido en el conjunto y no
-                    como preguntas aisladas. Define el propósito, alcance y restricciones del
-                    proyecto en 3-6 oraciones; los entregables van en cada pregunta, no aquí.
-                  </HelpHint>
+                  <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.projectDescriptionContext") }} /></HelpHint>
                 </Label>
                 <Button
                   type="button"
@@ -2304,14 +2298,7 @@ function TeacherProjects() {
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5">
                   Videos introductorios obligatorios (opcional)
-                  <HelpHint>
-                    Lista ordenada de videos que el estudiante debe ver antes de poder entregar
-                    código. El orden importa: el siguiente video se desbloquea cuando el alumno
-                    termina el anterior. Si la lista queda vacía, no se exige video. Solo aplica si
-                    el proyecto tiene una pregunta tipo "código (ZIP)". YouTube/Vimeo se reproducen
-                    vía iframe (sin control de seek). Para forzar que el alumno NO pueda adelantar,
-                    sube un MP4 directo a la biblioteca de videos.
-                  </HelpHint>
+                  <HelpHint>{t("help.introVideosHelpProject")}</HelpHint>
                 </Label>
                 {formIntroVideos.length === 0 && (
                   <p className="text-[11px] text-muted-foreground italic">
@@ -2468,11 +2455,7 @@ function TeacherProjects() {
             <div className="space-y-2">
               <Label required>
                 {t("nav.courses")} (puedes seleccionar varios){" "}
-                <HelpHint>
-                  El proyecto se publica igual en todos los cursos seleccionados — los estudiantes
-                  matriculados en cualquiera de ellos lo verán. El corte y el idioma de la IA se
-                  toman del curso vinculado al corte que elijas abajo.
-                </HelpHint>
+                <HelpHint>{t("help.linkedCoursesHelp")}</HelpHint>
               </Label>
               <div className="border rounded-md p-2 max-h-44 overflow-y-auto space-y-1">
                 {courses.length === 0 && (
@@ -2499,10 +2482,7 @@ function TeacherProjects() {
               <div className="space-y-2">
                 <Label>
                   Corte y peso por curso{" "}
-                  <HelpHint>
-                    Asigna cada curso vinculado a un corte y configura el peso (% de la nota final).
-                    El presupuesto disponible se valida independientemente por cada corte.
-                  </HelpHint>
+                  <HelpHint>{t("help.cutWeightPerCourseProject")}</HelpHint>
                 </Label>
                 {(form.linked_course_ids ?? []).map((cid) => {
                   const course = courses.find((c) => c.id === cid);

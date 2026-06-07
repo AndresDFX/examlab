@@ -2694,10 +2694,7 @@ function TeacherWorkshops() {
               <div className="space-y-2">
                 <Label>
                   Corte y peso por curso{" "}
-                  <HelpHint>
-                    Asigna cada curso a un corte y configura el peso del taller. El presupuesto
-                    disponible se valida independientemente por corte.
-                  </HelpHint>
+                  <HelpHint>{t("help.courseWeightBudgetValidation")}</HelpHint>
                 </Label>
                 {[...selectedCourseIds].map((cid) => {
                   const course = courses.find((c) => c.id === cid);
@@ -2798,10 +2795,7 @@ function TeacherWorkshops() {
                 <div>
                   <Label>
                     Corte de evaluación{" "}
-                    <HelpHint>
-                      Opcional. Asigna el taller a un corte para que su peso cuente en el cálculo de
-                      la nota final del curso.
-                    </HelpHint>
+                    <HelpHint>{t("help.cutAssignmentGradeCalculationWorkshop")}</HelpHint>
                   </Label>
                   {(() => {
                     const targetCourseIds = form.id
@@ -2935,13 +2929,7 @@ function TeacherWorkshops() {
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5">
                   Videos introductorios obligatorios (opcional)
-                  <HelpHint>
-                    Lista ordenada de videos que el estudiante debe ver antes de poder entregar el
-                    taller. El orden importa: el siguiente video se desbloquea cuando el alumno
-                    termina el anterior. Si la lista queda vacía, no se exige video. YouTube/Vimeo
-                    se reproducen vía iframe (sin control de seek). Para forzar que el alumno NO
-                    pueda adelantar, sube un MP4 directo a la biblioteca de videos.
-                  </HelpHint>
+                  <HelpHint>{t("help.introVideosSequentialUnlockWorkshop")}</HelpHint>
                 </Label>
                 {formIntroVideos.length === 0 && (
                   <p className="text-[11px] text-muted-foreground italic">

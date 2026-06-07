@@ -355,11 +355,7 @@ function TeacherAIPrompts() {
         title={
           <span className="inline-flex items-center gap-2">
             Prompts de IA por curso
-            <HelpHint side="bottom" align="start">
-              Solo edita el <strong>rol/criterios</strong> del modelo. Los datos dinámicos (rúbrica,
-              respuesta del estudiante, idioma, puntaje máximo) se inyectan automáticamente al
-              ejecutar la calificación — <strong>no necesitas placeholders</strong>.
-            </HelpHint>
+            <HelpHint side="bottom" align="start"><span dangerouslySetInnerHTML={{ __html: t("help.editRoleOnly") }} /></HelpHint>
           </span>
         }
         subtitle="Personaliza el rol y criterios del modelo para cada caso de uso dentro de un curso específico. Si no hay override, se usa el prompt global del sistema."

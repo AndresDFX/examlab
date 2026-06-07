@@ -430,11 +430,7 @@ export function AdminCertificateSettingsPanel() {
             <div>
               <Label>
                 Mensaje principal{" "}
-                <HelpHint>
-                  Puedes usar placeholders: <code>{"{student}"}</code>, <code>{"{course}"}</code>,{" "}
-                  <code>{"{grade}"}</code>, <code>{"{period}"}</code>, <code>{"{teacher}"}</code>,{" "}
-                  <code>{"{date}"}</code>. Si está vacío, se usa el texto por defecto.
-                </HelpHint>
+                <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.certMessagePlaceholdersHint") }} /></HelpHint>
               </Label>
               <Textarea
                 value={draft.certificate_message ?? ""}

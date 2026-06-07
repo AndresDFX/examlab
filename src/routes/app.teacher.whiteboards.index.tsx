@@ -12,6 +12,7 @@
  */
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
@@ -89,6 +90,7 @@ interface Whiteboard {
 }
 
 function TeacherWhiteboards() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const confirm = useConfirm();
@@ -585,11 +587,7 @@ function TeacherWhiteboards() {
             <div data-tour-id="whiteboard-field-course">
               <Label>
                 Curso (opcional){" "}
-                <HelpHint>
-                  Al asociar la pizarra a un curso, los alumnos del curso podrán verla en modo
-                  solo-lectura cuando actives "Compartir con alumnos" desde la pizarra. Sin curso,
-                  la pizarra es privada (solo vos la ves).
-                </HelpHint>
+                <HelpHint>{t("help.whiteboardCourseSharingHelp")}</HelpHint>
               </Label>
               <Select value={draftCourseId} onValueChange={setDraftCourseId}>
                 <SelectTrigger>
@@ -615,11 +613,7 @@ function TeacherWhiteboards() {
               <div>
                 <Label>
                   Sesión del curso (opcional){" "}
-                  <HelpHint>
-                    Si el curso tiene sesiones programadas, podés atar la pizarra a una específica
-                    para que aparezca en el contexto de esa clase. Podés tener varias pizarras por
-                    sesión.
-                  </HelpHint>
+                  <HelpHint>{t("help.whiteboardSessionBindingHelp")}</HelpHint>
                 </Label>
                 {loadingSessions ? (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">

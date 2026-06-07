@@ -7,6 +7,7 @@
  */
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -49,6 +50,7 @@ interface Whiteboard {
 }
 
 function WhiteboardEditorPage() {
+  const { t } = useTranslation();
   const { id } = Route.useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -196,11 +198,7 @@ function WhiteboardEditorPage() {
             <div>
               <Label>
                 Compartir con curso{" "}
-                <HelpHint>
-                  Si elegís un curso y activás "Compartir", los alumnos matriculados podrán ver esta
-                  pizarra en solo-lectura desde su sección de cursos. Sin curso, la pizarra es
-                  privada — solo vos la ves.
-                </HelpHint>
+                <HelpHint>{t("help.shareWithCourseHint")}</HelpHint>
               </Label>
               <Select value={metaCourse} onValueChange={setMetaCourse}>
                 <SelectTrigger>

@@ -13,6 +13,7 @@
  * `{{#each}}` correctamente. Esto es deliberadamente simple.
  */
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,6 +54,7 @@ interface Props {
 }
 
 export function TemplateEditor({ value, onChange, showMetadata = true, catalog }: Props) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<"body" | "header" | "footer" | "css">("body");
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const headerRef = useRef<HTMLTextAreaElement>(null);
@@ -106,10 +108,7 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
               <div className="space-y-1">
                 <Label>
                   Tipo de informe{" "}
-                  <HelpHint>
-                    &quot;Por estudiante&quot; = un informe por alumno. &quot;Por curso&quot; =
-                    un consolidado iterando sobre {`{{#each estudiantes}}`}.
-                  </HelpHint>
+                  <HelpHint>{t("help.reportScopeHelp")}</HelpHint>
                 </Label>
                 <Select
                   value={value.scope}
