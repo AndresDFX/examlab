@@ -159,7 +159,7 @@ function AdminSettings() {
             <GraduationCap className="h-3.5 w-3.5" />
             Institución
           </TabsTrigger>
-          <TabsTrigger value="email" className="gap-1.5">
+          <TabsTrigger value="email" className="gap-1.5" data-tour-id="settings-email-tab">
             <Mail className="h-3.5 w-3.5" />
             Correos
           </TabsTrigger>

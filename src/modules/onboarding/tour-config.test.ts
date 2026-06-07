@@ -122,6 +122,44 @@ describe("tour-config — cobertura de módulos nuevos", () => {
     expect(hasAiCron).toBe(true);
   });
 
+  it("ADMIN_TOUR incluye el panel de Correos + toggle Bienvenida", () => {
+    // Tab Correos del panel de Configuración (kill switch + por categoría).
+    const hasEmailTab = ADMIN_TOUR.some((s) =>
+      s.element.includes('data-tour-id="settings-email-tab"'),
+    );
+    // Toggle específico "Bienvenida (nuevos usuarios)" — destacado porque
+    // es el único que el Admin típicamente quiere apagar en setups SSO.
+    const hasWelcomeKind = ADMIN_TOUR.some((s) =>
+      s.element.includes('data-tour-id="email-kind-welcome"'),
+    );
+    expect(hasEmailTab).toBe(true);
+    expect(hasWelcomeKind).toBe(true);
+  });
+
+  it("TEACHER_TOUR incluye demo de Subir contenido externo", () => {
+    // El refactor 2026-06 expandió "Subir externo" para pedir la misma
+    // metadata pedagógica que el flujo IA. El tour lo destaca con un
+    // step interactivo que abre el dialog vía clickBefore.
+    const uploadDemo = TEACHER_TOUR.find((s) =>
+      s.element.includes('data-tour-id="dialog-upload-external"'),
+    );
+    expect(uploadDemo).toBeDefined();
+    expect(uploadDemo?.clickBefore).toBe('[data-tour-id="upload-external-content"]');
+  });
+
+  it("TEACHER_TOUR step de sesión usa Hora inicio + Hora fin (no más 'duración')", () => {
+    // El form de sesión ahora pide Hora inicio + Hora fin (la duración
+    // se calcula sola). El tour debe reflejarlo — si alguien refactoriza
+    // el form a otro patrón, este test recuerda actualizar el copy.
+    const timeStep = TEACHER_TOUR.find((s) =>
+      s.element.includes('data-tour-id="session-field-time"'),
+    );
+    expect(timeStep).toBeDefined();
+    expect(timeStep?.title).toMatch(/Hora.*fin/i);
+    expect(timeStep?.description.toLowerCase()).toContain("hora");
+    expect(timeStep?.description.toLowerCase()).toContain("fin");
+  });
+
   it("TEACHER_TOUR incluye los módulos académicos clave (cursos, exámenes, talleres, proyectos)", () => {
     const selectors = TEACHER_TOUR.map((s) => s.element).join(" ");
     expect(selectors).toContain('data-tour-module="courses"');

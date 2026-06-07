@@ -288,6 +288,7 @@ export function AdminEmailSettingsPanel() {
             return (
               <div
                 key={cat.key}
+                data-tour-id={`email-kind-${cat.key}`}
                 className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0"
               >
                 <div className="flex items-start gap-3 min-w-0">

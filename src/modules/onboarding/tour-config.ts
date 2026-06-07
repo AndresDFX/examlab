@@ -340,6 +340,33 @@ export const ADMIN_TOUR: TourStep[] = [
     waitMs: 4000,
   },
 
+  // ─── Configuración → Correos ────────────────────────────────────────
+  // Sub-tab "Correos" de Configuración. Tiene el kill switch global +
+  // toggles por categoría. Destacamos especialmente el toggle de
+  // "Bienvenida" porque es el único que NO viene activado por defecto
+  // en algunos flujos (SSO, distribución manual de contraseñas).
+  {
+    element: '[data-tour-id="settings-email-tab"]',
+    route: "/app/admin/settings",
+    clickBefore: '[data-tour-id="settings-email-tab"]',
+    title: "Configurá los correos",
+    description:
+      "<p>Tab <em>Correos</em>: prendés / apagás el envío de emails por categoría (calificaciones, mensajes, encuestas...).</p><ol><li><strong>Interruptor global</strong>: lo apagás y NO sale ningún correo (notif in-app sigue).</li><li><strong>Bienvenida</strong>: el correo automático al crear usuarios nuevos. Apágalo si repartís contraseñas a mano o usás SSO.</li></ol>",
+    side: "bottom",
+    waitMs: 3000,
+  },
+  {
+    element: '[data-tour-id="email-kind-welcome"]',
+    route: "/app/admin/settings",
+    clickBefore: '[data-tour-id="settings-email-tab"]',
+    title: "Bienvenida (nuevos usuarios)",
+    description:
+      "Este toggle controla el correo de <em>“Define tu contraseña”</em> que se envía al crear un usuario nuevo (form individual o bulk CSV). Apágalo cuando ya entregás las claves por otro canal — evita inundar bandejas con links que nadie usa.",
+    side: "left",
+    align: "center",
+    waitMs: 3000,
+  },
+
   // ─── Footer del sidebar ──────────────────────────────────────────────
   {
     element: '[data-tour-id="user-info"]',
@@ -439,8 +466,27 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/contents",
     title: "Contenidos",
     description:
-      "<p>Material de estudio para tus alumnos (PPTX, MD, PDF).</p><strong>Para crear uno:</strong><ol><li>Click <em>Generar con IA</em> (a partir de un syllabus) o <em>Subir</em> archivos propios.</li><li>Asocialo al curso.</li><li>Asignalo a una sesión (opcional) — el alumno lo verá en el día de esa clase.</li></ol>",
+      "<p>Material de estudio para tus alumnos (PPTX, MD, PDF, ZIP).</p><strong>Tenés dos caminos:</strong><ol><li><em>Nuevo contenido</em> → la IA lo genera a partir de un tema + syllabus.</li><li><em>Subir externo</em> → cargás un archivo tuyo (ya hecho) y le ponés la misma metadata pedagógica (tema, modo, tags, idioma) para que se vea junto al resto.</li></ol>",
     side: "right",
+  },
+  // ─── Demo INTERACTIVA del modal "Subir externo" ─────────────────────
+  // El refactor 2026-06 hizo que "Subir externo" pidiera la MISMA
+  // metadata pedagógica del flujo IA (tema, modo, tags, idioma, n_classes,
+  // release-after-session, instrucciones, autor). Antes era un dropzone
+  // pelado. El paso destaca esa nueva flexibilidad para que el docente
+  // sepa que su material subido se trata igual que el generado con IA.
+  // NOTA: la rama "extender con IA un material subido" está marcada
+  // como TODO en el header del dialog — la edge `generate-contents`
+  // todavía no soporta `extend=true`. Por ahora solo subida pura.
+  {
+    element: '[data-tour-id="dialog-upload-external"]',
+    clickBefore: '[data-tour-id="upload-external-content"]',
+    waitMs: 500,
+    title: "Subir contenido externo",
+    description:
+      "<p>Cargás un archivo ya hecho (PDF / PPTX / DOCX / MD / ZIP) y completás la MISMA metadata que el flujo de IA: tema, modo (curso completo o individual), tags, idioma, instrucciones.</p><p>Así tu material queda con todos los filtros y búsquedas funcionando — sin gastar créditos de IA.</p>",
+    side: "left",
+    align: "center",
   },
 
   // ─── Banco de preguntas ─────────────────────────────────────────────
@@ -696,9 +742,9 @@ export const TEACHER_TOUR: TourStep[] = [
   },
   {
     element: '[data-tour-id="session-field-time"]',
-    title: "Hora + duración",
+    title: "Hora inicio + Hora fin",
     description:
-      "Hora de inicio (local) y duración en minutos (default 90). La sincronización a Google Calendar usa estos valores para crear el evento a la hora real, sin hardcodear 09:00.",
+      "Ahora marcás <strong>hora de inicio</strong> y <strong>hora de fin</strong> (zona horaria local). La duración se calcula sola y se usa para sincronizar con Google Calendar a la hora real. Si dejás ambas vacías, queda como sesión sin horario fijo.",
     side: "left",
     align: "start",
   },

@@ -885,7 +885,11 @@ function TeacherContents() {
                 asocia el contenido a N cursos vía
                 `content_course_assignments`. UX paralela a "Nuevo
                 contenido" (IA) pero para material ya producido. */}
-            <Button variant="outline" onClick={() => setUploadDialogOpen(true)}>
+            <Button
+              variant="outline"
+              data-tour-id="upload-external-content"
+              onClick={() => setUploadDialogOpen(true)}
+            >
               <Upload className="h-4 w-4 mr-1" />
               {t("contents.uploadExternal", { defaultValue: "Subir externo" })}
             </Button>

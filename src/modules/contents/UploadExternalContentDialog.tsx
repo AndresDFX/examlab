@@ -69,6 +69,13 @@ import {
 } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { logEvent } from "@/shared/lib/audit";
+// Helpers PUROS — testeados en `upload-external-helpers.test.ts`.
+import {
+  tagsToModality,
+  slugifyFilename,
+  type ContentMode,
+  type ContentTag,
+} from "./upload-external-helpers";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -95,21 +102,6 @@ const ACCEPTED_EXTENSIONS = [
   ".zip",
 ];
 
-type ContentMode = "curso_completo" | "material_individual";
-type ContentModality = "teorica" | "practica" | "teorico_practica";
-type ContentTag = "teorico" | "practico" | "examen";
-
-// Mismo helper que en app.teacher.contents.tsx — derivamos modality
-// desde tags para mantener compat con queries/edge functions que aún
-// leen la columna modality.
-function tagsToModality(tags: ContentTag[]): ContentModality {
-  const hasT = tags.includes("teorico");
-  const hasP = tags.includes("practico");
-  if (hasT && hasP) return "teorico_practica";
-  if (hasP) return "practica";
-  return "teorica";
-}
-
 interface CourseOption {
   id: string;
   name: string;
@@ -127,25 +119,6 @@ interface Props {
   defaultCourseId?: string | null;
   /** Callback al terminar exitoso — el padre recarga la lista. */
   onCreated: (contentId: string) => void;
-}
-
-/** Slugifica un nombre de archivo para que sea seguro en storage.
- *  - Quita acentos
- *  - Convierte espacios a `-`
- *  - Deja solo [a-z0-9._-]
- *  - Conserva la extensión */
-function slugifyFilename(name: string): string {
-  const lastDot = name.lastIndexOf(".");
-  const base = lastDot > 0 ? name.slice(0, lastDot) : name;
-  const ext = lastDot > 0 ? name.slice(lastDot) : "";
-  const cleanBase = base
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80);
-  return `${cleanBase || "archivo"}${ext.toLowerCase()}`;
 }
 
 export function UploadExternalContentDialog({
@@ -424,7 +397,10 @@ export function UploadExternalContentDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
-      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        data-tour-id="dialog-upload-external"
+        className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-y-auto"
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5 text-primary" />
