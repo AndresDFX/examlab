@@ -10,14 +10,26 @@
 #   - docker corriendo
 #   - openssl (para generar API key aleatoria)
 #
-# Autenticación con AWS — DOS opciones:
+# Autenticación con AWS — TRES opciones:
 #
 #   (a) `aws configure` (perfil persistente en ~/.aws/credentials).
 #       La forma clásica. Una vez por máquina.
 #
-#   (b) Variables de entorno (NO se persiste nada en disco). Recomendado
-#       para CI o cuando rotás keys con frecuencia. La aws CLI las
-#       reconoce automáticamente — no hace falta tocar nada del script.
+#   (b) Archivo `.env` al lado de este script (gitignored). Si existe,
+#       el script lo source-a automáticamente al arrancar — el más
+#       cómodo en Windows porque PowerShell no hereda $env: al bash.
+#       Formato: KEY=VALUE por línea, sin `export`. Ejemplo:
+#
+#         AWS_ACCESS_KEY_ID=AKIA...
+#         AWS_SECRET_ACCESS_KEY=...
+#         AWS_REGION=us-east-1
+#         # AWS_SESSION_TOKEN=...  (opcional, para creds temporales)
+#
+#       Luego: `bash ./deploy.sh` y listo.
+#
+#   (c) Variables de entorno exportadas (NO se persiste nada en disco).
+#       Recomendado para CI o cuando rotás keys con frecuencia. La aws
+#       CLI las reconoce automáticamente — no hace falta tocar el script.
 #
 #         export AWS_ACCESS_KEY_ID=AKIA...
 #         export AWS_SECRET_ACCESS_KEY=...
@@ -67,6 +79,25 @@
 #   El tag `:latest` se mantiene en paralelo para `docker pull` manual.
 
 set -euo pipefail
+
+# ── Auto-load .env (opcional) ──
+# Si existe un .env en este directorio, lo cargamos antes de validar
+# credenciales. Permite mantener AWS_ACCESS_KEY_ID/SECRET/REGION en un
+# archivo gitignored al lado del script, en vez de exportarlos a mano
+# cada vez (especialmente útil en PowerShell donde `$env:` no se hereda
+# al `bash`). El archivo debe ser KEY=VALUE simple, sin `export`. Si NO
+# existe, seguimos al flujo normal (env vars del shell o `aws configure`).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "$SCRIPT_DIR/.env" ]]; then
+  echo "→ Cargando variables de $SCRIPT_DIR/.env"
+  # `set -a` exporta TODO lo que se asigne hasta `set +a`. Pasamos por
+  # eso para que las variables del .env sean visibles a `aws` (y a
+  # cualquier proceso hijo). Filtramos líneas vacías y comentarios.
+  set -a
+  # shellcheck disable=SC1091
+  source <(grep -v '^[[:space:]]*\(#\|$\)' "$SCRIPT_DIR/.env")
+  set +a
+fi
 
 # ── Flags ──
 NO_CACHE=""
