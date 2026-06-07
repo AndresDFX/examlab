@@ -822,6 +822,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     // Sistema (SuperAdmin-only): panel de diagnóstico de infraestructura.
     // El panel "Módulos" tiene el toggle para reordenar/esconder.
     ["/app/superadmin/system", "system"],
+    // Configuración (Admin / SuperAdmin): el toggle controla SOLO el
+    // sidebar (orden + visibility). La ruta queda siempre accesible por
+    // URL — escape hatch documentado en ModuleRouteGuard. Por eso este
+    // mapping vive en NAV_PATH_TO_MODULE pero NO en PREFIX_TO_MODULE.
+    ["/app/admin/settings", "configuration"],
   ];
   // Resuelve módulo para un path (helper local). Si no hay match,
   // null (no controlado por toggles, no participa en sort).

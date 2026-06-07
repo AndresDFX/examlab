@@ -50,6 +50,12 @@ export type ModuleKey =
   // (`/app/superadmin/system`). Solo aplica a SuperAdmin pero lo
   // exponemos en el panel para reorder/visibility como el resto.
   | "system"
+  // Configuración — `/app/admin/settings`. Admin/SuperAdmin. Se permite
+  // en MODULES para reordenarlo en el sidebar, pero la ruta sigue
+  // accesible vía URL directa AUNQUE el toggle esté off — escape hatch
+  // intencional (si el admin se apaga toda la matriz por error, puede
+  // volver a Configuración para rearmar). El route guard lo respeta.
+  | "configuration"
   | "reports"
   // ── Módulos faltantes en la matriz histórica. Se agregan acá para
   // que el Admin pueda gobernar su visibilidad/orden desde el panel

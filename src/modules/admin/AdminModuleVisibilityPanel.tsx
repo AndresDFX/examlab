@@ -109,9 +109,21 @@ const MODULES: Array<{
     // Unificación: antes había dos filas separadas (`gradebook`,
     // `grades`); las colapsamos en una sola "Calificaciones" — es el
     // mismo módulo conceptual, solo cambia la VISTA por rol.
+    //
+    // SuperAdmin se mapea a `gradebook` (igual que Admin/Docente): el
+    // SA cross-tenant ve el gradebook del docente para auditar. SIN
+    // este mapping, el toggle del SA escribía `module_key='calificaciones'`
+    // (fallback al virtual key) pero el sidebar leía `module_key='gradebook'`
+    // (mapping de `/app/teacher/gradebook` en NAV_PATH_TO_MODULE), así
+    // el toggle no surtía efecto — bug reportado por el usuario.
     key: "calificaciones",
     label: "Calificaciones",
-    roleKeyMap: { Admin: "gradebook", Docente: "gradebook", Estudiante: "grades" },
+    roleKeyMap: {
+      Admin: "gradebook",
+      SuperAdmin: "gradebook",
+      Docente: "gradebook",
+      Estudiante: "grades",
+    },
   },
   { key: "attendance", label: "Asistencia" },
   // Encuestas (mig 20260720000000) — Docente y Estudiante. Tipos:
@@ -176,6 +188,12 @@ const MODULES: Array<{
   // check de edge functions, secrets, runtime). Solo SuperAdmin lo ve
   // en el sidebar (RBAC); el panel lo expone para que reordene / esconda.
   { key: "system", label: "Sistema" },
+  // Configuración — `/app/admin/settings`. El toggle controla SOLO el
+  // sidebar (posición + visibility). La ruta SIGUE siendo accesible
+  // por URL directa aunque esté apagada — escape hatch intencional
+  // para que un admin no se quede sin acceso si apaga toda la matriz
+  // por error. Por eso NO aparece en PREFIX_TO_MODULE del ModuleRouteGuard.
+  { key: "configuration", label: "Configuración" },
 ];
 
 /** Resuelve la fila virtual + rol a su `module_key` físico (en DB). */
