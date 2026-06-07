@@ -1,20 +1,26 @@
 /**
  * UploadExternalContentDialog — sube archivos externos (PDF/PPTX/DOCX/
- * MD/TXT/imagen/ZIP) y los registra como un `generated_contents` con
- * status='done' (no pasa por IA). Permite asignar el material a UNO o
+ * MD/TXT/imagen/ZIP) Y captura la MISMA metadata pedagógica que el
+ * flujo de generación con IA (modo, tema, tags, duración, idioma,
+ * instrucciones, autor, release-after-session). Persiste como
+ * `generated_contents` con `status='done'` (no pasa por IA) y los
+ * archivos reales en `files[]`. Permite asignar el material a UNO o
  * VARIOS cursos vía `content_course_assignments` (junction N-N).
  *
  * Por qué reusar `generated_contents`:
  *   El listado del docente (`/app/teacher/contents`), la papelera, el
  *   visor de archivos y la integración con sesiones ya leen de esta
  *   tabla. Si creamos otra tabla "uploaded_contents" duplicamos UI +
- *   queries. Marcamos las filas con `tags=["material_externo"]` para
- *   distinguirlas; el flujo IA usa tags como `teorico/practico/examen`.
+ *   queries. La diferencia con el flujo IA es solo el origen de los
+ *   archivos (subidos vs generados) — la metadata es idéntica.
  *
- * Por qué `mode='material_individual'`:
- *   `curso_completo` implica N clases con índice (`content_class_index`).
- *   El material externo es 1 entrega plana sin clases — encaja en
- *   "individual". El docente ya conoce este modo del flujo IA.
+ * Por qué NO ofrecemos "extender con IA":
+ *   La edge `generate-contents` espera `{ id }` de una fila YA EXISTENTE
+ *   y reemplaza/agrega archivos del bucket — no tiene un modo "complete
+ *   este material subido". Hasta que la edge soporte un flag tipo
+ *   `extend=true`, este dialog solo sube archivos sin invocar IA. El
+ *   docente puede después usar "Regenerar" si quiere reemplazar todo
+ *   con IA (acción destructiva, ya disponible en el grid).
  *
  * Storage:
  *   Bucket: `generated-contents` (ya existente). Path:
@@ -43,9 +49,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { HelpHint } from "@/components/ui/help-hint";
-import { Upload, FileUp, X, Info, AlertTriangle } from "lucide-react";
+import {
+  Upload,
+  FileUp,
+  X,
+  Info,
+  AlertTriangle,
+  CheckSquare as CheckSquareIcon,
+} from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { logEvent } from "@/shared/lib/audit";
 
@@ -73,6 +94,21 @@ const ACCEPTED_EXTENSIONS = [
   ".svg",
   ".zip",
 ];
+
+type ContentMode = "curso_completo" | "material_individual";
+type ContentModality = "teorica" | "practica" | "teorico_practica";
+type ContentTag = "teorico" | "practico" | "examen";
+
+// Mismo helper que en app.teacher.contents.tsx — derivamos modality
+// desde tags para mantener compat con queries/edge functions que aún
+// leen la columna modality.
+function tagsToModality(tags: ContentTag[]): ContentModality {
+  const hasT = tags.includes("teorico");
+  const hasP = tags.includes("practico");
+  if (hasT && hasP) return "teorico_practica";
+  if (hasP) return "practica";
+  return "teorica";
+}
 
 interface CourseOption {
   id: string;
@@ -121,10 +157,24 @@ export function UploadExternalContentDialog({
 }: Props) {
   const { t } = useTranslation();
   const { user } = useAuth();
+
+  // --- Metadata pedagógica (paralelo al form IA) ---
   const [displayName, setDisplayName] = useState("");
-  const [description, setDescription] = useState("");
+  const [topic, setTopic] = useState("");
+  const [mode, setMode] = useState<ContentMode>("material_individual");
+  const [nClasses, setNClasses] = useState<number>(8);
+  const [durationMinutes, setDurationMinutes] = useState<number>(60);
+  const [tags, setTags] = useState<ContentTag[]>(["teorico"]);
+  const [language, setLanguage] = useState<"es" | "en">("es");
+  const [author, setAuthor] = useState("");
+  const [instructions, setInstructions] = useState("");
+  const [releaseAfterSessionDate, setReleaseAfterSessionDate] = useState(false);
+
+  // --- Archivos + cursos destino ---
   const [files, setFiles] = useState<File[]>([]);
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
+
+  // --- UI state ---
   const [saving, setSaving] = useState(false);
   // % de progreso global durante el upload — útil cuando el docente sube
   // varios PDFs grandes y el dialog se vería como "congelado" si solo
@@ -134,12 +184,22 @@ export function UploadExternalContentDialog({
     total: 0,
   });
 
-  // Reset al abrir; cuando se cierra, el state se descarta naturalmente
-  // en el unmount del DialogContent.
+  // Reset SOLO al abrir el dialog vacío (no entre renders). Permite que
+  // el docente cierre y vuelva a abrir sin perder lo que estaba
+  // escribiendo si lo abrió por accidente; pero al success o al primer
+  // open con state stale, limpia.
   useEffect(() => {
     if (open) {
       setDisplayName("");
-      setDescription("");
+      setTopic("");
+      setMode("material_individual");
+      setNClasses(8);
+      setDurationMinutes(60);
+      setTags(["teorico"]);
+      setLanguage("es");
+      setAuthor("");
+      setInstructions("");
+      setReleaseAfterSessionDate(false);
       setFiles([]);
       setSelectedCourseIds(
         defaultCourseId ? new Set([defaultCourseId]) : new Set(),
@@ -155,6 +215,12 @@ export function UploadExternalContentDialog({
       else next.add(id);
       return next;
     });
+  };
+
+  const toggleTag = (tag: ContentTag) => {
+    setTags((prev) =>
+      prev.includes(tag) ? prev.filter((x) => x !== tag) : [...prev, tag],
+    );
   };
 
   const onFilesPicked = (list: FileList | null) => {
@@ -183,25 +249,41 @@ export function UploadExternalContentDialog({
       valid.push(f);
     }
     if (valid.length === 0) return;
-    setFiles((prev) => [...prev, ...valid]);
+    // En modo "material_individual" forzamos un solo archivo (= 1 sesión).
+    // Si el docente ya tenía uno cargado y trae otro, reemplaza.
+    if (mode === "material_individual") {
+      setFiles(valid.slice(-1));
+    } else {
+      setFiles((prev) => [...prev, ...valid]);
+    }
   };
 
   const removeFile = (idx: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  // El primer tag activo determina el CHECK constraint del INSERT
+  // (`generated_contents_tags_check`: solo {teorico, practico, examen}).
+  // Si el docente desmarcó todo, caemos a ["teorico"] como default seguro.
+  const tagsForDb: ContentTag[] = tags.length > 0 ? tags : ["teorico"];
+
   const canSubmit =
     !saving &&
     !!user &&
     displayName.trim().length > 0 &&
     displayName.trim().length <= 120 &&
+    topic.trim().length > 0 &&
+    tags.length > 0 &&
     files.length > 0 &&
-    selectedCourseIds.size > 0;
+    selectedCourseIds.size > 0 &&
+    (mode === "material_individual" || nClasses >= 1);
 
   const handleSubmit = async () => {
     if (!user) return;
     if (!canSubmit) {
       if (!displayName.trim()) toast.error("Indica un nombre para el contenido.");
+      else if (!topic.trim()) toast.error("Indica el tema del contenido.");
+      else if (tags.length === 0) toast.error(t("contents.tagsRequired"));
       else if (files.length === 0) toast.error("Adjunta al menos un archivo.");
       else if (selectedCourseIds.size === 0)
         toast.error("Selecciona al menos un curso destino.");
@@ -211,37 +293,27 @@ export function UploadExternalContentDialog({
     setProgress({ done: 0, total: files.length });
     const courseIdsArr = Array.from(selectedCourseIds);
     const anchorCourseId = courseIdsArr[0];
+    const modality = tagsToModality(tagsForDb);
 
-    // 1) Crear la fila de generated_contents (status='done', no IA).
-    //    El `course_id` queda como "ancla" (primer curso elegido) para
-    //    compat con queries existentes que asumen 1-1. La junction abajo
-    //    cubre la asociación N-N real.
-    const insertPayload = {
+    // 1) Crear la fila de generated_contents con la MISMA shape que el
+    //    flujo IA: status='done' (saltó pipeline), files=[] (se setea
+    //    después de subir), metadata completa.
+    const insertPayload: Record<string, unknown> = {
       teacher_id: user.id,
       display_name: displayName.trim(),
-      topic: description.trim() || displayName.trim(),
-      mode: "material_individual" as const,
-      language: "es",
-      n_classes: null,
-      duration_minutes: 60,
-      modality: "teorica",
-      // `tags` está restringido por CHECK constraint
-      // `generated_contents_tags_check` (mig 20260513230000): solo acepta
-      // valores del set {teorico, practico, examen}. El valor
-      // "material_externo" rompía el INSERT con error 23514 al subir
-      // contenido externo. Usamos "teorico" como default que matchea
-      // la modality "teorica" del payload. La marca de "externo" queda
-      // implícita por `status='done'` (saltó el pipeline IA) + ausencia
-      // de archivos `kind: 'pptx-source'` o `kind: 'md'` (todos los
-      // uploads externos usan `kind: 'uploaded'`).
-      tags: ["teorico"],
+      topic: topic.trim(),
+      mode,
+      language,
+      n_classes: mode === "curso_completo" ? nClasses : null,
+      duration_minutes: durationMinutes,
+      modality,
+      tags: tagsForDb,
       course_id: anchorCourseId,
-      author: null,
-      instructions: null,
-      status: "done" as const,
+      author: author.trim() || null,
+      instructions: instructions.trim() || null,
+      status: "done",
       is_published: true,
-      release_after_session_date: false,
-      // files se setea después de subir.
+      release_after_session_date: releaseAfterSessionDate,
       files: [] as Array<{ name: string; path: string; kind: string }>,
     };
     const { data: created, error: insErr } = await db
@@ -335,6 +407,8 @@ export function UploadExternalContentDialog({
         files_count: uploaded.length,
         files_failed: failed.length,
         courses: courseIdsArr,
+        mode,
+        tags: tagsForDb,
       },
     });
 
@@ -350,7 +424,7 @@ export function UploadExternalContentDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
-      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5 text-primary" />
@@ -359,39 +433,237 @@ export function UploadExternalContentDialog({
           <DialogDescription>
             {t("contents.uploadExternalSubtitle", {
               defaultValue:
-                "Sube archivos creados por fuera de ExamLab (PDF, presentaciones, docs) y asígnalos a uno o varios cursos.",
+                "Sube archivos creados por fuera de ExamLab (PDF, presentaciones, docs) y completa la misma metadata pedagógica que usaría la IA. No se invoca generación — solo se registra el material.",
             })}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
+          {/* Nombre + tema */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label required>
+                Nombre del contenido
+                <HelpHint>{t("help.contentDisplayNameHint", { defaultValue: "Nombre único que verás en la lista. Distinto del tema." })}</HelpHint>
+              </Label>
+              <Input
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder='Ej. "Semana 5 — Bucles"'
+                maxLength={120}
+                disabled={saving}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label required>
+                {t("contents.topic", { defaultValue: "Tema" })}
+                <HelpHint>{t("contents.topicHint")}</HelpHint>
+              </Label>
+              <Input
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                placeholder={t("contents.topicPlaceholder")}
+                disabled={saving}
+              />
+            </div>
+          </div>
+
+          {/* Modo (curso completo vs individual) */}
+          <div className="space-y-1.5">
+            <Label>
+              {t("contents.mode", { defaultValue: "Modo" })}
+              <HelpHint>{t("contents.modeHint")}</HelpHint>
+            </Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {(["material_individual", "curso_completo"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => setMode(m)}
+                  className={`text-left rounded-md border p-2.5 transition-colors ${
+                    mode === m
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:bg-muted/40"
+                  }`}
+                >
+                  <div className="font-medium text-sm">
+                    {m === "curso_completo"
+                      ? t("contents.modeFull")
+                      : t("contents.modeSingle")}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {m === "curso_completo"
+                      ? t("contents.modeFullDesc")
+                      : t("contents.modeSingleDesc")}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* N clases (solo curso_completo) + duración */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {mode === "curso_completo" && (
+              <div className="space-y-1.5">
+                <Label required>
+                  {t("contents.nClasses")}
+                  <HelpHint>{t("contents.nClassesHint")}</HelpHint>
+                </Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={40}
+                  value={nClasses}
+                  disabled={saving}
+                  onChange={(e) => setNClasses(Math.max(1, Number(e.target.value) || 1))}
+                />
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label required>
+                {t("contents.duration")}
+                <HelpHint>{t("contents.durationHelper")}</HelpHint>
+              </Label>
+              <Input
+                type="number"
+                min={10}
+                max={480}
+                step={5}
+                value={durationMinutes}
+                disabled={saving}
+                onChange={(e) =>
+                  setDurationMinutes(Math.max(10, Math.min(480, Number(e.target.value) || 60)))
+                }
+              />
+            </div>
+          </div>
+
+          {/* Tags compositivos */}
           <div className="space-y-1.5">
             <Label required>
-              {t("contents.displayName", { defaultValue: "Nombre" })}
-              <HelpHint>{t("help.displayNameHint")}</HelpHint>
+              {t("contents.tags")}
+              <HelpHint>{t("contents.tagsHint")}</HelpHint>
             </Label>
-            <Input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Ej. Bibliografía complementaria semana 3"
-              maxLength={120}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {(
+                [
+                  {
+                    key: "teorico" as ContentTag,
+                    label: t("contents.tagTheory"),
+                    desc: t("contents.tagTheoryDesc"),
+                  },
+                  {
+                    key: "practico" as ContentTag,
+                    label: t("contents.tagPractice"),
+                    desc: t("contents.tagPracticeDesc"),
+                  },
+                  {
+                    key: "examen" as ContentTag,
+                    label: t("contents.tagExam"),
+                    desc: t("contents.tagExamDesc"),
+                  },
+                ] as const
+              ).map((opt) => {
+                const active = tags.includes(opt.key);
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    disabled={saving}
+                    onClick={() => toggleTag(opt.key)}
+                    className={`text-left rounded-md border p-2 text-xs transition-colors ${
+                      active
+                        ? "border-primary bg-primary/10 ring-1 ring-primary/40"
+                        : "border-border hover:bg-muted/40"
+                    }`}
+                    aria-pressed={active}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="font-medium text-sm">{opt.label}</div>
+                      {active && <CheckSquareIcon className="h-3.5 w-3.5 text-primary" />}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">{opt.desc}</div>
+                  </button>
+                );
+              })}
+            </div>
+            {tags.length === 0 && (
+              <p className="text-[11px] text-destructive">{t("contents.tagsRequired")}</p>
+            )}
+          </div>
+
+          {/* Idioma + autor */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>{t("contents.language", { defaultValue: "Idioma" })}</Label>
+              <Select
+                value={language}
+                onValueChange={(v) => setLanguage(v as "es" | "en")}
+                disabled={saving}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="es">Español</SelectItem>
+                  <SelectItem value="en">English</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("contents.author", { defaultValue: "Autor (opcional)" })}</Label>
+              <Input
+                value={author}
+                onChange={(e) => setAuthor(e.target.value)}
+                placeholder={t("contents.authorPlaceholder")}
+                disabled={saving}
+              />
+            </div>
+          </div>
+
+          {/* Instrucciones — útiles aunque NO se invoque IA: queda como
+              nota pedagógica del contenido (la columna ya existe). */}
+          <div className="space-y-1.5">
+            <Label>
+              {t("contents.instructions", { defaultValue: "Notas / instrucciones (opcional)" })}
+              <HelpHint>
+                {t("contents.uploadInstructionsHint", {
+                  defaultValue:
+                    "Notas libres sobre este material. Se guardan con el contenido; útiles si después decides regenerar con IA o materializar evaluaciones.",
+                })}
+              </HelpHint>
+            </Label>
+            <Textarea
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder={t("contents.instructionsPlaceholder")}
+              className="min-h-[80px] text-xs"
               disabled={saving}
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label>
-              {t("contents.descriptionOptional", {
-                defaultValue: "Descripción (opcional)",
-              })}
+          {/* Release after session */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+            <Label
+              htmlFor="release-after-session-upload"
+              className="text-sm font-medium inline-flex items-center gap-1.5 cursor-pointer min-w-0"
+            >
+              <span className="truncate">
+                Liberar al estudiante solo desde la fecha de sesión
+              </span>
+              <HelpHint>
+                {t("help.contentReleaseAfterSessionHint", {
+                  defaultValue:
+                    "Si el contenido está asignado a una sesión, solo se mostrará al estudiante desde la fecha de esa sesión.",
+                })}
+              </HelpHint>
             </Label>
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Breve nota sobre el material — opcional"
-              rows={2}
+            <Switch
+              id="release-after-session-upload"
+              checked={releaseAfterSessionDate}
+              onCheckedChange={setReleaseAfterSessionDate}
               disabled={saving}
-              className="text-xs"
             />
           </div>
 
@@ -403,7 +675,12 @@ export function UploadExternalContentDialog({
               {t("contents.coursesTarget", {
                 defaultValue: "Cursos donde aparecerá",
               })}
-              <HelpHint>{t("help.coursesTargetHint")}</HelpHint>
+              <HelpHint>
+                {t("help.coursesTargetHint", {
+                  defaultValue:
+                    "El primero seleccionado queda como curso ancla; los demás se asocian via tabla N-N.",
+                })}
+              </HelpHint>
             </Label>
             {courses.length === 0 ? (
               <Alert>
@@ -440,11 +717,14 @@ export function UploadExternalContentDialog({
             )}
           </div>
 
-          {/* File picker — multi. Drag-and-drop opcional vía label. */}
+          {/* File picker — multi (o single en mode=individual). */}
           <div className="space-y-1.5">
             <Label required>
               {t("contents.files", { defaultValue: "Archivos" })}
               <HelpHint>
+                {mode === "material_individual"
+                  ? "Modo individual: 1 archivo (se reemplaza si seleccionas otro)."
+                  : "Modo curso completo: puedes subir varios archivos (idealmente 1 por clase)."}{" "}
                 Formatos: PDF, PPTX, DOCX, XLSX, MD, TXT, CSV, ZIP, PNG, JPG, WEBP, SVG. Máximo
                 {` ${MAX_FILE_SIZE_MB} MB por archivo, ${MAX_TOTAL_SIZE_MB} MB en total.`}
               </HelpHint>
@@ -458,11 +738,13 @@ export function UploadExternalContentDialog({
             >
               <FileUp className="h-5 w-5 text-muted-foreground" />
               <span className="text-muted-foreground text-xs">
-                Click para elegir archivos o arrastra aquí
+                {mode === "material_individual"
+                  ? "Click para elegir un archivo"
+                  : "Click para elegir archivos o arrastra aquí"}
               </span>
               <input
                 type="file"
-                multiple
+                multiple={mode === "curso_completo"}
                 accept={ACCEPTED_EXTENSIONS.join(",")}
                 className="hidden"
                 disabled={saving}
@@ -515,7 +797,9 @@ export function UploadExternalContentDialog({
           </Button>
           <Button onClick={() => void handleSubmit()} disabled={!canSubmit}>
             {saving ? <Spinner size="sm" className="mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
-            {t("contents.uploadAndAssign", { defaultValue: "Subir y asignar" })}
+            {t("contents.uploadAndCreate", {
+              defaultValue: "Subir y crear contenido",
+            })}
           </Button>
         </DialogFooter>
       </DialogContent>
