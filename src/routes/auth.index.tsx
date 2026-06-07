@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { logEvent } from "@/shared/lib/audit";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -24,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { LanguageSwitcher } from "@/shared/components/LanguageSwitcher";
 import { toast } from "sonner";
-import { GraduationCap, KeyRound, Mail, Eye, EyeOff, Building2 } from "lucide-react";
+import { GraduationCap, KeyRound, Mail, Eye, EyeOff, Building2, Chrome } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { getTenantSlugFromUrl } from "@/modules/tenants/url";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -53,12 +54,43 @@ interface TenantOption {
  *  cross-tenant". Si elige esto, post-login va a `/app` sin prefijo. */
 const SUPERADMIN_CROSS_TENANT = "__cross_tenant__";
 
+// Keys de localStorage para el toggle "Recordarme". Solo persistimos
+// email + slug de institución — NUNCA el password (eso queda a cargo del
+// password manager del navegador via autoComplete="current-password").
+// Si el usuario destilda "Recordarme", limpiamos las 3 entries.
+const REMEMBER_FLAG_KEY = "examlab_remember_me";
+const REMEMBER_EMAIL_KEY = "examlab_remember_email";
+const REMEMBER_SLUG_KEY = "examlab_remember_slug";
+
 function AuthPage() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState("");
+  // Email pre-llenado desde localStorage si el usuario marcó "Recordarme"
+  // en una sesión anterior. La password NO se pre-llena desde código —
+  // si el navegador la guardó vía su password manager, autoComplete
+  // hará el autofill cuando el input enfoque.
+  const [email, setEmail] = useState<string>(() => {
+    try {
+      if (window.localStorage.getItem(REMEMBER_FLAG_KEY) === "1") {
+        return window.localStorage.getItem(REMEMBER_EMAIL_KEY) ?? "";
+      }
+    } catch {
+      /* ignore SSR / privacy mode */
+    }
+    return "";
+  });
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(REMEMBER_FLAG_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  // SSO loading flags — separados para mostrar el spinner solo en el
+  // botón clickeado (Google o Microsoft), no en ambos a la vez.
+  const [ssoLoading, setSsoLoading] = useState<null | "google" | "azure">(null);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
@@ -70,11 +102,21 @@ function AuthPage() {
   // login sigue funcionando — el server valida igual la pertenencia.
   const [tenants, setTenants] = useState<TenantOption[]>([]);
   const [tenantsLoading, setTenantsLoading] = useState(true);
-  // Slug seleccionado. Pre-llenado con el slug de la URL si el usuario
-  // llegó vía `/t/<slug>/auth` (ej. shareable link).
+  // Slug seleccionado. Prioridad de pre-llenado:
+  //   1. Slug de la URL (`/t/<slug>/auth`) — explícito del shareable link.
+  //   2. Slug guardado por "Recordarme" en sesión anterior.
+  //   3. Vacío — el usuario debe elegir.
   const [selectedSlug, setSelectedSlug] = useState<string>(() => {
     const fromUrl = getTenantSlugFromUrl();
-    return fromUrl ?? "";
+    if (fromUrl) return fromUrl;
+    try {
+      if (window.localStorage.getItem(REMEMBER_FLAG_KEY) === "1") {
+        return window.localStorage.getItem(REMEMBER_SLUG_KEY) ?? "";
+      }
+    } catch {
+      /* ignore */
+    }
+    return "";
   });
 
   // Cargar instituciones al montar. Cualquier usuario anon puede leer
@@ -147,6 +189,60 @@ function AuthPage() {
       }
     });
   }, []);
+
+  /**
+   * Inicia el flow OAuth de Supabase contra Google o Microsoft (Azure).
+   *
+   * Política: el SSO NO crea cuentas. Tras volver del proveedor, la ruta
+   * `/auth/sso-callback` invoca el edge `auth-sso-verify` que valida que
+   * el email autenticado corresponda a un `profiles.institutional_email`
+   * ya pre-aprovisionado. Si no existe, borra el auth.user huérfano y
+   * muestra el error claro al usuario.
+   *
+   * Pre-reqs (Supabase project):
+   *   - Auth → Providers → Google: enabled + Client ID/Secret cargados.
+   *   - Auth → Providers → Azure: enabled + Client ID/Secret + tenant
+   *     configurado (común: "common" para personal+trabajo).
+   *   - Redirect URLs incluyen `https://<host>/auth/sso-callback`.
+   */
+  const onSso = async (provider: "google" | "azure") => {
+    if (ssoLoading) return;
+    setSsoLoading(provider);
+    try {
+      const redirectTo = `${window.location.origin}/auth/sso-callback`;
+      // Para Microsoft (azure), pedimos los scopes mínimos. `email` y
+      // `openid` vienen por defecto en Supabase Azure provider; `profile`
+      // habilita el nombre del usuario.
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo,
+          // Forzamos selección de cuenta para evitar el silent SSO cuando
+          // el usuario tiene varias cuentas Google/MS logueadas en el
+          // navegador (común al usar laptops compartidas o cuentas
+          // personales mezcladas con las institucionales).
+          queryParams:
+            provider === "google"
+              ? { access_type: "offline", prompt: "select_account" }
+              : { prompt: "select_account" },
+          scopes: provider === "azure" ? "openid email profile" : undefined,
+        },
+      });
+      if (error) {
+        setSsoLoading(null);
+        toast.error(
+          `${t("auth.sso.startError", { defaultValue: "No se pudo iniciar el SSO" })}: ${error.message}`,
+        );
+      }
+      // Si todo OK: el browser redirige al provider. No reseteamos el
+      // loading flag — la página se va a destruir igual.
+    } catch (e) {
+      setSsoLoading(null);
+      toast.error(
+        `${t("auth.sso.startError", { defaultValue: "No se pudo iniciar el SSO" })}: ${(e as Error).message}`,
+      );
+    }
+  };
 
   const onLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,6 +327,26 @@ function AuthPage() {
         entityId: data.user?.id,
         entityName: data.user?.email ?? email,
       });
+
+      // "Recordarme": persistimos email + slug en localStorage para que
+      // el próximo login pre-llene esos campos. La password queda a
+      // cargo del password manager del navegador (autoComplete=
+      // "current-password" en el input). Si el toggle está apagado,
+      // limpiamos las 3 entries.
+      try {
+        if (rememberMe) {
+          window.localStorage.setItem(REMEMBER_FLAG_KEY, "1");
+          window.localStorage.setItem(REMEMBER_EMAIL_KEY, email);
+          window.localStorage.setItem(REMEMBER_SLUG_KEY, selectedSlug);
+        } else {
+          window.localStorage.removeItem(REMEMBER_FLAG_KEY);
+          window.localStorage.removeItem(REMEMBER_EMAIL_KEY);
+          window.localStorage.removeItem(REMEMBER_SLUG_KEY);
+        }
+      } catch {
+        /* privacy mode / quota — silencio, login sigue OK */
+      }
+
       toast.success(t("auth.welcome"));
 
       // Hard navigate al app. Para SuperAdmin que eligió un tenant
@@ -362,6 +478,14 @@ function AuthPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoFocus
+                  // autoComplete="username" + autoComplete="current-password"
+                  // en el password input le indican al password manager
+                  // del navegador (Chrome, Edge, Safari, Bitwarden, 1Password,
+                  // etc.) que esto es un login form — habilita el flow
+                  // estándar de "guardar contraseña" y autofill en visitas
+                  // posteriores. Sin estos atributos algunos managers no
+                  // ofrecen guardar.
+                  autoComplete="username"
                 />
               </div>
               <div className="space-y-1.5">
@@ -386,6 +510,7 @@ function AuthPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     className="pr-9"
+                    autoComplete="current-password"
                   />
                   <button
                     type="button"
@@ -401,10 +526,81 @@ function AuthPage() {
                   </button>
                 </div>
               </div>
-              <Button type="submit" className="w-full" disabled={loading || !selectedSlug}>
+              {/* "Recordarme": persiste email + slug en localStorage para
+                  el próximo login. La password queda a cargo del password
+                  manager del navegador (autoComplete="current-password"). */}
+              <label className="flex items-center gap-2 select-none cursor-pointer">
+                <Checkbox
+                  checked={rememberMe}
+                  onCheckedChange={(v) => setRememberMe(v === true)}
+                  id="li-remember"
+                />
+                <span className="text-sm text-muted-foreground">
+                  {t("auth.rememberMe", { defaultValue: "Recordarme" })}
+                </span>
+              </label>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={loading || !selectedSlug || ssoLoading !== null}
+              >
                 {loading && <Spinner size="md" className="mr-2" />} {t("auth.submit")}
               </Button>
             </form>
+
+            {/* Separador + SSO. El SSO NO crea cuentas — el callback edge
+                valida que el email exista en `profiles.institutional_email`.
+                Si no, cierra sesión + muestra error. */}
+            <div className="my-4 flex items-center gap-3">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                {t("auth.sso.divider", { defaultValue: "o continúa con" })}
+              </span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void onSso("google")}
+                disabled={loading || ssoLoading !== null}
+              >
+                {ssoLoading === "google" ? (
+                  <Spinner size="sm" className="mr-2" />
+                ) : (
+                  <Chrome className="h-4 w-4 mr-2" />
+                )}
+                {t("auth.sso.google", { defaultValue: "Google" })}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void onSso("azure")}
+                disabled={loading || ssoLoading !== null}
+              >
+                {ssoLoading === "azure" ? (
+                  <Spinner size="sm" className="mr-2" />
+                ) : (
+                  // Microsoft no tiene un ícono "Microsoft" puro en
+                  // lucide; usamos un cuadradito 4-panel improvisado
+                  // con divs Tailwind para mantener la marca reconocible
+                  // sin agregar una dependencia.
+                  <span className="inline-grid grid-cols-2 grid-rows-2 gap-[2px] mr-2 h-4 w-4 shrink-0">
+                    <span className="bg-[#f25022]" />
+                    <span className="bg-[#7fba00]" />
+                    <span className="bg-[#00a4ef]" />
+                    <span className="bg-[#ffb900]" />
+                  </span>
+                )}
+                {t("auth.sso.microsoft", { defaultValue: "Microsoft" })}
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2 text-center">
+              {t("auth.sso.noAutoCreate", {
+                defaultValue:
+                  "El SSO solo entra si tu admin ya creó tu cuenta. No registra usuarios nuevos.",
+              })}
+            </p>
             <p className="text-xs text-muted-foreground mt-4 text-center">
               {t("auth.contactAdmin")}
             </p>

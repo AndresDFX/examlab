@@ -2,11 +2,17 @@
  * SupabaseCronPanel — gestión de pg_cron desde el módulo "Cola" (tab
  * "Tareas programadas").
  *
- * Admin-only. Lista los jobs registrados vía `extensions.cron.schedule`,
- * permite encenderlos/apagarlos y editar su frecuencia (schedule). El
- * `command` (SQL que se ejecuta) se muestra como solo lectura — editarlo
- * desde UI es demasiado riesgoso para una manipulación rápida; eso queda
- * para migraciones versionadas.
+ * **SuperAdmin-only** (mig 20260825000000). Antes era Admin, pero los
+ * pg_cron son infra CROSS-TENANT — un Admin de un tenant NO debería
+ * poder pausar / reagendar jobs que afectan a TODAS las instituciones.
+ * El tab se gatea en `app.admin.ai-cron.tsx` por
+ * `roles.includes("SuperAdmin")` para que un Admin normal nunca lo vea.
+ *
+ * Lista los jobs registrados vía `extensions.cron.schedule`, permite
+ * encenderlos/apagarlos y editar su frecuencia (schedule). El `command`
+ * (SQL que se ejecuta) se muestra como solo lectura — editarlo desde UI
+ * es demasiado riesgoso para una manipulación rápida; eso queda para
+ * migraciones versionadas.
  *
  * RPCs:
  *  - admin_list_cron_jobs()
@@ -288,7 +294,7 @@ export function SupabaseCronPanel() {
           ) : unavailable ? (
             <ErrorState
               message="No se pudo acceder a pg_cron"
-              hint="Revisa que la migración 20260603104000 esté aplicada y que tengas rol Admin."
+              hint="Revisa que las migraciones 20260603104000 + 20260825000000 estén aplicadas y que tengas rol SuperAdmin (pg_cron es infra cross-tenant)."
               onRetry={() => void load()}
             />
           ) : jobs.length === 0 ? (

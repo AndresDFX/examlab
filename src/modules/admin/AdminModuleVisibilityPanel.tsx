@@ -142,6 +142,12 @@ const MODULES: Array<{
   // Papelera (mig 20260816000000): items soft-deletados de las 8
   // entidades principales. Solo staff (Docente / Admin / SuperAdmin).
   { key: "trash", label: "Papelera" },
+  // Instituciones — panel cross-tenant del SuperAdmin. En scope tenant
+  // este toggle es no-op (un Admin de tenant nunca ve `/app/superadmin/
+  // tenants` por RBAC), pero lo dejamos togglable para que el SuperAdmin
+  // pueda reordenar / esconder el ítem en su propio menú desde el panel
+  // global.
+  { key: "tenants", label: "Instituciones" },
 ];
 
 /** Resuelve la fila virtual + rol a su `module_key` físico (en DB). */
