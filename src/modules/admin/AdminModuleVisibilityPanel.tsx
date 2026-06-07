@@ -27,6 +27,14 @@ import { readTenantOverride } from "@/modules/tenants/use-tenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -250,6 +258,18 @@ export function AdminModuleVisibilityPanel() {
   const [togglingKey, setTogglingKey] = useState<string | null>(null);
   // Para el drag and drop nativo necesitamos tracker el item arrastrado.
   const [dragKey, setDragKey] = useState<string | null>(null);
+  // Filtro "Ver como rol" — preview del ordenamiento desde la perspectiva
+  // de un rol. "all" muestra la matriz completa con todas las columnas;
+  // un rol específico esconde las otras columnas y opcionalmente filtra
+  // a solo los módulos habilitados para ese rol (toggle separado).
+  // El display_order es uniforme entre roles (saveOrder escribe el mismo
+  // valor a las N filas (module, role)), así que cambiar el filtro NO
+  // re-ordena las filas — solo cambia qué columnas/filas se muestran.
+  const [roleFilter, setRoleFilter] = useState<ModuleRoleKey | "all">("all");
+  // Cuando hay un rol filtrado, opción para esconder los módulos que
+  // están deshabilitados para ese rol — útil para "preview del sidebar":
+  // ver SOLO lo que ese rol vería, en el orden exacto.
+  const [hideDisabledInFilter, setHideDisabledInFilter] = useState(false);
 
   /**
    * Label del módulo: si está mapeado a `nav.*` lo lee de ahí (fuente
@@ -352,6 +372,22 @@ export function AdminModuleVisibilityPanel() {
     const physical = mod ? physicalKeyFor(mod, role) : virtualKey;
     return enabledMap.get(`${physical}::${role}`) ?? true;
   };
+
+  // ── Filtros de presentación (no afectan la DB) ──────────────────────
+  // displayRoles: qué columnas se muestran en la matriz. Cuando el
+  // filtro es "all" → todas las visibles del scope; cuando es un rol
+  // específico → solo esa columna (preview).
+  const displayRoles =
+    roleFilter === "all" ? visibleRoles : visibleRoles.filter((r) => r.key === roleFilter);
+
+  // displayedModuleKeys: qué filas se muestran. Default = todo el
+  // `localOrder`. Si el filtro está activo Y `hideDisabledInFilter`
+  // está prendido, ocultamos las filas que están en OFF para ese rol —
+  // dando una vista de "lo que ese rol ve realmente en su sidebar".
+  const displayedModuleKeys =
+    roleFilter !== "all" && hideDisabledInFilter
+      ? localOrder.filter((k) => isOn(k, roleFilter))
+      : localOrder;
 
   // Posición persistida en DB para detectar si hay cambios sin guardar.
   // Indexado por VIRTUAL key (igual que localOrder). Para virtuales
@@ -595,6 +631,49 @@ export function AdminModuleVisibilityPanel() {
           />
         ) : (
           <>
+            {/* Toolbar de filtros de presentación (no afectan la DB) ──
+                "Ver rol" reduce la matriz a una sola columna para
+                previsualizar lo que ese rol verá en su sidebar. "Solo
+                habilitados" oculta las filas en OFF para ese rol — útil
+                para confirmar "este es el menú real del Docente". Si
+                ese toggle está prendido, deshabilitamos el reorder
+                (drag + arrows) porque mover filas cuando hay gaps
+                ocultos confunde — el usuario primero saca el filtro,
+                reordena, y vuelve a previsualizar. */}
+            <div className="flex flex-wrap items-center gap-2 pb-2">
+              <Label className="text-xs text-muted-foreground mr-1">Ver rol:</Label>
+              <Select
+                value={roleFilter}
+                onValueChange={(v) => setRoleFilter(v as ModuleRoleKey | "all")}
+              >
+                <SelectTrigger className="h-8 w-44 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los roles</SelectItem>
+                  {visibleRoles.map((r) => (
+                    <SelectItem key={r.key} value={r.key}>
+                      {r.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {roleFilter !== "all" && (
+                <label className="flex items-center gap-2 select-none cursor-pointer text-xs ml-2">
+                  <Switch
+                    checked={hideDisabledInFilter}
+                    onCheckedChange={(v) => setHideDisabledInFilter(v === true)}
+                  />
+                  <span className="text-muted-foreground">Solo habilitados</span>
+                </label>
+              )}
+              {roleFilter !== "all" && (
+                <span className="text-[10px] text-muted-foreground italic ml-auto">
+                  Vista previa: {displayedModuleKeys.length} ítems visibles para {roleFilter}.
+                </span>
+              )}
+            </div>
+
             {/* overflow-x-auto + min-w en el contenido evita que la matrix
               se apriete a 375px (3 switches w-16 + acciones w-16 + gaps
               ocupan ~256px fijos, dejaban <80px para el label del módulo
@@ -606,7 +685,7 @@ export function AdminModuleVisibilityPanel() {
                 <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-2 pb-1 text-[10px] uppercase font-medium text-muted-foreground tracking-wide">
                   <span>Módulo</span>
                   <div className="flex gap-2">
-                    {visibleRoles.map((r) => (
+                    {displayRoles.map((r) => (
                       // w-20 (antes w-16): "SuperAdmin" (10 chars) no entra
                       // en 64px y se truncaba. 80px deja el label completo
                       // en todos los roles, sin afectar layout — el
@@ -621,26 +700,49 @@ export function AdminModuleVisibilityPanel() {
                 </div>
 
                 <div className="border rounded-md divide-y bg-card">
-                  {localOrder.map((modKey, idx) => {
+                  {displayedModuleKeys.map((modKey) => {
                     const m = MODULES.find((x) => x.key === modKey);
                     if (!m) return null;
                     const isDragging = dragKey === modKey;
+                    // Reorder semantics: cuando hay filas ocultas
+                    // (hideDisabledInFilter on), `idx` dentro del map ya
+                    // no representa el índice en `localOrder` real. Para
+                    // simplificar, en ese caso deshabilitamos el reorder.
+                    // Cuando no, usamos el índice real de localOrder.
+                    const realIdx = localOrder.indexOf(modKey);
+                    const reorderDisabled = roleFilter !== "all" && hideDisabledInFilter;
+                    // En modo "Solo habilitados" todas las filas que se
+                    // renderizan están en ON → no necesitamos dimmear.
+                    // Cuando el filtro está en un rol pero hideDisabled
+                    // está OFF, dimeamos las filas en OFF para que el
+                    // contraste visual indique al usuario qué se ocultará
+                    // si activa "Solo habilitados".
+                    const dimmedRow =
+                      roleFilter !== "all" && !hideDisabledInFilter && !isOn(m.key, roleFilter);
                     return (
                       <div
                         key={m.key}
-                        draggable
-                        onDragStart={() => onDragStart(m.key)}
+                        draggable={!reorderDisabled}
+                        onDragStart={() => !reorderDisabled && onDragStart(m.key)}
                         onDragOver={onDragOver}
-                        onDrop={() => onDrop(m.key)}
+                        onDrop={() => !reorderDisabled && onDrop(m.key)}
                         onDragEnd={() => setDragKey(null)}
                         className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 px-2 py-2 hover:bg-muted/30 transition-colors ${
                           isDragging ? "opacity-40 bg-muted/40" : ""
-                        }`}
+                        } ${dimmedRow ? "opacity-50" : ""}`}
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <span
-                            className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0"
-                            title="Arrastra para reordenar"
+                            className={`text-muted-foreground hover:text-foreground shrink-0 ${
+                              reorderDisabled
+                                ? "cursor-not-allowed opacity-40"
+                                : "cursor-grab active:cursor-grabbing"
+                            }`}
+                            title={
+                              reorderDisabled
+                                ? "Quita 'Solo habilitados' para reordenar"
+                                : "Arrastra para reordenar"
+                            }
                           >
                             <GripVertical className="h-4 w-4" />
                           </span>
@@ -654,7 +756,7 @@ export function AdminModuleVisibilityPanel() {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          {visibleRoles.map((r) => {
+                          {displayRoles.map((r) => {
                             const key = `${m.key}::${r.key}`;
                             return (
                               // Cada slot del switch matchea el ancho del
@@ -675,19 +777,24 @@ export function AdminModuleVisibilityPanel() {
                           <RowAction
                             label="Subir"
                             icon={ChevronUp}
-                            disabled={idx === 0}
-                            onClick={() => moveModule(idx, idx - 1)}
+                            disabled={reorderDisabled || realIdx <= 0}
+                            onClick={() => moveModule(realIdx, realIdx - 1)}
                           />
                           <RowAction
                             label="Bajar"
                             icon={ChevronDown}
-                            disabled={idx === localOrder.length - 1}
-                            onClick={() => moveModule(idx, idx + 1)}
+                            disabled={reorderDisabled || realIdx >= localOrder.length - 1}
+                            onClick={() => moveModule(realIdx, realIdx + 1)}
                           />
                         </div>
                       </div>
                     );
                   })}
+                  {displayedModuleKeys.length === 0 && (
+                    <div className="py-6 text-center text-xs text-muted-foreground">
+                      Este rol no tiene módulos habilitados con los filtros actuales.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

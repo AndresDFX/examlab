@@ -3102,9 +3102,13 @@ function TeacherWorkshops() {
               </div>
             </div>
             {!(form as any).is_external && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Label>Estado</Label>
+                  {/* Labels uniformes en la grid: `text-xs` matchea las
+                      del row "Fechas" de arriba, y `flex items-center
+                      h-5` reserva el mismo alto en ambas columnas
+                      (la del HelpHint del lado derecho no descoloca). */}
+                  <Label className="text-xs flex items-center gap-1.5 h-5">Estado</Label>
                   <Select
                     value={form.status ?? "draft"}
                     onValueChange={(v) => setForm({ ...form, status: v })}
@@ -3120,7 +3124,7 @@ function TeacherWorkshops() {
                   </Select>
                 </div>
                 <div>
-                  <Label className="flex items-center gap-1.5">
+                  <Label className="text-xs flex items-center gap-1.5 h-5">
                     Intentos máximos
                     <HelpHint>
                       {`Cuántas veces puede entregar el alumno este taller. Vacío → usa el default de Admin → Configuración → Generales.`}

@@ -37,6 +37,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Cpu, Plus, Copy, Trash2, Zap, Clock } from "lucide-react";
+import {
+  useMultiSelect,
+  MultiSelectHeaderCheckbox,
+  MultiSelectCheckbox,
+  MultiSelectToolbar,
+  BulkDeleteDialog,
+} from "@/components/ui/multi-select";
 import { toast } from "sonner";
 import { invalidateModeCache } from "@/modules/ai/ai-grading";
 import { formatDateTime } from "@/shared/lib/format";
@@ -93,6 +100,11 @@ export function AdminAiGradingPanel() {
   // docente y limitar el consumo accidental de cuota Gemini.
   const [newMaxMessages, setNewMaxMessages] = useState<number | "">(10);
   const [newTtlHours, setNewTtlHours] = useState<number | "">(24);
+  // Multi-select para bulk delete de códigos IA. El hook deriva el set
+  // de seleccionados; cuando count > 0, MultiSelectToolbar aparece
+  // arriba de la tabla con el botón "Eliminar (N)".
+  const sel = useMultiSelect(codes);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   const loadMode = async () => {
     setLoadingMode(true);
@@ -250,6 +262,25 @@ export function AdminAiGradingPanel() {
       return;
     }
     toast.success("Código eliminado");
+    void loadCodes();
+  };
+
+  /**
+   * Bulk delete: borra todos los códigos seleccionados via `.in('id', ids)`
+   * en una sola query atómica. Si la query falla, ningún código se
+   * elimina (Postgres garantiza all-or-nothing en un solo DELETE).
+   * BulkDeleteDialog muestra preview de los códigos antes de confirmar.
+   */
+  const bulkDeleteSelected = async () => {
+    const ids = Array.from(sel.selectedIds);
+    if (ids.length === 0) return;
+    const { error } = await db.from("ai_override_codes").delete().in("id", ids);
+    if (error) {
+      toast.error(friendlyError(error, "No se pudieron eliminar los códigos"));
+      return;
+    }
+    toast.success(`${ids.length} código(s) eliminado(s)`);
+    sel.clear();
     void loadCodes();
   };
 

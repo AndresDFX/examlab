@@ -514,12 +514,30 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
                         )}
                       </div>
                       {j.last_error && (
-                        <div
-                          className="text-[10px] text-destructive mt-0.5 truncate"
-                          title={j.last_error}
-                        >
-                          <AlertTriangle className="inline h-2.5 w-2.5 mr-0.5" />
-                          {j.last_error}
+                        // Antes era `truncate` 1-línea con title hover —
+                        // mensajes largos quedaban tapados ("silent fail"
+                        // reportado por usuario). Ahora wrap + max 4
+                        // líneas con `line-clamp-4` + botón "Copiar"
+                        // para llevar el texto completo al portapapeles.
+                        <div className="text-[10px] text-destructive mt-1 flex items-start gap-1.5 rounded border border-destructive/30 bg-destructive/5 p-1.5">
+                          <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0 whitespace-pre-wrap break-words line-clamp-4">
+                            {j.last_error}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void navigator.clipboard
+                                .writeText(j.last_error ?? "")
+                                .then(() => toast.success("Error copiado"))
+                                .catch(() => toast.error("No se pudo copiar"));
+                            }}
+                            className="shrink-0 text-[10px] text-destructive/80 hover:text-destructive underline"
+                            title="Copiar error completo al portapapeles"
+                          >
+                            Copiar
+                          </button>
                         </div>
                       )}
                     </div>

@@ -157,7 +157,26 @@ async function processContentGeneration(job: QueueRow): Promise<{
       const txt = await res.text().catch(() => "");
       return {
         ok: false,
-        error: `generate-contents HTTP ${res.status}: ${txt.slice(0, 300)}`,
+        error: `generate-contents HTTP ${res.status}: ${txt.slice(0, 500)}`,
+        newSourceId: targetId,
+      };
+    }
+    // BUG fix: `generate-contents` puede responder HTTP 200 con
+    // `{ ok: false, error: "..." }` en el body cuando la IA falla
+    // (rate limit, content policy, parsing error). Si solo chequeamos
+    // `res.ok` la fila queda `done` con un contenido vacío/corrupto —
+    // exactamente lo que el usuario reporta como "fallando silencioso".
+    const txt = await res.text().catch(() => "");
+    let bodyJson: { ok?: boolean; error?: string } = {};
+    try {
+      bodyJson = JSON.parse(txt) as typeof bodyJson;
+    } catch {
+      /* respuesta no-JSON; aceptamos como ok si HTTP 200 */
+    }
+    if (bodyJson.ok === false || bodyJson.error) {
+      return {
+        ok: false,
+        error: `generate-contents (regen): ${bodyJson.error ?? txt.slice(0, 500) ?? "error sin detalle"}`,
         newSourceId: targetId,
       };
     }
@@ -206,7 +225,25 @@ async function processContentGeneration(job: QueueRow): Promise<{
     const txt = await res.text().catch(() => "");
     return {
       ok: false,
-      error: `generate-contents HTTP ${res.status}: ${txt.slice(0, 300)}`,
+      error: `generate-contents HTTP ${res.status}: ${txt.slice(0, 500)}`,
+      newSourceId: newId,
+    };
+  }
+  // Mismo bug fix que el path regen: edge puede responder HTTP 200 con
+  // `{ ok: false, error }` cuando la IA falla. Parseamos el JSON para
+  // detectar el caso y marcar la fila como `failed` en vez de dejarla
+  // `done` con contenido vacío/corrupto (fallo silencioso).
+  const txt = await res.text().catch(() => "");
+  let bodyJson: { ok?: boolean; error?: string } = {};
+  try {
+    bodyJson = JSON.parse(txt) as typeof bodyJson;
+  } catch {
+    /* respuesta no-JSON; aceptamos como ok si HTTP 200 */
+  }
+  if (bodyJson.ok === false || bodyJson.error) {
+    return {
+      ok: false,
+      error: `generate-contents (create): ${bodyJson.error ?? txt.slice(0, 500) ?? "error sin detalle"}`,
       newSourceId: newId,
     };
   }
