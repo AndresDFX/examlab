@@ -17,10 +17,11 @@ import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/ui/page-header";
-import { Database, KeyRound, Wrench, ShieldEllipsis } from "lucide-react";
+import { Database, KeyRound, Wrench, ShieldEllipsis, Settings2 } from "lucide-react";
 import { AdminEdgeSecretsPanel } from "@/modules/admin/AdminEdgeSecretsPanel";
 import { SystemDiagnosticsPanel } from "@/modules/admin/SystemDiagnosticsPanel";
 import { DbBackupsPanel } from "@/modules/admin/DbBackupsPanel";
+import { PlatformSettingsPanel } from "@/modules/superadmin/PlatformSettingsPanel";
 import { SectionLoader } from "@/components/ui/loaders";
 
 export const Route = createFileRoute("/app/superadmin/system")({
@@ -40,8 +41,12 @@ function SuperAdminSystem() {
         subtitle="Infraestructura de plataforma — exclusivo SuperAdmin."
       />
 
-      <Tabs defaultValue="backups">
+      <Tabs defaultValue="platform">
         <TabsList className="flex flex-wrap h-auto justify-start gap-1">
+          <TabsTrigger value="platform" className="gap-1.5">
+            <Settings2 className="h-3.5 w-3.5" />
+            Plataforma
+          </TabsTrigger>
           <TabsTrigger value="backups" className="gap-1.5">
             <Database className="h-3.5 w-3.5" />
             Backups
@@ -55,6 +60,9 @@ function SuperAdminSystem() {
             Secretos infra
           </TabsTrigger>
         </TabsList>
+        <TabsContent value="platform" className="space-y-4 mt-4">
+          <PlatformSettingsPanel />
+        </TabsContent>
         <TabsContent value="backups" className="space-y-4 mt-4">
           <DbBackupsPanel />
         </TabsContent>
