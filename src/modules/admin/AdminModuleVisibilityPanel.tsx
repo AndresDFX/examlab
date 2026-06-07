@@ -164,6 +164,10 @@ const MODULES: Array<{
   // pueda reordenar / esconder el ítem en su propio menú desde el panel
   // global.
   { key: "tenants", label: "Instituciones" },
+  // Sistema — diagnóstico de infraestructura cross-tenant (health
+  // check de edge functions, secrets, runtime). Solo SuperAdmin lo ve
+  // en el sidebar (RBAC); el panel lo expone para que reordene / esconda.
+  { key: "system", label: "Sistema" },
 ];
 
 /** Resuelve la fila virtual + rol a su `module_key` físico (en DB). */

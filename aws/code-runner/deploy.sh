@@ -87,16 +87,32 @@ set -euo pipefail
 # cada vez (especialmente útil en PowerShell donde `$env:` no se hereda
 # al `bash`). El archivo debe ser KEY=VALUE simple, sin `export`. Si NO
 # existe, seguimos al flujo normal (env vars del shell o `aws configure`).
+#
+# Defensivo contra trampas comunes en Windows:
+#   1. CRLF line endings: `sed 's/\r$//'` strip-ea el \r al final de cada
+#      línea — sin esto, los valores quedarían como "AKIA...\r" y la aws
+#      CLI fallaría con "Unable to locate credentials" silenciosamente.
+#   2. BOM UTF-8 (PowerShell `> file` por default): `sed '1s/^\xEF\xBB\xBF//'`
+#      lo elimina en la primera línea para que no se pegue a la primera key.
+#   3. Archivo vacío: avisamos explícito para que el usuario sepa que el
+#      "Cargando..." no cargó nada (típico cuando se crea el .env pero
+#      se olvida poblarlo).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$SCRIPT_DIR/.env" ]]; then
-  echo "→ Cargando variables de $SCRIPT_DIR/.env"
-  # `set -a` exporta TODO lo que se asigne hasta `set +a`. Pasamos por
-  # eso para que las variables del .env sean visibles a `aws` (y a
-  # cualquier proceso hijo). Filtramos líneas vacías y comentarios.
-  set -a
-  # shellcheck disable=SC1091
-  source <(grep -v '^[[:space:]]*\(#\|$\)' "$SCRIPT_DIR/.env")
-  set +a
+  if [[ ! -s "$SCRIPT_DIR/.env" ]]; then
+    echo "⚠  $SCRIPT_DIR/.env existe pero está VACÍO — no se cargó nada."
+    echo "   Poblalo con AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION."
+  else
+    echo "→ Cargando variables de $SCRIPT_DIR/.env"
+    set -a
+    # Pipeline:
+    #   1. sed strip-ea BOM (línea 1) + CR (todas).
+    #   2. grep -v descarta comentarios y líneas vacías.
+    # shellcheck disable=SC1091
+    source <(sed -e '1s/^\xEF\xBB\xBF//' -e 's/\r$//' "$SCRIPT_DIR/.env" \
+              | grep -v '^[[:space:]]*\(#\|$\)')
+    set +a
+  fi
 fi
 
 # ── Flags ──

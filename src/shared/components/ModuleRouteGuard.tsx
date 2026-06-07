@@ -38,6 +38,7 @@ const PREFIX_TO_MODULE: Array<[string, ModuleKey]> = [
 
   // ── SuperAdmin ────────────────────────────────────────────────────
   ["/app/superadmin/tenants", "tenants"],
+  ["/app/superadmin/system", "system"],
 
   // ── Docente ───────────────────────────────────────────────────────
   ["/app/teacher/courses", "courses"],
@@ -85,10 +86,9 @@ const PREFIX_TO_MODULE: Array<[string, ModuleKey]> = [
   ["/app/trash", "trash"],
 
   // Rutas NO togglables (intencional): /app, /app/preferences,
-  // /app/superadmin/system, /app/admin/settings — no aparecen en
-  // MODULES porque son utilidades transversales que el admin no debería
-  // poder apagar. Si las metés acá podrías quedar trabado sin acceso a
-  // Configuración para revertir.
+  // /app/admin/settings — no aparecen en MODULES. Configuración es el
+  // escape hatch para reactivar cualquier módulo apagado por error;
+  // si la togglés podés quedar trabado sin vía de retorno.
 ];
 
 /**

@@ -160,10 +160,20 @@ const NAV: NavItem[] = [
     to: "/app/teacher/question-bank",
     labelKey: "nav.questionBank",
     icon: Library,
-    roles: ["Docente"],
+    // SuperAdmin agregado para que pueda inspeccionar bancos de preguntas
+    // cross-tenant (las RLS de question_bank ya recortan apropiadamente
+    // — el SA ve todos, pero el banco es del docente original). Sin
+    // SuperAdmin acá, el toggle SuperAdmin del panel "Módulos" no podía
+    // efectuar nada porque el nav filter descartaba el ítem antes.
+    roles: ["Docente", "SuperAdmin"],
   },
   // Exámenes
-  { to: "/app/teacher/exams", labelKey: "nav.exams", icon: FileText, roles: ["Docente"] },
+  {
+    to: "/app/teacher/exams",
+    labelKey: "nav.exams",
+    icon: FileText,
+    roles: ["Docente", "SuperAdmin"],
+  },
   {
     to: "/app/student/exams",
     labelKey: "nav.studentExams",
@@ -171,7 +181,12 @@ const NAV: NavItem[] = [
     roles: ["Estudiante"],
   },
   // Talleres
-  { to: "/app/teacher/workshops", labelKey: "nav.workshops", icon: Hammer, roles: ["Docente"] },
+  {
+    to: "/app/teacher/workshops",
+    labelKey: "nav.workshops",
+    icon: Hammer,
+    roles: ["Docente", "SuperAdmin"],
+  },
   {
     to: "/app/student/workshops",
     labelKey: "nav.studentWorkshops",
@@ -183,7 +198,7 @@ const NAV: NavItem[] = [
     to: "/app/teacher/projects",
     labelKey: "nav.projects",
     icon: FolderKanban,
-    roles: ["Docente"],
+    roles: ["Docente", "SuperAdmin"],
   },
   {
     to: "/app/student/projects",
@@ -192,7 +207,12 @@ const NAV: NavItem[] = [
     roles: ["Estudiante"],
   },
   // Calificaciones
-  { to: "/app/teacher/gradebook", labelKey: "nav.grades", icon: ClipboardList, roles: ["Docente"] },
+  {
+    to: "/app/teacher/gradebook",
+    labelKey: "nav.grades",
+    icon: ClipboardList,
+    roles: ["Docente", "SuperAdmin"],
+  },
   {
     to: "/app/student/grades",
     labelKey: "nav.studentGrades",
@@ -232,7 +252,7 @@ const NAV: NavItem[] = [
     to: "/app/teacher/attendance",
     labelKey: "nav.attendance",
     icon: CalendarCheck,
-    roles: ["Docente"],
+    roles: ["Docente", "SuperAdmin"],
   },
   {
     to: "/app/student/attendance",
@@ -282,7 +302,7 @@ const NAV: NavItem[] = [
     to: "/app/teacher/calendar",
     labelKey: "nav.calendar",
     icon: CalendarDays,
-    roles: ["Docente"],
+    roles: ["Docente", "SuperAdmin"],
   },
   // Calendario integral del estudiante (lista unificada + sync .ics)
   {
@@ -799,6 +819,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     // / SuperAdmin acceden al módulo; Estudiante no aplica (no borra
     // entidades soft-deletables). RLS de cada tabla acota qué ve cada uno.
     ["/app/trash", "trash"],
+    // Sistema (SuperAdmin-only): panel de diagnóstico de infraestructura.
+    // El panel "Módulos" tiene el toggle para reordenar/esconder.
+    ["/app/superadmin/system", "system"],
   ];
   // Resuelve módulo para un path (helper local). Si no hay match,
   // null (no controlado por toggles, no participa en sort).

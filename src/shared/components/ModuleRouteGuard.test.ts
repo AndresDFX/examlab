@@ -189,8 +189,12 @@ describe("resolveModule — rutas NO togglables (devuelven null)", () => {
   it("/app/admin/settings → null (escape hatch para reactivar toggles)", () => {
     expect(resolveModule("/app/admin/settings")).toBe(null);
   });
-  it("/app/superadmin/system → null", () => {
-    expect(resolveModule("/app/superadmin/system")).toBe(null);
+  // /app/superadmin/system pasó a ser togglable desde el panel
+  // "Módulos" (mig: SA quería reordenar Sistema en su sidebar). Si
+  // alguien volviese a sacarlo de PREFIX_TO_MODULE, este test falla y
+  // sirve de canary.
+  it("/app/superadmin/system → system (togglable)", () => {
+    expect(resolveModule("/app/superadmin/system")).toBe("system");
   });
   it("/auth → null (fuera del scope de módulos)", () => {
     expect(resolveModule("/auth")).toBe(null);

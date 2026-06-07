@@ -46,6 +46,10 @@ export type ModuleKey =
   // El panel "Módulos" unifica la fila visual y mapea por rol vía
   // `roleKeyMap` (ver AdminModuleVisibilityPanel.MODULES).
   | "users"
+  // Sistema — panel de diagnóstico de infraestructura del SuperAdmin
+  // (`/app/superadmin/system`). Solo aplica a SuperAdmin pero lo
+  // exponemos en el panel para reorder/visibility como el resto.
+  | "system"
   | "reports"
   // ── Módulos faltantes en la matriz histórica. Se agregan acá para
   // que el Admin pueda gobernar su visibilidad/orden desde el panel
