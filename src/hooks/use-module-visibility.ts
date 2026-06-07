@@ -38,6 +38,14 @@ export type ModuleKey =
   | "videos"
   | "contents"
   | "teacher_students"
+  // `users` cubre la vista del Admin/SuperAdmin de gestión de usuarios
+  // (`/app/admin/users`). El mismo concepto "Usuarios" del menú tiene
+  // un módulo físico distinto por rol:
+  //   - Admin/SuperAdmin → 'users' (CRUD completo de cuentas del tenant)
+  //   - Docente          → 'teacher_students' (solo sus alumnos)
+  // El panel "Módulos" unifica la fila visual y mapea por rol vía
+  // `roleKeyMap` (ver AdminModuleVisibilityPanel.MODULES).
+  | "users"
   | "reports"
   // ── Módulos faltantes en la matriz histórica. Se agregan acá para
   // que el Admin pueda gobernar su visibilidad/orden desde el panel
@@ -54,7 +62,12 @@ export type ModuleKey =
   // Papelera — items soft-deletados de las 8 entidades principales.
   // Solo staff (Docente/Admin/SuperAdmin); el alumno no aplica.
   // Seed en migración 20260816000010_seed_trash_module_visibility.
-  | "trash";
+  | "trash"
+  // Instituciones — panel cross-tenant del SuperAdmin (`/app/superadmin/
+  // tenants`). Históricamente no era togglable; ahora aparece en el
+  // panel para que el SuperAdmin pueda esconderlo/reordenarlo en su
+  // propio menú sin necesidad de tocar código.
+  | "tenants";
 
 // SuperAdmin entró a la matriz (mig 20260803000000) — antes el rol
 // heredaba siempre los items de Admin sin posibilidad de silenciarlos.

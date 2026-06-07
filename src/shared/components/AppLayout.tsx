@@ -776,6 +776,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     ["/app/videos", "videos"],
     ["/app/student/tutor", "tutor"],
     ["/app/teacher/students", "teacher_students"],
+    // /app/admin/users → `users` (NO `teacher_students`). En el panel
+    // "Módulos" la fila "Usuarios" es virtual: mapea Admin/SuperAdmin →
+    // users y Docente → teacher_students vía roleKeyMap. El sidebar lee
+    // este mapa para gatear la visibilidad del item Admin.
+    ["/app/admin/users", "users"],
     ["/app/admin/report-templates", "reports"],
     ["/app/teacher/reports", "reports"],
     // Académico: solo Admin (estructura programas/asignaturas/periodos).

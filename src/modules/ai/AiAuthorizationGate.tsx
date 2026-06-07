@@ -103,7 +103,12 @@ interface PendingResolver {
 
 export function useAiAuthorizationGate() {
   const activeRole = useActiveRole();
-  const isAdmin = activeRole === "Admin";
+  // Admin Y SuperAdmin bypassean el gate. Ambos roles gestionan los
+  // códigos de IA inmediata + ven la cola, así que pedirles confirmación
+  // cada vez sería ruido. El SuperAdmin actuando cross-tenant entra acá
+  // (activeRole='SuperAdmin'); el SuperAdmin con override de tenant
+  // (activeRole='Admin') también pasa por la primera rama.
+  const isAdmin = activeRole === "Admin" || activeRole === "SuperAdmin";
 
   const [open, setOpen] = useState(false);
   const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);

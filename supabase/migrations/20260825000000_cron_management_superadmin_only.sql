@@ -21,6 +21,13 @@
 -- ──────────────────────────────────────────────────────────────────────
 
 -- 1) admin_list_cron_jobs — solo SuperAdmin lista.
+-- DROP previo: la versión live tenía un OUT-row-type ligeramente
+-- diferente (probablemente porque PostgREST regeneró el binding en algún
+-- ciclo) y Postgres rechaza `CREATE OR REPLACE` cuando el set de OUT
+-- params cambia, aunque las columnas se vean iguales en código. Patrón
+-- documentado en CLAUDE.md ("Postgres function: cambio de RETURNS").
+DROP FUNCTION IF EXISTS public.admin_list_cron_jobs();
+
 CREATE OR REPLACE FUNCTION public.admin_list_cron_jobs()
 RETURNS TABLE(
   jobid        BIGINT,
@@ -69,6 +76,10 @@ BEGIN
   ORDER BY j.jobname;
 END
 $$;
+
+-- Re-grants tras el DROP (las funciones drop'eadas pierden GRANTs).
+REVOKE ALL ON FUNCTION public.admin_list_cron_jobs() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.admin_list_cron_jobs() TO authenticated;
 
 -- 2) admin_set_cron_job_active — solo SuperAdmin pausa/reanuda.
 CREATE OR REPLACE FUNCTION public.admin_set_cron_job_active(

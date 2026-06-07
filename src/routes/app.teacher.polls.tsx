@@ -180,6 +180,12 @@ function TeacherPolls() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [courseFilter, setCourseFilter] = useState<string>("all");
+  // SuperAdmin cross-tenant: filtro por institución que acota la query
+  // de cursos al tenant elegido. Si NO está activo o está en "all", la
+  // RLS deja al SuperAdmin ver cross-tenant. Mismo patrón que en
+  // /app/teacher/contents y /app/admin/courses.
+  const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
+  const [tenantFilter, setTenantFilter] = useState<string>("all");
   // Dialog state — crear / editar.
   const [dialogOpen, setDialogOpen] = useState(false);
   // editPoll != null → el dialog opera en modo edición (hidrata desde
@@ -201,10 +207,14 @@ function TeacherPolls() {
       // pure, del tenant si tiene override aplicado por RLS contextual).
       let myCourses: Array<{ id: string; name: string }> = [];
       if (isSuperAdminCaller) {
-        const { data: courseRows, error: courseErr } = await db
-          .from("courses")
-          .select("id, name")
-          .order("name");
+        // Cuando el SA elige una institución en el filtro, acotamos
+        // server-side por tenant_id. "all" deja la RLS cross-tenant
+        // (todos los cursos visibles para el SA).
+        let courseQuery = db.from("courses").select("id, name").order("name");
+        if (tenantFilter !== "all") {
+          courseQuery = courseQuery.eq("tenant_id", tenantFilter);
+        }
+        const { data: courseRows, error: courseErr } = await courseQuery;
         if (cancelled) return;
         if (courseErr) {
           setLoadError(friendlyError(courseErr, "No pudimos cargar los cursos."));
@@ -212,6 +222,19 @@ function TeacherPolls() {
           return;
         }
         myCourses = (courseRows ?? []) as Array<{ id: string; name: string }>;
+
+        // Carga de tenants (paralela en concept, pero acá un await más
+        // no agrega latencia perceptible — el listado de tenants es
+        // pequeño). Solo SA: cualquier otro rol nunca ve este filtro.
+        const { data: tenantRows } = await db
+          .from("tenants")
+          .select("id, slug, name")
+          .is("deleted_at", null)
+          .order("name");
+        if (cancelled) return;
+        setTenants(
+          (tenantRows ?? []) as Array<{ id: string; slug: string; name: string }>,
+        );
       } else {
         const { data: courseRows, error: courseErr } = await db
           .from("course_teachers")
@@ -307,7 +330,14 @@ function TeacherPolls() {
     return () => {
       cancelled = true;
     };
-  }, [user, retryNonce]);
+    // tenantFilter: cuando el SA cambia institución, recargamos cursos
+    // del nuevo tenant + polls correspondientes. isSuperAdminCaller se
+    // computa de roles + activeRole — si cualquiera cambia, también
+    // re-ejecutamos para refrescar el set visible. Suprimimos la regla
+    // exhaustive-deps porque las funciones del cuerpo (db, friendlyError)
+    // son módulos, no closures con state cambiante.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, retryNonce, tenantFilter, isSuperAdminCaller]);
 
   const filteredPolls = useMemo(() => {
     if (courseFilter === "all") return polls;
@@ -438,21 +468,43 @@ function TeacherPolls() {
         <StatCard icon={CalendarRange} label="Doodle (slots)" value={pollStats.slot} />
       </div>
 
-      {courses.length > 1 && (
+      {(courses.length > 1 || (isSuperAdminCaller && tenants.length > 0)) && (
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={courseFilter} onValueChange={setCourseFilter}>
-            <SelectTrigger className="w-full sm:w-64 h-9 text-xs">
-              <SelectValue placeholder="Filtrar por curso" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los cursos</SelectItem>
-              {courses.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {courses.length > 1 && (
+            <Select value={courseFilter} onValueChange={setCourseFilter}>
+              <SelectTrigger className="w-full sm:w-64 h-9 text-xs">
+                <SelectValue placeholder="Filtrar por curso" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los cursos</SelectItem>
+                {courses.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {/* SuperAdmin cross-tenant: filtro por institución. Solo se
+              renderiza cuando el usuario actúa como SuperAdmin Y hay
+              tenants cargados. El filtro acota la query de cursos
+              server-side (`.eq("tenant_id", X)`); al cambiar dispara
+              el re-load via useEffect deps. */}
+          {isSuperAdminCaller && tenants.length > 0 && (
+            <Select value={tenantFilter} onValueChange={setTenantFilter}>
+              <SelectTrigger className="w-full sm:w-56 h-9 text-xs">
+                <SelectValue placeholder="Institución" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las instituciones</SelectItem>
+                {tenants.map((tn) => (
+                  <SelectItem key={tn.id} value={tn.id}>
+                    {tn.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       )}
 

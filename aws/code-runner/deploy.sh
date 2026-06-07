@@ -31,13 +31,20 @@
 #         AWS_ACCESS_KEY_ID=AKIA... AWS_SECRET_ACCESS_KEY=... \
 #           AWS_REGION=us-east-1 ./deploy.sh
 #
-#       Windows PowerShell (correr el script desde Git Bash o WSL):
+#       Windows PowerShell:
 #         $env:AWS_ACCESS_KEY_ID = "AKIA..."
 #         $env:AWS_SECRET_ACCESS_KEY = "..."
 #         $env:AWS_REGION = "us-east-1"          # o AWS_DEFAULT_REGION
 #         # Opcional para creds temporales:
 #         # $env:AWS_SESSION_TOKEN = "..."
 #         bash ./deploy.sh
+#
+#       IMPORTANTE: en PowerShell usá `./deploy.sh` con FORWARD slash,
+#       NO `.\deploy.sh`. PowerShell pasa el backslash literal a bash
+#       y `bash .\deploy.sh` falla con "/bin/bash: .deploy.sh: No such
+#       file or directory" (bash interpreta `\d` como escape y se come
+#       el slash). Si preferís el estilo Windows, también podés correr
+#       directamente con `cmd`:  cmd /c "bash deploy.sh"  (sin prefijo).
 #
 #       En PowerShell el `$env:VAR` solo dura la sesión actual de la
 #       terminal — al cerrarla, las creds desaparecen (intencional, no

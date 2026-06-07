@@ -132,10 +132,26 @@ const MODULES: Array<{
   // Sidebar dice "Videos" — quitamos "Biblioteca de" del label aunque
   // el módulo SEA conceptualmente una biblioteca.
   { key: "videos", label: "Videos" },
-  // "Usuarios" a secas — el sidebar usa el mismo nombre para
-  // `/app/admin/users` y `/app/teacher/students`. Como acá solo hay
-  // una fila (la del docente), no hay ambigüedad para el admin.
-  { key: "teacher_students", label: "Usuarios" },
+  // "Usuarios" unificado: una sola fila en el panel pero internamente
+  // se mapea a 2 module_keys distintos porque CADA ROL ve una pantalla
+  // distinta del mismo concepto:
+  //   - Admin / SuperAdmin → `users` (CRUD completo del tenant en
+  //     /app/admin/users).
+  //   - Docente → `teacher_students` (vista de sus alumnos en
+  //     /app/teacher/students, con "Ver como" acotado).
+  //   - Estudiante: el módulo no aplica (no hay pantalla "Usuarios"
+  //     para alumno). El toggle de la columna queda como no-op visual;
+  //     escribirlo no rompe nada (no hay ruta que lo lea para Estudiante).
+  // Mismo patrón virtual que "calificaciones" (gradebook ↔ grades).
+  {
+    key: "users",
+    label: "Usuarios",
+    roleKeyMap: {
+      Admin: "users",
+      SuperAdmin: "users",
+      Docente: "teacher_students",
+    },
+  },
   { key: "reports", label: "Informes" },
   // Auditoría: variantes Admin y Docente apuntan al mismo módulo.
   { key: "audit_logs", label: "Auditoría" },

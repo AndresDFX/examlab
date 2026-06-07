@@ -14,8 +14,33 @@ import type { ModuleKey } from "@/hooks/use-module-visibility";
 
 // Mapeo prefijo de path → módulo. Orden importa: lo más específico
 // arriba. La función itera y se queda con el primer prefijo que matche.
+//
+// IMPORTANTE: mantener sincronizado con `NAV_PATH_TO_MODULE` en
+// `AppLayout.tsx`. El sidebar y el route guard deben respetar las MISMAS
+// asociaciones path→module para que el ítem del nav y el contenido de
+// la ruta se enciendan/apaguen juntos. Si agregás una ruta nueva al
+// nav, agregá su prefijo acá también.
 const PREFIX_TO_MODULE: Array<[string, ModuleKey]> = [
-  // Rutas docente
+  // ── Admin ─────────────────────────────────────────────────────────
+  ["/app/admin/academic", "academic"],
+  ["/app/admin/courses", "courses"],
+  // /app/admin/users → módulo `users` (CRUD del tenant), NO
+  // `teacher_students` (que es la vista del docente). Ambos viven bajo
+  // la misma fila virtual "Usuarios" en el panel "Módulos" via
+  // roleKeyMap — el toggle de Admin escribe (users, Admin) y el de
+  // Docente escribe (teacher_students, Docente).
+  ["/app/admin/users", "users"],
+  ["/app/admin/ai-prompts", "ai_prompts"],
+  ["/app/admin/ai-cron", "ai_cron"],
+  ["/app/admin/statistics", "statistics"],
+  ["/app/admin/audit-logs", "audit_logs"],
+  ["/app/admin/report-templates", "reports"],
+
+  // ── SuperAdmin ────────────────────────────────────────────────────
+  ["/app/superadmin/tenants", "tenants"],
+
+  // ── Docente ───────────────────────────────────────────────────────
+  ["/app/teacher/courses", "courses"],
   ["/app/teacher/workshops", "workshops"],
   ["/app/teacher/projects", "projects"],
   ["/app/teacher/exams", "exams"],
@@ -25,9 +50,17 @@ const PREFIX_TO_MODULE: Array<[string, ModuleKey]> = [
   ["/app/teacher/calendar", "calendar"],
   ["/app/teacher/question-bank", "question_bank"],
   ["/app/teacher/ai-prompts", "ai_prompts"],
+  ["/app/teacher/ai-cron", "ai_cron"],
   ["/app/teacher/contents", "contents"],
+  ["/app/teacher/polls", "polls"],
+  ["/app/teacher/whiteboards", "whiteboards"],
+  ["/app/teacher/statistics", "statistics"],
+  ["/app/teacher/reports", "reports"],
+  ["/app/teacher/audit-logs", "audit_logs"],
+  ["/app/teacher/students", "teacher_students"],
 
-  // Rutas estudiante
+  // ── Estudiante ────────────────────────────────────────────────────
+  ["/app/student/courses", "courses"],
   ["/app/student/workshops", "workshops"],
   ["/app/student/workshop/", "workshops"],
   ["/app/student/projects", "projects"],
@@ -39,20 +72,40 @@ const PREFIX_TO_MODULE: Array<[string, ModuleKey]> = [
   ["/app/student/attendance", "attendance"],
   ["/app/student/calendar", "calendar"],
   ["/app/student/certificates", "certificates"],
-  ["/app/certificates", "certificates"],
-  ["/app/videos", "videos"],
+  ["/app/student/whiteboards", "whiteboards"],
+  ["/app/student/polls", "polls"],
   ["/app/student/tutor/", "tutor"],
   ["/app/student/tutor", "tutor"],
 
-  // Rutas comunes
+  // ── Comunes (todos los roles) ─────────────────────────────────────
+  ["/app/certificates", "certificates"],
+  ["/app/videos", "videos"],
   ["/app/forum/", "forum"],
   ["/app/messages", "messages"],
+  ["/app/trash", "trash"],
 
-  // Admin: routes admin no toggleables (siempre visibles para Admin —
-  // y como Admin bypassa el guard, esto es moot).
+  // Rutas NO togglables (intencional): /app, /app/preferences,
+  // /app/superadmin/system, /app/admin/settings — no aparecen en
+  // MODULES porque son utilidades transversales que el admin no debería
+  // poder apagar. Si las metés acá podrías quedar trabado sin acceso a
+  // Configuración para revertir.
 ];
 
-function resolveModule(pathname: string): ModuleKey | null {
+/**
+ * Resuelve el módulo para un pathname dado. Exportada como NAMED export
+ * para ser testeable sin montar React Router / jsdom.
+ *
+ * Reglas de matching:
+ *   - Match exacto (`pathname === prefix`) → módulo correspondiente.
+ *   - Match con `/` (`pathname.startsWith(prefix + "/")`) → cubre sub-
+ *     rutas como `/app/teacher/exams/<examId>`.
+ *   - El tercer check (`startsWith(prefix)` sin `/`) es defensivo: cubre
+ *     prefijos sin trailing slash en pathnames con query/hash.
+ * Devuelve `null` si el path no matchea ninguna ruta togglable (ej.
+ * `/app`, `/app/admin/settings`, `/app/preferences`) — esas rutas no
+ * pasan por el guard.
+ */
+export function resolveModule(pathname: string): ModuleKey | null {
   for (const [prefix, mod] of PREFIX_TO_MODULE) {
     if (pathname === prefix || pathname.startsWith(prefix + "/") || pathname.startsWith(prefix)) {
       return mod;

@@ -71,9 +71,11 @@ import {
   Pencil,
   MoreHorizontal,
   MessageSquareText,
+  Upload,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
+import { UploadExternalContentDialog } from "@/modules/contents/UploadExternalContentDialog";
 import { MarkdownEditorDialog } from "@/modules/contents/MarkdownEditorDialog";
 import { PptxViewerDialog } from "@/modules/contents/PptxViewerDialog";
 import { RegenerateContentDialog } from "@/modules/contents/RegenerateContentDialog";
@@ -285,6 +287,11 @@ function TeacherContents() {
   >({});
   const [creating, setCreating] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Dialog "Subir externo" — paralelo a "Nuevo contenido" (IA) pero
+  // para material ya producido. State separado para que no se
+  // confundan los flujos: el dialog IA tiene su propio form con tags,
+  // duración, instrucciones, etc.; el de upload es más simple.
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [rawForId, setRawForId] = useState<string | null>(null);
   // Cuando una generación queda en `status='failed'`, el campo `error`
@@ -872,10 +879,21 @@ function TeacherContents() {
         subtitle={t("contents.subtitle")}
         icon={<Presentation className="h-6 w-6 text-pink-500" />}
         actions={
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" />
-            {t("contents.newContent")}
-          </Button>
+          <>
+            {/* "Subir externo" abre el dialog que crea un
+                `generated_contents` con `status='done'` (sin IA) y
+                asocia el contenido a N cursos vía
+                `content_course_assignments`. UX paralela a "Nuevo
+                contenido" (IA) pero para material ya producido. */}
+            <Button variant="outline" onClick={() => setUploadDialogOpen(true)}>
+              <Upload className="h-4 w-4 mr-1" />
+              {t("contents.uploadExternal", { defaultValue: "Subir externo" })}
+            </Button>
+            <Button onClick={() => setDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              {t("contents.newContent")}
+            </Button>
+          </>
         }
       />
 
@@ -1639,6 +1657,20 @@ function TeacherContents() {
         onClose={() => setPromptOverridesFor(null)}
         onSaved={() => void load()}
       />
+
+      {/* Dialog "Subir externo" — crea un `generated_contents` con
+          status='done' (sin IA) y asigna el material a N cursos via
+          `content_course_assignments`. El padre recarga el listado al
+          completarse. defaultCourseId pre-marca el filtro activo si
+          el docente ya estaba viendo un curso específico. */}
+      <UploadExternalContentDialog
+        open={uploadDialogOpen}
+        onOpenChange={setUploadDialogOpen}
+        courses={courses}
+        defaultCourseId={courseFilter || null}
+        onCreated={() => void load()}
+      />
+
       <aiGate.GateDialog />
     </div>
   );
