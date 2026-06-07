@@ -49,9 +49,11 @@ backup/
 # Supabase CLI temp (se crea al hacer `supabase link`).
 supabase/.temp/
 
-# Outputs de `bun run record:tour:*` — videos .webm pesados que se suben
-# a HeyGen como background; no van al repo. Las credenciales del usuario
-# demo (DEMO_EMAIL / DEMO_PASSWORD) viven en .env.recording, también
-# ignorado por el patrón `.env.*` arriba, pero lo explicito acá por claridad.
-recordings/
+# Outputs de `node scripts/record-tour.ts` — directorio efímero con
+# nombres timestamped. Los videos versionados (con nombres limpios)
+# viven en `docs/heygen/recordings/` y NO son ignorados.
+# Las credenciales del usuario demo (DEMO_EMAIL / DEMO_PASSWORD)
+# viven en .env.recording, también ignorado por el patrón `.env.*`
+# arriba, pero lo explicito acá por claridad.
+/recordings/
 .env.recording
