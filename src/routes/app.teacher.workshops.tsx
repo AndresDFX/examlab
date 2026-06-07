@@ -52,7 +52,7 @@ import { toast } from "sonner";
 import { logEvent } from "@/shared/lib/audit";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
-import { friendlyUniqueViolation } from "@/shared/lib/db-errors";
+import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import {
   Plus,
   Pencil,
@@ -108,7 +108,6 @@ import { computeWorkshopAlerts } from "@/modules/workshops/workshop-integrity-al
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
-import { friendlyError } from "@/shared/lib/db-errors";
 import {
   Accordion,
   AccordionContent,
@@ -874,7 +873,7 @@ function TeacherWorkshops() {
         .from("workshops")
         .update({ ...basePayload, course_id: form.course_id! })
         .eq("id", form.id);
-      if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
+      if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
       // ── Sync workshop_courses (M:N) ──
       // El form en edit-mode permite gestionar TODOS los cursos del
       // taller. Estrategia DELETE + INSERT en batch — atómica por
@@ -962,7 +961,7 @@ function TeacherWorkshops() {
         .select()
         .single();
       if (error) {
-        toast.error(friendlyUniqueViolation(error) ?? error.message);
+        toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
         return;
       }
       if (!newWs) {
@@ -989,7 +988,7 @@ function TeacherWorkshops() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: wcErr } = await (supabase as any).from("workshop_courses").insert(wcRows);
       if (wcErr) {
-        toast.error(friendlyUniqueViolation(wcErr) ?? wcErr.message);
+        toast.error(friendlyUniqueViolation(wcErr) ?? friendlyError(wcErr));
         return;
       }
       await syncWorkshopIntroVideos(newWs.id, formIntroVideos);

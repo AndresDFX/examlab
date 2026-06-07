@@ -212,7 +212,7 @@ function TeacherExams() {
     });
     if (!ok) return;
     const { error } = await softDelete("exams", exam.id);
-    if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
+    if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
     toast.success(t("exam.deleted", { defaultValue: "Examen enviado a papelera" }));
     void logEvent({
       action: "exam.deleted",
@@ -457,7 +457,7 @@ function TeacherExams() {
         .select()
         .single();
       if (error) {
-        toast.error(friendlyUniqueViolation(error) ?? error.message);
+        toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
         return;
       }
       if (!firstId) firstId = data.id;

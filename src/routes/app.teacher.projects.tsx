@@ -55,7 +55,7 @@ import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
 import { ProjectGroupsEditor } from "@/modules/projects/ProjectGroupsEditor";
 import { toast } from "sonner";
 import { logEvent } from "@/shared/lib/audit";
-import { friendlyUniqueViolation } from "@/shared/lib/db-errors";
+import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import {
   Plus,
   Pencil,
@@ -106,7 +106,6 @@ import { DataPagination } from "@/components/ui/data-pagination";
 import { ListSkeleton } from "@/components/ui/table-skeleton";
 import { formatDateTime, formatPercent } from "@/shared/lib/format";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
-import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import {
@@ -921,7 +920,7 @@ function TeacherProjects() {
     let projectId: string | null = null;
     if (editing) {
       const { error } = await db.from("projects").update(payload).eq("id", editing.id);
-      if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
+      if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
       projectId = editing.id;
       toast.success(t("project.savedToast"));
       void logEvent({
@@ -941,7 +940,7 @@ function TeacherProjects() {
         .select("id")
         .single();
       if (error || !created)
-        return toast.error(friendlyUniqueViolation(error) ?? error?.message ?? "Error al crear");
+        return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error, "Error al crear"));
       projectId = created.id;
       toast.success(t("project.createdToast"));
       void logEvent({

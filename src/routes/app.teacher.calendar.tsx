@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { friendlyError } from "@/shared/lib/db-errors";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -283,7 +284,7 @@ function CalendarPage() {
       toast.success(t("calendar.calendarSavedToast"));
       await loadStatus();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(friendlyError(e));
     } finally {
       setSavingCalendar(false);
     }
@@ -312,7 +313,7 @@ function CalendarPage() {
       setSelectedCalId("");
       await loadStatus();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(friendlyError(e));
     } finally {
       setDisconnecting(false);
     }
