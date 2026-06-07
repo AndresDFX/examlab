@@ -37,6 +37,7 @@ import { useTranslation } from "react-i18next";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
+import { useAuth } from "@/hooks/use-auth";
 
 // generated_contents aún no figura en types.ts auto-generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,8 +66,12 @@ export function RegenerateContentDialog({
   onStarted,
 }: RegenerateContentDialogProps) {
   const { t } = useTranslation();
+  const { user } = useAuth();
   // Gate IA: regenerar consume cuota Gemini igual que crear. Pedimos
-  // confirmación si el modo global es async sin override.
+  // confirmación si el modo global es async sin override. allowQueue=true
+  // para que el docente sin código IA pueda encolar (mismo patrón que
+  // "crear nuevo" en /app/teacher/contents). Antes esto era false → el
+  // docente quedaba bloqueado sin opción de encolar.
   const aiGate = useAiAuthorizationGate();
   const [topic, setTopic] = useState("");
   const [instructions, setInstructions] = useState("");
@@ -91,15 +96,58 @@ export function RegenerateContentDialog({
       toast.error(t("contents.errorTopicRequired"));
       return;
     }
-    // Regeneración de contenido con IA — NO tiene worker async. Pasamos
-    // `allowQueue: false` para que el dialog del gate solo ofrezca
-    // "Activar IA inmediata" o "Cancelar".
-    const decision = await aiGate.ensureAuthorized({ allowQueue: false });
+    // Regeneración de contenido con IA. allowQueue=true: si el docente
+    // está en modo async global sin código, encolamos a
+    // `ai_generation_queue` con `regenerate=true` + `target_id`. El
+    // worker actualiza la fila existente y dispara generate-contents
+    // cuando un admin procese la cola o el docente active un código.
+    const decision = await aiGate.ensureAuthorized({ allowQueue: true });
     if (decision === "cancel") return;
     if (decision === "proceed-async") {
-      toast.error(
-        "La generación con IA no soporta modo cola. Activá un código de IA inmediata para continuar.",
+      if (!user?.id) {
+        toast.error("Sesión no válida. Recargá la página.");
+        return;
+      }
+      const enqueueBody: Record<string, unknown> = {
+        contentGeneration: true,
+        regenerate: true,
+        target_id: target.contentId,
+        // Para regen full van topic/instructions a la actualización.
+        // Para regen por clase van class_topic/class_instructions al
+        // edge sin tocar el row.
+        ...(target.mode === "full"
+          ? {
+              topic: topic.trim(),
+              instructions: instructions.trim() ? instructions.trim() : null,
+            }
+          : {
+              target_class: target.classNumber,
+              class_topic: topic.trim(),
+              class_instructions: instructions.trim() ? instructions.trim() : null,
+            }),
+      };
+      const { error: enqErr } = await db.from("ai_generation_queue").insert({
+        kind: "content_generation",
+        invoke_target: "ai-generation-worker",
+        body: enqueueBody,
+        source_table: "generated_contents",
+        // La fila ya existe — apuntamos a ella directamente (en "crear
+        // nuevo" se usa el NIL UUID porque la fila aún no existe).
+        source_id: target.contentId,
+        course_id: null,
+        created_by: user.id,
+      });
+      if (enqErr) {
+        toast.error(friendlyError(enqErr, "No se pudo encolar la regeneración"));
+        return;
+      }
+      toast.success(
+        target.mode === "full"
+          ? 'Regeneración encolada. Aparecerá en "Cola IA → Generaciones" hasta que se procese.'
+          : `Regeneración de la clase ${target.classNumber} encolada. Aparecerá en "Cola IA → Generaciones".`,
       );
+      onStarted();
+      onClose();
       return;
     }
     setSaving(true);

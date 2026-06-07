@@ -62,10 +62,30 @@ async function getCurrentMode(): Promise<"sync" | "async"> {
   return mode === "sync" ? "sync" : "async";
 }
 
-/** Procesa un job de tipo `content_generation`: crea la fila
- *  `generated_contents` desde el body, luego invoca `generate-contents`.
- *  El worker es responsable de actualizar `source_id` en la cola
- *  para futuras referencias (panel UI). */
+/** Procesa un job de tipo `content_generation`.
+ *
+ *  Dos sub-modos según `body.regenerate`:
+ *
+ *  A) **Crear** (`regenerate` ausente o `false`) — flujo original: crea
+ *     la fila `generated_contents` desde el body, luego invoca
+ *     `generate-contents` con el id nuevo. El worker actualiza
+ *     `source_id` en la cola para que el panel UI pueda joinear.
+ *
+ *  B) **Regenerar** (`regenerate: true` + `target_id: <uuid>`) — la fila
+ *     ya existe (el docente ya tenía contenido y dijo "regenerar"). NO
+ *     creamos otra. Dos variantes según `target_class`:
+ *       - sin `target_class` → regen FULL: actualizamos topic/instructions
+ *         + status='queued' + error=null, e invocamos generate-contents
+ *         con `{ id }`.
+ *       - con `target_class` → regen POR CLASE: no tocamos la fila,
+ *         invocamos `generate-contents` con `{ id, target_class,
+ *         class_topic, class_instructions }`. La edge mergea esa clase
+ *         contra el resto sin perder el contexto general.
+ *
+ *  El bug original: el dialog de regen pasaba `allowQueue: false`, así
+ *  que un docente en async sin código NO podía regenerar — solo abortar.
+ *  Ahora puede encolar igual que en "crear nuevo".
+ */
 async function processContentGeneration(job: QueueRow): Promise<{
   ok: boolean;
   error?: string;
@@ -75,8 +95,76 @@ async function processContentGeneration(job: QueueRow): Promise<{
   const body = job.body as Record<string, unknown>;
   // deno-lint-ignore no-explicit-any
   const db = adminClient as any;
+  const isRegenerate = body.regenerate === true;
 
-  // 1. Crear la fila de generated_contents desde el body.
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!supabaseUrl || !serviceKey) {
+    return { ok: false, error: "Falta SUPABASE_URL o SERVICE_ROLE_KEY en env" };
+  }
+
+  // ── B) Regenerar fila existente ───────────────────────────────────
+  if (isRegenerate) {
+    const targetId = typeof body.target_id === "string" ? body.target_id : "";
+    if (!targetId) {
+      return { ok: false, error: "regenerate=true requiere target_id en el body" };
+    }
+    const targetClass =
+      typeof body.target_class === "number" ? (body.target_class as number) : null;
+    const classTopic = typeof body.class_topic === "string" ? body.class_topic : null;
+    const classInstructions =
+      typeof body.class_instructions === "string" ? body.class_instructions : null;
+
+    // Regen FULL: persistir tema/instrucciones y resetear status. Regen
+    // por CLASE: no se tocan los campos de la fila; el class_topic se
+    // pasa al edge como contexto puntual de esa clase.
+    if (targetClass == null) {
+      const upd: Record<string, unknown> = {
+        status: "queued",
+        error: null,
+      };
+      if (typeof body.topic === "string" && body.topic.trim().length > 0) {
+        upd.topic = body.topic;
+      }
+      if (typeof body.instructions === "string") {
+        const inst = body.instructions.trim();
+        upd.instructions = inst.length > 0 ? body.instructions : null;
+      }
+      const { error: updErr } = await db
+        .from("generated_contents")
+        .update(upd)
+        .eq("id", targetId);
+      if (updErr) {
+        return { ok: false, error: `No se pudo actualizar la fila: ${updErr.message}` };
+      }
+    }
+
+    const invokeBody: Record<string, unknown> = { id: targetId };
+    if (targetClass != null) {
+      invokeBody.target_class = targetClass;
+      if (classTopic) invokeBody.class_topic = classTopic;
+      if (classInstructions) invokeBody.class_instructions = classInstructions;
+    }
+    const res = await fetch(`${supabaseUrl}/functions/v1/generate-contents`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify(invokeBody),
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      return {
+        ok: false,
+        error: `generate-contents HTTP ${res.status}: ${txt.slice(0, 300)}`,
+        newSourceId: targetId,
+      };
+    }
+    return { ok: true, insertedCount: 1, newSourceId: targetId };
+  }
+
+  // ── A) Crear fila nueva (flujo original) ──────────────────────────
   const insertPayload = {
     teacher_id: body.teacher_id,
     display_name: body.display_name,
@@ -106,13 +194,6 @@ async function processContentGeneration(job: QueueRow): Promise<{
   }
   const newId = (created as { id: string }).id;
 
-  // 2. Invocar la edge real `generate-contents`. Ésta toma la fila
-  //    queued, llama al modelo, y persiste files + flips status a done.
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!supabaseUrl || !serviceKey) {
-    return { ok: false, error: "Falta SUPABASE_URL o SERVICE_ROLE_KEY en env" };
-  }
   const res = await fetch(`${supabaseUrl}/functions/v1/generate-contents`, {
     method: "POST",
     headers: {

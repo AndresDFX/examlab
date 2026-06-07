@@ -103,15 +103,47 @@ import { SessionCodeSnippetsDialog } from "@/modules/sessions/SessionCodeSnippet
 //   - title (texto libre, opcional)
 //   - cut_name (case-insensitive match contra grade_cuts.name, opcional)
 //   - start_time (HH:MM 24h, opcional — hora de inicio de la clase)
+//   - end_time (HH:MM 24h, opcional — hora de fin; gana sobre duration_minutes)
 //   - duration_minutes (entero, opcional — duración en minutos)
 //   - meeting_url (URL Meet/Zoom/Teams, opcional — link para clase virtual)
 //   - recording_url (URL libre a la grabación, opcional)
+// Reglas sobre duración:
+//   - Si llega `end_time` + `start_time` válidos → duration = (end - start)
+//     en minutos. Si end <= start → la fila se descarta el end (se usa
+//     `duration_minutes` o queda sin duración).
+//   - Si solo llega `duration_minutes` → se usa tal cual.
+//   - Si llegan ambos, gana `end_time` (más intuitivo para el docente).
 // El round-trip export→import preserva todos los campos. Filas con
 // session_date faltante o mal formado se descartan; el resto va INSERT.
-const SESSIONS_TEMPLATE = `session_date,title,cut_name,start_time,duration_minutes,meeting_url,recording_url
-2025-08-01,Clase introductoria,Corte 1,14:00,60,https://meet.google.com/abc-defg-hij,
-2025-08-03,Laboratorio 1,Corte 1,14:00,90,,
-2025-08-08,Repaso,,,,,`;
+const SESSIONS_TEMPLATE = `session_date,title,cut_name,start_time,end_time,duration_minutes,meeting_url,recording_url
+2025-08-01,Clase introductoria,Corte 1,14:00,15:00,60,https://meet.google.com/abc-defg-hij,
+2025-08-03,Laboratorio 1,Corte 1,14:00,15:30,,,
+2025-08-08,Repaso,,,,,,`;
+
+// Helpers de tiempo HH:MM ↔ minutos del día. Usados por el round-trip
+// CSV de sesiones (export computa end_time desde start+duration; import
+// computa duration desde end-start cuando ambos llegan). Devuelven null
+// para formatos inválidos en vez de NaN para no propagar basura.
+function parseHHMMToMinutes(raw: string): number | null {
+  const m = raw.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!m) return null;
+  const h = Number.parseInt(m[1], 10);
+  const min = Number.parseInt(m[2], 10);
+  if (!Number.isFinite(h) || !Number.isFinite(min)) return null;
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return h * 60 + min;
+}
+function addMinutesToHHMM(hhmm: string, minutes: number): string {
+  const base = parseHHMMToMinutes(hhmm);
+  if (base == null) return "";
+  // Wraparound a 24h: una clase que empieza 23:30 y dura 60 min termina
+  // a las 00:30 del día siguiente. Lo exportamos igual; el docente
+  // entenderá. Mod 1440 para mantener formato HH:MM.
+  const total = ((base + minutes) % 1440 + 1440) % 1440;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
 
 const ATTENDANCE_TEMPLATE = `email,session_date,status,note
 estudiante1@uni.edu,2025-08-01,presente,
@@ -638,11 +670,19 @@ function TeacherAttendance() {
         // que el CSV sea más legible y compatible con planillas. El
         // importer acepta ambos formatos.
         const startTimeShort = s.start_time ? String(s.start_time).slice(0, 5) : "";
+        // end_time es derivado: start_time + duration_minutes. Lo
+        // exportamos para que el docente pueda editar la duración en
+        // formato natural (15:30 vs "90 min") en la planilla.
+        const endTimeShort =
+          startTimeShort && s.duration_minutes != null
+            ? addMinutesToHHMM(startTimeShort, s.duration_minutes)
+            : "";
         return {
           session_date: s.session_date,
           title: s.title ?? "",
           cut_name: s.cut_id ? (cutNameById.get(s.cut_id) ?? "") : "",
           start_time: startTimeShort,
+          end_time: endTimeShort,
           duration_minutes: s.duration_minutes != null ? String(s.duration_minutes) : "",
           meeting_url: s.meeting_url ?? "",
           recording_url: s.recording_url ?? "",
@@ -656,6 +696,7 @@ function TeacherAttendance() {
         "title",
         "cut_name",
         "start_time",
+        "end_time",
         "duration_minutes",
         "meeting_url",
         "recording_url",
@@ -665,8 +706,11 @@ function TeacherAttendance() {
 
   // Importar sesiones desde CSV. Columnas opcionales:
   //   - cut_name: match case-insensitive contra grade_cuts.name del curso.
-  //   - start_time: HH:MM o HH:MM:SS. Valor inválido se descarta sin abortar.
-  //   - duration_minutes: entero >= 0. Valor no entero se descarta sin abortar.
+  //   - start_time: HH:MM o HH:MM:SS (24h). Valor inválido → null sin abortar.
+  //   - end_time: HH:MM o HH:MM:SS (24h). Si llega válido + start_time
+  //     válido + end > start, derivamos duration = (end - start) en min
+  //     y GANA sobre duration_minutes.
+  //   - duration_minutes: entero >= 0. Se usa cuando end_time no resuelve.
   //   - meeting_url / recording_url: pasan tal cual (sin validar URL — el
   //     docente podría pegar texto que no es URL; UI lo muestra).
   // Filas con session_date faltante o mal formado se descartan completas.
@@ -684,10 +728,18 @@ function TeacherAttendance() {
       // ambos. Otros formatos quedan como null (no abortamos la fila).
       const rawTime = (r.start_time || "").trim();
       const startTime = /^\d{1,2}:\d{2}(:\d{2})?$/.test(rawTime) ? rawTime : null;
-      // duration_minutes: parseamos a entero. NaN o negativo → null.
-      const rawDur = (r.duration_minutes || "").trim();
-      const durNum = rawDur ? Number.parseInt(rawDur, 10) : NaN;
-      const duration = Number.isFinite(durNum) && durNum >= 0 ? durNum : null;
+      // duration: 1) si llega end_time + start_time válidos y end > start,
+      // calculamos (end - start). 2) si no, usamos duration_minutes literal.
+      const startMin = startTime ? parseHHMMToMinutes(startTime) : null;
+      const endMin = parseHHMMToMinutes((r.end_time || "").trim());
+      let duration: number | null = null;
+      if (startMin != null && endMin != null && endMin > startMin) {
+        duration = endMin - startMin;
+      } else {
+        const rawDur = (r.duration_minutes || "").trim();
+        const durNum = rawDur ? Number.parseInt(rawDur, 10) : NaN;
+        duration = Number.isFinite(durNum) && durNum >= 0 ? durNum : null;
+      }
       return {
         course_id: courseId,
         session_date: r.session_date,
