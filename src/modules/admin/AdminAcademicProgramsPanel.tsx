@@ -210,7 +210,7 @@ export function AdminAcademicProgramsPanel() {
 
   return (
     <Card>
-      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
+      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 flex-wrap">
         <CardTitle className="text-base flex items-center gap-2">
           <GraduationCap className="h-4 w-4 text-violet-500" />
           Programas / Niveles

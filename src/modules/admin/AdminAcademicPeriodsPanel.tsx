@@ -279,7 +279,7 @@ export function AdminAcademicPeriodsPanel() {
 
   return (
     <Card>
-      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
+      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 flex-wrap">
         <CardTitle className="text-base flex items-center gap-2">
           <CalendarRange className="h-4 w-4 text-emerald-500" />
           Periodos académicos
@@ -398,7 +398,7 @@ export function AdminAcademicPeriodsPanel() {
                 placeholder="Ej: Primer semestre 2026, Trimestre II, Año lectivo 2026"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Inicio</Label>
                 <DatePicker

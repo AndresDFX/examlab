@@ -240,13 +240,13 @@ export function AdminProgramOverviewPanel() {
 
   return (
     <Card>
-      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
+      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 flex-wrap">
         <CardTitle className="text-base flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-indigo-500" />
           Resumen institucional
           <HelpHint>{t("help.programOverviewHelp")}</HelpHint>
         </CardTitle>
-        <div className="w-44">
+        <div className="w-full sm:w-44">
           <Select value={periodFilter} onValueChange={setPeriodFilter}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
