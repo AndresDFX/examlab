@@ -78,10 +78,13 @@ const SCENES_BY_ROLE: Record<Role, Scene[]> = {
     { path: "/app/admin/users", dwellMs: 8000, label: "Usuarios" },
     { path: "/app/admin/courses", dwellMs: 8000, label: "Cursos" },
     { path: "/app/admin/academic", dwellMs: 6000, label: "Académico" },
+    { path: "/app/admin/certificates", dwellMs: 6000, label: "Certificados" },
     { path: "/app/admin/ai-prompts", dwellMs: 6000, label: "Prompts IA" },
     { path: "/app/admin/ai-cron", dwellMs: 6000, label: "Cola IA" },
     { path: "/app/admin/statistics", dwellMs: 6000, label: "Estadísticas" },
     { path: "/app/admin/audit-logs", dwellMs: 6000, label: "Auditoría" },
+    // Módulo Soporte agregado (mig 20260904) — el admin envía PQRS al SA.
+    { path: "/app/admin/support", dwellMs: 6000, label: "Soporte" },
     { path: "/app/trash", dwellMs: 7000, label: "Papelera" },
     { path: "/app/admin/settings", dwellMs: 6000, label: "Configuración" },
   ],
@@ -97,6 +100,13 @@ const SCENES_BY_ROLE: Record<Role, Scene[]> = {
     { path: "/app/teacher/whiteboards", dwellMs: 7000, label: "Pizarras" },
     { path: "/app/teacher/polls", dwellMs: 6000, label: "Encuestas" },
     { path: "/app/teacher/contents", dwellMs: 6000, label: "Contenidos" },
+    { path: "/app/teacher/calendar", dwellMs: 6000, label: "Calendario" },
+    // Comunicación: messages (1-a-1 + broadcast a cursos).
+    { path: "/app/messages", dwellMs: 6000, label: "Mensajes" },
+    { path: "/app/teacher/statistics", dwellMs: 6000, label: "Estadísticas" },
+    // Cola IA + Auditoría (rol Docente accede solo a lo suyo).
+    { path: "/app/teacher/ai-cron", dwellMs: 6000, label: "Cron IA" },
+    { path: "/app/teacher/audit-logs", dwellMs: 5000, label: "Auditoría" },
     { path: "/app/trash", dwellMs: 6000, label: "Papelera" },
   ],
   student: [
@@ -107,9 +117,13 @@ const SCENES_BY_ROLE: Record<Role, Scene[]> = {
     { path: "/app/student/projects", dwellMs: 6000, label: "Proyectos" },
     { path: "/app/student/grades", dwellMs: 7000, label: "Calificaciones" },
     { path: "/app/student/attendance", dwellMs: 7000, label: "Asistencia" },
+    { path: "/app/student/contents", dwellMs: 6000, label: "Contenidos" },
     { path: "/app/student/polls", dwellMs: 5000, label: "Encuestas" },
     { path: "/app/student/whiteboards", dwellMs: 5000, label: "Pizarras compartidas" },
+    { path: "/app/student/calendar", dwellMs: 6000, label: "Calendario" },
+    { path: "/app/student/video-library", dwellMs: 5000, label: "Biblioteca de videos" },
     { path: "/app/student/tutor", dwellMs: 6000, label: "Tutor IA" },
+    { path: "/app/student/feedback", dwellMs: 5000, label: "Retroalimentación" },
     { path: "/app/student/certificates", dwellMs: 5000, label: "Certificados" },
   ],
 };
@@ -290,6 +304,44 @@ async function login(page: Page): Promise<void> {
   console.log("  ✓ Login exitoso");
 }
 
+/** Activa el rol pasado en el role-switcher del sidebar. Es opcional —
+ *  la cuenta demo puede ser single-role y entonces no hay switcher
+ *  visible. Si no encuentra el control, simplemente loguea y sigue.
+ *  Necesario cuando una sola cuenta multi-rol graba los 3 tours: sin
+ *  esto el video del rol Docente puede mostrar el sidebar del Admin
+ *  (último rol activo persistido). */
+async function selectActiveRole(page: Page, role: Role): Promise<void> {
+  const ROLE_LABEL: Record<Role, string> = {
+    admin: "Administrador",
+    teacher: "Docente",
+    student: "Estudiante",
+  };
+  const target = ROLE_LABEL[role];
+  try {
+    const switcher = page.locator('[data-tour-id="role-switcher"]').first();
+    if ((await switcher.count()) === 0) {
+      console.log(`  → Role-switcher no visible (cuenta single-rol o panel oculto). Sigo con el rol default.`);
+      return;
+    }
+    console.log(`  → Activando rol "${target}" desde el role-switcher`);
+    await switcher.click({ timeout: 3000 });
+    await page.waitForTimeout(400);
+    // El switcher es un dropdown — buscamos la opción por texto.
+    const opt = page.getByRole("option", { name: target, exact: false }).first();
+    if ((await opt.count()) === 0) {
+      console.log(`  → Opción "${target}" no encontrada en el dropdown. Sigo con el rol default.`);
+      // Cerrar dropdown abierto.
+      await page.keyboard.press("Escape");
+      return;
+    }
+    await opt.click({ timeout: 3000 });
+    await page.waitForTimeout(1500); // sidebar re-renderiza con el nav del rol nuevo
+    console.log(`  ✓ Rol activo: ${target}`);
+  } catch (err) {
+    console.log(`  → No pude activar el rol (${(err as Error).message}). Sigo con el default.`);
+  }
+}
+
 async function recordScenes(context: BrowserContext, page: Page, scenes: Scene[]): Promise<void> {
   for (let i = 0; i < scenes.length; i++) {
     const s = scenes[i];
@@ -367,6 +419,9 @@ async function main(): Promise<void> {
 
   try {
     await login(page);
+    // Si la cuenta es multi-rol, activamos explícitamente el rol target
+    // para que el sidebar muestre el nav correcto durante la grabación.
+    await selectActiveRole(page, role);
     await recordScenes(context, page, scenes);
     // Playwright nombra el video como un hash random. Lo renombramos
     // al patrón <role>-<ts>.webm para que sea identificable.

@@ -61,6 +61,22 @@ sidebar respeta el rol "activo" durante la grabación.
 HeyGen acepta .webm pero la conversión a .mp4 mejora la compresión y
 compatibilidad. Es opcional.
 
+> **Nota — ffmpeg de Playwright es minimal**: Playwright bundle-ea su
+> propio `ffmpeg` en `~/.cache/ms-playwright/ffmpeg-*/` pero ese build
+> es solo para muxing VP8/VP9 (lo que graba) y NO incluye el encoder
+> `libx264` ni el flag `-preset`. Si querés convertir a mp4, hay que
+> instalar ffmpeg standalone — Playwright **no sirve para conversión**.
+
+### 1.4 Runtime: usar `node`, NO `bun`
+
+Los scripts `record:tour:*` usan `node --experimental-strip-types`
+(no `bun`). Razón: `bun + playwright` en Windows tiene un bug conocido
+donde `chromium.launch()` timeouts 180s por problemas del
+`remote-debugging-pipe` con el runtime de Bun. `node 22+` corre los
+mismos `.ts` (gracias a `--experimental-strip-types`) y completa
+`chromium.launch()` en <1s. Mac/Linux con bun probablemente funcione
+— el bug es específico de Windows.
+
 ---
 
 ## 2. Grabar el video
@@ -70,7 +86,9 @@ compatibilidad. Es opcional.
 bun run dev
 
 # En otra terminal (con .env.recording listo):
-bun run record:tour:teacher
+npm run record:tour:teacher
+# o directo:
+node --experimental-strip-types scripts/record-tour.ts --role=teacher
 ```
 
 El script:
@@ -84,7 +102,7 @@ El script:
 **Para ver el browser en vivo** (debug): añadí `--headless=false`:
 
 ```bash
-bun run record:tour:teacher -- --headless=false
+node --experimental-strip-types scripts/record-tour.ts --role=teacher --headless=false
 ```
 
 ---
