@@ -382,7 +382,14 @@ function AdminUsers() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let q: any = supabase.from("profiles").select("*").order("full_name");
     if (isSuperAdminCaller && tenantFilter !== "all") {
-      q = q.eq("tenant_id", tenantFilter);
+      // "none" = usuarios huérfanos sin institución asignada (tenant_id IS
+      // NULL). Útil para que el SuperAdmin detecte profiles sueltos antes
+      // de asignarles tenant, o post-SSO sin provisión completa.
+      if (tenantFilter === "none") {
+        q = q.is("tenant_id", null);
+      } else {
+        q = q.eq("tenant_id", tenantFilter);
+      }
     }
     const { data: profs, error: profsErr } = await q;
     if (profsErr) {
@@ -1088,6 +1095,7 @@ function AdminUsers() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t("tenant.filterAllTenants")}</SelectItem>
+              <SelectItem value="none">Sin institución</SelectItem>
               {tenants.map((t) => (
                 <SelectItem key={t.id} value={t.id}>
                   {t.name}

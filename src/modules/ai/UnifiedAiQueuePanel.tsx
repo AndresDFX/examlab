@@ -75,6 +75,9 @@ import {
   Ban,
   CheckCheck,
   MessageSquareWarning,
+  ChevronDown,
+  ChevronRight,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";
@@ -124,6 +127,10 @@ interface UnifiedJob {
   /** Solo grading: para resolver detalles del target. */
   target_table?: string;
   target_row_id?: string;
+  /** Body del request — solo `generation`. Para grading no se persiste
+   *  body (el target_table + target_row_id ya describe la entrada). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  body?: Record<string, any> | null;
 }
 
 interface Props {
@@ -204,6 +211,12 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
   const [rejectReason, setRejectReason] = useState("");
   const [rejecting, setRejecting] = useState(false);
 
+  // Filas expandidas — cada job puede expandir un panel inline con
+  // body del request (generation), target/attempts (grading) y el
+  // mensaje de error completo. Restaurado desde el panel viejo
+  // (AiQueuePanel) que se perdió al unificar.
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   // Tenant list (SuperAdmin only).
   useEffect(() => {
     if (!isSuperAdminCaller) return;
@@ -276,7 +289,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
           db
             .from("ai_generation_queue")
             .select(
-              "id, kind, status, source_table, source_id, course_id, created_by, created_at, completed_at, attempts, last_error",
+              "id, kind, status, source_table, source_id, course_id, created_by, created_at, completed_at, attempts, last_error, body",
             )
             .order("created_at", { ascending: false })
             .limit(100),
@@ -431,6 +444,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
             created_by: r.created_by,
             label,
             subtitle: r.course_id ? (courseName.get(r.course_id) ?? null) : null,
+            body: r.body ?? null,
           };
         }),
       ];
@@ -930,6 +944,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                   j.status === "pending" ||
                   j.status === "processing" ||
                   j.status === "failed";
+                const expanded = expandedId === j.id;
                 return (
                   <div key={j.id} className="text-sm">
                     <div
@@ -946,6 +961,22 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                       ) : (
                         <div className="w-4 shrink-0" aria-hidden="true" />
                       )}
+                      {/* Chevron toggle: expande el panel inline con body
+                          del request + último error completo. Imprescindible
+                          para debug — sin esto el docente / admin no podía
+                          ver POR QUÉ falló un job. */}
+                      <button
+                        type="button"
+                        onClick={() => setExpandedId(expanded ? null : j.id)}
+                        className="shrink-0 text-muted-foreground hover:text-foreground"
+                        title={expanded ? "Ocultar detalle" : "Ver detalle"}
+                      >
+                        {expanded ? (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        )}
+                      </button>
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         {/* Badge SOURCE — distintivo visual entre calificación
                             y generación. Color sky para grading (Scale icon),
@@ -1078,6 +1109,98 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                         )}
                       </div>
                     </div>
+                    {/* Panel de detalle expandible — body del request (gen),
+                        target/attempts/created (grading + gen), error
+                        completo con botón Copiar. Restaurado del refactor
+                        UnifiedAiQueuePanel que lo perdió silenciosamente. */}
+                    {expanded && (
+                      <div className="px-10 pr-3 pb-3 -mt-1 space-y-2">
+                        <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs space-y-1.5">
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                            <div>
+                              <span className="text-muted-foreground">ID:</span>{" "}
+                              <code className="font-mono text-[10px]">{j.id.slice(0, 8)}…</code>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Intentos:</span>{" "}
+                              <span className="tabular-nums">{j.attempts}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Creado:</span>{" "}
+                              <span className="tabular-nums">{formatDateTime(j.created_at)}</span>
+                            </div>
+                            {j.completed_at && (
+                              <div>
+                                <span className="text-muted-foreground">Terminado:</span>{" "}
+                                <span className="tabular-nums">
+                                  {formatDateTime(j.completed_at)}
+                                </span>
+                              </div>
+                            )}
+                            {j.source === "grading" && j.target_table && (
+                              <div className="col-span-2">
+                                <span className="text-muted-foreground">Target:</span>{" "}
+                                <code className="font-mono text-[10px]">
+                                  {j.target_table}/{j.target_row_id?.slice(0, 8)}…
+                                </code>
+                              </div>
+                            )}
+                          </div>
+                          {j.source === "generation" && j.body && (
+                            <div>
+                              <div className="text-muted-foreground mb-0.5">Body del request:</div>
+                              <pre className="font-mono text-[10px] whitespace-pre-wrap break-words max-h-40 overflow-y-auto rounded bg-background/60 p-2 border">
+                                {JSON.stringify(j.body, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                        {j.last_error && (
+                          <div className="rounded border border-destructive/30 bg-destructive/5 p-2 flex items-start gap-1.5">
+                            <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-destructive" />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[11px] font-medium text-destructive mb-0.5">
+                                Último error
+                              </div>
+                              <div className="text-[11px] text-destructive whitespace-pre-wrap break-words">
+                                {j.last_error}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void navigator.clipboard
+                                  .writeText(j.last_error ?? "")
+                                  .then(() => toast.success("Error copiado"))
+                                  .catch(() => toast.error("No se pudo copiar"));
+                              }}
+                              className="shrink-0 text-[10px] text-destructive/80 hover:text-destructive flex items-center gap-0.5"
+                              title="Copiar error completo"
+                            >
+                              <Copy className="h-3 w-3" /> Copiar
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {/* Preview del error colapsado: cuando NO está expandido
+                        pero el job tiene error, mostramos una línea recortada
+                        para que se vea de un vistazo sin tener que abrir cada
+                        fila. Click invita a expandir para ver el detalle. */}
+                    {!expanded && j.last_error && (
+                      <div className="px-10 pr-3 pb-2 -mt-1">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedId(j.id)}
+                          className="text-left w-full text-[11px] text-destructive/90 hover:text-destructive truncate flex items-center gap-1"
+                          title="Click para ver el error completo"
+                        >
+                          <AlertTriangle className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{j.last_error}</span>
+                        </button>
+                      </div>
+                    )}
                     {isMyRejection && (
                       <div className="px-10 pr-3 pb-3 -mt-1">
                         <div className="rounded-md border border-orange-500/40 bg-orange-500/5 px-3 py-2 flex flex-col sm:flex-row sm:items-start gap-2">
