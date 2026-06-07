@@ -47,9 +47,25 @@ function shouldLog(key: string): boolean {
 
 export function GlobalErrorLogger() {
   useEffect(() => {
+    // Heurística: stacks/sources de extensiones de browser (Grammarly,
+    // password managers, React DevTools, ad-blockers, etc.) NO son
+    // errores de la app — ensucian el audit log y son inaccionables.
+    // Filtramos por scheme `chrome-extension://`, `moz-extension://`,
+    // `safari-web-extension://` en cualquier parte del stack o de la
+    // source URL del ErrorEvent.
+    const isExtensionNoise = (source?: string | null, stack?: string | null): boolean => {
+      const combined = `${source ?? ""} ${stack ?? ""}`;
+      return (
+        combined.includes("chrome-extension://") ||
+        combined.includes("moz-extension://") ||
+        combined.includes("safari-web-extension://")
+      );
+    };
+
     const onError = (ev: ErrorEvent) => {
       const msg = ev.message ?? ev.error?.message ?? "";
       if (isChunkLoadError(msg)) return;
+      if (isExtensionNoise(ev.filename, ev.error?.stack)) return;
       const url = typeof window !== "undefined" ? window.location.pathname : "";
       const key = `${msg}::${url}`;
       if (!shouldLog(key)) return;
@@ -82,6 +98,12 @@ export function GlobalErrorLogger() {
       if (reason?.name === "AbortError") return;
       const msg = (reason && (reason.message || (typeof reason === "string" ? reason : ""))) || "";
       if (isChunkLoadError(msg)) return;
+      // Stack viene de chrome-extension/moz-extension → ruido del browser,
+      // no de nuestra app. Caso reportado: "WrappedError: Timeout" con
+      // stack apuntando a injected-scripts/host-additional-hooks.js. Solo
+      // aparece para usuarios con cierta extensión instalada — para nada
+      // accionable desde la plataforma.
+      if (isExtensionNoise(null, reason?.stack)) return;
       const url = typeof window !== "undefined" ? window.location.pathname : "";
       const key = `${msg}::${url}`;
       if (!shouldLog(key)) return;

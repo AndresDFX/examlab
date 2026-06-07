@@ -113,6 +113,10 @@ Deno.serve(async (req) => {
 
     const result: { email: string; ok: boolean; reason?: string; duplicate?: boolean }[] = [];
     const seenInBatch = new Set<string>();
+    // Contador de createUser ya intentados — usado para el throttle
+    // entre creates (skipea sleep para el primero, espera 200ms para los
+    // siguientes). Evita el rate limit del Supabase Auth admin API.
+    let createsAttempted = 0;
     for (const row of rows) {
       const {
         full_name,
@@ -207,15 +211,70 @@ Deno.serve(async (req) => {
           continue;
         }
         if (!userId) {
+          // Throttle entre creates: Supabase Auth admin API tiene rate
+          // limits internos (no documentados explícitamente, observados ~
+          // 5-10 req/s). Un bulk de 90+ usuarios secuencial dispara
+          // "Database error creating new user" desde la fila ~2 — caso
+          // reportado al importar 93 estudiantes (1 importado, 92 fallidos).
+          // 200ms entre intentos da ~5/s — debajo del límite y agrega ~18s
+          // a un batch de 90, aceptable para una operación de admin.
+          if (createsAttempted > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 200));
+          }
+          createsAttempted += 1;
           const { data, error } = await adminClient.auth.admin.createUser({
             email: institutional_email,
             password: password || "Cambiar#123",
             email_confirm: true,
             user_metadata: { full_name, institutional_email, personal_email },
           });
-          if (error) throw error;
+          if (error) {
+            // Loggear el error verbose para que aparezca en los logs de
+            // la edge — el mensaje genérico "Database error creating new
+            // user" oculta la causa real (rate limit, trigger fail, etc.).
+            console.error(
+              "[bulk-import-users] createUser failed for",
+              institutional_email,
+              JSON.stringify({
+                message: error.message,
+                status: (error as { status?: number }).status,
+                code: (error as { code?: string }).code,
+                name: error.name,
+              }),
+            );
+            throw error;
+          }
           userId = data.user!.id;
           emailToId.set(emailKey, userId);
+          // Asignar tenant_id al profile recién creado. El trigger
+          // handle_new_user inserta el profile SIN tenant_id (su responsabilidad
+          // es solo poblar id + emails + full_name), así que la edge debe
+          // setearlo aquí. Sin esto, los usuarios importados quedan con
+          // tenant_id=NULL ("sin institución") aunque el Admin los haya
+          // creado desde su tenant — bug reportado al importar 93 estudiantes.
+          //
+          // Reglas:
+          //   - Admin de tenant: `callerTenantId` = su tenant_id. SIEMPRE
+          //     se asigna ese.
+          //   - SuperAdmin: si tiene tenant_id en su profile (caso atípico
+          //     pero válido), se asigna ese. Si es cross-tenant puro
+          //     (tenant_id=NULL), el profile importado también queda NULL
+          //     — el SA luego puede asignarles tenant desde la UI.
+          if (callerTenantId) {
+            const { error: tenantErr } = await adminClient
+              .from("profiles")
+              .update({ tenant_id: callerTenantId })
+              .eq("id", userId);
+            if (tenantErr) {
+              // No abortamos: el usuario ya está creado en auth.users.
+              // Quedaría sin tenant y el admin puede asignarlo manual.
+              console.warn(
+                "[bulk-import-users] tenant_id assignment failed for",
+                institutional_email,
+                tenantErr,
+              );
+            }
+          }
           // Usuario nuevo: por default le exigimos cambiar la contraseña
           // en el primer login (la contraseña inicial la conoció el
           // admin que lo creó). Si el caller pasó `force_password_change:
