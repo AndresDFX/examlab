@@ -105,7 +105,7 @@ import {
   addMinutesToHHMM,
   buildSessionsRows,
   parseSessionsCsv,
-} from "@/modules/sessions/csv";
+} from "@/modules/sessions/csv.ts";
 
 const ATTENDANCE_TEMPLATE = `email,session_date,status,note
 estudiante1@uni.edu,2025-08-01,presente,
