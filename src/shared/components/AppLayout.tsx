@@ -822,6 +822,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     // Sistema (SuperAdmin-only): panel de diagnóstico de infraestructura.
     // El panel "Módulos" tiene el toggle para reordenar/esconder.
     ["/app/superadmin/system", "system"],
+    // Instituciones (SuperAdmin-only): panel cross-tenant. Sin este
+    // mapping el ítem del sidebar ignoraba el toggle de orden/visibility
+    // del panel "Módulos" — bug detectado en auditoría 2026-09.
+    ["/app/superadmin/tenants", "tenants"],
     // Configuración (Admin / SuperAdmin): el toggle controla SOLO el
     // sidebar (orden + visibility). La ruta queda siempre accesible por
     // URL — escape hatch documentado en ModuleRouteGuard. Por eso este

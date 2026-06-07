@@ -38,8 +38,32 @@ export const ROUTE_RULES: RouteRule[] = [
   // /app/unauthorized.
   { prefix: "/app/teacher/whiteboards", roles: ["Docente", "SuperAdmin"] },
   { prefix: "/app/teacher/polls", roles: ["Docente", "SuperAdmin"] },
+  // Resto de módulos /app/teacher/* expuestos al SuperAdmin via NAV
+  // (roles incluyen "SuperAdmin" en src/shared/components/AppLayout.tsx).
+  // Sin estas reglas el sidebar muestra el ítem pero el guard redirige a
+  // /app/unauthorized — bug HIGH detectado en auditoría 2026-09. La RLS
+  // de cada tabla filtra qué ve el SA cross-tenant; acá solo abrimos el
+  // path. `/teacher/monitor` y `/teacher/grading` son subrutas de exams
+  // y gradebook respectivamente — acompañan al padre.
+  { prefix: "/app/teacher/question-bank", roles: ["Docente", "SuperAdmin"] },
+  { prefix: "/app/teacher/exams", roles: ["Docente", "SuperAdmin"] },
+  { prefix: "/app/teacher/monitor", roles: ["Docente", "SuperAdmin"] },
+  { prefix: "/app/teacher/workshops", roles: ["Docente", "SuperAdmin"] },
+  { prefix: "/app/teacher/projects", roles: ["Docente", "SuperAdmin"] },
+  { prefix: "/app/teacher/gradebook", roles: ["Docente", "SuperAdmin"] },
+  { prefix: "/app/teacher/grading", roles: ["Docente", "SuperAdmin"] },
+  { prefix: "/app/teacher/attendance", roles: ["Docente", "SuperAdmin"] },
+  { prefix: "/app/teacher/calendar", roles: ["Docente", "SuperAdmin"] },
   { prefix: "/app/teacher", roles: ["Docente"] },
   { prefix: "/app/student", roles: ["Estudiante"] },
+  // Rutas comunes que NO deben ser accesibles por Estudiante (el alumno
+  // tiene su propia versión bajo /app/student/*). Sin estas reglas, el
+  // fallback `/app` (null = any auth) deja entrar al alumno por URL
+  // directa. La RLS recortaría datos pero defensa-en-profundidad es lo
+  // correcto. ModuleGuard también frena por `module=videos|certificates`
+  // si el toggle del Estudiante está apagado, pero el rule explícito gana.
+  { prefix: "/app/videos", roles: ["Docente", "Admin", "SuperAdmin"] },
+  { prefix: "/app/certificates", roles: ["Docente", "Admin", "SuperAdmin"] },
   // Papelera: solo staff. El alumno no tiene capacidad de borrar las
   // entidades soft-deletadas, así que la UI no le aplica. SuperAdmin la
   // ve heredada de Admin (mismo patrón que /app/admin).

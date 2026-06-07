@@ -47,6 +47,7 @@ const PREFIX_TO_MODULE: Array<[string, ModuleKey]> = [
   ["/app/teacher/exams", "exams"],
   ["/app/teacher/monitor", "exams"],
   ["/app/teacher/gradebook", "gradebook"],
+  ["/app/teacher/grading", "gradebook"],
   ["/app/teacher/attendance", "attendance"],
   ["/app/teacher/calendar", "calendar"],
   ["/app/teacher/question-bank", "question_bank"],
