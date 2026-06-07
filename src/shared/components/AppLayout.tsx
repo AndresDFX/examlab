@@ -859,6 +859,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     const found = NAV_PATH_TO_MODULE.find(([prefix]) => to === prefix);
     return found ? found[1] : null;
   };
+  // Pre-computamos el set de moduleKeys para los cuales EXISTE un item
+  // SA-only dedicado en el NAV. Caso: Soporte tiene 2 items distintos
+  // (`/app/admin/support` con roles=["Admin"] y `/app/superadmin/support`
+  // con roles=["SuperAdmin"]), pero ambos mapean al MISMO module_key
+  // "support". Sin este dedup, el SA veía LOS DOS en el sidebar (el
+  // suyo + el heredado de Admin). Política: cuando el SA tiene ítem
+  // propio, gana el propio; el de Admin se oculta para evitar el
+  // duplicado. Mismo principio aplicaría a futuros módulos con vista
+  // distinta por rol.
+  const moduleKeysWithDedicatedSuperAdminItem = new Set<ModuleKey>();
+  for (const item of NAV) {
+    if (item.roles.length === 1 && item.roles[0] === "SuperAdmin") {
+      const modKey = moduleForNav(item.to);
+      if (modKey) moduleKeysWithDedicatedSuperAdminItem.add(modKey);
+    }
+  }
   const visibleNav = NAV.filter((n) => {
     if (!activeRole) return false;
     // Items marcados como "SuperAdmin" se muestran SOLO cuando el usuario
@@ -878,6 +894,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     // respetamos. Default ausente = visible (`isModuleEnabled` true).
     if (activeRole === "SuperAdmin" && n.roles.includes("Admin")) {
       const modKey = moduleForNav(n.to);
+      // Dedup: si el SA tiene ítem propio para ese moduleKey (ej. Soporte),
+      // ocultamos el de Admin para no mostrar dos veces el mismo módulo.
+      if (modKey && moduleKeysWithDedicatedSuperAdminItem.has(modKey)) return false;
       if (modKey && !isModuleEnabled(moduleMap, modKey, "SuperAdmin")) return false;
       return true;
     }

@@ -150,13 +150,29 @@ function AdminSupportPage() {
     return { total: tickets.length, open, inProgress, resolved };
   }, [tickets]);
 
+  // Abre el dialog SIN resetear el draft del form. Si el admin cierra
+  // accidentalmente y vuelve a abrir, conserva lo que estaba escribiendo
+  // (categoría/prioridad/asunto/descripción). El reset solo pasa tras un
+  // submit exitoso o cuando el admin clickea "Empezar de cero" abajo.
   const openCreate = () => {
+    setCreateOpen(true);
+  };
+
+  const resetCreateForm = () => {
     setNewCategory("peticion");
     setNewPriority("normal");
     setNewSubject("");
     setNewBody("");
-    setCreateOpen(true);
   };
+
+  // Hay draft si cualquiera de los campos editables tiene contenido
+  // distinto al default. Lo usamos para mostrar el botón "Empezar de
+  // cero" solo cuando tiene sentido.
+  const hasDraft =
+    newSubject.trim().length > 0 ||
+    newBody.trim().length > 0 ||
+    newCategory !== "peticion" ||
+    newPriority !== "normal";
 
   const createTicket = async () => {
     if (!user?.id || !profile?.tenant_id) {
@@ -191,6 +207,9 @@ function AdminSupportPage() {
       }
       toast.success("Ticket abierto. El SuperAdmin recibió la notificación.");
       setCreateOpen(false);
+      // Reset DESPUÉS del éxito — antes era al abrir, lo que perdía el
+      // draft si el admin cerraba accidentalmente.
+      resetCreateForm();
       await load();
       // Abrir el detalle del recién creado.
       setActiveTicket(data as SupportTicket);
@@ -411,9 +430,27 @@ function AdminSupportPage() {
               />
             </div>
           </div>
-          <DialogFooter>
+          {/* Banner sutil cuando hay draft: el dialog conserva lo escrito
+              entre opens, asi que el admin sabe que su info esta a salvo. */}
+          {hasDraft && (
+            <p className="text-[11px] text-muted-foreground italic">
+              El borrador se conserva si cerrás el diálogo.
+            </p>
+          )}
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            {hasDraft && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={resetCreateForm}
+                disabled={creating}
+                className="text-muted-foreground hover:text-destructive sm:mr-auto"
+              >
+                Empezar de cero
+              </Button>
+            )}
             <Button variant="ghost" onClick={() => setCreateOpen(false)} disabled={creating}>
-              Cancelar
+              Cerrar
             </Button>
             <Button onClick={() => void createTicket()} disabled={creating}>
               {creating && <Spinner size="sm" className="mr-2" />}

@@ -85,6 +85,10 @@ type Row = {
   // Identidad estudiantil (opcionales, solo tienen sentido para
   // usuarios con rol Estudiante; quedan null para Admin/Docente).
   codigo: string | null;
+  // Código institucional del estudiante (matrícula / carnet). Único por
+  // tenant cuando se asigna. Mig 20260822000000. El template CSV lo
+  // usa con el mismo nombre `student_code`.
+  student_code: string | null;
   documento: string | null;
   cohorte: string | null;
   estado: StudentEstado | null;
@@ -115,6 +119,7 @@ const EMPTY_NEW: Row = {
   personal_email: "",
   roles: ["Estudiante"],
   codigo: null,
+  student_code: null,
   documento: null,
   cohorte: null,
   estado: null,
@@ -648,6 +653,7 @@ function AdminUsers() {
           personal_email: editing.personal_email || null,
           institutional_email: editing.institutional_email,
           codigo: isStudent ? editing.codigo?.trim() || null : null,
+          student_code: isStudent ? editing.student_code?.trim() || null : null,
           documento: isStudent ? editing.documento?.trim() || null : null,
           cohorte: isStudent ? editing.cohorte?.trim() || null : null,
           estado: isStudent ? editing.estado || null : null,
@@ -1481,6 +1487,21 @@ function AdminUsers() {
                         onChange={(e) => setEditing({ ...editing, codigo: e.target.value || null })}
                         placeholder="Ej: 202412345"
                       />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Código de estudiante</Label>
+                      <Input
+                        value={editing.student_code ?? ""}
+                        onChange={(e) =>
+                          setEditing({ ...editing, student_code: e.target.value || null })
+                        }
+                        placeholder="Matrícula / carnet institucional"
+                      />
+                      {/* La unicidad es por tenant cuando se asigna (mig
+                          20260822). Si queda vacío, no choca con nadie. */}
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Único por institución cuando se asigna. Opcional.
+                      </p>
                     </div>
                     <div>
                       <Label className="text-xs">Documento de identidad</Label>
