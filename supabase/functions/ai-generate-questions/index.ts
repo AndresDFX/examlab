@@ -132,6 +132,34 @@ async function resolveSystemPrompt(
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  // Auth interna (verify_jwt=false en config.toml). Aceptamos:
+  //   1. Bearer = SUPABASE_SERVICE_ROLE_KEY  →  caller es server-side
+  //      (ai-generation-worker drenando la cola). Match exacto por string
+  //      funciona sea cual sea el formato del key (JWT legacy o sb_secret_*),
+  //      a diferencia del verify_jwt del gateway que rebota los no-JWT.
+  //   2. user JWT válido  →  caller es el frontend (Admin/Docente desde
+  //      el flujo sync de generación). El rate limit interno aplica.
+  // Sin auth → 401. Esto evita que cualquiera con la URL gaste créditos
+  // de IA o inyecte preguntas via service_role bypass de RLS.
+  const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  const expectedServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const isServiceRoleCaller = bearer.length > 0 && bearer === expectedServiceKey;
+  if (!isServiceRoleCaller) {
+    const probe = userClientFromRequest(req);
+    if (!probe) {
+      return new Response(JSON.stringify({ error: "No autenticado" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { data: probeUser } = await probe.auth.getUser();
+    if (!probeUser?.user) {
+      return new Response(JSON.stringify({ error: "JWT inválido o expirado" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
   // Capturamos contexto para el catch global (modo + caller) — útil para
   // que la auditoría del fallo identifique qué se intentaba generar.
   let auditMode = "unknown";
