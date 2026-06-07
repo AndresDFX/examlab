@@ -65,29 +65,21 @@ const REMEMBER_SLUG_KEY = "examlab_remember_slug";
 function AuthPage() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  // Email pre-llenado desde localStorage si el usuario marcó "Recordarme"
-  // en una sesión anterior. La password NO se pre-llena desde código —
-  // si el navegador la guardó vía su password manager, autoComplete
-  // hará el autofill cuando el input enfoque.
-  const [email, setEmail] = useState<string>(() => {
-    try {
-      if (window.localStorage.getItem(REMEMBER_FLAG_KEY) === "1") {
-        return window.localStorage.getItem(REMEMBER_EMAIL_KEY) ?? "";
-      }
-    } catch {
-      /* ignore SSR / privacy mode */
-    }
-    return "";
-  });
+  // Email + rememberMe pre-llenados desde localStorage si el usuario
+  // marcó "Recordarme" en una sesión anterior. La password NO se pre-
+  // llena desde código — si el navegador la guardó vía su password
+  // manager, autoComplete hará el autofill cuando el input enfoque.
+  //
+  // CRÍTICO — Hydration: estos 2 useState DEBEN inicializarse a valores
+  // determinísticos ("" y false), NO leer localStorage en el initializer.
+  // Si el primer render del cliente lee storage y obtiene `value="usuario@..."`
+  // mientras el HTML pre-renderizado tiene `value=""`, React tira #418
+  // (hydration mismatch). El read del storage va en el useEffect post-mount
+  // (efecto "hydrate-remember" más abajo). Mismo patrón que `useTheme()`.
+  const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState<boolean>(() => {
-    try {
-      return window.localStorage.getItem(REMEMBER_FLAG_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
+  const [rememberMe, setRememberMe] = useState<boolean>(false);
   // SSO loading flags — separados para mostrar el spinner solo en el
   // botón clickeado (Google o Microsoft), no en ambos a la vez.
   const [ssoLoading, setSsoLoading] = useState<null | "google" | "azure">(null);
@@ -102,22 +94,50 @@ function AuthPage() {
   // login sigue funcionando — el server valida igual la pertenencia.
   const [tenants, setTenants] = useState<TenantOption[]>([]);
   const [tenantsLoading, setTenantsLoading] = useState(true);
-  // Slug seleccionado. Prioridad de pre-llenado:
+  // Slug seleccionado. Prioridad de pre-llenado (aplicada POST-mount,
+  // ver useEffect "hydrate-remember"):
   //   1. Slug de la URL (`/t/<slug>/auth`) — explícito del shareable link.
   //   2. Slug guardado por "Recordarme" en sesión anterior.
   //   3. Vacío — el usuario debe elegir.
-  const [selectedSlug, setSelectedSlug] = useState<string>(() => {
-    const fromUrl = getTenantSlugFromUrl();
-    if (fromUrl) return fromUrl;
+  //
+  // Initializer DETERMINÍSTICO ("") por la misma razón que email / rememberMe
+  // — evita hydration mismatch (React #418). Leer window.location o
+  // localStorage acá rompe el primer render cuando el HTML pre-renderizado
+  // no los tiene.
+  const [selectedSlug, setSelectedSlug] = useState<string>("");
+
+  // Post-mount: leer flags / URL / storage y poblar email, rememberMe,
+  // selectedSlug. Corre UNA sola vez tras el primer render — el árbol
+  // React ya está hidratado, así que cambiar el state acá es seguro y
+  // no dispara #418.
+  useEffect(() => {
     try {
-      if (window.localStorage.getItem(REMEMBER_FLAG_KEY) === "1") {
-        return window.localStorage.getItem(REMEMBER_SLUG_KEY) ?? "";
+      const remembered = window.localStorage.getItem(REMEMBER_FLAG_KEY) === "1";
+      if (remembered) {
+        const storedEmail = window.localStorage.getItem(REMEMBER_EMAIL_KEY);
+        if (storedEmail) setEmail(storedEmail);
+        setRememberMe(true);
       }
     } catch {
-      /* ignore */
+      /* ignore privacy mode / SSR */
     }
-    return "";
-  });
+    // Slug: URL gana sobre storage. El segundo useEffect (más abajo) lo
+    // re-confirma cuando la lista de tenants carga, para descartar slugs
+    // de URLs viejas que apunten a tenants borrados.
+    const fromUrl = getTenantSlugFromUrl();
+    if (fromUrl) {
+      setSelectedSlug(fromUrl);
+    } else {
+      try {
+        if (window.localStorage.getItem(REMEMBER_FLAG_KEY) === "1") {
+          const storedSlug = window.localStorage.getItem(REMEMBER_SLUG_KEY);
+          if (storedSlug) setSelectedSlug(storedSlug);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
 
   // Cargar instituciones al montar. Cualquier usuario anon puede leer
   // esta lista (la RPC filtra a `is_active=true` y expone solo branding).

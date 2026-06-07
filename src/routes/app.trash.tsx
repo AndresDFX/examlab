@@ -316,8 +316,12 @@ function TrashPage() {
       if (failed.length === 0) {
         toast.success(`${selectedItems.length} item(s) restaurado(s)`);
       } else {
-        toast.warning(
-          `${selectedItems.length - failed.length} restaurado(s), ${failed.length} con error`,
+        const first = failed[0];
+        const detail = friendlyError(first.error ?? undefined, "Error desconocido");
+        toast.error(
+          `${selectedItems.length - failed.length} restaurado(s), ${failed.length} con error. ` +
+            `Primero: "${first.item.name}" — ${detail}`,
+          { duration: 12000 },
         );
       }
     } finally {
@@ -351,8 +355,16 @@ function TrashPage() {
       if (failed.length === 0) {
         toast.success(`${selectedItems.length} item(s) eliminado(s) definitivamente`);
       } else {
-        toast.warning(
-          `${selectedItems.length - failed.length} eliminado(s), ${failed.length} con error`,
+        // Incluimos el detalle del PRIMER error y el nombre del item que
+        // falló — antes era "N con error" a secas y el usuario no podía
+        // diagnosticar qué tabla/FK lo bloqueaba (caso reportado al
+        // hard-delete tenants con dependencias RESTRICT).
+        const first = failed[0];
+        const detail = friendlyError(first.error ?? undefined, "Error desconocido");
+        toast.error(
+          `${selectedItems.length - failed.length} eliminado(s), ${failed.length} con error. ` +
+            `Primero: "${first.item.name}" — ${detail}`,
+          { duration: 12000 },
         );
       }
     } finally {
