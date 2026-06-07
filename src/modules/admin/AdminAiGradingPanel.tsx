@@ -442,22 +442,39 @@ export function AdminAiGradingPanel() {
               description="Genera uno y dáselo al docente que necesita IA inmediata."
             />
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Etiqueta</TableHead>
-                    <TableHead>Activaciones</TableHead>
-                    <TableHead>Ventana</TableHead>
-                    <TableHead>Mensajes</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Creado</TableHead>
-                    <TableHead className="w-[120px]">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {codes.map((c) => {
+            <>
+              {/* Toolbar de selección múltiple — solo se renderiza cuando
+                  hay al menos 1 código seleccionado (count > 0 internamente).
+                  El handler `onDelete` abre BulkDeleteDialog para confirm
+                  con preview de los códigos antes de borrar. */}
+              <MultiSelectToolbar
+                count={sel.count}
+                onClear={sel.clear}
+                onDelete={() => setBulkDeleteOpen(true)}
+                entityNameSingular="código"
+                entityNamePlural="códigos"
+              />
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {/* Header checkbox "select all / none / indeterminate".
+                          Opera sobre el array `codes` completo (no filtra). */}
+                      <TableHead className="w-10">
+                        <MultiSelectHeaderCheckbox state={sel} />
+                      </TableHead>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Etiqueta</TableHead>
+                      <TableHead>Activaciones</TableHead>
+                      <TableHead>Ventana</TableHead>
+                      <TableHead>Mensajes</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Creado</TableHead>
+                      <TableHead className="w-[120px]">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {codes.map((c) => {
                     const exhausted = c.uses_count >= c.max_uses;
                     const expired = c.expires_at ? new Date(c.expires_at) < new Date() : false;
                     const revoked = !!c.revoked_at;
@@ -470,6 +487,9 @@ export function AdminAiGradingPanel() {
                           : { label: "Activo", variant: "default" as const };
                     return (
                       <TableRow key={c.id}>
+                        <TableCell>
+                          <MultiSelectCheckbox id={c.id} state={sel} />
+                        </TableCell>
                         <TableCell>
                           <code className="font-mono text-xs px-1.5 py-0.5 rounded bg-muted">
                             {c.code}
@@ -533,12 +553,35 @@ export function AdminAiGradingPanel() {
                       </TableRow>
                     );
                   })}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog de confirmación para bulk delete. Muestra preview de
+          los códigos seleccionados (label o el código en sí si no tiene
+          label) antes de borrar. El bulk-delete-handler hace un único
+          DELETE atómico con `.in('id', ids)`. */}
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        items={Array.from(sel.selectedIds).map((id) => {
+          const c = codes.find((x) => x.id === id);
+          return {
+            id,
+            label: c ? `${c.code}${c.label ? ` (${c.label})` : ""}` : id,
+          };
+        })}
+        entityNameSingular="código"
+        entityNamePlural="códigos"
+        extraWarning="Las activaciones asociadas a estos códigos también se eliminarán. Los docentes que estén usándolos perderán acceso sync inmediato."
+        onConfirm={async () => {
+          await bulkDeleteSelected();
+        }}
+      />
     </div>
   );
 }
