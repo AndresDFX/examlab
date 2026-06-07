@@ -94,31 +94,29 @@ import { LaunchPollDialog } from "@/modules/polls/LaunchPollDialog";
 import { SessionWhiteboardDialog } from "@/modules/whiteboard/SessionWhiteboardDialog";
 import { SessionCodeSnippetsDialog } from "@/modules/sessions/SessionCodeSnippetsDialog";
 
-// Columna `cut_name` es OPCIONAL: si está vacía, la sesión queda sin
-// corte (no aporta a la nota de asistencia hasta que el docente la
-// reasigne en la UI). Si tiene texto, se hace match case-insensitive
-// contra `grade_cuts.name` del curso seleccionado.
-// Template de sesiones. Columnas:
-//   - session_date (YYYY-MM-DD, OBLIGATORIA)
-//   - title (texto libre, opcional)
-//   - cut_name (case-insensitive match contra grade_cuts.name, opcional)
-//   - start_time (HH:MM 24h, opcional — hora de inicio de la clase)
-//   - end_time (HH:MM 24h, opcional — hora de fin; gana sobre duration_minutes)
-//   - duration_minutes (entero, opcional — duración en minutos)
-//   - meeting_url (URL Meet/Zoom/Teams, opcional — link para clase virtual)
-//   - recording_url (URL libre a la grabación, opcional)
-// Reglas sobre duración:
-//   - Si llega `end_time` + `start_time` válidos → duration = (end - start)
-//     en minutos. Si end <= start → la fila se descarta el end (se usa
-//     `duration_minutes` o queda sin duración).
-//   - Si solo llega `duration_minutes` → se usa tal cual.
-//   - Si llegan ambos, gana `end_time` (más intuitivo para el docente).
-// El round-trip export→import preserva todos los campos. Filas con
-// session_date faltante o mal formado se descartan; el resto va INSERT.
-const SESSIONS_TEMPLATE = `session_date,title,cut_name,start_time,end_time,duration_minutes,meeting_url,recording_url
-2025-08-01,Clase introductoria,Corte 1,14:00,15:00,60,https://meet.google.com/abc-defg-hij,
-2025-08-03,Laboratorio 1,Corte 1,14:00,15:30,,,
-2025-08-08,Repaso,,,,,,`;
+// Template de sesiones. Columnas (en orden):
+//   - session_date  YYYY-MM-DD, OBLIGATORIA. Filas con esta columna vacía
+//                   o mal formada se REPORTAN como error (no se importan
+//                   silenciosamente para que el docente vea qué pasó).
+//   - title         texto libre, opcional.
+//   - start_time    HH:MM 24h (o HH:MM:SS), opcional — hora de inicio.
+//   - end_time      HH:MM 24h (o HH:MM:SS), opcional — hora de fin.
+//                   Si llegan start_time + end_time válidos y end > start,
+//                   derivamos `duration_minutes = end - start` en cliente.
+//                   La DB no tiene columna `end_time` — es UX-only.
+//   - meeting_url   URL libre Meet/Zoom/Teams, opcional.
+//   - cut_name      case-insensitive match contra grade_cuts.name del
+//                   curso seleccionado, opcional. Sin match → sesión sin
+//                   corte (no aporta a la nota de asistencia).
+//   - recording_url URL libre de la grabación, opcional.
+// Backward-compat: filas viejas con solo `session_date,title,meeting_url`
+// se importan; start_time/duration quedan NULL. Si la planilla trae la
+// columna `duration_minutes` (export legacy), se respeta cuando
+// `end_time` no resuelve.
+const SESSIONS_TEMPLATE = `session_date,title,start_time,end_time,meeting_url,cut_name,recording_url
+2026-06-14,Clase 1 — Introducción,18:00,20:00,https://meet.google.com/abc-defg-hij,Corte 1,
+2026-06-16,Clase 2 — Variables y tipos,18:00,20:00,,Corte 1,
+2026-06-21,Repaso,,,,,`;
 
 // Helpers de tiempo HH:MM ↔ minutos del día. Usados por el round-trip
 // CSV de sesiones (export computa end_time desde start+duration; import
@@ -243,12 +241,13 @@ function TeacherAttendance() {
   const [records, setRecords] = useState<Record_[]>([]);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
   const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0]);
-  // Hora local (HH:MM 24h) + duración en minutos. La edge function de
-  // calendar las usa para crear el evento Google a la hora exacta en vez
-  // de hardcodear 09:00 / 90min. Defaults razonables que aplican al 80%
-  // de los cursos universitarios.
+  // Hora local (HH:MM 24h). El docente edita start y end; al guardar
+  // calculamos `duration_minutes = end - start`. Es más natural que
+  // pedir "duración" — el docente piensa en términos de "9:00-10:30",
+  // no "90 minutos". La edge function de calendar sigue consumiendo
+  // duration_minutes para crear el evento Google.
   const [newStartTime, setNewStartTime] = useState("09:00");
-  const [newDuration, setNewDuration] = useState(90);
+  const [newEndTime, setNewEndTime] = useState("10:30");
   const [newTitle, setNewTitle] = useState("");
   // Corte explícito al que pertenece la sesión nueva. "" = sin corte
   // (la sesión queda visible pero no aporta a la nota de asistencia).
@@ -434,6 +433,24 @@ function TeacherAttendance() {
       toast.error("Fecha requerida");
       return;
     }
+    // Validación de horas: ambos opcionales, pero si vienen los dos
+    // deben ser consistentes (end > start). Sin esto el docente podría
+    // guardar "9:00 → 8:00" con duración negativa.
+    const startMin = newStartTime ? parseHHMMToMinutes(newStartTime) : null;
+    const endMin = newEndTime ? parseHHMMToMinutes(newEndTime) : null;
+    if (startMin != null && endMin != null && endMin <= startMin) {
+      toast.error("La hora de fin debe ser posterior a la de inicio.");
+      return;
+    }
+    // Derivamos duration desde end-start cuando ambos están. Si solo hay
+    // start, default 90 min (clase universitaria típica). Si no hay
+    // start_time, duration queda null para no inventar datos.
+    const duration =
+      startMin != null && endMin != null && endMin > startMin
+        ? endMin - startMin
+        : newStartTime
+          ? 90
+          : null;
     // cut_id va sólo si el docente eligió uno. Sin corte la sesión es
     // visible pero no entra en el cálculo de la nota de asistencia.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -444,7 +461,7 @@ function TeacherAttendance() {
       // Bogotá se aplica al construir el ISO datetime en la edge function
       // de calendar — manteniendo el DB columna agnóstica de TZ.
       start_time: newStartTime ? `${newStartTime}:00` : null,
-      duration_minutes: newDuration > 0 ? newDuration : 90,
+      duration_minutes: duration,
       title: newTitle || null,
       created_by: user.id,
       cut_id: newCutId || null,
@@ -656,11 +673,10 @@ function TeacherAttendance() {
     return toCSV(csvRows);
   };
 
-  // Build CSV de exportación de sesiones/clases. Incluye TODOS los
-  // campos que el round-trip (export → import) preserva: corte, hora de
-  // inicio, duración, link de reunión, link de grabación. Si un campo
-  // está NULL en DB lo dejamos vacío en CSV — el importer entiende vacío
-  // como "no setear".
+  // Build CSV de exportación de sesiones/clases. Columnas y orden
+  // coinciden con `SESSIONS_TEMPLATE` (round-trip puro). `end_time` se
+  // deriva de start_time + duration_minutes — el docente edita el rango
+  // horario, nunca minutos sueltos.
   const buildSessionsCsv = (): string => {
     if (!sessions.length) return "";
     const cutNameById = new Map(cuts.map((c) => [c.id, c.name]));
@@ -670,9 +686,6 @@ function TeacherAttendance() {
         // que el CSV sea más legible y compatible con planillas. El
         // importer acepta ambos formatos.
         const startTimeShort = s.start_time ? String(s.start_time).slice(0, 5) : "";
-        // end_time es derivado: start_time + duration_minutes. Lo
-        // exportamos para que el docente pueda editar la duración en
-        // formato natural (15:30 vs "90 min") en la planilla.
         const endTimeShort =
           startTimeShort && s.duration_minutes != null
             ? addMinutesToHHMM(startTimeShort, s.duration_minutes)
@@ -680,11 +693,10 @@ function TeacherAttendance() {
         return {
           session_date: s.session_date,
           title: s.title ?? "",
-          cut_name: s.cut_id ? (cutNameById.get(s.cut_id) ?? "") : "",
           start_time: startTimeShort,
           end_time: endTimeShort,
-          duration_minutes: s.duration_minutes != null ? String(s.duration_minutes) : "",
           meeting_url: s.meeting_url ?? "",
+          cut_name: s.cut_id ? (cutNameById.get(s.cut_id) ?? "") : "",
           recording_url: s.recording_url ?? "",
         };
       }),
@@ -694,55 +706,78 @@ function TeacherAttendance() {
       [
         "session_date",
         "title",
-        "cut_name",
         "start_time",
         "end_time",
-        "duration_minutes",
         "meeting_url",
+        "cut_name",
         "recording_url",
       ],
     );
   };
 
-  // Importar sesiones desde CSV. Columnas opcionales:
+  // Importar sesiones desde CSV. Columnas:
+  //   - session_date (OBLIGATORIA, YYYY-MM-DD). Vacía o mal formada
+  //     ABORTA el import indicando el número de fila — el docente debe
+  //     ver qué pasó, no que se importe silenciosamente "parcial".
+  //   - title, meeting_url, recording_url: opcionales, texto libre.
   //   - cut_name: match case-insensitive contra grade_cuts.name del curso.
-  //   - start_time: HH:MM o HH:MM:SS (24h). Valor inválido → null sin abortar.
-  //   - end_time: HH:MM o HH:MM:SS (24h). Si llega válido + start_time
-  //     válido + end > start, derivamos duration = (end - start) en min
-  //     y GANA sobre duration_minutes.
-  //   - duration_minutes: entero >= 0. Se usa cuando end_time no resuelve.
-  //   - meeting_url / recording_url: pasan tal cual (sin validar URL — el
-  //     docente podría pegar texto que no es URL; UI lo muestra).
-  // Filas con session_date faltante o mal formado se descartan completas.
+  //   - start_time, end_time: HH:MM o HH:MM:SS (24h). Si ambos llegan
+  //     válidos y end > start, derivamos `duration_minutes = end - start`.
+  //     end_time sin start_time → error en esa fila.
+  //   - duration_minutes (LEGACY, opcional): se respeta cuando llega y
+  //     end_time NO resuelve. Permite re-importar exports viejos.
   const importSessions = async (rows: Record<string, string>[]) => {
     if (!courseId || !user) throw new Error("Selecciona un curso");
-    const valid = rows.filter((r) => r.session_date && /^\d{4}-\d{2}-\d{2}$/.test(r.session_date));
-    if (!valid.length) throw new Error("No hay filas con session_date válido (YYYY-MM-DD)");
     const cutByName = new Map(cuts.map((c) => [c.name.trim().toLowerCase(), c.id]));
     let unmatched = 0;
-    const payload = valid.map((r) => {
+    const payload: Array<Record<string, unknown>> = [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      // +2 = saltarse header (línea 1) y 1-indexar para que coincida con
+      // lo que ve el docente en Excel/Sheets.
+      const lineNo = i + 2;
+      const rawDate = (r.session_date || "").trim();
+      if (!rawDate) {
+        throw new Error(`Fila ${lineNo}: session_date es obligatorio.`);
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+        throw new Error(
+          `Fila ${lineNo}: session_date "${rawDate}" no es una fecha válida (formato YYYY-MM-DD).`,
+        );
+      }
       const cutKey = (r.cut_name || "").trim().toLowerCase();
       const cutId = cutKey ? (cutByName.get(cutKey) ?? null) : null;
       if (cutKey && !cutId) unmatched++;
-      // start_time: aceptamos HH:MM y HH:MM:SS. Postgres TIME normaliza
-      // ambos. Otros formatos quedan como null (no abortamos la fila).
-      const rawTime = (r.start_time || "").trim();
-      const startTime = /^\d{1,2}:\d{2}(:\d{2})?$/.test(rawTime) ? rawTime : null;
-      // duration: 1) si llega end_time + start_time válidos y end > start,
-      // calculamos (end - start). 2) si no, usamos duration_minutes literal.
+      // start_time / end_time: aceptamos HH:MM y HH:MM:SS. Postgres TIME
+      // normaliza ambos. Vacío → null. Formato inválido → null sin
+      // abortar (mejor que rechazar la fila por un typo de hora).
+      const rawStart = (r.start_time || "").trim();
+      const rawEnd = (r.end_time || "").trim();
+      const startTime = /^\d{1,2}:\d{2}(:\d{2})?$/.test(rawStart) ? rawStart : null;
+      // Si llega end_time pero no start_time, es un dato inconsistente —
+      // no tiene sentido "fin sin inicio". Abortamos la fila para que
+      // el docente lo arregle.
+      if (rawEnd && !rawStart) {
+        throw new Error(
+          `Fila ${lineNo}: end_time sin start_time. Indica también la hora de inicio.`,
+        );
+      }
       const startMin = startTime ? parseHHMMToMinutes(startTime) : null;
-      const endMin = parseHHMMToMinutes((r.end_time || "").trim());
+      const endMin = parseHHMMToMinutes(rawEnd);
       let duration: number | null = null;
       if (startMin != null && endMin != null && endMin > startMin) {
         duration = endMin - startMin;
       } else {
+        // Fallback al campo legacy `duration_minutes` cuando el export
+        // viejo lo trae. Sin esto un round-trip export→import perdería
+        // la duración de sesiones que no tenían end_time.
         const rawDur = (r.duration_minutes || "").trim();
         const durNum = rawDur ? Number.parseInt(rawDur, 10) : NaN;
         duration = Number.isFinite(durNum) && durNum >= 0 ? durNum : null;
       }
-      return {
+      payload.push({
         course_id: courseId,
-        session_date: r.session_date,
+        session_date: rawDate,
         title: r.title || null,
         created_by: user.id,
         cut_id: cutId,
@@ -750,8 +785,9 @@ function TeacherAttendance() {
         duration_minutes: duration,
         meeting_url: (r.meeting_url || "").trim() || null,
         recording_url: (r.recording_url || "").trim() || null,
-      };
-    });
+      });
+    }
+    if (!payload.length) throw new Error("El archivo no contiene filas válidas.");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any).from("attendance_sessions").insert(payload);
     if (error) throw new Error(error.message);
@@ -1514,11 +1550,11 @@ function TeacherAttendance() {
               <Label required>Fecha</Label>
               <DatePicker value={newDate} onChange={setNewDate} />
             </div>
-            {/* Hora + duración — usadas por la sincronización a Google
-                Calendar para crear el evento a la hora real. Antes
-                hardcodeábamos 09:00/90min. Mobile-first: 1 col en xs
-                (TimePicker + input se ven completos sin truncar), 2
-                en sm+. */}
+            {/* Hora inicio + fin — el docente piensa en "9:00-10:30",
+                no "90 min". Al guardar derivamos duration = end - start
+                para alimentar la sincronización a Google Calendar (que
+                consume duration_minutes). Mobile-first: 1 col en xs
+                (inputs time se ven completos sin truncar), 2 en sm+. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" data-tour-id="session-field-time">
               <div>
                 <Label>
@@ -1532,14 +1568,11 @@ function TeacherAttendance() {
                 />
               </div>
               <div>
-                <Label>Duración (min)</Label>
+                <Label>Hora fin</Label>
                 <Input
-                  type="number"
-                  min={15}
-                  max={480}
-                  step={5}
-                  value={newDuration}
-                  onChange={(e) => setNewDuration(Number(e.target.value) || 90)}
+                  type="time"
+                  value={newEndTime}
+                  onChange={(e) => setNewEndTime(e.target.value)}
                 />
               </div>
             </div>
