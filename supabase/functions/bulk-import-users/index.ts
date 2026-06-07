@@ -469,15 +469,63 @@ Deno.serve(async (req) => {
           ok: false,
           reason,
         });
+        // deno-lint-ignore no-explicit-any
+        const errAny = e as any;
+
+        // Diagnóstico EXTRA cuando el error es 500 "Database error"
+        // (genérico de Supabase Auth que esconde la causa real). Hacemos
+        // 3 lookups en paralelo para enriquecer el audit log:
+        //   a) ¿El email ya existe en auth.users? → indica duplicate de
+        //      intento previo.
+        //   b) ¿Hay un profile huérfano con ese email? → indica
+        //      re-vinculación fallida (mig 20260906 no aplicada o bug).
+        //   c) ¿Cuántos enrollments tiene ese profile huérfano? → confirma
+        //      si el FK CASCADE de mig 20260909 es lo que falla.
+        let diag_auth_user_exists: boolean | null = null;
+        let diag_orphan_profile_id: string | null = null;
+        let diag_orphan_enrollments: number | null = null;
+        const looks_like_db_error =
+          errAny?.status === 500 ||
+          /database error|unexpected_failure/i.test(reason);
+        if (looks_like_db_error) {
+          try {
+            const { data: existingAuth } = await adminClient
+              .from("auth.users" as never)
+              .select("id")
+              .eq("email", institutional_email)
+              .maybeSingle();
+            diag_auth_user_exists = !!existingAuth;
+          } catch {
+            // adminClient.from("auth.users") puede no funcionar con
+            // PostgREST si el schema auth no está expuesto. Fallback
+            // con auth.admin.listUsers no es viable por costo. Skipear.
+          }
+          try {
+            const { data: orphan } = await adminClient
+              .from("profiles")
+              .select("id")
+              .ilike("institutional_email", institutional_email)
+              .maybeSingle();
+            if (orphan?.id) {
+              diag_orphan_profile_id = orphan.id as string;
+              const { count } = await adminClient
+                .from("course_enrollments")
+                .select("user_id", { count: "exact", head: true })
+                .eq("user_id", orphan.id);
+              diag_orphan_enrollments = count ?? 0;
+            }
+          } catch {
+            // best-effort
+          }
+        }
+
         // Auditoría POR FILA fallida — antes solo había un evento de
         // resumen al final con `first_emails`, sin detalle de las 92 que
         // fallaron. Ahora cada fallo de createUser/upsert deja una fila
         // en `audit_logs` visible en `/app/admin/audit-logs?tab=errors`
         // con el mensaje del error real (rate limit, unique violation,
-        // database error, etc.) para que el admin sepa qué pasó sin
-        // tener que abrir los logs de la edge en el dashboard de Supabase.
-        // deno-lint-ignore no-explicit-any
-        const errAny = e as any;
+        // database error, etc.) + diagnóstico para identificar la causa
+        // real del 500 genérico de Supabase Auth.
         void auditFromEdge(adminClient, {
           actorId: u.user.id,
           // Si el caller es el SA actuando sobre un tenant específico,
@@ -498,6 +546,21 @@ Deno.serve(async (req) => {
             error_status: errAny?.status ?? null,
             error_code: errAny?.code ?? null,
             error_name: errAny?.name ?? null,
+            // Diagnóstico: estos 3 campos identifican la causa raíz del
+            // 500 sin requerir queries manuales del admin.
+            diag_auth_user_exists,
+            diag_orphan_profile_id,
+            diag_orphan_enrollments,
+            // Hipótesis derivada para que el admin sepa qué hacer:
+            diag_likely_cause: !looks_like_db_error
+              ? null
+              : diag_auth_user_exists
+                ? "auth_user_already_registered" // bug: intento previo dejó residuo en auth.users
+                : diag_orphan_profile_id
+                  ? diag_orphan_enrollments && diag_orphan_enrollments > 0
+                    ? "orphan_profile_with_enrollments" // mig 20260909 no aplicada o FK no cascade
+                    : "orphan_profile_revinculate_failed" // mig 20260906 no aplicada
+                  : "unknown_trigger_failure", // otro trigger fallando — investigar pg_trigger
           },
         });
       }
