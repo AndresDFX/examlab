@@ -1026,7 +1026,13 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                             </div>
                           )}
                         </div>
-                        <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                        {/* Edad relativa (5d, 36m, etc.) — oculta en
+                            mobile. A 375px chocaba con los 4 botones de
+                            acción y rompía el flex-wrap del label,
+                            montando "Pendiente" sobre "Proyecto (batch)".
+                            El detalle completo de fechas vive en el panel
+                            expandible — el age es solo at-a-glance. */}
+                        <span className="hidden sm:inline text-[11px] text-muted-foreground tabular-nums shrink-0">
                           {relativeAge(j.created_at)}
                         </span>
                       </div>

@@ -352,6 +352,42 @@ function AdminStatistics() {
         />
       ) : (
         <>
+          {/* KPIs globales */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+            <KpiCard
+              icon={BookOpenLikeIcon}
+              label="Cursos"
+              value={totals.courses}
+              accent="text-fuchsia-500"
+            />
+            <KpiCard
+              icon={Users}
+              label="Estudiantes"
+              value={totals.students}
+              accent="text-sky-500"
+            />
+            <KpiCard
+              icon={CheckCircle2}
+              label="% Aprobación global"
+              value={`${globalApproval}%`}
+              subline="Ponderado por matrícula"
+              accent="text-emerald-500"
+            />
+            <KpiCard
+              icon={CalendarCheck}
+              label="Asistencia promedio"
+              value={`${globalAttendance}%`}
+              accent="text-cyan-500"
+            />
+            <KpiCard
+              icon={AlertTriangle}
+              label="Alertas integridad"
+              value={totals.aiSuspect + totals.plagiarismPairs}
+              subline={`${totals.aiSuspect} IA · ${totals.plagiarismPairs} copia`}
+              accent="text-amber-500"
+            />
+          </div>
+
           {/* Filtros institucionales (programa + periodo + tenant para
               SuperAdmin). Filtran el resumen de cursos. Programa/periodo
               son client-side (datasets ya en memoria). Tenant dispara
@@ -467,42 +503,6 @@ function AdminStatistics() {
               )}
             </CardContent>
           </Card>
-
-          {/* KPIs globales */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-            <KpiCard
-              icon={BookOpenLikeIcon}
-              label="Cursos"
-              value={totals.courses}
-              accent="text-fuchsia-500"
-            />
-            <KpiCard
-              icon={Users}
-              label="Estudiantes"
-              value={totals.students}
-              accent="text-sky-500"
-            />
-            <KpiCard
-              icon={CheckCircle2}
-              label="% Aprobación global"
-              value={`${globalApproval}%`}
-              subline="Ponderado por matrícula"
-              accent="text-emerald-500"
-            />
-            <KpiCard
-              icon={CalendarCheck}
-              label="Asistencia promedio"
-              value={`${globalAttendance}%`}
-              accent="text-cyan-500"
-            />
-            <KpiCard
-              icon={AlertTriangle}
-              label="Alertas integridad"
-              value={totals.aiSuspect + totals.plagiarismPairs}
-              subline={`${totals.aiSuspect} IA · ${totals.plagiarismPairs} copia`}
-              accent="text-amber-500"
-            />
-          </div>
 
           {/* Comparativa entre cursos */}
           <Card>

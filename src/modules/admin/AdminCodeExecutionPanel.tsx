@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { HelpHint } from "@/components/ui/help-hint";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Save, Info, Code2, MonitorPlay, Terminal } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
@@ -247,117 +248,142 @@ export function AdminCodeExecutionPanel() {
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <RadioGroup
-            value={draftProvider}
-            onValueChange={(v) => setDraftProvider(v as CodeProvider)}
-            className="space-y-3"
-          >
-            {(["aws_lambda", "onlinecompiler", "cheerp", "jdoodle"] as CodeProvider[]).map((p) => (
-              <div
-                key={p}
-                className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                  draftProvider === p
-                    ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/20"
-                    : "hover:bg-muted/50"
-                }`}
-                onClick={() => setDraftProvider(p)}
-              >
-                <RadioGroupItem value={p} id={`provider-${p}`} className="mt-0.5" />
-                <div className="space-y-0.5">
-                  <Label htmlFor={`provider-${p}`} className="text-sm font-medium cursor-pointer">
-                    {PROVIDER_LABELS[p]}
-                  </Label>
-                  <p className="text-xs text-muted-foreground">{PROVIDER_DESCRIPTION[p]}</p>
-                </div>
+          {/* Tabs por tipo de pregunta — reemplaza la lista vertical
+              apilada que mostraba TODOS los runners para los 3 tipos al
+              mismo tiempo. Ahora el admin elige primero el tipo y solo ve
+              las opciones relevantes. Mejor escaneabilidad + scroll
+              mucho más corto en mobile. */}
+          <Tabs defaultValue="codigo">
+            <TabsList className="grid w-full grid-cols-3 h-auto">
+              <TabsTrigger value="codigo" className="gap-1.5 text-xs">
+                <Terminal className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Texto / Consola</span>
+                <span className="sm:hidden">Texto</span>
+              </TabsTrigger>
+              <TabsTrigger value="java_gui" className="gap-1.5 text-xs">
+                <MonitorPlay className="h-3.5 w-3.5" />
+                Java GUI
+              </TabsTrigger>
+              <TabsTrigger value="python_gui" className="gap-1.5 text-xs">
+                <MonitorPlay className="h-3.5 w-3.5" />
+                Python GUI
+              </TabsTrigger>
+            </TabsList>
+
+            {/* ── Tab "codigo" (texto/consola) ─────────────────────── */}
+            <TabsContent value="codigo" className="space-y-3 mt-4">
+              <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                <Terminal className="h-3.5 w-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                <p>
+                  Preguntas <code className="text-[11px]">codigo</code> — el alumno escribe código y
+                  ve la salida en consola. Para Java se usa el proveedor seleccionado abajo; para
+                  otros lenguajes (Python, JS, C++…) cae automáticamente a OnlineCompiler.io.
+                </p>
               </div>
-            ))}
-          </RadioGroup>
-
-          <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-            <p className="text-xs font-medium flex items-center gap-1.5">
-              <Terminal className="h-3.5 w-3.5 text-emerald-600" />
-              Tipo <code className="text-[11px]">codigo</code> (texto / consola)
-            </p>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Usa el proveedor configurado arriba. Para Java: corre en{" "}
-              <strong>{PROVIDER_LABELS[draftProvider]}</strong>. Para otros lenguajes (Python, JS,
-              C++…) cae a OnlineCompiler.io.
-            </p>
-          </div>
-
-          {/* Selector separado para preguntas java_gui (Swing/AWT/JavaFX) */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium flex items-center gap-1.5">
-              <MonitorPlay className="h-4 w-4 text-amber-600" />
-              Proveedor para preguntas <code className="text-[11px]">java_gui</code>
-              <HelpHint>{t("help.javaGuiProviderHelp")}</HelpHint>
-            </Label>
-            <RadioGroup
-              value={draftJavaGui}
-              onValueChange={(v) => setDraftJavaGui(v as JavaGuiProvider)}
-              className="space-y-2"
-            >
-              {(["cheerp", "aws_screenshot"] as JavaGuiProvider[]).map((p) => (
-                <div
-                  key={p}
-                  className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                    draftJavaGui === p
-                      ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20"
-                      : "hover:bg-muted/50"
-                  }`}
-                  onClick={() => setDraftJavaGui(p)}
-                >
-                  <RadioGroupItem value={p} id={`java-gui-${p}`} className="mt-0.5" />
-                  <div className="space-y-0.5">
-                    <Label htmlFor={`java-gui-${p}`} className="text-sm font-medium cursor-pointer">
-                      {JAVA_GUI_LABELS[p]}
-                    </Label>
-                    <p className="text-xs text-muted-foreground">{JAVA_GUI_DESCRIPTION[p]}</p>
+              <RadioGroup
+                value={draftProvider}
+                onValueChange={(v) => setDraftProvider(v as CodeProvider)}
+                className="space-y-3"
+              >
+                {(["aws_lambda", "onlinecompiler", "cheerp", "jdoodle"] as CodeProvider[]).map((p) => (
+                  <div
+                    key={p}
+                    className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                      draftProvider === p
+                        ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/20"
+                        : "hover:bg-muted/50"
+                    }`}
+                    onClick={() => setDraftProvider(p)}
+                  >
+                    <RadioGroupItem value={p} id={`provider-${p}`} className="mt-0.5" />
+                    <div className="space-y-0.5">
+                      <Label htmlFor={`provider-${p}`} className="text-sm font-medium cursor-pointer">
+                        {PROVIDER_LABELS[p]}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">{PROVIDER_DESCRIPTION[p]}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </RadioGroup>
-          </div>
+                ))}
+              </RadioGroup>
+            </TabsContent>
 
-          {/* Selector para python_gui (tkinter). Solo un provider posible
-              hoy (aws_screenshot) — lo dejamos como RadioGroup igual para
-              que la UX sea consistente con java_gui y para que extender
-              en el futuro sea solo añadir un valor al array. */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium flex items-center gap-1.5">
-              <MonitorPlay className="h-4 w-4 text-sky-600" />
-              Proveedor para preguntas <code className="text-[11px]">python_gui</code>
-              <HelpHint>{t("help.pythonGuiProviderHelp")}</HelpHint>
-            </Label>
-            <RadioGroup
-              value={draftPythonGui}
-              onValueChange={(v) => setDraftPythonGui(v as PythonGuiProvider)}
-              className="space-y-2"
-            >
-              {(["aws_screenshot"] as PythonGuiProvider[]).map((p) => (
-                <div
-                  key={p}
-                  className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                    draftPythonGui === p
-                      ? "border-sky-500 bg-sky-50 dark:bg-sky-950/20"
-                      : "hover:bg-muted/50"
-                  }`}
-                  onClick={() => setDraftPythonGui(p)}
-                >
-                  <RadioGroupItem value={p} id={`python-gui-${p}`} className="mt-0.5" />
-                  <div className="space-y-0.5">
-                    <Label
-                      htmlFor={`python-gui-${p}`}
-                      className="text-sm font-medium cursor-pointer"
-                    >
-                      {PYTHON_GUI_LABELS[p]}
-                    </Label>
-                    <p className="text-xs text-muted-foreground">{PYTHON_GUI_DESCRIPTION[p]}</p>
+            {/* ── Tab "java_gui" ───────────────────────────────────── */}
+            <TabsContent value="java_gui" className="space-y-3 mt-4">
+              <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                <MonitorPlay className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
+                <p>
+                  Preguntas <code className="text-[11px]">java_gui</code> — el alumno escribe Swing
+                  / AWT / JavaFX y necesita ver la ventana renderizada.{" "}
+                  <HelpHint>{t("help.javaGuiProviderHelp")}</HelpHint>
+                </p>
+              </div>
+              <RadioGroup
+                value={draftJavaGui}
+                onValueChange={(v) => setDraftJavaGui(v as JavaGuiProvider)}
+                className="space-y-2"
+              >
+                {(["cheerp", "aws_screenshot"] as JavaGuiProvider[]).map((p) => (
+                  <div
+                    key={p}
+                    className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                      draftJavaGui === p
+                        ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20"
+                        : "hover:bg-muted/50"
+                    }`}
+                    onClick={() => setDraftJavaGui(p)}
+                  >
+                    <RadioGroupItem value={p} id={`java-gui-${p}`} className="mt-0.5" />
+                    <div className="space-y-0.5">
+                      <Label htmlFor={`java-gui-${p}`} className="text-sm font-medium cursor-pointer">
+                        {JAVA_GUI_LABELS[p]}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">{JAVA_GUI_DESCRIPTION[p]}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </RadioGroup>
-          </div>
+                ))}
+              </RadioGroup>
+            </TabsContent>
+
+            {/* ── Tab "python_gui" ─────────────────────────────────── */}
+            <TabsContent value="python_gui" className="space-y-3 mt-4">
+              <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                <MonitorPlay className="h-3.5 w-3.5 text-sky-600 mt-0.5 shrink-0" />
+                <p>
+                  Preguntas <code className="text-[11px]">python_gui</code> — el alumno escribe
+                  tkinter. Solo hay un proveedor por ahora (no existe Pyodide+tkinter en WASM).{" "}
+                  <HelpHint>{t("help.pythonGuiProviderHelp")}</HelpHint>
+                </p>
+              </div>
+              <RadioGroup
+                value={draftPythonGui}
+                onValueChange={(v) => setDraftPythonGui(v as PythonGuiProvider)}
+                className="space-y-2"
+              >
+                {(["aws_screenshot"] as PythonGuiProvider[]).map((p) => (
+                  <div
+                    key={p}
+                    className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                      draftPythonGui === p
+                        ? "border-sky-500 bg-sky-50 dark:bg-sky-950/20"
+                        : "hover:bg-muted/50"
+                    }`}
+                    onClick={() => setDraftPythonGui(p)}
+                  >
+                    <RadioGroupItem value={p} id={`python-gui-${p}`} className="mt-0.5" />
+                    <div className="space-y-0.5">
+                      <Label
+                        htmlFor={`python-gui-${p}`}
+                        className="text-sm font-medium cursor-pointer"
+                      >
+                        {PYTHON_GUI_LABELS[p]}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">{PYTHON_GUI_DESCRIPTION[p]}</p>
+                    </div>
+                  </div>
+                ))}
+              </RadioGroup>
+            </TabsContent>
+          </Tabs>
 
           <Alert>
             <Info className="h-4 w-4" />

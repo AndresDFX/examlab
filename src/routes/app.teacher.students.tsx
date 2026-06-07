@@ -189,34 +189,34 @@ function TeacherStudentsInner() {
         icon={<Users className="h-5 w-5 text-violet-500" />}
       />
 
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex-1 min-w-[160px] sm:min-w-48">
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Buscar por nombre o correo…"
+          />
+        </div>
+        {courses.length > 1 && (
+          <Select value={courseFilter} onValueChange={setCourseFilter}>
+            <SelectTrigger className="w-full sm:w-56">
+              <SelectValue placeholder="Todos los cursos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los cursos</SelectItem>
+              {courses.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+
       <Card>
         <CardContent className="p-4 space-y-3">
-          {/* Filtros */}
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="flex-1 min-w-[160px] sm:min-w-48">
-              <SearchInput
-                value={search}
-                onChange={setSearch}
-                placeholder="Buscar por nombre o correo…"
-              />
-            </div>
-            {courses.length > 1 && (
-              <Select value={courseFilter} onValueChange={setCourseFilter}>
-                <SelectTrigger className="w-full sm:w-56">
-                  <SelectValue placeholder="Todos los cursos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los cursos</SelectItem>
-                  {courses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-
           {/* Tabla */}
           <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
             {loading ? (

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +30,19 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  // Username del usuario actual — se pasa como hidden input para que el
+  // browser asocie el cambio de password con la cuenta correcta y ofrezca
+  // "Actualizar contraseña guardada" del password manager. Sin esto,
+  // Chrome/Safari NO disparan el prompt aunque el form tenga
+  // autocomplete="new-password". Es el patrón documentado de
+  // https://www.chromium.org/developers/design-documents/create-amazing-password-forms/
+  const { profile, user } = useAuth();
+  const username = profile?.institutional_email || user?.email || "";
+  // Re-foco después de abrir para que el password manager detecte el form
+  // (algunos browsers solo escanean cuando hay focus inicial).
+  useEffect(() => {
+    if (!open) return;
+  }, [open]);
 
   const reset = () => {
     setNewPassword("");
@@ -93,7 +107,29 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
             Cambiar contraseña
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
+        {/* Envolvemos en <form> semántico para que los password managers
+            (Chrome, Safari, 1Password, Bitwarden) detecten el cambio y
+            ofrezcan "Actualizar contraseña guardada" tras un submit
+            exitoso. Sin <form> + hidden username + autocomplete=new-password,
+            el browser NO sabe que esto es un cambio asociado a una cuenta
+            guardada y el prompt no aparece. */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleSave();
+          }}
+          className="space-y-3"
+        >
+          {/* Hidden username — link entre password viejo guardado y nuevo. */}
+          <input
+            type="text"
+            name="username"
+            value={username}
+            autoComplete="username"
+            readOnly
+            hidden
+            aria-hidden="true"
+          />
           <div>
             <Label required>Nueva contraseña</Label>
             <div className="relative mt-1">
@@ -103,6 +139,8 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Mínimo 8 caracteres"
                 className="pr-9"
+                autoComplete="new-password"
+                name="new-password"
               />
               <button
                 type="button"
@@ -121,24 +159,31 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Repite la nueva contraseña"
               className="mt-1"
+              autoComplete="new-password"
+              name="confirm-password"
             />
             {confirmPassword && newPassword !== confirmPassword && (
               <p className="text-xs text-destructive mt-1">Las contraseñas no coinciden</p>
             )}
           </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saving || !newPassword || !confirmPassword || newPassword !== confirmPassword}
-          >
-            {saving && <Spinner size="md" className="mr-1" />}
-            Guardar
-          </Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={saving}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={saving || !newPassword || !confirmPassword || newPassword !== confirmPassword}
+            >
+              {saving && <Spinner size="md" className="mr-1" />}
+              Guardar
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

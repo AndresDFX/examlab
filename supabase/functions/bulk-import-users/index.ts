@@ -211,40 +211,78 @@ Deno.serve(async (req) => {
           continue;
         }
         if (!userId) {
-          // Throttle entre creates: Supabase Auth admin API tiene rate
-          // limits internos (no documentados explícitamente, observados ~
-          // 5-10 req/s). Un bulk de 90+ usuarios secuencial dispara
-          // "Database error creating new user" desde la fila ~2 — caso
-          // reportado al importar 93 estudiantes (1 importado, 92 fallidos).
-          // 200ms entre intentos da ~5/s — debajo del límite y agrega ~18s
-          // a un batch de 90, aceptable para una operación de admin.
+          // Throttle entre creates: el Auth admin API de Supabase tira
+          // "Database error creating new user" (genérico, sin código)
+          // cuando hay presión sostenida. Empíricamente 200ms no era
+          // suficiente — el user reportó "1 importado, 92 errores" dos
+          // veces consecutivas con el throttle previo. Subimos a 500ms
+          // (~2 req/s) que es claramente bajo del límite, y agregamos
+          // retry con backoff exponencial si el error indica rate limit
+          // o "database error" (genérico que típicamente esconde el
+          // throttle interno de Supabase).
+          //
+          // Costo: 90 users × 500ms = 45s. Cabe holgado en el edge
+          // timeout de 60s. Si fuera necesario más throttle, habría que
+          // splittear el batch en múltiples requests del cliente.
           if (createsAttempted > 0) {
-            await new Promise((resolve) => setTimeout(resolve, 200));
+            await new Promise((resolve) => setTimeout(resolve, 500));
           }
           createsAttempted += 1;
-          const { data, error } = await adminClient.auth.admin.createUser({
-            email: institutional_email,
-            password: password || "Cambiar#123",
-            email_confirm: true,
-            user_metadata: { full_name, institutional_email, personal_email },
-          });
-          if (error) {
-            // Loggear el error verbose para que aparezca en los logs de
-            // la edge — el mensaje genérico "Database error creating new
-            // user" oculta la causa real (rate limit, trigger fail, etc.).
+
+          // Retry helper: hasta 3 intentos con backoff 1.5s, 3s. Solo
+          // reintenta para errores transitorios (rate limit / mensaje
+          // "database" genérico). Para errores claros como UNIQUE
+          // violation o email inválido, falla en el primer intento.
+          // deno-lint-ignore no-explicit-any
+          const isRetryable = (e: any): boolean => {
+            const msg = String(e?.message ?? "").toLowerCase();
+            return (
+              msg.includes("database error") ||
+              msg.includes("rate") ||
+              msg.includes("limit") ||
+              msg.includes("timeout") ||
+              msg.includes("503") ||
+              msg.includes("502") ||
+              (e?.status >= 500 && e?.status < 600)
+            );
+          };
+          let createResult: Awaited<ReturnType<typeof adminClient.auth.admin.createUser>> | null = null;
+          let lastErr: unknown = null;
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            createResult = await adminClient.auth.admin.createUser({
+              email: institutional_email,
+              password: password || "Cambiar#123",
+              email_confirm: true,
+              user_metadata: { full_name, institutional_email, personal_email },
+            });
+            if (!createResult.error) {
+              lastErr = null;
+              break;
+            }
+            lastErr = createResult.error;
+            if (!isRetryable(createResult.error) || attempt === 3) break;
+            // Backoff 1.5s, 3s.
+            const wait = attempt === 1 ? 1500 : 3000;
+            console.warn(
+              `[bulk-import-users] retry ${attempt}/3 for ${institutional_email} after ${wait}ms — ${createResult.error.message}`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, wait));
+          }
+          if (lastErr || !createResult || createResult.error) {
+            const err = lastErr ?? createResult?.error;
             console.error(
-              "[bulk-import-users] createUser failed for",
+              "[bulk-import-users] createUser failed permanently for",
               institutional_email,
               JSON.stringify({
-                message: error.message,
-                status: (error as { status?: number }).status,
-                code: (error as { code?: string }).code,
-                name: error.name,
+                message: (err as { message?: string })?.message,
+                status: (err as { status?: number })?.status,
+                code: (err as { code?: string })?.code,
+                name: (err as { name?: string })?.name,
               }),
             );
-            throw error;
+            throw err;
           }
-          userId = data.user!.id;
+          userId = createResult.data.user!.id;
           emailToId.set(emailKey, userId);
           // Asignar tenant_id al profile recién creado. El trigger
           // handle_new_user inserta el profile SIN tenant_id (su responsabilidad

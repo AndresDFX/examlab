@@ -10,6 +10,7 @@ import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { HelpHint } from "@/components/ui/help-hint";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
@@ -889,14 +890,30 @@ function AdminUsers() {
   // ve cross-tenant pero ese flujo no aplica acá (el bulk import siempre
   // va al tenant del caller, no cross-tenant).
   const loadCoursesForBulkImport = async () => {
-    if (coursesForBulkImportLoaded) return;
+    // SuperAdmin con filtro de institución activo: ahora amarramos el
+    // selector de "curso por defecto" al `tenantFilter`. Si el SA eligió
+    // un tenant arriba, solo le mostramos los cursos de ESE tenant — no
+    // tiene sentido ofrecer "Programación II" del tenant A cuando el
+    // import va al tenant B. Para Admin normal, RLS ya acota; el filtro
+    // no se renderiza así que tenantFilter queda en "all" y el query
+    // funciona como antes.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any)
+    let q: any = (supabase as any)
       .from("courses")
       .select("id, name, period")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(500);
+    if (isSuperAdminCaller && tenantFilter !== "all") {
+      if (tenantFilter === "none") {
+        // "Sin institución" — no hay cursos huérfanos de tenant. Vaciamos.
+        setCoursesForBulkImport([]);
+        setCoursesForBulkImportLoaded(true);
+        return;
+      }
+      q = q.eq("tenant_id", tenantFilter);
+    }
+    const { data, error } = await q;
     if (!error) {
       setCoursesForBulkImport(
         (data ?? []) as Array<{ id: string; name: string; period: string | null }>,
@@ -904,6 +921,16 @@ function AdminUsers() {
     }
     setCoursesForBulkImportLoaded(true);
   };
+
+  // Re-load cuando cambia el tenantFilter (SuperAdmin) para que el
+  // selector refleje los cursos del tenant elegido. Sin esto, el SA
+  // cambia institución pero el selector sigue mostrando cursos del
+  // tenant anterior (cached por `coursesForBulkImportLoaded`).
+  useEffect(() => {
+    setCoursesForBulkImportLoaded(false);
+    setCoursesForBulkImport([]);
+    setBulkImportCourseId("");
+  }, [tenantFilter]);
 
   const handleImportRows = async (parsed: Record<string, string>[]): Promise<string> => {
     setImporting(true);
@@ -989,6 +1016,18 @@ function AdminUsers() {
 
   return (
     <div className="space-y-5">
+      {/* Overlay full-screen mientras se procesa el bulk import. Un
+          import de 90 usuarios con throttle de 500ms tarda ~45-60s; sin
+          este overlay el admin no veía nada después de cargar el CSV y
+          creía que la app se trabó. El overlay bloquea clicks sobre el
+          resto del UI para evitar acciones accidentales durante el
+          proceso. */}
+      {importing && (
+        <LoadingOverlay
+          title="Importando usuarios…"
+          subtitle="Cada usuario lleva ~500ms para evitar saturar Supabase Auth. Si son 90 alumnos puede tomar hasta 1 minuto. No cierres esta pestaña."
+        />
+      )}
       <PageHeader
         icon={<UsersIcon className="h-6 w-6" />}
         title="Usuarios"

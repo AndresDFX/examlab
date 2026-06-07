@@ -14,6 +14,7 @@
  */
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +38,10 @@ export function ForceChangePasswordDialog({ userId, onChanged, onSignOut }: Prop
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  // Username del user actual — necesario para que el password manager
+  // asocie el cambio con la cuenta guardada y ofrezca "Actualizar contraseña".
+  const { profile, user } = useAuth();
+  const username = profile?.institutional_email || user?.email || "";
 
   const handleSave = async () => {
     if (!newPassword || !confirmPassword) {
@@ -106,7 +111,25 @@ export function ForceChangePasswordDialog({ userId, onChanged, onSignOut }: Prop
             Cambia tu contraseña
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
+        {/* <form> + hidden username + autocomplete=new-password permite
+            que el password manager detecte el cambio y ofrezca
+            "Actualizar contraseña guardada" al hacer submit. */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleSave();
+          }}
+          className="space-y-3"
+        >
+          <input
+            type="text"
+            name="username"
+            value={username}
+            autoComplete="username"
+            readOnly
+            hidden
+            aria-hidden="true"
+          />
           <p className="text-sm text-muted-foreground">
             Por seguridad, debes cambiar la contraseña temporal antes de continuar.
           </p>
@@ -120,9 +143,8 @@ export function ForceChangePasswordDialog({ userId, onChanged, onSignOut }: Prop
                 placeholder="Mínimo 8 caracteres"
                 className="pr-9"
                 autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void handleSave();
-                }}
+                autoComplete="new-password"
+                name="new-password"
               />
               <button
                 type="button"
@@ -142,31 +164,30 @@ export function ForceChangePasswordDialog({ userId, onChanged, onSignOut }: Prop
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Repite la nueva contraseña"
               className="mt-1"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void handleSave();
-              }}
+              autoComplete="new-password"
+              name="confirm-password"
             />
             {confirmPassword && newPassword !== confirmPassword && (
               <p className="text-xs text-destructive mt-1">Las contraseñas no coinciden.</p>
             )}
           </div>
-        </div>
-        <div className="flex items-center justify-between gap-2 pt-2">
-          <Button variant="ghost" size="sm" onClick={onSignOut} disabled={saving}>
-            Cerrar sesión
-          </Button>
-          <Button
-            onClick={() => void handleSave()}
-            disabled={saving || !newPassword || !confirmPassword || newPassword !== confirmPassword}
-          >
-            {saving ? (
-              <Spinner size="sm" className="mr-1" />
-            ) : (
-              <KeyRound className="h-4 w-4 mr-1" />
-            )}
-            Guardar y continuar
-          </Button>
-        </div>
+          <div className="flex items-center justify-between gap-2 pt-2">
+            <Button type="button" variant="ghost" size="sm" onClick={onSignOut} disabled={saving}>
+              Cerrar sesión
+            </Button>
+            <Button
+              type="submit"
+              disabled={saving || !newPassword || !confirmPassword || newPassword !== confirmPassword}
+            >
+              {saving ? (
+                <Spinner size="sm" className="mr-1" />
+              ) : (
+                <KeyRound className="h-4 w-4 mr-1" />
+              )}
+              Guardar y continuar
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

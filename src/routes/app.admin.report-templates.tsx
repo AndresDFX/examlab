@@ -271,14 +271,14 @@ function Inner() {
         }
       />
 
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Buscar por nombre o descripción…"
+      />
+
       <Card>
         <CardContent className="p-4 space-y-3">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder="Buscar por nombre o descripción…"
-          />
-
           <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
             {loading ? (
               <TableSkeleton cols={4} rows={5} />

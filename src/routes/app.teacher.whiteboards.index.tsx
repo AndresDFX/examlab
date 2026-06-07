@@ -394,6 +394,41 @@ function TeacherWhiteboards() {
         <StatCard icon={BookOpen} label="En curso" value={whiteboardStats.inCourse} />
       </div>
 
+      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+        <div className="flex-1 min-w-0">
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Buscar por nombre o descripción…"
+          />
+        </div>
+        {/* Sort persistido en localStorage. En mobile cae debajo del
+            search; en sm+ va a la derecha. Mismo patrón que
+            /app/student/courses. */}
+        <Select value={sort} onValueChange={(v) => setSort(v as WhiteboardSort)}>
+          <SelectTrigger className="h-9 w-full sm:w-56 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="updated_desc" className="text-xs">
+              Última edición (más reciente)
+            </SelectItem>
+            <SelectItem value="updated_asc" className="text-xs">
+              Última edición (más antigua)
+            </SelectItem>
+            <SelectItem value="created_desc" className="text-xs">
+              Creación (más reciente)
+            </SelectItem>
+            <SelectItem value="name_asc" className="text-xs">
+              Nombre (A → Z)
+            </SelectItem>
+            <SelectItem value="name_desc" className="text-xs">
+              Nombre (Z → A)
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Toolbar de bulk delete — solo se renderiza cuando hay items
           seleccionados. Mismo patrón que el resto de listados
           (proyectos, talleres, exámenes, cursos). */}
@@ -407,40 +442,6 @@ function TeacherWhiteboards() {
 
       <Card>
         <CardContent className="p-4 space-y-3">
-          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-            <div className="flex-1 min-w-0">
-              <SearchInput
-                value={search}
-                onChange={setSearch}
-                placeholder="Buscar por nombre o descripción…"
-              />
-            </div>
-            {/* Sort persistido en localStorage. En mobile cae debajo del
-                search; en sm+ va a la derecha. Mismo patrón que
-                /app/student/courses. */}
-            <Select value={sort} onValueChange={(v) => setSort(v as WhiteboardSort)}>
-              <SelectTrigger className="h-9 w-full sm:w-56 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="updated_desc" className="text-xs">
-                  Última edición (más reciente)
-                </SelectItem>
-                <SelectItem value="updated_asc" className="text-xs">
-                  Última edición (más antigua)
-                </SelectItem>
-                <SelectItem value="created_desc" className="text-xs">
-                  Creación (más reciente)
-                </SelectItem>
-                <SelectItem value="name_asc" className="text-xs">
-                  Nombre (A → Z)
-                </SelectItem>
-                <SelectItem value="name_desc" className="text-xs">
-                  Nombre (Z → A)
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
               <Spinner size="sm" /> Cargando…

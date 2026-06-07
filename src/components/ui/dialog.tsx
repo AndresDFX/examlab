@@ -74,8 +74,21 @@ const DialogContent = React.forwardRef<
 ));
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
+// pr-9 / sm:pr-10: reservamos el espacio que ocupa la X de cierre
+// (absolute right-3 top-3 sm:right-4 sm:top-4 + h-9 w-9). Sin esto,
+// cualquier contenido del header que se extienda hasta la derecha
+// (toggles, badges, botones inline tipo "Ver historial") choca con la
+// X — bug visible especialmente en mobile donde el ancho es menor.
+// El pr aplica a TODOS los dialogs del repo de una sola vez en lugar
+// de exigir que cada caller lo agregue.
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("flex flex-col space-y-1.5 text-center sm:text-left", className)} {...props} />
+  <div
+    className={cn(
+      "flex flex-col space-y-1.5 text-center sm:text-left pr-9 sm:pr-10",
+      className,
+    )}
+    {...props}
+  />
 );
 DialogHeader.displayName = "DialogHeader";
 

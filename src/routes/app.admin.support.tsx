@@ -43,7 +43,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { LifeBuoy, Plus, MessageSquare, Clock, CheckCircle2, AlertCircle } from "lucide-react";
+import { LifeBuoy, Plus, MessageSquare, Clock, CheckCircle2, AlertCircle, Paperclip, X as XIcon } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
@@ -83,6 +83,14 @@ function AdminSupportPage() {
   const [newSubject, setNewSubject] = useState("");
   const [newBody, setNewBody] = useState("");
   const [creating, setCreating] = useState(false);
+  // Archivos a adjuntar EN la creación del ticket. Antes solo podían
+  // subirse desde el dialog detalle (después de crear) — bug reportado:
+  // el admin escribía el ticket con un screenshot listo y tenía que
+  // crear primero, abrir el detalle, después adjuntar. Ahora se sube
+  // antes y la edge/cliente sube los archivos al bucket apenas tenga
+  // el ticket_id (post-insert), sin requerir un segundo viaje del usuario.
+  const [newAttachments, setNewAttachments] = useState<File[]>([]);
+  const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -163,6 +171,7 @@ function AdminSupportPage() {
     setNewPriority("normal");
     setNewSubject("");
     setNewBody("");
+    setNewAttachments([]);
   };
 
   // Hay draft si cualquiera de los campos editables tiene contenido
@@ -172,7 +181,25 @@ function AdminSupportPage() {
     newSubject.trim().length > 0 ||
     newBody.trim().length > 0 ||
     newCategory !== "peticion" ||
-    newPriority !== "normal";
+    newPriority !== "normal" ||
+    newAttachments.length > 0;
+
+  const onPickFiles = (files: FileList | null) => {
+    if (!files) return;
+    const incoming = Array.from(files);
+    const oversized = incoming.filter((f) => f.size > MAX_FILE_BYTES);
+    if (oversized.length > 0) {
+      toast.error(
+        `${oversized.length} archivo(s) superan 25 MB y se descartaron: ${oversized.map((f) => f.name).join(", ")}`,
+      );
+    }
+    const valid = incoming.filter((f) => f.size <= MAX_FILE_BYTES);
+    setNewAttachments((prev) => [...prev, ...valid]);
+  };
+
+  const removeAttachment = (idx: number) => {
+    setNewAttachments((prev) => prev.filter((_, i) => i !== idx));
+  };
 
   const createTicket = async () => {
     if (!user?.id || !profile?.tenant_id) {
@@ -205,14 +232,67 @@ function AdminSupportPage() {
         toast.error(friendlyError(error, "No se pudo crear el ticket"));
         return;
       }
-      toast.success("Ticket abierto. El SuperAdmin recibió la notificación.");
+      const createdTicket = data as SupportTicket;
+
+      // Subir los adjuntos seleccionados ANTES de crear (si los hay) al
+      // bucket. La RLS del bucket valida ticket_id = primer segmento del
+      // path → necesitamos el ticket recién creado primero, después
+      // subimos. Best-effort: si algún archivo falla, el ticket queda
+      // creado igual y avisamos en el toast cuántos no subieron.
+      let attachmentsUploaded = 0;
+      let attachmentsFailed = 0;
+      if (newAttachments.length > 0) {
+        for (const file of newAttachments) {
+          try {
+            const ext = file.name.split(".").pop() ?? "bin";
+            const randomId = crypto.randomUUID();
+            const path = `${createdTicket.id}/${randomId}.${ext}`;
+            const { error: upErr } = await supabase.storage
+              .from("support-attachments")
+              .upload(path, file, {
+                contentType: file.type || "application/octet-stream",
+              });
+            if (upErr) throw upErr;
+            const { error: insErr } = await db.from("support_ticket_attachments").insert({
+              ticket_id: createdTicket.id,
+              file_path: path,
+              file_name: file.name,
+              file_size: file.size,
+              mime_type: file.type || null,
+              uploaded_by: user.id,
+            });
+            if (insErr) throw insErr;
+            attachmentsUploaded += 1;
+          } catch (uploadErr) {
+            attachmentsFailed += 1;
+            console.warn(
+              "[support] adjunto inicial falló",
+              file.name,
+              uploadErr,
+            );
+          }
+        }
+      }
+
+      if (attachmentsFailed > 0) {
+        toast.warning(
+          `Ticket creado. ${attachmentsUploaded} adjunto(s) subido(s), ${attachmentsFailed} fallaron — podés volver a subirlos desde el detalle.`,
+        );
+      } else if (attachmentsUploaded > 0) {
+        toast.success(
+          `Ticket abierto con ${attachmentsUploaded} adjunto(s). El SuperAdmin recibió la notificación.`,
+        );
+      } else {
+        toast.success("Ticket abierto. El SuperAdmin recibió la notificación.");
+      }
+
       setCreateOpen(false);
       // Reset DESPUÉS del éxito — antes era al abrir, lo que perdía el
       // draft si el admin cerraba accidentalmente.
       resetCreateForm();
       await load();
       // Abrir el detalle del recién creado.
-      setActiveTicket(data as SupportTicket);
+      setActiveTicket(createdTicket);
       setDetailOpen(true);
     } catch (e) {
       toast.error(friendlyError(e, "Error creando el ticket"));
@@ -424,10 +504,64 @@ function AdminSupportPage() {
               <Textarea
                 value={newBody}
                 onChange={(e) => setNewBody(e.target.value)}
-                placeholder="Cuenta con detalle el problema, qué intentaste, mensajes de error, etc. Podrás adjuntar archivos después de crear el ticket."
+                placeholder="Cuenta con detalle el problema, qué intentaste, mensajes de error, etc."
                 rows={6}
                 maxLength={10000}
               />
+            </div>
+            {/* Adjuntos pre-creación. El input es type=file multiple — el
+                admin puede seleccionar varios archivos (screenshots, logs,
+                CSV) y agregarlos a la lista local. Al crear el ticket,
+                primero se inserta el ticket (necesitamos su id para el
+                path del bucket) y después se sube cada archivo. Falla
+                tolerante: si un archivo no sube, el ticket queda creado
+                igual y el admin puede subirlo después desde el detalle. */}
+            <div>
+              <Label className="text-xs flex items-center gap-1.5">
+                <Paperclip className="h-3.5 w-3.5" />
+                Adjuntos (opcional)
+              </Label>
+              <Input
+                type="file"
+                multiple
+                onChange={(e) => {
+                  onPickFiles(e.target.files);
+                  // Limpiar el input para permitir re-seleccionar el mismo
+                  // archivo si el admin lo quitó por error.
+                  e.target.value = "";
+                }}
+                className="text-xs file:mr-2 file:text-xs"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Hasta 25 MB por archivo. Screenshots, logs o cualquier evidencia que ayude.
+              </p>
+              {newAttachments.length > 0 && (
+                <div className="mt-2 space-y-1 max-h-32 overflow-y-auto rounded border bg-muted/30 p-2">
+                  {newAttachments.map((file, idx) => (
+                    <div
+                      key={`${file.name}-${idx}`}
+                      className="flex items-center gap-2 text-xs"
+                    >
+                      <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      <span className="truncate flex-1" title={file.name}>
+                        {file.name}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+                        {(file.size / 1024).toFixed(1)} KB
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(idx)}
+                        className="text-muted-foreground hover:text-destructive shrink-0"
+                        title="Quitar"
+                        disabled={creating}
+                      >
+                        <XIcon className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           {/* Banner sutil cuando hay draft: el dialog conserva lo escrito
