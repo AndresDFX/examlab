@@ -1628,7 +1628,12 @@ function TeacherContents() {
           // vive como dialog dentro de la lista — pasamos `?edit=<id>`
           // y la ruta lo abre automáticamente, igual al pattern que
           // ya usaba `?workshop=<id>`/`?project=<id>` para grading.
-          if (target === "exam") void navigate({ to: `/app/teacher/exams/${id}` });
+          // TanStack Router NO matchea `$examId` con URL hand-built —
+          // exige `to: "/path/$param", params: { param }`. Con template
+          // string la navegación falla en silencio (queda en la ruta
+          // actual) y el toast.success despista al docente.
+          if (target === "exam")
+            void navigate({ to: "/app/teacher/exams/$examId", params: { examId: id } });
           else if (target === "workshop")
             void navigate({ to: "/app/teacher/workshops", search: { edit: id } });
           else void navigate({ to: "/app/teacher/projects", search: { edit: id } });
@@ -2454,7 +2459,11 @@ function MaterializeCourseDialog({
       // conteos derivados actualizados — abrir N pestañas sería ruido.
       if (createdCount === 1 && firstId) {
         if (firstId.kind === "exam") {
-          void navigate({ to: `/app/teacher/exams/${firstId.id}` });
+          // params obligatorio para TanStack (ver comentario arriba).
+          void navigate({
+            to: "/app/teacher/exams/$examId",
+            params: { examId: firstId.id },
+          });
         } else if (firstId.kind === "workshop") {
           void navigate({ to: "/app/teacher/workshops", search: { edit: firstId.id } });
         } else {

@@ -990,9 +990,18 @@ const CALENDAR_SUBSCRIBED_KEY = "examlab:calendar_subscribed";
 
 function SubscribeCalendarButton() {
   const { t } = useTranslation();
-  const [alreadySubscribed, setAlreadySubscribed] = useState(
-    () => typeof window !== "undefined" && !!localStorage.getItem(CALENDAR_SUBSCRIBED_KEY),
-  );
+  // No leer `localStorage` en el initializer de useState — el HTML
+  // pre-renderizado no tiene localStorage y el primer render del cliente
+  // SÍ → mismatch que dispara React #418 ("Minified React error #418").
+  // Patrón canonical del repo: estado determinista + sync post-mount.
+  const [alreadySubscribed, setAlreadySubscribed] = useState(false);
+  useEffect(() => {
+    try {
+      setAlreadySubscribed(!!localStorage.getItem(CALENDAR_SUBSCRIBED_KEY));
+    } catch {
+      // localStorage puede estar bloqueado en private mode — ignorar.
+    }
+  }, []);
   // Dialog de fallback — solo aparece si el primer intento (popup
   // bloqueado) o si el estudiante hace click en "URL manual".
   const [fallbackOpen, setFallbackOpen] = useState(false);

@@ -140,6 +140,9 @@ function AdminStatistics() {
       let coursesQuery: any = (supabase as any)
         .from("courses")
         .select("id, name, period, program_id, period_id, subject_id")
+        // Excluye cursos en papelera (soft-delete) — sus KPIs distorsionan
+        // aprobación/asistencia y las filas clickeables llevan a "fantasmas".
+        .is("deleted_at", null)
         .order("name");
       if (isSuperAdminCaller && tenantFilter !== "all") {
         coursesQuery = coursesQuery.eq("tenant_id", tenantFilter);

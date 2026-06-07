@@ -458,6 +458,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
     supabase
       .from("courses")
       .select("id, name")
+      .is("deleted_at", null) // no incluir cursos en papelera en el dropdown
       .order("name")
       .then(({ data }) => setCourses(data ?? []));
   }, [mode]);
