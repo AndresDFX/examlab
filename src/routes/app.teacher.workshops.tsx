@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
+import { isStaffRole } from "@/shared/lib/roles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -518,7 +519,9 @@ function TeacherWorkshops() {
     setGroupsOpen(true);
   };
 
-  const isTeacher = roles.includes("Docente") || roles.includes("Admin");
+  // SA accede a pantallas Docente para soporte / diagnóstico — sin SA
+  // en el set, recibía "Necesitas rol Docente" silencioso al entrar.
+  const isTeacher = isStaffRole(roles);
 
   /** Auto-assign a workshop to all students enrolled in the course */
   const autoAssignWorkshop = async (workshopId: string, courseId: string) => {

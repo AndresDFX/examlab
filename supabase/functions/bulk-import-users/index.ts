@@ -480,6 +480,12 @@ Deno.serve(async (req) => {
         const errAny = e as any;
         void auditFromEdge(adminClient, {
           actorId: u.user.id,
+          // Si el caller es el SA actuando sobre un tenant específico,
+          // queremos que el audit log aparezca en /app/admin/audit-logs
+          // del tenant destino, no solo en el panel del SA. Pasamos
+          // explícito `tenantId: callerTenantId` (calculado al inicio
+          // de la edge desde el profile o el override del SA).
+          tenantId: callerTenantId,
           action: "user.bulk_import_row_failed",
           category: "user",
           severity: "error",
@@ -504,6 +510,7 @@ Deno.serve(async (req) => {
     const failed = result.filter((r) => !r.ok).length;
     void auditFromEdge(adminClient, {
       actorId: u.user.id,
+      tenantId: callerTenantId,
       action: "user.bulk_imported",
       category: "user",
       severity: "warning",

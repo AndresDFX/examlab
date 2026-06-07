@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { isStaffRole } from "@/shared/lib/roles";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -67,7 +68,9 @@ type CourseOpt = { id: string; name: string; period: string | null };
 
 function TeacherStatistics() {
   const { roles, user } = useAuth();
-  const isTeacher = roles.includes("Docente") || roles.includes("Admin");
+  // SA accede a pantallas Docente para soporte / diagnóstico — sin SA
+  // en el set, recibía "Necesitas rol Docente" silencioso al entrar.
+  const isTeacher = isStaffRole(roles);
   const [courses, setCourses] = useState<CourseOpt[]>([]);
   const [courseId, setCourseId] = useState("");
   const [dataset, setDataset] = useState<CourseDataset | null>(null);

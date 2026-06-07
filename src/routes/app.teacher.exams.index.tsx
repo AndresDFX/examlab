@@ -5,6 +5,7 @@ import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
+import { isStaffRole } from "@/shared/lib/roles";
 import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -193,7 +194,9 @@ function TeacherExams() {
   const [courseCuts, setCourseCuts] = useState<
     Record<string, { cut_id: string | null; weight: number }>
   >({});
-  const isTeacher = roles.includes("Docente") || roles.includes("Admin");
+  // SA accede a pantallas Docente para soporte / diagnóstico — sin SA
+  // en el set, recibía "Necesitas rol Docente" silencioso al entrar.
+  const isTeacher = isStaffRole(roles);
   const confirm = useConfirm();
 
   const remove = async (exam: Exam) => {

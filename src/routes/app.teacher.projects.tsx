@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
+import { isStaffRole } from "@/shared/lib/roles";
 import { scoreCerradaMulti } from "@/modules/exams/question-scoring";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { toCSV } from "@/shared/lib/csv";
@@ -180,7 +181,9 @@ function TeacherProjects() {
   const { user, roles } = useAuth();
   const { t } = useTranslation();
   const confirm = useConfirm();
-  const isTeacher = roles.includes("Docente") || roles.includes("Admin");
+  // SA accede a pantallas Docente para soporte / diagnóstico — sin SA
+  // en el set, recibía "Necesitas rol Docente" silencioso al entrar.
+  const isTeacher = isStaffRole(roles);
   // Gate IA: cubre generateDescription (ai-generate-questions) +
   // aiRegradeSubFile (ai-grade-submission por archivo). Pide
   // confirmación si el modo es async y el docente no tiene override.

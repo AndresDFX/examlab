@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import i18next from "i18next";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
+import { isStaffRole } from "@/shared/lib/roles";
 import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -202,7 +203,9 @@ function Gradebook() {
   const [issuingId, setIssuingId] = useState<string | null>(null);
   const [bulkIssuing, setBulkIssuing] = useState(false);
   const confirm = useConfirm();
-  const isTeacher = roles.includes("Docente") || roles.includes("Admin");
+  // SA accede a pantallas Docente para soporte / diagnóstico — sin SA
+  // en el set, recibía "Necesitas rol Docente" silencioso al entrar.
+  const isTeacher = isStaffRole(roles);
 
   // Carga certificados activos del curso (refresh tras emitir)
   const reloadCertificates = useCallback(async () => {
