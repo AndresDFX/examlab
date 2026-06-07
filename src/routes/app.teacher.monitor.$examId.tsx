@@ -2459,7 +2459,7 @@ function ExamMonitor() {
 
       {/* Dialog: lista de intentos del estudiante */}
       <Dialog open={attemptsForUser != null} onOpenChange={(o) => !o && setAttemptsForUser(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Intentos de {attemptsRow?.profile?.full_name ?? "—"}</DialogTitle>
             <DialogDescription>
@@ -4114,7 +4114,7 @@ function ExamMonitor() {
           if (!open && !applyingReGrade) setReGradePreview(null);
         }}
       >
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-indigo-500" />

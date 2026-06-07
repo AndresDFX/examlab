@@ -3181,7 +3181,7 @@ function TeacherWorkshops() {
 
       {/* Assignment / Exclusion Dialog (course-level workshop) */}
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Asignación del taller — {assignWs?.title}</DialogTitle>
           </DialogHeader>
@@ -4273,7 +4273,7 @@ function TeacherWorkshops() {
 
       {/* Workshop groups editor dialog */}
       <Dialog open={groupsOpen} onOpenChange={setGroupsOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Grupos del taller {groupsWs ? `— ${groupsWs.title}` : ""}</DialogTitle>
           </DialogHeader>
@@ -4285,7 +4285,7 @@ function TeacherWorkshops() {
 
       {/* Workshop questions editor dialog */}
       <Dialog open={questionsOpen} onOpenChange={setQuestionsOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Preguntas del taller {questionsWs ? `— ${questionsWs.title}` : ""}

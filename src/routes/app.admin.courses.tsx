@@ -2231,7 +2231,7 @@ export function AdminCourses() {
 
       {/* ── Teacher Assignment Dialog ── */}
       <Dialog open={teacherOpen} onOpenChange={setTeacherOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Docentes — {teacherCourse?.name}</DialogTitle>
           </DialogHeader>
@@ -2937,7 +2937,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
 
   return (
     <Dialog open={!!course} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" hideCloseButton>
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto" hideCloseButton>
         <DialogHeader>
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">

@@ -485,7 +485,7 @@ export function AdminAcademicSubjectsPanel() {
       </CardContent>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{draft.id ? "Editar asignatura" : "Nueva asignatura"}</DialogTitle>
           </DialogHeader>

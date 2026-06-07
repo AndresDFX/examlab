@@ -377,7 +377,7 @@ export function AdminAcademicPeriodsPanel() {
       </CardContent>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{draft.id ? "Editar periodo" : "Nuevo periodo"}</DialogTitle>
           </DialogHeader>

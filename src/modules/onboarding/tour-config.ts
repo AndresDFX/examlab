@@ -281,6 +281,18 @@ export const ADMIN_TOUR: TourStep[] = [
     side: "right",
   },
 
+  // ─── Soporte (NUEVO 2026-06) ────────────────────────────────────────
+  // Canal directo Admin → SuperAdmin (PQRS). Solo Admin / SuperAdmin.
+  // Docente y Estudiante no tienen el módulo.
+  {
+    element: '[data-tour-module="support"]',
+    route: "/app/admin/support",
+    title: "Soporte (PQRS)",
+    description:
+      "Tu canal directo con el <strong>SuperAdmin</strong> de la plataforma. Abrí un ticket con tu <em>petición, queja, reclamo o sugerencia</em> — podés adjuntar archivos y mantener la conversación dentro del ticket. Recibís notificación cuando te respondan o cambien el estado. Casos típicos: errores de plataforma, solicitudes de cuota, reportes de bugs, dudas operativas.",
+    side: "right",
+  },
+
   // ─── Configuración ──────────────────────────────────────────────────
   {
     element: '[data-tour-nav="/app/admin/settings"]',

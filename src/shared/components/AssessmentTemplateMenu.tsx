@@ -218,7 +218,7 @@ export function AssessmentTemplateMenu<T extends Record<string, unknown>>({
       </DropdownMenu>
 
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Guardar plantilla</DialogTitle>
             <DialogDescription>

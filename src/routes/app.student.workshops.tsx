@@ -406,7 +406,7 @@ function StudentWorkshops() {
       />
 
       {/* Stats 4-card — siempre visible, patrón compartido. */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard
           icon={Hammer}
           label="Disponibles"
@@ -720,7 +720,7 @@ function StudentWorkshops() {
           if (!open && user) void reload(user.id);
         }}
       >
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{questionsWs?.workshop.title}</DialogTitle>
           </DialogHeader>

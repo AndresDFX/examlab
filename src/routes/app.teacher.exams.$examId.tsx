@@ -1664,7 +1664,7 @@ function ExamEditor() {
 
       {/* Resultado de evaluación de tiempo con IA. */}
       <Dialog open={!!timeEvalResult} onOpenChange={(o) => !o && setTimeEvalResult(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />

@@ -1554,7 +1554,7 @@ function Gradebook() {
           if (!o) setDetailCutId(null);
         }}
       >
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Detalle del corte: {detailCut?.name}
@@ -1589,7 +1589,7 @@ function Gradebook() {
           if (!o) setDetailStudentId(null);
         }}
       >
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {(() => {

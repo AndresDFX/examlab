@@ -260,7 +260,7 @@ export function GenerateSessionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl" hideCloseButton>
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl" hideCloseButton>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarPlus className="h-5 w-5 text-primary" />

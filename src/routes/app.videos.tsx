@@ -795,7 +795,7 @@ function VideoLibrary() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={(o) => !saving && setDialogOpen(o)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editing ? "Editar video" : "Nuevo video"}</DialogTitle>
           </DialogHeader>

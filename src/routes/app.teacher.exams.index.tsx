@@ -583,7 +583,7 @@ function TeacherExams() {
       />
 
       {/* Stats 4-card — siempre visible, mismo patrón que el resto. */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard icon={Pencil} label="Borradores" value={examStats.draft} />
         <StatCard
           icon={CheckCircle2}
@@ -841,7 +841,7 @@ function TeacherExams() {
       </Card>
 
       <Dialog open={open} onOpenChange={examDirty.guardOpenChange(setOpen)}>
-        <DialogContent className="max-w-lg" data-tour-id="dialog-exam">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg" data-tour-id="dialog-exam">
           <DialogHeader>
             <DialogTitle>{t("exam.newExam")}</DialogTitle>
           </DialogHeader>

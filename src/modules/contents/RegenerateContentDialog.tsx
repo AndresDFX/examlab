@@ -244,7 +244,7 @@ export function RegenerateContentDialog({
   return (
     <>
       <Dialog open={target != null} onOpenChange={(o) => !o && onClose()}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {target.mode === "full" ? (

@@ -1505,7 +1505,7 @@ function TeacherAttendance() {
 
       {/* New session dialog */}
       <Dialog open={newSessionOpen} onOpenChange={setNewSessionOpen}>
-        <DialogContent className="max-w-sm" data-tour-id="dialog-session">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm" data-tour-id="dialog-session">
           <DialogHeader>
             <DialogTitle>Nueva sesión de asistencia</DialogTitle>
           </DialogHeader>
@@ -1620,7 +1620,7 @@ function TeacherAttendance() {
         open={!!recordingEditSession}
         onOpenChange={(o) => !o && setRecordingEditSession(null)}
       >
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Editar grabación</DialogTitle>
           </DialogHeader>
@@ -1670,7 +1670,7 @@ function TeacherAttendance() {
         open={!!checkInConfigSession}
         onOpenChange={(o) => !o && setCheckInConfigSession(null)}
       >
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Iniciar check-in con QR</DialogTitle>
           </DialogHeader>

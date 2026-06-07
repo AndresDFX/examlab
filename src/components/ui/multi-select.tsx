@@ -281,7 +281,7 @@ export function BulkDeleteDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !submitting && onOpenChange(o)}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
             {actionLabel} {count} {label}

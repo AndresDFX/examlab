@@ -470,6 +470,39 @@ Análoga a la cola de calificación (`ai_grading_queue`) pero para **generación
 - **Edge `generate-contents` con `verify_jwt=false`** (supabase/config.toml): la edge la invoca tanto el `ai-generation-worker` (Bearer service*role_key, drain del job kind=content_generation) como la UI del docente (Bearer user JWT en flujo sync). Cuando el service_role del proyecto es del sistema nuevo (`sb_secret*\*`, no JWT parseable), el gateway con verify_jwt=true responde `401 UNAUTHORIZED_INVALID_JWT_FORMAT`antes de llegar al handler — error reportado: "generate-contents HTTP 401: Invalid JWT" desde Cola IA → Generaciones. Apagamos verify_jwt; la autorización fina se enforza via`body.id`+`adminClient`con RLS al leer/escribir`generated_contents`(mismo patrón que`ai-grading-worker`/`ai-grade-submission`).
 - **Edge `ai-generate-questions` con `verify_jwt=false`** (supabase/config.toml + handler): mismo problema y solución que `generate-contents`. La edge la invoca el frontend (Bearer user JWT, flujo sync del docente) y `ai-generation-worker` (Bearer service_role_key, drain de jobs `kind ∈ {workshop_questions, exam_questions, project_files}` que apuntan a `invoke_target = "ai-generate-questions"`). Con verify_jwt=true el service_role `sb_secret_*` se rebota con 401 antes del handler — error reportado en Cola IA: "HTTP 401: UNAUTHORIZED_INVALID_JWT_FORMAT" en jobs de "Preguntas de taller" desde el worker. El handler valida internamente al inicio del `Deno.serve`: `bearer === SUPABASE_SERVICE_ROLE_KEY` → pass (worker), o user JWT válido vía `userClientFromRequest` → pass (UI). Sin esa validación, agregar verify_jwt=false dejaría la edge abierta a cualquiera con la URL (gastaría créditos IA + podría inyectar preguntas via service_role bypass de RLS).
 
+### Módulo Soporte (PQRS Admin de tenant → SuperAdmin)
+
+Canal de peticiones, quejas, reclamos y sugerencias del Admin de un tenant hacia el dueño de plataforma. Reemplaza el "email al SuperAdmin" como mecanismo informal.
+
+- **DB** ([20260904000000_support_tickets.sql](supabase/migrations/20260904000000_support_tickets.sql)): tres tablas — `support_tickets` (cabecera + status + assignment + resolution_notes + soft-delete), `support_ticket_messages` (chat), `support_ticket_attachments` (archivos en bucket `support-attachments`). Categorías: `peticion`, `queja`, `reclamo`, `sugerencia`, `otro`. Status: `open` → `in_progress` → `waiting_admin` → `resolved` / `closed`. Trigger `_support_tickets_touch_updated_at` setea `resolved_at` automáticamente al pasar a resolved/closed.
+- **RLS**:
+  - SELECT: `created_by = auth.uid()` (admin del propio ticket) O `is_super_admin()`.
+  - INSERT: solo Admin del tenant. WITH CHECK valida `tenant_id = (select tenant_id from profiles where id = auth.uid())` para que el admin no pueda abrir tickets a nombre de otro tenant.
+  - UPDATE: SA puede todo; Admin solo puede modificar su ticket (típicamente status='closed' o priority). NO puede tocar `resolution_notes` ni `assigned_to`.
+  - DELETE: solo SA (hard-delete; el soft-delete pasa por el column `deleted_at` que NO se expone al Admin via UPDATE).
+- **Notificaciones (triggers SQL)**:
+  - INSERT en tickets → notif `🎫 Nuevo ticket de soporte` a TODOS los SuperAdmins (`source_role='Admin'`), link `/app/superadmin/support?ticket=<id>`.
+  - UPDATE de status → notif al `created_by` con label humano del status (`🎫 Ticket actualizado`).
+  - INSERT en messages → si sender es SA, notif al `created_by`; si es Admin, notif al `assigned_to` o a TODOS los SA si no hay asignado.
+- **Storage bucket `support-attachments`** (privado): RLS valida que el caller sea creator del ticket O SA. Path convention: `<ticket_id>/<random-uuid>.<ext>` — el ticket_id se extrae con `split_part(name, '/', 1)` en la policy para joinear con `support_tickets`. Las descargas usan `createSignedUrl(path, 60)` (60s de vigencia).
+- **UI**:
+  - [src/modules/support/SupportTicketDetailDialog.tsx](src/modules/support/SupportTicketDetailDialog.tsx): dialog COMPARTIDO entre Admin y SA con prop `mode`. Tiene chat realtime (suscripción a INSERT en `support_ticket_messages` filtrado por ticket_id), composer con Ctrl+Enter para enviar, adjuntar archivos (max 25 MB), download via signed URL.
+  - [src/routes/app.admin.support.tsx](src/routes/app.admin.support.tsx): lista de SUS tickets + botón "Nuevo ticket" + stats 4-card.
+  - [src/routes/app.superadmin.support.tsx](src/routes/app.superadmin.support.tsx): bandeja cross-tenant con filtros por estado/tenant/búsqueda. Default filter `active` (open + in_progress + waiting_admin).
+- **Auto-asignación**: cuando el SA responde por primera vez a un ticket `open`, el dialog lo mueve automáticamente a `in_progress` y setea `assigned_to = currentUserId`. Si el SA mueve a resolved/closed sin assignment, también se auto-asigna.
+- **Módulo en panel**: `{ key: "support", label: "Soporte" }` con roleKeyMap implícito (no virtual — directo). Solo aplica a Admin y SuperAdmin; Docente/Estudiante toggles quedan no-op. NAV item con icono `LifeBuoy`, label `nav.support` ("Soporte" / "Support").
+- **Onboarding tour**: ADMIN_TOUR tiene step Soporte después de Papelera y antes de Configuración. SuperAdmin no tiene tour (decisión de producto).
+
+### Restricción de mensajería al SuperAdmin
+
+`can_message(_a, _b)` actualizado (mig [20260903000000](supabase/migrations/20260903000000_can_message_block_to_superadmin.sql)) para bloquear que Docente/Estudiante inicien chat con un SuperAdmin. Si CUALQUIERA de los dos lados es SA (sin importar otros roles que tenga), el otro DEBE ser Admin o SA. Esto se aplica simétrico — `open_conversation` y RLS de `messages.INSERT` consumen la misma función, así que el bloqueo es consistente UI + DB.
+
+Caso operativo: el SuperAdmin recibe mensajes solo de Admins de tenants (cuestiones cross-tenant). El canal "Admin del tenant → SuperAdmin" para PQRS es el **módulo Soporte**, no mensajes directos.
+
+### Card "Email (SMTP)" en SystemDiagnosticsPanel
+
+El panel de Diagnósticos del SuperAdmin (`/app/superadmin/system` tab "Diagnósticos") tenía 9 `<StatusCard>` en grid `lg:grid-cols-2` — el último (Tareas programadas) quedaba huérfano en su fila. Se agregó un 10º card como contraparte natural de "Web Push": valida presencia de los 5 secrets críticos del SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM`). Si todos están presentes, status `ok`; si falta cualquiera, `error` con la lista de secrets ausentes. Mantiene la simetría visual del grid sin requerir un edge function de prueba.
+
 ### Auto-sleep Java GUI runner (sin pedirle `Thread.sleep` al alumno)
 
 El estudiante escribe `JFrame f = new JFrame(); f.setVisible(true);` y termina su `main`. Sin algo que mantenga viva la JVM, Xvfb captura un framebuffer negro porque Swing no alcanzó a pintar. Pedirle al alumno que ponga `Thread.sleep(4000)` al final del main es ruido pedagógico — no es lo que evalúa la pregunta y se les olvida.

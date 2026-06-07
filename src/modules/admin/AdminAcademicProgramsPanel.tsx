@@ -313,7 +313,7 @@ export function AdminAcademicProgramsPanel() {
             max-h-[calc(100dvh-2rem)] + overflow-y-auto, y DialogFooter es
             sticky bottom-0 con bg + border-t. No hace falta añadir
             flex/scroll propio — solo personalizamos el max-width. */}
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{draft.id ? "Editar programa" : "Nuevo programa"}</DialogTitle>
           </DialogHeader>

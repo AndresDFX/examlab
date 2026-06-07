@@ -167,7 +167,7 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-lg" hideCloseButton>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg" hideCloseButton>
           <DialogHeader>
             <DialogTitle>Notas de apoyo</DialogTitle>
             <DialogDescription>
@@ -481,7 +481,7 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
         open={rejectDialog.open}
         onOpenChange={(o) => !o && setRejectDialog({ open: false, noteId: null })}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Rechazar notas de apoyo</DialogTitle>
             <DialogDescription>

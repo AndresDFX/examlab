@@ -570,7 +570,7 @@ function StudentAttendance() {
 
       {!loadingCourses && courses.length > 0 && (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <Card>
               <CardContent className="p-4">
                 <div className="text-xs text-muted-foreground">Sesiones</div>
@@ -830,7 +830,7 @@ function StudentAttendance() {
           biblioteca. MP4/WebM directo usa <video>, YouTube/Vimeo usa
           iframe — la URL ya viene en forma embed por buildVideoEmbedUrl. */}
       <Dialog open={!!recordingDialog} onOpenChange={(o) => !o && setRecordingDialog(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Grabación · {recordingDialog?.sessionTitle}</DialogTitle>
           </DialogHeader>

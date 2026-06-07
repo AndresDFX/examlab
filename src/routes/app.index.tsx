@@ -324,7 +324,7 @@ function AdminDashboard() {
           negocio del Admin (cursos, usuarios, items pendientes,
           pendientes docentes). Mismo grid (2-col mobile, 4-col md+)
           y mismo componente <Stat> que Teacher/Student/SuperAdmin. */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <Stat
           icon={BookOpen}
           label={t("dashboard.stats.courses")}

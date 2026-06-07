@@ -2202,7 +2202,7 @@ function MessagesPage() {
 
       {/* Dialog: nueva conversación */}
       <Dialog open={newDialogOpen} onOpenChange={setNewDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Nueva conversación</DialogTitle>
             <DialogDescription>

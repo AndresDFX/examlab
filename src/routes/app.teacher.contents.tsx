@@ -900,7 +900,7 @@ function TeacherContents() {
       {/* Stats 4-card — patrón compartido. Aparece SIEMPRE (incluso con
           items.length === 0) para mantener consistencia visual con el
           resto de los módulos cuando todavía no se generó contenido. */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard
           icon={CheckSquare}
           label="Completados"
@@ -1541,7 +1541,7 @@ function TeacherContents() {
 
       {/* Raw output dialog */}
       <Dialog open={rawForId != null} onOpenChange={(o) => !o && setRawForId(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>{t("contents.raw")}</DialogTitle>
             <DialogDescription>{rawItem?.topic}</DialogDescription>
@@ -1556,7 +1556,7 @@ function TeacherContents() {
           para que el docente pueda copiarlo y diagnosticar fallos del
           edge function (timeouts, VAPID/keys faltantes, etc.). */}
       <Dialog open={errorForId != null} onOpenChange={(o) => !o && setErrorForId(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <AlertCircle className="h-5 w-5" />
@@ -2466,7 +2466,7 @@ function MaterializeCourseDialog({
 
   return (
     <Dialog open={!!content} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BookOpenCheck className="h-5 w-5 text-primary" />
@@ -3134,7 +3134,7 @@ function FilesByClassDialog({
   return (
     <>
       <Dialog open={!!content} onOpenChange={(o) => !o && onClose()}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />

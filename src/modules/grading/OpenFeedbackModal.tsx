@@ -443,7 +443,7 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {filterMode === "needsMyResponse" || filterMode === "studentNeedsResponse" ? (

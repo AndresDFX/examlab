@@ -979,7 +979,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
 
       {/* ── Dialog de detalle ── */}
       <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {detail && SEVERITY_ICONS[detail.severity]}

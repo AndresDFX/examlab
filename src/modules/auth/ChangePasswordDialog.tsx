@@ -86,7 +86,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
         onOpenChange(v);
       }}
     >
-      <DialogContent className="max-w-sm" hideCloseButton>
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm" hideCloseButton>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <KeyRound className="h-5 w-5 text-primary" />

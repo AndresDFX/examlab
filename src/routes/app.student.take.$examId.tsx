@@ -1998,7 +1998,7 @@ function TakeExam() {
       </div>
 
       <Dialog open={confirmNextOpen} onOpenChange={setConfirmNextOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" />
@@ -2033,7 +2033,7 @@ function TakeExam() {
       </Dialog>
 
       <Dialog open={manualLeaveOpen} onOpenChange={(open) => !open && setManualLeaveOpen(false)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" />
@@ -2092,7 +2092,7 @@ function TakeExam() {
       </Dialog>
 
       <Dialog open={submitModal.open} onOpenChange={(open) => !open && cancelManualSubmitModal()}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 shrink-0 text-amber-500" />

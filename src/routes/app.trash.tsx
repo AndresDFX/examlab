@@ -429,7 +429,7 @@ function TrashPage() {
       {/* Stats 4-card — mismo patrón visual que el resto de los módulos.
           Conteos absolutos sobre `items` (sin aplicar search/filter) —
           dan contexto general; el detalle filtrado vive en la tabla. */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard icon={Trash2} label="Total en papelera" value={trashStats.total} />
         <StatCard
           icon={AlertTriangle}

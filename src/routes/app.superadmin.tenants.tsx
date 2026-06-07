@@ -923,7 +923,7 @@ function SuperAdminTenantsPage() {
               <p className="text-[11px] text-muted-foreground">
                 Tope de usuarios por rol. Deja vacío para ilimitado. SuperAdmin no consume cuota.
               </p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Administradores</Label>
                   <Input

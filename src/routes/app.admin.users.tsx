@@ -1046,7 +1046,7 @@ function AdminUsers() {
           estructura para Admin y SuperAdmin; el SA ve los conteos del
           tenant filtrado (o todos si tenantFilter="all"). Aparece
           SIEMPRE — un 0 es informativo. */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard icon={UsersIcon} label="Total" value={userStats.total} />
         <StatCard icon={GraduationCap} label="Estudiantes" value={userStats.students} />
         <StatCard icon={Briefcase} label="Docentes" value={userStats.teachers} />

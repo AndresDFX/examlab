@@ -1190,7 +1190,7 @@ function CreatePollDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg" data-tour-id="dialog-poll">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg" data-tour-id="dialog-poll">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Editar encuesta" : "Nueva encuesta"}</DialogTitle>
         </DialogHeader>
@@ -1937,7 +1937,7 @@ function ResultsDialog({
   const total = options.reduce((acc, o) => acc + o.responses_count, 0);
   return (
     <Dialog open={Boolean(poll)} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {poll.title}

@@ -324,7 +324,7 @@ export function ActasManager({ onPrintActa }: Props) {
       </CardContent>
 
       <Dialog open={genOpen} onOpenChange={setGenOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Generar acta oficial</DialogTitle>
             <DialogDescription>

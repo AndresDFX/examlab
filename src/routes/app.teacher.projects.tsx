@@ -2631,7 +2631,7 @@ function TeacherProjects() {
           la IA devuelve la descripción global del proyecto, que reemplaza
           el textarea del form principal. */}
       <Dialog open={aiDescOpen} onOpenChange={(o) => !aiDescLoading && setAiDescOpen(o)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
@@ -2676,7 +2676,7 @@ function TeacherProjects() {
 
       {/* Project groups editor dialog */}
       <Dialog open={groupsOpen} onOpenChange={setGroupsOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Grupos del proyecto {groupsProject ? `— ${groupsProject.title}` : ""}
@@ -2697,7 +2697,7 @@ function TeacherProjects() {
 
       {/* Files (slots) editor */}
       <Dialog open={filesOpen} onOpenChange={setFilesOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Preguntas — {filesProject?.title}</DialogTitle>
           </DialogHeader>
@@ -2712,7 +2712,7 @@ function TeacherProjects() {
 
       {/* Assignment dialog */}
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Asignar — {assignProject?.title}</DialogTitle>
           </DialogHeader>
@@ -2781,7 +2781,7 @@ function TeacherProjects() {
 
       {/* Grading / submissions dialog */}
       <Dialog open={gradingOpen} onOpenChange={setGradingOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {gradingProject?.is_external ? "Notas externas" : "Entregas"} —{" "}
