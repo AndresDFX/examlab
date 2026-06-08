@@ -74,6 +74,23 @@ Deno.serve(async (req: Request) => {
     return jsonError(`update_failed: ${updErr.message ?? "unknown"}`, 500);
   }
 
+  // 2b) Limpiar must_change_password: el usuario ELIGIÓ su propia
+  //     contraseña vía token (link de bienvenida o "olvidé mi contraseña"),
+  //     así que NO debe forzarse otro cambio al iniciar sesión. El cambio
+  //     forzado (must_change_password=true) es SOLO para la contraseña
+  //     TEMPORAL que asigna un admin y que el usuario nunca eligió (ese
+  //     flujo es login directo con la temp, sin pasar por este token).
+  //     Best-effort: si falla, el peor caso es que el diálogo aparezca una
+  //     vez de más — no bloqueamos el reset por esto.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: mcpErr } = await (adminClient as any)
+    .from("profiles")
+    .update({ must_change_password: false })
+    .eq("id", row.user_id);
+  if (mcpErr) {
+    console.warn("[confirm-password-reset] clear must_change_password failed", mcpErr);
+  }
+
   // 3) Marcar token como usado. Best-effort: si falla, el password ya
   //    se actualizó. Lo loggeamos pero respondemos OK al usuario.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
