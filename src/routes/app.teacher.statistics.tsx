@@ -45,6 +45,7 @@ import {
   AlertTriangle,
   Bot,
   Users,
+  UserX,
   CalendarCheck,
   TrendingUp,
 } from "lucide-react";
@@ -54,8 +55,10 @@ import {
   computeApprovalByKind,
   computeAttendanceBySession,
   computeCutTrend,
+  computeFailedStudents,
   computeFraudStats,
   computeGradeDistribution,
+  computeNoPresentedStudents,
   type CourseDataset,
   type SubmissionLike,
 } from "@/shared/lib/statistics";
@@ -232,6 +235,19 @@ export function CourseDashboard({ ds }: { ds: CourseDataset }) {
       ? 0
       : Math.round((overallApproval.approved / overallApproval.total) * 100);
 
+  // KPIs centrados en exámenes: cuántos estudiantes ÚNICOS perdieron al
+  // menos un examen (nota < passing) y cuántos no presentaron ningún
+  // examen. Distinto del "Pendientes" del donut, que mezcla ambos casos
+  // contando celdas matriculado × actividad.
+  const examFailed = useMemo(
+    () => computeFailedStudents(ds.examSubs, enrolledIds, ds.course),
+    [ds.examSubs, enrolledIds, ds.course],
+  );
+  const examNoPresented = useMemo(
+    () => computeNoPresentedStudents(ds.examSubs, enrolledIds),
+    [ds.examSubs, enrolledIds],
+  );
+
   return (
     <div className="space-y-5">
       {/* KPIs */}
@@ -257,6 +273,25 @@ export function CourseDashboard({ ds }: { ds: CourseDataset }) {
           value={fraud.aiSuspect}
           subline={`${fraud.plagiarismPairs} par${fraud.plagiarismPairs === 1 ? "" : "es"} de copia`}
           accent="text-amber-500"
+        />
+      </div>
+
+      {/* KPIs de exámenes — desglose de "Pendientes" en perdieron vs no
+          presentaron. Cuentan estudiantes únicos sobre los exámenes. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <KpiCard
+          icon={XCircle}
+          label="Perdieron exámenes"
+          value={examFailed.failed}
+          subline={`de ${totalEnrolled} estudiante${totalEnrolled === 1 ? "" : "s"}`}
+          accent="text-rose-500"
+        />
+        <KpiCard
+          icon={UserX}
+          label="No presentaron"
+          value={examNoPresented.notPresented}
+          subline={`de ${totalEnrolled} estudiante${totalEnrolled === 1 ? "" : "s"}`}
+          accent="text-zinc-500"
         />
       </div>
 

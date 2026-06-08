@@ -3,8 +3,10 @@ import {
   computeApproval,
   computeAttendanceBySession,
   computeCutTrend,
+  computeFailedStudents,
   computeFraudStats,
   computeGradeDistribution,
+  computeNoPresentedStudents,
   effectiveGrade,
   isApproved,
   type AttendanceRecord,
@@ -120,6 +122,83 @@ describe("computeApproval", () => {
     const r = computeApproval(subs, enrolled, c);
     expect(r.approved).toBe(1);
     expect(r.pending).toBe(1);
+  });
+});
+
+describe("computeFailedStudents", () => {
+  it("escenario del scout: 1 perdió el examen", () => {
+    const c = course(); // escala 0-5, passing 3
+    const subs: SubmissionLike[] = [
+      sub({ id: "1", user_id: "u1", ref_id: "exam1", ai_grade: 4, max_score: 5 }), // aprueba
+      sub({ id: "2", user_id: "u2", ref_id: "exam1", ai_grade: 2, max_score: 5 }), // pierde
+      // u3 no presentó (no aparece acá)
+    ];
+    const enrolled = new Set(["u1", "u2", "u3"]);
+    const r = computeFailedStudents(subs, enrolled, c);
+    expect(r.failed).toBe(1);
+    expect(r.ids).toEqual(["u2"]);
+  });
+
+  it("cuenta estudiantes únicos (un alumno que reprueba 2 exámenes cuenta 1)", () => {
+    const c = course();
+    const subs: SubmissionLike[] = [
+      sub({ user_id: "u1", ref_id: "exam1", ai_grade: 1, max_score: 5 }),
+      sub({ user_id: "u1", ref_id: "exam2", ai_grade: 2, max_score: 5 }),
+    ];
+    const enrolled = new Set(["u1"]);
+    expect(computeFailedStudents(subs, enrolled, c).failed).toBe(1);
+  });
+
+  it("ignora entregas de no-matriculados (desmatriculados)", () => {
+    const c = course();
+    const subs: SubmissionLike[] = [
+      sub({ user_id: "ghost", ref_id: "exam1", ai_grade: 1, max_score: 5 }),
+    ];
+    const enrolled = new Set(["u1"]);
+    expect(computeFailedStudents(subs, enrolled, c).failed).toBe(0);
+  });
+
+  it("entrega sin nota no cuenta como perdió", () => {
+    const c = course();
+    const subs: SubmissionLike[] = [sub({ user_id: "u1", ref_id: "exam1", ai_grade: null })];
+    const enrolled = new Set(["u1"]);
+    expect(computeFailedStudents(subs, enrolled, c).failed).toBe(0);
+  });
+});
+
+describe("computeNoPresentedStudents", () => {
+  it("escenario del scout: 1 no presentó", () => {
+    const subs: SubmissionLike[] = [
+      sub({ user_id: "u1", ref_id: "exam1", ai_grade: 4, max_score: 5 }),
+      sub({ user_id: "u2", ref_id: "exam1", ai_grade: 2, max_score: 5 }),
+      // u3 sin entrega
+    ];
+    const enrolled = new Set(["u1", "u2", "u3"]);
+    const r = computeNoPresentedStudents(subs, enrolled);
+    expect(r.notPresented).toBe(1);
+    expect(r.ids).toEqual(["u3"]);
+  });
+
+  it("estudiante con entrega sin nota SÍ presentó (no cuenta)", () => {
+    const subs: SubmissionLike[] = [sub({ user_id: "u1", ref_id: "exam1", ai_grade: null })];
+    const enrolled = new Set(["u1"]);
+    expect(computeNoPresentedStudents(subs, enrolled).notPresented).toBe(0);
+  });
+
+  it("sin entregas → todos los matriculados no presentaron", () => {
+    const enrolled = new Set(["u1", "u2"]);
+    const r = computeNoPresentedStudents([], enrolled);
+    expect(r.notPresented).toBe(2);
+    expect(r.ids.sort()).toEqual(["u1", "u2"]);
+  });
+
+  it("ignora entregas de no-matriculados al determinar presencia", () => {
+    const subs: SubmissionLike[] = [
+      sub({ user_id: "ghost", ref_id: "exam1", ai_grade: 4, max_score: 5 }),
+    ];
+    const enrolled = new Set(["u1"]);
+    // ghost no está matriculado; u1 no tiene entrega → 1 no presentó
+    expect(computeNoPresentedStudents(subs, enrolled).notPresented).toBe(1);
   });
 });
 

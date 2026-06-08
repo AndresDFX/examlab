@@ -348,6 +348,49 @@ export function computeApproval(
   return { approved, failed, pending, total };
 }
 
+/** Estudiantes que PERDIERON: matriculados con al menos una entrega
+ *  calificada cuya nota (reescalada a la escala del curso) quedó por
+ *  DEBAJO del `passing_grade`. Cuenta estudiantes ÚNICOS, no celdas —
+ *  un estudiante que reprueba dos exámenes cuenta una sola vez.
+ *
+ *  Solo se consideran matriculados (`enrolledIds`): una entrega de un
+ *  estudiante ya desmatriculado no debe contar. Usa el mismo `isApproved`
+ *  que el resto del módulo (reescala max_score → escala del curso). */
+export function computeFailedStudents(
+  subs: SubmissionLike[],
+  enrolledIds: Set<string>,
+  course: CourseInfo,
+): { failed: number; ids: string[] } {
+  const ids = new Set<string>();
+  for (const s of subs) {
+    if (!enrolledIds.has(s.user_id)) continue;
+    if (isApproved(s, course) === false) ids.add(s.user_id);
+  }
+  return { failed: ids.size, ids: [...ids] };
+}
+
+/** Estudiantes que NO PRESENTARON: matriculados sin NINGUNA entrega en el
+ *  set de submissions dado. Cuenta estudiantes ÚNICOS.
+ *
+ *  Distinto de "pendiente" en computeApproval (que mezcla "no presentó"
+ *  con "presentó pero sin nota aún"): acá solo cuenta la AUSENCIA total
+ *  de entrega. Un estudiante con entrega sin calificar NO se cuenta como
+ *  "no presentó" — sí presentó, falta calificarla. */
+export function computeNoPresentedStudents(
+  subs: SubmissionLike[],
+  enrolledIds: Set<string>,
+): { notPresented: number; ids: string[] } {
+  const withSubmission = new Set<string>();
+  for (const s of subs) {
+    if (enrolledIds.has(s.user_id)) withSubmission.add(s.user_id);
+  }
+  const ids: string[] = [];
+  for (const uid of enrolledIds) {
+    if (!withSubmission.has(uid)) ids.push(uid);
+  }
+  return { notPresented: ids.length, ids };
+}
+
 /** Distribución de notas en buckets. Retorna 5 buckets para escala 0-5
  *  (o equivalente). Cada nota se reescala al rango del curso. */
 export function computeGradeDistribution(
