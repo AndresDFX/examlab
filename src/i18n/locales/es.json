@@ -373,7 +373,22 @@
     "tenantRequired": "Selecciona tu institución antes de continuar.",
     "tenantMismatch": "No perteneces a la institución seleccionada.",
     "crossTenantOnlySuperAdmin": "Solo SuperAdmin puede acceder en modo cross-tenant.",
-    "crossTenantOption": "— SuperAdmin: vista cross-tenant —"
+    "crossTenantOption": "— SuperAdmin: vista cross-tenant —",
+    "sso": {
+      "divider": "o continúa con",
+      "google": "Google",
+      "microsoft": "Microsoft",
+      "startError": "No se pudo iniciar el SSO",
+      "noAutoCreate": "El SSO solo entra si tu admin ya creó tu cuenta. No registra usuarios nuevos.",
+      "verifying": "Verificando tu cuenta…",
+      "verifyingHint": "Confirmamos que tu correo esté autorizado en la institución.",
+      "notProvisioned": "Tu cuenta no está registrada en la plataforma. Pídele a un administrador que te cree primero.",
+      "duplicateEmail": "Tu correo ya tiene una cuenta con contraseña. Entra con tu contraseña o pídele a un admin que vincule el SSO.",
+      "verifyError": "No se pudo verificar tu cuenta. Vuelve a intentar.",
+      "rejectedTitle": "No pudimos iniciar tu sesión",
+      "backToLogin": "Volver al inicio de sesión",
+      "noSession": "No se pudo recuperar la sesión del proveedor. Vuelve a intentar."
+    }
   },
   "tenant": {
     "platformBrand": "Plataforma de Gestión Educativa",

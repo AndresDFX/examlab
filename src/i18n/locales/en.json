@@ -373,7 +373,22 @@
     "tenantRequired": "Select your institution before continuing.",
     "tenantMismatch": "You don't belong to the selected institution.",
     "crossTenantOnlySuperAdmin": "Only SuperAdmin can access cross-tenant mode.",
-    "crossTenantOption": "— SuperAdmin: cross-tenant view —"
+    "crossTenantOption": "— SuperAdmin: cross-tenant view —",
+    "sso": {
+      "divider": "or continue with",
+      "google": "Google",
+      "microsoft": "Microsoft",
+      "startError": "Could not start SSO",
+      "noAutoCreate": "SSO only signs you in if your admin already created your account. It does not register new users.",
+      "verifying": "Verifying your account…",
+      "verifyingHint": "We're confirming your email is authorized at the institution.",
+      "notProvisioned": "Your account is not registered on the platform. Ask an administrator to create it first.",
+      "duplicateEmail": "Your email already has a password account. Sign in with your password or ask an admin to link SSO.",
+      "verifyError": "Could not verify your account. Please try again.",
+      "rejectedTitle": "We couldn't sign you in",
+      "backToLogin": "Back to sign in",
+      "noSession": "Could not retrieve the session from the provider. Please try again."
+    }
   },
   "tenant": {
     "platformBrand": "Educational Management Platform",
