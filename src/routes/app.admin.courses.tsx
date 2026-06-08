@@ -2748,6 +2748,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
           .from("generated_contents")
           .select("id, topic, mode, course_id, files")
           .eq("status", "done")
+          .is("deleted_at", null)
           .or(`course_id.eq.${course.id},course_id.is.null`),
         supabase
           .from("exams")
