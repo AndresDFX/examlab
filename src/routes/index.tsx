@@ -16,9 +16,27 @@
  * instituciones", no solo exámenes.
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/shared/components/ThemeToggle";
 import { GraduationCap, ShieldCheck, Sparkles, Eye, Code, Wifi, Clock } from "lucide-react";
+
+/** Año actual leído post-mount. Antes era `{new Date().getFullYear()}`
+ *  inline en el footer — eso difería entre el SSR de Lovable (fecha
+ *  del worker en UTC) y el cliente (fecha del browser en su TZ), si la
+ *  hidratación cruzaba medianoche. React 18 lo marcaba como #418
+ *  intermitente. Renderemos el año en un componente con estado
+ *  determinista que se sincroniza post-mount: el SSR sale con string
+ *  vacío + el cliente lo rellena. Cero mismatch. */
+function CurrentYear() {
+  const [year, setYear] = useState<number | null>(null);
+  useEffect(() => {
+    setYear(new Date().getFullYear());
+  }, []);
+  // Antes del mount renderemos un placeholder invisible del mismo
+  // ancho aproximado (4 chars) para que el layout no salte al hidratar.
+  return <span>{year ?? "    "}</span>;
+}
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -124,7 +142,7 @@ function Home() {
       </section>
 
       <footer className="border-t py-6 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} ExamLab — Plataforma académica
+        © <CurrentYear /> ExamLab — Plataforma académica
       </footer>
     </div>
   );

@@ -62,10 +62,36 @@ export function GlobalErrorLogger() {
       );
     };
 
+    // Ruido conocido del browser/navegador: errores que NO son bugs
+    // de nuestra app y NO son accionables desde la plataforma. Si los
+    // dejamos pasar, inundan `audit_logs` y enmascaran errores reales.
+    //
+    // 1. SW update failures: el browser intenta actualizar /sw.js mientras
+    //    el user navega y a veces falla por red/cache. El SW del registro
+    //    siguiente queda válido — no rompe la app.
+    // 2. `newestWorker is null`: race condition del registry.update() del
+    //    SW cuando la página se descarga. Inofensivo.
+    // 3. Lock auth-token stolen: dos tabs concurrent intentaron renovar
+    //    el JWT al mismo tiempo. Comportamiento normal de supabase-js;
+    //    el último gana sin romper la sesión.
+    // 4. Script error: cross-origin script sin info útil (CORS hide).
+    //    No podemos diagnosticarlo desde acá.
+    const isBrowserNoise = (msg: string): boolean => {
+      if (!msg) return false;
+      return (
+        msg.includes("Failed to update a ServiceWorker") ||
+        msg.includes("newestWorker is null") ||
+        msg.includes("Lock") && msg.includes("was released because another request stole") ||
+        msg === "Script error." ||
+        msg === "Script error"
+      );
+    };
+
     const onError = (ev: ErrorEvent) => {
       const msg = ev.message ?? ev.error?.message ?? "";
       if (isChunkLoadError(msg)) return;
       if (isExtensionNoise(ev.filename, ev.error?.stack)) return;
+      if (isBrowserNoise(msg)) return;
       const url = typeof window !== "undefined" ? window.location.pathname : "";
       const key = `${msg}::${url}`;
       if (!shouldLog(key)) return;
@@ -104,6 +130,7 @@ export function GlobalErrorLogger() {
       // aparece para usuarios con cierta extensión instalada — para nada
       // accionable desde la plataforma.
       if (isExtensionNoise(null, reason?.stack)) return;
+      if (isBrowserNoise(msg)) return;
       const url = typeof window !== "undefined" ? window.location.pathname : "";
       const key = `${msg}::${url}`;
       if (!shouldLog(key)) return;
