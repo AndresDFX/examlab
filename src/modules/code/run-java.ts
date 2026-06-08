@@ -113,6 +113,81 @@ export function deriveMainClass(source: string): string {
   return m ? m[1] : "Main";
 }
 
+/** Un archivo Java fuente: su nombre lógico (ej. "Main.java") y su contenido. */
+export interface JavaSourceFile {
+  filename: string;
+  content: string;
+}
+
+/**
+ * Heurística para detectar si un fuente Java declara un método
+ * `main(String[])`. Tolera `String[] args` / `String args[]` / `String...
+ * args` y espacios variables. Usado para elegir la clase de entrada
+ * cuando hay múltiples archivos.
+ */
+function hasMainMethod(source: string): boolean {
+  return /\bpublic\s+static\s+void\s+main\s*\(\s*(?:final\s+)?String\s*(?:\[\s*\]|\.\.\.)\s*[A-Za-z_$][A-Za-z0-9_$]*\s*(?:\[\s*\])?\s*\)/.test(
+    source,
+  );
+}
+
+/**
+ * Extrae el nombre de la clase (top-level) declarada en un fuente Java.
+ * Prefiere la `public class`; si no hay, cae a la primera `class`/`enum`/
+ * `record`/`interface`. Devuelve null si no encuentra nada. NO usa el
+ * nombre del archivo a propósito — el caller decide si confiar en el
+ * filename o en la clase derivada.
+ */
+function deriveTopLevelClass(source: string): string | null {
+  const pub = source.match(/public\s+(?:final\s+|abstract\s+)?class\s+([A-Za-z_$][A-Za-z0-9_$]*)/);
+  if (pub) return pub[1];
+  const any = source.match(
+    /\b(?:final\s+|abstract\s+)?(?:class|enum|record|interface)\s+([A-Za-z_$][A-Za-z0-9_$]*)/,
+  );
+  return any ? any[1] : null;
+}
+
+/**
+ * Dado un conjunto de archivos Java, elige la clase que tiene el método
+ * `main` (el punto de entrada para `java <Class>`).
+ *
+ * Estrategia:
+ *   1. Buscar el primer archivo cuyo contenido declare `main` y derivar
+ *      su clase pública (o, en su defecto, top-level). Esa clase manda.
+ *   2. Si ningún archivo tiene `main`, caer a la clase del primer archivo
+ *      (o "Main" si no se puede derivar) — el compilador dará el error
+ *      real "no main found" pero al menos compilamos algo coherente.
+ *
+ * Pura — testeable sin DOM ni CheerpJ.
+ */
+export function deriveMainClassFromFiles(files: JavaSourceFile[]): string {
+  if (!files || files.length === 0) return "Main";
+  const withMain = files.find((f) => hasMainMethod(f.content));
+  if (withMain) {
+    return deriveTopLevelClass(withMain.content) ?? deriveMainClass(withMain.content);
+  }
+  // Fallback: primera clase declarada en el primer archivo no vacío.
+  for (const f of files) {
+    const cls = deriveTopLevelClass(f.content);
+    if (cls) return cls;
+  }
+  return "Main";
+}
+
+/**
+ * Nombre de archivo canónico para un fuente Java: si declara una clase
+ * pública usamos `<Clase>.java` (requisito del compilador — el archivo
+ * debe llamarse igual que la public class). Si no, conservamos el
+ * filename provisto o caemos a un nombre derivado de la primera clase.
+ */
+function canonicalJavaFilename(file: JavaSourceFile): string {
+  const pub = file.content.match(/public\s+(?:final\s+|abstract\s+)?class\s+([A-Za-z_$][A-Za-z0-9_$]*)/);
+  if (pub) return `${pub[1]}.java`;
+  if (file.filename && /\.java$/i.test(file.filename)) return file.filename;
+  const cls = deriveTopLevelClass(file.content);
+  return cls ? `${cls}.java` : file.filename || "Main.java";
+}
+
 export interface JavaExecutionResult {
   stdout: string;
   stderr: string;
@@ -284,8 +359,28 @@ function ensureHiddenDisplay(): void {
   w.__cheerpjConsoleDisplay = container;
 }
 
+/**
+ * Compila + ejecuta UN solo archivo Java en el browser. Mantiene la
+ * firma histórica para no romper a sus callers (ej. el taker de examen).
+ * Internamente delega en `runJavaFilesInBrowser` con un único archivo.
+ */
 export async function runJavaInBrowser(
   sourceCode: string,
+  signal?: AbortSignal,
+): Promise<JavaExecutionResult> {
+  const className = deriveMainClass(sourceCode);
+  return runJavaFilesInBrowser([{ filename: `${className}.java`, content: sourceCode }], signal);
+}
+
+/**
+ * Compila + ejecuta MÚLTIPLES archivos Java juntos en el browser via
+ * CheerpJ. Escribe cada archivo a `/str/<Clase>.java` (el nombre lo
+ * deriva de la public class para satisfacer el requisito del compilador),
+ * compila TODOS de una sola pasada con javac y ejecuta la clase que tiene
+ * `main` (derivada por `deriveMainClassFromFiles`).
+ */
+export async function runJavaFilesInBrowser(
+  files: JavaSourceFile[],
   signal?: AbortSignal,
 ): Promise<JavaExecutionResult> {
   const start = Date.now();
@@ -297,8 +392,6 @@ export async function runJavaInBrowser(
 
   const release = claimConsole(consoleEl);
   try {
-    const className = deriveMainClass(sourceCode);
-    const sourcePath = `/str/${className}.java`;
     const enc = new TextEncoder();
     const addFile = w.cheerpOSAddStringFile ?? w.cheerpjAddStringFile;
     if (typeof addFile !== "function") {
@@ -307,21 +400,40 @@ export async function runJavaInBrowser(
     if (typeof w.cheerpjRunMain !== "function") {
       throw new Error("CheerpJ no expone runMain (carga incompleta)");
     }
-    addFile(sourcePath, enc.encode(sourceCode));
+
+    const nonEmpty = files.filter((f) => f.content.trim().length > 0);
+    const effectiveFiles = nonEmpty.length > 0 ? nonEmpty : files.slice(0, 1);
+
+    // Escribimos cada archivo con un nombre canónico derivado de su clase
+    // pública. Dedupe por path (dos archivos con la misma clase pública
+    // colisionarían — nos quedamos con el último, el compilador dará el
+    // error de "duplicate class" si aplica al concatenar).
+    const sourcePaths: string[] = [];
+    const seen = new Set<string>();
+    for (const f of effectiveFiles) {
+      const name = canonicalJavaFilename(f);
+      const path = `/str/${name}`;
+      addFile(path, enc.encode(f.content));
+      if (!seen.has(path)) {
+        seen.add(path);
+        sourcePaths.push(path);
+      }
+    }
 
     const toolsBytes = await loadToolsJar();
     addFile("/str/tools.jar", toolsBytes);
 
     const classPath = "/str/tools.jar:/files/";
+    const className = deriveMainClassFromFiles(effectiveFiles);
 
-    // Compilar — con timeout. javac suele tardar <2s pero la primera
-    // vez (warm-up de la JVM + class loading) puede ir a 5-10s. 30s
-    // es holgado y aún detecta cuelgues reales.
+    // Compilar TODOS los archivos juntos — con timeout. javac suele tardar
+    // <2s pero la primera vez (warm-up de la JVM + class loading) puede ir
+    // a 5-10s. 30s es holgado y aún detecta cuelgues reales.
     const compileExit = await withTimeout(
       w.cheerpjRunMain(
         "com.sun.tools.javac.Main",
         classPath,
-        sourcePath,
+        ...sourcePaths,
         "-d",
         "/files/",
       ),

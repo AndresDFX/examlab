@@ -7,21 +7,23 @@
  * Cada snippet:
  *   - Título opcional (default "Snippet N" si vacío)
  *   - Lenguaje (java | python | javascript)
- *   - Source code en Monaco
+ *   - N ARCHIVOS de código (multi-archivo) en una tab bar — cada uno con
+ *     filename + content. Para compilar se mandan TODOS juntos al edge
+ *     `execute-code` (que los combina según el runner). Para Java la clase
+ *     con `main` se deriva server-side.
  *   - Botón Run → llama `execute-code` edge y cachea stdout/stderr/exit
  *     en la fila (campos `last_*`)
  *
- * Diferencias con `CodeEditor` simple:
- *   - Persiste la fila en `session_code_snippets` (autosave debounced 1.5s).
- *   - Mantiene el output entre sesiones de navegación (lee `last_*` al cargar).
- *   - Permite eliminar/agregar snippets (en modo write).
+ * Backward-compat: un snippet legacy que solo tiene `source_code` (sin
+ * filas en `session_snippet_files`) se muestra como un único archivo
+ * derivado de ese `source_code`. Al crear archivos nuevos, esos pasan a
+ * ser la fuente de verdad; `source_code` se mantiene sincronizado con el
+ * primer archivo para no romper lecturas viejas.
  *
  * Modo:
- *   readOnly=true (alumno): no puede editar source/título/lenguaje ni
- *     agregar/eliminar. Sí puede Run para probar el código del docente —
- *     el resultado NO se persiste en `last_*` (eso solo lo hace el
- *     docente al ejecutar). El alumno ve la salida en el panel local
- *     hasta que recarga la página.
+ *   readOnly=true (alumno): no puede editar/agregar/eliminar — solo ver y
+ *     ejecutar. El resultado NO se persiste en `last_*` (solo el docente
+ *     persiste). El alumno ve la salida local hasta recargar.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,10 +44,17 @@ import { toast } from "sonner";
 import i18n from "@/i18n";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
-import { Code2, Plus, Trash2, Copy, Check } from "lucide-react";
+import { Code2, Plus, Trash2, Copy, Check, X } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
+
+interface SnippetFile {
+  id: string;
+  filename: string;
+  content: string;
+  position: number;
+}
 
 interface SnippetRow {
   id: string;
@@ -58,6 +67,11 @@ interface SnippetRow {
   last_stderr: string | null;
   last_exit_code: number | null;
   last_executed_at: string | null;
+  /** Archivos del snippet (multi-archivo). Cargados desde
+   *  session_snippet_files o derivados de source_code (legacy). */
+  files: SnippetFile[];
+  /** Índice del archivo activo en la tab bar. */
+  activeFileIdx: number;
 }
 
 interface Props {
@@ -76,6 +90,40 @@ const LANG_LABEL: Record<string, string> = {
   python: "Python",
   javascript: "JavaScript",
 };
+
+/** Extensión por lenguaje para sugerir filenames de archivos nuevos. */
+const LANG_EXT: Record<string, string> = {
+  java: "java",
+  python: "py",
+  javascript: "js",
+};
+
+/** Filename por defecto del primer archivo de un snippet de cierto lenguaje. */
+function defaultFilename(language: string, idx: number): string {
+  const ext = LANG_EXT[language] ?? "txt";
+  if (language === "java") return idx === 0 ? "Main.java" : `Clase${idx + 1}.java`;
+  return idx === 0 ? `main.${ext}` : `archivo${idx + 1}.${ext}`;
+}
+
+/**
+ * Deriva los archivos de un snippet legacy que solo tiene source_code.
+ * Siempre devuelve ≥1 archivo (un único archivo con todo el source_code).
+ */
+function filesFromLegacy(row: {
+  id: string;
+  language: string;
+  source_code: string;
+}): SnippetFile[] {
+  return [
+    {
+      // id sintético prefijado para distinguir de filas reales de DB.
+      id: `legacy:${row.id}`,
+      filename: defaultFilename(row.language, 0),
+      content: row.source_code ?? "",
+      position: 0,
+    },
+  ];
+}
 
 export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
   const confirm = useConfirm();
@@ -96,11 +144,12 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debouncers por campo y por snippet — autosave de title/language/source.
-  // Map<snippetId, timeout>. Evita pegarle a DB en cada keystroke.
+  // Debouncers por campo y por snippet — autosave de title/language.
   const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // Debouncers por archivo — autosave de filename/content.
+  const fileSaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-  // ── Cargar snippets ──
+  // ── Cargar snippets + sus archivos ──
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -115,7 +164,44 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
         setLoading(false);
         return;
       }
-      setSnippets((data ?? []) as SnippetRow[]);
+      const rows = (data ?? []) as Omit<SnippetRow, "files" | "activeFileIdx">[];
+      // Cargar archivos de todos los snippets de una sola query.
+      const snippetIds = rows.map((r) => r.id);
+      let filesBySnippet: Record<string, SnippetFile[]> = {};
+      if (snippetIds.length > 0) {
+        const { data: fileRows, error: fileErr } = await db
+          .from("session_snippet_files")
+          .select("id, snippet_id, filename, content, position")
+          .in("snippet_id", snippetIds)
+          .order("position", { ascending: true });
+        if (fileErr) {
+          setLoadError(friendlyError(fileErr, "No pudimos cargar los archivos."));
+          setLoading(false);
+          return;
+        }
+        filesBySnippet = (fileRows ?? []).reduce(
+          (
+            acc: Record<string, SnippetFile[]>,
+            f: { id: string; snippet_id: string; filename: string; content: string; position: number },
+          ) => {
+            (acc[f.snippet_id] ??= []).push({
+              id: f.id,
+              filename: f.filename,
+              content: f.content,
+              position: f.position,
+            });
+            return acc;
+          },
+          {} as Record<string, SnippetFile[]>,
+        );
+      }
+      const withFiles: SnippetRow[] = rows.map((r) => {
+        const files = filesBySnippet[r.id]?.length
+          ? filesBySnippet[r.id]
+          : filesFromLegacy(r);
+        return { ...r, files, activeFileIdx: 0 };
+      });
+      setSnippets(withFiles);
       setLoading(false);
     } catch (e) {
       setLoadError(friendlyError(e, "No pudimos cargar los snippets."));
@@ -127,49 +213,137 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
     void load();
   }, [load]);
 
-  // Cleanup de timers al unmount — flush no hace falta porque cada
-  // save ya escribe a DB en background; perder los últimos 1.5s del
-  // typing al cerrar la pestaña es aceptable (consistencia con el resto
-  // de autosaves del repo, ej. WhiteboardEditor).
+  // Cleanup de timers al unmount.
   useEffect(() => {
     return () => {
-      const timers = saveTimersRef.current;
-      timers.forEach((t) => clearTimeout(t));
-      timers.clear();
+      saveTimersRef.current.forEach((t) => clearTimeout(t));
+      saveTimersRef.current.clear();
+      fileSaveTimersRef.current.forEach((t) => clearTimeout(t));
+      fileSaveTimersRef.current.clear();
       if (copyResetRef.current) clearTimeout(copyResetRef.current);
     };
   }, []);
 
-  // ── Actualizar fila local + agendar save debounced ──
-  const updateLocal = (id: string, patch: Partial<SnippetRow>) => {
+  // ── Actualizar metadata del snippet (title/language) + save debounced ──
+  const updateSnippetMeta = (id: string, patch: Partial<SnippetRow>) => {
     setSnippets((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
     const existingTimer = saveTimersRef.current.get(id);
     if (existingTimer) clearTimeout(existingTimer);
     const timer = setTimeout(() => {
       saveTimersRef.current.delete(id);
-      // Leemos del state actual (no del closure) para tomar el patch más reciente.
       setSnippets((current) => {
         const row = current.find((s) => s.id === id);
-        if (!row) return current;
-        void persistSnippet(row);
+        if (row) void persistSnippetMeta(row);
         return current;
       });
     }, 1500);
     saveTimersRef.current.set(id, timer);
   };
 
-  const persistSnippet = async (row: SnippetRow) => {
+  const persistSnippetMeta = async (row: SnippetRow) => {
+    // Mantenemos source_code sincronizado con el PRIMER archivo para que
+    // lecturas legacy (sin session_snippet_files) sigan viendo algo
+    // coherente. Es solo un fallback — los archivos son la verdad.
+    const firstContent = row.files[0]?.content ?? "";
     const { error } = await db
       .from("session_code_snippets")
       .update({
         title: row.title,
         language: row.language,
-        source_code: row.source_code,
+        source_code: firstContent,
       })
       .eq("id", row.id);
     if (error) {
       toast.error(friendlyError(error, "No se pudo guardar el snippet"));
     }
+  };
+
+  // ── Migrar un archivo legacy a una fila real de session_snippet_files ──
+  // Devuelve el archivo con su id real de DB (o el mismo si falló).
+  const ensurePersistedFile = async (
+    snippetId: string,
+    file: SnippetFile,
+  ): Promise<SnippetFile> => {
+    if (!file.id.startsWith("legacy:")) return file;
+    const { data, error } = await db
+      .from("session_snippet_files")
+      .insert({
+        snippet_id: snippetId,
+        filename: file.filename,
+        content: file.content,
+        position: file.position,
+      })
+      .select("id, filename, content, position")
+      .single();
+    if (error || !data) {
+      toast.error(friendlyError(error, "No se pudo guardar el archivo"));
+      return file;
+    }
+    return { id: data.id, filename: data.filename, content: data.content, position: data.position };
+  };
+
+  // ── Actualizar contenido/filename de un archivo + save debounced ──
+  const updateFile = (snippetId: string, fileIdx: number, patch: Partial<SnippetFile>) => {
+    setSnippets((prev) =>
+      prev.map((s) => {
+        if (s.id !== snippetId) return s;
+        const files = s.files.map((f, i) => (i === fileIdx ? { ...f, ...patch } : f));
+        return { ...s, files };
+      }),
+    );
+    const file = snippets.find((s) => s.id === snippetId)?.files[fileIdx];
+    if (!file) return;
+    const key = `${snippetId}:${fileIdx}`;
+    const existing = fileSaveTimersRef.current.get(key);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      fileSaveTimersRef.current.delete(key);
+      void persistFile(snippetId, fileIdx);
+    }, 1500);
+    fileSaveTimersRef.current.set(key, timer);
+  };
+
+  const persistFile = async (snippetId: string, fileIdx: number) => {
+    // Leemos del state actual para tomar el último patch.
+    let target: { snippet: SnippetRow; file: SnippetFile } | null = null;
+    setSnippets((current) => {
+      const snippet = current.find((s) => s.id === snippetId);
+      const file = snippet?.files[fileIdx];
+      if (snippet && file) target = { snippet, file };
+      return current;
+    });
+    if (!target) return;
+    const { snippet, file } = target as { snippet: SnippetRow; file: SnippetFile };
+    if (file.id.startsWith("legacy:")) {
+      // Aún no existe en DB — la creamos y reemplazamos el id sintético.
+      const persisted = await ensurePersistedFile(snippet.id, file);
+      if (persisted.id !== file.id) {
+        setSnippets((prev) =>
+          prev.map((s) =>
+            s.id === snippet.id
+              ? { ...s, files: s.files.map((f, i) => (i === fileIdx ? persisted : f)) }
+              : s,
+          ),
+        );
+      }
+      // Sincronizar source_code legacy con el primer archivo.
+      if (fileIdx === 0) await syncLegacySourceCode(snippet.id, file.content);
+      return;
+    }
+    const { error } = await db
+      .from("session_snippet_files")
+      .update({ filename: file.filename, content: file.content })
+      .eq("id", file.id);
+    if (error) {
+      toast.error(friendlyError(error, "No se pudo guardar el archivo"));
+      return;
+    }
+    if (fileIdx === 0) await syncLegacySourceCode(snippet.id, file.content);
+  };
+
+  // Mantiene source_code = primer archivo (fallback legacy).
+  const syncLegacySourceCode = async (snippetId: string, content: string) => {
+    await db.from("session_code_snippets").update({ source_code: content }).eq("id", snippetId);
   };
 
   // ── Crear snippet ──
@@ -178,6 +352,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
     setBusy(true);
     try {
       const nextPosition = snippets.length;
+      const starter = getStarterCode("java");
       const { data, error } = await db
         .from("session_code_snippets")
         .insert({
@@ -185,7 +360,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
           position: nextPosition,
           title: "",
           language: "java",
-          source_code: getStarterCode("java"),
+          source_code: starter,
         })
         .select(SELECT_COLS)
         .single();
@@ -193,7 +368,28 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
         toast.error(friendlyError(error, "No se pudo crear el snippet"));
         return;
       }
-      setSnippets((prev) => [...prev, data as SnippetRow]);
+      // Crear el primer archivo real para el snippet nuevo.
+      const { data: fileData } = await db
+        .from("session_snippet_files")
+        .insert({
+          snippet_id: data.id,
+          filename: defaultFilename("java", 0),
+          content: starter,
+          position: 0,
+        })
+        .select("id, filename, content, position")
+        .single();
+      const files: SnippetFile[] = fileData
+        ? [
+            {
+              id: fileData.id,
+              filename: fileData.filename,
+              content: fileData.content,
+              position: fileData.position,
+            },
+          ]
+        : filesFromLegacy(data);
+      setSnippets((prev) => [...prev, { ...(data as SnippetRow), files, activeFileIdx: 0 }]);
     } finally {
       setBusy(false);
     }
@@ -204,13 +400,14 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
     if (readOnly) return;
     const ok = await confirm({
       title: "¿Eliminar este snippet?",
-      description: "Esta acción no se puede deshacer.",
+      description: "Se eliminarán todos sus archivos. Esta acción no se puede deshacer.",
       confirmLabel: "Eliminar",
       tone: "destructive",
     });
     if (!ok) return;
     setBusy(true);
     try {
+      // session_snippet_files se borran por ON DELETE CASCADE.
       const { error } = await db.from("session_code_snippets").delete().eq("id", id);
       if (error) {
         toast.error(friendlyError(error, "No se pudo eliminar"));
@@ -227,13 +424,82 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
     }
   };
 
-  // ── Ejecutar snippet via execute-code edge ──
-  // Importante: pasamos snippet.id como `questionId` para el audit log.
-  // No hay submission ni question reales, pero el edge solo lo usa como
-  // entityId en audit/code_executions y no impone FK. El user_id se toma
-  // del JWT del caller (auth.uid()).
+  // ── Agregar archivo a un snippet ──
+  const addFile = async (snippetId: string) => {
+    if (readOnly) return;
+    const snippet = snippets.find((s) => s.id === snippetId);
+    if (!snippet) return;
+    const idx = snippet.files.length;
+    const filename = defaultFilename(snippet.language, idx);
+    const starter = snippet.language === "java" ? `class ${filename.replace(/\.java$/, "")} {\n\n}` : "";
+    const { data, error } = await db
+      .from("session_snippet_files")
+      .insert({ snippet_id: snippetId, filename, content: starter, position: idx })
+      .select("id, filename, content, position")
+      .single();
+    if (error || !data) {
+      toast.error(friendlyError(error, "No se pudo agregar el archivo"));
+      return;
+    }
+    setSnippets((prev) =>
+      prev.map((s) =>
+        s.id === snippetId
+          ? {
+              ...s,
+              files: [
+                ...s.files,
+                {
+                  id: data.id,
+                  filename: data.filename,
+                  content: data.content,
+                  position: data.position,
+                },
+              ],
+              activeFileIdx: s.files.length,
+            }
+          : s,
+      ),
+    );
+  };
+
+  // ── Eliminar archivo de un snippet (no se puede borrar el último) ──
+  const deleteFile = async (snippetId: string, fileIdx: number) => {
+    if (readOnly) return;
+    const snippet = snippets.find((s) => s.id === snippetId);
+    if (!snippet || snippet.files.length <= 1) return;
+    const file = snippet.files[fileIdx];
+    const ok = await confirm({
+      title: "¿Eliminar este archivo?",
+      description: `Se eliminará "${file.filename}". Esta acción no se puede deshacer.`,
+      confirmLabel: "Eliminar",
+      tone: "destructive",
+    });
+    if (!ok) return;
+    // Si es un archivo legacy aún no persistido, solo lo quitamos del state.
+    if (!file.id.startsWith("legacy:")) {
+      const { error } = await db.from("session_snippet_files").delete().eq("id", file.id);
+      if (error) {
+        toast.error(friendlyError(error, "No se pudo eliminar el archivo"));
+        return;
+      }
+    }
+    setSnippets((prev) =>
+      prev.map((s) => {
+        if (s.id !== snippetId) return s;
+        const files = s.files.filter((_, i) => i !== fileIdx);
+        const activeFileIdx = Math.min(s.activeFileIdx, files.length - 1);
+        return { ...s, files, activeFileIdx: Math.max(0, activeFileIdx) };
+      }),
+    );
+  };
+
+  // ── Ejecutar snippet via execute-code edge (multi-archivo) ──
+  // Pasamos snippet.id como `questionId` para el audit log.
   const runSnippet = async (snippet: SnippetRow) => {
-    if (!snippet.source_code.trim()) {
+    const files = snippet.files
+      .map((f) => ({ filename: f.filename, content: f.content }))
+      .filter((f) => f.content.trim().length > 0);
+    if (files.length === 0) {
       toast.error(
         i18n.t("toast.modules_sessions_SessionCodeSnippets.snippetEmpty", {
           defaultValue: "El snippet está vacío",
@@ -245,7 +511,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
     try {
       const { data, error } = await supabase.functions.invoke("execute-code", {
         body: {
-          sourceCode: snippet.source_code,
+          files,
           language: snippet.language,
           questionId: snippet.id,
         },
@@ -259,16 +525,11 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
       const exitCode = typeof data?.exitCode === "number" ? data.exitCode : 0;
 
       if (readOnly) {
-        // Alumno: solo guardamos en state local. No tocamos `last_*` de
-        // la fila (eso es la "última ejecución del docente" — referencia
-        // pedagógica del resultado esperado).
         setLocalOutputs((prev) => ({
           ...prev,
           [snippet.id]: { stdout, stderr, exitCode },
         }));
       } else {
-        // Docente: persistimos como last_* en la fila. UI optimista —
-        // actualizamos state local sin esperar el roundtrip de DB.
         const nowIso = new Date().toISOString();
         setSnippets((prev) =>
           prev.map((s) =>
@@ -293,8 +554,6 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
           })
           .eq("id", snippet.id);
         if (updErr) {
-          // Cache fallida no es bloqueante — el alumno verá el output
-          // que el docente generó en la sesión activa del navegador.
           console.warn("[SessionCodeSnippets] No se pudo cachear el output", updErr);
         }
       }
@@ -303,10 +562,11 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
     }
   };
 
-  // ── Copiar al portapapeles ──
+  // ── Copiar al portapapeles (archivo activo) ──
   const copyToClipboard = async (snippet: SnippetRow) => {
+    const file = snippet.files[snippet.activeFileIdx] ?? snippet.files[0];
     try {
-      await navigator.clipboard.writeText(snippet.source_code);
+      await navigator.clipboard.writeText(file?.content ?? "");
       setCopiedId(snippet.id);
       if (copyResetRef.current) clearTimeout(copyResetRef.current);
       copyResetRef.current = setTimeout(() => setCopiedId(null), 1500);
@@ -317,6 +577,12 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
         }),
       );
     }
+  };
+
+  const setActiveFile = (snippetId: string, idx: number) => {
+    setSnippets((prev) =>
+      prev.map((s) => (s.id === snippetId ? { ...s, activeFileIdx: idx } : s)),
+    );
   };
 
   if (loading) {
@@ -336,11 +602,6 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
   }
 
   if (snippets.length === 0 && readOnly) {
-    // Alumno entra al dialog y el docente no creó snippets — mostramos
-    // un mensaje friendly en lugar de un dialog vacío. Si la integración
-    // está inline (no en dialog), el padre puede chequear primero un
-    // count y no renderizarnos. En dialog mode preferimos comunicar el
-    // estado vs un container vacío.
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
         <Code2 className="h-8 w-8 opacity-40" />
@@ -386,6 +647,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
               }
             : undefined;
         const placeholderTitle = `Snippet ${idx + 1}`;
+        const activeFile = snippet.files[snippet.activeFileIdx] ?? snippet.files[0];
         return (
           <Card key={snippet.id} className="border-l-4 border-l-indigo-500/50">
             <CardHeader className="py-3 px-3">
@@ -398,7 +660,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                   ) : (
                     <Input
                       value={snippet.title}
-                      onChange={(e) => updateLocal(snippet.id, { title: e.target.value })}
+                      onChange={(e) => updateSnippetMeta(snippet.id, { title: e.target.value })}
                       placeholder={placeholderTitle}
                       className="h-7 text-sm"
                     />
@@ -411,19 +673,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                 ) : (
                   <Select
                     value={snippet.language}
-                    onValueChange={(v) =>
-                      updateLocal(snippet.id, {
-                        language: v,
-                        // Si el snippet estaba vacío y el docente cambia
-                        // de lenguaje, refrescamos el starter — UX similar
-                        // al editor de exam questions.
-                        source_code:
-                          !snippet.source_code.trim() ||
-                          snippet.source_code === getStarterCode(snippet.language)
-                            ? getStarterCode(v) || ""
-                            : snippet.source_code,
-                      })
-                    }
+                    onValueChange={(v) => updateSnippetMeta(snippet.id, { language: v })}
                   >
                     <SelectTrigger className="h-7 w-[120px] text-xs">
                       <SelectValue />
@@ -440,7 +690,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                   variant="ghost"
                   className="h-7 px-2 text-xs"
                   onClick={() => void copyToClipboard(snippet)}
-                  title="Copiar código al portapapeles"
+                  title="Copiar archivo activo al portapapeles"
                 >
                   {copiedId === snippet.id ? (
                     <Check className="h-3 w-3" />
@@ -461,13 +711,83 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                   </Button>
                 )}
               </div>
+
+              {/* Tab bar de archivos */}
+              <div className="flex items-center gap-1 flex-wrap mt-2">
+                {snippet.files.map((file, fileIdx) => {
+                  const active = fileIdx === snippet.activeFileIdx;
+                  return (
+                    <div
+                      key={file.id}
+                      className={`group flex items-center gap-1 rounded-t-md border px-2 py-1 text-[11px] ${
+                        active
+                          ? "border-indigo-500/60 bg-indigo-500/10 font-medium"
+                          : "border-transparent bg-muted/40 text-muted-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {readOnly ? (
+                        <button
+                          type="button"
+                          className="max-w-[140px] truncate"
+                          onClick={() => setActiveFile(snippet.id, fileIdx)}
+                          title={file.filename}
+                        >
+                          {file.filename || `archivo ${fileIdx + 1}`}
+                        </button>
+                      ) : active ? (
+                        <Input
+                          value={file.filename}
+                          onChange={(e) =>
+                            updateFile(snippet.id, fileIdx, { filename: e.target.value })
+                          }
+                          className="h-5 w-[120px] px-1 text-[11px] border-0 bg-transparent focus-visible:ring-1"
+                          placeholder={defaultFilename(snippet.language, fileIdx)}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className="max-w-[140px] truncate"
+                          onClick={() => setActiveFile(snippet.id, fileIdx)}
+                          title={file.filename}
+                        >
+                          {file.filename || `archivo ${fileIdx + 1}`}
+                        </button>
+                      )}
+                      {!readOnly && snippet.files.length > 1 && (
+                        <button
+                          type="button"
+                          className="opacity-50 hover:opacity-100 hover:text-destructive"
+                          onClick={() => void deleteFile(snippet.id, fileIdx)}
+                          title="Eliminar archivo"
+                          aria-label={`Eliminar archivo ${file.filename}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+                {!readOnly && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-1.5 text-[11px]"
+                    onClick={() => void addFile(snippet.id)}
+                    title="Agregar archivo"
+                  >
+                    <Plus className="h-3 w-3 mr-0.5" />
+                    Archivo
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
               <CodeEditor
-                value={snippet.source_code}
+                key={activeFile?.id}
+                value={activeFile?.content ?? ""}
                 onChange={(v) => {
                   if (readOnly) return;
-                  updateLocal(snippet.id, { source_code: v });
+                  updateFile(snippet.id, snippet.activeFileIdx, { content: v });
                 }}
                 language={(snippet.language as CodeLanguage) ?? "java"}
                 showLanguageSelector={false}
@@ -477,9 +797,6 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                 readOnly={readOnly}
                 hideHints
                 height="200px"
-                // Persistimos solo si el docente ya corrió antes — mostramos
-                // el output cacheado. El componente CodeEditor renderiza
-                // la sección "Salida" cuando output !== undefined.
                 output={
                   output
                     ? [output.stdout, output.stderr ? `\n[stderr]\n${output.stderr}` : ""]

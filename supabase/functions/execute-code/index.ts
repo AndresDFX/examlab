@@ -11,8 +11,24 @@
 import { adminClient as admin, corsHeaders, userClientFromRequest } from "../_shared/admin.ts";
 import { auditFromEdge } from "../_shared/audit.ts";
 
+/** Un archivo de código: nombre lógico + contenido. */
+interface CodeFile {
+  filename: string;
+  content: string;
+}
+
 interface ExecutionRequest {
-  sourceCode: string;
+  /** Fuente single-archivo (modo legacy / mayoría de callers). */
+  sourceCode?: string;
+  /**
+   * Modo multi-archivo: lista de archivos { filename, content }. Cuando
+   * llega y tiene ≥1 archivo, tiene prioridad sobre `sourceCode`. Para
+   * los providers remotos que solo aceptan UN string (OnlineCompiler,
+   * JDoodle, AWS Lambda actual) los combinamos en un solo `sourceCode`
+   * via `combineFiles` antes de mandar. Cuando el runner soporte FS
+   * multi-archivo (AWS app.py — TODO), se podrá pasar `files` crudo.
+   */
+  files?: CodeFile[];
   language: string;
   stdin?: string;
   questionId: string;
@@ -25,6 +41,62 @@ interface ExecutionRequest {
    * provider efectivamente usado más un flag `provider_overridden`.
    */
   provider?: string;
+}
+
+/**
+ * Detecta si un fuente Java declara `public static void main(String[])`.
+ * Tolera `String[] args` / `String args[]` / `String... args`.
+ */
+function javaHasMain(source: string): boolean {
+  return /\bpublic\s+static\s+void\s+main\s*\(\s*(?:final\s+)?String\s*(?:\[\s*\]|\.\.\.)\s*[A-Za-z_$][A-Za-z0-9_$]*\s*(?:\[\s*\])?\s*\)/.test(
+    source,
+  );
+}
+
+/**
+ * Combina N archivos en un único string que los providers single-source
+ * pueden compilar/ejecutar.
+ *
+ * Java: en una sola compilation unit NO puede haber 2 `public class`. Por
+ * eso ponemos el archivo con `main` primero (su public class manda) y a
+ * los demás les degradamos `public class X` → `class X` (package-private,
+ * visible dentro del mismo paquete default). Se quitan los `package ...;`
+ * de los archivos secundarios para no romper la unit. Funciona para el
+ * caso común "una clase con main + clases helper".
+ *
+ * Otros lenguajes (python, js, etc.): concatenación simple con un
+ * comentario-encabezado por archivo. El orden coloca primero el que
+ * parezca el "principal".
+ */
+function combineFiles(files: CodeFile[], language: string): string {
+  const nonEmpty = files.filter((f) => (f.content ?? "").trim().length > 0);
+  const list = nonEmpty.length > 0 ? nonEmpty : files;
+  if (list.length === 0) return "";
+  if (list.length === 1) return list[0].content;
+
+  if (language === "java") {
+    // Entrada primero. Si ninguno tiene main, dejamos el orden original.
+    const mainIdx = list.findIndex((f) => javaHasMain(f.content));
+    const ordered =
+      mainIdx > 0 ? [list[mainIdx], ...list.filter((_, i) => i !== mainIdx)] : list;
+    const parts = ordered.map((f, idx) => {
+      let body = f.content;
+      if (idx > 0) {
+        // Quitar package declarations de secundarios.
+        body = body.replace(/^\s*package\s+[^;]+;\s*/m, "");
+        // Degradar public class/enum/record/interface a package-private.
+        body = body.replace(
+          /\bpublic\s+((?:final\s+|abstract\s+)?(?:class|enum|record|interface)\b)/g,
+          "$1",
+        );
+      }
+      return body;
+    });
+    return parts.join("\n\n");
+  }
+
+  // Lenguajes script: concatenación con encabezado por archivo.
+  return list.map((f) => `// ─── ${f.filename} ───\n${f.content}`).join("\n\n");
 }
 
 /** Providers válidos para el override del cliente. Debe coincidir con
@@ -432,13 +504,21 @@ Deno.serve(async (req) => {
 
   try {
     const {
-      sourceCode,
+      sourceCode: sourceCodeRaw,
+      files,
       language,
       stdin = "",
       questionId,
       submissionId,
       provider: requestedProvider,
     }: ExecutionRequest = await req.json();
+
+    // Modo multi-archivo: si llega `files` con contenido, lo combinamos en
+    // un único string para los providers single-source. Si no, usamos
+    // `sourceCode` legacy. Esto mantiene compat total con los callers que
+    // siguen mandando un solo `sourceCode`.
+    const hasFiles = Array.isArray(files) && files.length > 0;
+    const sourceCode = hasFiles ? combineFiles(files!, language) : (sourceCodeRaw ?? "");
 
     // Si el cliente mandó un override del provider, validamos contra la
     // whitelist. Provider inválido = 400 explícito (mejor que silenciar y
@@ -463,6 +543,7 @@ Deno.serve(async (req) => {
       questionId,
       submissionId: submissionId ?? null,
       source_length: sourceCode?.length ?? 0,
+      file_count: hasFiles ? files!.length : 1,
       requested_provider: overrideRequested ? requestedProvider : null,
     });
 
