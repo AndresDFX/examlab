@@ -89,6 +89,10 @@ type Session = {
   /** Si true, los alumnos matriculados pueden abrir + EDITAR la pizarra
    *  de la sesión en modo colaborativo (sync via Supabase Realtime). */
   whiteboard_shared?: boolean;
+  /** Si true, el docente compartió los snippets de código de la sesión:
+   *  recién entonces el alumno matriculado puede verlos (RLS exige
+   *  code_shared=true). Espejo de whiteboard_shared. */
+  code_shared?: boolean;
   /** Enlace libre a la grabación (Meet/Teams/Zoom/Loom…). Se abre en
    *  nueva pestaña — esos servicios bloquean iframe. */
   recording_url?: string | null;
@@ -254,7 +258,7 @@ function StudentAttendance() {
         (supabase as any)
           .from("attendance_sessions")
           .select(
-            "id, course_id, session_date, title, recording_url, recording_video_id, notes_url, whiteboard_shared",
+            "id, course_id, session_date, title, recording_url, recording_video_id, notes_url, whiteboard_shared, code_shared",
           )
           .eq("course_id", selectedCourseId)
           .order("session_date", { ascending: false }),
@@ -732,26 +736,27 @@ function StudentAttendance() {
                                 )}
                                 {/* Botón "Código" — abre el dialog read-only
                                     con los snippets compartidos por el docente.
-                                    Lo mostramos SIEMPRE; si la sesión no tiene
-                                    snippets, el dialog renderea un mensaje
-                                    friendly. Pre-cargar el count antes de
-                                    mostrar el botón requeriría una query extra
-                                    por carga — preferimos un click "vacío"
-                                    ocasional a complicar la pantalla. */}
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 px-2 text-[11px]"
-                                  onClick={() =>
-                                    setSnippetsSession({
-                                      id: s.id,
-                                      title: s.title ?? formatDateOnly(s.session_date),
-                                    })
-                                  }
-                                >
-                                  <Code2 className="h-3 w-3 mr-1" />
-                                  Código
-                                </Button>
+                                    Solo aparece cuando el docente activó el
+                                    compartir (code_shared); la RLS de
+                                    session_code_snippets exige code_shared=true
+                                    para que el alumno los vea. Espejo del botón
+                                    Pizarra (whiteboard_shared). */}
+                                {s.code_shared && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-[11px]"
+                                    onClick={() =>
+                                      setSnippetsSession({
+                                        id: s.id,
+                                        title: s.title ?? formatDateOnly(s.session_date),
+                                      })
+                                    }
+                                  >
+                                    <Code2 className="h-3 w-3 mr-1" />
+                                    Código
+                                  </Button>
+                                )}
                                 {/* Pizarra compartida — solo cuando el
                                     docente activó shared. El click abre
                                     el editor en studentMode, suscrito al
@@ -772,9 +777,13 @@ function StudentAttendance() {
                                     Pizarra
                                   </Button>
                                 )}
-                                {!video && !s.recording_url && !s.notes_url && (
-                                  <span className="text-xs text-muted-foreground">—</span>
-                                )}
+                                {!video &&
+                                  !s.recording_url &&
+                                  !s.notes_url &&
+                                  !s.code_shared &&
+                                  !s.whiteboard_shared && (
+                                    <span className="text-xs text-muted-foreground">—</span>
+                                  )}
                               </div>
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">

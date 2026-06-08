@@ -73,7 +73,6 @@ import {
   PlayCircle,
   Zap,
   Palette,
-  Code2,
 } from "lucide-react";
 import { toCSV } from "@/shared/lib/csv";
 import { formatDateShort, formatSessionLabel } from "@/shared/lib/format";
@@ -94,7 +93,6 @@ import {
 import { GenerateSessionsDialog } from "@/modules/contents/GenerateSessionsDialog";
 import { LaunchPollDialog } from "@/modules/polls/LaunchPollDialog";
 import { SessionWhiteboardDialog } from "@/modules/whiteboard/SessionWhiteboardDialog";
-import { SessionCodeSnippetsDialog } from "@/modules/sessions/SessionCodeSnippetsDialog";
 // Helpers PUROS de CSV de sesiones — extraídos para testear sin montar
 // el componente (ver src/modules/sessions/csv.test.ts). El template, el
 // builder de filas y el parser viven ahí; acá solo los componemos con
@@ -259,11 +257,6 @@ function TeacherAttendance() {
   // columna `whiteboard_scene JSONB` (mig 20260603060000). Reabrir
   // recupera el contenido. Solo el docente de la sesión la edita.
   const [whiteboardSession, setWhiteboardSession] = useState<Session | null>(null);
-  // Sesión seleccionada para abrir el dialog de snippets de código. Cada
-  // snippet vive en `session_code_snippets` (mig 20260814000000) — el
-  // docente prepara N ejemplos durante la clase, los alumnos los ven y
-  // pueden ejecutar desde su vista de asistencia.
-  const [codeSnippetsSession, setCodeSnippetsSession] = useState<Session | null>(null);
   /** Abre el dialog "Programar sesiones del curso". Se usa SIN contenido
    *  pre-asociado — el dialog calcula N sesiones a partir de fecha
    *  inicio + días de la semana, las crea con `course_id = courseId` y
@@ -1325,14 +1318,6 @@ function TeacherAttendance() {
                                 <Palette className="h-4 w-4 mr-2 text-violet-500" />
                                 Pizarra
                               </DropdownMenuItem>
-                              {/* Snippets de código — el docente prepara
-                                  ejemplos durante la clase. Los alumnos
-                                  los ven (y pueden ejecutar) desde su
-                                  vista de asistencia. */}
-                              <DropdownMenuItem onSelect={() => setCodeSnippetsSession(sess)}>
-                                <Code2 className="h-4 w-4 mr-2 text-indigo-500" />
-                                Snippets de código
-                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 onSelect={() => deleteSession(sess.id)}
@@ -1786,16 +1771,6 @@ function TeacherAttendance() {
             : undefined
         }
         onOpenChange={(open) => !open && setWhiteboardSession(null)}
-      />
-      {/* Snippets de código de la sesión — N por sesión. */}
-      <SessionCodeSnippetsDialog
-        sessionId={codeSnippetsSession?.id ?? null}
-        sessionLabel={
-          codeSnippetsSession
-            ? `${codeSnippetsSession.title ?? "Clase"} · ${formatDateShort(codeSnippetsSession.session_date)}`
-            : undefined
-        }
-        onOpenChange={(open) => !open && setCodeSnippetsSession(null)}
       />
     </div>
   );
