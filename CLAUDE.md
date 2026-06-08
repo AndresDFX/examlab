@@ -1,5 +1,55 @@
 # ExamLab — Claude Context
 
+## Setup en una máquina nueva
+
+```bash
+git clone git@github-personal:AndresDFX/examlab.git
+cd examlab
+bun install              # NO npm/pnpm — el lockfile es bun.lock
+bun run dev              # localhost:5173
+```
+
+**Archivos secretos que no se commitean** (recrearlos al clonar):
+
+- `.env` — Supabase URL + anon key. La anon key es pública (está en el bundle), pero la guardamos acá para que `bun run dev` arranque:
+  ```
+  VITE_SUPABASE_URL="https://uxxpzfsfcnqiwwdxoelm.supabase.co"
+  VITE_SUPABASE_PUBLISHABLE_KEY="eyJhbG...EdZ_3KlDGVSQ-i026ZriHu4FbLFJLwghkW-FlfcTlkE"
+  VITE_SUPABASE_PROJECT_ID="uxxpzfsfcnqiwwdxoelm"
+  VITE_VAPID_PUBLIC_KEY="BAg2gqFTm-P9_gNuumcJPQF7fj-6e2XjlSDZJGTGa2YMvZSDdKD6C6S3pc88UM7mvBNrlcebXUXeJzqKp4bROVo"
+  ```
+- `.env.recording` — credenciales para grabar los tours HeyGen (ver "Cuentas de testing" abajo). Solo necesario si vas a re-grabar.
+
+**Validaciones rápidas**:
+- `bun tsc --noEmit` debe dar `EXIT=0`.
+- `bun test` corre vitest (jsdom). Algunos tests requieren jsdom — usar `bun test` (NO el harness embebido).
+- `bun run build` localmente. Si pasa, Lovable también buildea.
+
+**Cuentas de testing (tenant FESNA)** — verificadas el 2026-06-08:
+- **SuperAdmin (cross-tenant)**: `castano.julian@correounivalle.edu.co` / `Tester#12345`. Tenant_id=NULL. Acceso a `/app/superadmin/*` + bypass de RLS via `is_super_admin()`.
+- **Multi-rol (Admin + Docente + Estudiante) en FESNA**: `test-fesna@examlab.test` / `WyEBPdxMCRZVFp`. user_id `d0495677-9f20-4f6f-b4f2-7f616b608a04`. Tenant FESNA (`231c9e47-e50d-45a9-8782-af38087656a4`). Útil para testing programático de los 3 roles sin crear cuentas separadas — el role-switcher del sidebar cambia entre ellos.
+
+**Tenant FESNA — estado** (snapshot 2026-06-08):
+- 1 curso activo: `Paradigmas de Programación Junio 2026` (id `01b397a3-e74f-4f66-becf-c63b643f247f`).
+- 93 estudiantes importados del CSV de "La Nueva América" (`*@lanuevaamerica.edu.co`), todos matriculados al curso de arriba.
+- `ai_model_settings.processing_mode = sync` (necesario para que la generación con IA del docente funcione inline sin pedir código).
+- `email_settings.enabled_kinds.welcome = false` (no manda welcome email al bulk import).
+
+**Validaciones de campo desde shell** (sin browser, via REST):
+
+```bash
+# Login a Supabase Auth
+TOKEN=$(curl -s -X POST 'https://uxxpzfsfcnqiwwdxoelm.supabase.co/auth/v1/token?grant_type=password' \
+  -H 'Content-Type: application/json' -H "apikey: $VITE_SUPABASE_PUBLISHABLE_KEY" \
+  -d '{"email":"test-fesna@examlab.test","password":"WyEBPdxMCRZVFp"}' | jq -r .access_token)
+
+# Query como el user logueado (respeta RLS)
+curl -s "https://uxxpzfsfcnqiwwdxoelm.supabase.co/rest/v1/courses?select=id,name" \
+  -H "apikey: $VITE_SUPABASE_PUBLISHABLE_KEY" -H "Authorization: Bearer $TOKEN"
+```
+
+Patrón usado mucho en testing — se puede simular casi todo lo que el UI hace sin tener que abrir un browser. La cuenta test-fesna tiene los 3 roles, así que sirve para validar flows Admin/Docente/Estudiante con el mismo token.
+
 ## Plataforma y despliegue
 
 - **Hospedado en Lovable** (lovable.dev). Lovable gestiona Supabase automáticamente.
@@ -724,6 +774,91 @@ Generador paramétrico de sesiones (`GenerateSessionsDialog`) ya existía en `sr
 - **Bulk operations: mostrar el PRIMER error real, no solo "N con error"**: `Promise.allSettled` sobre N llamadas → contar fallos pero NO descartar el detalle. Patrón: `toast.error(\`${ok} ok, ${failed} con error. Primero: "${first.name}" — ${friendlyError(first.error)}\`, { duration: 12000 })`. Sin esto el usuario ve "2 con error" sin pista del por qué — caso reportado al hard-deletear tenants con FKs RESTRICT y al fallar RLS de operations bulk. Aplicado en `app.trash.tsx` (bulkRestore + bulkHardDelete). Cualquier bulk operation nueva debe seguir este patrón.
 - **Panel unificado de IA debe preservar visibilidad del error**: cuando `UnifiedAiQueuePanel` unificó las 2 colas (grading + generation) perdió silenciosamente el panel expandible que mostraba el `last_error` completo. Patrón obligatorio en cualquier panel de queue/jobs: (1) preview del error truncado en 1 línea SIEMPRE visible cuando hay `last_error` (sin requerir click), (2) panel expandible con detalle completo + botón **Copiar al portapapeles** (`navigator.clipboard.writeText`), (3) shape del query debe incluir `body` para jobs de generación. Sin esto el docente no puede diagnosticar por qué un job falló y se vuelve "silent fail" reportado.
 - **Backups DB: incluir SuperAdmin en validación**: cuando un módulo se introdujo pre-SuperAdmin (ej. db_backups mig 20260523100000), las policies/RPCs solo validan `has_role(_, 'Admin')`. Al introducir SA, todas las RPCs `admin_*_db_backup` + las 3 RLS policies necesitaron paralelizar a `OR public.is_super_admin()` (mig 20260903100000). Mismo aplica al edge `db-backup-runner` (línea ~72) que validaba solo Admin. Al añadir un módulo Admin-only nuevo, decidir si SA debe acceder y agregar la validación paralela desde el inicio.
+- **Helper centralizado `isStaffRole(roles)` / `isAdminLike(roles)` / `isSuperAdmin(roles)` / `isStudent(roles)`** ([src/shared/lib/roles.ts](src/shared/lib/roles.ts)): NO duplicar `roles.includes("Docente") || roles.includes("Admin")` inline — usar el helper. `isStaffRole` = Docente OR Admin OR SuperAdmin (para pantallas `/app/teacher/*` que el SA accede para soporte/diagnóstico). `isAdminLike` = Admin OR SuperAdmin (gestión de tenant). El bug recurrente que ataja: agregar un módulo nuevo Docente y olvidar SA → SA recibe "Necesitas rol Docente" silencioso. Aplicado en 7 rutas teacher (attendance, workshops, projects, exams, gradebook, ai-prompts, statistics) + audit-logs teacher.
+- **auditFromEdge: pasar `tenantId` explícito** ([supabase/functions/_shared/audit.ts](supabase/functions/_shared/audit.ts)): cuando una edge corre como service_role, `auth.uid()` es NULL → el trigger SQL `tg_set_tenant_id` que lee `current_tenant_id()` retorna NULL → el audit_log queda con `tenant_id=NULL`. La RLS endurecida del Admin (mig 20260528010000) exige `tenant_id = current_tenant_id()` (NO acepta NULL), así que esos logs SOLO los ve el SA — el Admin del tenant los pierde. Fix: `auditFromEdge` acepta prop `tenantId?` opcional + fallback que lo resuelve desde `profiles.tenant_id` del actorId. Cualquier edge nueva que llame `auditFromEdge` debe pasar el `tenantId` del DESTINO (no del actor) cuando opera sobre un tenant distinto al del caller — caso típico: SA importando users a un tenant específico. Aplicado en `bulk-import-users`.
+- **GlobalErrorLogger `isBrowserNoise`** ([src/shared/components/GlobalErrorLogger.tsx](src/shared/components/GlobalErrorLogger.tsx)): filtra 4 patrones de ruido del browser/PWA lifecycle que NO son bugs accionables y inundan `audit_logs`: "Failed to update a ServiceWorker", "newestWorker is null", "Lock ... was released because another request stole", "Script error." (cross-origin sin info). Aplicado en `onError` + `onRejection` ANTES del logEvent. Si reportes futuros muestran errores reales que el filter está silenciando, ajustar el regex — pero no quitar el filter entero (los SW errors son ~50% del volumen sin valor).
+- **Año dinámico en JSX (`new Date().getFullYear()`) requiere wrapping en componente con estado** ([src/routes/index.tsx](src/routes/index.tsx)): inline `{new Date().getFullYear()}` en el footer SSR-rendereaba el año del worker (UTC) y el cliente lo re-evaluaba con su TZ — si la hidratación cruzaba medianoche local cerca del 31-dic, mismatch y React #418 intermitente. Patrón: componente `<CurrentYear />` con `useState<number | null>(null)` + `useEffect(() => setYear(new Date().getFullYear()), [])`. SSR y primer render del cliente devuelven el mismo placeholder vacío `"    "` (4 chars para no saltar layout); el año real se rellena post-mount. Mismo patrón para CUALQUIER cosa derivada de `new Date()` o `Date.now()` que se renderee en JSX y se ejecute en SSR.
+- **`vh → dvh` en `max-h` de DialogContent** (regla obligatoria para mobile iOS): en iOS Safari `vh` usa el viewport MÁXIMO (URL bar colapsada). Cuando la URL bar está visible, un modal con `max-h-[90vh]` se desborda ~80-100px abajo (footer cortado, scroll roto). El base `DialogContent` ([src/components/ui/dialog.tsx:60](src/components/ui/dialog.tsx#L60)) usa `dvh` (dynamic viewport height — respeta el viewport ACTUAL). NO sobreescribir con `vh` en subdialogs. Para limitar altura usar `max-h-[Ndvh]`. Audit de 2026-06-08 encontró 26 archivos con `vh` que se cambiaron en batch a `dvh`.
+- **Touch targets en mobile ≥32px**: cualquier botón clickeable en mobile debe tener un hit zone ≥32x32px (iOS recomienda 44px). Patrones a evitar: `<button>` bare con solo ícono `<Eye h-4 w-4>` y posición absoluta (touch zone ~16px), `h-6 w-6` o `h-7 w-7 p-0`. Fix: `h-8 w-8 p-0` o `p-1.5 rounded` para expandir hit zone sin alterar visual. Convención aplicada en password reveal buttons (5 ubicaciones), pickers de mes/whiteboard/diagram (5 ubicaciones).
+- **`bg-checkerboard` utility en src/styles.css**: damero gris/blanco (light) o zinc-800/700 (dark) usado para distinguir contenido pintado de fondo transparente — antes inline `style={{ backgroundImage: 'linear-gradient(...)' }}` copiado en JavaGuiRunner + PythonGuiRunner + hex-color-input. Centralizado en utility CSS para que cualquier nuevo lugar use `className="bg-checkerboard"`.
+- **Inline styles `style={{}}`**: prohibidos para layout/colores estáticos. Reemplazar siempre por Tailwind classes (incluso valores arbitrarios: `h-[60vh]`, `border-l-violet-500`). Permitidos SOLO para: (a) CSS vars del theme dinámico (`var(--sidebar-icon-color)`, `tenant.primary_color` por fila), (b) dimensiones/transformaciones runtime (`width: progress + "%"`, `transform: scale(zoom)`), (c) `env(safe-area-inset-*)` iOS, (d) valores de DB/usuario (color hex pickers). Backgrounds repetidos (ej. damero): extraer utility en `src/styles.css` (ver `bg-checkerboard`). El audit de inline styles dio 35 hits totales, 34 justificados, 1 trivial — el repo está sano; mantenerlo así.
+- **Safe-area iOS en elementos `fixed` bottom**: cualquier `fixed bottom-X` que pueda mostrarse en mobile debe usar `bottom-[max(env(safe-area-inset-bottom),Xrem)]` para no quedar tapado por el home indicator de iOS o gesture bar de Android. En desktop `env(safe-area-inset-bottom)=0` → el max() resuelve al fallback, comportamiento idéntico. Aplicado en `MessagesFab.tsx`. Pattern preemptivo: agregalo desde el inicio aunque el elemento esté `hidden md:flex` hoy.
+- **Tests con `useConfirm()` mockean `@/shared/components/ConfirmDialog`, NO `window.confirm`**: el `vi.spyOn(window, "confirm")` no funciona porque ya no usamos confirm nativo. Patrón:
+  ```ts
+  const confirmResult = { value: true };
+  vi.mock("@/shared/components/ConfirmDialog", () => ({
+    useConfirm: () => async () => confirmResult.value,
+    ConfirmProvider: ({ children }: { children: React.ReactNode }) => children,
+  }));
+  // En tests: confirmResult.value = false; // simular cancelación
+  ```
+  Evita renderizar el AlertDialog Radix real (que requiere portal). Aplicado en `FeedbackCommentAttachments.test.tsx`.
+
+## Grabación de tours para HeyGen (avatars IA)
+
+Pipeline para regenerar los 3 background videos que se overlapean con un avatar HeyGen. Vive en `docs/heygen/`.
+
+### Estructura
+
+- `docs/heygen/README.md` — pipeline general.
+- `docs/heygen/admin.md` / `docente.md` / `estudiante.md` — guión que va al avatar (sección `> Script`) + recomendaciones de cortes visuales por segundo.
+- `docs/heygen/recordings/admin.webm` + `teacher.webm` + `student.webm` — los 3 backgrounds (versionados en git con nombres limpios sin timestamp).
+- `docs/heygen/recordings/README.md` — cómo regenerar + cómo usar en HeyGen.
+- `scripts/record-tour.ts` — script Playwright que recorre la app real (https://examlab.lovable.app).
+- `.env.recording` (gitignored) — credenciales del usuario demo.
+- `recordings/` (gitignored como `/recordings/` anchored — para NO matchear `docs/heygen/recordings/`) — output dir efímero con archivos timestamped.
+
+### Correr (Windows)
+
+```bash
+# Usar NODE, NO bun. Razón: bun + playwright en Windows tiene bug
+# con remote-debugging-pipe → chromium.launch() timeout 180s.
+# Node 22+ con --experimental-strip-types corre el mismo .ts en <1s.
+node --experimental-strip-types scripts/record-tour.ts --role=admin
+node --experimental-strip-types scripts/record-tour.ts --role=teacher
+node --experimental-strip-types scripts/record-tour.ts --role=student
+
+# Después copiar al dir versionado (sin timestamp):
+cp recordings/admin-*.webm docs/heygen/recordings/admin.webm
+cp recordings/teacher-*.webm docs/heygen/recordings/teacher.webm
+cp recordings/student-*.webm docs/heygen/recordings/student.webm
+```
+
+En Mac/Linux probablemente `bun run record:tour:teacher` funcione (el bug es solo en Windows). Igual el `package.json` ya tiene los scripts npm apuntando a `node --experimental-strip-types`.
+
+### Cuenta multi-rol + `selectActiveRole` + SPA nav
+
+`test-fesna@examlab.test` (FESNA) tiene los 3 roles. Por defecto entra como Admin. Para grabar Docente/Estudiante el script:
+
+1. `login()` → submit → redirect `/app`.
+2. `selectActiveRole(role)` → `waitForSelector('[data-tour-id="role-switcher"]', timeout: 8s)` → lee el rol actual del trigger; si ya es el target, skip. Si no, click en `[role="combobox"]` (Radix), click en la option, espera 1.5s para que el sidebar re-renderee con el nav del rol nuevo.
+3. `recordScenes()` navega entre módulos via CLICKS en `[data-tour-nav="..."]` del sidebar (SPA navigation — NO recarga, preserva el active role que vive en memoria del módulo `active-role-signal.ts`, sin localStorage). Para rutas no presentes en el sidebar del rol activo (ej. `/app/messages` cross-rol, `/app/trash`), fallback a `page.goto()` + `selectActiveRole()` para re-seleccionar.
+
+Si el active role se pierde entre scenes, el video del Docente termina mostrando el sidebar del Admin — bug reportado en el primer round antes del fix de SPA navigation.
+
+### `ffmpeg` de Playwright es minimal
+
+Playwright bundle-ea su propio `ffmpeg` en `~/.cache/ms-playwright/ffmpeg-*/`, pero ese build es solo para muxing VP8/VP9 (lo que graba) y NO incluye `libx264` ni `-preset`. Para convertir a MP4 hay que instalar ffmpeg standalone (`winget install ffmpeg`). HeyGen acepta `.webm` directo, así que la conversión es opcional.
+
+## Estado actual del proyecto (snapshot 2026-06-08)
+
+### Migraciones críticas recientes (verificar que están en main + Lovable Publish)
+
+- `20260906000000_handle_new_user_tolerate_unique.sql` — fix del bulk import 500 "Database error creating new user". Permite re-vincular profiles huérfanos.
+- `20260907000000_platform_settings_support_emails.sql` — tabla `platform_settings` (SA-only) + `support_emails_enabled` toggle + predicate `_notification_kind_emails` extendido con `kind='support'`.
+- `20260908000000_gc_storage_policies_super_admin.sql` — las 4 policies de `generated-contents` bucket extendidas con `OR is_super_admin()`.
+- `20260909000000_course_enrollments_on_update_cascade.sql` — FK `course_enrollments.user_id` con `ON UPDATE CASCADE` (necesario para que la re-vinculación del handle_new_user no falle).
+- `20260910000000_email_settings_super_admin_update.sql` — policy `email_settings_update_admin` extendida con `OR is_super_admin()` para que el SA pueda editar.
+
+### Tests
+
+- `bun test` corre 81 archivos, 1415 tests (target). Algunos tests requieren jsdom (`document is not defined` con el runtime bun puro — siempre usar el runner vitest).
+- Tests pure helpers: `src/modules/sessions/csv.ts`, `src/modules/contents/upload-external-helpers.ts`, `src/shared/lib/roles.ts`, `src/modules/onboarding/tour-config.ts`. Si necesitás testear un helper nuevo, extraelo del componente React a su propio módulo y agregale tests sin mocks de DOM.
+
+### Pendiente (no urgente)
+
+- Pegar URLs de los MP4 finales de HeyGen en `src/modules/onboarding/tour-config.ts` (los 3 `videoUrl: null` con TODO).
+- Considerar agregar regla ESLint `import/extensions: ["error", "always"]` — para forzar extensión explícita en imports y prevenir regresión del bug TanStack tsr-split que requería `from "@/modules/sessions/csv.ts"` con extensión.
 
 ## Política de comentarios
 
