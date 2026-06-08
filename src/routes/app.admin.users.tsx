@@ -54,6 +54,8 @@ import {
   GraduationCap,
   Briefcase,
   ShieldCheck,
+  KeyRound,
+  Copy,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { DateCell } from "@/components/ui/date-cell";
@@ -103,6 +105,10 @@ type Row = {
   /** Último sign-in. Sincronizado por trigger desde auth.users
    *  (migración 20260715000000). null si nunca inició sesión. */
   last_sign_in_at: string | null;
+  /** true mientras el usuario no haya cambiado la contraseña temporal que
+   *  le asignó el Admin/SA al crearlo o resetearla. Cuando es true existe
+   *  (normalmente) una fila en `admin_visible_passwords` re-visible. */
+  must_change_password?: boolean | null;
 };
 
 const ALL_ROLES: AppRole[] = ["Admin", "Docente", "Estudiante", "SuperAdmin"];
@@ -172,6 +178,12 @@ function AdminUsers() {
   // sistema/integraciones que no son de humano.
   const [forcePasswordChange, setForcePasswordChange] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Dialog "Ver contraseña": muestra la contraseña temporal guardada en
+  // `admin_visible_passwords` (la que el Admin/SA asignó al crear/resetear).
+  const [viewPwUser, setViewPwUser] = useState<Row | null>(null);
+  const [viewPwValue, setViewPwValue] = useState<string | null>(null);
+  const [viewPwLoading, setViewPwLoading] = useState(false);
+  const [viewPwReveal, setViewPwReveal] = useState(false);
   const [importing, setImporting] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -353,6 +365,38 @@ function AdminUsers() {
   // ve /app/admin/users con filtro extra cross-tenant. Ver CLAUDE.md
   // sección "Filtros cross-tenant en módulos compartidos".
   const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
+
+  // Abre el dialog "Ver contraseña" y carga la contraseña temporal del
+  // usuario desde admin_visible_passwords (RLS la acota a SA / Admin del
+  // mismo tenant). Si el usuario ya la cambió, la fila no existe.
+  const openViewPassword = async (r: Row) => {
+    setViewPwUser(r);
+    setViewPwValue(null);
+    setViewPwReveal(false);
+    setViewPwLoading(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
+      .from("admin_visible_passwords")
+      .select("password")
+      .eq("user_id", r.id)
+      .maybeSingle();
+    setViewPwLoading(false);
+    if (error) {
+      toast.error(friendlyError(error, "No se pudo cargar la contraseña."));
+      return;
+    }
+    setViewPwValue((data as { password?: string } | null)?.password ?? null);
+  };
+
+  const copyViewPassword = async () => {
+    if (!viewPwValue) return;
+    try {
+      await navigator.clipboard.writeText(viewPwValue);
+      toast.success("Contraseña copiada al portapapeles");
+    } catch {
+      toast.error("No se pudo copiar");
+    }
+  };
 
   const handleImpersonate = async (r: Row) => {
     if (r.roles.includes("Admin")) {
@@ -1328,6 +1372,17 @@ function AdminUsers() {
                                 iconColor: "var(--brand-primary)",
                               };
                             })(),
+                            // "Ver contraseña": solo cuando el usuario aún
+                            // tiene pendiente cambiar la temporal (proxy de
+                            // que existe la fila en admin_visible_passwords).
+                            r.must_change_password
+                              ? {
+                                  label: "Ver contraseña",
+                                  icon: KeyRound,
+                                  hint: "Ver la contraseña temporal asignada",
+                                  onClick: () => void openViewPassword(r),
+                                }
+                              : null,
                             {
                               label: t("common.delete"),
                               icon: Trash2,
@@ -1700,6 +1755,84 @@ function AdminUsers() {
         extraWarning="Se eliminarán los perfiles y todos sus roles. Las cuentas de autenticación NO se borran."
         onConfirm={handleBulkDelete}
       />
+
+      {/* Ver contraseña temporal asignada (admin_visible_passwords). */}
+      <Dialog
+        open={!!viewPwUser}
+        onOpenChange={(o) => {
+          if (!o) {
+            setViewPwUser(null);
+            setViewPwValue(null);
+            setViewPwReveal(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-primary" />
+              Contraseña temporal
+            </DialogTitle>
+          </DialogHeader>
+          {viewPwUser && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Contraseña asignada a <strong>{viewPwUser.full_name}</strong> (
+                {viewPwUser.institutional_email}). Comunícasela de forma segura — el
+                usuario deberá cambiarla en su primer inicio de sesión.
+              </p>
+              {viewPwLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                  <Spinner size="sm" /> Cargando…
+                </div>
+              ) : viewPwValue ? (
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      readOnly
+                      type={viewPwReveal ? "text" : "password"}
+                      value={viewPwValue}
+                      className="pr-9 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setViewPwReveal((v) => !v)}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+                      aria-label={viewPwReveal ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    >
+                      {viewPwReveal ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => void copyViewPassword()}
+                    aria-label="Copiar contraseña"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+                  No hay una contraseña guardada para este usuario. Probablemente ya la
+                  cambió, o fue creado por SSO / antes de esta función. Puedes asignarle
+                  una nueva desde <strong>Editar</strong>.
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setViewPwUser(null)}>
+              {t("common.close", { defaultValue: "Cerrar" })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

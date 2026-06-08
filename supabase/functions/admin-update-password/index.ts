@@ -115,6 +115,32 @@ Deno.serve(async (req) => {
         .from("profiles")
         .update({ must_change_password: true })
         .eq("id", userId);
+
+      // Guardar la nueva contraseña temporal en claro para que el Admin/SA
+      // pueda re-verla y comunicarla (tabla admin_visible_passwords). RLS
+      // acota la lectura a SA / Admin del mismo tenant; la fila se autoborra
+      // cuando el usuario cambia su contraseña. Best-effort: no rompemos el
+      // reset si falla el guardado.
+      const { data: targetProfile } = await adminClient
+        .from("profiles")
+        .select("tenant_id")
+        .eq("id", userId)
+        .maybeSingle();
+      const { error: avpErr } = await adminClient
+        .from("admin_visible_passwords")
+        .upsert(
+          {
+            user_id: userId,
+            tenant_id:
+              (targetProfile as { tenant_id?: string | null } | null)?.tenant_id ?? null,
+            password: newPassword,
+            set_by: caller.user.id,
+          },
+          { onConflict: "user_id" },
+        );
+      if (avpErr) {
+        console.warn("[admin-update-password] store visible password failed:", avpErr.message);
+      }
     }
 
     await auditAdminReset(caller.user, userId, "info", null);

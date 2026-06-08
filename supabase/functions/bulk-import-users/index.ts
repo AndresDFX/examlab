@@ -345,6 +345,33 @@ Deno.serve(async (req) => {
               .eq("id", userId);
           }
 
+          // Guardar la contraseña temporal en claro para que el Admin/SA
+          // que creó el usuario pueda re-verla y comunicarla (tabla
+          // admin_visible_passwords). Tradeoff de seguridad aceptado: la RLS
+          // acota la lectura a SA o Admin del mismo tenant, y la fila se
+          // autoborra cuando el usuario cambia su contraseña. Best-effort:
+          // no abortamos la creación si falla el guardado.
+          {
+            const { error: avpErr } = await adminClient
+              .from("admin_visible_passwords")
+              .upsert(
+                {
+                  user_id: userId,
+                  tenant_id: callerTenantId,
+                  password: password || "Cambiar#123",
+                  set_by: u.user.id,
+                },
+                { onConflict: "user_id" },
+              );
+            if (avpErr) {
+              console.warn(
+                "[bulk-import-users] store visible password failed for",
+                institutional_email,
+                avpErr.message,
+              );
+            }
+          }
+
           // Correo de bienvenida con link para que el usuario defina
           // su contraseña sin necesidad de conocer la temporal. Reusa
           // la infra de password reset:
