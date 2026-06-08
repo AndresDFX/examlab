@@ -818,7 +818,7 @@ export const TEACHER_TOUR: TourStep[] = [
     escapeBefore: true,
     title: "Encuestas",
     description:
-      "Encuestas rápidas para los alumnos. Sirven para <strong>votar en vivo en clase</strong> (opción única o múltiple) o para <strong>coordinar fechas tipo Doodle</strong> (cada slot tiene cupo).",
+      "Encuestas rápidas para los alumnos. Sirven para <strong>votar en vivo en clase</strong> (opción única o múltiple) o para <strong>coordinar fechas tipo Doodle</strong> (cada slot tiene cupo). Desde el menú de cada fila podés <strong>duplicarla</strong> (copia la estructura sin las respuestas), <strong>compartir un enlace único</strong> para enviarla por otro medio, y en <em>Ver resultados</em> ver <strong>qué eligió cada alumno</strong> por opción (y borrar su respuesta para liberar el cupo).",
     side: "right",
   },
   // ─── Demo INTERACTIVA del modal "Nueva encuesta" ────────────────────
@@ -1093,7 +1093,7 @@ export const STUDENT_TOUR: TourStep[] = [
     route: "/app/student/polls",
     title: "Encuestas",
     description:
-      "Encuestas del docente: opción única, múltiple o por cupo (estilo Doodle para elegir fecha de sustentación). Tu voto queda registrado y, si el docente lo permite, podés cambiarlo.",
+      "Encuestas del docente: opción única, múltiple o por cupo (estilo Doodle para elegir fecha de sustentación). Tu voto queda registrado y, si el docente lo permite, podés <strong>cambiarlo</strong> o <strong>quitar tu respuesta</strong> sin tener que elegir otra opción. El docente puede enviarte un <strong>enlace directo</strong> a una encuesta puntual.",
     side: "right",
   },
 
@@ -1133,7 +1133,7 @@ export const STUDENT_TOUR: TourStep[] = [
     route: "/app/student/tutor",
     title: "Tutor IA",
     description:
-      "Chat con un asistente que conoce tus materiales del curso. Pedile que te explique un concepto, te ejemplifique un caso o te ayude a resolver un ejercicio.",
+      "Chat con un asistente que <strong>lee los materiales del curso</strong> (guías, presentaciones y lecturas que subió tu docente) y responde anclado a su contenido — no solo a los títulos. Pedile que te explique un concepto, te ejemplifique un caso o te guíe en un ejercicio.",
     side: "right",
   },
 
