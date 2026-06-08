@@ -74,6 +74,10 @@ import { logEvent } from "@/shared/lib/audit";
 import {
   tagsToModality,
   slugifyFilename,
+  parseDurationInput,
+  DURATION_MIN,
+  DURATION_MAX,
+  DURATION_DEFAULT,
   type ContentMode,
   type ContentTag,
 } from "./upload-external-helpers";
@@ -137,7 +141,13 @@ export function UploadExternalContentDialog({
   const [topic, setTopic] = useState("");
   const [mode, setMode] = useState<ContentMode>("material_individual");
   const [nClasses, setNClasses] = useState<number>(8);
-  const [durationMinutes, setDurationMinutes] = useState<number>(60);
+  // `durationInput` es el string crudo del campo de duración mientras el
+  // docente teclea. Clampar en CADA keystroke (el patrón anterior)
+  // corrompía la entrada de valores de varios dígitos: escribir "185"
+  // quedaba en 400 porque cada dígito intermedio se clampaba y el `value`
+  // controlado pisaba el DOM. Clampamos SOLO al blur (`commitDuration`) y
+  // al submit (`parseDurationInput(durationInput)`).
+  const [durationInput, setDurationInput] = useState<string>(String(DURATION_DEFAULT));
   const [tags, setTags] = useState<ContentTag[]>(["teorico"]);
   const [language, setLanguage] = useState<"es" | "en">("es");
   const [author, setAuthor] = useState("");
@@ -168,7 +178,7 @@ export function UploadExternalContentDialog({
       setTopic("");
       setMode("material_individual");
       setNClasses(8);
-      setDurationMinutes(60);
+      setDurationInput(String(DURATION_DEFAULT));
       setTags(["teorico"]);
       setLanguage("es");
       setAuthor("");
@@ -195,6 +205,13 @@ export function UploadExternalContentDialog({
     setTags((prev) =>
       prev.includes(tag) ? prev.filter((x) => x !== tag) : [...prev, tag],
     );
+  };
+
+  // Normaliza el string a su forma clampeada SOLO al salir del campo de
+  // duración. Mientras el docente teclea, `durationInput` guarda el
+  // string crudo sin tocar (ver comentario en el useState).
+  const commitDuration = () => {
+    setDurationInput(String(parseDurationInput(durationInput)));
   };
 
   const onFilesPicked = (list: FileList | null) => {
@@ -303,6 +320,10 @@ export function UploadExternalContentDialog({
     const courseIdsArr = Array.from(selectedCourseIds);
     const anchorCourseId = courseIdsArr[0];
     const modality = tagsToModality(tagsForDb);
+    // Clampamos desde el string crudo por si el usuario disparó submit
+    // (Enter / click) sin que el campo de duración perdiera el foco (blur)
+    // — así el valor persistido siempre respeta [10, 480].
+    const durationToPersist = parseDurationInput(durationInput);
 
     // 1) Crear la fila de generated_contents con la MISMA shape que el
     //    flujo IA: status='done' (saltó pipeline), files=[] (se setea
@@ -314,7 +335,7 @@ export function UploadExternalContentDialog({
       mode,
       language,
       n_classes: mode === "curso_completo" ? nClasses : null,
-      duration_minutes: durationMinutes,
+      duration_minutes: durationToPersist,
       modality,
       tags: tagsForDb,
       course_id: anchorCourseId,
@@ -558,14 +579,13 @@ export function UploadExternalContentDialog({
               </Label>
               <Input
                 type="number"
-                min={10}
-                max={480}
+                min={DURATION_MIN}
+                max={DURATION_MAX}
                 step={5}
-                value={durationMinutes}
+                value={durationInput}
                 disabled={saving}
-                onChange={(e) =>
-                  setDurationMinutes(Math.max(10, Math.min(480, Number(e.target.value) || 60)))
-                }
+                onChange={(e) => setDurationInput(e.target.value)}
+                onBlur={commitDuration}
               />
             </div>
           </div>

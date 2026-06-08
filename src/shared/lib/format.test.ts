@@ -7,6 +7,7 @@ import {
   formatDateTime,
   formatDuration,
   formatPercent,
+  formatSessionLabel,
   formatTime,
   formatWeekday,
   formatWeekdayName,
@@ -137,6 +138,51 @@ describe("formatDateOnly", () => {
     expect(formatDateOnly(null)).toBe("—");
     expect(formatDateOnly("")).toBe("—");
     expect(formatDateOnly(undefined as unknown as string)).toBe("—");
+  });
+});
+
+describe("formatSessionLabel", () => {
+  it("devuelve 'fecha - título' con guion", () => {
+    const out = formatSessionLabel("2026-09-30", "Clase 1 — Intro");
+    expect(out).toMatch(/30/);
+    expect(out).toMatch(/sep/i);
+    expect(out).toMatch(/2026/);
+    // El separador es un guion con espacios, no un punto medio.
+    expect(out).toContain(" - Clase 1 — Intro");
+  });
+
+  it("ancla YYYY-MM-DD a mediodía local (sin descontar día por UTC)", () => {
+    // Mismo bug que formatDateOnly: "2026-09-30" como UTC midnight cae en
+    // "29 sep" en zonas oeste de UTC. formatSessionLabel usa formatDateOnly.
+    const out = formatSessionLabel("2026-09-30", "X");
+    expect(out).toMatch(/30/);
+  });
+
+  it("sin título → solo la fecha", () => {
+    const out = formatSessionLabel("2026-09-30");
+    expect(out).toMatch(/30/);
+    expect(out).not.toContain(" - ");
+  });
+
+  it("título null/undefined/vacío/espacios → solo la fecha", () => {
+    expect(formatSessionLabel("2026-09-30", null)).not.toContain(" - ");
+    expect(formatSessionLabel("2026-09-30", undefined)).not.toContain(" - ");
+    expect(formatSessionLabel("2026-09-30", "")).not.toContain(" - ");
+    expect(formatSessionLabel("2026-09-30", "   ")).not.toContain(" - ");
+  });
+
+  it("recorta espacios del título", () => {
+    expect(formatSessionLabel("2026-09-30", "  Clase  ")).toContain(" - Clase");
+  });
+
+  it("session_date nulo/vacío → fallback '—' (sin guion si no hay título)", () => {
+    expect(formatSessionLabel(null)).toBe("—");
+    expect(formatSessionLabel("")).toBe("—");
+    expect(formatSessionLabel(undefined)).toBe("—");
+  });
+
+  it("session_date nulo pero con título → '— - Título'", () => {
+    expect(formatSessionLabel(null, "Clase")).toBe("— - Clase");
   });
 });
 

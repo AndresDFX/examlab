@@ -76,7 +76,7 @@ import {
   Code2,
 } from "lucide-react";
 import { toCSV } from "@/shared/lib/csv";
-import { formatDateShort } from "@/shared/lib/format";
+import { formatDateShort, formatSessionLabel } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
@@ -783,9 +783,10 @@ function TeacherAttendance() {
         rotationSeconds: result.rotation_seconds,
         closesAt: result.closes_at,
         totalEnrolled,
-        sessionLabel: checkInConfigSession.title
-          ? `${checkInConfigSession.session_date} · ${checkInConfigSession.title}`
-          : checkInConfigSession.session_date,
+        sessionLabel: formatSessionLabel(
+          checkInConfigSession.session_date,
+          checkInConfigSession.title,
+        ),
       });
       void logEvent({
         action: "attendance.checkin_opened",
@@ -874,7 +875,7 @@ function TeacherAttendance() {
       rotationSeconds: row.rotation_seconds,
       closesAt: row.closes_at,
       totalEnrolled,
-      sessionLabel: sess.title ? `${sess.session_date} · ${sess.title}` : sess.session_date,
+      sessionLabel: formatSessionLabel(sess.session_date, sess.title),
     });
   };
 
@@ -938,9 +939,7 @@ function TeacherAttendance() {
   const deleteSession = async (id: string) => {
     const sess = sessions.find((s) => s.id === id);
     const recordsForSession = records.filter((r) => r.session_id === id).length;
-    const dateLabel = sess
-      ? `${sess.session_date}${sess.title ? ` · ${sess.title}` : ""}`
-      : "esta sesión";
+    const dateLabel = sess ? formatSessionLabel(sess.session_date, sess.title) : "esta sesión";
     const ok = await confirm({
       title: t("attendance.deleteSessionTitle"),
       description: t("attendance.deleteSessionBody", {

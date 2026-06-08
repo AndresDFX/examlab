@@ -445,6 +445,21 @@ function AuthPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={onLogin} className="space-y-4">
+              {/* Hidden username — sin este input el password manager de
+                  Chrome/Edge no asocia la credencial y NO ofrece "guardar
+                  contraseña" tras el login. El email tiene
+                  autoComplete="username" pero el manager necesita el link
+                  explícito name="username" dentro del form (mismo patrón que
+                  ChangePasswordDialog). */}
+              <input
+                type="text"
+                name="username"
+                value={email}
+                autoComplete="username"
+                readOnly
+                hidden
+                aria-hidden="true"
+              />
               <div className="space-y-1.5">
                 <Label htmlFor="li-tenant" required>
                   {t("auth.institution", { defaultValue: "Institución" })}

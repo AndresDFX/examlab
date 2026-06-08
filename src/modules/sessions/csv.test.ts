@@ -177,6 +177,36 @@ describe("buildSessionsRows — export", () => {
     expect(rows[0].meeting_url).toBe("");
     expect(rows[0].recording_url).toBe("");
   });
+
+  it("SIEMPRE emite todas las columnas (incl. start_time/end_time) aun con start/duration null", () => {
+    // Bug FESNA: sesiones sin start_time/duration omitían las columnas de
+    // hora en el export. buildSessionsRows debe emitir TODAS las claves de
+    // SESSIONS_CSV_COLUMNS en cada fila — vacías cuando no hay dato.
+    const rows = buildSessionsRows(
+      [
+        { session_date: "2026-06-14", title: null, start_time: null, duration_minutes: null },
+        { session_date: "2026-06-16", title: "Solo inicio", start_time: "18:00", duration_minutes: null },
+        { session_date: "2026-06-18", title: "Completa", start_time: "18:00", duration_minutes: 120 },
+      ],
+      new Map(),
+    );
+    for (const row of rows) {
+      // Cada fila debe tener EXACTAMENTE las columnas del CSV.
+      expect(Object.keys(row).sort()).toEqual([...SESSIONS_CSV_COLUMNS].sort());
+      // start_time / end_time presentes como claves siempre (string, nunca undefined).
+      expect(typeof row.start_time).toBe("string");
+      expect(typeof row.end_time).toBe("string");
+    }
+    // Fila sin datos de hora → ambas vacías (no inventa).
+    expect(rows[0].start_time).toBe("");
+    expect(rows[0].end_time).toBe("");
+    // Inicio sin duración → start presente, end vacío.
+    expect(rows[1].start_time).toBe("18:00");
+    expect(rows[1].end_time).toBe("");
+    // Inicio + duración → end derivado de start + duration.
+    expect(rows[2].start_time).toBe("18:00");
+    expect(rows[2].end_time).toBe("20:00");
+  });
 });
 
 describe("parseSessionsCsv — import", () => {

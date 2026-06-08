@@ -62,6 +62,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DateTimePicker, DatePicker } from "@/components/ui/date-picker";
 import { generateSlotsForDates, suggestSlotCupo } from "@/modules/polls/slot-generation";
+import { formatSessionLabel } from "@/shared/lib/format";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -1346,7 +1347,7 @@ function CreatePollDialog({
                 <SelectItem value="__none__">Sin asociar (suelta del curso)</SelectItem>
                 {availableSessions.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
-                    {s.session_date} {s.title ? `· ${s.title}` : ""}
+                    {formatSessionLabel(s.session_date, s.title)}
                   </SelectItem>
                 ))}
               </SelectContent>

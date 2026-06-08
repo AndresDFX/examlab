@@ -55,7 +55,7 @@ import {
   Trash2,
   Unlock,
 } from "lucide-react";
-import { formatDateTime, formatDate } from "@/shared/lib/format";
+import { formatDateTime, formatDate, formatSessionLabel } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
 
@@ -414,8 +414,7 @@ function ForumsList() {
                   <SelectItem value="__none__">Sin sesión asociada</SelectItem>
                   {sessions.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
-                      {formatDate(s.session_date)}
-                      {s.title ? ` · ${s.title}` : ""}
+                      {formatSessionLabel(s.session_date, s.title)}
                     </SelectItem>
                   ))}
                 </SelectContent>

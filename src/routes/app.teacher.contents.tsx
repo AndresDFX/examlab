@@ -94,6 +94,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { HelpHint } from "@/components/ui/help-hint";
 import { buildPptxBlob, type PptxBrand } from "@/modules/contents/contents-pptx";
+import { parseDurationInput } from "@/modules/contents/upload-external-helpers";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 
@@ -361,6 +362,10 @@ function TeacherContents() {
   // extensión: <30 → material compacto, >120 → material extenso. Default
   // 60 (clase universitaria estándar).
   const [durationMinutes, setDurationMinutes] = useState<number>(60);
+  // String crudo del input mientras se teclea. Clampar en CADA keystroke
+  // (input controlado a number) corrompía valores de varios dígitos —
+  // "185" terminaba clampeado. Guardamos el raw y commiteamos en blur.
+  const [durationInput, setDurationInput] = useState<string>("60");
   // Tags compositivos: el docente elige qué tipos de archivo generar.
   //   teorico  → presentación + guía docente
   //   practico → taller práctico (+ ejercicio estudiante / solución)
@@ -1404,10 +1409,13 @@ function TeacherContents() {
                   min={10}
                   max={480}
                   step={5}
-                  value={durationMinutes}
-                  onChange={(e) =>
-                    setDurationMinutes(Math.max(10, Math.min(480, Number(e.target.value) || 60)))
-                  }
+                  value={durationInput}
+                  onChange={(e) => setDurationInput(e.target.value)}
+                  onBlur={() => {
+                    const v = parseDurationInput(durationInput);
+                    setDurationMinutes(v);
+                    setDurationInput(String(v));
+                  }}
                 />
                 <p className="text-[11px] text-muted-foreground">{t("contents.durationHelper")}</p>
               </div>

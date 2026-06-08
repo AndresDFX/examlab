@@ -50,6 +50,44 @@ export function tagsToModality(tags: ContentTag[]): ContentModality {
  *    `.env` con ext "" — vacío → `archivo` se devuelve. (Edge case;
  *    el dialog ya bloquea por whitelist antes de llegar acá.)
  */
+/**
+ * Rango válido de "duración por clase" en minutos. Espejo del CHECK
+ * constraint de `generated_contents.duration_minutes`
+ * (migración 20260509200000: `>= 10 AND <= 480`). El default 60 es la
+ * clase universitaria estándar.
+ */
+export const DURATION_MIN = 10;
+export const DURATION_MAX = 480;
+export const DURATION_DEFAULT = 60;
+
+/**
+ * Clampa una duración (en minutos) al rango válido [10, 480].
+ *
+ * `null`/`undefined`/`NaN` caen al default 60 — usado al COMMIT (blur o
+ * submit). NO usar en cada keystroke: clampar mientras el usuario teclea
+ * en un `<input type="number">` controlado corrompe la entrada de
+ * valores de varios dígitos (escribir "185" terminaba en 400/480 porque
+ * cada dígito intermedio se clampaba y el `value` controlado pisaba el
+ * DOM). El patrón correcto es: guardar el string crudo mientras se
+ * escribe y clampar SOLO al salir del campo.
+ */
+export function clampDuration(value: number | null | undefined): number {
+  if (value == null || Number.isNaN(value)) return DURATION_DEFAULT;
+  return Math.max(DURATION_MIN, Math.min(DURATION_MAX, value));
+}
+
+/**
+ * Parsea el string crudo de un input de duración a un número clampeado.
+ * String vacío / no numérico → default. Usado al hacer blur del campo.
+ */
+export function parseDurationInput(raw: string): number {
+  const trimmed = raw.trim();
+  if (trimmed === "") return DURATION_DEFAULT;
+  const n = Number(trimmed);
+  if (Number.isNaN(n)) return DURATION_DEFAULT;
+  return clampDuration(n);
+}
+
 export function slugifyFilename(name: string): string {
   const lastDot = name.lastIndexOf(".");
   const base = lastDot > 0 ? name.slice(0, lastDot) : name;

@@ -157,6 +157,27 @@ export function formatDateOnly(value: string | null | undefined, fallback = "—
 }
 
 /**
+ * Etiqueta unificada de una sesión de clase para selects/dropdowns:
+ * "30 sep 2026 - Título" (con guion, formato pedido por el usuario).
+ *
+ * Antes el render del label era inconsistente entre pantallas:
+ *   - polls usaba `s.session_date` crudo ("2026-09-30")
+ *   - forum usaba `formatDate(s.session_date)` + "·" como separador
+ *   - attendance usaba "session_date - title" sin formatear la fecha
+ * Centralizamos acá. La fecha pasa por `formatDateOnly` (ancla a mediodía
+ * local → evita el bug UTC -1 día en columnas DATE). Si no hay título,
+ * devuelve solo la fecha. `session_date` nulo/vacío → fallback "—".
+ */
+export function formatSessionLabel(
+  sessionDate: string | null | undefined,
+  title?: string | null,
+): string {
+  const datePart = formatDateOnly(sessionDate);
+  const trimmedTitle = title?.trim();
+  return trimmedTitle ? `${datePart} - ${trimmedTitle}` : datePart;
+}
+
+/**
  * Duración en minutos a "1h 30m" o "45m". Para mostrar `time_limit_minutes`
  * y similares de manera legible.
  */
