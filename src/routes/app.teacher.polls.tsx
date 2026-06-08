@@ -61,7 +61,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DateTimePicker, DatePicker } from "@/components/ui/date-picker";
-import { generateSlotsForDates, suggestSlotCupo } from "@/modules/polls/slot-generation";
+import { generateSlotsForDates, suggestSlotCupo, formatSlotLabel } from "@/modules/polls/slot-generation";
 import { formatSessionLabel } from "@/shared/lib/format";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -724,6 +724,18 @@ function CreatePollDialog({
 }) {
   const { t } = useTranslation();
   const isEdit = editingPoll != null;
+  // Las opciones se bloquean SOLO si ya hay votos emitidos — cambiarlas
+  // rompería poll_responses. Si nadie votó todavía, el docente puede
+  // editar las opciones/slots libremente (incluso en modo edit).
+  const hasVotes = (editingPoll?.options ?? []).some(
+    (o) => ((o as { responses_count?: number }).responses_count ?? 0) > 0,
+  );
+  const optionsLocked = isEdit && hasVotes;
+  // Composer de slot manual (modo cupo): fecha + hora + cupo para agregar
+  // un slot que faltó en la generación masiva.
+  const [manualSlotDate, setManualSlotDate] = useState("");
+  const [manualSlotTime, setManualSlotTime] = useState("09:00");
+  const [manualSlotCupo, setManualSlotCupo] = useState("1");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   // Multi-curso (migración 20260603010000): la encuesta puede aplicar a
@@ -1059,6 +1071,41 @@ function CreatePollDialog({
   // individuales). Para otros tipos se ignora el campo.
   const addOption = () =>
     setOptions((opts) => [...opts, { label: "", max_responses: type === "slot" ? "1" : "" }]);
+  // Agrega UN slot a mano (fecha + hora) en modo cupo — para el slot que
+  // faltó en la generación masiva. Compone el label con el MISMO formato
+  // que los slots generados (formatSlotLabel).
+  const addManualSlot = () => {
+    if (!manualSlotDate || !manualSlotTime) {
+      toast.error(
+        i18n.t("toast.routes_app_teacher_polls.pickSlotDateTime", {
+          defaultValue: "Elegí fecha y hora para el slot",
+        }),
+      );
+      return;
+    }
+    const label = formatSlotLabel(manualSlotDate, manualSlotTime);
+    if (!label) {
+      toast.error(
+        i18n.t("toast.routes_app_teacher_polls.invalidSlotDateTime", {
+          defaultValue: "Fecha u hora inválida",
+        }),
+      );
+      return;
+    }
+    const cupo = Math.max(1, Math.floor(Number(manualSlotCupo) || 1));
+    setOptions((prev) => {
+      // Si todas las opciones están vacías (estado inicial), reemplazamos;
+      // si ya hay slots, agregamos al final.
+      const base = prev.every((o) => !o.label.trim()) ? [] : prev;
+      return [...base, { label, max_responses: String(cupo) }];
+    });
+    setManualSlotDate("");
+    toast.success(
+      i18n.t("toast.routes_app_teacher_polls.slotAdded", {
+        defaultValue: "Slot agregado",
+      }),
+    );
+  };
   const removeOption = (idx: number) =>
     setOptions((opts) => (opts.length > 2 ? opts.filter((_, i) => i !== idx) : opts));
   const updateOption = (idx: number, patch: Partial<DraftOption>) =>
@@ -1088,8 +1135,10 @@ function CreatePollDialog({
     // encuesta fallaba con "faltan 2 opciones" aunque la config era válida.
     // El botón "Generar slots" queda como preview opcional.
     let effectiveOptions = options;
-    // Opciones solo se validan en modo create — en edit son read-only.
-    if (!isEdit) {
+    // Validamos/generamos opciones salvo que estén bloqueadas por votos ya
+    // emitidos (optionsLocked). En edit SIN votos el docente puede editar
+    // las opciones/slots libremente.
+    if (!optionsLocked) {
       if (
         type === "slot" &&
         !options.some((o) => o.label.trim()) &&
@@ -1196,6 +1245,35 @@ function CreatePollDialog({
           if (delErr) {
             toast.error(friendlyError(delErr, "No se pudieron quitar cursos"));
             return;
+          }
+        }
+        // Sync de opciones cuando NO hay votos (optionsLocked=false). Es
+        // seguro borrar + reinsertar porque ningún poll_response las
+        // referencia todavía. Con votos, optionsLocked=true y este bloque
+        // se salta (las opciones quedan intactas).
+        if (!optionsLocked) {
+          const validOpts = effectiveOptions.filter((o) => o.label.trim());
+          const { error: delOptErr } = await db
+            .from("poll_options")
+            .delete()
+            .eq("poll_id", editingPoll.id);
+          if (delOptErr) {
+            toast.error(friendlyError(delOptErr, "No se pudieron actualizar las opciones"));
+            return;
+          }
+          const optsPayload = validOpts.map((o, i) => ({
+            poll_id: editingPoll.id,
+            label: o.label.trim(),
+            position: i,
+            max_responses:
+              type === "slot" ? Math.max(1, Math.floor(Number(o.max_responses) || 1)) : null,
+          }));
+          if (optsPayload.length > 0) {
+            const { error: insOptErr } = await db.from("poll_options").insert(optsPayload);
+            if (insOptErr) {
+              toast.error(friendlyError(insOptErr, "No se pudieron actualizar las opciones"));
+              return;
+            }
           }
         }
         toast.success(
@@ -1639,13 +1717,13 @@ function CreatePollDialog({
                 </div>
               </HelpHint>
             </Label>
-            {isEdit && (
+            {optionsLocked && (
               <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1.5 mt-1 mb-2">
-                Las opciones quedan en solo lectura: cambiarlas rompería los votos ya emitidos. Para
-                reemplazarlas, eliminá esta encuesta y creá una nueva.
+                Esta encuesta ya tiene votos: las opciones quedan en solo lectura para no romper las
+                respuestas emitidas. Para reemplazarlas, eliminá esta encuesta y creá una nueva.
               </p>
             )}
-            {type === "slot" && !isEdit && (
+            {type === "slot" && !optionsLocked && (
               <>
                 {/* Generador de slots (V2): el docente agrega múltiples
                     fechas manualmente + define UNA ventana horaria
@@ -1845,6 +1923,50 @@ function CreatePollDialog({
                     <CalendarRange className="h-3.5 w-3.5 mr-1" />
                     Generar slots
                   </Button>
+
+                  {/* Agregar UN slot a mano (fecha + hora) — para el que
+                      faltó en la generación masiva. Compone el label con el
+                      mismo formato que los generados. */}
+                  <div className="border-t pt-3 space-y-1.5">
+                    <Label className="text-[11px]">Agregar un slot puntual</Label>
+                    <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
+                      <div className="flex-1 min-w-0">
+                        <DatePicker
+                          value={manualSlotDate}
+                          onChange={setManualSlotDate}
+                          placeholder="Fecha"
+                          className="h-8 text-xs w-full"
+                        />
+                      </div>
+                      <Input
+                        type="time"
+                        value={manualSlotTime}
+                        onChange={(e) => setManualSlotTime(e.target.value)}
+                        className="h-8 text-xs w-28"
+                        aria-label="Hora del slot"
+                      />
+                      <Input
+                        type="number"
+                        min={1}
+                        value={manualSlotCupo}
+                        onChange={(e) => setManualSlotCupo(e.target.value)}
+                        className="h-8 text-xs w-20"
+                        title="Cupo del slot"
+                        aria-label="Cupo del slot"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addManualSlot}
+                        disabled={!manualSlotDate || !manualSlotTime}
+                        className="h-8 text-xs"
+                      >
+                        <Plus className="h-3.5 w-3.5 mr-1" />
+                        Agregar slot
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </>
             )}
@@ -1864,7 +1986,7 @@ function CreatePollDialog({
                         : `Opción ${idx + 1}`
                     }
                     className="flex-1"
-                    disabled={isEdit}
+                    disabled={optionsLocked}
                   />
                   {type === "slot" && (
                     <Input
@@ -1875,10 +1997,10 @@ function CreatePollDialog({
                       placeholder="Cupo"
                       className="w-20"
                       title="Máximo de alumnos que pueden elegir esta opción"
-                      disabled={isEdit}
+                      disabled={optionsLocked}
                     />
                   )}
-                  {!isEdit && options.length > 2 && (
+                  {!optionsLocked && options.length > 2 && (
                     <RowAction
                       label="Quitar opción"
                       icon={Trash2}
@@ -1888,7 +2010,10 @@ function CreatePollDialog({
                   )}
                 </div>
               ))}
-              {!isEdit && (
+              {/* "Agregar opción" en blanco solo para single/multiple. En
+                  modo cupo los slots se agregan con el composer fecha+hora
+                  de arriba (no un input vacío). */}
+              {!optionsLocked && type !== "slot" && (
                 <Button variant="outline" size="sm" onClick={addOption}>
                   <Plus className="h-3.5 w-3.5 mr-1" />
                   Agregar opción

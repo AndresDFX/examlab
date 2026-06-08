@@ -154,6 +154,20 @@ export function generateSlotsForDates(input: GenerateSlotsInput): GeneratedSlot[
 }
 
 /**
+ * Formatea el label de UN slot (fecha + hora) con el MISMO formato que
+ * `generateSlotsForDates` ("<weekday>, <día> <mes> · <hora 12h>"). Lo usa
+ * la UI cuando el docente agrega un slot suelto a mano (fecha+hora) que
+ * faltó en la generación masiva. Devuelve "" si la fecha u hora son
+ * inválidas. PURO (sin React/Date.now).
+ */
+export function formatSlotLabel(dateStr: string, time: string): string {
+  const date = parseLocalDate(dateStr);
+  const min = parseTimeToMinutes(time);
+  if (!date || min == null) return "";
+  return `${formatDateLabel(date)} · ${formatTime12h(min)}`;
+}
+
+/**
  * Calcula el cupo sugerido (ceil de matriculados / total de slots) para
  * que TODOS los matriculados quepan en al menos un slot. Si no hay
  * matriculados o el set de slots está vacío, retorna 1.

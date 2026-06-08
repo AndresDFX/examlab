@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateSlotsForDates, suggestSlotCupo } from "./slot-generation";
+import { generateSlotsForDates, suggestSlotCupo, formatSlotLabel } from "./slot-generation";
 
 describe("generateSlotsForDates", () => {
   describe("entrada inválida", () => {
@@ -244,5 +244,33 @@ describe("suggestSlotCupo", () => {
   it("siempre devuelve >= 1 incluso si matemáticamente daría 0", () => {
     // 1 alumno, muchísimos slots
     expect(suggestSlotCupo(["2026-06-10"], "00:00", "23:30", 1, 1)).toBe(1);
+  });
+});
+
+describe("formatSlotLabel", () => {
+  it("formatea fecha + hora con el mismo formato que los slots generados", () => {
+    // El label de un slot suelto debe coincidir EXACTO con el de la
+    // generación masiva para el mismo día+hora (window de 1 slot).
+    const generated = generateSlotsForDates({
+      dates: ["2026-06-10"],
+      timeStart: "09:00",
+      timeEnd: "09:01",
+      stepMin: 1,
+      cupo: 1,
+    });
+    expect(generated).toHaveLength(1);
+    expect(formatSlotLabel("2026-06-10", "09:00")).toBe(generated[0].label);
+  });
+
+  it("usa 12h con AM/PM", () => {
+    expect(formatSlotLabel("2026-06-10", "13:30")).toContain("1:30 PM");
+    expect(formatSlotLabel("2026-06-10", "00:15")).toContain("12:15 AM");
+  });
+
+  it("fecha u hora inválida → cadena vacía", () => {
+    expect(formatSlotLabel("", "09:00")).toBe("");
+    expect(formatSlotLabel("2026-13-40", "09:00")).toBe("");
+    expect(formatSlotLabel("2026-06-10", "99:99")).toBe("");
+    expect(formatSlotLabel("2026-06-10", "")).toBe("");
   });
 });
