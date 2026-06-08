@@ -16,11 +16,11 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { KeyRound, Eye, EyeOff, ShieldAlert } from "lucide-react";
+import { KeyRound, ShieldAlert } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { logEvent } from "@/shared/lib/audit";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -37,7 +37,6 @@ export function ForceChangePasswordDialog({ userId, onChanged, onSignOut }: Prop
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
-  const [showNew, setShowNew] = useState(false);
   // Username del user actual — necesario para que el password manager
   // asocie el cambio con la cuenta guardada y ofrezca "Actualizar contraseña".
   const { profile, user } = useAuth();
@@ -135,35 +134,23 @@ export function ForceChangePasswordDialog({ userId, onChanged, onSignOut }: Prop
           </p>
           <div>
             <Label required>Nueva contraseña</Label>
-            <div className="relative mt-1">
-              <Input
-                type={showNew ? "text" : "password"}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Mínimo 8 caracteres"
-                className="pr-9"
-                autoFocus
-                autoComplete="new-password"
-                name="new-password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowNew(!showNew)}
-                className="absolute right-1 top-1 p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
-                aria-label={showNew ? "Ocultar contraseña" : "Mostrar contraseña"}
-              >
-                {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
+            <PasswordInput
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Mínimo 8 caracteres"
+              wrapperClassName="mt-1"
+              autoFocus
+              autoComplete="new-password"
+              name="new-password"
+            />
           </div>
           <div>
             <Label required>Confirmar contraseña</Label>
-            <Input
-              type="password"
+            <PasswordInput
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Repite la nueva contraseña"
-              className="mt-1"
+              wrapperClassName="mt-1"
               autoComplete="new-password"
               name="confirm-password"
             />

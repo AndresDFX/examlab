@@ -20,6 +20,7 @@ import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -593,12 +594,12 @@ function ApiKeyInput({
         {helpHint && <HelpHint>{helpHint}</HelpHint>}
       </Label>
       <div className="flex gap-2">
-        <Input
-          type="password"
+        <PasswordInput
           value={isKeep ? "" : value}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-1 font-mono text-xs"
+          wrapperClassName="flex-1"
+          className="font-mono text-xs"
         />
         {!isKeep && (
           <Button variant="ghost" size="sm" onClick={() => onChange("__keep")}>
