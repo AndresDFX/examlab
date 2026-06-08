@@ -87,6 +87,66 @@ describe("buildTutorSystemPrompt", () => {
     // No debería aparecer un bullet vacío
     expect(out).not.toMatch(/^- $/m);
   });
+
+  describe("courseMaterial (contenido real de los documentos)", () => {
+    it("pliega el material dentro del bloque de topics cuando el template NO tiene el placeholder dedicado", () => {
+      const out = buildTutorSystemPrompt({
+        template: "{{course_content_topics}}", // template viejo: solo conoce topics
+        courseName: "X",
+        contentTopics: ["Recursividad"],
+        courseMaterial: "La recursividad es cuando una función se llama a sí misma.",
+      });
+      expect(out).toContain("- Recursividad");
+      expect(out).toContain("## Extractos del material del curso");
+      expect(out).toContain("La recursividad es cuando una función se llama a sí misma.");
+    });
+
+    it("usa el placeholder dedicado {{course_content_material}} si el template lo incluye (sin plegar en topics)", () => {
+      const out = buildTutorSystemPrompt({
+        template: "Temas:\n{{course_content_topics}}\n\nMaterial:\n{{course_content_material}}",
+        courseName: "X",
+        contentTopics: ["Recursividad"],
+        courseMaterial: "Texto fuente de la guía.",
+      });
+      expect(out).toContain("Material:\nTexto fuente de la guía.");
+      // No se pliega en topics cuando hay placeholder dedicado
+      expect(out).not.toContain("## Extractos del material del curso");
+    });
+
+    it("fallback amigable en el placeholder dedicado cuando no hay material", () => {
+      const out = buildTutorSystemPrompt({
+        template: "{{course_content_material}}",
+        courseName: "X",
+        contentTopics: ["Tema"],
+        courseMaterial: "",
+      });
+      expect(out).toContain("(El docente no ha cargado material con texto legible aún.)");
+    });
+
+    it("no pliega nada si no hay material (topics queda intacto)", () => {
+      const out = buildTutorSystemPrompt({
+        template: "{{course_content_topics}}",
+        courseName: "X",
+        contentTopics: ["Tema A"],
+        courseMaterial: null,
+      });
+      expect(out).toContain("- Tema A");
+      expect(out).not.toContain("## Extractos del material del curso");
+    });
+
+    it("trunca el material si excede maxMaterialChars", () => {
+      const big = "palabra ".repeat(5000); // ~40K chars
+      const out = buildTutorSystemPrompt({
+        template: "{{course_content_material}}",
+        courseName: "X",
+        contentTopics: [],
+        courseMaterial: big,
+        maxMaterialChars: 500,
+      });
+      expect(out).toMatch(/material truncado por longitud/);
+      expect(out.length).toBeLessThan(700);
+    });
+  });
 });
 
 describe("truncateHistory", () => {

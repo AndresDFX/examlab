@@ -20,29 +20,66 @@ export interface TutorPromptInput {
   contentTopics?: readonly string[];
   /** Máximo de caracteres para el bloque de topics (truncado seguro). */
   maxTopicsChars?: number;
+  /**
+   * Texto crudo del material del curso (extractos de los archivos md /
+   * pptx-source / txt de generated_contents). Permite al tutor responder
+   * citando el CONTENIDO real, no solo los títulos. El edge lo arma
+   * concatenando los `files[].body` por documento.
+   */
+  courseMaterial?: string | null;
+  /** Máximo de caracteres para el bloque de material (truncado seguro). */
+  maxMaterialChars?: number;
 }
 
 const DEFAULT_MAX_TOPICS_CHARS = 4000;
+const DEFAULT_MAX_MATERIAL_CHARS = 16000;
 
 /**
  * Sustituye placeholders en el template y devuelve el system prompt final.
  * Si el template no incluye un placeholder, simplemente no se inserta —
  * el docente personalizó y quiere otro orden. Si incluye uno que no
  * tenemos data para, queda como "(sin información)" para no romper.
+ *
+ * Material del curso: el placeholder dedicado es `{{course_content_material}}`.
+ * Pero los templates ya sembrados (ai_prompts) y los overrides del docente
+ * solo conocen `{{course_content_topics}}`. Para que el CONTENIDO siempre
+ * llegue al modelo sin re-sembrar la DB, cuando el template NO contiene el
+ * placeholder de material lo plegamos dentro del bloque de topics.
  */
 export function buildTutorSystemPrompt(input: TutorPromptInput): string {
   const maxChars = input.maxTopicsChars ?? DEFAULT_MAX_TOPICS_CHARS;
   const topicsBlock = formatTopics(input.contentTopics ?? [], maxChars);
+  const maxMat = input.maxMaterialChars ?? DEFAULT_MAX_MATERIAL_CHARS;
+  const materialBlock = truncateMaterial(input.courseMaterial ?? "", maxMat);
+
+  const hasMaterialPlaceholder = /\{\{course_content_material\}\}/.test(input.template);
+
+  let topicsValue = topicsBlock || "(Aún no hay material generado.)";
+  if (materialBlock && !hasMaterialPlaceholder) {
+    topicsValue =
+      (topicsBlock || "(Sin títulos de contenido.)") +
+      "\n\n## Extractos del material del curso\n" +
+      materialBlock;
+  }
 
   const replacements: Record<string, string> = {
     course_name: safeText(input.courseName, "el curso"),
     course_description: safeText(input.courseDescription, "(El docente no proporcionó descripción del curso.)"),
-    course_content_topics: topicsBlock || "(Aún no hay material generado.)",
+    course_content_topics: topicsValue,
+    course_content_material: materialBlock || "(El docente no ha cargado material con texto legible aún.)",
   };
 
   return input.template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
     return replacements[key] ?? `{{${key}}}`;
   });
+}
+
+/** Trunca el bloque de material a un budget de chars con marca de corte. */
+function truncateMaterial(text: string, maxChars: number): string {
+  const t = (text ?? "").trim();
+  if (!t) return "";
+  if (t.length <= maxChars) return t;
+  return t.slice(0, maxChars).trimEnd() + "\n\n(… material truncado por longitud)";
 }
 
 /**

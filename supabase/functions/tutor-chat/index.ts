@@ -36,6 +36,10 @@ const FALLBACK_TEMPLATE = `Eres el Tutor IA del curso "{{course_name}}". Tu rol 
 Estos son los contenidos generados por el docente para este curso. Al responder, ánclate a ellos siempre que sea posible — son la fuente de verdad sobre QUÉ se está enseñando y EN QUÉ ORDEN:
 {{course_content_topics}}
 
+## Contenido del material (extractos)
+Estos son extractos del texto real de esos contenidos (guías, presentaciones, lecturas). Úsalos para responder con precisión sobre lo que el material explica — definiciones, ejemplos y pasos — citando el título del contenido del que provienen. Si el estudiante pregunta algo cubierto aquí, básate en este texto antes que en conocimiento general:
+{{course_content_material}}
+
 ## Reglas de comportamiento
 1. **No regalas soluciones.** Si el estudiante pide la respuesta directa de un ejercicio, devuélvele el método paso a paso SIN dar el resultado final. Si insiste, recuérdale amablemente que tu objetivo es que él aprenda.
 2. **Guía socrática.** Prefiere hacer una pregunta de seguimiento para descubrir qué entiende y qué no, antes de exponer la teoría. Las pistas suben de granularidad solo si el estudiante sigue atascado.
@@ -50,6 +54,46 @@ Estos son los contenidos generados por el docente para este curso. Al responder,
 - Usa **Markdown** estándar: encabezados solo cuando aporten estructura, listas para enumeraciones, bloques de código con \`\`\`lenguaje cuando muestres código.
 - NO uses emojis ni adornos visuales innecesarios.
 - Cierra la respuesta con UNA pregunta de seguimiento que invite al estudiante a verificar su comprensión o avanzar al siguiente paso.`;
+
+// ── Extracción de material del curso para el contexto del tutor ──
+// El contenido de los documentos vive inline en generated_contents.files[].body
+// (texto crudo que el módulo de contenidos guarda al generar/editar). Solo
+// extraemos los kinds legibles. Concatenamos por documento con un header de
+// título, con tope por-documento y tope global para no reventar el context
+// window. La función PURA equivalente del cliente vive en tutor-prompt.ts; acá
+// la inlineamos porque depende del shape de la fila de DB.
+const READABLE_FILE_KINDS = new Set(["md", "pptx-source", "txt"]);
+const MATERIAL_PER_DOC_CHARS = 6000;
+const MATERIAL_TOTAL_CHARS = 16000;
+
+function buildCourseMaterial(
+  rows: Array<{ topic: string; display_name: string; files: Array<{ name?: string; kind?: string; body?: string }> | null }>,
+): string {
+  let acc = "";
+  for (const row of rows) {
+    if (acc.length >= MATERIAL_TOTAL_CHARS) break;
+    const files = Array.isArray(row.files) ? row.files : [];
+    const docTitle = (row.display_name || row.topic || "(sin título)").trim();
+    for (const f of files) {
+      if (acc.length >= MATERIAL_TOTAL_CHARS) break;
+      if (!f || typeof f.body !== "string") continue;
+      if (!READABLE_FILE_KINDS.has(String(f.kind))) continue;
+      const text = f.body.trim();
+      if (!text) continue;
+      const excerpt = text.length > MATERIAL_PER_DOC_CHARS
+        ? text.slice(0, MATERIAL_PER_DOC_CHARS).trimEnd() + " …"
+        : text;
+      const header = `\n\n### ${docTitle}${f.name ? ` — ${f.name}` : ""}\n`;
+      const block = header + excerpt;
+      if (acc.length + block.length > MATERIAL_TOTAL_CHARS) {
+        acc += block.slice(0, MATERIAL_TOTAL_CHARS - acc.length);
+        break;
+      }
+      acc += block;
+    }
+  }
+  return acc.trim();
+}
 
 // ── AI gateway: reutiliza el patrón del edge function de grading ──
 // Multi-tenant: hint para resolver ai_model_settings por tenant.
@@ -251,15 +295,27 @@ Deno.serve(async (req) => {
 
     const { data: contents } = await admin
       .from("generated_contents")
-      .select("topic, display_name")
+      .select("topic, display_name, files")
       .eq("course_id", session.course_id)
       .eq("status", "done")
+      .is("deleted_at", null)
       .order("updated_at", { ascending: false })
       .limit(30);
 
-    const contentTopics = ((contents ?? []) as Array<{ topic: string; display_name: string }>)
-      .map((c) => c.display_name || c.topic)
-      .filter(Boolean);
+    type ContentFile = { name?: string; path?: string; kind?: string; body?: string };
+    const contentRows = (contents ?? []) as Array<{
+      topic: string;
+      display_name: string;
+      files: ContentFile[] | null;
+    }>;
+
+    const contentTopics = contentRows.map((c) => c.display_name || c.topic).filter(Boolean);
+
+    // Extraer el TEXTO real de los archivos para que el tutor pueda citar el
+    // contenido (definiciones, ejemplos, pasos), no solo los títulos. El
+    // contenido vive inline en `files[].body` (lo guarda el módulo de
+    // contenidos al generar/editar) — kinds legibles: md / pptx-source / txt.
+    const courseMaterial = buildCourseMaterial(contentRows);
 
     // Construir prompt
     const template = await resolveTutorTemplate(session.course_id);
@@ -268,6 +324,7 @@ Deno.serve(async (req) => {
       courseName: course?.name ?? "el curso",
       courseDescription: course?.description ?? null,
       contentTopics,
+      courseMaterial,
     });
 
     // Truncar historial y agregar el nuevo turno
