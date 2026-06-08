@@ -78,12 +78,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check admin role
+    // Check admin role — Admin del tenant o SuperAdmin de plataforma
     const { data: roleCheck } = await adminClient
       .from("user_roles")
       .select("role")
       .eq("user_id", caller.user.id)
-      .eq("role", "Admin");
+      .in("role", ["Admin", "SuperAdmin"]);
     if (!roleCheck?.length) {
       return new Response(
         JSON.stringify({ error: "Solo administradores pueden cambiar contraseñas" }),
