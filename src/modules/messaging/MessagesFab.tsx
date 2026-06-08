@@ -155,7 +155,13 @@ export function MessagesFab({ sidebarCollapsed }: MessagesFabProps) {
             // Desktop (md+): bottom-4 derecha, oculto cuando el sidebar
             // está expandido (el MessagesBell del header sidebar ya
             // está visible) y visible cuando colapsado.
-            "fixed md:bottom-4 right-4 z-50 h-12 w-12 rounded-full shadow-lg hidden md:flex",
+            // Safe-area: si en el futuro se decide mostrar también en
+            // mobile, el `bottom-[max(env(safe-area-inset-bottom),1rem)]`
+            // garantiza que NO quede tapado por el home indicator de iOS
+            // ni por la barra de navegación de Android (gesture bar).
+            // En desktop env(safe-area-inset-bottom) = 0, así que el
+            // max() resuelve a 1rem y el comportamiento NO cambia.
+            "fixed bottom-[max(env(safe-area-inset-bottom),1rem)] right-4 z-50 h-12 w-12 rounded-full shadow-lg hidden md:flex",
             hideOnDesktop && "md:hidden",
           )}
         >
