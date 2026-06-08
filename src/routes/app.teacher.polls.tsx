@@ -34,6 +34,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { RowAction } from "@/components/ui/row-action";
+import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DateCell } from "@/components/ui/date-cell";
 import { HelpHint } from "@/components/ui/help-hint";
 import {
@@ -79,6 +80,8 @@ import {
   Radio,
   Pencil,
   X,
+  Copy,
+  Link2,
 } from "lucide-react";
 import { usePollRealtime } from "@/modules/polls/use-poll-realtime";
 import { cn } from "@/shared/lib/utils";
@@ -428,6 +431,115 @@ function TeacherPolls() {
     setRetryNonce((n) => n + 1);
   };
 
+  /** Duplica la ESTRUCTURA de una encuesta (opciones, cupos, cursos y
+   *  configuración) SIN copiar respuestas. La copia queda como borrador
+   *  (is_published=false) para que el docente la revise antes de publicar;
+   *  no hereda la ventana de cierre ni el vínculo a la sesión original. */
+  const duplicatePoll = async (p: Poll) => {
+    if (!user) return;
+    const ok = await confirm({
+      title: `Duplicar "${p.title}"`,
+      description:
+        "Se crea una copia con la misma estructura (opciones, cupos, cursos y configuración) pero SIN respuestas. La copia queda como borrador para que la revises y la publiques cuando quieras.",
+      confirmLabel: "Duplicar",
+    });
+    if (!ok) return;
+    try {
+      const { data: newPoll, error: pErr } = await db
+        .from("polls")
+        .insert({
+          course_id: p.course_id,
+          title: `${p.title} (copia)`,
+          description: p.description,
+          poll_type: p.poll_type,
+          results_visible_to_students: p.results_visible_to_students,
+          allow_change_response: p.allow_change_response,
+          auto_close_when_all_responded: p.auto_close_when_all_responded,
+          is_published: false,
+          closes_at: null,
+          attendance_session_id: null,
+          created_by: user.id,
+        })
+        .select("id")
+        .single();
+      if (pErr || !newPoll) {
+        toast.error(friendlyError(pErr, "No se pudo duplicar la encuesta"));
+        return;
+      }
+      // El trigger AFTER INSERT en polls ya creó el row ancla en
+      // poll_courses; el upsert con ignoreDuplicates agrega los demás
+      // cursos sin chocar (mismo patrón que el create multi-curso).
+      const linkedIds = (p.linked_courses ?? []).map((c) => c.id);
+      const courseIds = linkedIds.length > 0 ? linkedIds : [p.course_id];
+      const { error: jErr } = await db
+        .from("poll_courses")
+        .upsert(
+          courseIds.map((cid) => ({ poll_id: newPoll.id, course_id: cid })),
+          { onConflict: "poll_id,course_id", ignoreDuplicates: true },
+        );
+      if (jErr) {
+        await db.from("polls").delete().eq("id", newPoll.id);
+        toast.error(friendlyError(jErr, "No se pudieron asociar los cursos a la copia"));
+        return;
+      }
+      // Opciones: copiamos estructura (label + cupo). responses_count
+      // arranca en 0 por default — la copia nace sin votos.
+      const optsPayload = (p.options ?? []).map((o, i) => ({
+        poll_id: newPoll.id,
+        label: o.label,
+        position: i,
+        max_responses: o.max_responses,
+      }));
+      if (optsPayload.length > 0) {
+        const { error: oErr } = await db.from("poll_options").insert(optsPayload);
+        if (oErr) {
+          await db.from("polls").delete().eq("id", newPoll.id);
+          toast.error(friendlyError(oErr, "No se pudieron copiar las opciones"));
+          return;
+        }
+      }
+      toast.success(
+        i18n.t("toast.routes_app_teacher_polls.pollDuplicated", {
+          defaultValue: 'Encuesta duplicada como borrador: "{{title}} (copia)"',
+          title: p.title,
+        }),
+      );
+      setRetryNonce((n) => n + 1);
+    } catch (e) {
+      toast.error(friendlyError(e));
+    }
+  };
+
+  /** Copia al portapapeles un enlace único a la encuesta para enviarlo a
+   *  los estudiantes por otro medio (correo, WhatsApp). El enlace lleva al
+   *  alumno (autenticado + matriculado) directo a la encuesta en su vista;
+   *  la RLS sigue aplicando, así que NO expone la encuesta a terceros. */
+  const sharePoll = async (p: Poll) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const url = `${origin}/app/student/polls?poll=${p.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(
+        i18n.t("toast.routes_app_teacher_polls.shareLinkCopied", {
+          defaultValue:
+            "Enlace copiado. Compártelo con tus estudiantes (deben iniciar sesión y estar matriculados).",
+        }),
+      );
+    } catch {
+      // Algunos navegadores bloquean clipboard sin gesto/https — mostramos
+      // el enlace en un toast largo para copiar a mano.
+      toast.info(url, { duration: 15000 });
+    }
+    if (!p.is_published) {
+      toast.warning(
+        i18n.t("toast.routes_app_teacher_polls.shareLinkDraft", {
+          defaultValue:
+            "Ojo: esta encuesta es un borrador. Publícala para que los estudiantes puedan verla con el enlace.",
+        }),
+      );
+    }
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -629,29 +741,30 @@ function TeacherPolls() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="inline-flex items-center gap-1">
-                            <RowAction
-                              label="Ver resultados"
-                              icon={Eye}
-                              onClick={() => setViewPoll(p)}
-                            />
-                            <RowAction
-                              label="Editar"
-                              icon={Pencil}
-                              onClick={() => setEditPoll(p)}
-                            />
-                            <RowAction
-                              label={p.closed_manually ? "Reabrir" : "Cerrar"}
-                              icon={p.closed_manually ? Unlock : Lock}
-                              onClick={() => void toggleClose(p)}
-                            />
-                            <RowAction
-                              label="Eliminar"
-                              icon={Trash2}
-                              tone="destructive"
-                              onClick={() => void removePoll(p)}
-                            />
-                          </div>
+                          <RowActionsMenu
+                            actions={[
+                              { label: "Ver resultados", icon: Eye, onClick: () => setViewPoll(p) },
+                              {
+                                label: "Compartir enlace",
+                                icon: Link2,
+                                onClick: () => void sharePoll(p),
+                              },
+                              { label: "Editar", icon: Pencil, onClick: () => setEditPoll(p) },
+                              { label: "Duplicar", icon: Copy, onClick: () => void duplicatePoll(p) },
+                              {
+                                label: p.closed_manually ? "Reabrir" : "Cerrar",
+                                icon: p.closed_manually ? Unlock : Lock,
+                                onClick: () => void toggleClose(p),
+                              },
+                              {
+                                label: "Eliminar",
+                                icon: Trash2,
+                                tone: "destructive",
+                                separatorBefore: true,
+                                onClick: () => void removePoll(p),
+                              },
+                            ]}
+                          />
                         </TableCell>
                       </TableRow>
                     );
@@ -2111,23 +2224,31 @@ function ResultsDialog({
         .select("id, poll_id, label, position, max_responses, responses_count")
         .eq("poll_id", poll.id)
         .order("position"),
-      db
-        .from("poll_responses")
-        .select("option_id, user_id, profiles:user_id(full_name)")
-        .eq("poll_id", poll.id),
+      // OJO: `poll_responses.user_id` apunta a `auth.users`, NO a `profiles`,
+      // así que el embed PostgREST `profiles:user_id(full_name)` falla con
+      // PGRST200 (sin relación) y deja `respondents` vacío → el docente NO
+      // veía ningún nombre por cupo. Patrón 2-query (CLAUDE.md): traemos las
+      // respuestas y resolvemos los nombres en una 2ª consulta a profiles.
+      db.from("poll_responses").select("option_id, user_id").eq("poll_id", poll.id),
     ]);
     setLiveOptions((optsRes.data ?? []) as PollOption[]);
+    const rawResp = (respRes.data ?? []) as Array<{ option_id: string; user_id: string }>;
+    const userIds = Array.from(new Set(rawResp.map((r) => r.user_id)));
+    const nameById = new Map<string, string | null>();
+    if (userIds.length > 0) {
+      const { data: profs } = await db
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", userIds);
+      for (const p of (profs ?? []) as Array<{ id: string; full_name: string | null }>) {
+        nameById.set(p.id, p.full_name ?? null);
+      }
+    }
     setRespondents(
-      (
-        (respRes.data ?? []) as Array<{
-          option_id: string;
-          user_id: string;
-          profiles: { full_name: string } | null;
-        }>
-      ).map((r) => ({
+      rawResp.map((r) => ({
         option_id: r.option_id,
         user_id: r.user_id,
-        full_name: r.profiles?.full_name ?? null,
+        full_name: nameById.get(r.user_id) ?? null,
       })),
     );
     setLoading(false);

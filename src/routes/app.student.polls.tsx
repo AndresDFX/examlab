@@ -17,7 +17,7 @@
  *   - 'never'       → nunca al alumno.
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { usePollRealtime } from "@/modules/polls/use-poll-realtime";
@@ -42,9 +42,18 @@ import {
   Check,
   RefreshCw,
   Presentation,
+  X,
 } from "lucide-react";
 
-export const Route = createFileRoute("/app/student/polls")({ component: StudentPolls });
+export const Route = createFileRoute("/app/student/polls")({
+  component: StudentPolls,
+  // Deep-link: el docente comparte `/app/student/polls?poll=<id>` para que
+  // el alumno aterrice y se le resalte/scrollee esa encuesta. La RLS sigue
+  // aplicando — el param solo enfoca, no expone nada.
+  validateSearch: (search: Record<string, unknown>): { poll?: string } => ({
+    poll: typeof search.poll === "string" ? search.poll : undefined,
+  }),
+});
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -113,6 +122,8 @@ const TYPE_HINT: Record<PollType, string> = {
 
 function StudentPolls() {
   const { user } = useAuth();
+  // Deep-link `?poll=<id>` compartido por el docente — resaltamos esa card.
+  const { poll: deepLinkId } = Route.useSearch();
   const [polls, setPolls] = useState<Poll[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -322,6 +333,29 @@ function StudentPolls() {
     }
   };
 
+  /** Quita la respuesta del alumno SIN obligarlo a elegir otra opción.
+   *  Llama a `clear_poll_response` (borra todas sus filas en la encuesta).
+   *  El RPC rechaza si la encuesta está cerrada o no permite cambios, por
+   *  eso el botón solo se muestra cuando `allow_change_response` y abierta. */
+  const clearMyVote = async (poll: Poll) => {
+    setVoting(poll.id);
+    try {
+      const { error } = await db.rpc("clear_poll_response", { _poll_id: poll.id });
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(
+        i18n.t("toast.routes_app_student_polls.responseCleared", {
+          defaultValue: "Quitaste tu respuesta",
+        }),
+      );
+      setRetryNonce((n) => n + 1);
+    } finally {
+      setVoting(null);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -384,6 +418,8 @@ function StudentPolls() {
                       voting={voting === p.id}
                       onVote={castVote}
                       onToggleMultiple={toggleMultiple}
+                      onClear={clearMyVote}
+                      highlight={p.id === deepLinkId}
                       onRealtimeChange={() => setRetryNonce((n) => n + 1)}
                     />
                   ))}
@@ -402,6 +438,8 @@ function StudentPolls() {
                       voting={false}
                       onVote={castVote}
                       onToggleMultiple={toggleMultiple}
+                      onClear={clearMyVote}
+                      highlight={p.id === deepLinkId}
                       onRealtimeChange={() => setRetryNonce((n) => n + 1)}
                     />
                   ))}
@@ -421,16 +459,29 @@ function PollCard({
   voting,
   onVote,
   onToggleMultiple,
+  onClear,
+  highlight = false,
   onRealtimeChange,
 }: {
   poll: Poll;
   voting: boolean;
   onVote: (poll: Poll, optionId: string) => void;
   onToggleMultiple: (poll: Poll, optionId: string, checked: boolean) => void;
+  /** Quita la respuesta del alumno sin re-seleccionar (clear_poll_response). */
+  onClear: (poll: Poll) => void;
+  /** True cuando esta card es la apuntada por el deep-link `?poll=`. */
+  highlight?: boolean;
   /** Llamado cuando llega un evento realtime (otro alumno votó o el
    *  docente cerró la encuesta). El parent refetchea su lista. */
   onRealtimeChange: () => void;
 }) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  // Deep-link: al montar con highlight, scrolleamos la card al centro.
+  useEffect(() => {
+    if (highlight && cardRef.current) {
+      cardRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlight]);
   const open = pollIsOpen(poll);
   const Icon = TYPE_ICONS[poll.poll_type];
   const showResults = showResultsToStudent(poll);
@@ -441,7 +492,10 @@ function PollCard({
   usePollRealtime(poll.id, onRealtimeChange, open);
   const hasVoted = poll.my_votes.length > 0;
   return (
-    <Card>
+    <Card
+      ref={cardRef}
+      className={highlight ? "ring-2 ring-primary ring-offset-2 transition-shadow" : undefined}
+    >
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -562,12 +616,30 @@ function PollCard({
             );
           })}
         </div>
-        {hasVoted && open && poll.poll_type !== "multiple" && (
-          <p className="text-[11px] text-muted-foreground">
-            {poll.allow_change_response
-              ? "Click otra opción para cambiar tu voto mientras la encuesta esté abierta."
-              : "Tu voto ya quedó registrado. Esta encuesta no permite cambios."}
-          </p>
+        {hasVoted && open && (
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            {poll.poll_type !== "multiple" && (
+              <p className="text-[11px] text-muted-foreground">
+                {poll.allow_change_response
+                  ? "Click otra opción para cambiar tu voto mientras la encuesta esté abierta."
+                  : "Tu voto ya quedó registrado. Esta encuesta no permite cambios."}
+              </p>
+            )}
+            {poll.allow_change_response && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-[11px] text-muted-foreground hover:text-destructive ml-auto"
+                disabled={voting}
+                onClick={() => onClear(poll)}
+                title="Quitar tu respuesta sin elegir otra opción"
+              >
+                <X className="h-3.5 w-3.5 mr-1" />
+                Quitar mi respuesta
+              </Button>
+            )}
+          </div>
         )}
         {!showResults && (
           <p className="text-[11px] text-muted-foreground">
