@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
       .select("role")
       .eq("user_id", u.user.id);
     const isAdmin = (rolesRows ?? []).some(
-      (r: { role: string }) => r.role === "Admin",
+      (r: { role: string }) => r.role === "Admin" || r.role === "SuperAdmin",
     );
     if (!isAdmin) {
       return jsonResponse(403, { error: "Solo Admin puede gestionar secrets" });

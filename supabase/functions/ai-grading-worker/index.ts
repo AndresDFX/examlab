@@ -85,7 +85,8 @@ Deno.serve(async (req) => {
           .select("role")
           .eq("user_id", u.user.id);
         authorized = (roles ?? []).some(
-          (r: { role: string }) => r.role === "Admin" || r.role === "Docente",
+          (r: { role: string }) =>
+            r.role === "Admin" || r.role === "Docente" || r.role === "SuperAdmin",
         );
       }
     }

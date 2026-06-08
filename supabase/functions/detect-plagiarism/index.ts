@@ -113,7 +113,8 @@ Deno.serve(async (req) => {
     }
     const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", u.user.id);
     const isTeacherOrAdmin = (roles ?? []).some(
-      (r: { role: string }) => r.role === "Admin" || r.role === "Docente",
+      (r: { role: string }) =>
+        r.role === "Admin" || r.role === "Docente" || r.role === "SuperAdmin",
     );
     if (!isTeacherOrAdmin) {
       return new Response(

@@ -513,7 +513,8 @@ Deno.serve(async (req) => {
         .select("role")
         .eq("user_id", callerId);
       callerIsTeacherOrAdmin = (callerRoles ?? []).some(
-        (r: { role: string }) => r.role === "Admin" || r.role === "Docente",
+        (r: { role: string }) =>
+          r.role === "Admin" || r.role === "Docente" || r.role === "SuperAdmin",
       );
     }
 

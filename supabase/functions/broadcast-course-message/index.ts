@@ -130,7 +130,9 @@ Deno.serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", actorId);
-    const isAdmin = (roleRows ?? []).some((r: { role: string }) => r.role === "Admin");
+    const isAdmin = (roleRows ?? []).some(
+      (r: { role: string }) => r.role === "Admin" || r.role === "SuperAdmin",
+    );
     const isDocenteRole = (roleRows ?? []).some((r: { role: string }) => r.role === "Docente");
 
     // ── Cursos: existencia + autorización por cada uno ──

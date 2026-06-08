@@ -123,7 +123,8 @@ Deno.serve(async (req) => {
       .select("role")
       .eq("user_id", u.user.id);
     const isTeacherOrAdmin = (roles ?? []).some(
-      (r: { role: string }) => r.role === "Admin" || r.role === "Docente",
+      (r: { role: string }) =>
+        r.role === "Admin" || r.role === "Docente" || r.role === "SuperAdmin",
     );
     if (!isTeacherOrAdmin) {
       return new Response(
@@ -152,8 +153,10 @@ Deno.serve(async (req) => {
 
     // Authz: el caller debe ser docente DEL curso del examen (o Admin).
     // Sin esto cualquier docente puede leer metadata de exámenes de
-    // cursos ajenos. Admin pasa siempre.
-    const isAdmin = (roles ?? []).some((r: { role: string }) => r.role === "Admin");
+    // cursos ajenos. Admin / SuperAdmin pasan siempre.
+    const isAdmin = (roles ?? []).some(
+      (r: { role: string }) => r.role === "Admin" || r.role === "SuperAdmin",
+    );
     if (!isAdmin) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const courseId = (exam as any).course_id as string | null;
