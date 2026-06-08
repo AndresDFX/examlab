@@ -1082,14 +1082,44 @@ function CreatePollDialog({
       );
       return;
     }
+    // effectiveOptions: para tipo 'slot', si el docente configuró el
+    // generador (fechas + ventana horaria) pero NO clickeó "Generar slots",
+    // los auto-generamos acá. Sin esto, `options` queda vacío y crear la
+    // encuesta fallaba con "faltan 2 opciones" aunque la config era válida.
+    // El botón "Generar slots" queda como preview opcional.
+    let effectiveOptions = options;
     // Opciones solo se validan en modo create — en edit son read-only.
     if (!isEdit) {
-      const validOptions = options.filter((o) => o.label.trim());
+      if (
+        type === "slot" &&
+        !options.some((o) => o.label.trim()) &&
+        slotDates.length > 0
+      ) {
+        const step = Math.max(1, Math.floor(Number(slotStepMin) || 0));
+        const cupo = Math.max(1, Math.floor(Number(slotCupo) || 0));
+        const generated = generateSlotsForDates({
+          dates: slotDates,
+          timeStart: slotTimeStart,
+          timeEnd: slotTimeEnd,
+          stepMin: step,
+          cupo,
+        });
+        if (generated.length > 0) {
+          effectiveOptions = generated;
+          setOptions(generated); // reflejar en la UI
+        }
+      }
+      const validOptions = effectiveOptions.filter((o) => o.label.trim());
       if (validOptions.length < 2) {
         toast.error(
-          i18n.t("toast.routes_app_teacher_polls.atLeastTwoOptions", {
-            defaultValue: "Se necesitan al menos 2 opciones",
-          }),
+          type === "slot"
+            ? i18n.t("toast.routes_app_teacher_polls.slotNeedsConfig", {
+                defaultValue:
+                  "Agregá al menos una fecha y una ventana horaria válida (inicio antes de fin) para generar los slots.",
+              })
+            : i18n.t("toast.routes_app_teacher_polls.atLeastTwoOptions", {
+                defaultValue: "Se necesitan al menos 2 opciones",
+              }),
         );
         return;
       }
@@ -1179,7 +1209,8 @@ function CreatePollDialog({
       }
 
       // ── MODO CREATE (original) ──
-      const validOptions = options.filter((o) => o.label.trim());
+      // Usamos effectiveOptions (incluye los slots auto-generados arriba).
+      const validOptions = effectiveOptions.filter((o) => o.label.trim());
       const { data: pollRow, error: pollErr } = await db
         .from("polls")
         .insert({
