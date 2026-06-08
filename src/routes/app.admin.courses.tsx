@@ -6,7 +6,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { logEvent } from "@/shared/lib/audit";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
-import { toCSV, downloadCSV } from "@/shared/lib/csv";
+import { toCSV, downloadCSV, parseCSV } from "@/shared/lib/csv";
+import { SESSIONS_TEMPLATE, parseSessionsCsv } from "@/modules/sessions/csv";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -2834,36 +2835,12 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
    * personalizarlo.
    */
   const downloadTemplate = () => {
-    const today = new Date();
-    const fmt = (d: Date) => {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      return `${y}-${m}-${dd}`;
-    };
-    const next = (offsetDays: number) => {
-      const d = new Date(today);
-      d.setDate(d.getDate() + offsetDays);
-      return fmt(d);
-    };
-    const csv = toCSV([
-      {
-        session_date: next(7),
-        title: "Clase 1 — Introducción",
-        meeting_url: "https://meet.google.com/abc-defg-hij",
-      },
-      {
-        session_date: next(9),
-        title: "Clase 2 — Variables y tipos",
-        meeting_url: "",
-      },
-      {
-        session_date: next(14),
-        title: "",
-        meeting_url: "https://teams.microsoft.com/l/meetup-join/...",
-      },
-    ]);
-    downloadCSV("template-sesiones.csv", csv);
+    // Reusa el template CANÓNICO de sesiones (src/modules/sessions/csv.ts),
+    // que incluye fecha (session_date) + hora de inicio (start_time) + hora
+    // de fin (end_time) + meeting_url/cut_name/recording_url. Antes este
+    // Tablero descargaba un template propio minimalista (solo session_date,
+    // title, meeting_url) SIN hora inicio/fin — bug reportado en FESNA.
+    downloadCSV("template-sesiones.csv", SESSIONS_TEMPLATE);
     toast.success(t("course.boardTemplateDoneToast"));
   };
 
@@ -2872,61 +2849,37 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
     setImporting(true);
     try {
       const text = await file.text();
-      // Parser simple: split por línea + comma. NO soportamos comillas
-      // anidadas con commas dentro — el caso de uso son títulos cortos
-      // y URLs que no llevan commas. Si llega a ser problema, migramos
-      // a `papaparse`.
-      const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-      if (lines.length < 2) {
+      // Parser CSV robusto (maneja comillas/commas) + parser canónico de
+      // sesiones (src/modules/sessions/csv.ts): valida session_date, lee
+      // start_time + end_time y DERIVA duration_minutes = end - start. Esto
+      // reemplaza el parser bespoke que solo leía session_date/title/meeting_url
+      // (sin hora inicio/fin). cutByName vacío: este Tablero no resuelve cortes
+      // por nombre (cut_name del CSV se ignora).
+      const rawRows = parseCSV(text);
+      if (rawRows.length === 0) {
         toast.error(t("course.boardImportEmpty"));
         return;
       }
-      const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
-      const idxDate = header.indexOf("session_date");
-      const idxTitle = header.indexOf("title");
-      const idxMeet = header.indexOf("meeting_url");
-      if (idxDate < 0) {
-        toast.error(t("course.boardImportNoDate"));
-        return;
-      }
-
-      type Row = {
-        course_id: string;
-        session_date: string;
-        title: string | null;
-        meeting_url: string | null;
-        created_by: string;
-      };
-      const rows: Row[] = [];
-      let skipped = 0;
-      for (let i = 1; i < lines.length; i += 1) {
-        const cols = lines[i].split(",").map((c) => c.trim());
-        const date = cols[idxDate];
-        if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-          skipped += 1;
-          continue;
-        }
-        const url = idxMeet >= 0 ? cols[idxMeet] : "";
-        if (url && !/^https?:\/\//i.test(url)) {
-          skipped += 1;
-          continue;
-        }
-        rows.push({
-          course_id: course.id,
-          session_date: date,
-          title: idxTitle >= 0 && cols[idxTitle] ? cols[idxTitle] : null,
-          meeting_url: url || null,
-          created_by: user.id,
-        });
-      }
+      const { rows: parsed } = parseSessionsCsv(rawRows, new Map<string, string>());
+      const rows = parsed.map((r) => ({
+        course_id: course.id,
+        session_date: r.session_date,
+        title: r.title,
+        start_time: r.start_time,
+        duration_minutes: r.duration_minutes,
+        meeting_url: r.meeting_url,
+        created_by: user.id,
+      }));
       if (rows.length === 0) {
-        toast.error(t("course.boardImportNoValid", { skipped }));
+        toast.error(t("course.boardImportNoValid", { skipped: 0 }));
         return;
       }
       const { data, error } = await db
         .from("attendance_sessions")
         .insert(rows)
-        .select("id, course_id, session_date, title, content_id, content_class_index, meeting_url");
+        .select(
+          "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, meeting_url",
+        );
       if (error) {
         toast.error(friendlyError(error));
         return;
@@ -2936,9 +2889,11 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
           a.session_date.localeCompare(b.session_date),
         ),
       );
-      toast.success(t("course.boardImportDone", { created: rows.length, skipped }));
+      toast.success(t("course.boardImportDone", { created: rows.length, skipped: 0 }));
     } catch (e) {
-      toast.error(friendlyError(e));
+      // parseSessionsCsv lanza mensajes friendly en español con N° de línea
+      // (ej. "Fila 3: session_date no es válida…") — mostrarlos tal cual.
+      toast.error(e instanceof Error ? e.message : friendlyError(e));
     } finally {
       setImporting(false);
     }
