@@ -13,6 +13,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
@@ -282,7 +283,12 @@ function TeacherProjects() {
   const handleBulkDelete = async (ids: string[]) => {
     const { error } = await softDeleteMany("projects", ids);
     if (error) throw new Error(error.message);
-    toast.success(`${ids.length} proyecto(s) enviado(s) a papelera`);
+    toast.success(
+      i18n.t("toast.routes_app_teacher_projects.bulkSentToTrash", {
+        defaultValue: "{{n}} proyecto(s) enviado(s) a papelera",
+        n: ids.length,
+      }),
+    );
     void logEvent({
       action: "project.deleted",
       category: "project",
@@ -672,7 +678,11 @@ function TeacherProjects() {
       if (p) {
         openEdit(p);
       } else {
-        toast.info("El proyecto referenciado en la URL ya no existe o no tienes acceso a él.");
+        toast.info(
+          i18n.t("toast.routes_app_teacher_projects.projectFromUrlNotFound", {
+            defaultValue: "El proyecto referenciado en la URL ya no existe o no tienes acceso a él.",
+          }),
+        );
       }
       const url = new URL(window.location.href);
       url.searchParams.delete("edit");
@@ -688,7 +698,10 @@ function TeacherProjects() {
         void openGradingDialog(p);
       } else {
         toast.info(
-          "El proyecto referenciado en la notificación ya no existe o no tienes acceso a él.",
+          i18n.t("toast.routes_app_teacher_projects.projectFromNotificationNotFound", {
+            defaultValue:
+              "El proyecto referenciado en la notificación ya no existe o no tienes acceso a él.",
+          }),
         );
       }
       // Limpia los query params para que un refresh no re-dispare.
@@ -843,7 +856,11 @@ function TeacherProjects() {
   const save = async () => {
     const linked = form.linked_course_ids ?? [];
     if (!form.title || linked.length === 0 || !user) {
-      toast.error("Título y al menos un curso son obligatorios");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_projects.titleAndCourseRequired", {
+          defaultValue: "Título y al menos un curso son obligatorios",
+        }),
+      );
       return;
     }
     const primaryCourse =
@@ -909,8 +926,13 @@ function TeacherProjects() {
       if (requested > available + 0.01) {
         const cName = courses.find((c) => c.id === cid)?.name ?? cid;
         toast.error(
-          `${cName}: El peso del proyecto (${requested}%) supera el bucket disponible del corte ` +
-            `(${available.toFixed(2)}% restantes). Reduce el peso o ajusta los demás proyectos del corte.`,
+          i18n.t("toast.routes_app_teacher_projects.weightExceedsBucket", {
+            defaultValue:
+              "{{course}}: El peso del proyecto ({{requested}}%) supera el bucket disponible del corte ({{available}}% restantes). Reduce el peso o ajusta los demás proyectos del corte.",
+            course: cName,
+            requested,
+            available: available.toFixed(2),
+          }),
         );
         return;
       }
@@ -975,7 +997,12 @@ function TeacherProjects() {
           .from("project_courses")
           .upsert(rows, { onConflict: "project_id,course_id" });
         if (upErr) {
-          toast.error(`No se pudieron vincular los cursos: ${friendlyError(upErr)}`);
+          toast.error(
+            i18n.t("toast.routes_app_teacher_projects.linkCoursesFailed", {
+              defaultValue: "No se pudieron vincular los cursos: {{error}}",
+              error: friendlyError(upErr),
+            }),
+          );
         }
       }
       // Quitar vínculos a cursos que ya no están en `linked`. Si la
@@ -1029,7 +1056,12 @@ function TeacherProjects() {
         const { error: vErr } = await db.from("project_intro_videos").insert(insertRows);
         if (vErr) {
           console.warn("[projects] sync project_intro_videos failed", vErr);
-          toast.error(`No se pudieron guardar los videos introductorios: ${friendlyError(vErr)}`);
+          toast.error(
+            i18n.t("toast.routes_app_teacher_projects.saveIntroVideosFailed", {
+              defaultValue: "No se pudieron guardar los videos introductorios: {{error}}",
+              error: friendlyError(vErr),
+            }),
+          );
         }
       }
 
@@ -1063,7 +1095,13 @@ function TeacherProjects() {
       // Auto-asignar a todos los matriculados de los cursos vinculados al publicar
       if (payload.status === "published") {
         const added = await autoAssignProject(projectId, linked);
-        if (added > 0) toast.success(`${added} estudiante(s) asignados automáticamente`);
+        if (added > 0)
+          toast.success(
+            i18n.t("toast.routes_app_teacher_projects.studentsAutoAssigned", {
+              defaultValue: "{{n}} estudiante(s) asignados automáticamente",
+              n: added,
+            }),
+          );
       }
 
       // Notificar a los estudiantes solo cuando el proyecto está
@@ -1103,7 +1141,11 @@ function TeacherProjects() {
   const generateDescription = async () => {
     const topic = aiDescTopic.trim();
     if (!topic) {
-      toast.error("Indica un tema para generar la descripción");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_projects.topicRequired", {
+          defaultValue: "Indica un tema para generar la descripción",
+        }),
+      );
       return;
     }
     const decision = await aiGate.ensureAuthorized();
@@ -1134,7 +1176,11 @@ function TeacherProjects() {
       const description = String(res?.description ?? "").trim();
       if (!description) throw new Error("La IA no devolvió descripción");
       setForm((prev) => ({ ...prev, description }));
-      toast.success("Descripción generada — puedes editarla antes de guardar");
+      toast.success(
+        i18n.t("toast.routes_app_teacher_projects.descriptionGenerated", {
+          defaultValue: "Descripción generada — puedes editarla antes de guardar",
+        }),
+      );
       setAiDescOpen(false);
       setAiDescTopic("");
     } catch (e) {
@@ -1241,12 +1287,20 @@ function TeacherProjects() {
     if (!assignProject) return;
     const courseStudents = studentsByCourse.get(courseId);
     if (!courseStudents || !courseStudents.size) {
-      toast.info("Ese curso no tiene estudiantes matriculados");
+      toast.info(
+        i18n.t("toast.routes_app_teacher_projects.courseHasNoStudents", {
+          defaultValue: "Ese curso no tiene estudiantes matriculados",
+        }),
+      );
       return;
     }
     const toAdd = Array.from(courseStudents).filter((uid) => !assigned.has(uid));
     if (!toAdd.length) {
-      toast.info("Ya todos los del curso están asignados");
+      toast.info(
+        i18n.t("toast.routes_app_teacher_projects.allCourseStudentsAssigned", {
+          defaultValue: "Ya todos los del curso están asignados",
+        }),
+      );
       return;
     }
     const rows = toAdd.map((uid) => ({ project_id: assignProject.id, user_id: uid }));
@@ -1257,7 +1311,12 @@ function TeacherProjects() {
       for (const uid of toAdd) next.add(uid);
       return next;
     });
-    toast.success(`${toAdd.length} estudiante(s) asignados del curso`);
+    toast.success(
+      i18n.t("toast.routes_app_teacher_projects.studentsAssignedFromCourse", {
+        defaultValue: "{{n}} estudiante(s) asignados del curso",
+        n: toAdd.length,
+      }),
+    );
   };
 
   const toggleAssign = async (uid: string) => {
@@ -1292,7 +1351,12 @@ function TeacherProjects() {
     const { error } = await db.from("project_assignments").insert(rows);
     if (error) return toast.error(friendlyError(error));
     setAssigned((prev) => new Set([...prev, ...toAdd]));
-    toast.success(`${toAdd.length} estudiantes asignados`);
+    toast.success(
+      i18n.t("toast.routes_app_teacher_projects.studentsAssigned", {
+        defaultValue: "{{n}} estudiantes asignados",
+        n: toAdd.length,
+      }),
+    );
   };
 
   const unassignMany = async (visibleIds: string[]) => {
@@ -1310,7 +1374,12 @@ function TeacherProjects() {
       toRemove.forEach((id) => next.delete(id));
       return next;
     });
-    toast.success(`${toRemove.length} asignación(es) removidas`);
+    toast.success(
+      i18n.t("toast.routes_app_teacher_projects.assignmentsRemoved", {
+        defaultValue: "{{n}} asignación(es) removidas",
+        n: toRemove.length,
+      }),
+    );
   };
 
   // ===== Grading dialog =====
@@ -1449,7 +1518,11 @@ function TeacherProjects() {
   const saveSubFileGrade = async (subId: string, fileId: string) => {
     const ans = (gradingAnsBySub[subId] ?? []).find((a) => a.file_id === fileId);
     if (!ans?.id) {
-      toast.error("Esta entrega no tiene contenido para este archivo");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_projects.noContentForFile", {
+          defaultValue: "Esta entrega no tiene contenido para este archivo",
+        }),
+      );
       return;
     }
     setSavingId(ans.id);
@@ -1479,7 +1552,12 @@ function TeacherProjects() {
         })
         .eq("id", subId);
       if (subErr) {
-        toast.error(`Guardado, pero falló recalcular: ${friendlyError(subErr)}`);
+        toast.error(
+          i18n.t("toast.routes_app_teacher_projects.savedButRecomputeFailed", {
+            defaultValue: "Guardado, pero falló recalcular: {{error}}",
+            error: friendlyError(subErr),
+          }),
+        );
         return;
       }
       setGradingSubs((prev) =>
@@ -1496,8 +1574,19 @@ function TeacherProjects() {
       );
       toast.success(
         factor != null
-          ? `Guardado · final: ${newFinalGrade}/${gradingProject?.max_score ?? 100} (entrega ${newSubmissionGrade} × sustentación ${factor})`
-          : `Entrega: ${newSubmissionGrade}/${gradingProject?.max_score ?? 100} — falta sustentación`,
+          ? i18n.t("toast.routes_app_teacher_projects.savedWithFinalGrade", {
+              defaultValue:
+                "Guardado · final: {{finalGrade}}/{{maxScore}} (entrega {{submissionGrade}} × sustentación {{factor}})",
+              finalGrade: newFinalGrade,
+              maxScore: gradingProject?.max_score ?? 100,
+              submissionGrade: newSubmissionGrade,
+              factor,
+            })
+          : i18n.t("toast.routes_app_teacher_projects.savedPendingDefense", {
+              defaultValue: "Entrega: {{submissionGrade}}/{{maxScore}} — falta sustentación",
+              submissionGrade: newSubmissionGrade,
+              maxScore: gradingProject?.max_score ?? 100,
+            }),
       );
     } finally {
       setSavingId(null);
@@ -1569,7 +1658,11 @@ function TeacherProjects() {
           : s,
       ),
     );
-    toast.success("Entrega reabierta. El estudiante puede reenviar.");
+    toast.success(
+      i18n.t("toast.routes_app_teacher_projects.submissionReopened", {
+        defaultValue: "Entrega reabierta. El estudiante puede reenviar.",
+      }),
+    );
   };
 
   /**
@@ -1582,7 +1675,11 @@ function TeacherProjects() {
     if (!sub) return;
     const subGrade = sub.submission_grade ?? sub.ai_grade;
     if (subGrade == null) {
-      toast.error("La entrega aún no tiene calificación. Califica los archivos primero.");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_projects.submissionNotGradedYet", {
+          defaultValue: "La entrega aún no tiene calificación. Califica los archivos primero.",
+        }),
+      );
       return;
     }
     const validFactor =
@@ -1619,8 +1716,14 @@ function TeacherProjects() {
     );
     toast.success(
       validFactor != null
-        ? `Sustentación guardada · nota final: ${newFinal}/${gradingProject?.max_score ?? 100}`
-        : "Sustentación borrada",
+        ? i18n.t("toast.routes_app_teacher_projects.defenseSaved", {
+            defaultValue: "Sustentación guardada · nota final: {{finalGrade}}/{{maxScore}}",
+            finalGrade: newFinal,
+            maxScore: gradingProject?.max_score ?? 100,
+          })
+        : i18n.t("toast.routes_app_teacher_projects.defenseCleared", {
+            defaultValue: "Sustentación borrada",
+          }),
     );
 
     // Notificar al estudiante cuando se guarda una sustentación válida
@@ -1650,7 +1753,11 @@ function TeacherProjects() {
   ) => {
     const ans = (gradingAnsBySub[subId] ?? []).find((a) => a.file_id === file.id);
     if (!ans?.id) {
-      toast.error("Sin contenido para recalificar");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_projects.noContentToRegrade", {
+          defaultValue: "Sin contenido para recalificar",
+        }),
+      );
       return;
     }
     const decision = await aiGate.ensureAuthorized();
@@ -1678,7 +1785,11 @@ function TeacherProjects() {
           Array.isArray(ans.code_paths) && ans.code_paths.length > 0 ? ans.code_paths : undefined;
         const zipPath = ans.zip_path ?? undefined;
         if (!codePaths && !zipPath) {
-          toast.error("Sin archivos de código entregados para recalificar");
+          toast.error(
+            i18n.t("toast.routes_app_teacher_projects.noCodeFilesToRegrade", {
+              defaultValue: "Sin archivos de código entregados para recalificar",
+            }),
+          );
           return;
         }
         const { data: aiData, error: aiErr } = await supabase.functions.invoke(
@@ -1699,7 +1810,16 @@ function TeacherProjects() {
         );
         if (aiErr || aiData?.error) {
           const detail = await extractEdgeError(aiErr, aiData);
-          toast.error(`Error IA: ${detail || "Error desconocido"}`);
+          toast.error(
+            i18n.t("toast.routes_app_teacher_projects.aiError", {
+              defaultValue: "Error IA: {{detail}}",
+              detail:
+                detail ||
+                i18n.t("toast.routes_app_teacher_projects.unknownError", {
+                  defaultValue: "Error desconocido",
+                }),
+            }),
+          );
           return;
         }
         const newGrade = Number(aiData?.grade ?? 0);
@@ -1722,7 +1842,13 @@ function TeacherProjects() {
             ai_reasons: newAiReasons,
           })
           .eq("id", ans.id);
-        toast.success(`Recalificación lista: ${newGrade} / ${file.points}`);
+        toast.success(
+          i18n.t("toast.routes_app_teacher_projects.regradeReady", {
+            defaultValue: "Recalificación lista: {{grade}} / {{points}}",
+            grade: newGrade,
+            points: file.points,
+          }),
+        );
         return;
       }
 
@@ -1757,7 +1883,11 @@ function TeacherProjects() {
           .from("project_submission_files")
           .update({ ai_grade: result.earned, ai_feedback: newFeedback })
           .eq("id", ans.id);
-        toast.success("Recalculado localmente (sin IA)");
+        toast.success(
+          i18n.t("toast.routes_app_teacher_projects.recomputedLocally", {
+            defaultValue: "Recalculado localmente (sin IA)",
+          }),
+        );
         return;
       }
 
@@ -1777,7 +1907,16 @@ function TeacherProjects() {
       );
       if (aiErr || aiData?.error) {
         const detail = await extractEdgeError(aiErr, aiData);
-        toast.error(`Error IA: ${detail || "Error desconocido"}`);
+        toast.error(
+          i18n.t("toast.routes_app_teacher_projects.aiError", {
+            defaultValue: "Error IA: {{detail}}",
+            detail:
+              detail ||
+              i18n.t("toast.routes_app_teacher_projects.unknownError", {
+                defaultValue: "Error desconocido",
+              }),
+          }),
+        );
         return;
       }
       const newGrade = Number(aiData?.grade ?? 0);
@@ -1804,7 +1943,11 @@ function TeacherProjects() {
           ai_reasons: newAiReasons,
         })
         .eq("id", ans.id);
-      toast.success("Archivo recalificado con IA");
+      toast.success(
+        i18n.t("toast.routes_app_teacher_projects.fileRegradedWithAi", {
+          defaultValue: "Archivo recalificado con IA",
+        }),
+      );
     } finally {
       setAiRegradingId(null);
     }
@@ -1846,7 +1989,13 @@ function TeacherProjects() {
           setBulkProgress({ done, total });
         }
       }
-      toast.success(`Recalificación batch completada (${done}/${total}).`);
+      toast.success(
+        i18n.t("toast.routes_app_teacher_projects.batchRegradeCompleted", {
+          defaultValue: "Recalificación batch completada ({{done}}/{{total}}).",
+          done,
+          total,
+        }),
+      );
       if (isSubset) gradingSel.clear();
     } finally {
       setBulkRegrading(false);
@@ -1909,7 +2058,12 @@ function TeacherProjects() {
     });
     gradingSel.clear();
     toast.success(
-      ids.length === 1 ? t("project.submissionDeleted") : `${ids.length} entregas eliminadas`,
+      ids.length === 1
+        ? t("project.submissionDeleted")
+        : i18n.t("toast.routes_app_teacher_projects.submissionsDeleted", {
+            defaultValue: "{{n}} entregas eliminadas",
+            n: ids.length,
+          }),
     );
   };
 

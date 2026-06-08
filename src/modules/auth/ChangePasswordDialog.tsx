@@ -16,6 +16,7 @@ import { KeyRound } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { logEvent } from "@/shared/lib/audit";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 interface ChangePasswordDialogProps {
   open: boolean;
@@ -45,15 +46,15 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
 
   const handleSave = async () => {
     if (!newPassword || !confirmPassword) {
-      toast.error("Completa todos los campos");
+      toast.error(i18n.t("toast.modules_auth_ChangePasswordDialog.completeAllFields", { defaultValue: "Completa todos los campos" }));
       return;
     }
     if (newPassword.length < 8) {
-      toast.error("La nueva contraseña debe tener al menos 8 caracteres");
+      toast.error(i18n.t("toast.modules_auth_ChangePasswordDialog.passwordTooShort", { defaultValue: "La nueva contraseña debe tener al menos 8 caracteres" }));
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error("Las contraseñas no coinciden");
+      toast.error(i18n.t("toast.modules_auth_ChangePasswordDialog.passwordsDoNotMatch", { defaultValue: "Las contraseñas no coinciden" }));
       return;
     }
 
@@ -77,7 +78,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
         severity: "warning",
         metadata: { self: true },
       });
-      toast.success("Contraseña actualizada correctamente");
+      toast.success(i18n.t("toast.modules_auth_ChangePasswordDialog.passwordUpdated", { defaultValue: "Contraseña actualizada correctamente" }));
       reset();
       onOpenChange(false);
     } finally {

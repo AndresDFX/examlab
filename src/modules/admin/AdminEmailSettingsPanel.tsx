@@ -16,6 +16,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 import {
   Mail,
   Save,
@@ -199,7 +200,11 @@ export function AdminEmailSettingsPanel() {
       setSaving(false);
       return;
     }
-    toast.success("Configuración guardada");
+    toast.success(
+      i18n.t("toast.modules_admin_AdminEmailSettingsPanel.savedOk", {
+        defaultValue: "Configuración guardada",
+      }),
+    );
     void logEvent({
       action: "email_settings.updated",
       category: "system",

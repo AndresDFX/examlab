@@ -22,6 +22,7 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
 import { Save, Info, ScrollText, Trash2 } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -106,7 +107,11 @@ export function AdminAuditRetentionPanel() {
           new: draft,
         },
       });
-      toast.success("Retención actualizada");
+      toast.success(
+        i18n.t("toast.modules_admin_AdminAuditRetentionPanel.retentionUpdated", {
+          defaultValue: "Retención actualizada",
+        }),
+      );
       await load();
     } finally {
       setSaving(false);
@@ -128,8 +133,16 @@ export function AdminAuditRetentionPanel() {
         Number(r?.error_purged ?? 0);
       toast.success(
         total === 0
-          ? "Sin registros para purgar"
-          : `Purgados: ${r.info_purged} info, ${r.warning_purged} warning, ${r.error_purged} error/critical`,
+          ? i18n.t("toast.modules_admin_AdminAuditRetentionPanel.nothingToPurge", {
+              defaultValue: "Sin registros para purgar",
+            })
+          : i18n.t("toast.modules_admin_AdminAuditRetentionPanel.purgedSummary", {
+              defaultValue:
+                "Purgados: {{info}} info, {{warning}} warning, {{error}} error/critical",
+              info: r.info_purged,
+              warning: r.warning_purged,
+              error: r.error_purged,
+            }),
       );
     } finally {
       setPurging(false);

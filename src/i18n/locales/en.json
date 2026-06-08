@@ -104,7 +104,6 @@
     "contents": "Contents",
     "statistics": "Statistics",
     "auditLogs": "Audit Log",
-    "system": "System",
     "emailSettings": "Emails",
     "settings": "Settings",
     "messages": "Messages",
@@ -1107,7 +1106,15 @@
       "prevMonth": "Previous month",
       "today": "Today"
     },
-    "weekdaysShort": ["M", "T", "W", "T", "F", "S", "S"]
+    "weekdaysShort": [
+      "M",
+      "T",
+      "W",
+      "T",
+      "F",
+      "S",
+      "S"
+    ]
   },
   "aiModel": {
     "activeTitle": "Active model",
@@ -1218,5 +1225,833 @@
     "backupSnapshotsExplanation": "Logical snapshots of the tables to a ZIP in Storage. The cron `db-backup-weekly` runs on Sundays at 03:05 UTC and creates one with all tables; the \"Create backup\" button lets you generate a manual one choosing which tables to include. There is NO restore from the UI for safety reasons — download the ZIP and apply it via SQL if needed.",
     "privateUrlWarning": "This URL is PRIVATE — anyone who has it can see your events. If you shared it by mistake press \"Regenerate URL\".",
     "retentionHelp": "Defines how many days to keep records of each severity level. 0 = no limit (default). Purging is triggered by a monthly cron configured in Supabase."
+  },
+  "toast": {
+    "modules_admin_AdminAcademicPeriodsPanel": {
+      "codeRequired": "Code is required",
+      "startBeforeEnd": "The start date must be earlier than the end date",
+      "periodUpdated": "Period updated",
+      "periodCreated": "Period created",
+      "periodDeleted": "Period deleted"
+    },
+    "modules_admin_AdminAcademicProgramsPanel": {
+      "nameRequired": "Name is required",
+      "programUpdated": "Program updated",
+      "programCreated": "Program created",
+      "programDeleted": "Program deleted"
+    },
+    "modules_admin_AdminAcademicSubjectsPanel": {
+      "nameRequired": "Name is required",
+      "evalWeightsMustSum100": "The evaluation system weights must add up to 100 (currently {{sum}})",
+      "subjectDeleted": "Subject deleted"
+    },
+    "modules_admin_AdminAiGradingPanel": {
+      "modeSaved": "AI mode: {{mode}}",
+      "modeQueueLabel": "Queue (batch)",
+      "modeSyncLabel": "Synchronous",
+      "windowRange": "Window must be between 1 and 1440 minutes.",
+      "maxUsesMin": "Maximum uses must be >= 1",
+      "maxMessagesRange": "Maximum messages must be between 1 and 10,000 (or empty for no limit).",
+      "codeCreated": "Code created: {{code}} (copy it and share it with the teacher)",
+      "codeCopied": "Code copied",
+      "copyFailed": "Couldn't copy — select it manually.",
+      "codeRevoked": "Code revoked",
+      "codeDeleted": "Code deleted",
+      "codesBulkDeleted": "{{count}} code(s) deleted"
+    },
+    "modules_admin_AdminAuditRetentionPanel": {
+      "retentionUpdated": "Retention updated",
+      "nothingToPurge": "No records to purge",
+      "purgedSummary": "Purged: {{info}} info, {{warning}} warning, {{error}} error/critical"
+    },
+    "modules_admin_AdminCertificateSettingsPanel": {
+      "tenantUnavailable": "Couldn't determine the tenant to upload the image.",
+      "unsupportedFormat": "Unsupported format. Use PNG, JPG, SVG, or WebP.",
+      "imageTooLarge": "The image can't be larger than 2 MB.",
+      "imageUploaded": "Image uploaded. Remember to click 'Save settings' to apply it.",
+      "savedOk": "Settings saved"
+    },
+    "modules_admin_AdminCodeExecutionPanel": {
+      "providerSettingsSaved": "Code execution settings updated"
+    },
+    "modules_admin_AdminEdgeSecretsPanel": {
+      "nameAndValueRequired": "Name and value are required",
+      "secretDeleted": "Secret \"{{name}}\" deleted"
+    },
+    "modules_admin_AdminEmailSettingsPanel": {
+      "savedOk": "Settings saved"
+    },
+    "modules_admin_AdminGeneralSettingsPanel": {
+      "passingGradeOutOfRange": "The minimum passing grade must be between {{min}} and {{max}}",
+      "maxGradeMustExceedMin": "The maximum grade must be greater than the minimum",
+      "openAnswerCharsOutOfRange": "Max. open-answer characters must be between 100 and 50000",
+      "savedOk": "Settings saved"
+    },
+    "modules_admin_AdminModelPanel": {
+      "specifyModel": "Specify a model",
+      "modelConfigUpdated": "Model configuration updated"
+    },
+    "modules_admin_AdminModuleVisibilityPanel": {
+      "saveOrderError": "Could not save the order: {{error}}",
+      "orderSaved": "Module order saved"
+    },
+    "modules_admin_AdminMyTenantPanel": {
+      "logoFormatUnsupported": "Unsupported format. Use PNG, JPG, SVG or WebP.",
+      "logoTooLarge": "The logo can't be larger than 2 MB.",
+      "logoUploadedOptimized": "Logo uploaded (optimized: {{kbBefore}} KB → {{kbAfter}} KB). Remember to 'Save'.",
+      "logoUploaded": "Logo uploaded. Remember to 'Save' to apply it.",
+      "logoRemoved": "Logo removed. 'Save' to apply.",
+      "nameRequired": "Name is required.",
+      "tenantUpdated": "Institution updated"
+    },
+    "modules_admin_AdminPromptsPanel": {
+      "brandSaved": "Institutional branding updated",
+      "promptEmpty": "The prompt cannot be empty",
+      "promptUpdated": "Prompt \"{{label}}\" updated",
+      "promptRestored": "\"{{label}}\" restored to default"
+    },
+    "modules_admin_AuditLogsView": {
+      "loadAuditError": "Error loading audit log: {{detail}}"
+    },
+    "modules_admin_DbBackupsPanel": {
+      "selectAtLeastOneTable": "Select at least one table.",
+      "backupStarted": "Backup started — it will refresh automatically when it finishes.",
+      "noFileAvailable": "This backup has no file available.",
+      "backupDeleted": "Backup deleted.",
+      "backupProcessed": "Backup processed."
+    },
+    "modules_admin_ErrorsPanel": {
+      "bulkStatusApplied": "{{count}} event{{plural}} → {{status}}",
+      "groupStatusApplied": "{{count}} event{{plural}} in group → {{status}}"
+    },
+    "modules_admin_SupabaseCronPanel": {
+      "jobActivated": "\"{{jobName}}\" activated — takes effect on the scheduler's next tick (~1 min)",
+      "jobPaused": "\"{{jobName}}\" paused — it won't run on the next tick",
+      "descriptionUpdated": "Description for \"{{jobName}}\" updated",
+      "scheduleUpdated": "Schedule for \"{{jobName}}\" updated — takes effect on the next tick (~1 min)"
+    },
+    "modules_admin_SystemDiagnosticsPanel": {
+      "notAuthenticated": "You are not signed in",
+      "notificationQueued": "Notification queued. If you have the PWA installed with permissions granted, it should arrive within seconds."
+    },
+    "modules_ai_AiCronPage": {
+      "jobCancelled": "Job cancelled",
+      "reasonRequired": "A reason is required (minimum 5 characters).",
+      "jobRejected": "Job rejected. The teacher has been notified.",
+      "rejectionClosed": "Rejection closed. The job was moved to history.",
+      "queueAsyncMode": "The queue is in async mode. Activate an instant AI code to process jobs right away.",
+      "jobNoLongerPending": "The job was no longer pending — the worker may have picked it up first.",
+      "jobProcessedButFailed": "The job ran but failed — check the error in the queue.",
+      "jobProcessed": "Job processed",
+      "jobRequeued": "Job re-queued",
+      "jobsCancelledBulk": "{{count}} job(s) cancelled"
+    },
+    "modules_ai_AiGenerationQueuePanel": {
+      "activateImmediateAiFirst": "To process this job, first activate an instant AI code.",
+      "couldNotProcess": "Could not process: {{detail}}",
+      "jobNoLongerPending": "The job was no longer pending — perhaps another process picked it up.",
+      "contentQueued": "Content queued for generation. It will appear in your contents list.",
+      "couldNotDrainQueue": "Could not drain the queue: {{detail}}",
+      "aiInAsyncMode": "AI is in async mode. Switch the mode to sync (in Settings) or process them one by one.",
+      "drained": "Drained: {{proc}} job(s) processed — {{ok}} ok, {{fail}} failed.",
+      "jobCancelled": "Job cancelled",
+      "errorCopied": "Error copied",
+      "couldNotCopy": "Could not copy"
+    },
+    "modules_ai_AiJobsHistoryPanel": {
+      "jobRequeued": "Job re-queued"
+    },
+    "modules_ai_AiOverrideDialog": {
+      "enterOverrideCode": "Enter the override code",
+      "overrideActivated": "Instant AI active for {{minutes}} min{{capDescr}} — your next AI gradings run immediately.",
+      "overrideClosed": "Instant AI window closed. New gradings go back to the queue."
+    },
+    "modules_ai_UnifiedAiQueuePanel": {
+      "jobCancelled": "Job cancelled",
+      "jobRequeued": "Job requeued",
+      "asyncModeActivateCode": "The queue is in async mode. Activate an instant AI code to process jobs right away.",
+      "jobNoLongerPending": "The job was no longer pending — the worker may have picked it up first.",
+      "jobProcessedButFailed": "The job ran but failed — check the error in the queue.",
+      "jobProcessed": "Job processed",
+      "drainedFailedSuffix": " — {{failed}} failed",
+      "drained": "Drained: {{total}} job(s) ({{grading}} grading + {{generation}} generation){{failedSuffix}}",
+      "reasonRequired": "A reason is required (at least 5 characters).",
+      "jobRejected": "Job rejected. The teacher has been notified.",
+      "rejectionClosed": "Rejection closed. The job was moved to history.",
+      "bulkCancelled": "{{count}} job(s) cancelled",
+      "errorCopied": "Error copied",
+      "copyFailed": "Could not copy"
+    },
+    "modules_attendance_AttendanceCheckInProjector": {
+      "windowExpired": "The check-in window has expired",
+      "closedOk": "Check-in closed"
+    },
+    "modules_auth_ChangePasswordDialog": {
+      "completeAllFields": "Fill in all fields",
+      "passwordTooShort": "The new password must be at least 8 characters long",
+      "passwordsDoNotMatch": "Passwords do not match",
+      "passwordUpdated": "Password updated successfully"
+    },
+    "modules_auth_ForceChangePasswordDialog": {
+      "completeBothFields": "Fill in both fields.",
+      "passwordTooShort": "The new password must be at least 8 characters long.",
+      "passwordsDoNotMatch": "Passwords do not match.",
+      "passwordUpdated": "Password updated. Welcome!"
+    },
+    "modules_calendar_LinkCalendarEventsDialog": {
+      "pickBothDates": "Pick both dates",
+      "fromBeforeTo": "The 'From' date must be earlier than the 'To' date",
+      "noCalendarSelected": "First select a calendar on the Calendar screen.",
+      "calendarNotAccessible": "The calendar is no longer accessible. Reconnect Google Calendar.",
+      "loadEventsFailed": "Couldn't load events: {{error}}",
+      "noEventsInRange": "There are no events in that date range.",
+      "eventsLoaded": "{{eventCount}} event(s) loaded",
+      "noChangesToApply": "There are no changes to apply",
+      "linkFailed": "Couldn't link: {{error}}"
+    },
+    "modules_certificates_CourseCertificateSettingsDialog": {
+      "savedOk": "Course settings saved",
+      "overrideRemoved": "Override removed — reverting to the global settings"
+    },
+    "modules_code_QuestionBankImportDialog": {
+      "selectAtLeastOne": "Select at least one question",
+      "importedOne": "1 question imported",
+      "importedMany": "{{count}} questions imported"
+    },
+    "modules_contents_ContentPromptsOverridesDialog": {
+      "savedOk": "Custom prompts saved"
+    },
+    "modules_contents_UploadExternalContentDialog": {
+      "unsupportedFormat": "Unsupported format: {{fileName}}",
+      "fileTooLarge": "File > {{maxMb}} MB: {{fileName}}",
+      "totalSizeExceeded": "Exceeds the total of {{maxTotalMb}} MB",
+      "nameRequired": "Enter a name for the content.",
+      "topicRequired": "Enter the content topic.",
+      "fileRequired": "Attach at least one file.",
+      "courseRequired": "Select at least one target course.",
+      "duplicateName": "You already have content named \"{{name}}\". Use a different name.",
+      "noFilesUploaded": "No files could be uploaded. Please try again.",
+      "fileListSaveFailed": "Files uploaded, but the file list could not be saved: {{error}}",
+      "courseAssociationFailed": "Content uploaded, but it could not be associated with some courses: {{error}}"
+    },
+    "modules_exams_ExamNotesManager": {
+      "emptyContent": "Enter the content of your notes",
+      "submitFailed": "Couldn't submit the note. Reload and try again.",
+      "submittedForReview": "Notes submitted for review",
+      "approveFailed": "Couldn't approve the note (no permission or the note no longer exists). Reload and try again.",
+      "approved": "Notes approved",
+      "rejectReasonRequired": "You must enter a reason for rejection",
+      "rejectFailed": "Couldn't reject the note (no permission or the note no longer exists). Reload and try again.",
+      "rejected": "Notes rejected — the student can resubmit"
+    },
+    "modules_exams_FraudPanel": {
+      "markedPending": "Marked as pending",
+      "markedReviewed": "Marked as reviewed",
+      "plagiarismNoQueueMode": "Plagiarism detection does not support queue mode. Enable an instant AI code to continue.",
+      "detectionDoneWithPairs": "Detection complete: {{pairsLabel}}.",
+      "detectionFailed": "Could not run detection: {{detail}}",
+      "submissionNotFound": "The student's submission was not found",
+      "gradeMustBeNumeric": "Enter a numeric value for the grade",
+      "gradeOutOfRange": "The grade must be between 0 and {{max}}",
+      "applyDenied": "Could not apply (no permission or the submission no longer exists). Reload and try again.",
+      "gradeUpdated": "{{student}}'s grade updated to {{grade}}",
+      "noApplicableSuggestion": "No row has an applicable suggestion",
+      "suggestionAppliedBulk": "Suggestion applied to {{okLabel}}{{failSuffix}}"
+    },
+    "modules_exams_PendingExamNotesModal": {
+      "approveFailed": "The note could not be approved (no permission or the note no longer exists). Reload and try again.",
+      "approvedForStudent": "Notes from {{student}} approved",
+      "rejectReasonRequired": "Enter a reason for rejecting",
+      "rejectFailed": "The note could not be rejected (no permission or the note no longer exists). Reload and try again.",
+      "rejectedCanResend": "Rejected — the student can resubmit"
+    },
+    "modules_grading_ExternalGradesEditor": {
+      "loadStudentsFailed": "Could not load students: {{error}}",
+      "gradeValidationFailed": "{{name}}: {{message}}",
+      "saveRowFailed": "{{name}}: {{error}}",
+      "gradeSaved": "Grade saved: {{name}}",
+      "bulkSavedOne": "{{count}} change saved",
+      "bulkSavedMany": "{{count}} changes saved",
+      "bulkFailedOne": " · {{count}} failed",
+      "bulkFailedMany": " · {{count}} failed",
+      "noUnsavedChanges": "No unsaved changes"
+    },
+    "modules_grading_FeedbackThread": {
+      "fileRejected": "{{fileName}}: {{reason}}",
+      "maxAttachments": "Maximum {{max}} files per comment.",
+      "uploadFailed": "Couldn't upload {{fileName}}: {{reason}}",
+      "registerFailed": "Couldn't register {{fileName}}: {{reason}}",
+      "emptyComment": "The comment can't be empty",
+      "sendFailed": "Couldn't send the comment",
+      "threadClosed": "Conversation closed",
+      "threadReopened": "Conversation reopened"
+    },
+    "modules_grading_OpenFeedbackModal": {
+      "conversationClosed": "Conversation closed"
+    },
+    "modules_polls_LaunchPollDialog": {
+      "questionRequired": "Enter the question",
+      "minTwoOptions": "At least 2 options are required",
+      "slotNeedsPositiveCapacity": "In 'capacity per option' mode, each option needs a whole-number capacity greater than 0",
+      "pollLaunched": "Poll launched"
+    },
+    "modules_projects_ProjectGroupsEditor": {
+      "groupNameRequired": "Give the group a name"
+    },
+    "modules_reports_ActasManager": {
+      "actaGenerated": "Record generated (ID: {{actaId}}…)",
+      "actaDeleted": "Record deleted"
+    },
+    "modules_schedules_CourseScheduleEditor": {
+      "endTimeAfterStart": "{{day}}: the end time must be later than the start time.",
+      "scheduleSaved": "Schedule saved"
+    },
+    "modules_sessions_SessionCodeSnippets": {
+      "snippetEmpty": "The snippet is empty",
+      "clipboardCopyFailed": "Couldn't copy to clipboard"
+    },
+    "modules_superadmin_AssignUsersToTenantDialog": {
+      "usersAdded": "{{count}} user(s) added to {{tenantName}}",
+      "usersRemoved": "{{count}} user(s) removed from {{tenantName}}",
+      "userUpdateFailed": "{{name}}: {{reason}}",
+      "moreSimilarErrors": "And {{count}} more with a similar error."
+    },
+    "modules_superadmin_PlatformSettingsPanel": {
+      "savedOk": "Settings saved"
+    },
+    "modules_support_SupportTicketDetailDialog": {
+      "fileTooLarge": "The file exceeds 25 MB. Please upload something smaller.",
+      "attachmentUploaded": "Attachment uploaded",
+      "changesSaved": "Changes saved",
+      "assignedToYou": "Assigned to you",
+      "ticketClosed": "Ticket closed"
+    },
+    "modules_whiteboard_MultiPageWhiteboard": {
+      "atLeastOnePage": "The whiteboard must have at least one page.",
+      "pageDeleted": "Page deleted"
+    },
+    "modules_whiteboard_SessionWhiteboardDialog": {
+      "sharedEnabled": "Shared whiteboard enabled",
+      "sharedDisabled": "Shared whiteboard disabled"
+    },
+    "modules_workshops_WorkshopGroupsEditor": {
+      "groupNameRequired": "Give the group a name"
+    },
+    "modules_projects_ProjectFiles": {
+      "generationJobsQueued": "{{count}} generation job(s) queued. Once you have an instant AI code or an administrator processes them, the questions will appear automatically. You can see them in the AI Queue panel.",
+      "errorInType": "Error in {{type}}: {{detail}}",
+      "unknownError": "Unknown error",
+      "questionsGenerated": "{{count}} question(s) generated",
+      "projectHasNoQuestions": "This project has no questions",
+      "attemptsExhausted": "You have already used your {{count}} submission attempt(s). You cannot submit this project again.",
+      "repositoryUrlRequired": "The repository link (GitHub or Drive) is required",
+      "invalidUrl": "Enter a valid URL (it must start with http:// or https://)",
+      "fixFilesAndResubmit": "Fix the flagged files and submit again — nothing has been saved yet.",
+      "attemptsExhaustedReload": "You have already used your {{count}} submission attempt(s). Reload to see the current submission.",
+      "sectionGradeSaveFailed": "Could not save the grade for one section: {{detail}}",
+      "submissionGraded": "Submission graded: {{score}} / {{max}}. The final grade is calculated after the defense.",
+      "fileEmpty": "The file is empty.",
+      "zipExceedsLimit": "The ZIP is {{size}} and exceeds the 50 MB limit.",
+      "onlyZipAccepted": "Only a .zip file is accepted.",
+      "disallowedFiles": "Disallowed files: {{sample}}{{more}}. Only {{allowed}} are accepted.",
+      "filesExceedLimit": "The files total {{size}} and exceed the 50 MB limit.",
+      "tooManyFiles": "You selected {{count}} files. Maximum allowed: {{max}}.",
+      "emptyFilesInSelection": "There are empty files in the selection. Check that you are not uploading broken files.",
+      "writeStatement": "Enter the statement",
+      "markAtLeastOneCorrect": "Mark at least one correct option in multiple choice",
+      "minGreaterThanMax": "The minimum selected cannot be greater than the maximum",
+      "questionUpdated": "Question updated",
+      "questionAdded": "Question added — you can keep adding more",
+      "questionDeleted": "Question deleted",
+      "projectHasNoDescription": "The project has no description yet. Write it or generate it with AI before continuing.",
+      "notAuthenticated": "Not authenticated",
+      "oneGenerationJobQueued": "1 generation job queued. Once you have an instant AI code or an administrator processes it, the questions will appear automatically. You can see it in the AI Queue panel.",
+      "questionsGeneratedWithCode": "{{count}} question(s) generated — includes 1 code submission (files)",
+      "indicateTopics": "Enter the topics",
+      "configureAtLeastOneType": "Configure at least one type with a count greater than 0"
+    },
+    "modules_workshops_WorkshopQuestions": {
+      "questionUpdated": "Question updated",
+      "questionAdded": "Question added — you can keep adding more",
+      "questionDeleted": "Question deleted",
+      "indicateTopics": "Enter the topics",
+      "configureAtLeastOneType": "Configure at least one type with a count greater than 0",
+      "notAuthenticated": "Not authenticated",
+      "generationJobsQueued": "{{count}} generation job{{plural}} queued. When you have an instant AI code or an administrator processes them, the questions will appear automatically. You can view them in the AI Queue panel.",
+      "errorInType": "Error in {{type}}: {{detail}}",
+      "unknownError": "Unknown error",
+      "questionsGenerated": "{{count}} question{{plural}} generated",
+      "workshopHasNoQuestions": "This workshop has no questions",
+      "mustWatchIntroVideos": "You must watch all the introductory videos before submitting.",
+      "attemptsExhausted": "You have already used your {{count}} submission attempt{{plural}}. Reload to see the current submission.",
+      "gradeResult": "Grade: {{grade}} / {{maxScore}}",
+      "fileEmpty": "The file is empty.",
+      "zipTooLarge": "The ZIP is {{size}} and exceeds the 50 MB limit.",
+      "onlyZipAccepted": "Only a .zip file is accepted.",
+      "filesNotAllowed": "Files not allowed: {{sample}}{{more}}. Only {{allowed}} are accepted.",
+      "filesTotalTooLarge": "The files total {{size}} and exceed the 50 MB limit.",
+      "tooManyFiles": "You selected {{count}} files. Maximum allowed: {{max}}.",
+      "emptyFilesInSelection": "There are empty files in the selection.",
+      "writeStatement": "Enter the statement",
+      "markAtLeastOneCorrect": "Mark at least one correct option in multiple choice",
+      "minMaxInverted": "The minimum selected cannot be greater than the maximum"
+    },
+    "routes_app_admin_courses": {
+      "nameRequired": "Name required",
+      "endDateAfterStart": "The end date must be after the start date",
+      "courseWeightsMustSum100": "Course weights must add up to 100% (current total: {{total}}%)",
+      "cutWeightsMustSum100": "The grading cut weights must add up to 100% (current total: {{total}}%)",
+      "subWeightsMismatch": "Sub-weights do not match the cut weight:\n{{details}}",
+      "courseSavedCutsSyncFailed": "Course saved, but cut synchronization failed: {{error}}",
+      "courseSaved": "Course saved successfully",
+      "studentEnrolled": "Student enrolled successfully",
+      "studentUnenrolled": "Student unenrolled successfully",
+      "studentsEnrolledMany": "{{count}} student(s) enrolled successfully",
+      "studentsUnenrolledMany": "{{count}} student(s) unenrolled successfully",
+      "teacherAssigned": "Teacher assigned successfully",
+      "teacherUnassigned": "Teacher unassigned successfully",
+      "teachersAssignedMany": "{{count}} teacher(s) assigned successfully",
+      "teachersUnassignedMany": "{{count}} teacher(s) unassigned successfully",
+      "duplicateNameRequired": "Name required",
+      "copyEnrollmentsFailed": "Could not copy enrollments: {{error}}",
+      "courseDuplicated": "Course duplicated successfully{{suffix}}",
+      "coursesSentToTrash": "{{count}} course(s) sent to trash",
+      "duplicateStudentsSuffix": " ({{count}} student(s) copied)"
+    },
+    "routes_app_admin_support": {
+      "noTenantAssigned": "Your account has no institution assigned. Contact the SuperAdmin.",
+      "subjectTooShort": "The subject must be at least 3 characters long.",
+      "bodyTooShort": "The description must be at least 10 characters long.",
+      "ticketCreatedSomeAttachmentsFailed": "Ticket created. {{uploaded}} attachment(s) uploaded, {{failed}} failed — you can re-upload them from the detail view.",
+      "ticketCreatedWithAttachments": "Ticket opened with {{uploaded}} attachment(s). The SuperAdmin has been notified.",
+      "ticketCreated": "Ticket opened. The SuperAdmin has been notified.",
+      "filesOversized": "{{count}} file(s) exceed 25 MB and were discarded: {{names}}"
+    },
+    "routes_app_admin_users": {
+      "bulkDeleteSuccess": "{{count}} user(s) deleted successfully",
+      "bulkDeletePartial": "{{ok}} user(s) deleted, {{failed}} failed — check the console for details.",
+      "passwordCopied": "Password copied to clipboard",
+      "copyFailed": "Could not copy",
+      "cannotImpersonateAdmin": "You cannot impersonate another administrator",
+      "rolesAddFailedAfterRemove": "{{error}}. The roles to remove WERE removed; check the user's state and try adding the new ones again.",
+      "institutionalEmailTaken": "The institutional email \"{{email}}\" is already in use by another user.",
+      "personalEmailTaken": "The personal email \"{{email}}\" is already in use by another user.",
+      "nameAndEmailRequired": "Name and institutional email are required",
+      "onlySuperAdminNoTenant": "Only the SuperAdmin role can have no institution. Assign an institution or add the SuperAdmin role.",
+      "userUpdatedWithPassword": "User updated successfully (password included)",
+      "userUpdated": "User updated successfully",
+      "passwordMinLength": "The password must be at least 8 characters long",
+      "passwordRequired": "Password required (minimum 8 characters)",
+      "createDuplicateEmail": "Could not create: a user with the email \"{{email}}\" already exists",
+      "tenantAssignFailed": "User created, but could not be assigned to the institution. Edit it and save again.",
+      "enrollmentFailed": "User created, but could not be enrolled in the course. Enroll them manually from the course.",
+      "userCreated": "User created successfully",
+      "importSuccess": "Imported successfully: {{count}}",
+      "importPartial": "Imported: {{ok}} · Duplicates: {{duplicates}} · Errors: {{errors}}"
+    },
+    "routes_app_certificates": {
+      "verifyLinkCopied": "Verification link copied"
+    },
+    "routes_app_forum_courseId_forumId_threadId": {
+      "replyMarkedOfficial": "Reply marked as official",
+      "replyOfficialRemoved": "Official mark removed",
+      "threadPinned": "Thread pinned",
+      "threadUnpinned": "Thread unpinned",
+      "threadLocked": "Thread closed",
+      "threadUnlocked": "Thread reopened",
+      "replyPublished": "Reply published",
+      "titleAndBodyRequired": "Title and body are required",
+      "questionUpdated": "Question updated",
+      "replyUpdated": "Reply updated",
+      "threadDeleted": "Thread deleted",
+      "replyDeleted": "Reply deleted"
+    },
+    "routes_app_forum_courseId_forumId": {
+      "titleMinLength": "The title must be at least 3 characters long",
+      "bodyRequired": "Write the body of your question",
+      "questionPublished": "Question posted"
+    },
+    "routes_app_forum_courseId": {
+      "titleMinLength": "The title must be at least 3 characters long",
+      "opensBeforeCloses": "The opening date must be before the closing date",
+      "forumCreated": "Forum created",
+      "forumClosed": "Forum closed",
+      "forumReopened": "Forum reopened",
+      "forumDeleted": "Forum deleted"
+    },
+    "routes_app_messages": {
+      "selectAtLeastOneCourse": "Select at least one course.",
+      "subjectAndMessageRequired": "Subject and message are required.",
+      "broadcastSentWithEmail": "Message sent to {{notified}} student(s) across {{courseCount}} {{courseWord}}. {{withEmail}} will receive an email.",
+      "broadcastSentNoEmail": "Message sent to {{notified}} student(s) across {{courseCount}} {{courseWord}}. In-app notification only (no email configured).",
+      "broadcastScheduled": "Broadcast scheduled for {{when}}.",
+      "writeAMessage": "Write a message.",
+      "directScheduled": "Message scheduled for {{when}}.",
+      "onlyPendingEditable": "Only pending messages can be edited.",
+      "messageCannotBeEmptyDot": "The message cannot be empty.",
+      "messageNoLongerPending": "The message is no longer pending; we refreshed the list.",
+      "changesSaved": "Changes saved.",
+      "scheduleCancelled": "Schedule cancelled.",
+      "noDueMessages": "There were no due messages to process.",
+      "messagesDispatched": "{{count}} message(s) dispatched.",
+      "fileValidationError": "{{fileName}}: {{error}}",
+      "maxAttachmentsPerMessage": "Maximum {{max}} files per message.",
+      "attachmentUploadFailed": "Could not upload {{name}}: {{error}}",
+      "attachmentRegisterFailed": "Could not register {{name}}: {{error}}",
+      "cannotEditAlreadyRead": "You can no longer edit this message: the other user has read it.",
+      "messageCannotBeEmpty": "The message cannot be empty",
+      "cannotDeleteAlreadyRead": "You can no longer delete this message: the other user has read it.",
+      "noneEligibleToDelete": "None of the selected messages are eligible for deletion.",
+      "bulkDeletedWithSkipped": "{{deleted}} deleted · {{skipped}} skipped (already read by the other person)",
+      "bulkDeleted": "{{deleted}} message(s) deleted",
+      "markedSelectedRead": "{{count}} conversation(s) marked as read",
+      "markedSelectedUnread": "{{count}} conversation(s) marked as unread",
+      "clearedSelectedConversations": "{{count}} conversation(s) deleted for you",
+      "conversationCleared": "Conversation deleted for you"
+    },
+    "routes_app_student_attendance": {
+      "codeMustBe6Digits": "The code must be 6 digits",
+      "markedAsPresent": "Marked as present!"
+    },
+    "routes_app_student_calendar": {
+      "urlRegenerated": "URL regenerated. The previous link no longer works.",
+      "urlCopied": "URL copied"
+    },
+    "routes_app_student_certificates": {
+      "downloadLocked": "You cannot download this certificate yet. It will be available from {{date}}.",
+      "verifyLinkCopied": "Verification link copied"
+    },
+    "routes_app_student_polls": {
+      "cannotChangeVote": "This poll does not allow changing your vote once cast",
+      "voteRecorded": "Vote recorded",
+      "cannotUncheckMultiple": "In multiple-choice polls you cannot uncheck an option once you have voted for it."
+    },
+    "routes_app_student_projects": {
+      "submissionDeleted": "Submission deleted"
+    },
+    "routes_app_student_take_examId": {
+      "offlineRetrying": "No connection. Retrying… your saved answers are still safe.",
+      "examNotFound": "Exam not found",
+      "examNotAvailableNow": "This exam is not available right now",
+      "examNotPublished": "This exam has not been published yet",
+      "examClosedByTeacher": "This exam was closed by the teacher",
+      "notAssignedToExam": "You are not assigned to this exam",
+      "previousSubmissionReopened": "Your previous submission has not been graded yet — we reopened it so you can keep editing before resubmitting.",
+      "alreadyCompletedExam": "You already completed this exam",
+      "allAttemptsUsed": "You have already used your {{maxAttempts}} attempts for this exam",
+      "attemptNotice": "Attempt {{current}} of {{maxAttempts}}. Your previous grade will be replaced by the one from this attempt.",
+      "examRequiresFullscreen": "This exam requires full screen. {{help}}",
+      "couldNotActivateFullscreen": "Could not enable full screen. {{help}}",
+      "submissionServerFailed": "The submission could not be saved on the server. Your answers are saved locally; check your connection and try submitting again.",
+      "examSuspended": "Exam suspended",
+      "examSubmittedSuccess": "Exam submitted successfully",
+      "timerPausedByTeacher": "⏸ The teacher has paused the timer",
+      "timerResumed": "▶ The timer has been resumed",
+      "extraMinutesAdded": "+{{minutes}} extra minute(s) added",
+      "teacherUpdatedExamTime": "The teacher updated the exam time",
+      "exitLimitExceeded": "You have exceeded the exit limit. The exam is being suspended.",
+      "warningWithLabel": "Warning {{count}}/{{max}}: {{label}}",
+      "screenshotsNotAllowed": "Taking screenshots is not allowed during the exam.",
+      "executionCancelled": "Execution cancelled. You can switch compilers and try again.",
+      "writeCodeBeforeRunning": "Write some code before running",
+      "warningExamExit": "Warning {{count}}/{{max}}: Exam exit"
+    },
+    "routes_app_student_tutor_courseId": {
+      "conversationCleared": "Conversation cleared"
+    },
+    "routes_app_student_workshops": {
+      "submissionDeleted": "Submission deleted"
+    },
+    "routes_app_superadmin_tenants": {
+      "logoFormatUnsupported": "Unsupported format. Use PNG, JPG, SVG or WebP.",
+      "logoTooLarge": "The logo cannot be larger than 2 MB.",
+      "logoUploadedOptimized": "Logo uploaded (optimized: {{before}} KB → {{after}} KB).",
+      "logoReady": "Logo ready. It will be uploaded when you save the institution.",
+      "logoUploadedRememberSave": "Logo uploaded. Remember to 'Save' to apply it.",
+      "logoRemoved": "Logo removed.",
+      "slugAndNameRequired": "Slug and name are required.",
+      "slugInvalid": "Invalid slug: use lowercase letters, numbers and hyphens (3-50 chars). E.g.: 'sena-bogota'.",
+      "quotaInvalid": "Invalid quota for {{label}}. Must be an integer ≥ 0 (or empty = unlimited).",
+      "tenantUpdated": "Institution updated",
+      "tenantCreated": "Institution created",
+      "testUserCreationFailed": "Institution created, but creating the test user failed: {{error}}",
+      "viewingAs": "Viewing as: {{name}}",
+      "backToCrossTenant": "You're back to cross-tenant mode",
+      "tenantSentToTrash": "{{name}} was sent to the trash",
+      "noAdminUsers": "There are no users with the Admin role on the platform.",
+      "tenantHasNoAdmin": "{{name}} has no assigned Admin. Create or assign one before logging in as.",
+      "emailCopied": "Email copied",
+      "passwordCopied": "Password copied",
+      "credentialsCopied": "Credentials copied"
+    },
+    "routes_app_teacher_ai_prompts": {
+      "promptEmpty": "The prompt cannot be empty",
+      "overrideSaved": "Override for \"{{label}}\" saved for this course",
+      "revertedToGlobal": "\"{{label}}\" reverted to the global prompt"
+    },
+    "routes_app_teacher_attendance": {
+      "dateRequired": "Date required",
+      "endTimeAfterStart": "The end time must be after the start time.",
+      "sessionCreated": "Session created successfully",
+      "recordingUpdated": "Recording updated",
+      "allMarkedPresent": "All students marked as present",
+      "sessionAttendanceReset": "Session attendance reset",
+      "previousCheckInExpired": "The previous check-in expired. Start a new one.",
+      "studentsMarkedAbsent": "{{count}} student(s) marked as absent"
+    },
+    "routes_app_teacher_calendar": {
+      "calendarNotAccessible": "The selected calendar is no longer accessible in Google. Choose another and sync again."
+    },
+    "routes_app_teacher_contents": {
+      "displayNameRequired": "Enter a unique name for this content.",
+      "displayNameTooLong": "The name is too long (max 120 characters).",
+      "generationEnqueued": "Generation queued. Once you have an instant AI code or an administrator processes it, the content will appear in your list. You can view it under \"AI Queue → Generations\".",
+      "duplicateDisplayName": "You already have a content named \"{{name}}\". Use a different name.",
+      "published": "Content published. Students in the course will be notified.",
+      "unpublished": "Content unpublished. Students can no longer see it."
+    },
+    "routes_app_teacher_exams_examId": {
+      "createQuestionBeforeTimeEval": "Create at least one question before evaluating the time.",
+      "durationUpdated": "Duration updated to {{minutes}} min. Remember to save the exam.",
+      "weightExceedsBucket": "The exam weight ({{weight}}%) exceeds the available bucket for the term ({{available}}% remaining). Reduce the weight or adjust the other exams in the term.",
+      "selectCourse": "Select a course for the exam",
+      "examUpdated": "Exam updated successfully",
+      "contentRequired": "Content required",
+      "rubricRequired": "Rubric required for open-ended/code/diagram/Java GUI/Python GUI questions",
+      "markAtLeastOneCorrect": "Mark at least one correct option in multiple choice",
+      "minGreaterThanMax": "Minimum selections cannot be greater than the maximum",
+      "questionUpdated": "Question updated successfully",
+      "questionAdded": "Question added successfully",
+      "enterTopics": "Enter the topics",
+      "configureAtLeastOneType": "Configure at least one type with a quantity > 0",
+      "notAuthenticated": "Not authenticated",
+      "generationJobsQueued": "{{count}} generation job{{plural}} queued. Once you have an instant AI code or an administrator processes them, the questions will appear automatically. You can see them in the AI Queue panel.",
+      "errorInType": "Error in {{type}}: {{detail}}",
+      "unknownError": "Unknown error",
+      "questionsGenerated": "{{count}} question{{plural}} generated",
+      "studentAssigned": "Student assigned successfully",
+      "assignmentRemoved": "Assignment removed successfully",
+      "studentsAssigned": "{{count}} student(s) assigned successfully",
+      "assignmentsRemoved": "{{count}} assignment(s) removed successfully"
+    },
+    "routes_app_teacher_exams_index": {
+      "bulkSentToTrash": "{{count}} exam(s) sent to trash",
+      "externalDateRequired": "Enter the activity date",
+      "weightOverBucket": "The exam weight ({{requested}}%) exceeds the available bucket for the term ({{available}}% remaining). Lower the weight or adjust the other exams in the term.",
+      "weightOverBucketCourse": "{{courseName}}: The exam weight ({{requested}}%) exceeds the available bucket for the term ({{available}}% remaining). Lower the weight or adjust the other exams in the term."
+    },
+    "routes_app_teacher_gradebook": {
+      "noChangesToSave": "No changes to save",
+      "gradesSaved": "{{count}} grade(s) saved successfully",
+      "gradesSaveErrors": "{{count}} error(s) — only existing submissions can be edited",
+      "noDataToExport": "No data to export",
+      "fileExported": "File exported successfully",
+      "finalGradeBelowPassing": "The final grade is below the passing minimum.",
+      "certificateIssued": "Certificate issued",
+      "noActiveCertToRegenerate": "There is no active certificate to regenerate — use Issue.",
+      "revocationFailed": "Revocation failed: {{error}}",
+      "newIssuanceFailed": "New issuance failed: {{error}}",
+      "certificateRegenerated": "Certificate regenerated",
+      "noPendingStudents": "No pending students: every approved student already has a certificate.",
+      "certificatesIssuedBulk": "{{issued}} issued{{failedSuffix}}",
+      "certificatesIssuedBulkFailedSuffix": " · {{count}} failed",
+      "noApprovedIssuable": "There are no approved students with an issuable certificate in this course.",
+      "noApprovedStudents": "There are no approved students in this course.",
+      "bulkRevocationFailed": "Bulk revocation failed: {{error}}",
+      "noCertsToDownload": "No certificates left to download.",
+      "zipDownloadedIssuedSuffix": " ({{count}} issued)",
+      "zipDownloadedFailedSuffix": " · {{count}} failed to issue",
+      "zipDownloaded": "ZIP with {{count}} certificate(s) downloaded{{issuedMsg}}{{failedMsg}}"
+    },
+    "routes_app_teacher_monitor_examId": {
+      "timerControlApplied": "{{label}} {{scope}}",
+      "feedbackSaved": "Feedback saved",
+      "questionRegradedWithAi": "Question regraded with AI",
+      "newGradeApplied": "New grade applied",
+      "gradeOutOfRange": "The grade must be between 0 and {{max}}",
+      "jobsQueued": "{{count}} job(s) queued. Process the queue from the Queue module or wait for the scheduled task.",
+      "jobsQueueFailed": "{{count}} job(s) could not be queued — try again later.",
+      "jobsQueueCancelled": "Cancelled: {{count}} job(s) were not queued.",
+      "regradeCancelled": "Cancelled at {{done}}/{{total}}. {{ok}} proposal(s) ready to review.",
+      "regradeReadyWithErrors": "Regrade ready. {{ok}} ok, {{failed}} with errors.",
+      "regradeReady": "Regrade ready. {{count}} proposals to review.",
+      "gradesApplied": "{{count}} grade(s) applied."
+    },
+    "routes_app_teacher_polls": {
+      "pollClosed": "Poll closed",
+      "pollReopened": "Poll reopened",
+      "pollSentToTrash": "Poll moved to trash",
+      "addAtLeastOneDate": "Add at least one date",
+      "stepAndCupoMustBePositive": "Interval and capacity must be integers greater than 0",
+      "defineTimeWindow": "Define the time window (start and end)",
+      "configProducesNoSlots": "This configuration produces no slots — check the time window and the interval",
+      "slotsGenerated": "{{count}} slot(s) generated across {{dates}} date{{plural}}",
+      "titleRequired": "The title is required",
+      "chooseAtLeastOneCourse": "Choose at least one course",
+      "atLeastTwoOptions": "At least 2 options are required",
+      "slotOptionNeedsPositiveCupo": "For the 'capacity per option' type, each option needs an integer capacity > 0",
+      "pollUpdated": "Poll updated",
+      "pollCreated": "Poll created",
+      "pollCreatedMultiCourse": "Poll created ({{count}} courses)",
+      "responseClearedForUser": "Response from \"{{label}}\" cleared. They can vote again."
+    },
+    "routes_app_teacher_projects": {
+      "bulkSentToTrash": "{{n}} project(s) moved to trash",
+      "projectFromUrlNotFound": "The project referenced in the URL no longer exists or you don't have access to it.",
+      "projectFromNotificationNotFound": "The project referenced in the notification no longer exists or you don't have access to it.",
+      "titleAndCourseRequired": "Title and at least one course are required",
+      "weightExceedsBucket": "{{course}}: The project weight ({{requested}}%) exceeds the term's available bucket ({{available}}% remaining). Reduce the weight or adjust the other projects in the term.",
+      "linkCoursesFailed": "Couldn't link the courses: {{error}}",
+      "saveIntroVideosFailed": "Couldn't save the introductory videos: {{error}}",
+      "studentsAutoAssigned": "{{n}} student(s) assigned automatically",
+      "topicRequired": "Enter a topic to generate the description",
+      "descriptionGenerated": "Description generated — you can edit it before saving",
+      "courseHasNoStudents": "That course has no enrolled students",
+      "allCourseStudentsAssigned": "All students in the course are already assigned",
+      "studentsAssignedFromCourse": "{{n}} student(s) assigned from the course",
+      "studentsAssigned": "{{n}} students assigned",
+      "assignmentsRemoved": "{{n}} assignment(s) removed",
+      "noContentForFile": "This submission has no content for this file",
+      "savedButRecomputeFailed": "Saved, but recalculation failed: {{error}}",
+      "savedWithFinalGrade": "Saved · final: {{finalGrade}}/{{maxScore}} (submission {{submissionGrade}} × defense {{factor}})",
+      "savedPendingDefense": "Submission: {{submissionGrade}}/{{maxScore}} — defense pending",
+      "submissionReopened": "Submission reopened. The student can resubmit.",
+      "submissionNotGradedYet": "The submission isn't graded yet. Grade the files first.",
+      "defenseSaved": "Defense saved · final grade: {{finalGrade}}/{{maxScore}}",
+      "defenseCleared": "Defense cleared",
+      "noContentToRegrade": "No content to regrade",
+      "noCodeFilesToRegrade": "No submitted code files to regrade",
+      "aiError": "AI error: {{detail}}",
+      "unknownError": "Unknown error",
+      "regradeReady": "Regrade ready: {{grade}} / {{points}}",
+      "recomputedLocally": "Recomputed locally (no AI)",
+      "fileRegradedWithAi": "File regraded with AI",
+      "batchRegradeCompleted": "Batch regrade completed ({{done}}/{{total}}).",
+      "submissionsDeleted": "{{n}} submissions deleted"
+    },
+    "routes_app_teacher_question_bank": {
+      "writeStatement": "Write the question statement",
+      "selectType": "Select a type",
+      "questionUpdated": "Question updated",
+      "questionAddedToBank": "Question added to the bank",
+      "questionDeleted": "Question deleted"
+    },
+    "routes_app_teacher_reports": {
+      "nameRequired": "The name is required",
+      "bodyEmpty": "The body cannot be empty",
+      "selectCourseForOverride": "Select the course for the customization",
+      "templateUpdated": "Template updated",
+      "templateCreated": "Template created",
+      "templateDeleted": "Template deleted",
+      "templateDuplicated": "Template duplicated as private",
+      "actaTemplateNotFound": "The 'Course completion record' template was not found. Ask the admin to publish it.",
+      "selectStudent": "Select a student",
+      "generateReportError": "Error generating the report",
+      "previewUnavailable": "Preview unavailable"
+    },
+    "routes_app_teacher_whiteboards_id": {
+      "whiteboardNeedsName": "The whiteboard needs a name",
+      "changesSaved": "Changes saved"
+    },
+    "routes_app_teacher_whiteboards_index": {
+      "bulkSentToTrash": "{{count}} {{noun}} {{verb}} to trash",
+      "nameRequired": "Give the whiteboard a name",
+      "sessionNeedsCourse": "If you choose a session, you must first choose the course.",
+      "created": "Whiteboard created",
+      "sentToTrash": "Whiteboard moved to trash"
+    },
+    "routes_app_teacher_workshops": {
+      "bulkMovedToTrash": "{{count}} workshop(s) moved to trash",
+      "workshopFromUrlMissing": "The workshop referenced in the URL no longer exists or you don't have access to it.",
+      "workshopFromNotificationMissing": "The workshop referenced in the notification no longer exists or you don't have access to it.",
+      "introVideosSaveFailed": "The intro videos could not be saved: {{error}}",
+      "completeFields": "Complete the fields",
+      "selectAtLeastOneCourse": "Select at least one course",
+      "weightExceedsBucket": "The workshop weight ({{requested}}%) exceeds the available bucket for the term ({{available}}% remaining). Reduce the weight or adjust the other workshops in the term.",
+      "weightExceedsBucketForCourse": "{{course}}: The workshop weight ({{requested}}%) exceeds the available bucket for the term ({{available}}% remaining). Reduce the weight or adjust the other workshops in the term.",
+      "workshopCreateFailed": "The workshop could not be created",
+      "workshopCreatedMultiCourse": "Workshop created in {{count}} courses (1 shared record).",
+      "workshopCreated": "Workshop created successfully",
+      "studentAssigned": "Student assigned successfully",
+      "assignmentRemoved": "Assignment removed successfully",
+      "studentsAssigned": "{{count}} student(s) assigned successfully",
+      "assignmentsRemoved": "{{count}} assignment(s) removed successfully",
+      "noAnswerForQuestion": "This submission has no answer for the question yet.",
+      "gradeSavedRecomputeFailed": "Grade saved, but recomputing the overall grade failed: {{error}}",
+      "questionSavedGlobalGrade": "Question saved · overall grade: {{grade}}/{{max}}",
+      "nothingToRegrade": "This submission has no answer to this question and no overall content. There is nothing to regrade.",
+      "aiError": "AI error: {{detail}}",
+      "unknown": "Unknown",
+      "unknownLower": "unknown",
+      "markedPending": "Marked as pending",
+      "markedReviewed": "Marked as reviewed",
+      "detectionDoneOne": "Detection complete: 1 suspicious pair found.",
+      "detectionDoneMany": "Detection complete: {{count}} suspicious pairs found.",
+      "detectionFailed": "The detection could not be run: {{error}}",
+      "saveError": "Error saving: {{error}}",
+      "aiGradingNeedsUpdate": "AI grading requires updating the edge function. Use manual grading.",
+      "noSubmissionsToGrade": "There are no submissions to grade",
+      "submissionsGradedWithAi": "{{count}} submission(s) graded with AI successfully",
+      "submissionReopened": "Submission reopened. The student can resubmit.",
+      "genericError": "Error: {{error}}",
+      "updateFailedCheckPermissions": "Could not update. Check the permissions.",
+      "downloadLinkFailed": "The download link could not be generated",
+      "globalGradeRecomputed": "Overall grade recomputed: {{grade}}/{{max}}. Press \"Save grade\" to persist."
+    },
+    "routes_app_trash": {
+      "itemRestored": "{{type}}: {{name}} restored",
+      "itemHardDeleted": "Permanently deleted",
+      "bulkRestoreSuccess": "{{count}} item(s) restored",
+      "bulkRestorePartialError": "{{ok}} restored, {{failed}} with errors. First: \"{{name}}\" — {{detail}}",
+      "bulkHardDeleteSuccess": "{{count}} item(s) permanently deleted",
+      "bulkHardDeletePartialError": "{{ok}} deleted, {{failed}} with errors. First: \"{{name}}\" — {{detail}}"
+    },
+    "routes_app_videos": {
+      "titleAndUrlRequired": "Title and URL are required",
+      "urlNotRecognized": "URL not recognized. Use YouTube, Vimeo, or a direct MP4/WebM file (ending in .mp4/.webm).",
+      "videoUpdated": "Video updated",
+      "videoAddedGlobal": "Video added to the global catalog",
+      "videoAddedLibrary": "Video added to the library",
+      "titleRequired": "The title is required",
+      "selectVideoFile": "Select a video file",
+      "fileTypeNotAllowed": "File type not allowed ({{fileType}}). Upload MP4, WebM, or MOV.",
+      "fileTooLarge": "File too large ({{size}}). The maximum is 500 MB.",
+      "uploadError": "Error uploading the video: {{error}}",
+      "publicUrlFailed": "Could not get the public URL of the uploaded video",
+      "videoReplaced": "Video replaced",
+      "videoUploadedGlobal": "Video uploaded to the global catalog",
+      "videoUploadedLibrary": "Video uploaded to the library",
+      "videoArchived": "Video archived",
+      "videoRestored": "Video restored",
+      "videoDeletedOrphanFile": "Video deleted, but the file was left orphaned in Storage ({{error}})",
+      "videoDeleted": "Video deleted"
+    },
+    "shared_components_AssessmentTemplateMenu": {
+      "templateApplied": "Template \"{{name}}\" applied",
+      "templateDeleted": "Template deleted",
+      "nameRequired": "Enter a name",
+      "templateSaved": "Template saved"
+    },
+    "shared_components_DuplicateAssessmentDialog": {
+      "selectTargetCourse": "Select the target course",
+      "enterCopyTitle": "Enter a title for the copy",
+      "copyCreated": "Copy created (saved as a draft — review dates and weight before publishing)"
+    },
+    "shared_components_ImportExportMenu": {
+      "templateDownloaded": "Template downloaded",
+      "noDataToExport": "No data to export",
+      "fileExportedSuccess": "File exported successfully",
+      "exportError": "Error exporting: {{detail}}",
+      "fileNoData": "The file contains no data",
+      "importError": "Error importing: {{detail}}"
+    },
+    "routes_app_admin_report_templates": {
+      "nameRequired": "Name is required",
+      "bodyEmpty": "The body cannot be empty",
+      "updatedOk": "Template updated",
+      "createdOk": "Template created",
+      "deletedOk": "Template deleted",
+      "duplicatedOk": "Template duplicated"
+    }
   }
 }

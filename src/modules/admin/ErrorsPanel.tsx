@@ -63,6 +63,7 @@ import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 import {
   AlertTriangle,
   ChevronDown,
@@ -246,7 +247,12 @@ export function ErrorsPanel({ embedded = false }: Props) {
       return;
     }
     toast.success(
-      `${ids.length} evento${ids.length === 1 ? "" : "s"} → ${STATUS_CFG[bulkStatus].label}`,
+      i18n.t("toast.modules_admin_ErrorsPanel.bulkStatusApplied", {
+        defaultValue: "{{count}} evento{{plural}} → {{status}}",
+        count: ids.length,
+        plural: ids.length === 1 ? "" : "s",
+        status: STATUS_CFG[bulkStatus].label,
+      }),
     );
     setRetryNonce((n) => n + 1);
   };
@@ -266,7 +272,12 @@ export function ErrorsPanel({ embedded = false }: Props) {
       return;
     }
     toast.success(
-      `${ids.length} evento${ids.length === 1 ? "" : "s"} del grupo → ${STATUS_CFG[next].label}`,
+      i18n.t("toast.modules_admin_ErrorsPanel.groupStatusApplied", {
+        defaultValue: "{{count}} evento{{plural}} del grupo → {{status}}",
+        count: ids.length,
+        plural: ids.length === 1 ? "" : "s",
+        status: STATUS_CFG[next].label,
+      }),
     );
     setRetryNonce((n) => n + 1);
   };

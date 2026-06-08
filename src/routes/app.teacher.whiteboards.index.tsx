@@ -13,6 +13,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
@@ -263,8 +264,14 @@ function TeacherWhiteboards() {
     }
     setItems((prev) => prev.filter((p) => !ids.includes(p.id)));
     sel.clear();
+    const isOne = ids.length === 1;
     toast.success(
-      `${ids.length} pizarra${ids.length === 1 ? "" : "s"} enviada${ids.length === 1 ? "" : "s"} a papelera`,
+      i18n.t("toast.routes_app_teacher_whiteboards_index.bulkSentToTrash", {
+        defaultValue: "{{count}} {{noun}} {{verb}} a papelera",
+        count: ids.length,
+        noun: isOne ? "pizarra" : "pizarras",
+        verb: isOne ? "enviada" : "enviadas",
+      }),
     );
   };
 
@@ -279,14 +286,22 @@ function TeacherWhiteboards() {
   const createWhiteboard = async () => {
     if (!user) return;
     if (!draftName.trim()) {
-      toast.error("Dale un nombre a la pizarra");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_whiteboards_index.nameRequired", {
+          defaultValue: "Dale un nombre a la pizarra",
+        }),
+      );
       return;
     }
     // Si se eligió una sesión, también debe haber un curso (la sesión
     // pertenece a un curso). El trigger SQL valida esto pero atajamos
     // client-side con un toast más amigable.
     if (draftSessionId !== "none" && draftCourseId === "none") {
-      toast.error("Si elegís una sesión, primero hay que elegir el curso.");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_whiteboards_index.sessionNeedsCourse", {
+          defaultValue: "Si elegís una sesión, primero hay que elegir el curso.",
+        }),
+      );
       return;
     }
     setSaving(true);
@@ -306,7 +321,11 @@ function TeacherWhiteboards() {
         toast.error(friendlyError(error, "No se pudo crear la pizarra"));
         return;
       }
-      toast.success("Pizarra creada");
+      toast.success(
+        i18n.t("toast.routes_app_teacher_whiteboards_index.created", {
+          defaultValue: "Pizarra creada",
+        }),
+      );
       setCreateOpen(false);
       resetCreateDialog();
       // Navegamos directo al editor — el flujo "click para abrir" es
@@ -336,7 +355,11 @@ function TeacherWhiteboards() {
         toast.error(friendlyError(error, "No se pudo enviar la pizarra a papelera"));
         return;
       }
-      toast.success("Pizarra enviada a papelera");
+      toast.success(
+        i18n.t("toast.routes_app_teacher_whiteboards_index.sentToTrash", {
+          defaultValue: "Pizarra enviada a papelera",
+        }),
+      );
       setItems((prev) => prev.filter((p) => p.id !== w.id));
     } catch (e) {
       // Caller: `() => void deleteWhiteboard(w)` desde RowAction.onClick.

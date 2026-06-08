@@ -14,6 +14,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
@@ -101,17 +102,29 @@ export function AdminCertificateSettingsPanel() {
     if (!draft) return;
     const tenantId = profile?.tenant_id;
     if (!tenantId) {
-      toast.error("No se pudo determinar el tenant para subir la imagen.");
+      toast.error(
+        i18n.t("toast.modules_admin_AdminCertificateSettingsPanel.tenantUnavailable", {
+          defaultValue: "No se pudo determinar el tenant para subir la imagen.",
+        }),
+      );
       return;
     }
     // Validaciones tipo + tamaño (idénticas a las del logo del tenant).
     const validTypes = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"];
     if (!validTypes.includes(file.type)) {
-      toast.error("Formato no soportado. Usa PNG, JPG, SVG o WebP.");
+      toast.error(
+        i18n.t("toast.modules_admin_AdminCertificateSettingsPanel.unsupportedFormat", {
+          defaultValue: "Formato no soportado. Usa PNG, JPG, SVG o WebP.",
+        }),
+      );
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("La imagen no puede pesar más de 2 MB.");
+      toast.error(
+        i18n.t("toast.modules_admin_AdminCertificateSettingsPanel.imageTooLarge", {
+          defaultValue: "La imagen no puede pesar más de 2 MB.",
+        }),
+      );
       return;
     }
     const setBusy = kind === "logo" ? setUploadingLogo : setUploadingSignature;
@@ -151,7 +164,11 @@ export function AdminCertificateSettingsPanel() {
       } else {
         setDraft({ ...draft, signature_image_url: cacheBustedUrl });
       }
-      toast.success("Imagen subida. Recuerda 'Guardar configuración' para aplicarla.");
+      toast.success(
+        i18n.t("toast.modules_admin_AdminCertificateSettingsPanel.imageUploaded", {
+          defaultValue: "Imagen subida. Recuerda 'Guardar configuración' para aplicarla.",
+        }),
+      );
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -185,7 +202,11 @@ export function AdminCertificateSettingsPanel() {
         severity: "warning",
         metadata: { previous: row, new: draft },
       });
-      toast.success("Configuración guardada");
+      toast.success(
+        i18n.t("toast.modules_admin_AdminCertificateSettingsPanel.savedOk", {
+          defaultValue: "Configuración guardada",
+        }),
+      );
       await load();
     } finally {
       setSaving(false);

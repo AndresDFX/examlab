@@ -12,6 +12,7 @@
  */
 import { useEffect, useState } from "react";
 import { useTranslation, Trans } from "react-i18next";
+import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
@@ -182,7 +183,11 @@ export function AdminModelPanel() {
   const handleSave = async () => {
     if (!user) return;
     if (!draftModel.trim()) {
-      toast.error("Especifica un modelo");
+      toast.error(
+        i18n.t("toast.modules_admin_AdminModelPanel.specifyModel", {
+          defaultValue: "Especifica un modelo",
+        }),
+      );
       return;
     }
     // Bloqueo: tenant sin key del provider activo. SuperAdmin no entra
@@ -257,7 +262,11 @@ export function AdminModelPanel() {
           new_model: draftModel.trim(),
         },
       });
-      toast.success("Configuración del modelo actualizada");
+      toast.success(
+        i18n.t("toast.modules_admin_AdminModelPanel.modelConfigUpdated", {
+          defaultValue: "Configuración del modelo actualizada",
+        }),
+      );
       await load();
     } finally {
       setSaving(false);

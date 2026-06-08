@@ -25,6 +25,7 @@ import { ErrorState } from "@/components/ui/empty-state";
 import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
+import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/student/tutor/$courseId")({ component: TutorChat });
 
@@ -147,7 +148,7 @@ function TutorChat() {
       return;
     }
     setMessages([]);
-    toast.success("Conversación limpiada");
+    toast.success(i18n.t("toast.routes_app_student_tutor_courseId.conversationCleared", { defaultValue: "Conversación limpiada" }));
   };
 
   // ── Enviar mensaje ────────────────────────────────────────────────────

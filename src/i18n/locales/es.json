@@ -104,7 +104,6 @@
     "contents": "Contenidos",
     "statistics": "Estadísticas",
     "auditLogs": "Auditoría",
-    "system": "Sistema",
     "emailSettings": "Correos",
     "settings": "Configuración",
     "messages": "Mensajes",
@@ -1107,7 +1106,15 @@
       "prevMonth": "Mes anterior",
       "today": "Hoy"
     },
-    "weekdaysShort": ["L", "M", "M", "J", "V", "S", "D"]
+    "weekdaysShort": [
+      "L",
+      "M",
+      "M",
+      "J",
+      "V",
+      "S",
+      "D"
+    ]
   },
   "aiModel": {
     "activeTitle": "Modelo activo",
@@ -1218,5 +1225,833 @@
     "backupSnapshotsExplanation": "Snapshots lógicos de las tablas a un ZIP en Storage. El cron `db-backup-weekly` corre los domingos 03:05 UTC y crea uno con todas las tablas; el botón \"Crear backup\" deja generar uno manual eligiendo qué tablas incluir. NO hay restore desde la UI por seguridad — descargá el ZIP y aplicá vía SQL si hace falta.",
     "privateUrlWarning": "Esta URL es PRIVADA — quien la tenga ve tus eventos. Si la compartiste por error\n              presiona \"Regenerar URL\".",
     "retentionHelp": "Define cuántos días conservar registros de cada severidad. 0 = sin límite (default).\n              La purga la dispara un cron mensual configurado en Supabase."
+  },
+  "toast": {
+    "modules_admin_AdminAcademicPeriodsPanel": {
+      "codeRequired": "El código es obligatorio",
+      "startBeforeEnd": "La fecha de inicio debe ser anterior a la de fin",
+      "periodUpdated": "Periodo actualizado",
+      "periodCreated": "Periodo creado",
+      "periodDeleted": "Periodo eliminado"
+    },
+    "modules_admin_AdminAcademicProgramsPanel": {
+      "nameRequired": "El nombre es obligatorio",
+      "programUpdated": "Programa actualizado",
+      "programCreated": "Programa creado",
+      "programDeleted": "Programa eliminado"
+    },
+    "modules_admin_AdminAcademicSubjectsPanel": {
+      "nameRequired": "El nombre es obligatorio",
+      "evalWeightsMustSum100": "Los pesos del sistema de evaluación deben sumar 100 (actualmente {{sum}})",
+      "subjectDeleted": "Asignatura eliminada"
+    },
+    "modules_admin_AdminAiGradingPanel": {
+      "modeSaved": "Modo IA: {{mode}}",
+      "modeQueueLabel": "Cola (batch)",
+      "modeSyncLabel": "Sincrónico",
+      "windowRange": "Ventana debe estar entre 1 y 1440 minutos.",
+      "maxUsesMin": "Máximo de usos debe ser >= 1",
+      "maxMessagesRange": "Máximo de mensajes debe estar entre 1 y 10 000 (o vacío = sin tope).",
+      "codeCreated": "Código creado: {{code}} (cópialo y pásalo al docente)",
+      "codeCopied": "Código copiado",
+      "copyFailed": "No se pudo copiar — selecciónalo a mano.",
+      "codeRevoked": "Código revocado",
+      "codeDeleted": "Código eliminado",
+      "codesBulkDeleted": "{{count}} código(s) eliminado(s)"
+    },
+    "modules_admin_AdminAuditRetentionPanel": {
+      "retentionUpdated": "Retención actualizada",
+      "nothingToPurge": "Sin registros para purgar",
+      "purgedSummary": "Purgados: {{info}} info, {{warning}} warning, {{error}} error/critical"
+    },
+    "modules_admin_AdminCertificateSettingsPanel": {
+      "tenantUnavailable": "No se pudo determinar el tenant para subir la imagen.",
+      "unsupportedFormat": "Formato no soportado. Usa PNG, JPG, SVG o WebP.",
+      "imageTooLarge": "La imagen no puede pesar más de 2 MB.",
+      "imageUploaded": "Imagen subida. Recuerda 'Guardar configuración' para aplicarla.",
+      "savedOk": "Configuración guardada"
+    },
+    "modules_admin_AdminCodeExecutionPanel": {
+      "providerSettingsSaved": "Configuración de ejecución actualizada"
+    },
+    "modules_admin_AdminEdgeSecretsPanel": {
+      "nameAndValueRequired": "Nombre y valor son obligatorios",
+      "secretDeleted": "Secret \"{{name}}\" borrada"
+    },
+    "modules_admin_AdminEmailSettingsPanel": {
+      "savedOk": "Configuración guardada"
+    },
+    "modules_admin_AdminGeneralSettingsPanel": {
+      "passingGradeOutOfRange": "La nota mínima de aprobación debe estar entre {{min}} y {{max}}",
+      "maxGradeMustExceedMin": "La nota máxima debe ser mayor a la mínima",
+      "openAnswerCharsOutOfRange": "Máx. caracteres de respuesta abierta debe estar entre 100 y 50000",
+      "savedOk": "Parámetros guardados"
+    },
+    "modules_admin_AdminModelPanel": {
+      "specifyModel": "Especifica un modelo",
+      "modelConfigUpdated": "Configuración del modelo actualizada"
+    },
+    "modules_admin_AdminModuleVisibilityPanel": {
+      "saveOrderError": "No se pudo guardar el orden: {{error}}",
+      "orderSaved": "Orden de módulos guardado"
+    },
+    "modules_admin_AdminMyTenantPanel": {
+      "logoFormatUnsupported": "Formato no soportado. Usa PNG, JPG, SVG o WebP.",
+      "logoTooLarge": "El logo no puede pesar más de 2 MB.",
+      "logoUploadedOptimized": "Logo subido (optimizado: {{kbBefore}} KB → {{kbAfter}} KB). Recuerda 'Guardar'.",
+      "logoUploaded": "Logo subido. Recuerda 'Guardar' para aplicarlo.",
+      "logoRemoved": "Logo removido. 'Guardar' para aplicar.",
+      "nameRequired": "El nombre es obligatorio.",
+      "tenantUpdated": "Institución actualizada"
+    },
+    "modules_admin_AdminPromptsPanel": {
+      "brandSaved": "Marca institucional actualizada",
+      "promptEmpty": "El prompt no puede estar vacío",
+      "promptUpdated": "Prompt \"{{label}}\" actualizado",
+      "promptRestored": "\"{{label}}\" restaurado al default"
+    },
+    "modules_admin_AuditLogsView": {
+      "loadAuditError": "Error cargando auditoría: {{detail}}"
+    },
+    "modules_admin_DbBackupsPanel": {
+      "selectAtLeastOneTable": "Elige al menos una tabla.",
+      "backupStarted": "Backup iniciado — refrescará automáticamente cuando termine.",
+      "noFileAvailable": "Este backup no tiene archivo disponible.",
+      "backupDeleted": "Backup eliminado.",
+      "backupProcessed": "Backup procesado."
+    },
+    "modules_admin_ErrorsPanel": {
+      "bulkStatusApplied": "{{count}} evento{{plural}} → {{status}}",
+      "groupStatusApplied": "{{count}} evento{{plural}} del grupo → {{status}}"
+    },
+    "modules_admin_SupabaseCronPanel": {
+      "jobActivated": "\"{{jobName}}\" activado — aplica al próximo tick del scheduler (~1 min)",
+      "jobPaused": "\"{{jobName}}\" pausado — no se disparará en el próximo tick",
+      "descriptionUpdated": "Descripción de \"{{jobName}}\" actualizada",
+      "scheduleUpdated": "Frecuencia de \"{{jobName}}\" actualizada — aplica al próximo tick (~1 min)"
+    },
+    "modules_admin_SystemDiagnosticsPanel": {
+      "notAuthenticated": "No estás autenticado",
+      "notificationQueued": "Notificación encolada. Si tienes la PWA instalada con permisos, debería llegar en segundos."
+    },
+    "modules_ai_AiCronPage": {
+      "jobCancelled": "Job cancelado",
+      "reasonRequired": "La razón es obligatoria (mínimo 5 caracteres).",
+      "jobRejected": "Job rechazado. El docente recibió la notificación.",
+      "rejectionClosed": "Rechazo cerrado. El job se movió al historial.",
+      "queueAsyncMode": "La cola está en modo async. Activa un código de IA inmediata para procesar jobs al instante.",
+      "jobNoLongerPending": "El job ya no estaba pending — quizás el worker lo levantó primero.",
+      "jobProcessedButFailed": "El job se procesó pero falló — revisa el error en la cola.",
+      "jobProcessed": "Job procesado",
+      "jobRequeued": "Job re-encolado",
+      "jobsCancelledBulk": "{{count}} job(s) cancelado(s)"
+    },
+    "modules_ai_AiGenerationQueuePanel": {
+      "activateImmediateAiFirst": "Para procesar este job, primero activa un código de IA inmediata.",
+      "couldNotProcess": "No se pudo procesar: {{detail}}",
+      "jobNoLongerPending": "El job ya no estaba pending — quizás otro proceso lo levantó.",
+      "contentQueued": "Contenido encolado para generación. Aparecerá en tu lista de contenidos.",
+      "couldNotDrainQueue": "No se pudo drenar la cola: {{detail}}",
+      "aiInAsyncMode": "La IA está en modo async. Cambia el modo a sync (en Configuración) o procesá uno a uno.",
+      "drained": "Drenado: {{proc}} job(s) procesados — {{ok}} ok, {{fail}} fallaron.",
+      "jobCancelled": "Job cancelado",
+      "errorCopied": "Error copiado",
+      "couldNotCopy": "No se pudo copiar"
+    },
+    "modules_ai_AiJobsHistoryPanel": {
+      "jobRequeued": "Job re-encolado"
+    },
+    "modules_ai_AiOverrideDialog": {
+      "enterOverrideCode": "Ingresa el código de override",
+      "overrideActivated": "IA inmediata activa por {{minutes}} min{{capDescr}} — tus próximas calificaciones IA corren al instante.",
+      "overrideClosed": "Ventana de IA inmediata cerrada. Las nuevas calificaciones vuelven a la cola."
+    },
+    "modules_ai_UnifiedAiQueuePanel": {
+      "jobCancelled": "Job cancelado",
+      "jobRequeued": "Job re-encolado",
+      "asyncModeActivateCode": "La cola está en modo async. Activá un código de IA inmediata para procesar jobs al instante.",
+      "jobNoLongerPending": "El job ya no estaba pending — quizás el worker lo levantó primero.",
+      "jobProcessedButFailed": "El job se procesó pero falló — revisá el error en la cola.",
+      "jobProcessed": "Job procesado",
+      "drainedFailedSuffix": " — {{failed}} fallaron",
+      "drained": "Drenado: {{total}} job(s) ({{grading}} grading + {{generation}} generación){{failedSuffix}}",
+      "reasonRequired": "La razón es obligatoria (mínimo 5 caracteres).",
+      "jobRejected": "Job rechazado. El docente recibió la notificación.",
+      "rejectionClosed": "Rechazo cerrado. El job se movió al historial.",
+      "bulkCancelled": "{{count}} job(s) cancelado(s)",
+      "errorCopied": "Error copiado",
+      "copyFailed": "No se pudo copiar"
+    },
+    "modules_attendance_AttendanceCheckInProjector": {
+      "windowExpired": "La ventana de check-in expiró",
+      "closedOk": "Check-in cerrado"
+    },
+    "modules_auth_ChangePasswordDialog": {
+      "completeAllFields": "Completa todos los campos",
+      "passwordTooShort": "La nueva contraseña debe tener al menos 8 caracteres",
+      "passwordsDoNotMatch": "Las contraseñas no coinciden",
+      "passwordUpdated": "Contraseña actualizada correctamente"
+    },
+    "modules_auth_ForceChangePasswordDialog": {
+      "completeBothFields": "Completa ambos campos.",
+      "passwordTooShort": "La nueva contraseña debe tener al menos 8 caracteres.",
+      "passwordsDoNotMatch": "Las contraseñas no coinciden.",
+      "passwordUpdated": "Contraseña actualizada. ¡Bienvenido!"
+    },
+    "modules_calendar_LinkCalendarEventsDialog": {
+      "pickBothDates": "Eligí ambas fechas",
+      "fromBeforeTo": "La fecha 'Desde' debe ser anterior a 'Hasta'",
+      "noCalendarSelected": "Primero seleccioná un calendario en la pantalla de Calendar.",
+      "calendarNotAccessible": "El calendario ya no es accesible. Reconectá Google Calendar.",
+      "loadEventsFailed": "No se pudieron cargar eventos: {{error}}",
+      "noEventsInRange": "No hay eventos en ese rango de fechas.",
+      "eventsLoaded": "{{eventCount}} evento(s) cargados",
+      "noChangesToApply": "No hay cambios para aplicar",
+      "linkFailed": "No se pudo vincular: {{error}}"
+    },
+    "modules_certificates_CourseCertificateSettingsDialog": {
+      "savedOk": "Configuración del curso guardada",
+      "overrideRemoved": "Override eliminado — vuelve a usar la configuración global"
+    },
+    "modules_code_QuestionBankImportDialog": {
+      "selectAtLeastOne": "Selecciona al menos una pregunta",
+      "importedOne": "1 pregunta importada",
+      "importedMany": "{{count}} preguntas importadas"
+    },
+    "modules_contents_ContentPromptsOverridesDialog": {
+      "savedOk": "Prompts personalizados guardados"
+    },
+    "modules_contents_UploadExternalContentDialog": {
+      "unsupportedFormat": "Formato no soportado: {{fileName}}",
+      "fileTooLarge": "Archivo > {{maxMb}} MB: {{fileName}}",
+      "totalSizeExceeded": "Excede el total de {{maxTotalMb}} MB",
+      "nameRequired": "Indica un nombre para el contenido.",
+      "topicRequired": "Indica el tema del contenido.",
+      "fileRequired": "Adjunta al menos un archivo.",
+      "courseRequired": "Selecciona al menos un curso destino.",
+      "duplicateName": "Ya tienes un contenido llamado \"{{name}}\". Usa otro nombre.",
+      "noFilesUploaded": "No se pudo subir ningún archivo. Reintenta.",
+      "fileListSaveFailed": "Archivos subidos, pero no se pudo guardar el listado: {{error}}",
+      "courseAssociationFailed": "Contenido subido, pero falló la asociación a algunos cursos: {{error}}"
+    },
+    "modules_exams_ExamNotesManager": {
+      "emptyContent": "Escribe el contenido de tus notas",
+      "submitFailed": "No se pudo enviar la nota. Recarga e intenta de nuevo.",
+      "submittedForReview": "Notas enviadas para revisión",
+      "approveFailed": "No se pudo aprobar la nota (sin permisos o la nota ya no existe). Recarga e intenta de nuevo.",
+      "approved": "Notas aprobadas",
+      "rejectReasonRequired": "Debes ingresar un motivo de rechazo",
+      "rejectFailed": "No se pudo rechazar la nota (sin permisos o la nota ya no existe). Recarga e intenta de nuevo.",
+      "rejected": "Notas rechazadas — el estudiante podrá reenviar"
+    },
+    "modules_exams_FraudPanel": {
+      "markedPending": "Marcada como pendiente",
+      "markedReviewed": "Marcada como revisada",
+      "plagiarismNoQueueMode": "La detección de plagio no soporta modo cola. Activá un código de IA inmediata para continuar.",
+      "detectionDoneWithPairs": "Detección completada: {{pairsLabel}}.",
+      "detectionFailed": "No se pudo ejecutar la detección: {{detail}}",
+      "submissionNotFound": "No se encontró la entrega del estudiante",
+      "gradeMustBeNumeric": "Ingresa un valor numérico para la nota",
+      "gradeOutOfRange": "La nota debe estar entre 0 y {{max}}",
+      "applyDenied": "No se pudo aplicar (sin permisos o la entrega ya no existe). Recarga e intenta de nuevo.",
+      "gradeUpdated": "Nota de {{student}} actualizada a {{grade}}",
+      "noApplicableSuggestion": "Ninguna fila tiene sugerencia aplicable",
+      "suggestionAppliedBulk": "Sugerencia aplicada a {{okLabel}}{{failSuffix}}"
+    },
+    "modules_exams_PendingExamNotesModal": {
+      "approveFailed": "No se pudo aprobar la nota (sin permisos o la nota ya no existe). Recarga e intenta de nuevo.",
+      "approvedForStudent": "Notas de {{student}} aprobadas",
+      "rejectReasonRequired": "Escribe un motivo para rechazar",
+      "rejectFailed": "No se pudo rechazar la nota (sin permisos o la nota ya no existe). Recarga e intenta de nuevo.",
+      "rejectedCanResend": "Rechazadas — el estudiante puede reenviar"
+    },
+    "modules_grading_ExternalGradesEditor": {
+      "loadStudentsFailed": "No se pudieron cargar los estudiantes: {{error}}",
+      "gradeValidationFailed": "{{name}}: {{message}}",
+      "saveRowFailed": "{{name}}: {{error}}",
+      "gradeSaved": "Nota guardada: {{name}}",
+      "bulkSavedOne": "{{count}} cambio guardado",
+      "bulkSavedMany": "{{count}} cambios guardados",
+      "bulkFailedOne": " · {{count}} fallido",
+      "bulkFailedMany": " · {{count}} fallidos",
+      "noUnsavedChanges": "No hay cambios sin guardar"
+    },
+    "modules_grading_FeedbackThread": {
+      "fileRejected": "{{fileName}}: {{reason}}",
+      "maxAttachments": "Máximo {{max}} archivos por comentario.",
+      "uploadFailed": "No se pudo subir {{fileName}}: {{reason}}",
+      "registerFailed": "No se pudo registrar {{fileName}}: {{reason}}",
+      "emptyComment": "El comentario no puede estar vacío",
+      "sendFailed": "No se pudo enviar el comentario",
+      "threadClosed": "Conversación cerrada",
+      "threadReopened": "Conversación reabierta"
+    },
+    "modules_grading_OpenFeedbackModal": {
+      "conversationClosed": "Conversación cerrada"
+    },
+    "modules_polls_LaunchPollDialog": {
+      "questionRequired": "Escribí la pregunta",
+      "minTwoOptions": "Se necesitan al menos 2 opciones",
+      "slotNeedsPositiveCapacity": "En tipo 'cupo por opción' cada opción necesita un cupo entero > 0",
+      "pollLaunched": "Encuesta lanzada"
+    },
+    "modules_projects_ProjectGroupsEditor": {
+      "groupNameRequired": "Ponle un nombre al grupo"
+    },
+    "modules_reports_ActasManager": {
+      "actaGenerated": "Acta generada (ID: {{actaId}}…)",
+      "actaDeleted": "Acta eliminada"
+    },
+    "modules_schedules_CourseScheduleEditor": {
+      "endTimeAfterStart": "{{day}}: la hora de fin debe ser posterior a la de inicio.",
+      "scheduleSaved": "Horario guardado"
+    },
+    "modules_sessions_SessionCodeSnippets": {
+      "snippetEmpty": "El snippet está vacío",
+      "clipboardCopyFailed": "No se pudo copiar al portapapeles"
+    },
+    "modules_superadmin_AssignUsersToTenantDialog": {
+      "usersAdded": "{{count}} usuario(s) agregado(s) a {{tenantName}}",
+      "usersRemoved": "{{count}} usuario(s) quitado(s) de {{tenantName}}",
+      "userUpdateFailed": "{{name}}: {{reason}}",
+      "moreSimilarErrors": "Y {{count}} más con error similar."
+    },
+    "modules_superadmin_PlatformSettingsPanel": {
+      "savedOk": "Configuración guardada"
+    },
+    "modules_support_SupportTicketDetailDialog": {
+      "fileTooLarge": "El archivo supera 25 MB. Subí algo más pequeño.",
+      "attachmentUploaded": "Adjunto cargado",
+      "changesSaved": "Cambios guardados",
+      "assignedToYou": "Asignado a vos",
+      "ticketClosed": "Ticket cerrado"
+    },
+    "modules_whiteboard_MultiPageWhiteboard": {
+      "atLeastOnePage": "La pizarra debe tener al menos una hoja.",
+      "pageDeleted": "Hoja eliminada"
+    },
+    "modules_whiteboard_SessionWhiteboardDialog": {
+      "sharedEnabled": "Pizarra compartida activada",
+      "sharedDisabled": "Pizarra compartida desactivada"
+    },
+    "modules_workshops_WorkshopGroupsEditor": {
+      "groupNameRequired": "Ponle un nombre al grupo"
+    },
+    "modules_projects_ProjectFiles": {
+      "generationJobsQueued": "{{count}} job(s) de generación encolados. Cuando tengas un código de IA inmediata o un administrador los procese, las preguntas aparecerán automáticamente. Puedes verlos en el panel de Cola IA.",
+      "errorInType": "Error en {{type}}: {{detail}}",
+      "unknownError": "Error desconocido",
+      "questionsGenerated": "{{count}} pregunta(s) generadas",
+      "projectHasNoQuestions": "Este proyecto no tiene preguntas",
+      "attemptsExhausted": "Ya consumiste tus {{count}} intento(s) de entrega. No puedes volver a entregar este proyecto.",
+      "repositoryUrlRequired": "El link al repositorio (GitHub o Drive) es obligatorio",
+      "invalidUrl": "Ingresa una URL válida (debe empezar con http:// o https://)",
+      "fixFilesAndResubmit": "Corrige los archivos señalados y vuelve a entregar — no se guardó nada todavía.",
+      "attemptsExhaustedReload": "Ya consumiste tus {{count}} intento(s) de entrega. Recarga para ver la entrega actual.",
+      "sectionGradeSaveFailed": "No se pudo guardar la calificación de una sección: {{detail}}",
+      "submissionGraded": "Entrega calificada: {{score}} / {{max}}. La nota final se calcula tras la sustentación.",
+      "fileEmpty": "El archivo está vacío.",
+      "zipExceedsLimit": "El ZIP pesa {{size}} y supera el tope de 50 MB.",
+      "onlyZipAccepted": "Solo se acepta un archivo .zip.",
+      "disallowedFiles": "Archivos no permitidos: {{sample}}{{more}}. Solo se aceptan {{allowed}}.",
+      "filesExceedLimit": "Los archivos suman {{size}} y superan el tope de 50 MB.",
+      "tooManyFiles": "Seleccionaste {{count}} archivos. Máximo permitido: {{max}}.",
+      "emptyFilesInSelection": "Hay archivos vacíos en la selección. Verifica que no estés subiendo archivos rotos.",
+      "writeStatement": "Escribe el enunciado",
+      "markAtLeastOneCorrect": "Marca al menos una opción correcta en opción múltiple",
+      "minGreaterThanMax": "Mínimo de marcadas no puede ser mayor al máximo",
+      "questionUpdated": "Pregunta actualizada",
+      "questionAdded": "Pregunta agregada — puedes continuar añadiendo",
+      "questionDeleted": "Pregunta eliminada",
+      "projectHasNoDescription": "El proyecto no tiene descripción todavía. Escríbela o genérala con IA antes de continuar.",
+      "notAuthenticated": "No autenticado",
+      "oneGenerationJobQueued": "1 job de generación encolado. Cuando tengas un código de IA inmediata o un administrador lo procese, las preguntas aparecerán automáticamente. Puedes verlo en el panel de Cola IA.",
+      "questionsGeneratedWithCode": "{{count}} pregunta(s) generadas — incluye 1 entrega de código (archivos)",
+      "indicateTopics": "Indica los temas",
+      "configureAtLeastOneType": "Configura al menos un tipo con cantidad > 0"
+    },
+    "modules_workshops_WorkshopQuestions": {
+      "questionUpdated": "Pregunta actualizada",
+      "questionAdded": "Pregunta agregada — puedes continuar añadiendo",
+      "questionDeleted": "Pregunta eliminada",
+      "indicateTopics": "Indica los temas",
+      "configureAtLeastOneType": "Configura al menos un tipo con cantidad > 0",
+      "notAuthenticated": "No autenticado",
+      "generationJobsQueued": "{{count}} job{{plural}} de generación encolados. Cuando tengas un código de IA inmediata o un administrador los procese, las preguntas aparecerán automáticamente. Puedes verlos en el panel de Cola IA.",
+      "errorInType": "Error en {{type}}: {{detail}}",
+      "unknownError": "Error desconocido",
+      "questionsGenerated": "{{count}} pregunta{{plural}} generadas",
+      "workshopHasNoQuestions": "Este taller no tiene preguntas",
+      "mustWatchIntroVideos": "Debes ver todos los videos introductorios antes de entregar.",
+      "attemptsExhausted": "Ya consumiste tus {{count}} intento{{plural}} de entrega. Recarga para ver la entrega actual.",
+      "gradeResult": "Calificación: {{grade}} / {{maxScore}}",
+      "fileEmpty": "El archivo está vacío.",
+      "zipTooLarge": "El ZIP pesa {{size}} y supera el tope de 50 MB.",
+      "onlyZipAccepted": "Solo se acepta un archivo .zip.",
+      "filesNotAllowed": "Archivos no permitidos: {{sample}}{{more}}. Solo se aceptan {{allowed}}.",
+      "filesTotalTooLarge": "Los archivos suman {{size}} y superan el tope de 50 MB.",
+      "tooManyFiles": "Seleccionaste {{count}} archivos. Máximo permitido: {{max}}.",
+      "emptyFilesInSelection": "Hay archivos vacíos en la selección.",
+      "writeStatement": "Escribe el enunciado",
+      "markAtLeastOneCorrect": "Marca al menos una opción correcta en opción múltiple",
+      "minMaxInverted": "Mínimo de marcadas no puede ser mayor al máximo"
+    },
+    "routes_app_admin_courses": {
+      "nameRequired": "Nombre requerido",
+      "endDateAfterStart": "La fecha de fin debe ser posterior a la fecha de inicio",
+      "courseWeightsMustSum100": "Los pesos del curso deben sumar 100% (suma actual: {{total}}%)",
+      "cutWeightsMustSum100": "Los pesos de los cortes deben sumar 100% (suma actual: {{total}}%)",
+      "subWeightsMismatch": "Sub-pesos no cuadran con el peso del corte:\n{{details}}",
+      "courseSavedCutsSyncFailed": "Curso guardado, pero falló la sincronización de cortes: {{error}}",
+      "courseSaved": "Curso guardado correctamente",
+      "studentEnrolled": "Estudiante matriculado correctamente",
+      "studentUnenrolled": "Estudiante desmatriculado correctamente",
+      "studentsEnrolledMany": "{{count}} estudiante(s) matriculados correctamente",
+      "studentsUnenrolledMany": "{{count}} estudiante(s) desmatriculados correctamente",
+      "teacherAssigned": "Docente asignado correctamente",
+      "teacherUnassigned": "Docente desasignado correctamente",
+      "teachersAssignedMany": "{{count}} docente(s) asignados correctamente",
+      "teachersUnassignedMany": "{{count}} docente(s) desasignados correctamente",
+      "duplicateNameRequired": "Nombre requerido",
+      "copyEnrollmentsFailed": "No se pudieron copiar las matrículas: {{error}}",
+      "courseDuplicated": "Curso duplicado correctamente{{suffix}}",
+      "coursesSentToTrash": "{{count}} curso(s) enviado(s) a papelera",
+      "duplicateStudentsSuffix": " ({{count}} estudiante(s) copiado(s))"
+    },
+    "routes_app_admin_support": {
+      "noTenantAssigned": "Tu cuenta no tiene institución asignada. Contacta al SuperAdmin.",
+      "subjectTooShort": "El asunto debe tener al menos 3 caracteres.",
+      "bodyTooShort": "La descripción debe tener al menos 10 caracteres.",
+      "ticketCreatedSomeAttachmentsFailed": "Ticket creado. {{uploaded}} adjunto(s) subido(s), {{failed}} fallaron — podés volver a subirlos desde el detalle.",
+      "ticketCreatedWithAttachments": "Ticket abierto con {{uploaded}} adjunto(s). El SuperAdmin recibió la notificación.",
+      "ticketCreated": "Ticket abierto. El SuperAdmin recibió la notificación.",
+      "filesOversized": "{{count}} archivo(s) superan 25 MB y se descartaron: {{names}}"
+    },
+    "routes_app_admin_users": {
+      "bulkDeleteSuccess": "{{count}} usuario(s) eliminado(s) correctamente",
+      "bulkDeletePartial": "{{ok}} usuario(s) eliminados, {{failed}} fallaron — revisá la consola para detalles.",
+      "passwordCopied": "Contraseña copiada al portapapeles",
+      "copyFailed": "No se pudo copiar",
+      "cannotImpersonateAdmin": "No se puede impersonar a otro administrador",
+      "rolesAddFailedAfterRemove": "{{error}}. Los roles a quitar SÍ se eliminaron; revisa el estado del usuario y reintentá agregar los nuevos.",
+      "institutionalEmailTaken": "El email institucional \"{{email}}\" ya está en uso por otro usuario.",
+      "personalEmailTaken": "El email personal \"{{email}}\" ya está en uso por otro usuario.",
+      "nameAndEmailRequired": "Nombre y email institucional son requeridos",
+      "onlySuperAdminNoTenant": "Solo el rol SuperAdmin puede no tener institución. Asigna una institución o agrega el rol SuperAdmin.",
+      "userUpdatedWithPassword": "Usuario actualizado correctamente (contraseña incluida)",
+      "userUpdated": "Usuario actualizado correctamente",
+      "passwordMinLength": "La contraseña debe tener al menos 8 caracteres",
+      "passwordRequired": "Contraseña requerida (mínimo 8 caracteres)",
+      "createDuplicateEmail": "No se pudo crear: ya existe un usuario con el email \"{{email}}\"",
+      "tenantAssignFailed": "Usuario creado, pero no se pudo asignar a la institución. Edítalo y guarda de nuevo.",
+      "enrollmentFailed": "Usuario creado, pero no se pudo inscribir al curso. Matricúlalo manualmente desde el curso.",
+      "userCreated": "Usuario creado correctamente",
+      "importSuccess": "Importados correctamente: {{count}}",
+      "importPartial": "Importados: {{ok}} · Duplicados: {{duplicates}} · Errores: {{errors}}"
+    },
+    "routes_app_certificates": {
+      "verifyLinkCopied": "Link de verificación copiado"
+    },
+    "routes_app_forum_courseId_forumId_threadId": {
+      "replyMarkedOfficial": "Respuesta destacada como oficial",
+      "replyOfficialRemoved": "Marca de oficial removida",
+      "threadPinned": "Hilo fijado",
+      "threadUnpinned": "Hilo desfijado",
+      "threadLocked": "Hilo cerrado",
+      "threadUnlocked": "Hilo reabierto",
+      "replyPublished": "Respuesta publicada",
+      "titleAndBodyRequired": "Título y cuerpo son obligatorios",
+      "questionUpdated": "Pregunta actualizada",
+      "replyUpdated": "Respuesta actualizada",
+      "threadDeleted": "Hilo borrado",
+      "replyDeleted": "Respuesta borrada"
+    },
+    "routes_app_forum_courseId_forumId": {
+      "titleMinLength": "El título debe tener al menos 3 caracteres",
+      "bodyRequired": "Escribe el cuerpo de la pregunta",
+      "questionPublished": "Pregunta publicada"
+    },
+    "routes_app_forum_courseId": {
+      "titleMinLength": "El título debe tener al menos 3 caracteres",
+      "opensBeforeCloses": "La fecha de apertura debe ser anterior a la de cierre",
+      "forumCreated": "Foro creado",
+      "forumClosed": "Foro cerrado",
+      "forumReopened": "Foro reabierto",
+      "forumDeleted": "Foro eliminado"
+    },
+    "routes_app_messages": {
+      "selectAtLeastOneCourse": "Selecciona al menos un curso.",
+      "subjectAndMessageRequired": "Asunto y mensaje son obligatorios.",
+      "broadcastSentWithEmail": "Mensaje enviado a {{notified}} estudiante(s) de {{courseCount}} {{courseWord}}. {{withEmail}} recibirá(n) correo.",
+      "broadcastSentNoEmail": "Mensaje enviado a {{notified}} estudiante(s) de {{courseCount}} {{courseWord}}. Solo notificación in-app (sin correos configurados).",
+      "broadcastScheduled": "Difusión programada para {{when}}.",
+      "writeAMessage": "Escribe un mensaje.",
+      "directScheduled": "Mensaje programado para {{when}}.",
+      "onlyPendingEditable": "Solo se pueden editar mensajes pendientes.",
+      "messageCannotBeEmptyDot": "El mensaje no puede quedar vacío.",
+      "messageNoLongerPending": "El mensaje ya no está pendiente; refrescamos la lista.",
+      "changesSaved": "Cambios guardados.",
+      "scheduleCancelled": "Programación cancelada.",
+      "noDueMessages": "No había mensajes vencidos para procesar.",
+      "messagesDispatched": "{{count}} mensaje(s) despachado(s).",
+      "fileValidationError": "{{fileName}}: {{error}}",
+      "maxAttachmentsPerMessage": "Máximo {{max}} archivos por mensaje.",
+      "attachmentUploadFailed": "No se pudo subir {{name}}: {{error}}",
+      "attachmentRegisterFailed": "No se pudo registrar {{name}}: {{error}}",
+      "cannotEditAlreadyRead": "Ya no puedes editar este mensaje: el otro usuario lo leyó.",
+      "messageCannotBeEmpty": "El mensaje no puede estar vacío",
+      "cannotDeleteAlreadyRead": "Ya no puedes eliminar este mensaje: el otro usuario lo leyó.",
+      "noneEligibleToDelete": "Ninguno de los mensajes seleccionados es elegible para eliminar.",
+      "bulkDeletedWithSkipped": "{{deleted}} eliminado(s) · {{skipped}} omitido(s) (ya leídos por el otro)",
+      "bulkDeleted": "{{deleted}} mensaje(s) eliminado(s)",
+      "markedSelectedRead": "{{count}} conversación(es) marcada(s) como leída(s)",
+      "markedSelectedUnread": "{{count}} conversación(es) marcada(s) como no leída(s)",
+      "clearedSelectedConversations": "{{count}} conversación(es) eliminada(s) para ti",
+      "conversationCleared": "Conversación eliminada para ti"
+    },
+    "routes_app_student_attendance": {
+      "codeMustBe6Digits": "El código debe tener 6 dígitos",
+      "markedAsPresent": "¡Marcado como presente!"
+    },
+    "routes_app_student_calendar": {
+      "urlRegenerated": "URL regenerada. El link anterior dejó de funcionar.",
+      "urlCopied": "URL copiada"
+    },
+    "routes_app_student_certificates": {
+      "downloadLocked": "Aún no puedes descargar este certificado. Estará disponible desde el {{date}}.",
+      "verifyLinkCopied": "Link de verificación copiado"
+    },
+    "routes_app_student_polls": {
+      "cannotChangeVote": "Esta encuesta no permite cambiar el voto una vez emitido",
+      "voteRecorded": "Voto registrado",
+      "cannotUncheckMultiple": "En encuestas de selección múltiple no podés desmarcar una opción una vez votada."
+    },
+    "routes_app_student_projects": {
+      "submissionDeleted": "Entrega eliminada"
+    },
+    "routes_app_student_take_examId": {
+      "offlineRetrying": "Sin conexión. Reintentando… tus respuestas guardadas siguen seguras.",
+      "examNotFound": "Examen no encontrado",
+      "examNotAvailableNow": "Este examen no está disponible ahora",
+      "examNotPublished": "Este examen aún no está publicado",
+      "examClosedByTeacher": "Este examen fue cerrado por el docente",
+      "notAssignedToExam": "No estás asignado a este examen",
+      "previousSubmissionReopened": "Tu entrega anterior aún no fue calificada — la reabrimos para que sigas editando antes de re-entregar.",
+      "alreadyCompletedExam": "Ya completaste este examen",
+      "allAttemptsUsed": "Ya usaste tus {{maxAttempts}} intentos para este examen",
+      "attemptNotice": "Intento {{current}} de {{maxAttempts}}. Tu calificación anterior se reemplazará por la de este intento.",
+      "examRequiresFullscreen": "Este examen requiere pantalla completa. {{help}}",
+      "couldNotActivateFullscreen": "No se pudo activar pantalla completa. {{help}}",
+      "submissionServerFailed": "No se pudo registrar la entrega en el servidor. Tus respuestas están guardadas localmente; revisa la conexión y vuelve a intentar entregar.",
+      "examSuspended": "Examen suspendido",
+      "examSubmittedSuccess": "Examen entregado correctamente",
+      "timerPausedByTeacher": "⏸ El docente ha pausado el temporizador",
+      "timerResumed": "▶ El temporizador ha sido reanudado",
+      "extraMinutesAdded": "+{{minutes}} minuto(s) extra añadidos",
+      "teacherUpdatedExamTime": "El docente actualizó el tiempo del examen",
+      "exitLimitExceeded": "Has superado el límite de salidas. El examen se suspende.",
+      "warningWithLabel": "Advertencia {{count}}/{{max}}: {{label}}",
+      "screenshotsNotAllowed": "No está permitido tomar pantallazos durante el examen.",
+      "executionCancelled": "Ejecución cancelada. Puedes cambiar de compilador y reintentar.",
+      "writeCodeBeforeRunning": "Escribe código antes de ejecutar",
+      "warningExamExit": "Advertencia {{count}}/{{max}}: Salida de examen"
+    },
+    "routes_app_student_tutor_courseId": {
+      "conversationCleared": "Conversación limpiada"
+    },
+    "routes_app_student_workshops": {
+      "submissionDeleted": "Entrega eliminada"
+    },
+    "routes_app_superadmin_tenants": {
+      "logoFormatUnsupported": "Formato no soportado. Usa PNG, JPG, SVG o WebP.",
+      "logoTooLarge": "El logo no puede pesar más de 2 MB.",
+      "logoUploadedOptimized": "Logo subido (optimizado: {{before}} KB → {{after}} KB).",
+      "logoReady": "Logo listo. Se subirá al guardar la institución.",
+      "logoUploadedRememberSave": "Logo subido. Recuerda 'Guardar' para aplicarlo.",
+      "logoRemoved": "Logo removido.",
+      "slugAndNameRequired": "Slug y nombre son obligatorios.",
+      "slugInvalid": "Slug inválido: usa minúsculas, números y guiones (3-50 chars). Ej: 'sena-bogota'.",
+      "quotaInvalid": "Cuota inválida para {{label}}. Debe ser entero ≥ 0 (o vacío = ilimitado).",
+      "tenantUpdated": "Institución actualizada",
+      "tenantCreated": "Institución creada",
+      "testUserCreationFailed": "Institución creada, pero falló crear usuario de prueba: {{error}}",
+      "viewingAs": "Viendo como: {{name}}",
+      "backToCrossTenant": "Volviste al modo cross-tenant",
+      "tenantSentToTrash": "{{name}} fue enviada a la papelera",
+      "noAdminUsers": "No hay usuarios con rol Admin en la plataforma.",
+      "tenantHasNoAdmin": "{{name}} no tiene Admin asignado. Crea o asigna uno antes de iniciar sesión como.",
+      "emailCopied": "Email copiado",
+      "passwordCopied": "Contraseña copiada",
+      "credentialsCopied": "Credenciales copiadas"
+    },
+    "routes_app_teacher_ai_prompts": {
+      "promptEmpty": "El prompt no puede estar vacío",
+      "overrideSaved": "Override de \"{{label}}\" guardado para este curso",
+      "revertedToGlobal": "\"{{label}}\" volvió al prompt global"
+    },
+    "routes_app_teacher_attendance": {
+      "dateRequired": "Fecha requerida",
+      "endTimeAfterStart": "La hora de fin debe ser posterior a la de inicio.",
+      "sessionCreated": "Sesión creada correctamente",
+      "recordingUpdated": "Grabación actualizada",
+      "allMarkedPresent": "Todos los estudiantes marcados como presentes",
+      "sessionAttendanceReset": "Asistencia de la sesión reiniciada",
+      "previousCheckInExpired": "El check-in anterior expiró. Inicia uno nuevo.",
+      "studentsMarkedAbsent": "{{count}} estudiante(s) marcado(s) como ausentes"
+    },
+    "routes_app_teacher_calendar": {
+      "calendarNotAccessible": "El calendario seleccionado ya no es accesible en Google. Elige otro y vuelve a sincronizar."
+    },
+    "routes_app_teacher_contents": {
+      "displayNameRequired": "Indica un nombre único para este contenido.",
+      "displayNameTooLong": "El nombre es demasiado largo (máx 120 caracteres).",
+      "generationEnqueued": "Generación encolada. Cuando tengas un código de IA inmediata o un administrador la procese, el contenido aparecerá en tu lista. Puedes verla en \"Cola IA → Generaciones\".",
+      "duplicateDisplayName": "Ya tienes un contenido llamado \"{{name}}\". Usa un nombre distinto.",
+      "published": "Contenido publicado. Los alumnos del curso recibirán notificación.",
+      "unpublished": "Contenido despublicado. Los alumnos ya no lo ven."
+    },
+    "routes_app_teacher_exams_examId": {
+      "createQuestionBeforeTimeEval": "Crea al menos una pregunta antes de evaluar el tiempo.",
+      "durationUpdated": "Duración actualizada a {{minutes}} min. Recuerda guardar el examen.",
+      "weightExceedsBucket": "El peso del examen ({{weight}}%) supera el bucket disponible del corte ({{available}}% restantes). Reduce el peso o ajusta los demás exámenes del corte.",
+      "selectCourse": "Selecciona un curso para el examen",
+      "examUpdated": "Examen actualizado correctamente",
+      "contentRequired": "Contenido requerido",
+      "rubricRequired": "Rúbrica requerida para preguntas abiertas/código/diagrama/Java GUI/Python GUI",
+      "markAtLeastOneCorrect": "Marca al menos una opción correcta en opción múltiple",
+      "minGreaterThanMax": "Mínimo de marcadas no puede ser mayor al máximo",
+      "questionUpdated": "Pregunta actualizada correctamente",
+      "questionAdded": "Pregunta agregada correctamente",
+      "enterTopics": "Ingresa los temas",
+      "configureAtLeastOneType": "Configura al menos un tipo con cantidad > 0",
+      "notAuthenticated": "No autenticado",
+      "generationJobsQueued": "{{count}} job{{plural}} de generación encolados. Cuando tengas un código de IA inmediata o un administrador los procese, las preguntas aparecerán automáticamente. Puedes verlos en el panel de Cola IA.",
+      "errorInType": "Error en {{type}}: {{detail}}",
+      "unknownError": "Error desconocido",
+      "questionsGenerated": "{{count}} pregunta{{plural}} generadas",
+      "studentAssigned": "Estudiante asignado correctamente",
+      "assignmentRemoved": "Asignación removida correctamente",
+      "studentsAssigned": "{{count}} estudiante(s) asignados correctamente",
+      "assignmentsRemoved": "{{count}} asignación(es) removidas correctamente"
+    },
+    "routes_app_teacher_exams_index": {
+      "bulkSentToTrash": "{{count}} examen(es) enviado(s) a papelera",
+      "externalDateRequired": "Indica la fecha de la actividad",
+      "weightOverBucket": "El peso del examen ({{requested}}%) supera el bucket disponible del corte ({{available}}% restantes). Reduce el peso o ajusta los demás exámenes del corte.",
+      "weightOverBucketCourse": "{{courseName}}: El peso del examen ({{requested}}%) supera el bucket disponible del corte ({{available}}% restantes). Reduce el peso o ajusta los demás exámenes del corte."
+    },
+    "routes_app_teacher_gradebook": {
+      "noChangesToSave": "No hay cambios para guardar",
+      "gradesSaved": "{{count}} calificación(es) guardada(s) correctamente",
+      "gradesSaveErrors": "{{count}} error(es) — solo se pueden editar entregas existentes",
+      "noDataToExport": "No hay datos para exportar",
+      "fileExported": "Archivo exportado correctamente",
+      "finalGradeBelowPassing": "La nota final es menor al mínimo de aprobación.",
+      "certificateIssued": "Certificado emitido",
+      "noActiveCertToRegenerate": "No hay certificado vigente para regenerar — usa Emitir.",
+      "revocationFailed": "Revocación falló: {{error}}",
+      "newIssuanceFailed": "Emisión nueva falló: {{error}}",
+      "certificateRegenerated": "Certificado regenerado",
+      "noPendingStudents": "Sin estudiantes pendientes: todos los aprobados ya tienen certificado.",
+      "certificatesIssuedBulk": "Emitidos {{issued}}{{failedSuffix}}",
+      "certificatesIssuedBulkFailedSuffix": " · {{count}} fallaron",
+      "noApprovedIssuable": "No hay aprobados con certificado emitible en este curso.",
+      "noApprovedStudents": "No hay estudiantes aprobados en este curso.",
+      "bulkRevocationFailed": "Revocación masiva falló: {{error}}",
+      "noCertsToDownload": "No quedaron certificados para descargar.",
+      "zipDownloadedIssuedSuffix": " ({{count}} emitido(s))",
+      "zipDownloadedFailedSuffix": " · {{count}} falló al emitir",
+      "zipDownloaded": "ZIP con {{count}} certificado(s) descargado{{issuedMsg}}{{failedMsg}}"
+    },
+    "routes_app_teacher_monitor_examId": {
+      "timerControlApplied": "{{label}} {{scope}}",
+      "feedbackSaved": "Retroalimentación guardada",
+      "questionRegradedWithAi": "Pregunta recalificada con IA",
+      "newGradeApplied": "Nueva calificación aplicada",
+      "gradeOutOfRange": "La calificación debe estar entre 0 y {{max}}",
+      "jobsQueued": "{{count}} job(s) encolado(s). Procesa la cola desde el módulo Cola o espera a la tarea programada.",
+      "jobsQueueFailed": "{{count}} job(s) no se pudieron encolar — reintenta más tarde.",
+      "jobsQueueCancelled": "Cancelado: {{count}} job(s) no se encolaron.",
+      "regradeCancelled": "Cancelado en {{done}}/{{total}}. {{ok}} propuesta(s) listas para revisar.",
+      "regradeReadyWithErrors": "Recalificación lista. {{ok}} ok, {{failed}} con error.",
+      "regradeReady": "Recalificación lista. {{count}} propuestas para revisar.",
+      "gradesApplied": "{{count}} nota(s) aplicada(s)."
+    },
+    "routes_app_teacher_polls": {
+      "pollClosed": "Encuesta cerrada",
+      "pollReopened": "Encuesta reabierta",
+      "pollSentToTrash": "Encuesta enviada a papelera",
+      "addAtLeastOneDate": "Agregá al menos una fecha",
+      "stepAndCupoMustBePositive": "Periodicidad y cupo deben ser enteros mayores que 0",
+      "defineTimeWindow": "Definí la ventana horaria (inicio y fin)",
+      "configProducesNoSlots": "La configuración no produce ningún slot — revisá la ventana horaria y la periodicidad",
+      "slotsGenerated": "{{count}} slot(s) generados en {{dates}} fecha{{plural}}",
+      "titleRequired": "El título es obligatorio",
+      "chooseAtLeastOneCourse": "Elegí al menos un curso",
+      "atLeastTwoOptions": "Se necesitan al menos 2 opciones",
+      "slotOptionNeedsPositiveCupo": "En tipo 'cupo por opción' cada opción necesita un cupo entero > 0",
+      "pollUpdated": "Encuesta actualizada",
+      "pollCreated": "Encuesta creada",
+      "pollCreatedMultiCourse": "Encuesta creada ({{count}} cursos)",
+      "responseClearedForUser": "Respuesta de \"{{label}}\" borrada. Ya puede volver a votar."
+    },
+    "routes_app_teacher_projects": {
+      "bulkSentToTrash": "{{n}} proyecto(s) enviado(s) a papelera",
+      "projectFromUrlNotFound": "El proyecto referenciado en la URL ya no existe o no tienes acceso a él.",
+      "projectFromNotificationNotFound": "El proyecto referenciado en la notificación ya no existe o no tienes acceso a él.",
+      "titleAndCourseRequired": "Título y al menos un curso son obligatorios",
+      "weightExceedsBucket": "{{course}}: El peso del proyecto ({{requested}}%) supera el bucket disponible del corte ({{available}}% restantes). Reduce el peso o ajusta los demás proyectos del corte.",
+      "linkCoursesFailed": "No se pudieron vincular los cursos: {{error}}",
+      "saveIntroVideosFailed": "No se pudieron guardar los videos introductorios: {{error}}",
+      "studentsAutoAssigned": "{{n}} estudiante(s) asignados automáticamente",
+      "topicRequired": "Indica un tema para generar la descripción",
+      "descriptionGenerated": "Descripción generada — puedes editarla antes de guardar",
+      "courseHasNoStudents": "Ese curso no tiene estudiantes matriculados",
+      "allCourseStudentsAssigned": "Ya todos los del curso están asignados",
+      "studentsAssignedFromCourse": "{{n}} estudiante(s) asignados del curso",
+      "studentsAssigned": "{{n}} estudiantes asignados",
+      "assignmentsRemoved": "{{n}} asignación(es) removidas",
+      "noContentForFile": "Esta entrega no tiene contenido para este archivo",
+      "savedButRecomputeFailed": "Guardado, pero falló recalcular: {{error}}",
+      "savedWithFinalGrade": "Guardado · final: {{finalGrade}}/{{maxScore}} (entrega {{submissionGrade}} × sustentación {{factor}})",
+      "savedPendingDefense": "Entrega: {{submissionGrade}}/{{maxScore}} — falta sustentación",
+      "submissionReopened": "Entrega reabierta. El estudiante puede reenviar.",
+      "submissionNotGradedYet": "La entrega aún no tiene calificación. Califica los archivos primero.",
+      "defenseSaved": "Sustentación guardada · nota final: {{finalGrade}}/{{maxScore}}",
+      "defenseCleared": "Sustentación borrada",
+      "noContentToRegrade": "Sin contenido para recalificar",
+      "noCodeFilesToRegrade": "Sin archivos de código entregados para recalificar",
+      "aiError": "Error IA: {{detail}}",
+      "unknownError": "Error desconocido",
+      "regradeReady": "Recalificación lista: {{grade}} / {{points}}",
+      "recomputedLocally": "Recalculado localmente (sin IA)",
+      "fileRegradedWithAi": "Archivo recalificado con IA",
+      "batchRegradeCompleted": "Recalificación batch completada ({{done}}/{{total}}).",
+      "submissionsDeleted": "{{n}} entregas eliminadas"
+    },
+    "routes_app_teacher_question_bank": {
+      "writeStatement": "Escribe el enunciado",
+      "selectType": "Selecciona un tipo",
+      "questionUpdated": "Pregunta actualizada",
+      "questionAddedToBank": "Pregunta agregada al banco",
+      "questionDeleted": "Pregunta eliminada"
+    },
+    "routes_app_teacher_reports": {
+      "nameRequired": "El nombre es obligatorio",
+      "bodyEmpty": "El cuerpo no puede estar vacío",
+      "selectCourseForOverride": "Selecciona el curso para la personalización",
+      "templateUpdated": "Plantilla actualizada",
+      "templateCreated": "Plantilla creada",
+      "templateDeleted": "Plantilla eliminada",
+      "templateDuplicated": "Plantilla duplicada como privada",
+      "actaTemplateNotFound": "No se encontró la plantilla 'Acta de finalización del curso'. Pídele al admin que la publique.",
+      "selectStudent": "Selecciona un estudiante",
+      "generateReportError": "Error al generar el informe",
+      "previewUnavailable": "Vista previa no disponible"
+    },
+    "routes_app_teacher_whiteboards_id": {
+      "whiteboardNeedsName": "La pizarra necesita un nombre",
+      "changesSaved": "Cambios guardados"
+    },
+    "routes_app_teacher_whiteboards_index": {
+      "bulkSentToTrash": "{{count}} {{noun}} {{verb}} a papelera",
+      "nameRequired": "Dale un nombre a la pizarra",
+      "sessionNeedsCourse": "Si elegís una sesión, primero hay que elegir el curso.",
+      "created": "Pizarra creada",
+      "sentToTrash": "Pizarra enviada a papelera"
+    },
+    "routes_app_teacher_workshops": {
+      "bulkMovedToTrash": "{{count}} taller(es) enviado(s) a papelera",
+      "workshopFromUrlMissing": "El taller referenciado en la URL ya no existe o no tienes acceso a él.",
+      "workshopFromNotificationMissing": "El taller referenciado en la notificación ya no existe o no tienes acceso a él.",
+      "introVideosSaveFailed": "No se pudieron guardar los videos introductorios: {{error}}",
+      "completeFields": "Completa los campos",
+      "selectAtLeastOneCourse": "Selecciona al menos un curso",
+      "weightExceedsBucket": "El peso del taller ({{requested}}%) supera el bucket disponible del corte ({{available}}% restantes). Reduce el peso o ajusta los demás talleres del corte.",
+      "weightExceedsBucketForCourse": "{{course}}: El peso del taller ({{requested}}%) supera el bucket disponible del corte ({{available}}% restantes). Reduce el peso o ajusta los demás talleres del corte.",
+      "workshopCreateFailed": "No se pudo crear el taller",
+      "workshopCreatedMultiCourse": "Taller creado en {{count}} cursos (1 registro compartido).",
+      "workshopCreated": "Taller creado correctamente",
+      "studentAssigned": "Estudiante asignado correctamente",
+      "assignmentRemoved": "Asignación removida correctamente",
+      "studentsAssigned": "{{count}} estudiante(s) asignados correctamente",
+      "assignmentsRemoved": "{{count}} asignación(es) removidas correctamente",
+      "noAnswerForQuestion": "Esta entrega aún no tiene respuesta para la pregunta.",
+      "gradeSavedRecomputeFailed": "Calificación guardada, pero falló recalcular calificación global: {{error}}",
+      "questionSavedGlobalGrade": "Pregunta guardada · calificación global: {{grade}}/{{max}}",
+      "nothingToRegrade": "Esta entrega no tiene respuesta a esta pregunta ni contenido global. No hay nada para recalificar.",
+      "aiError": "Error IA: {{detail}}",
+      "unknown": "Desconocido",
+      "unknownLower": "desconocido",
+      "markedPending": "Marcada como pendiente",
+      "markedReviewed": "Marcada como revisada",
+      "detectionDoneOne": "Detección completada: 1 par sospechoso encontrado.",
+      "detectionDoneMany": "Detección completada: {{count}} pares sospechosos encontrados.",
+      "detectionFailed": "No se pudo ejecutar la detección: {{error}}",
+      "saveError": "Error guardando: {{error}}",
+      "aiGradingNeedsUpdate": "La calificación IA requiere actualizar la edge function. Usa calificación manual.",
+      "noSubmissionsToGrade": "No hay entregas para calificar",
+      "submissionsGradedWithAi": "{{count}} entrega(s) calificadas con IA correctamente",
+      "submissionReopened": "Entrega reabierta. El estudiante puede reenviar.",
+      "genericError": "Error: {{error}}",
+      "updateFailedCheckPermissions": "No se pudo actualizar. Verifica los permisos.",
+      "downloadLinkFailed": "No se pudo generar el enlace de descarga",
+      "globalGradeRecomputed": "Calificación global recalculada: {{grade}}/{{max}}. Pulsa \"Guardar calificación\" para persistir."
+    },
+    "routes_app_trash": {
+      "itemRestored": "{{type}}: {{name}} restaurado",
+      "itemHardDeleted": "Eliminado definitivamente",
+      "bulkRestoreSuccess": "{{count}} item(s) restaurado(s)",
+      "bulkRestorePartialError": "{{ok}} restaurado(s), {{failed}} con error. Primero: \"{{name}}\" — {{detail}}",
+      "bulkHardDeleteSuccess": "{{count}} item(s) eliminado(s) definitivamente",
+      "bulkHardDeletePartialError": "{{ok}} eliminado(s), {{failed}} con error. Primero: \"{{name}}\" — {{detail}}"
+    },
+    "routes_app_videos": {
+      "titleAndUrlRequired": "Título y URL son obligatorios",
+      "urlNotRecognized": "URL no reconocida. Usa YouTube, Vimeo o un archivo MP4/WebM directo (terminado en .mp4/.webm).",
+      "videoUpdated": "Video actualizado",
+      "videoAddedGlobal": "Video agregado al catálogo global",
+      "videoAddedLibrary": "Video agregado a la biblioteca",
+      "titleRequired": "El título es obligatorio",
+      "selectVideoFile": "Selecciona un archivo de video",
+      "fileTypeNotAllowed": "Tipo de archivo no permitido ({{fileType}}). Sube MP4, WebM o MOV.",
+      "fileTooLarge": "Archivo demasiado grande ({{size}}). El máximo es 500 MB.",
+      "uploadError": "Error al subir el video: {{error}}",
+      "publicUrlFailed": "No se pudo obtener la URL pública del video subido",
+      "videoReplaced": "Video reemplazado",
+      "videoUploadedGlobal": "Video subido al catálogo global",
+      "videoUploadedLibrary": "Video subido a la biblioteca",
+      "videoArchived": "Video archivado",
+      "videoRestored": "Video restaurado",
+      "videoDeletedOrphanFile": "Video eliminado, pero quedó el archivo huérfano en Storage ({{error}})",
+      "videoDeleted": "Video eliminado"
+    },
+    "shared_components_AssessmentTemplateMenu": {
+      "templateApplied": "Plantilla \"{{name}}\" aplicada",
+      "templateDeleted": "Plantilla eliminada",
+      "nameRequired": "Ingresa un nombre",
+      "templateSaved": "Plantilla guardada"
+    },
+    "shared_components_DuplicateAssessmentDialog": {
+      "selectTargetCourse": "Selecciona el curso destino",
+      "enterCopyTitle": "Ingresa un título para la copia",
+      "copyCreated": "Copia creada (queda en borrador — revisa fechas y peso antes de publicar)"
+    },
+    "shared_components_ImportExportMenu": {
+      "templateDownloaded": "Plantilla descargada",
+      "noDataToExport": "No hay datos para exportar",
+      "fileExportedSuccess": "Archivo exportado correctamente",
+      "exportError": "Error exportando: {{detail}}",
+      "fileNoData": "El archivo no contiene datos",
+      "importError": "Error importando: {{detail}}"
+    },
+    "routes_app_admin_report_templates": {
+      "nameRequired": "El nombre es obligatorio",
+      "bodyEmpty": "El cuerpo no puede estar vacío",
+      "updatedOk": "Plantilla actualizada",
+      "createdOk": "Plantilla creada",
+      "deletedOk": "Plantilla eliminada",
+      "duplicatedOk": "Plantilla duplicada"
+    }
   }
 }

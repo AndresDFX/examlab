@@ -30,6 +30,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 import { toast } from "sonner";
 import {
   Plus,
@@ -218,7 +219,11 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
   const deletePage = async (pageId: string) => {
     if (busy) return;
     if (pages.length <= 1) {
-      toast.info("La pizarra debe tener al menos una hoja.");
+      toast.info(
+        i18n.t("toast.modules_whiteboard_MultiPageWhiteboard.atLeastOnePage", {
+          defaultValue: "La pizarra debe tener al menos una hoja.",
+        }),
+      );
       return;
     }
     const page = pages.find((p) => p.id === pageId);
@@ -243,7 +248,11 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
       if (activePageId === pageId) {
         setActivePageId(remaining[0]?.id ?? null);
       }
-      toast.success("Hoja eliminada");
+      toast.success(
+        i18n.t("toast.modules_whiteboard_MultiPageWhiteboard.pageDeleted", {
+          defaultValue: "Hoja eliminada",
+        }),
+      );
     } catch (e) {
       toast.error(friendlyError(e, "No se pudo eliminar la hoja"));
     } finally {

@@ -77,6 +77,7 @@ import {
   Filter,
 } from "lucide-react";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -544,7 +545,11 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
         toast.error(friendlyError(error, "No se pudo reanudar el job"));
         return;
       }
-      toast.success("Job re-encolado");
+      toast.success(
+        i18n.t("toast.modules_ai_AiJobsHistoryPanel.jobRequeued", {
+          defaultValue: "Job re-encolado",
+        }),
+      );
       void logEvent({
         action: "ai_grading.job_requeued",
         category: "grading",

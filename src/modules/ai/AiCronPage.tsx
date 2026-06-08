@@ -89,6 +89,7 @@ import { formatDateTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -770,7 +771,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         toast.error(friendlyError(error, "No se pudo cancelar el job"));
         return;
       }
-      toast.success("Job cancelado");
+      toast.success(i18n.t("toast.modules_ai_AiCronPage.jobCancelled", { defaultValue: "Job cancelado" }));
       void logEvent({
         action: "ai_grading.job_cancelled",
         category: "grading",
@@ -807,7 +808,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
   const confirmReject = async () => {
     if (!rejectJobTarget) return;
     if (rejectReason.trim().length < 5) {
-      toast.error("La razón es obligatoria (mínimo 5 caracteres).");
+      toast.error(i18n.t("toast.modules_ai_AiCronPage.reasonRequired", { defaultValue: "La razón es obligatoria (mínimo 5 caracteres)." }));
       return;
     }
     setRejecting(true);
@@ -821,7 +822,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         toast.error(friendlyError(error, "No se pudo rechazar el job"));
         return;
       }
-      toast.success("Job rechazado. El docente recibió la notificación.");
+      toast.success(i18n.t("toast.modules_ai_AiCronPage.jobRejected", { defaultValue: "Job rechazado. El docente recibió la notificación." }));
       setRejectJobTarget(null);
       await load();
     } finally {
@@ -841,7 +842,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
       toast.error(friendlyError(error, "No se pudo cerrar el rechazo"));
       return;
     }
-    toast.success("Rechazo cerrado. El job se movió al historial.");
+    toast.success(i18n.t("toast.modules_ai_AiCronPage.rejectionClosed", { defaultValue: "Rechazo cerrado. El job se movió al historial." }));
     await load();
   };
 
@@ -856,7 +857,10 @@ function AiQueuePanel({ isAdmin = false }: Props) {
       const mode = await getProcessingMode();
       if (mode === "async" && !readOverrideExpiry()) {
         toast.info(
-          "La cola está en modo async. Activa un código de IA inmediata para procesar jobs al instante.",
+          i18n.t("toast.modules_ai_AiCronPage.queueAsyncMode", {
+            defaultValue:
+              "La cola está en modo async. Activa un código de IA inmediata para procesar jobs al instante.",
+          }),
         );
         setOverrideDialogOpen(true);
         return;
@@ -875,11 +879,11 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         return;
       }
       if (d?.processed === 0) {
-        toast.info("El job ya no estaba pending — quizás el worker lo levantó primero.");
+        toast.info(i18n.t("toast.modules_ai_AiCronPage.jobNoLongerPending", { defaultValue: "El job ya no estaba pending — quizás el worker lo levantó primero." }));
       } else if (d?.failed > 0) {
-        toast.error("El job se procesó pero falló — revisa el error en la cola.");
+        toast.error(i18n.t("toast.modules_ai_AiCronPage.jobProcessedButFailed", { defaultValue: "El job se procesó pero falló — revisa el error en la cola." }));
       } else {
-        toast.success("Job procesado");
+        toast.success(i18n.t("toast.modules_ai_AiCronPage.jobProcessed", { defaultValue: "Job procesado" }));
       }
       void logEvent({
         action: "ai_grading.job_processed_manual",
@@ -916,7 +920,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         toast.error(friendlyError(error, "No se pudo re-encolar el job"));
         return;
       }
-      toast.success("Job re-encolado");
+      toast.success(i18n.t("toast.modules_ai_AiCronPage.jobRequeued", { defaultValue: "Job re-encolado" }));
       void logEvent({
         action: "ai_grading.job_requeued",
         category: "grading",
@@ -990,7 +994,12 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         `No se pudieron cancelar ${failures.length} de ${ids.length} jobs. Reintenta.`,
       );
     }
-    toast.success(`${ids.length} job(s) cancelado(s)`);
+    toast.success(
+      i18n.t("toast.modules_ai_AiCronPage.jobsCancelledBulk", {
+        defaultValue: "{{count}} job(s) cancelado(s)",
+        count: ids.length,
+      }),
+    );
     void logEvent({
       action: "ai_grading.jobs_cancelled_bulk",
       category: "grading",

@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";
 import { notifyExamNoteReviewed } from "@/modules/exams/exam-notes-notify";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -161,11 +162,19 @@ export function PendingExamNotesModal({ open, onOpenChange, onChange }: Props) {
     }
     if (!updated || (updated as { id: string }[]).length === 0) {
       toast.error(
-        "No se pudo aprobar la nota (sin permisos o la nota ya no existe). Recarga e intenta de nuevo.",
+        i18n.t("toast.modules_exams_PendingExamNotesModal.approveFailed", {
+          defaultValue:
+            "No se pudo aprobar la nota (sin permisos o la nota ya no existe). Recarga e intenta de nuevo.",
+        }),
       );
       return;
     }
-    toast.success(`Notas de ${note.studentName ?? "estudiante"} aprobadas`);
+    toast.success(
+      i18n.t("toast.modules_exams_PendingExamNotesModal.approvedForStudent", {
+        defaultValue: "Notas de {{student}} aprobadas",
+        student: note.studentName ?? "estudiante",
+      }),
+    );
     setRows((prev) => prev.filter((r) => r.id !== note.id));
     // Fire-and-forget: el correo se manda por la cadena trigger + edge.
     // Si la inserción de notif falla por algún motivo, el flujo de
@@ -192,7 +201,11 @@ export function PendingExamNotesModal({ open, onOpenChange, onChange }: Props) {
   const confirmReject = async (note: ExamNoteRow) => {
     const reason = rejectReason.trim();
     if (!reason) {
-      toast.error("Escribe un motivo para rechazar");
+      toast.error(
+        i18n.t("toast.modules_exams_PendingExamNotesModal.rejectReasonRequired", {
+          defaultValue: "Escribe un motivo para rechazar",
+        }),
+      );
       return;
     }
     setBusyId(note.id);
@@ -220,11 +233,18 @@ export function PendingExamNotesModal({ open, onOpenChange, onChange }: Props) {
     }
     if (!updated || (updated as { id: string }[]).length === 0) {
       toast.error(
-        "No se pudo rechazar la nota (sin permisos o la nota ya no existe). Recarga e intenta de nuevo.",
+        i18n.t("toast.modules_exams_PendingExamNotesModal.rejectFailed", {
+          defaultValue:
+            "No se pudo rechazar la nota (sin permisos o la nota ya no existe). Recarga e intenta de nuevo.",
+        }),
       );
       return;
     }
-    toast.success("Rechazadas — el estudiante puede reenviar");
+    toast.success(
+      i18n.t("toast.modules_exams_PendingExamNotesModal.rejectedCanResend", {
+        defaultValue: "Rechazadas — el estudiante puede reenviar",
+      }),
+    );
     setRows((prev) => prev.filter((r) => r.id !== note.id));
     setRejectingId(null);
     setRejectReason("");

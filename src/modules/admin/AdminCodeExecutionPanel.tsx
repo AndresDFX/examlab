@@ -25,6 +25,7 @@ import { Save, Info, Code2, MonitorPlay, Terminal } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -201,7 +202,11 @@ export function AdminCodeExecutionPanel() {
         },
       });
 
-      toast.success("Configuración de ejecución actualizada");
+      toast.success(
+        i18n.t("toast.modules_admin_AdminCodeExecutionPanel.providerSettingsSaved", {
+          defaultValue: "Configuración de ejecución actualizada",
+        }),
+      );
       await load();
     } finally {
       setSaving(false);

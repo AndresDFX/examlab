@@ -83,6 +83,7 @@ import { usePollRealtime } from "@/modules/polls/use-poll-realtime";
 import { cn } from "@/shared/lib/utils";
 import { softDelete } from "@/modules/trash/soft-delete";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/teacher/polls")({ component: TeacherPolls });
 
@@ -395,7 +396,13 @@ function TeacherPolls() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success(willClose ? "Encuesta cerrada" : "Encuesta reabierta");
+    toast.success(
+      willClose
+        ? i18n.t("toast.routes_app_teacher_polls.pollClosed", { defaultValue: "Encuesta cerrada" })
+        : i18n.t("toast.routes_app_teacher_polls.pollReopened", {
+            defaultValue: "Encuesta reabierta",
+          }),
+    );
     setRetryNonce((n) => n + 1);
   };
 
@@ -412,7 +419,11 @@ function TeacherPolls() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Encuesta enviada a papelera");
+    toast.success(
+      i18n.t("toast.routes_app_teacher_polls.pollSentToTrash", {
+        defaultValue: "Encuesta enviada a papelera",
+      }),
+    );
     setRetryNonce((n) => n + 1);
   };
 
@@ -858,17 +869,29 @@ function CreatePollDialog({
 
   const generateSlots = () => {
     if (slotDates.length === 0) {
-      toast.error("Agregá al menos una fecha");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_polls.addAtLeastOneDate", {
+          defaultValue: "Agregá al menos una fecha",
+        }),
+      );
       return;
     }
     const step = Math.max(1, Math.floor(Number(slotStepMin) || 0));
     const cupo = Math.max(1, Math.floor(Number(slotCupo) || 0));
     if (!step || !cupo) {
-      toast.error("Periodicidad y cupo deben ser enteros mayores que 0");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_polls.stepAndCupoMustBePositive", {
+          defaultValue: "Periodicidad y cupo deben ser enteros mayores que 0",
+        }),
+      );
       return;
     }
     if (!slotTimeStart || !slotTimeEnd) {
-      toast.error("Definí la ventana horaria (inicio y fin)");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_polls.defineTimeWindow", {
+          defaultValue: "Definí la ventana horaria (inicio y fin)",
+        }),
+      );
       return;
     }
     const generated = generateSlotsForDates({
@@ -880,7 +903,10 @@ function CreatePollDialog({
     });
     if (generated.length === 0) {
       toast.error(
-        "La configuración no produce ningún slot — revisá la ventana horaria y la periodicidad",
+        i18n.t("toast.routes_app_teacher_polls.configProducesNoSlots", {
+          defaultValue:
+            "La configuración no produce ningún slot — revisá la ventana horaria y la periodicidad",
+        }),
       );
       return;
     }
@@ -891,7 +917,12 @@ function CreatePollDialog({
       return allEmpty ? generated : [...prev, ...generated];
     });
     toast.success(
-      `${generated.length} slot(s) generados en ${slotDates.length} fecha${slotDates.length === 1 ? "" : "s"}`,
+      i18n.t("toast.routes_app_teacher_polls.slotsGenerated", {
+        defaultValue: "{{count}} slot(s) generados en {{dates}} fecha{{plural}}",
+        count: generated.length,
+        dates: slotDates.length,
+        plural: slotDates.length === 1 ? "" : "s",
+      }),
     );
   };
 
@@ -1035,18 +1066,30 @@ function CreatePollDialog({
   const save = async () => {
     if (!userId) return;
     if (!title.trim()) {
-      toast.error("El título es obligatorio");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_polls.titleRequired", {
+          defaultValue: "El título es obligatorio",
+        }),
+      );
       return;
     }
     if (courseIds.length === 0) {
-      toast.error("Elegí al menos un curso");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_polls.chooseAtLeastOneCourse", {
+          defaultValue: "Elegí al menos un curso",
+        }),
+      );
       return;
     }
     // Opciones solo se validan en modo create — en edit son read-only.
     if (!isEdit) {
       const validOptions = options.filter((o) => o.label.trim());
       if (validOptions.length < 2) {
-        toast.error("Se necesitan al menos 2 opciones");
+        toast.error(
+          i18n.t("toast.routes_app_teacher_polls.atLeastTwoOptions", {
+            defaultValue: "Se necesitan al menos 2 opciones",
+          }),
+        );
         return;
       }
       if (type === "slot") {
@@ -1055,7 +1098,12 @@ function CreatePollDialog({
           return !Number.isInteger(n) || n <= 0;
         });
         if (bad) {
-          toast.error("En tipo 'cupo por opción' cada opción necesita un cupo entero > 0");
+          toast.error(
+            i18n.t("toast.routes_app_teacher_polls.slotOptionNeedsPositiveCupo", {
+              defaultValue:
+                "En tipo 'cupo por opción' cada opción necesita un cupo entero > 0",
+            }),
+          );
           return;
         }
       }
@@ -1119,7 +1167,11 @@ function CreatePollDialog({
             return;
           }
         }
-        toast.success("Encuesta actualizada");
+        toast.success(
+          i18n.t("toast.routes_app_teacher_polls.pollUpdated", {
+            defaultValue: "Encuesta actualizada",
+          }),
+        );
         onOpenChange(false);
         onCreated();
         return;
@@ -1179,7 +1231,14 @@ function CreatePollDialog({
         return;
       }
       toast.success(
-        courseIds.length === 1 ? "Encuesta creada" : `Encuesta creada (${courseIds.length} cursos)`,
+        courseIds.length === 1
+          ? i18n.t("toast.routes_app_teacher_polls.pollCreated", {
+              defaultValue: "Encuesta creada",
+            })
+          : i18n.t("toast.routes_app_teacher_polls.pollCreatedMultiCourse", {
+              defaultValue: "Encuesta creada ({{count}} cursos)",
+              count: courseIds.length,
+            }),
       );
       onOpenChange(false);
       onCreated();
@@ -1868,7 +1927,12 @@ function ResultsDialog({
         toast.error(friendlyError(error, "No se pudo borrar la respuesta"));
         return;
       }
-      toast.success(`Respuesta de "${label}" borrada. Ya puede volver a votar.`);
+      toast.success(
+        i18n.t("toast.routes_app_teacher_polls.responseClearedForUser", {
+          defaultValue: 'Respuesta de "{{label}}" borrada. Ya puede volver a votar.',
+          label,
+        }),
+      );
       // El realtime debería detectar el DELETE y disparar refetch — pero
       // forzamos uno por si la subscription debounce tarda.
       void refetch();

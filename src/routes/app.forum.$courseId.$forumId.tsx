@@ -56,6 +56,7 @@ import {
 } from "lucide-react";
 import { formatDateTime, formatDate } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/forum/$courseId/$forumId")({ component: ForumThreads });
 
@@ -205,11 +206,11 @@ function ForumThreads() {
     const title = newTitle.trim();
     const body = newBody.trim();
     if (title.length < 3) {
-      toast.error("El título debe tener al menos 3 caracteres");
+      toast.error(i18n.t("toast.routes_app_forum_courseId_forumId.titleMinLength", { defaultValue: "El título debe tener al menos 3 caracteres" }));
       return;
     }
     if (!body) {
-      toast.error("Escribe el cuerpo de la pregunta");
+      toast.error(i18n.t("toast.routes_app_forum_courseId_forumId.bodyRequired", { defaultValue: "Escribe el cuerpo de la pregunta" }));
       return;
     }
     const tags = newTagsRaw
@@ -231,7 +232,7 @@ function ForumThreads() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Pregunta publicada");
+    toast.success(i18n.t("toast.routes_app_forum_courseId_forumId.questionPublished", { defaultValue: "Pregunta publicada" }));
     setNewOpen(false);
     setNewTitle("");
     setNewBody("");

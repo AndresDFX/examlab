@@ -41,6 +41,7 @@ import { GraduationCap, Plus, Pencil, Trash2 } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { logEvent } from "@/shared/lib/audit";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -123,7 +124,7 @@ export function AdminAcademicProgramsPanel() {
     if (!user) return;
     const name = draft.name.trim();
     if (!name) {
-      toast.error("El nombre es obligatorio");
+      toast.error(i18n.t("toast.modules_admin_AdminAcademicProgramsPanel.nameRequired", { defaultValue: "El nombre es obligatorio" }));
       return;
     }
     setSaving(true);
@@ -151,7 +152,11 @@ export function AdminAcademicProgramsPanel() {
       entityName: name,
       metadata: { code: payload.code, faculty: payload.faculty, active: payload.active },
     });
-    toast.success(draft.id ? "Programa actualizado" : "Programa creado");
+    toast.success(
+      draft.id
+        ? i18n.t("toast.modules_admin_AdminAcademicProgramsPanel.programUpdated", { defaultValue: "Programa actualizado" })
+        : i18n.t("toast.modules_admin_AdminAcademicProgramsPanel.programCreated", { defaultValue: "Programa creado" }),
+    );
     setOpen(false);
     void load();
   };
@@ -204,7 +209,7 @@ export function AdminAcademicProgramsPanel() {
       entityId: r.id,
       entityName: r.name,
     });
-    toast.success("Programa eliminado");
+    toast.success(i18n.t("toast.modules_admin_AdminAcademicProgramsPanel.programDeleted", { defaultValue: "Programa eliminado" }));
     void load();
   };
 

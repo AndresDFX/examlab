@@ -9,6 +9,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
@@ -168,7 +169,11 @@ function StudentProjects() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Entrega eliminada");
+    toast.success(
+      i18n.t("toast.routes_app_student_projects.submissionDeleted", {
+        defaultValue: "Entrega eliminada",
+      }),
+    );
     if (user) await reload(user.id);
   };
 

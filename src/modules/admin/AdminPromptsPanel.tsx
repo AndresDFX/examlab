@@ -6,6 +6,7 @@
  * curso desde su propia ruta.
  */
 import { useEffect, useState } from "react";
+import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
@@ -436,7 +437,11 @@ export function AdminPromptsPanel() {
           author_default: brand.author_default,
         },
       });
-      toast.success("Marca institucional actualizada");
+      toast.success(
+        i18n.t("toast.modules_admin_AdminPromptsPanel.brandSaved", {
+          defaultValue: "Marca institucional actualizada",
+        }),
+      );
       await load();
     } finally {
       setSavingBrand(false);
@@ -447,7 +452,11 @@ export function AdminPromptsPanel() {
     if (!user) return;
     const text = drafts[uc.key].trim();
     if (!text) {
-      toast.error("El prompt no puede estar vacío");
+      toast.error(
+        i18n.t("toast.modules_admin_AdminPromptsPanel.promptEmpty", {
+          defaultValue: "El prompt no puede estar vacío",
+        }),
+      );
       return;
     }
     setSavingKey(uc.key);
@@ -494,7 +503,12 @@ export function AdminPromptsPanel() {
           length_after: text.length,
         },
       });
-      toast.success(`Prompt "${uc.label}" actualizado`);
+      toast.success(
+        i18n.t("toast.modules_admin_AdminPromptsPanel.promptUpdated", {
+          defaultValue: 'Prompt "{{label}}" actualizado',
+          label: uc.label,
+        }),
+      );
       await load();
     } finally {
       setSavingKey(null);
@@ -572,7 +586,12 @@ export function AdminPromptsPanel() {
           action_taken: !isGlobalScope && existing ? "deleted_override" : "set_hardcoded_default",
         },
       });
-      toast.success(`"${uc.label}" restaurado al default`);
+      toast.success(
+        i18n.t("toast.modules_admin_AdminPromptsPanel.promptRestored", {
+          defaultValue: '"{{label}}" restaurado al default',
+          label: uc.label,
+        }),
+      );
       await load();
     } finally {
       setSavingKey(null);

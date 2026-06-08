@@ -51,6 +51,7 @@ import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { logEvent } from "@/shared/lib/audit";
 import { useNavigate } from "@tanstack/react-router";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -236,7 +237,11 @@ export function AdminAcademicSubjectsPanel() {
     if (!user) return;
     const name = draft.name.trim();
     if (!name) {
-      toast.error("El nombre es obligatorio");
+      toast.error(
+        i18n.t("toast.modules_admin_AdminAcademicSubjectsPanel.nameRequired", {
+          defaultValue: "El nombre es obligatorio",
+        }),
+      );
       return;
     }
     // Pesos de evaluación: si el admin no completó ninguno (suma 0),
@@ -245,7 +250,13 @@ export function AdminAcademicSubjectsPanel() {
     const evalSum =
       draft.exam_weight + draft.workshop_weight + draft.project_weight + draft.attendance_weight;
     if (evalSum > 0 && Math.abs(evalSum - 100) > 0.01) {
-      toast.error(`Los pesos del sistema de evaluación deben sumar 100 (actualmente ${evalSum})`);
+      toast.error(
+        i18n.t("toast.modules_admin_AdminAcademicSubjectsPanel.evalWeightsMustSum100", {
+          defaultValue:
+            "Los pesos del sistema de evaluación deben sumar 100 (actualmente {{sum}})",
+          sum: evalSum,
+        }),
+      );
       return;
     }
     setSaving(true);
@@ -331,7 +342,11 @@ export function AdminAcademicSubjectsPanel() {
       entityName: r.name,
       metadata: { course_count: r.course_count ?? 0 },
     });
-    toast.success("Asignatura eliminada");
+    toast.success(
+      i18n.t("toast.modules_admin_AdminAcademicSubjectsPanel.subjectDeleted", {
+        defaultValue: "Asignatura eliminada",
+      }),
+    );
     void load();
   };
 

@@ -45,6 +45,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { Send } from "lucide-react";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 import { StudentWorkshopTaker } from "@/modules/workshops/WorkshopQuestions";
 import { formatDateTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -182,7 +183,11 @@ function StudentWorkshops() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Entrega eliminada");
+    toast.success(
+      i18n.t("toast.routes_app_student_workshops.submissionDeleted", {
+        defaultValue: "Entrega eliminada",
+      }),
+    );
     if (user) await reload(user.id);
   };
 

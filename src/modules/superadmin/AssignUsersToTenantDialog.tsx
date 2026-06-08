@@ -34,6 +34,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { SectionLoader } from "@/components/ui/loaders";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { Save, Users } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -197,24 +198,47 @@ export function AssignUsersToTenantDialog({
 
     if (addedOk > 0) {
       toast.success(
-        `${addedOk} usuario${addedOk === 1 ? "" : "s"} agregado${addedOk === 1 ? "" : "s"} a ${tenant.name}`,
+        i18n.t("toast.modules_superadmin_AssignUsersToTenantDialog.usersAdded", {
+          defaultValue: `${addedOk} usuario${addedOk === 1 ? "" : "s"} agregado${addedOk === 1 ? "" : "s"} a {{tenantName}}`,
+          count: addedOk,
+          tenantName: tenant.name,
+        }),
       );
     }
     if (removedOk > 0) {
       toast.success(
-        `${removedOk} usuario${removedOk === 1 ? "" : "s"} quitado${removedOk === 1 ? "" : "s"} de ${tenant.name}`,
+        i18n.t("toast.modules_superadmin_AssignUsersToTenantDialog.usersRemoved", {
+          defaultValue: `${removedOk} usuario${removedOk === 1 ? "" : "s"} quitado${removedOk === 1 ? "" : "s"} de {{tenantName}}`,
+          count: removedOk,
+          tenantName: tenant.name,
+        }),
       );
     }
     if (failed.length > 0) {
       const sample = failed.slice(0, 3);
       for (const f of sample) {
         const p = profiles.find((x) => x.id === f.id);
-        toast.error(`${p?.full_name ?? f.id}: ${f.error ?? "error"}`, {
-          duration: 8000,
-        });
+        const failName = p?.full_name ?? f.id;
+        const failReason = f.error ?? "error";
+        toast.error(
+          i18n.t("toast.modules_superadmin_AssignUsersToTenantDialog.userUpdateFailed", {
+            defaultValue: "{{name}}: {{reason}}",
+            name: failName,
+            reason: failReason,
+          }),
+          {
+            duration: 8000,
+          },
+        );
       }
       if (failed.length > sample.length) {
-        toast.error(`Y ${failed.length - sample.length} más con error similar.`);
+        const moreCount = failed.length - sample.length;
+        toast.error(
+          i18n.t("toast.modules_superadmin_AssignUsersToTenantDialog.moreSimilarErrors", {
+            defaultValue: `Y ${moreCount} más con error similar.`,
+            count: moreCount,
+          }),
+        );
       }
     }
 

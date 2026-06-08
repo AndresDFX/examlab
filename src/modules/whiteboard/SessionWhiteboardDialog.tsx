@@ -14,6 +14,7 @@
  */
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
@@ -147,7 +148,15 @@ export function SessionWhiteboardDialog({
         setShared(!next);
         toast.error(friendlyError(error, "No se pudo cambiar el modo compartido"));
       } else {
-        toast.success(next ? "Pizarra compartida activada" : "Pizarra compartida desactivada");
+        toast.success(
+          next
+            ? i18n.t("toast.modules_whiteboard_SessionWhiteboardDialog.sharedEnabled", {
+                defaultValue: "Pizarra compartida activada",
+              })
+            : i18n.t("toast.modules_whiteboard_SessionWhiteboardDialog.sharedDisabled", {
+                defaultValue: "Pizarra compartida desactivada",
+              }),
+        );
       }
     } catch (e) {
       setShared(!next);

@@ -41,6 +41,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { Search, Library, Inbox } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -203,7 +204,11 @@ export function QuestionBankImportDialog({
 
   const submit = async () => {
     if (selectedIds.size === 0) {
-      toast.error("Selecciona al menos una pregunta");
+      toast.error(
+        i18n.t("toast.modules_code_QuestionBankImportDialog.selectAtLeastOne", {
+          defaultValue: "Selecciona al menos una pregunta",
+        }),
+      );
       return;
     }
     setImporting(true);
@@ -220,7 +225,16 @@ export function QuestionBankImportDialog({
         return;
       }
       const count = Number(data) || 0;
-      toast.success(count === 1 ? "1 pregunta importada" : `${count} preguntas importadas`);
+      toast.success(
+        count === 1
+          ? i18n.t("toast.modules_code_QuestionBankImportDialog.importedOne", {
+              defaultValue: "1 pregunta importada",
+            })
+          : i18n.t("toast.modules_code_QuestionBankImportDialog.importedMany", {
+              defaultValue: "{{count}} preguntas importadas",
+              count,
+            }),
+      );
       onImported?.(count);
       onOpenChange(false);
     } finally {

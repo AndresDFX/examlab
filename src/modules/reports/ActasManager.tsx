@@ -17,6 +17,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -166,7 +167,12 @@ export function ActasManager({ onPrintActa }: Props) {
       courseId: genCourseId,
       courseName: course?.name ?? null,
     });
-    toast.success(`Acta generada (ID: ${String(data).slice(0, 8)}…)`);
+    toast.success(
+      i18n.t("toast.modules_reports_ActasManager.actaGenerated", {
+        defaultValue: "Acta generada (ID: {{actaId}}…)",
+        actaId: String(data).slice(0, 8),
+      }),
+    );
     setGenOpen(false);
     void load();
   };
@@ -200,7 +206,11 @@ export function ActasManager({ onPrintActa }: Props) {
       courseName: acta.curso_nombre,
       metadata: { integrity_hash: acta.integrity_hash, periodo: acta.periodo_codigo },
     });
-    toast.success("Acta eliminada");
+    toast.success(
+      i18n.t("toast.modules_reports_ActasManager.actaDeleted", {
+        defaultValue: "Acta eliminada",
+      }),
+    );
     void load();
   };
 

@@ -43,6 +43,7 @@ import { toast } from "sonner";
 import { Layers, ChevronUp, ChevronDown, GripVertical, Save, RotateCcw } from "lucide-react";
 import { invalidateModuleVisibility } from "@/hooks/use-module-visibility";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -586,10 +587,19 @@ export function AdminModuleVisibilityPanel() {
       .upsert(updates, { onConflict: "tenant_id,module_key,role" });
     setSavingOrder(false);
     if (error) {
-      toast.error(`No se pudo guardar el orden: ${friendlyError(error)}`);
+      toast.error(
+        i18n.t("toast.modules_admin_AdminModuleVisibilityPanel.saveOrderError", {
+          defaultValue: "No se pudo guardar el orden: {{error}}",
+          error: friendlyError(error),
+        }),
+      );
       return;
     }
-    toast.success("Orden de módulos guardado");
+    toast.success(
+      i18n.t("toast.modules_admin_AdminModuleVisibilityPanel.orderSaved", {
+        defaultValue: "Orden de módulos guardado",
+      }),
+    );
     invalidateModuleVisibility();
     void load();
   };

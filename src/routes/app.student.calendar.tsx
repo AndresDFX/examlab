@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { formatDateTime, formatWeekday } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/student/calendar")({ component: StudentCalendar });
 
@@ -317,7 +318,7 @@ function StudentCalendar() {
       const row = Array.isArray(data) ? data[0] : data;
       if (row?.token) {
         setToken(row.token);
-        toast.success("URL regenerada. El link anterior dejó de funcionar.");
+        toast.success(i18n.t("toast.routes_app_student_calendar.urlRegenerated", { defaultValue: "URL regenerada. El link anterior dejó de funcionar." }));
       }
     } finally {
       setRegenerating(false);
@@ -327,7 +328,7 @@ function StudentCalendar() {
   const handleCopy = () => {
     if (!icsUrl) return;
     void navigator.clipboard.writeText(icsUrl);
-    toast.success("URL copiada");
+    toast.success(i18n.t("toast.routes_app_student_calendar.urlCopied", { defaultValue: "URL copiada" }));
   };
 
   return (

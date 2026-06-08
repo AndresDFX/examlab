@@ -60,6 +60,7 @@ import { extractEdgeError } from "@/shared/lib/edge-error";
 import { retryModeLabel, type RetryMode } from "@/modules/exams/exam-attempts";
 import { aiGradeOrEnqueue, QUEUED_STUDENT_TITLE } from "@/modules/ai/ai-grading";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
 
@@ -387,11 +388,19 @@ function TakeExam() {
         const msg = (eErr as { message?: string } | null)?.message ?? "";
         const isNetwork = !navigator.onLine || /fetch|network/i.test(msg);
         if (isNetwork) {
-          toast.warning("Sin conexión. Reintentando… tus respuestas guardadas siguen seguras.");
+          toast.warning(
+            i18n.t("toast.routes_app_student_take_examId.offlineRetrying", {
+              defaultValue: "Sin conexión. Reintentando… tus respuestas guardadas siguen seguras.",
+            }),
+          );
           setTimeout(() => window.location.reload(), 2000);
           return;
         }
-        toast.error("Examen no encontrado");
+        toast.error(
+          i18n.t("toast.routes_app_student_take_examId.examNotFound", {
+            defaultValue: "Examen no encontrado",
+          }),
+        );
         navigate({ to: "/app/student/exams" });
         return;
       }
@@ -410,7 +419,11 @@ function TakeExam() {
       }
 
       if (!isExamOpen({ start_time: e.start_time, end_time: e.end_time })) {
-        toast.error("Este examen no está disponible ahora");
+        toast.error(
+          i18n.t("toast.routes_app_student_take_examId.examNotAvailableNow", {
+            defaultValue: "Este examen no está disponible ahora",
+          }),
+        );
         navigate({ to: "/app/student/exams" });
         return;
       }
@@ -422,8 +435,12 @@ function TakeExam() {
       if (examStatus !== "published") {
         toast.error(
           examStatus === "draft"
-            ? "Este examen aún no está publicado"
-            : "Este examen fue cerrado por el docente",
+            ? i18n.t("toast.routes_app_student_take_examId.examNotPublished", {
+                defaultValue: "Este examen aún no está publicado",
+              })
+            : i18n.t("toast.routes_app_student_take_examId.examClosedByTeacher", {
+                defaultValue: "Este examen fue cerrado por el docente",
+              }),
         );
         navigate({ to: "/app/student/exams" });
         return;
@@ -435,7 +452,11 @@ function TakeExam() {
         .eq("user_id", user.id)
         .maybeSingle();
       if (!asg) {
-        toast.error("No estás asignado a este examen");
+        toast.error(
+          i18n.t("toast.routes_app_student_take_examId.notAssignedToExam", {
+            defaultValue: "No estás asignado a este examen",
+          }),
+        );
         navigate({ to: "/app/student/exams" });
         return;
       }
@@ -521,7 +542,10 @@ function TakeExam() {
             _submission_id: resumeTarget.id,
           });
           toast.info(
-            "Tu entrega anterior aún no fue calificada — la reabrimos para que sigas editando antes de re-entregar.",
+            i18n.t("toast.routes_app_student_take_examId.previousSubmissionReopened", {
+              defaultValue:
+                "Tu entrega anterior aún no fue calificada — la reabrimos para que sigas editando antes de re-entregar.",
+            }),
           );
         }
         // Session lock via answers.__session_id + updated_at (no extra columns needed).
@@ -566,8 +590,13 @@ function TakeExam() {
       if (finishedCount >= maxAttempts) {
         toast.info(
           maxAttempts === 1
-            ? "Ya completaste este examen"
-            : `Ya usaste tus ${maxAttempts} intentos para este examen`,
+            ? i18n.t("toast.routes_app_student_take_examId.alreadyCompletedExam", {
+                defaultValue: "Ya completaste este examen",
+              })
+            : i18n.t("toast.routes_app_student_take_examId.allAttemptsUsed", {
+                defaultValue: "Ya usaste tus {{maxAttempts}} intentos para este examen",
+                maxAttempts,
+              }),
         );
         navigate({ to: "/app/student/exams" });
         return;
@@ -576,7 +605,12 @@ function TakeExam() {
       // Quedan intentos disponibles → mostrar pantalla de inicio
       if (finishedCount > 0) {
         toast.info(
-          `Intento ${finishedCount + 1} de ${maxAttempts}. Tu calificación anterior se reemplazará por la de este intento.`,
+          i18n.t("toast.routes_app_student_take_examId.attemptNotice", {
+            defaultValue:
+              "Intento {{current}} de {{maxAttempts}}. Tu calificación anterior se reemplazará por la de este intento.",
+            current: finishedCount + 1,
+            maxAttempts,
+          }),
         );
       }
       setExam(e);
@@ -689,9 +723,15 @@ function TakeExam() {
       await document.documentElement.requestFullscreen?.();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      toast.error(`Este examen requiere pantalla completa. ${fullscreenHelpText}`, {
-        duration: 10000,
-      });
+      toast.error(
+        i18n.t("toast.routes_app_student_take_examId.examRequiresFullscreen", {
+          defaultValue: "Este examen requiere pantalla completa. {{help}}",
+          help: fullscreenHelpText,
+        }),
+        {
+          duration: 10000,
+        },
+      );
       void logEvent({
         action: "exam_fullscreen_denied",
         category: "exam",
@@ -705,9 +745,15 @@ function TakeExam() {
     }
     // Verifica que realmente entró (algunos navegadores resuelven la promise sin activar fullscreen)
     if (!document.fullscreenElement) {
-      toast.error(`No se pudo activar pantalla completa. ${fullscreenHelpText}`, {
-        duration: 10000,
-      });
+      toast.error(
+        i18n.t("toast.routes_app_student_take_examId.couldNotActivateFullscreen", {
+          defaultValue: "No se pudo activar pantalla completa. {{help}}",
+          help: fullscreenHelpText,
+        }),
+        {
+          duration: 10000,
+        },
+      );
       void logEvent({
         action: "exam_fullscreen_denied",
         category: "exam",
@@ -840,7 +886,10 @@ function TakeExam() {
         submittedRef.current = false;
         setSubmitting(false);
         toast.error(
-          "No se pudo registrar la entrega en el servidor. Tus respuestas están guardadas localmente; revisa la conexión y vuelve a intentar entregar.",
+          i18n.t("toast.routes_app_student_take_examId.submissionServerFailed", {
+            defaultValue:
+              "No se pudo registrar la entrega en el servidor. Tus respuestas están guardadas localmente; revisa la conexión y vuelve a intentar entregar.",
+          }),
         );
         return;
       }
@@ -941,7 +990,15 @@ function TakeExam() {
           maxWarnings,
         },
       });
-      toast.success(markSuspicious ? "Examen suspendido" : "Examen entregado correctamente");
+      toast.success(
+        markSuspicious
+          ? i18n.t("toast.routes_app_student_take_examId.examSuspended", {
+              defaultValue: "Examen suspendido",
+            })
+          : i18n.t("toast.routes_app_student_take_examId.examSubmittedSuccess", {
+              defaultValue: "Examen entregado correctamente",
+            }),
+      );
       navigate({ to: "/app/student/exams" });
     },
     [navigate, examId, exam, user, questions, maxWarnings],
@@ -1000,9 +1057,25 @@ function TakeExam() {
     userId: user?.id ?? "",
     initialSeconds,
     onTimeUp: handleTimeUp,
-    onPause: () => toast.info("⏸ El docente ha pausado el temporizador"),
-    onResume: () => toast.info("▶ El temporizador ha sido reanudado"),
-    onTimeAdded: (secs) => toast.success(`+${Math.floor(secs / 60)} minuto(s) extra añadidos`),
+    onPause: () =>
+      toast.info(
+        i18n.t("toast.routes_app_student_take_examId.timerPausedByTeacher", {
+          defaultValue: "⏸ El docente ha pausado el temporizador",
+        }),
+      ),
+    onResume: () =>
+      toast.info(
+        i18n.t("toast.routes_app_student_take_examId.timerResumed", {
+          defaultValue: "▶ El temporizador ha sido reanudado",
+        }),
+      ),
+    onTimeAdded: (secs) =>
+      toast.success(
+        i18n.t("toast.routes_app_student_take_examId.extraMinutesAdded", {
+          defaultValue: "+{{minutes}} minuto(s) extra añadidos",
+          minutes: Math.floor(secs / 60),
+        }),
+      ),
   });
 
   // Suscripción realtime a cambios en el examen (end_time, time_limit_minutes).
@@ -1040,7 +1113,11 @@ function TakeExam() {
                 }
               : prev,
           );
-          toast.info("El docente actualizó el tiempo del examen");
+          toast.info(
+            i18n.t("toast.routes_app_student_take_examId.teacherUpdatedExamTime", {
+              defaultValue: "El docente actualizó el tiempo del examen",
+            }),
+          );
         },
       )
       .subscribe();
@@ -1125,10 +1202,21 @@ function TakeExam() {
       }
 
       if (shouldMarkSuspicious(nw, maxWarnings)) {
-        toast.error("Has superado el límite de salidas. El examen se suspende.");
+        toast.error(
+          i18n.t("toast.routes_app_student_take_examId.exitLimitExceeded", {
+            defaultValue: "Has superado el límite de salidas. El examen se suspende.",
+          }),
+        );
         performSubmit(true);
       } else {
-        toast.warning(`Advertencia ${nw}/${maxWarnings}: ${warningLabel(type)}`);
+        toast.warning(
+          i18n.t("toast.routes_app_student_take_examId.warningWithLabel", {
+            defaultValue: "Advertencia {{count}}/{{max}}: {{label}}",
+            count: nw,
+            max: maxWarnings,
+            label: warningLabel(type),
+          }),
+        );
       }
     };
 
@@ -1198,7 +1286,11 @@ function TakeExam() {
       if (now - lastScreenshotAt < 800) return;
       lastScreenshotAt = now;
 
-      toast.warning("No está permitido tomar pantallazos durante el examen.");
+      toast.warning(
+        i18n.t("toast.routes_app_student_take_examId.screenshotsNotAllowed", {
+          defaultValue: "No está permitido tomar pantallazos durante el examen.",
+        }),
+      );
 
       const event = {
         type: "screenshot_attempt",
@@ -1431,13 +1523,21 @@ function TakeExam() {
     controller.abort();
     delete runAbortersRef.current[questionId];
     setRunningCode((prev) => ({ ...prev, [questionId]: false }));
-    toast.info("Ejecución cancelada. Puedes cambiar de compilador y reintentar.");
+    toast.info(
+      i18n.t("toast.routes_app_student_take_examId.executionCancelled", {
+        defaultValue: "Ejecución cancelada. Puedes cambiar de compilador y reintentar.",
+      }),
+    );
   };
 
   const runCode = async (questionId: string, language: CodeLanguage) => {
     const code = typeof answers[questionId] === "string" ? (answers[questionId] as string) : "";
     if (!code.trim()) {
-      toast.error("Escribe código antes de ejecutar");
+      toast.error(
+        i18n.t("toast.routes_app_student_take_examId.writeCodeBeforeRunning", {
+          defaultValue: "Escribe código antes de ejecutar",
+        }),
+      );
       return;
     }
     // Provider efectivo = override del estudiante para esta pregunta, o
@@ -2090,14 +2190,24 @@ function TakeExam() {
                   answersRef.current = updatedAnswers;
                   setWarnings(nw);
                   setAnswers(updatedAnswers);
-                  toast.warning(`Advertencia ${nw}/${maxWarnings}: Salida de examen`);
+                  toast.warning(
+                    i18n.t("toast.routes_app_student_take_examId.warningExamExit", {
+                      defaultValue: "Advertencia {{count}}/{{max}}: Salida de examen",
+                      count: nw,
+                      max: maxWarnings,
+                    }),
+                  );
                   try {
                     await saveAnswersNow();
                   } catch (e) {
                     console.error("[ExamLab] leave strike save failed:", e);
                   }
                   if (shouldMarkSuspicious(nw, maxWarnings)) {
-                    toast.error("Has superado el límite de salidas. El examen se suspende.");
+                    toast.error(
+                      i18n.t("toast.routes_app_student_take_examId.exitLimitExceeded", {
+                        defaultValue: "Has superado el límite de salidas. El examen se suspende.",
+                      }),
+                    );
                     await performSubmit(true);
                     return;
                   }

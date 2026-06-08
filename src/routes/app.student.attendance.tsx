@@ -60,6 +60,7 @@ import { SessionCodeSnippetsDialog } from "@/modules/sessions/SessionCodeSnippet
 import { SessionWhiteboardDialog } from "@/modules/whiteboard/SessionWhiteboardDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { ErrorState } from "@/components/ui/empty-state";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -378,7 +379,11 @@ function StudentAttendance() {
     async (sessionId: string, code: string): Promise<boolean> => {
       const cleaned = code.replace(/\s+/g, "");
       if (!/^\d{6}$/.test(cleaned)) {
-        toast.error("El código debe tener 6 dígitos");
+        toast.error(
+          i18n.t("toast.routes_app_student_attendance.codeMustBe6Digits", {
+            defaultValue: "El código debe tener 6 dígitos",
+          }),
+        );
         return false;
       }
       setSubmittingCheckIn(true);
@@ -396,7 +401,11 @@ function StudentAttendance() {
           toast.error(CHECK_IN_ERROR_MESSAGES[result?.error ?? ""] ?? result?.error ?? "Error");
           return false;
         }
-        toast.success("¡Marcado como presente!");
+        toast.success(
+          i18n.t("toast.routes_app_student_attendance.markedAsPresent", {
+            defaultValue: "¡Marcado como presente!",
+          }),
+        );
         // Refresca records del curso seleccionado para que se vea inmediato
         if (selectedCourseId) {
           const { data: recs } = await supabase

@@ -66,6 +66,7 @@ import { setTenantOverride } from "@/modules/tenants/use-tenant";
 import type { Tenant } from "@/modules/tenants/tenant";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/superadmin/tenants")({
   component: SuperAdminTenantsPage,
@@ -226,11 +227,19 @@ function SuperAdminTenantsPage() {
   const validateLogoFile = (file: File): File | null => {
     const validTypes = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"];
     if (!validTypes.includes(file.type)) {
-      toast.error("Formato no soportado. Usa PNG, JPG, SVG o WebP.");
+      toast.error(
+        i18n.t("toast.routes_app_superadmin_tenants.logoFormatUnsupported", {
+          defaultValue: "Formato no soportado. Usa PNG, JPG, SVG o WebP.",
+        }),
+      );
       return null;
     }
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("El logo no puede pesar más de 2 MB.");
+      toast.error(
+        i18n.t("toast.routes_app_superadmin_tenants.logoTooLarge", {
+          defaultValue: "El logo no puede pesar más de 2 MB.",
+        }),
+      );
       return null;
     }
     return file;
@@ -265,7 +274,13 @@ function SuperAdminTenantsPage() {
     if (resized) {
       const kbBefore = Math.round(originalSize / 1024);
       const kbAfter = Math.round(finalSize / 1024);
-      toast.success(`Logo subido (optimizado: ${kbBefore} KB → ${kbAfter} KB).`);
+      toast.success(
+        i18n.t("toast.routes_app_superadmin_tenants.logoUploadedOptimized", {
+          defaultValue: "Logo subido (optimizado: {{before}} KB → {{after}} KB).",
+          before: kbBefore,
+          after: kbAfter,
+        }),
+      );
     }
     return path;
   };
@@ -288,7 +303,11 @@ function SuperAdminTenantsPage() {
       setPendingLogoPreview(preview);
       setForm((p) => ({ ...p, logo_url: "" }));
       if (logoFileInputRef.current) logoFileInputRef.current.value = "";
-      toast.success("Logo listo. Se subirá al guardar la institución.");
+      toast.success(
+        i18n.t("toast.routes_app_superadmin_tenants.logoReady", {
+          defaultValue: "Logo listo. Se subirá al guardar la institución.",
+        }),
+      );
       return;
     }
 
@@ -298,7 +317,11 @@ function SuperAdminTenantsPage() {
       const path = await uploadLogoToBucket(valid, editing.id);
       if (path) {
         setForm((p) => ({ ...p, logo_path: path, logo_url: "" }));
-        toast.success("Logo subido. Recuerda 'Guardar' para aplicarlo.");
+        toast.success(
+          i18n.t("toast.routes_app_superadmin_tenants.logoUploadedRememberSave", {
+            defaultValue: "Logo subido. Recuerda 'Guardar' para aplicarlo.",
+          }),
+        );
       }
     } finally {
       setUploadingLogo(false);
@@ -309,17 +332,28 @@ function SuperAdminTenantsPage() {
   const removeLogo = () => {
     setForm((p) => ({ ...p, logo_path: "", logo_url: "" }));
     clearPendingLogo();
-    toast.info("Logo removido.");
+    toast.info(
+      i18n.t("toast.routes_app_superadmin_tenants.logoRemoved", {
+        defaultValue: "Logo removido.",
+      }),
+    );
   };
 
   const save = async () => {
     if (!form.slug || !form.name) {
-      toast.error("Slug y nombre son obligatorios.");
+      toast.error(
+        i18n.t("toast.routes_app_superadmin_tenants.slugAndNameRequired", {
+          defaultValue: "Slug y nombre son obligatorios.",
+        }),
+      );
       return;
     }
     if (!isValidTenantSlug(form.slug)) {
       toast.error(
-        "Slug inválido: usa minúsculas, números y guiones (3-50 chars). Ej: 'sena-bogota'.",
+        i18n.t("toast.routes_app_superadmin_tenants.slugInvalid", {
+          defaultValue:
+            "Slug inválido: usa minúsculas, números y guiones (3-50 chars). Ej: 'sena-bogota'.",
+        }),
       );
       return;
     }
@@ -331,7 +365,13 @@ function SuperAdminTenantsPage() {
       if (!v) return null;
       const n = Number(v);
       if (!Number.isInteger(n) || n < 0) {
-        toast.error(`Cuota inválida para ${label}. Debe ser entero ≥ 0 (o vacío = ilimitado).`);
+        toast.error(
+          i18n.t("toast.routes_app_superadmin_tenants.quotaInvalid", {
+            defaultValue:
+              "Cuota inválida para {{label}}. Debe ser entero ≥ 0 (o vacío = ilimitado).",
+            label,
+          }),
+        );
         return undefined; // sentinel = abort
       }
       return n;
@@ -365,7 +405,11 @@ function SuperAdminTenantsPage() {
         setSaving(false);
         return;
       }
-      toast.success("Institución actualizada");
+      toast.success(
+        i18n.t("toast.routes_app_superadmin_tenants.tenantUpdated", {
+          defaultValue: "Institución actualizada",
+        }),
+      );
     } else {
       // Modo crear: INSERT y nos quedamos con el id retornado, porque si
       // hay un `pendingLogoFile` necesitamos subirlo al bucket y luego
@@ -398,7 +442,11 @@ function SuperAdminTenantsPage() {
         }
         clearPendingLogo();
       }
-      toast.success("Institución creada");
+      toast.success(
+        i18n.t("toast.routes_app_superadmin_tenants.tenantCreated", {
+          defaultValue: "Institución creada",
+        }),
+      );
 
       // Provisionar usuario de prueba (Admin + Docente + Estudiante).
       // Es best-effort: si falla, el tenant queda creado igual y el
@@ -422,7 +470,11 @@ function SuperAdminTenantsPage() {
           if (provErr || !data?.ok) {
             const msg = data?.error || provErr?.message || "Error desconocido";
             toast.error(
-              `Institución creada, pero falló crear usuario de prueba: ${msg}`,
+              i18n.t("toast.routes_app_superadmin_tenants.testUserCreationFailed", {
+                defaultValue:
+                  "Institución creada, pero falló crear usuario de prueba: {{error}}",
+                error: msg,
+              }),
               { duration: 8000 },
             );
           } else {
@@ -436,9 +488,11 @@ function SuperAdminTenantsPage() {
           }
         } catch (e) {
           toast.error(
-            `Institución creada, pero falló crear usuario de prueba: ${
-              e instanceof Error ? e.message : String(e)
-            }`,
+            i18n.t("toast.routes_app_superadmin_tenants.testUserCreationFailed", {
+              defaultValue:
+                "Institución creada, pero falló crear usuario de prueba: {{error}}",
+              error: e instanceof Error ? e.message : String(e),
+            }),
             { duration: 8000 },
           );
         }
@@ -476,13 +530,22 @@ function SuperAdminTenantsPage() {
   // reload — la UI se actualiza in-place. Toast informativo.
   const viewAs = (t: Tenant) => {
     setTenantOverride(t.slug);
-    toast.success(`Viendo como: ${t.name}`);
+    toast.success(
+      i18n.t("toast.routes_app_superadmin_tenants.viewingAs", {
+        defaultValue: "Viendo como: {{name}}",
+        name: t.name,
+      }),
+    );
   };
 
   // Limpia el override → modo cross-tenant. Mismo update in-place.
   const clearViewAs = () => {
     setTenantOverride(null);
-    toast.success("Volviste al modo cross-tenant");
+    toast.success(
+      i18n.t("toast.routes_app_superadmin_tenants.backToCrossTenant", {
+        defaultValue: "Volviste al modo cross-tenant",
+      }),
+    );
   };
 
   /**
@@ -509,7 +572,12 @@ function SuperAdminTenantsPage() {
       toast.error(friendlyError(error, "No se pudo eliminar la institución"));
       return;
     }
-    toast.success(`${t.name} fue enviada a la papelera`);
+    toast.success(
+      i18n.t("toast.routes_app_superadmin_tenants.tenantSentToTrash", {
+        defaultValue: "{{name}} fue enviada a la papelera",
+        name: t.name,
+      }),
+    );
     await load();
   };
 
@@ -539,7 +607,11 @@ function SuperAdminTenantsPage() {
       .eq("role", "Admin");
     const adminUserIds = ((adminRoleRows ?? []) as { user_id: string }[]).map((r) => r.user_id);
     if (adminUserIds.length === 0) {
-      toast.error("No hay usuarios con rol Admin en la plataforma.");
+      toast.error(
+        i18n.t("toast.routes_app_superadmin_tenants.noAdminUsers", {
+          defaultValue: "No hay usuarios con rol Admin en la plataforma.",
+        }),
+      );
       return;
     }
     // 2. Profiles del tenant que estén en ese set de Admins.
@@ -556,7 +628,11 @@ function SuperAdminTenantsPage() {
       | undefined;
     if (!target) {
       toast.error(
-        `${t.name} no tiene Admin asignado. Crea o asigna uno antes de iniciar sesión como.`,
+        i18n.t("toast.routes_app_superadmin_tenants.tenantHasNoAdmin", {
+          defaultValue:
+            "{{name}} no tiene Admin asignado. Crea o asigna uno antes de iniciar sesión como.",
+          name: t.name,
+        }),
       );
       return;
     }
@@ -1030,7 +1106,11 @@ function SuperAdminTenantsPage() {
                     className="h-7 w-7 shrink-0"
                     onClick={() => {
                       void navigator.clipboard.writeText(testUserCreds.email);
-                      toast.success("Email copiado");
+                      toast.success(
+                        i18n.t("toast.routes_app_superadmin_tenants.emailCopied", {
+                          defaultValue: "Email copiado",
+                        }),
+                      );
                     }}
                     title="Copiar email"
                   >
@@ -1050,7 +1130,11 @@ function SuperAdminTenantsPage() {
                     className="h-7 w-7 shrink-0"
                     onClick={() => {
                       void navigator.clipboard.writeText(testUserCreds.password);
-                      toast.success("Contraseña copiada");
+                      toast.success(
+                        i18n.t("toast.routes_app_superadmin_tenants.passwordCopied", {
+                          defaultValue: "Contraseña copiada",
+                        }),
+                      );
                     }}
                     title="Copiar contraseña"
                   >
@@ -1083,7 +1167,11 @@ function SuperAdminTenantsPage() {
                 void navigator.clipboard.writeText(
                   `Email: ${testUserCreds.email}\nContraseña: ${testUserCreds.password}`,
                 );
-                toast.success("Credenciales copiadas");
+                toast.success(
+                  i18n.t("toast.routes_app_superadmin_tenants.credentialsCopied", {
+                    defaultValue: "Credenciales copiadas",
+                  }),
+                );
               }}
               variant="outline"
             >

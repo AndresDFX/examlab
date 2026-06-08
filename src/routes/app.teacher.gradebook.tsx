@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import i18next from "i18next";
+import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { isStaffRole } from "@/shared/lib/roles";
@@ -476,7 +477,11 @@ function Gradebook() {
   const saveAll = async () => {
     const entries = Object.entries(edits).filter(([, v]) => v !== "");
     if (!entries.length) {
-      toast.info("No hay cambios para guardar");
+      toast.info(
+        i18n.t("toast.routes_app_teacher_gradebook.noChangesToSave", {
+          defaultValue: "No hay cambios para guardar",
+        }),
+      );
       return;
     }
 
@@ -562,8 +567,20 @@ function Gradebook() {
     }
 
     setSaving(false);
-    if (saved > 0) toast.success(`${saved} calificación(es) guardada(s) correctamente`);
-    if (errors > 0) toast.error(`${errors} error(es) — solo se pueden editar entregas existentes`);
+    if (saved > 0)
+      toast.success(
+        i18n.t("toast.routes_app_teacher_gradebook.gradesSaved", {
+          defaultValue: "{{count}} calificación(es) guardada(s) correctamente",
+          count: saved,
+        }),
+      );
+    if (errors > 0)
+      toast.error(
+        i18n.t("toast.routes_app_teacher_gradebook.gradesSaveErrors", {
+          defaultValue: "{{count}} error(es) — solo se pueden editar entregas existentes",
+          count: errors,
+        }),
+      );
     setEdits({});
     loadCourse();
   };
@@ -571,7 +588,11 @@ function Gradebook() {
   // Export CSV
   const exportCourse = () => {
     if (!students.length || !columns.length) {
-      toast.info("No hay datos para exportar");
+      toast.info(
+        i18n.t("toast.routes_app_teacher_gradebook.noDataToExport", {
+          defaultValue: "No hay datos para exportar",
+        }),
+      );
       return;
     }
 
@@ -625,7 +646,11 @@ function Gradebook() {
       `calificaciones-${courseName.replace(/\s+/g, "_")}-${Date.now()}.csv`,
       toCSV(csvRows),
     );
-    toast.success("Archivo exportado correctamente");
+    toast.success(
+      i18n.t("toast.routes_app_teacher_gradebook.fileExported", {
+        defaultValue: "Archivo exportado correctamente",
+      }),
+    );
   };
 
   const hasEdits = Object.values(edits).some((v) => v !== "");
@@ -803,7 +828,11 @@ function Gradebook() {
       if (!courseId || finalGrade == null) return;
       if (!selectedCourse) return;
       if (finalGrade < selectedCourse.passing_grade) {
-        toast.error("La nota final es menor al mínimo de aprobación.");
+        toast.error(
+          i18n.t("toast.routes_app_teacher_gradebook.finalGradeBelowPassing", {
+            defaultValue: "La nota final es menor al mínimo de aprobación.",
+          }),
+        );
         return;
       }
       setIssuingId(studentId);
@@ -817,7 +846,11 @@ function Gradebook() {
           toast.error(friendlyError(error));
           return;
         }
-        toast.success("Certificado emitido");
+        toast.success(
+          i18n.t("toast.routes_app_teacher_gradebook.certificateIssued", {
+            defaultValue: "Certificado emitido",
+          }),
+        );
         await reloadCertificates();
       } finally {
         setIssuingId(null);
@@ -840,12 +873,20 @@ function Gradebook() {
     async (studentId: string, finalGrade: number | null) => {
       if (!courseId || finalGrade == null || !selectedCourse) return;
       if (finalGrade < selectedCourse.passing_grade) {
-        toast.error("La nota final es menor al mínimo de aprobación.");
+        toast.error(
+          i18n.t("toast.routes_app_teacher_gradebook.finalGradeBelowPassing", {
+            defaultValue: "La nota final es menor al mínimo de aprobación.",
+          }),
+        );
         return;
       }
       const existing = certByUserId[studentId];
       if (!existing) {
-        toast.info("No hay certificado vigente para regenerar — usa Emitir.");
+        toast.info(
+          i18n.t("toast.routes_app_teacher_gradebook.noActiveCertToRegenerate", {
+            defaultValue: "No hay certificado vigente para regenerar — usa Emitir.",
+          }),
+        );
         return;
       }
       const ok = await confirm({
@@ -863,7 +904,12 @@ function Gradebook() {
           .update({ revoked_at: new Date().toISOString(), revoke_reason: "regenerado" })
           .eq("id", existing.id);
         if (revErr) {
-          toast.error(`Revocación falló: ${friendlyError(revErr)}`);
+          toast.error(
+            i18n.t("toast.routes_app_teacher_gradebook.revocationFailed", {
+              defaultValue: "Revocación falló: {{error}}",
+              error: friendlyError(revErr),
+            }),
+          );
           return;
         }
         // 2) Emitir uno nuevo.
@@ -873,10 +919,19 @@ function Gradebook() {
           _final_grade: finalGrade,
         });
         if (issueErr) {
-          toast.error(`Emisión nueva falló: ${friendlyError(issueErr)}`);
+          toast.error(
+            i18n.t("toast.routes_app_teacher_gradebook.newIssuanceFailed", {
+              defaultValue: "Emisión nueva falló: {{error}}",
+              error: friendlyError(issueErr),
+            }),
+          );
           return;
         }
-        toast.success("Certificado regenerado");
+        toast.success(
+          i18n.t("toast.routes_app_teacher_gradebook.certificateRegenerated", {
+            defaultValue: "Certificado regenerado",
+          }),
+        );
         await reloadCertificates();
       } finally {
         setIssuingId(null);
@@ -894,7 +949,11 @@ function Gradebook() {
       return true;
     });
     if (candidates.length === 0) {
-      toast.info("Sin estudiantes pendientes: todos los aprobados ya tienen certificado.");
+      toast.info(
+        i18n.t("toast.routes_app_teacher_gradebook.noPendingStudents", {
+          defaultValue: "Sin estudiantes pendientes: todos los aprobados ya tienen certificado.",
+        }),
+      );
       return;
     }
     const ok = await confirm({
@@ -920,7 +979,19 @@ function Gradebook() {
           issued++;
         }
       }
-      toast.success(`Emitidos ${issued}${failed > 0 ? ` · ${failed} fallaron` : ""}`);
+      toast.success(
+        i18n.t("toast.routes_app_teacher_gradebook.certificatesIssuedBulk", {
+          defaultValue: "Emitidos {{issued}}{{failedSuffix}}",
+          issued,
+          failedSuffix:
+            failed > 0
+              ? i18n.t("toast.routes_app_teacher_gradebook.certificatesIssuedBulkFailedSuffix", {
+                  defaultValue: " · {{count}} fallaron",
+                  count: failed,
+                })
+              : "",
+        }),
+      );
       await reloadCertificates();
     } finally {
       setBulkIssuing(false);
@@ -956,11 +1027,19 @@ function Gradebook() {
       const targets = regenerate ? approved : approved.filter((r) => !certByUserId[r.student.id]);
       const existingCount = Object.keys(certByUserId).length;
       if (targets.length === 0 && existingCount === 0) {
-        toast.info("No hay aprobados con certificado emitible en este curso.");
+        toast.info(
+          i18n.t("toast.routes_app_teacher_gradebook.noApprovedIssuable", {
+            defaultValue: "No hay aprobados con certificado emitible en este curso.",
+          }),
+        );
         return;
       }
       if (regenerate && approved.length === 0) {
-        toast.info("No hay estudiantes aprobados en este curso.");
+        toast.info(
+          i18n.t("toast.routes_app_teacher_gradebook.noApprovedStudents", {
+            defaultValue: "No hay estudiantes aprobados en este curso.",
+          }),
+        );
         return;
       }
       const ok = await confirm({
@@ -986,7 +1065,12 @@ function Gradebook() {
             .eq("course_id", courseId)
             .is("revoked_at", null);
           if (revErr) {
-            toast.error(`Revocación masiva falló: ${friendlyError(revErr)}`);
+            toast.error(
+              i18n.t("toast.routes_app_teacher_gradebook.bulkRevocationFailed", {
+                defaultValue: "Revocación masiva falló: {{error}}",
+                error: friendlyError(revErr),
+              }),
+            );
             return;
           }
           // Refrescamos certByUserId — los vigentes ya no están vigentes.
@@ -1039,7 +1123,11 @@ function Gradebook() {
           revoked_at: string | null;
         }>;
         if (rows.length === 0) {
-          toast.info("No quedaron certificados para descargar.");
+          toast.info(
+            i18n.t("toast.routes_app_teacher_gradebook.noCertsToDownload", {
+              defaultValue: "No quedaron certificados para descargar.",
+            }),
+          );
           return;
         }
         const items = rows.map((c) => ({
@@ -1066,9 +1154,28 @@ function Gradebook() {
         const safeCourse = selectedCourse.name.replace(/[^a-z0-9]+/gi, "_").slice(0, 40);
         const today = new Date().toISOString().slice(0, 10);
         await downloadCertificatesZip(items, `Certificados_${safeCourse}_${today}.zip`);
-        const issuedMsg = issued > 0 ? ` (${issued} emitido${issued === 1 ? "" : "s"})` : "";
-        const failedMsg = failed > 0 ? ` · ${failed} falló al emitir` : "";
-        toast.success(`ZIP con ${items.length} certificado(s) descargado${issuedMsg}${failedMsg}`);
+        const issuedMsg =
+          issued > 0
+            ? i18n.t("toast.routes_app_teacher_gradebook.zipDownloadedIssuedSuffix", {
+                defaultValue: " ({{count}} emitido(s))",
+                count: issued,
+              })
+            : "";
+        const failedMsg =
+          failed > 0
+            ? i18n.t("toast.routes_app_teacher_gradebook.zipDownloadedFailedSuffix", {
+                defaultValue: " · {{count}} falló al emitir",
+                count: failed,
+              })
+            : "";
+        toast.success(
+          i18n.t("toast.routes_app_teacher_gradebook.zipDownloaded", {
+            defaultValue: "ZIP con {{count}} certificado(s) descargado{{issuedMsg}}{{failedMsg}}",
+            count: items.length,
+            issuedMsg,
+            failedMsg,
+          }),
+        );
       } catch (e) {
         console.error("[gradebook] bulkGenerateAndDownload failed", e);
         toast.error(friendlyError(e, "Error generando certificados en lote"));

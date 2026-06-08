@@ -57,6 +57,7 @@ import { toCSV } from "@/shared/lib/csv";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/teacher/question-bank")({
   component: QuestionBankPage,
@@ -291,11 +292,19 @@ function QuestionBankPage() {
   const save = async () => {
     if (!user || !courseId) return;
     if (!draft.content?.trim()) {
-      toast.error("Escribe el enunciado");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_question_bank.writeStatement", {
+          defaultValue: "Escribe el enunciado",
+        }),
+      );
       return;
     }
     if (!draft.type) {
-      toast.error("Selecciona un tipo");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_question_bank.selectType", {
+          defaultValue: "Selecciona un tipo",
+        }),
+      );
       return;
     }
     setSaving(true);
@@ -319,7 +328,11 @@ function QuestionBankPage() {
           toast.error(friendlyError(error));
           return;
         }
-        toast.success("Pregunta actualizada");
+        toast.success(
+          i18n.t("toast.routes_app_teacher_question_bank.questionUpdated", {
+            defaultValue: "Pregunta actualizada",
+          }),
+        );
       } else {
         const { error } = await db
           .from("question_bank")
@@ -328,7 +341,11 @@ function QuestionBankPage() {
           toast.error(friendlyError(error));
           return;
         }
-        toast.success("Pregunta agregada al banco");
+        toast.success(
+          i18n.t("toast.routes_app_teacher_question_bank.questionAddedToBank", {
+            defaultValue: "Pregunta agregada al banco",
+          }),
+        );
       }
       setDialogOpen(false);
       await load();
@@ -351,7 +368,11 @@ function QuestionBankPage() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Pregunta eliminada");
+    toast.success(
+      i18n.t("toast.routes_app_teacher_question_bank.questionDeleted", {
+        defaultValue: "Pregunta eliminada",
+      }),
+    );
     setRows((prev) => prev.filter((x) => x.id !== r.id));
   };
 

@@ -37,6 +37,7 @@ import { formatDateTime } from "@/shared/lib/format";
 import { threadsPendingTeacherResponse } from "@/modules/grading/feedback-stats";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -366,7 +367,11 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
     }
     // Optimistic: sacamos del state.
     setThreads((prev) => prev.filter((x) => x.id !== t.id));
-    toast.success("Conversación cerrada");
+    toast.success(
+      i18n.t("toast.modules_grading_OpenFeedbackModal.conversationClosed", {
+        defaultValue: "Conversación cerrada",
+      }),
+    );
     // Notify event para que el otro extremo (estudiante) vea el badge
     // actualizado y, si está, el FeedbackThread se cierre.
     void db.rpc("notify_feedback_event", {

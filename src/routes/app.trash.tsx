@@ -28,6 +28,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -252,7 +253,13 @@ function TrashPage() {
         return;
       }
       setItems((prev) => prev.filter((i) => i.id !== item.id));
-      toast.success(`${TRASH_TABLE_LABEL[item.table]}: ${item.name} restaurado`);
+      toast.success(
+        i18n.t("toast.routes_app_trash.itemRestored", {
+          defaultValue: "{{type}}: {{name}} restaurado",
+          type: TRASH_TABLE_LABEL[item.table],
+          name: item.name,
+        }),
+      );
     } finally {
       setBusy(null);
     }
@@ -274,7 +281,11 @@ function TrashPage() {
         return;
       }
       setItems((prev) => prev.filter((i) => i.id !== item.id));
-      toast.success("Eliminado definitivamente");
+      toast.success(
+        i18n.t("toast.routes_app_trash.itemHardDeleted", {
+          defaultValue: "Eliminado definitivamente",
+        }),
+      );
     } finally {
       setBusy(null);
     }
@@ -315,13 +326,24 @@ function TrashPage() {
       setItems((prev) => prev.filter((i) => !successIds.has(`${i.table}:${i.id}`)));
       sel.clear();
       if (failed.length === 0) {
-        toast.success(`${selectedItems.length} item(s) restaurado(s)`);
+        toast.success(
+          i18n.t("toast.routes_app_trash.bulkRestoreSuccess", {
+            defaultValue: "{{count}} item(s) restaurado(s)",
+            count: selectedItems.length,
+          }),
+        );
       } else {
         const first = failed[0];
         const detail = friendlyError(first.error ?? undefined, "Error desconocido");
         toast.error(
-          `${selectedItems.length - failed.length} restaurado(s), ${failed.length} con error. ` +
-            `Primero: "${first.item.name}" — ${detail}`,
+          i18n.t("toast.routes_app_trash.bulkRestorePartialError", {
+            defaultValue:
+              '{{ok}} restaurado(s), {{failed}} con error. Primero: "{{name}}" — {{detail}}',
+            ok: selectedItems.length - failed.length,
+            failed: failed.length,
+            name: first.item.name,
+            detail,
+          }),
           { duration: 12000 },
         );
       }
@@ -354,7 +376,12 @@ function TrashPage() {
       setItems((prev) => prev.filter((i) => !successIds.has(`${i.table}:${i.id}`)));
       sel.clear();
       if (failed.length === 0) {
-        toast.success(`${selectedItems.length} item(s) eliminado(s) definitivamente`);
+        toast.success(
+          i18n.t("toast.routes_app_trash.bulkHardDeleteSuccess", {
+            defaultValue: "{{count}} item(s) eliminado(s) definitivamente",
+            count: selectedItems.length,
+          }),
+        );
       } else {
         // Incluimos el detalle del PRIMER error y el nombre del item que
         // falló — antes era "N con error" a secas y el usuario no podía
@@ -363,8 +390,14 @@ function TrashPage() {
         const first = failed[0];
         const detail = friendlyError(first.error ?? undefined, "Error desconocido");
         toast.error(
-          `${selectedItems.length - failed.length} eliminado(s), ${failed.length} con error. ` +
-            `Primero: "${first.item.name}" — ${detail}`,
+          i18n.t("toast.routes_app_trash.bulkHardDeletePartialError", {
+            defaultValue:
+              '{{ok}} eliminado(s), {{failed}} con error. Primero: "{{name}}" — {{detail}}',
+            ok: selectedItems.length - failed.length,
+            failed: failed.length,
+            name: first.item.name,
+            detail,
+          }),
           { duration: 12000 },
         );
       }

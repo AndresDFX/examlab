@@ -31,6 +31,7 @@ import {
 import { toast } from "sonner";
 import { Save, Info, Mail, FileText, GraduationCap } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -95,16 +96,29 @@ export function AdminGeneralSettingsPanel() {
       draft.default_passing_grade > draft.default_grade_scale_max
     ) {
       toast.error(
-        `La nota mínima de aprobación debe estar entre ${draft.default_grade_scale_min} y ${draft.default_grade_scale_max}`,
+        i18n.t("toast.modules_admin_AdminGeneralSettingsPanel.passingGradeOutOfRange", {
+          defaultValue:
+            "La nota mínima de aprobación debe estar entre {{min}} y {{max}}",
+          min: draft.default_grade_scale_min,
+          max: draft.default_grade_scale_max,
+        }),
       );
       return;
     }
     if (draft.default_grade_scale_max <= draft.default_grade_scale_min) {
-      toast.error("La nota máxima debe ser mayor a la mínima");
+      toast.error(
+        i18n.t("toast.modules_admin_AdminGeneralSettingsPanel.maxGradeMustExceedMin", {
+          defaultValue: "La nota máxima debe ser mayor a la mínima",
+        }),
+      );
       return;
     }
     if (draft.max_open_answer_chars < 100 || draft.max_open_answer_chars > 50000) {
-      toast.error("Máx. caracteres de respuesta abierta debe estar entre 100 y 50000");
+      toast.error(
+        i18n.t("toast.modules_admin_AdminGeneralSettingsPanel.openAnswerCharsOutOfRange", {
+          defaultValue: "Máx. caracteres de respuesta abierta debe estar entre 100 y 50000",
+        }),
+      );
       return;
     }
     setSaving(true);
@@ -138,7 +152,11 @@ export function AdminGeneralSettingsPanel() {
         severity: "warning",
         metadata: { previous: row, new: draft },
       });
-      toast.success("Parámetros guardados");
+      toast.success(
+        i18n.t("toast.modules_admin_AdminGeneralSettingsPanel.savedOk", {
+          defaultValue: "Parámetros guardados",
+        }),
+      );
       await load();
     } finally {
       setSaving(false);

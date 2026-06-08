@@ -16,6 +16,7 @@ import { Plus, Trash2, GripVertical, Users, ArrowRightLeft, Check } from "lucide
 import { Spinner } from "@/components/ui/spinner";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -123,7 +124,11 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
   const createGroup = async () => {
     const name = newGroupName.trim();
     if (!name) {
-      toast.error("Ponle un nombre al grupo");
+      toast.error(
+        i18n.t("toast.modules_projects_ProjectGroupsEditor.groupNameRequired", {
+          defaultValue: "Ponle un nombre al grupo",
+        }),
+      );
       return;
     }
     setCreating(true);

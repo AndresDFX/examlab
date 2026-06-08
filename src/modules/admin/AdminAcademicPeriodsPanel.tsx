@@ -52,6 +52,7 @@ import { CalendarRange, Plus, Pencil, Trash2, Lock, Unlock } from "lucide-react"
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { logEvent } from "@/shared/lib/audit";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -154,11 +155,11 @@ export function AdminAcademicPeriodsPanel() {
     if (!user) return;
     const code = draft.code.trim();
     if (!code) {
-      toast.error("El código es obligatorio");
+      toast.error(i18n.t("toast.modules_admin_AdminAcademicPeriodsPanel.codeRequired", { defaultValue: "El código es obligatorio" }));
       return;
     }
     if (draft.start_date && draft.end_date && draft.start_date > draft.end_date) {
-      toast.error("La fecha de inicio debe ser anterior a la de fin");
+      toast.error(i18n.t("toast.modules_admin_AdminAcademicPeriodsPanel.startBeforeEnd", { defaultValue: "La fecha de inicio debe ser anterior a la de fin" }));
       return;
     }
     setSaving(true);
@@ -205,7 +206,11 @@ export function AdminAcademicPeriodsPanel() {
         status: draft.status,
       },
     });
-    toast.success(draft.id ? "Periodo actualizado" : "Periodo creado");
+    toast.success(
+      draft.id
+        ? i18n.t("toast.modules_admin_AdminAcademicPeriodsPanel.periodUpdated", { defaultValue: "Periodo actualizado" })
+        : i18n.t("toast.modules_admin_AdminAcademicPeriodsPanel.periodCreated", { defaultValue: "Periodo creado" }),
+    );
     setOpen(false);
     void load();
   };
@@ -273,7 +278,7 @@ export function AdminAcademicPeriodsPanel() {
       entityId: r.id,
       entityName: r.code,
     });
-    toast.success("Periodo eliminado");
+    toast.success(i18n.t("toast.modules_admin_AdminAcademicPeriodsPanel.periodDeleted", { defaultValue: "Periodo eliminado" }));
     void load();
   };
 

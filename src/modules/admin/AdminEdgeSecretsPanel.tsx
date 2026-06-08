@@ -15,6 +15,7 @@
  */
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -107,7 +108,11 @@ export function AdminEdgeSecretsPanel() {
 
   const save = async () => {
     if (!editorName.trim() || !editorValue) {
-      toast.error("Nombre y valor son obligatorios");
+      toast.error(
+        i18n.t("toast.modules_admin_AdminEdgeSecretsPanel.nameAndValueRequired", {
+          defaultValue: "Nombre y valor son obligatorios",
+        }),
+      );
       return;
     }
     setSaving(true);
@@ -147,7 +152,12 @@ export function AdminEdgeSecretsPanel() {
       toast.error(detail || "Error al borrar");
       return;
     }
-    toast.success(`Secret "${s.name}" borrada`);
+    toast.success(
+      i18n.t("toast.modules_admin_AdminEdgeSecretsPanel.secretDeleted", {
+        defaultValue: 'Secret "{{name}}" borrada',
+        name: s.name,
+      }),
+    );
     void load();
   };
 

@@ -32,6 +32,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { SearchInput } from "@/components/ui/search-input";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 import {
@@ -255,7 +256,11 @@ function StudentPolls() {
     // alumno ya votó, evitamos siquiera intentarlo. La RPC también lo
     // rechaza server-side; este guard solo da feedback inmediato.
     if (poll.poll_type !== "multiple" && poll.my_votes.length > 0 && !poll.allow_change_response) {
-      toast.info("Esta encuesta no permite cambiar el voto una vez emitido");
+      toast.info(
+        i18n.t("toast.routes_app_student_polls.cannotChangeVote", {
+          defaultValue: "Esta encuesta no permite cambiar el voto una vez emitido",
+        }),
+      );
       return;
     }
     setVoting(poll.id);
@@ -276,7 +281,11 @@ function StudentPolls() {
         toast.error(friendlyError(error));
         return;
       }
-      toast.success("Voto registrado");
+      toast.success(
+        i18n.t("toast.routes_app_student_polls.voteRecorded", {
+          defaultValue: "Voto registrado",
+        }),
+      );
       setRetryNonce((n) => n + 1);
     } finally {
       setVoting(null);
@@ -299,7 +308,10 @@ function StudentPolls() {
         // queda). Trade-off conocido: para des-votar en 'multiple'
         // habría que agregar `clear_poll_option(option_id)`.
         toast.info(
-          "En encuestas de selección múltiple no podés desmarcar una opción una vez votada.",
+          i18n.t("toast.routes_app_student_polls.cannotUncheckMultiple", {
+            defaultValue:
+              "En encuestas de selección múltiple no podés desmarcar una opción una vez votada.",
+          }),
         );
         return;
       }

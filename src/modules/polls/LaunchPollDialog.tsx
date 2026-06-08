@@ -21,6 +21,7 @@
  */
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -124,12 +125,20 @@ export function LaunchPollDialog({
   const save = async () => {
     if (!user) return;
     if (!title.trim()) {
-      toast.error("Escribí la pregunta");
+      toast.error(
+        i18n.t("toast.modules_polls_LaunchPollDialog.questionRequired", {
+          defaultValue: "Escribí la pregunta",
+        }),
+      );
       return;
     }
     const validOptions = options.filter((o) => o.label.trim());
     if (validOptions.length < 2) {
-      toast.error("Se necesitan al menos 2 opciones");
+      toast.error(
+        i18n.t("toast.modules_polls_LaunchPollDialog.minTwoOptions", {
+          defaultValue: "Se necesitan al menos 2 opciones",
+        }),
+      );
       return;
     }
     if (type === "slot") {
@@ -138,7 +147,11 @@ export function LaunchPollDialog({
         return !Number.isInteger(n) || n <= 0;
       });
       if (bad) {
-        toast.error("En tipo 'cupo por opción' cada opción necesita un cupo entero > 0");
+        toast.error(
+          i18n.t("toast.modules_polls_LaunchPollDialog.slotNeedsPositiveCapacity", {
+            defaultValue: "En tipo 'cupo por opción' cada opción necesita un cupo entero > 0",
+          }),
+        );
         return;
       }
     }
@@ -179,7 +192,11 @@ export function LaunchPollDialog({
         toast.error(friendlyError(optsErr, "No se pudieron crear las opciones"));
         return;
       }
-      toast.success("Encuesta lanzada");
+      toast.success(
+        i18n.t("toast.modules_polls_LaunchPollDialog.pollLaunched", {
+          defaultValue: "Encuesta lanzada",
+        }),
+      );
       onOpenChange(false);
       onCreated?.(pollRow.id);
     } finally {

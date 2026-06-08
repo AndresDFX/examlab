@@ -46,6 +46,7 @@ import {
 import { LifeBuoy, Plus, MessageSquare, Clock, CheckCircle2, AlertCircle, Paperclip, X as XIcon } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 import {
   SupportTicketDetailDialog,
   STATUS_LABEL,
@@ -194,7 +195,12 @@ function AdminSupportPage() {
     const oversized = incoming.filter((f) => f.size > MAX_FILE_BYTES);
     if (oversized.length > 0) {
       toast.error(
-        `${oversized.length} archivo(s) superan 25 MB y se descartaron: ${oversized.map((f) => f.name).join(", ")}`,
+        i18n.t("toast.routes_app_admin_support.filesOversized", {
+          defaultValue:
+            "{{count}} archivo(s) superan 25 MB y se descartaron: {{names}}",
+          count: oversized.length,
+          names: oversized.map((f) => f.name).join(", "),
+        }),
       );
     }
     const valid = incoming.filter((f) => f.size <= MAX_FILE_BYTES);
@@ -207,15 +213,27 @@ function AdminSupportPage() {
 
   const createTicket = async () => {
     if (!user?.id || !profile?.tenant_id) {
-      toast.error("Tu cuenta no tiene institución asignada. Contacta al SuperAdmin.");
+      toast.error(
+        i18n.t("toast.routes_app_admin_support.noTenantAssigned", {
+          defaultValue: "Tu cuenta no tiene institución asignada. Contacta al SuperAdmin.",
+        }),
+      );
       return;
     }
     if (newSubject.trim().length < 3) {
-      toast.error("El asunto debe tener al menos 3 caracteres.");
+      toast.error(
+        i18n.t("toast.routes_app_admin_support.subjectTooShort", {
+          defaultValue: "El asunto debe tener al menos 3 caracteres.",
+        }),
+      );
       return;
     }
     if (newBody.trim().length < 10) {
-      toast.error("La descripción debe tener al menos 10 caracteres.");
+      toast.error(
+        i18n.t("toast.routes_app_admin_support.bodyTooShort", {
+          defaultValue: "La descripción debe tener al menos 10 caracteres.",
+        }),
+      );
       return;
     }
     setCreating(true);
@@ -281,14 +299,27 @@ function AdminSupportPage() {
 
       if (attachmentsFailed > 0) {
         toast.warning(
-          `Ticket creado. ${attachmentsUploaded} adjunto(s) subido(s), ${attachmentsFailed} fallaron — podés volver a subirlos desde el detalle.`,
+          i18n.t("toast.routes_app_admin_support.ticketCreatedSomeAttachmentsFailed", {
+            defaultValue:
+              "Ticket creado. {{uploaded}} adjunto(s) subido(s), {{failed}} fallaron — podés volver a subirlos desde el detalle.",
+            uploaded: attachmentsUploaded,
+            failed: attachmentsFailed,
+          }),
         );
       } else if (attachmentsUploaded > 0) {
         toast.success(
-          `Ticket abierto con ${attachmentsUploaded} adjunto(s). El SuperAdmin recibió la notificación.`,
+          i18n.t("toast.routes_app_admin_support.ticketCreatedWithAttachments", {
+            defaultValue:
+              "Ticket abierto con {{uploaded}} adjunto(s). El SuperAdmin recibió la notificación.",
+            uploaded: attachmentsUploaded,
+          }),
         );
       } else {
-        toast.success("Ticket abierto. El SuperAdmin recibió la notificación.");
+        toast.success(
+          i18n.t("toast.routes_app_admin_support.ticketCreated", {
+            defaultValue: "Ticket abierto. El SuperAdmin recibió la notificación.",
+          }),
+        );
       }
 
       // Si hay adjuntos fallidos, NO cerramos el dialog ni reseteamos —

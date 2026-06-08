@@ -18,6 +18,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -208,7 +209,11 @@ export function DbBackupsPanel() {
 
   const createBackup = async () => {
     if (selectedTables.size === 0) {
-      toast.error("Elige al menos una tabla.");
+      toast.error(
+        i18n.t("toast.modules_admin_DbBackupsPanel.selectAtLeastOneTable", {
+          defaultValue: "Elige al menos una tabla.",
+        }),
+      );
       return;
     }
     setCreating(true);
@@ -237,7 +242,11 @@ export function DbBackupsPanel() {
           }
         });
 
-      toast.success("Backup iniciado — refrescará automáticamente cuando termine.");
+      toast.success(
+        i18n.t("toast.modules_admin_DbBackupsPanel.backupStarted", {
+          defaultValue: "Backup iniciado — refrescará automáticamente cuando termine.",
+        }),
+      );
       setCreateOpen(false);
       await load();
     } catch (e) {
@@ -250,7 +259,11 @@ export function DbBackupsPanel() {
   // ─── Descargar backup (signed URL) ──────────────────────────────────
   const downloadBackup = async (row: BackupRow) => {
     if (!row.file_path) {
-      toast.error("Este backup no tiene archivo disponible.");
+      toast.error(
+        i18n.t("toast.modules_admin_DbBackupsPanel.noFileAvailable", {
+          defaultValue: "Este backup no tiene archivo disponible.",
+        }),
+      );
       return;
     }
     // 5 min de validez — suficiente para que el navegador inicie la
@@ -289,7 +302,11 @@ export function DbBackupsPanel() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Backup eliminado.");
+    toast.success(
+      i18n.t("toast.modules_admin_DbBackupsPanel.backupDeleted", {
+        defaultValue: "Backup eliminado.",
+      }),
+    );
     void load();
   };
 
@@ -305,7 +322,11 @@ export function DbBackupsPanel() {
       toast.error(friendlyError(error ?? new Error(detail || "Falló el backup")));
       return;
     }
-    toast.success("Backup procesado.");
+    toast.success(
+      i18n.t("toast.modules_admin_DbBackupsPanel.backupProcessed", {
+        defaultValue: "Backup procesado.",
+      }),
+    );
     void load();
   };
 

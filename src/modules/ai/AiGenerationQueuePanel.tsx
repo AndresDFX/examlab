@@ -28,6 +28,7 @@ import { readOverrideExpiry, getProcessingMode } from "@/modules/ai/ai-grading";
 import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
 import { formatDateTime } from "@/shared/lib/format";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 import { Sparkles, Zap, X, RefreshCw, AlertTriangle, Wand2, Clock } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -216,7 +217,11 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
     if (!isAdmin) {
       const mode = await getProcessingMode();
       if (mode === "async" && !readOverrideExpiry()) {
-        toast.info("Para procesar este job, primero activa un código de IA inmediata.");
+        toast.info(
+          i18n.t("toast.modules_ai_AiGenerationQueuePanel.activateImmediateAiFirst", {
+            defaultValue: "Para procesar este job, primero activa un código de IA inmediata.",
+          }),
+        );
         setOverrideOpen(true);
         return;
       }
@@ -240,11 +245,25 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
           const detail =
             (await extractEdgeError(error, data)) ||
             (d?.failed > 0 ? "El worker reportó falla en el job" : "Error desconocido");
-          toast.error(`No se pudo procesar: ${detail}`);
+          toast.error(
+            i18n.t("toast.modules_ai_AiGenerationQueuePanel.couldNotProcess", {
+              defaultValue: "No se pudo procesar: {{detail}}",
+              detail,
+            }),
+          );
         } else if (d?.succeeded === 0 && d?.processed === 0) {
-          toast.info("El job ya no estaba pending — quizás otro proceso lo levantó.");
+          toast.info(
+            i18n.t("toast.modules_ai_AiGenerationQueuePanel.jobNoLongerPending", {
+              defaultValue: "El job ya no estaba pending — quizás otro proceso lo levantó.",
+            }),
+          );
         } else {
-          toast.success("Contenido encolado para generación. Aparecerá en tu lista de contenidos.");
+          toast.success(
+            i18n.t("toast.modules_ai_AiGenerationQueuePanel.contentQueued", {
+              defaultValue:
+                "Contenido encolado para generación. Aparecerá en tu lista de contenidos.",
+            }),
+          );
         }
         await load();
         return;
@@ -269,7 +288,12 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
           .from("ai_generation_queue")
           .update({ status: "failed", last_error: detail, completed_at: new Date().toISOString() })
           .eq("id", job.id);
-        toast.error(`No se pudo procesar: ${detail}`);
+        toast.error(
+          i18n.t("toast.modules_ai_AiGenerationQueuePanel.couldNotProcess", {
+            defaultValue: "No se pudo procesar: {{detail}}",
+            detail,
+          }),
+        );
       } else {
         const inserted = d?.inserted?.length ?? 0;
         await db
@@ -320,18 +344,33 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
       const d = data as any;
       if (error) {
         const detail = (await extractEdgeError(error, data)) || "Error desconocido";
-        toast.error(`No se pudo drenar la cola: ${detail}`);
+        toast.error(
+          i18n.t("toast.modules_ai_AiGenerationQueuePanel.couldNotDrainQueue", {
+            defaultValue: "No se pudo drenar la cola: {{detail}}",
+            detail,
+          }),
+        );
         return;
       }
       if (d?.skipped === "async_mode_no_jobid") {
         toast.info(
-          "La IA está en modo async. Cambia el modo a sync (en Configuración) o procesá uno a uno.",
+          i18n.t("toast.modules_ai_AiGenerationQueuePanel.aiInAsyncMode", {
+            defaultValue:
+              "La IA está en modo async. Cambia el modo a sync (en Configuración) o procesá uno a uno.",
+          }),
         );
       } else {
         const proc = d?.processed ?? 0;
         const ok = d?.succeeded ?? 0;
         const fail = d?.failed ?? 0;
-        toast.success(`Drenado: ${proc} job(s) procesados — ${ok} ok, ${fail} fallaron.`);
+        toast.success(
+          i18n.t("toast.modules_ai_AiGenerationQueuePanel.drained", {
+            defaultValue: "Drenado: {{proc}} job(s) procesados — {{ok}} ok, {{fail}} fallaron.",
+            proc,
+            ok,
+            fail,
+          }),
+        );
       }
       await load();
     } catch (e) {
@@ -360,7 +399,11 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
         toast.error(friendlyError(error, "No se pudo cancelar"));
         return;
       }
-      toast.success("Job cancelado");
+      toast.success(
+        i18n.t("toast.modules_ai_AiGenerationQueuePanel.jobCancelled", {
+          defaultValue: "Job cancelado",
+        }),
+      );
       await load();
     } catch (e) {
       // Caller: `() => void cancelJob(j)` desde RowAction. Sin catch
@@ -537,8 +580,20 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
                               e.stopPropagation();
                               void navigator.clipboard
                                 .writeText(j.last_error ?? "")
-                                .then(() => toast.success("Error copiado"))
-                                .catch(() => toast.error("No se pudo copiar"));
+                                .then(() =>
+                                  toast.success(
+                                    i18n.t("toast.modules_ai_AiGenerationQueuePanel.errorCopied", {
+                                      defaultValue: "Error copiado",
+                                    }),
+                                  ),
+                                )
+                                .catch(() =>
+                                  toast.error(
+                                    i18n.t("toast.modules_ai_AiGenerationQueuePanel.couldNotCopy", {
+                                      defaultValue: "No se pudo copiar",
+                                    }),
+                                  ),
+                                );
                             }}
                             className="shrink-0 text-[10px] text-destructive/80 hover:text-destructive underline"
                             title="Copiar error completo al portapapeles"

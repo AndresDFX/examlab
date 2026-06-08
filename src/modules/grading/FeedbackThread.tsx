@@ -34,6 +34,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { formatDateTime } from "@/shared/lib/format";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { FeedbackCommentAttachments } from "@/modules/grading/FeedbackCommentAttachments";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -124,7 +125,13 @@ export function FeedbackThread({
     for (const f of Array.from(incoming)) {
       const err = validateAttachmentFile(f);
       if (err) {
-        toast.error(`${f.name}: ${err}`);
+        toast.error(
+          i18n.t("toast.modules_grading_FeedbackThread.fileRejected", {
+            defaultValue: "{{fileName}}: {{reason}}",
+            fileName: f.name,
+            reason: err,
+          }),
+        );
         continue;
       }
       next.push(f);
@@ -132,7 +139,12 @@ export function FeedbackThread({
     setPendingFiles((prev) => {
       const merged = [...prev, ...next];
       if (merged.length > FEEDBACK_ATTACHMENT_MAX_COUNT) {
-        toast.error(`Máximo ${FEEDBACK_ATTACHMENT_MAX_COUNT} archivos por comentario.`);
+        toast.error(
+          i18n.t("toast.modules_grading_FeedbackThread.maxAttachments", {
+            defaultValue: "Máximo {{max}} archivos por comentario.",
+            max: FEEDBACK_ATTACHMENT_MAX_COUNT,
+          }),
+        );
         return merged.slice(0, FEEDBACK_ATTACHMENT_MAX_COUNT);
       }
       return merged;
@@ -163,7 +175,13 @@ export function FeedbackThread({
       });
       if (up.error) {
         console.warn("[FeedbackThread] upload attachment", up.error);
-        toast.error(`No se pudo subir ${safe}: ${friendlyError(up.error)}`);
+        toast.error(
+          i18n.t("toast.modules_grading_FeedbackThread.uploadFailed", {
+            defaultValue: "No se pudo subir {{fileName}}: {{reason}}",
+            fileName: safe,
+            reason: friendlyError(up.error),
+          }),
+        );
         continue;
       }
       const { data, error } = await db
@@ -183,7 +201,13 @@ export function FeedbackThread({
         // El archivo quedó en el bucket pero sin row — lo borramos para
         // no dejar huérfano.
         await supabase.storage.from("feedback-attachments").remove([path]);
-        toast.error(`No se pudo registrar ${safe}: ${friendlyError(error, "desconocido")}`);
+        toast.error(
+          i18n.t("toast.modules_grading_FeedbackThread.registerFailed", {
+            defaultValue: "No se pudo registrar {{fileName}}: {{reason}}",
+            fileName: safe,
+            reason: friendlyError(error, "desconocido"),
+          }),
+        );
         continue;
       }
       created.push(data as AttachmentRow);
@@ -203,7 +227,11 @@ export function FeedbackThread({
     if (!editingId) return;
     const trimmed = editingText.trim();
     if (!trimmed) {
-      toast.error("El comentario no puede estar vacío");
+      toast.error(
+        i18n.t("toast.modules_grading_FeedbackThread.emptyComment", {
+          defaultValue: "El comentario no puede estar vacío",
+        }),
+      );
       return;
     }
     setSavingEdit(true);
@@ -445,7 +473,11 @@ export function FeedbackThread({
         inserted = firstInsert.data as Comment;
       }
       if (!inserted) {
-        toast.error("No se pudo enviar el comentario");
+        toast.error(
+          i18n.t("toast.modules_grading_FeedbackThread.sendFailed", {
+            defaultValue: "No se pudo enviar el comentario",
+          }),
+        );
         return;
       }
       // Subir archivos pendientes (si los hay) antes del append optimista
@@ -537,7 +569,15 @@ export function FeedbackThread({
       })
       .eq("id", thread.id);
     if (error) return toast.error(friendlyError(error));
-    toast.success(next ? "Conversación cerrada" : "Conversación reabierta");
+    toast.success(
+      next
+        ? i18n.t("toast.modules_grading_FeedbackThread.threadClosed", {
+            defaultValue: "Conversación cerrada",
+          })
+        : i18n.t("toast.modules_grading_FeedbackThread.threadReopened", {
+            defaultValue: "Conversación reabierta",
+          }),
+    );
     await load();
     // Avisa al caller que cambió el estado del thread (refresca el
     // badge "Diálogo pendientes" en el monitor sin esperar al próximo

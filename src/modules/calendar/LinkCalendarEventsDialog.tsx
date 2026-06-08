@@ -57,6 +57,7 @@ import { Search, Link2, Unlink, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
+import i18n from "@/i18n";
 
 interface Props {
   open: boolean;
@@ -159,11 +160,19 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
 
   const loadEvents = async () => {
     if (!fromDate || !toDate) {
-      toast.error("Eligí ambas fechas");
+      toast.error(
+        i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.pickBothDates", {
+          defaultValue: "Eligí ambas fechas",
+        }),
+      );
       return;
     }
     if (fromDate > toDate) {
-      toast.error("La fecha 'Desde' debe ser anterior a 'Hasta'");
+      toast.error(
+        i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.fromBeforeTo", {
+          defaultValue: "La fecha 'Desde' debe ser anterior a 'Hasta'",
+        }),
+      );
       return;
     }
     setLoadingEvents(true);
@@ -176,19 +185,41 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
       if (error || d?.ok === false) {
         const msg = d?.error ?? error?.message ?? "error_desconocido";
         if (msg === "no_calendar_selected") {
-          toast.error("Primero seleccioná un calendario en la pantalla de Calendar.");
+          toast.error(
+            i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.noCalendarSelected", {
+              defaultValue: "Primero seleccioná un calendario en la pantalla de Calendar.",
+            }),
+          );
         } else if (msg === "calendar_not_accessible") {
-          toast.error("El calendario ya no es accesible. Reconectá Google Calendar.");
+          toast.error(
+            i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.calendarNotAccessible", {
+              defaultValue: "El calendario ya no es accesible. Reconectá Google Calendar.",
+            }),
+          );
         } else {
-          toast.error(`No se pudieron cargar eventos: ${msg}`);
+          toast.error(
+            i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.loadEventsFailed", {
+              defaultValue: "No se pudieron cargar eventos: {{error}}",
+              error: msg,
+            }),
+          );
         }
         return;
       }
       setEvents((d?.events ?? []) as CalendarEvent[]);
       if ((d?.events ?? []).length === 0) {
-        toast.info("No hay eventos en ese rango de fechas.");
+        toast.info(
+          i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.noEventsInRange", {
+            defaultValue: "No hay eventos en ese rango de fechas.",
+          }),
+        );
       } else {
-        toast.success(`${d.events.length} evento(s) cargados`);
+        toast.success(
+          i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.eventsLoaded", {
+            defaultValue: "{{eventCount}} evento(s) cargados",
+            eventCount: d.events.length,
+          }),
+        );
       }
     } catch (e) {
       toast.error(friendlyError(e, "Error consultando Google Calendar"));
@@ -240,7 +271,11 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
       links.push({ sessionId, eventId: draft });
     }
     if (links.length === 0) {
-      toast.info("No hay cambios para aplicar");
+      toast.info(
+        i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.noChangesToApply", {
+          defaultValue: "No hay cambios para aplicar",
+        }),
+      );
       return;
     }
     setApplying(true);
@@ -256,7 +291,13 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const d = data as any;
       if (error || d?.ok === false) {
-        toast.error(`No se pudo vincular: ${d?.error ?? error?.message ?? "error"}`);
+        const linkErr = d?.error ?? error?.message ?? "error";
+        toast.error(
+          i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.linkFailed", {
+            defaultValue: "No se pudo vincular: {{error}}",
+            error: linkErr,
+          }),
+        );
         return;
       }
       toast.success(

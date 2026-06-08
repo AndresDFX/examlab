@@ -27,6 +27,7 @@ import { downloadCertificate, buildVerifyUrl } from "@/modules/certificates/cert
 import { friendlyError } from "@/shared/lib/db-errors";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
+import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/student/certificates")({
   component: StudentCertificates,
@@ -118,7 +119,11 @@ function StudentCertificates() {
   const handleDownload = async (cert: CertificateRow) => {
     if (!isUnlocked(cert)) {
       toast.error(
-        `Aún no puedes descargar este certificado. Estará disponible desde el ${formatDateOnly(cert.course!.end_date!)}.`,
+        i18n.t("toast.routes_app_student_certificates.downloadLocked", {
+          defaultValue:
+            "Aún no puedes descargar este certificado. Estará disponible desde el {{date}}.",
+          date: formatDateOnly(cert.course!.end_date!),
+        }),
       );
       return;
     }
@@ -151,7 +156,11 @@ function StudentCertificates() {
   const handleCopyLink = (cert: CertificateRow) => {
     const url = buildVerifyUrl(cert.short_code);
     void navigator.clipboard.writeText(url);
-    toast.success("Link de verificación copiado");
+    toast.success(
+      i18n.t("toast.routes_app_student_certificates.verifyLinkCopied", {
+        defaultValue: "Link de verificación copiado",
+      }),
+    );
   };
 
   // Lista ordenada — la query base ya viene por issued_at desc, pero

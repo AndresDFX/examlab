@@ -37,6 +37,7 @@ import {
 import { toast } from "sonner";
 import { Copy } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -113,11 +114,19 @@ export function DuplicateAssessmentDialog({
 
   const submit = async () => {
     if (!targetCourseId) {
-      toast.error("Selecciona el curso destino");
+      toast.error(
+        i18n.t("toast.shared_components_DuplicateAssessmentDialog.selectTargetCourse", {
+          defaultValue: "Selecciona el curso destino",
+        }),
+      );
       return;
     }
     if (!newTitle.trim()) {
-      toast.error("Ingresa un título para la copia");
+      toast.error(
+        i18n.t("toast.shared_components_DuplicateAssessmentDialog.enterCopyTitle", {
+          defaultValue: "Ingresa un título para la copia",
+        }),
+      );
       return;
     }
     setSubmitting(true);
@@ -134,7 +143,10 @@ export function DuplicateAssessmentDialog({
       }
       const newId = String(data);
       toast.success(
-        `Copia creada (queda en borrador — revisa fechas y peso antes de publicar)`,
+        i18n.t("toast.shared_components_DuplicateAssessmentDialog.copyCreated", {
+          defaultValue:
+            "Copia creada (queda en borrador — revisa fechas y peso antes de publicar)",
+        }),
       );
       onDuplicated?.(newId);
       onOpenChange(false);

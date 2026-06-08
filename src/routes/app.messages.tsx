@@ -125,6 +125,7 @@ import { MessageAttachments } from "@/modules/messaging/MessageAttachments";
 import { formatDateTime } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/messages")({ component: MessagesPage });
 
@@ -507,11 +508,19 @@ function MessagesPage() {
 
   const sendBroadcast = async () => {
     if (broadcastCourseIds.length === 0) {
-      toast.error("Selecciona al menos un curso.");
+      toast.error(
+        i18n.t("toast.routes_app_messages.selectAtLeastOneCourse", {
+          defaultValue: "Selecciona al menos un curso.",
+        }),
+      );
       return;
     }
     if (!broadcastSubject.trim() || !broadcastBody.trim()) {
-      toast.error("Asunto y mensaje son obligatorios.");
+      toast.error(
+        i18n.t("toast.routes_app_messages.subjectAndMessageRequired", {
+          defaultValue: "Asunto y mensaje son obligatorios.",
+        }),
+      );
       return;
     }
     setBroadcastSending(true);
@@ -536,11 +545,24 @@ function MessagesPage() {
       const courseWord = broadcastCourseIds.length === 1 ? "curso" : "cursos";
       if (withEmail > 0) {
         toast.success(
-          `Mensaje enviado a ${notified} estudiante(s) de ${broadcastCourseIds.length} ${courseWord}. ${withEmail} recibirá(n) correo.`,
+          i18n.t("toast.routes_app_messages.broadcastSentWithEmail", {
+            defaultValue:
+              "Mensaje enviado a {{notified}} estudiante(s) de {{courseCount}} {{courseWord}}. {{withEmail}} recibirá(n) correo.",
+            notified,
+            courseCount: broadcastCourseIds.length,
+            courseWord,
+            withEmail,
+          }),
         );
       } else {
         toast.success(
-          `Mensaje enviado a ${notified} estudiante(s) de ${broadcastCourseIds.length} ${courseWord}. Solo notificación in-app (sin correos configurados).`,
+          i18n.t("toast.routes_app_messages.broadcastSentNoEmail", {
+            defaultValue:
+              "Mensaje enviado a {{notified}} estudiante(s) de {{courseCount}} {{courseWord}}. Solo notificación in-app (sin correos configurados).",
+            notified,
+            courseCount: broadcastCourseIds.length,
+            courseWord,
+          }),
         );
       }
       setBroadcastDialogOpen(false);
@@ -560,11 +582,19 @@ function MessagesPage() {
   // El cron `dispatch_scheduled_messages` la envía cuando vence.
   const scheduleBroadcast = async () => {
     if (broadcastCourseIds.length === 0) {
-      toast.error("Selecciona al menos un curso.");
+      toast.error(
+        i18n.t("toast.routes_app_messages.selectAtLeastOneCourse", {
+          defaultValue: "Selecciona al menos un curso.",
+        }),
+      );
       return;
     }
     if (!broadcastSubject.trim() || !broadcastBody.trim()) {
-      toast.error("Asunto y mensaje son obligatorios.");
+      toast.error(
+        i18n.t("toast.routes_app_messages.subjectAndMessageRequired", {
+          defaultValue: "Asunto y mensaje son obligatorios.",
+        }),
+      );
       return;
     }
     const v = validateScheduledSend(broadcastScheduleAt);
@@ -587,7 +617,12 @@ function MessagesPage() {
         toast.error(friendlyError(error));
         return;
       }
-      toast.success(`Difusión programada para ${formatDateTime(localToIso(broadcastScheduleAt))}.`);
+      toast.success(
+        i18n.t("toast.routes_app_messages.broadcastScheduled", {
+          defaultValue: "Difusión programada para {{when}}.",
+          when: formatDateTime(localToIso(broadcastScheduleAt)),
+        }),
+      );
       setBroadcastDialogOpen(false);
       setBroadcastCourseIds([]);
       setBroadcastSubject("");
@@ -604,7 +639,11 @@ function MessagesPage() {
   const scheduleDirect = async () => {
     if (!activeConv || !myUserId) return;
     if (!body.trim()) {
-      toast.error("Escribe un mensaje.");
+      toast.error(
+        i18n.t("toast.routes_app_messages.writeAMessage", {
+          defaultValue: "Escribe un mensaje.",
+        }),
+      );
       return;
     }
     const v = validateScheduledSend(directScheduleAt);
@@ -626,7 +665,12 @@ function MessagesPage() {
         toast.error(friendlyError(error));
         return;
       }
-      toast.success(`Mensaje programado para ${formatDateTime(localToIso(directScheduleAt))}.`);
+      toast.success(
+        i18n.t("toast.routes_app_messages.directScheduled", {
+          defaultValue: "Mensaje programado para {{when}}.",
+          when: formatDateTime(localToIso(directScheduleAt)),
+        }),
+      );
       setBody("");
       setDirectScheduleAt("");
       setDirectScheduleOpen(false);
@@ -661,7 +705,11 @@ function MessagesPage() {
   // DateTimePicker.
   const beginEditScheduled = (it: (typeof scheduledItems)[number]) => {
     if (it.status !== "pending") {
-      toast.error("Solo se pueden editar mensajes pendientes.");
+      toast.error(
+        i18n.t("toast.routes_app_messages.onlyPendingEditable", {
+          defaultValue: "Solo se pueden editar mensajes pendientes.",
+        }),
+      );
       return;
     }
     setEditingScheduledId(it.id);
@@ -688,7 +736,11 @@ function MessagesPage() {
   const saveEditScheduled = async () => {
     if (!editingScheduledId) return;
     if (!editDraftBody.trim()) {
-      toast.error("El mensaje no puede quedar vacío.");
+      toast.error(
+        i18n.t("toast.routes_app_messages.messageCannotBeEmptyDot", {
+          defaultValue: "El mensaje no puede quedar vacío.",
+        }),
+      );
       return;
     }
     const validation = validateScheduledSend(editDraftSendAt);
@@ -716,9 +768,17 @@ function MessagesPage() {
       if (!data) {
         // No row → status cambió mientras tanto (cron lo dispatchó o user
         // lo canceló desde otro tab). Informamos sin mostrar como error.
-        toast.info("El mensaje ya no está pendiente; refrescamos la lista.");
+        toast.info(
+          i18n.t("toast.routes_app_messages.messageNoLongerPending", {
+            defaultValue: "El mensaje ya no está pendiente; refrescamos la lista.",
+          }),
+        );
       } else {
-        toast.success("Cambios guardados.");
+        toast.success(
+          i18n.t("toast.routes_app_messages.changesSaved", {
+            defaultValue: "Cambios guardados.",
+          }),
+        );
       }
       cancelEditScheduled();
       void loadScheduled();
@@ -745,7 +805,11 @@ function MessagesPage() {
         toast.error(friendlyError(error));
         return;
       }
-      toast.success("Programación cancelada.");
+      toast.success(
+        i18n.t("toast.routes_app_messages.scheduleCancelled", {
+          defaultValue: "Programación cancelada.",
+        }),
+      );
       void loadScheduled();
     } catch (e) {
       toast.error(friendlyError(e, "No se pudo cancelar"));
@@ -770,9 +834,18 @@ function MessagesPage() {
       }
       const n = Number(data ?? 0);
       if (n === 0) {
-        toast.info("No había mensajes vencidos para procesar.");
+        toast.info(
+          i18n.t("toast.routes_app_messages.noDueMessages", {
+            defaultValue: "No había mensajes vencidos para procesar.",
+          }),
+        );
       } else {
-        toast.success(`${n} mensaje${n === 1 ? "" : "s"} despachado${n === 1 ? "" : "s"}.`);
+        toast.success(
+          i18n.t("toast.routes_app_messages.messagesDispatched", {
+            defaultValue: `${n} mensaje${n === 1 ? "" : "s"} despachado${n === 1 ? "" : "s"}.`,
+            count: n,
+          }),
+        );
       }
       void loadScheduled();
     } catch (e) {
@@ -939,7 +1012,13 @@ function MessagesPage() {
     for (const f of Array.from(incoming)) {
       const err = validateAttachmentFile(f);
       if (err) {
-        toast.error(`${f.name}: ${err}`);
+        toast.error(
+          i18n.t("toast.routes_app_messages.fileValidationError", {
+            defaultValue: "{{fileName}}: {{error}}",
+            fileName: f.name,
+            error: err,
+          }),
+        );
         continue;
       }
       next.push(f);
@@ -947,7 +1026,12 @@ function MessagesPage() {
     setPendingFiles((prev) => {
       const merged = [...prev, ...next];
       if (merged.length > MESSAGE_ATTACHMENT_MAX_COUNT) {
-        toast.error(`Máximo ${MESSAGE_ATTACHMENT_MAX_COUNT} archivos por mensaje.`);
+        toast.error(
+          i18n.t("toast.routes_app_messages.maxAttachmentsPerMessage", {
+            defaultValue: "Máximo {{max}} archivos por mensaje.",
+            max: MESSAGE_ATTACHMENT_MAX_COUNT,
+          }),
+        );
         return merged.slice(0, MESSAGE_ATTACHMENT_MAX_COUNT);
       }
       return merged;
@@ -970,7 +1054,13 @@ function MessagesPage() {
         contentType: file.type || "application/octet-stream",
       });
       if (up.error) {
-        toast.error(`No se pudo subir ${safe}: ${friendlyError(up.error)}`);
+        toast.error(
+          i18n.t("toast.routes_app_messages.attachmentUploadFailed", {
+            defaultValue: "No se pudo subir {{name}}: {{error}}",
+            name: safe,
+            error: friendlyError(up.error),
+          }),
+        );
         continue;
       }
       const { data, error } = await db
@@ -987,7 +1077,13 @@ function MessagesPage() {
         .single();
       if (error || !data) {
         await supabase.storage.from("message-attachments").remove([path]);
-        toast.error(`No se pudo registrar ${safe}: ${friendlyError(error, "desconocido")}`);
+        toast.error(
+          i18n.t("toast.routes_app_messages.attachmentRegisterFailed", {
+            defaultValue: "No se pudo registrar {{name}}: {{error}}",
+            name: safe,
+            error: friendlyError(error, "desconocido"),
+          }),
+        );
         continue;
       }
       created.push(data as MessageAttachmentRow);
@@ -1038,7 +1134,11 @@ function MessagesPage() {
     // disparar el handler, abortamos con toast amigable. La RLS en DB
     // tiene la última palabra de todos modos.
     if (isMessageReadByOther(m.created_at, otherLastReadAt)) {
-      toast.error("Ya no puedes editar este mensaje: el otro usuario lo leyó.");
+      toast.error(
+        i18n.t("toast.routes_app_messages.cannotEditAlreadyRead", {
+          defaultValue: "Ya no puedes editar este mensaje: el otro usuario lo leyó.",
+        }),
+      );
       return;
     }
     setEditingId(m.id);
@@ -1054,7 +1154,11 @@ function MessagesPage() {
     if (!editingId) return;
     const trimmed = editingText.trim();
     if (!trimmed) {
-      toast.error("El mensaje no puede estar vacío");
+      toast.error(
+        i18n.t("toast.routes_app_messages.messageCannotBeEmpty", {
+          defaultValue: "El mensaje no puede estar vacío",
+        }),
+      );
       return;
     }
     setSavingEditId(editingId);
@@ -1083,7 +1187,11 @@ function MessagesPage() {
     // queda congelado. Abortamos con toast en vez de mostrar el error
     // crudo de Postgres ("policy violation").
     if (isMessageReadByOther(m.created_at, otherLastReadAt)) {
-      toast.error("Ya no puedes eliminar este mensaje: el otro usuario lo leyó.");
+      toast.error(
+        i18n.t("toast.routes_app_messages.cannotDeleteAlreadyRead", {
+          defaultValue: "Ya no puedes eliminar este mensaje: el otro usuario lo leyó.",
+        }),
+      );
       return;
     }
     const ok = await confirm({
@@ -1132,7 +1240,11 @@ function MessagesPage() {
         }),
     );
     if (eligible.length === 0) {
-      toast.error("Ninguno de los mensajes seleccionados es elegible para eliminar.");
+      toast.error(
+        i18n.t("toast.routes_app_messages.noneEligibleToDelete", {
+          defaultValue: "Ninguno de los mensajes seleccionados es elegible para eliminar.",
+        }),
+      );
       return;
     }
     const ok = await confirm({
@@ -1172,8 +1284,15 @@ function MessagesPage() {
       const skipped = idArr.length - eligible.length;
       toast.success(
         skipped > 0
-          ? `${eligible.length} eliminado(s) · ${skipped} omitido(s) (ya leídos por el otro)`
-          : `${eligible.length} mensaje(s) eliminado(s)`,
+          ? i18n.t("toast.routes_app_messages.bulkDeletedWithSkipped", {
+              defaultValue: "{{deleted}} eliminado(s) · {{skipped}} omitido(s) (ya leídos por el otro)",
+              deleted: eligible.length,
+              skipped,
+            })
+          : i18n.t("toast.routes_app_messages.bulkDeleted", {
+              defaultValue: "{{deleted}} mensaje(s) eliminado(s)",
+              deleted: eligible.length,
+            }),
       );
       setSelectMode(false);
       setSelectedMessageIds(new Set());
@@ -1232,7 +1351,10 @@ function MessagesPage() {
     clearConvSelection();
     await loadAll();
     toast.success(
-      `${ids.length} conversación${ids.length === 1 ? "" : "es"} marcada${ids.length === 1 ? "" : "s"} como leída${ids.length === 1 ? "" : "s"}`,
+      i18n.t("toast.routes_app_messages.markedSelectedRead", {
+        defaultValue: `${ids.length} conversación${ids.length === 1 ? "" : "es"} marcada${ids.length === 1 ? "" : "s"} como leída${ids.length === 1 ? "" : "s"}`,
+        count: ids.length,
+      }),
     );
   };
 
@@ -1243,7 +1365,10 @@ function MessagesPage() {
     clearConvSelection();
     await loadAll();
     toast.success(
-      `${ids.length} conversación${ids.length === 1 ? "" : "es"} marcada${ids.length === 1 ? "" : "s"} como no leída${ids.length === 1 ? "" : "s"}`,
+      i18n.t("toast.routes_app_messages.markedSelectedUnread", {
+        defaultValue: `${ids.length} conversación${ids.length === 1 ? "" : "es"} marcada${ids.length === 1 ? "" : "s"} como no leída${ids.length === 1 ? "" : "s"}`,
+        count: ids.length,
+      }),
     );
   };
 
@@ -1263,7 +1388,10 @@ function MessagesPage() {
     clearConvSelection();
     await loadAll();
     toast.success(
-      `${ids.length} conversación${ids.length === 1 ? "" : "es"} eliminada${ids.length === 1 ? "" : "s"} para ti`,
+      i18n.t("toast.routes_app_messages.clearedSelectedConversations", {
+        defaultValue: `${ids.length} conversación${ids.length === 1 ? "" : "es"} eliminada${ids.length === 1 ? "" : "s"} para ti`,
+        count: ids.length,
+      }),
     );
   };
 
@@ -1283,7 +1411,11 @@ function MessagesPage() {
     }
     if (activeConvId === convId) setActiveConvId(null);
     await loadAll();
-    toast.success("Conversación eliminada para ti");
+    toast.success(
+      i18n.t("toast.routes_app_messages.conversationCleared", {
+        defaultValue: "Conversación eliminada para ti",
+      }),
+    );
   };
 
   const filteredContacts = useMemo(() => {

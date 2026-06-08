@@ -42,6 +42,7 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { Spinner } from "@/components/ui/spinner";
 import { RotateCcw, Save } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 import {
   CONTENT_PROMPT_USE_CASES,
   type ContentPromptOverrides,
@@ -214,7 +215,7 @@ export function ContentPromptsOverridesDialog({
       }
       setState((s) => ({ ...s, overrides: payload }));
       setDrafts(payload);
-      toast.success("Prompts personalizados guardados");
+      toast.success(i18n.t("toast.modules_contents_ContentPromptsOverridesDialog.savedOk", { defaultValue: "Prompts personalizados guardados" }));
       onSaved?.();
       onClose();
     } finally {

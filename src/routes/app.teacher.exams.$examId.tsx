@@ -58,6 +58,7 @@ import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialo
 import { Library } from "lucide-react";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
+import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/teacher/exams/$examId")({ component: ExamEditor });
 
@@ -203,7 +204,11 @@ function ExamEditor() {
   const evaluateTimeWithAI = async () => {
     if (!exam) return;
     if (!questions || questions.length === 0) {
-      toast.error("Crea al menos una pregunta antes de evaluar el tiempo.");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_exams_examId.createQuestionBeforeTimeEval", {
+          defaultValue: "Crea al menos una pregunta antes de evaluar el tiempo.",
+        }),
+      );
       return;
     }
     setTimeEvalLoading(true);
@@ -237,7 +242,11 @@ function ExamEditor() {
     setExam({ ...exam, time_limit_minutes: timeEvalResult.suggested_minutes });
     setTimeEvalResult(null);
     toast.success(
-      `Duración actualizada a ${timeEvalResult.suggested_minutes} min. Recuerda guardar el examen.`,
+      i18n.t("toast.routes_app_teacher_exams_examId.durationUpdated", {
+        defaultValue:
+          "Duración actualizada a {{minutes}} min. Recuerda guardar el examen.",
+        minutes: timeEvalResult.suggested_minutes,
+      }),
     );
   };
 
@@ -356,8 +365,12 @@ function ExamEditor() {
       // Tolerancia 0.01 para evitar falsos negativos por flotante.
       if (requestedWeight > available + 0.01) {
         toast.error(
-          `El peso del examen (${requestedWeight}%) supera el bucket disponible del corte ` +
-            `(${available.toFixed(2)}% restantes). Reduce el peso o ajusta los demás exámenes del corte.`,
+          i18n.t("toast.routes_app_teacher_exams_examId.weightExceedsBucket", {
+            defaultValue:
+              "El peso del examen ({{weight}}%) supera el bucket disponible del corte ({{available}}% restantes). Reduce el peso o ajusta los demás exámenes del corte.",
+            weight: requestedWeight,
+            available: available.toFixed(2),
+          }),
         );
         return;
       }
@@ -369,7 +382,11 @@ function ExamEditor() {
     // alguna migración reciente (ver bug 'Could not find max_warnings').
     const newCourseId: string | null = (exam as any).course_id ?? null;
     if (!newCourseId) {
-      toast.error("Selecciona un curso para el examen");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_exams_examId.selectCourse", {
+          defaultValue: "Selecciona un curso para el examen",
+        }),
+      );
       return;
     }
     const courseChanged = !!originalCourseId && newCourseId !== originalCourseId;
@@ -435,12 +452,21 @@ function ExamEditor() {
         _link: "/app/student/exams",
       });
     }
-    toast.success("Examen actualizado correctamente");
+    toast.success(
+      i18n.t("toast.routes_app_teacher_exams_examId.examUpdated", {
+        defaultValue: "Examen actualizado correctamente",
+      }),
+    );
     navigate({ to: "/app/teacher/exams" });
   };
 
   const submitQuestion = async () => {
-    if (!qContent.trim()) return toast.error("Contenido requerido");
+    if (!qContent.trim())
+      return toast.error(
+        i18n.t("toast.routes_app_teacher_exams_examId.contentRequired", {
+          defaultValue: "Contenido requerido",
+        }),
+      );
     if (
       (qType === "abierta" ||
         qType === "codigo" ||
@@ -450,17 +476,28 @@ function ExamEditor() {
       !qRubric.trim()
     )
       return toast.error(
-        "Rúbrica requerida para preguntas abiertas/código/diagrama/Java GUI/Python GUI",
+        i18n.t("toast.routes_app_teacher_exams_examId.rubricRequired", {
+          defaultValue:
+            "Rúbrica requerida para preguntas abiertas/código/diagrama/Java GUI/Python GUI",
+        }),
       );
     // Validaciones específicas para cerrada_multi
     if (qType === "cerrada_multi") {
       if (qCorrectIndices.length === 0) {
-        return toast.error("Marca al menos una opción correcta en opción múltiple");
+        return toast.error(
+          i18n.t("toast.routes_app_teacher_exams_examId.markAtLeastOneCorrect", {
+            defaultValue: "Marca al menos una opción correcta en opción múltiple",
+          }),
+        );
       }
       const minN = typeof qMinSelections === "number" ? qMinSelections : 0;
       const maxN = typeof qMaxSelections === "number" ? qMaxSelections : 0;
       if (minN && maxN && minN > maxN) {
-        return toast.error("Mínimo de marcadas no puede ser mayor al máximo");
+        return toast.error(
+          i18n.t("toast.routes_app_teacher_exams_examId.minGreaterThanMax", {
+            defaultValue: "Mínimo de marcadas no puede ser mayor al máximo",
+          }),
+        );
       }
     }
     const options =
@@ -517,7 +554,11 @@ function ExamEditor() {
         })
         .eq("id", editingId);
       if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
-      toast.success("Pregunta actualizada correctamente");
+      toast.success(
+        i18n.t("toast.routes_app_teacher_exams_examId.questionUpdated", {
+          defaultValue: "Pregunta actualizada correctamente",
+        }),
+      );
     } else {
       const pos = (questions[questions.length - 1]?.position ?? -1) + 1;
       const { error } = await supabase.from("questions").insert({
@@ -541,7 +582,11 @@ function ExamEditor() {
                 : null,
       });
       if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
-      toast.success("Pregunta agregada correctamente");
+      toast.success(
+        i18n.t("toast.routes_app_teacher_exams_examId.questionAdded", {
+          defaultValue: "Pregunta agregada correctamente",
+        }),
+      );
     }
     resetQForm();
     load();
@@ -583,9 +628,19 @@ function ExamEditor() {
   };
 
   const generateAI = async () => {
-    if (!aiTopics.trim()) return toast.error("Ingresa los temas");
+    if (!aiTopics.trim())
+      return toast.error(
+        i18n.t("toast.routes_app_teacher_exams_examId.enterTopics", {
+          defaultValue: "Ingresa los temas",
+        }),
+      );
     const validRows = aiRows.filter((r) => r.count > 0);
-    if (!validRows.length) return toast.error("Configura al menos un tipo con cantidad > 0");
+    if (!validRows.length)
+      return toast.error(
+        i18n.t("toast.routes_app_teacher_exams_examId.configureAtLeastOneType", {
+          defaultValue: "Configura al menos un tipo con cantidad > 0",
+        }),
+      );
     // El gate evalúa: modo sync / código de IA inmediata activo / async.
     // allowQueue=true → si el docente está en async sin código, en lugar
     // de bloquear, el gate retorna 'proceed-async' y nosotros encolamos
@@ -602,7 +657,11 @@ function ExamEditor() {
       const dbAny = supabase as any;
       const { data: userRes } = await supabase.auth.getUser();
       if (!userRes.user) {
-        toast.error("No autenticado");
+        toast.error(
+          i18n.t("toast.routes_app_teacher_exams_examId.notAuthenticated", {
+            defaultValue: "No autenticado",
+          }),
+        );
         return;
       }
       const rows = validRows.map((row) => ({
@@ -627,9 +686,12 @@ function ExamEditor() {
         return;
       }
       toast.success(
-        `${rows.length} job${rows.length === 1 ? "" : "s"} de generación encolados. ` +
-          `Cuando tengas un código de IA inmediata o un administrador los procese, ` +
-          `las preguntas aparecerán automáticamente. Puedes verlos en el panel de Cola IA.`,
+        i18n.t("toast.routes_app_teacher_exams_examId.generationJobsQueued", {
+          defaultValue:
+            "{{count}} job{{plural}} de generación encolados. Cuando tengas un código de IA inmediata o un administrador los procese, las preguntas aparecerán automáticamente. Puedes verlos en el panel de Cola IA.",
+          count: rows.length,
+          plural: rows.length === 1 ? "" : "s",
+        }),
       );
       setAiTopics("");
       return;
@@ -649,13 +711,29 @@ function ExamEditor() {
         });
         if (error || data?.error) {
           const detail = await extractEdgeError(error, data);
-          toast.error(`Error en ${row.type}: ${detail || "Error desconocido"}`);
+          toast.error(
+            i18n.t("toast.routes_app_teacher_exams_examId.errorInType", {
+              defaultValue: "Error en {{type}}: {{detail}}",
+              type: row.type,
+              detail:
+                detail ||
+                i18n.t("toast.routes_app_teacher_exams_examId.unknownError", {
+                  defaultValue: "Error desconocido",
+                }),
+            }),
+          );
         } else {
           totalInserted += data?.inserted?.length ?? 0;
         }
       }
       if (totalInserted > 0) {
-        toast.success(`${totalInserted} pregunta${totalInserted !== 1 ? "s" : ""} generadas`);
+        toast.success(
+          i18n.t("toast.routes_app_teacher_exams_examId.questionsGenerated", {
+            defaultValue: "{{count}} pregunta{{plural}} generadas",
+            count: totalInserted,
+            plural: totalInserted !== 1 ? "s" : "",
+          }),
+        );
         setAiTopics("");
         void logEvent({
           action: "ai_questions.generated",
@@ -686,7 +764,11 @@ function ExamEditor() {
         link: "/app/student/exams",
       });
       setAssigned(new Set([...assigned, uid]));
-      toast.success("Estudiante asignado correctamente");
+      toast.success(
+        i18n.t("toast.routes_app_teacher_exams_examId.studentAssigned", {
+          defaultValue: "Estudiante asignado correctamente",
+        }),
+      );
     } else {
       const { error } = await supabase
         .from("exam_assignments")
@@ -697,7 +779,11 @@ function ExamEditor() {
       const ns = new Set(assigned);
       ns.delete(uid);
       setAssigned(ns);
-      toast.success("Asignación removida correctamente");
+      toast.success(
+        i18n.t("toast.routes_app_teacher_exams_examId.assignmentRemoved", {
+          defaultValue: "Asignación removida correctamente",
+        }),
+      );
     }
   };
 
@@ -718,7 +804,12 @@ function ExamEditor() {
       });
     }
     setAssigned((prev) => new Set([...prev, ...toAdd]));
-    toast.success(`${toAdd.length} estudiante(s) asignados correctamente`);
+    toast.success(
+      i18n.t("toast.routes_app_teacher_exams_examId.studentsAssigned", {
+        defaultValue: "{{count}} estudiante(s) asignados correctamente",
+        count: toAdd.length,
+      }),
+    );
   };
 
   const unassignMany = async (visibleIds: string[]) => {
@@ -732,7 +823,12 @@ function ExamEditor() {
       toRemove.forEach((id) => next.delete(id));
       return next;
     });
-    toast.success(`${toRemove.length} asignación(es) removidas correctamente`);
+    toast.success(
+      i18n.t("toast.routes_app_teacher_exams_examId.assignmentsRemoved", {
+        defaultValue: "{{count}} asignación(es) removidas correctamente",
+        count: toRemove.length,
+      }),
+    );
   };
 
   if (loadError) {

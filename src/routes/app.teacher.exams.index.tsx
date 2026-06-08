@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
@@ -168,7 +169,12 @@ function TeacherExams() {
     // que el cron de purga (30 días) la borre físicamente.
     const { error } = await softDeleteMany("exams", ids);
     if (error) throw new Error(error.message);
-    toast.success(`${ids.length} examen(es) enviado(s) a papelera`);
+    toast.success(
+      i18n.t("toast.routes_app_teacher_exams_index.bulkSentToTrash", {
+        defaultValue: "{{count}} examen(es) enviado(s) a papelera",
+        count: ids.length,
+      }),
+    );
     void logEvent({
       action: "exam.deleted",
       category: "exam",
@@ -367,7 +373,11 @@ function TeacherExams() {
     }
     const isExternal = !!(form as any).is_external;
     if (isExternal && !form.start_time) {
-      toast.error("Indica la fecha de la actividad");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_exams_index.externalDateRequired", {
+          defaultValue: "Indica la fecha de la actividad",
+        }),
+      );
       return;
     }
     const courseIds = [...selectedCourseIds];
@@ -410,8 +420,12 @@ function TeacherExams() {
       const cap = examWeightMax ?? 0;
       if (requested > cap + 0.01) {
         toast.error(
-          `El peso del examen (${requested}%) supera el bucket disponible del corte ` +
-            `(${cap.toFixed(2)}% restantes). Reduce el peso o ajusta los demás exámenes del corte.`,
+          i18n.t("toast.routes_app_teacher_exams_index.weightOverBucket", {
+            defaultValue:
+              "El peso del examen ({{requested}}%) supera el bucket disponible del corte ({{available}}% restantes). Reduce el peso o ajusta los demás exámenes del corte.",
+            requested,
+            available: cap.toFixed(2),
+          }),
         );
         return;
       }
@@ -432,8 +446,13 @@ function TeacherExams() {
         if (requested > available + 0.01) {
           const cName = courses.find((c) => c.id === cid)?.name ?? cid;
           toast.error(
-            `${cName}: El peso del examen (${requested}%) supera el bucket disponible del corte ` +
-              `(${available.toFixed(2)}% restantes). Reduce el peso o ajusta los demás exámenes del corte.`,
+            i18n.t("toast.routes_app_teacher_exams_index.weightOverBucketCourse", {
+              defaultValue:
+                "{{courseName}}: El peso del examen ({{requested}}%) supera el bucket disponible del corte ({{available}}% restantes). Reduce el peso o ajusta los demás exámenes del corte.",
+              courseName: cName,
+              requested,
+              available: available.toFixed(2),
+            }),
           );
           return;
         }

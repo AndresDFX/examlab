@@ -12,6 +12,7 @@ import { Download, Upload, FileDown, FileUp } from "lucide-react";
 import { downloadCSV, parseCSV } from "@/shared/lib/csv";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 interface ImportExportMenuProps {
   /** Etiqueta del botón principal (ej: "Datos") */
@@ -49,7 +50,7 @@ export function ImportExportMenu({
   const handleDownloadTemplate = () => {
     if (!templateCsv) return;
     downloadCSV(`template-${resourceName}.csv`, templateCsv);
-    toast.success("Plantilla descargada");
+    toast.success(i18n.t("toast.shared_components_ImportExportMenu.templateDownloaded", { defaultValue: "Plantilla descargada" }));
   };
 
   const handleExport = async () => {
@@ -57,13 +58,13 @@ export function ImportExportMenu({
     try {
       const csv = await onExport();
       if (!csv || csv.trim() === "") {
-        toast.info("No hay datos para exportar");
+        toast.info(i18n.t("toast.shared_components_ImportExportMenu.noDataToExport", { defaultValue: "No hay datos para exportar" }));
         return;
       }
       downloadCSV(`${resourceName}-${Date.now()}.csv`, csv);
-      toast.success("Archivo exportado correctamente");
+      toast.success(i18n.t("toast.shared_components_ImportExportMenu.fileExportedSuccess", { defaultValue: "Archivo exportado correctamente" }));
     } catch (e: any) {
-      toast.error(`Error exportando: ${friendlyError(e, "desconocido")}`);
+      toast.error(i18n.t("toast.shared_components_ImportExportMenu.exportError", { defaultValue: "Error exportando: {{detail}}", detail: friendlyError(e, "desconocido") }));
     }
   };
 
@@ -76,7 +77,7 @@ export function ImportExportMenu({
       const text = await file.text();
       const rows = parseCSV(text);
       if (!rows.length) {
-        toast.error("El archivo no contiene datos");
+        toast.error(i18n.t("toast.shared_components_ImportExportMenu.fileNoData", { defaultValue: "El archivo no contiene datos" }));
         return;
       }
       const result = await onImport(rows);
@@ -85,7 +86,7 @@ export function ImportExportMenu({
       if (result === "") return;
       toast.success(typeof result === "string" ? result : `${rows.length} filas importadas`);
     } catch (err: any) {
-      toast.error(`Error importando: ${friendlyError(err, "desconocido")}`);
+      toast.error(i18n.t("toast.shared_components_ImportExportMenu.importError", { defaultValue: "Error importando: {{detail}}", detail: friendlyError(err, "desconocido") }));
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }

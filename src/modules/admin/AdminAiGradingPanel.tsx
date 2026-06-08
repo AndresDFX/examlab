@@ -16,6 +16,7 @@
  */
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -172,24 +173,49 @@ export function AdminAiGradingPanel() {
     }
     setMode(next);
     invalidateModeCache();
-    toast.success(`Modo IA: ${next === "async" ? "Cola (batch)" : "Sincrónico"}`);
+    toast.success(
+      i18n.t("toast.modules_admin_AdminAiGradingPanel.modeSaved", {
+        defaultValue: "Modo IA: {{mode}}",
+        mode:
+          next === "async"
+            ? i18n.t("toast.modules_admin_AdminAiGradingPanel.modeQueueLabel", {
+                defaultValue: "Cola (batch)",
+              })
+            : i18n.t("toast.modules_admin_AdminAiGradingPanel.modeSyncLabel", {
+                defaultValue: "Sincrónico",
+              }),
+      }),
+    );
   };
 
   const createCode = async () => {
     if (!user) return;
     if (newWindowMin < 1 || newWindowMin > 1440) {
-      toast.error("Ventana debe estar entre 1 y 1440 minutos.");
+      toast.error(
+        i18n.t("toast.modules_admin_AdminAiGradingPanel.windowRange", {
+          defaultValue: "Ventana debe estar entre 1 y 1440 minutos.",
+        }),
+      );
       return;
     }
     if (newMaxUses < 1) {
-      toast.error("Máximo de usos debe ser >= 1");
+      toast.error(
+        i18n.t("toast.modules_admin_AdminAiGradingPanel.maxUsesMin", {
+          defaultValue: "Máximo de usos debe ser >= 1",
+        }),
+      );
       return;
     }
     if (
       typeof newMaxMessages === "number" &&
       (newMaxMessages < 1 || newMaxMessages > 10000)
     ) {
-      toast.error("Máximo de mensajes debe estar entre 1 y 10 000 (o vacío = sin tope).");
+      toast.error(
+        i18n.t("toast.modules_admin_AdminAiGradingPanel.maxMessagesRange", {
+          defaultValue:
+            "Máximo de mensajes debe estar entre 1 y 10 000 (o vacío = sin tope).",
+        }),
+      );
       return;
     }
     const code = randomCode(8);
@@ -214,7 +240,12 @@ export function AdminAiGradingPanel() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success(`Código creado: ${code} (cópialo y pásalo al docente)`);
+    toast.success(
+      i18n.t("toast.modules_admin_AdminAiGradingPanel.codeCreated", {
+        defaultValue: "Código creado: {{code}} (cópialo y pásalo al docente)",
+        code,
+      }),
+    );
     setNewLabel("");
     await loadCodes();
   };
@@ -222,9 +253,17 @@ export function AdminAiGradingPanel() {
   const copyCode = async (code: string) => {
     try {
       await navigator.clipboard.writeText(code);
-      toast.success("Código copiado");
+      toast.success(
+        i18n.t("toast.modules_admin_AdminAiGradingPanel.codeCopied", {
+          defaultValue: "Código copiado",
+        }),
+      );
     } catch {
-      toast.error("No se pudo copiar — selecciónalo a mano.");
+      toast.error(
+        i18n.t("toast.modules_admin_AdminAiGradingPanel.copyFailed", {
+          defaultValue: "No se pudo copiar — selecciónalo a mano.",
+        }),
+      );
     }
   };
 
@@ -245,7 +284,11 @@ export function AdminAiGradingPanel() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Código revocado");
+    toast.success(
+      i18n.t("toast.modules_admin_AdminAiGradingPanel.codeRevoked", {
+        defaultValue: "Código revocado",
+      }),
+    );
     void loadCodes();
   };
 
@@ -263,7 +306,11 @@ export function AdminAiGradingPanel() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Código eliminado");
+    toast.success(
+      i18n.t("toast.modules_admin_AdminAiGradingPanel.codeDeleted", {
+        defaultValue: "Código eliminado",
+      }),
+    );
     void loadCodes();
   };
 
@@ -281,7 +328,12 @@ export function AdminAiGradingPanel() {
       toast.error(friendlyError(error, "No se pudieron eliminar los códigos"));
       return;
     }
-    toast.success(`${ids.length} código(s) eliminado(s)`);
+    toast.success(
+      i18n.t("toast.modules_admin_AdminAiGradingPanel.codesBulkDeleted", {
+        defaultValue: "{{count}} código(s) eliminado(s)",
+        count: ids.length,
+      }),
+    );
     sel.clear();
     void loadCodes();
   };

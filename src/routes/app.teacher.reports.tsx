@@ -14,6 +14,7 @@
  *       · Editar / Eliminar (solo en propias / overrides propios).
  */
 import { createFileRoute } from "@tanstack/react-router";
+import i18n from "@/i18n";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -322,18 +323,18 @@ function Inner() {
   const handleSave = async () => {
     if (!user) return;
     if (!draft.name.trim()) {
-      toast.error("El nombre es obligatorio");
+      toast.error(i18n.t("toast.routes_app_teacher_reports.nameRequired", { defaultValue: "El nombre es obligatorio" }));
       return;
     }
     if (!draft.body_html.trim()) {
-      toast.error("El cuerpo no puede estar vacío");
+      toast.error(i18n.t("toast.routes_app_teacher_reports.bodyEmpty", { defaultValue: "El cuerpo no puede estar vacío" }));
       return;
     }
     if (
       (editorMode === "new_override" || editorMode === "edit_override") &&
       !editorCourseId
     ) {
-      toast.error("Selecciona el curso para la personalización");
+      toast.error(i18n.t("toast.routes_app_teacher_reports.selectCourseForOverride", { defaultValue: "Selecciona el curso para la personalización" }));
       return;
     }
 
@@ -376,7 +377,11 @@ function Inner() {
       toast.error(friendlyError(error, "No se pudo guardar la plantilla"));
       return;
     }
-    toast.success(editorTemplateId ? "Plantilla actualizada" : "Plantilla creada");
+    toast.success(
+      editorTemplateId
+        ? i18n.t("toast.routes_app_teacher_reports.templateUpdated", { defaultValue: "Plantilla actualizada" })
+        : i18n.t("toast.routes_app_teacher_reports.templateCreated", { defaultValue: "Plantilla creada" }),
+    );
     setEditorOpen(false);
     void load();
   };
@@ -395,7 +400,7 @@ function Inner() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Plantilla eliminada");
+    toast.success(i18n.t("toast.routes_app_teacher_reports.templateDeleted", { defaultValue: "Plantilla eliminada" }));
     void load();
   };
 
@@ -424,7 +429,7 @@ function Inner() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Plantilla duplicada como privada");
+    toast.success(i18n.t("toast.routes_app_teacher_reports.templateDuplicated", { defaultValue: "Plantilla duplicada como privada" }));
     void load();
   };
 
@@ -458,7 +463,10 @@ function Inner() {
     );
     if (!actaTpl) {
       toast.error(
-        "No se encontró la plantilla 'Acta de finalización del curso'. Pídele al admin que la publique.",
+        i18n.t("toast.routes_app_teacher_reports.actaTemplateNotFound", {
+          defaultValue:
+            "No se encontró la plantilla 'Acta de finalización del curso'. Pídele al admin que la publique.",
+        }),
       );
       return;
     }
@@ -514,7 +522,7 @@ function Inner() {
   const handleGenerate = async () => {
     if (!genTemplate || !genCourseId) return;
     if (genTemplate.scope === "estudiante" && !genStudentId) {
-      toast.error("Selecciona un estudiante");
+      toast.error(i18n.t("toast.routes_app_teacher_reports.selectStudent", { defaultValue: "Selecciona un estudiante" }));
       return;
     }
     setGenBuilding(true);
@@ -543,7 +551,11 @@ function Inner() {
       });
       setGenHtml(html);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error al generar el informe");
+      toast.error(
+        e instanceof Error
+          ? e.message
+          : i18n.t("toast.routes_app_teacher_reports.generateReportError", { defaultValue: "Error al generar el informe" }),
+      );
     }
     setGenBuilding(false);
   };
@@ -551,7 +563,7 @@ function Inner() {
   const handlePrint = () => {
     const iframe = iframeRef.current;
     if (!iframe?.contentWindow) {
-      toast.error("Vista previa no disponible");
+      toast.error(i18n.t("toast.routes_app_teacher_reports.previewUnavailable", { defaultValue: "Vista previa no disponible" }));
       return;
     }
     iframe.contentWindow.focus();

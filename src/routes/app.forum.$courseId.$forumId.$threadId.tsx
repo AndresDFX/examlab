@@ -39,6 +39,7 @@ import {
 import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { ErrorState } from "@/components/ui/empty-state";
+import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/forum/$courseId/$forumId/$threadId")({
   component: ThreadDetail,
@@ -186,7 +187,15 @@ function ThreadDetail() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success(makeOfficial ? "Respuesta destacada como oficial" : "Marca de oficial removida");
+    toast.success(
+      makeOfficial
+        ? i18n.t("toast.routes_app_forum_courseId_forumId_threadId.replyMarkedOfficial", {
+            defaultValue: "Respuesta destacada como oficial",
+          })
+        : i18n.t("toast.routes_app_forum_courseId_forumId_threadId.replyOfficialRemoved", {
+            defaultValue: "Marca de oficial removida",
+          }),
+    );
     await load();
   };
 
@@ -202,7 +211,15 @@ function ThreadDetail() {
       return;
     }
     setThread({ ...thread, is_pinned: !thread.is_pinned });
-    toast.success(!thread.is_pinned ? "Hilo fijado" : "Hilo desfijado");
+    toast.success(
+      !thread.is_pinned
+        ? i18n.t("toast.routes_app_forum_courseId_forumId_threadId.threadPinned", {
+            defaultValue: "Hilo fijado",
+          })
+        : i18n.t("toast.routes_app_forum_courseId_forumId_threadId.threadUnpinned", {
+            defaultValue: "Hilo desfijado",
+          }),
+    );
   };
 
   const toggleLock = async () => {
@@ -232,7 +249,15 @@ function ThreadDetail() {
       return;
     }
     setThread({ ...thread, is_locked: !thread.is_locked });
-    toast.success(!thread.is_locked ? "Hilo cerrado" : "Hilo reabierto");
+    toast.success(
+      !thread.is_locked
+        ? i18n.t("toast.routes_app_forum_courseId_forumId_threadId.threadLocked", {
+            defaultValue: "Hilo cerrado",
+          })
+        : i18n.t("toast.routes_app_forum_courseId_forumId_threadId.threadUnlocked", {
+            defaultValue: "Hilo reabierto",
+          }),
+    );
   };
 
   // ── Crear respuesta ────────────────────────────────────────────────
@@ -252,7 +277,11 @@ function ThreadDetail() {
       return;
     }
     setNewReply("");
-    toast.success("Respuesta publicada");
+    toast.success(
+      i18n.t("toast.routes_app_forum_courseId_forumId_threadId.replyPublished", {
+        defaultValue: "Respuesta publicada",
+      }),
+    );
     await load();
   };
 
@@ -269,7 +298,11 @@ function ThreadDetail() {
     const title = editTitle.trim();
     const body = editBody.trim();
     if (title.length < 3 || !body) {
-      toast.error("Título y cuerpo son obligatorios");
+      toast.error(
+        i18n.t("toast.routes_app_forum_courseId_forumId_threadId.titleAndBodyRequired", {
+          defaultValue: "Título y cuerpo son obligatorios",
+        }),
+      );
       return;
     }
     const { error } = await db
@@ -282,7 +315,11 @@ function ThreadDetail() {
     }
     setThread({ ...thread, title, body });
     setEditingThread(false);
-    toast.success("Pregunta actualizada");
+    toast.success(
+      i18n.t("toast.routes_app_forum_courseId_forumId_threadId.questionUpdated", {
+        defaultValue: "Pregunta actualizada",
+      }),
+    );
   };
 
   // ── Edit reply ──────────────────────────────────────────────────────
@@ -306,7 +343,11 @@ function ThreadDetail() {
     setReplies((rs) => rs.map((r) => (r.id === editingReplyId ? { ...r, body } : r)));
     setEditingReplyId(null);
     setEditReplyBody("");
-    toast.success("Respuesta actualizada");
+    toast.success(
+      i18n.t("toast.routes_app_forum_courseId_forumId_threadId.replyUpdated", {
+        defaultValue: "Respuesta actualizada",
+      }),
+    );
   };
 
   // ── Delete ──────────────────────────────────────────────────────────
@@ -324,7 +365,11 @@ function ThreadDetail() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Hilo borrado");
+    toast.success(
+      i18n.t("toast.routes_app_forum_courseId_forumId_threadId.threadDeleted", {
+        defaultValue: "Hilo borrado",
+      }),
+    );
     // Volvemos a la lista de hilos del foro (no a la lista de foros).
     navigate({ to: "/app/forum/$courseId/$forumId", params: { courseId, forumId } });
   };
@@ -343,7 +388,11 @@ function ThreadDetail() {
       return;
     }
     setReplies((rs) => rs.filter((r) => r.id !== replyId));
-    toast.success("Respuesta borrada");
+    toast.success(
+      i18n.t("toast.routes_app_forum_courseId_forumId_threadId.replyDeleted", {
+        defaultValue: "Respuesta borrada",
+      }),
+    );
   };
 
   if (loading) {

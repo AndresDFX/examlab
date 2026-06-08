@@ -49,6 +49,7 @@ import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
 import { WorkshopGroupsEditor } from "@/modules/workshops/WorkshopGroupsEditor";
 import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 import { logEvent } from "@/shared/lib/audit";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
@@ -323,7 +324,12 @@ function TeacherWorkshops() {
   const handleBulkDelete = async (ids: string[]) => {
     const { error } = await softDeleteMany("workshops", ids);
     if (error) throw new Error(error.message);
-    toast.success(`${ids.length} taller(es) enviado(s) a papelera`);
+    toast.success(
+      i18n.t("toast.routes_app_teacher_workshops.bulkMovedToTrash", {
+        defaultValue: "{{count}} taller(es) enviado(s) a papelera",
+        count: ids.length,
+      }),
+    );
     void logEvent({
       action: "workshop.deleted",
       category: "workshop",
@@ -633,7 +639,11 @@ function TeacherWorkshops() {
         setOriginalCourseId(ws.course_id ?? null);
         setOpen(true);
       } else {
-        toast.info("El taller referenciado en la URL ya no existe o no tienes acceso a él.");
+        toast.info(
+          i18n.t("toast.routes_app_teacher_workshops.workshopFromUrlMissing", {
+            defaultValue: "El taller referenciado en la URL ya no existe o no tienes acceso a él.",
+          }),
+        );
       }
       const url = new URL(window.location.href);
       url.searchParams.delete("edit");
@@ -649,7 +659,10 @@ function TeacherWorkshops() {
         void openGrading(ws as Workshop);
       } else {
         toast.info(
-          "El taller referenciado en la notificación ya no existe o no tienes acceso a él.",
+          i18n.t("toast.routes_app_teacher_workshops.workshopFromNotificationMissing", {
+            defaultValue:
+              "El taller referenciado en la notificación ya no existe o no tienes acceso a él.",
+          }),
         );
       }
       const url = new URL(window.location.href);
@@ -775,19 +788,32 @@ function TeacherWorkshops() {
     const { error: vErr } = await supabase.from("workshop_intro_videos").insert(insertRows);
     if (vErr) {
       console.warn("[workshops] sync workshop_intro_videos failed", vErr);
-      toast.error(`No se pudieron guardar los videos introductorios: ${friendlyError(vErr)}`);
+      toast.error(
+        i18n.t("toast.routes_app_teacher_workshops.introVideosSaveFailed", {
+          defaultValue: "No se pudieron guardar los videos introductorios: {{error}}",
+          error: friendlyError(vErr),
+        }),
+      );
     }
   };
 
   const save = async () => {
     if (!form.title || !user) {
-      toast.error("Completa los campos");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_workshops.completeFields", {
+          defaultValue: "Completa los campos",
+        }),
+      );
       return;
     }
     // If editing, use single course
     const courseIds = form.id ? [form.course_id!] : [...selectedCourseIds];
     if (courseIds.length === 0) {
-      toast.error("Selecciona al menos un curso");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_workshops.selectAtLeastOneCourse", {
+          defaultValue: "Selecciona al menos un curso",
+        }),
+      );
       return;
     }
 
@@ -825,8 +851,12 @@ function TeacherWorkshops() {
       const cap = workshopWeightMax ?? 0;
       if (requested > cap + 0.01) {
         toast.error(
-          `El peso del taller (${requested}%) supera el bucket disponible del corte ` +
-            `(${cap.toFixed(2)}% restantes). Reduce el peso o ajusta los demás talleres del corte.`,
+          i18n.t("toast.routes_app_teacher_workshops.weightExceedsBucket", {
+            defaultValue:
+              "El peso del taller ({{requested}}%) supera el bucket disponible del corte ({{available}}% restantes). Reduce el peso o ajusta los demás talleres del corte.",
+            requested,
+            available: cap.toFixed(2),
+          }),
         );
         return;
       }
@@ -847,8 +877,13 @@ function TeacherWorkshops() {
         if (requested > available + 0.01) {
           const cName = courses.find((c) => c.id === cid)?.name ?? cid;
           toast.error(
-            `${cName}: El peso del taller (${requested}%) supera el bucket disponible del corte ` +
-              `(${available.toFixed(2)}% restantes). Reduce el peso o ajusta los demás talleres del corte.`,
+            i18n.t("toast.routes_app_teacher_workshops.weightExceedsBucketForCourse", {
+              defaultValue:
+                "{{course}}: El peso del taller ({{requested}}%) supera el bucket disponible del corte ({{available}}% restantes). Reduce el peso o ajusta los demás talleres del corte.",
+              course: cName,
+              requested,
+              available: available.toFixed(2),
+            }),
           );
           return;
         }
@@ -965,7 +1000,11 @@ function TeacherWorkshops() {
         return;
       }
       if (!newWs) {
-        toast.error("No se pudo crear el taller");
+        toast.error(
+          i18n.t("toast.routes_app_teacher_workshops.workshopCreateFailed", {
+            defaultValue: "No se pudo crear el taller",
+          }),
+        );
         return;
       }
       // Insertamos las N relaciones workshop_courses. La primera dup-checks
@@ -1011,8 +1050,13 @@ function TeacherWorkshops() {
       }
       toast.success(
         courseIds.length > 1
-          ? `Taller creado en ${courseIds.length} cursos (1 registro compartido).`
-          : "Taller creado correctamente",
+          ? i18n.t("toast.routes_app_teacher_workshops.workshopCreatedMultiCourse", {
+              defaultValue: "Taller creado en {{count}} cursos (1 registro compartido).",
+              count: courseIds.length,
+            })
+          : i18n.t("toast.routes_app_teacher_workshops.workshopCreated", {
+              defaultValue: "Taller creado correctamente",
+            }),
       );
       void logEvent({
         action: "workshop.created",
@@ -1094,7 +1138,11 @@ function TeacherWorkshops() {
         .insert({ workshop_id: assignWs.id, user_id: uid });
       if (error) return toast.error(friendlyError(error));
       setAssignedIds(new Set([...assignedIds, uid]));
-      toast.success("Estudiante asignado correctamente");
+      toast.success(
+        i18n.t("toast.routes_app_teacher_workshops.studentAssigned", {
+          defaultValue: "Estudiante asignado correctamente",
+        }),
+      );
     } else {
       const { error } = await supabase
         .from("workshop_assignments")
@@ -1105,7 +1153,11 @@ function TeacherWorkshops() {
       const ns = new Set(assignedIds);
       ns.delete(uid);
       setAssignedIds(ns);
-      toast.success("Asignación removida correctamente");
+      toast.success(
+        i18n.t("toast.routes_app_teacher_workshops.assignmentRemoved", {
+          defaultValue: "Asignación removida correctamente",
+        }),
+      );
     }
   };
 
@@ -1118,7 +1170,12 @@ function TeacherWorkshops() {
       .insert(toAdd.map((s) => ({ workshop_id: assignWs.id, user_id: s.id })));
     if (error) return toast.error(friendlyError(error));
     setAssignedIds(new Set(students.map((s) => s.id)));
-    toast.success(`${toAdd.length} estudiante(s) asignados correctamente`);
+    toast.success(
+      i18n.t("toast.routes_app_teacher_workshops.studentsAssigned", {
+        defaultValue: "{{count}} estudiante(s) asignados correctamente",
+        count: toAdd.length,
+      }),
+    );
   };
 
   const unassignAll = async () => {
@@ -1133,7 +1190,12 @@ function TeacherWorkshops() {
         .eq("user_id", s.id);
     }
     setAssignedIds(new Set());
-    toast.success(`${toRemove.length} asignación(es) removidas correctamente`);
+    toast.success(
+      i18n.t("toast.routes_app_teacher_workshops.assignmentsRemoved", {
+        defaultValue: "{{count}} asignación(es) removidas correctamente",
+        count: toRemove.length,
+      }),
+    );
   };
 
   const openGrading = async (ws: Workshop) => {
@@ -1437,7 +1499,11 @@ function TeacherWorkshops() {
   const saveAnswerGrade = async (subId: string, questionId: string) => {
     const answer = (answersBySub[subId] ?? []).find((a) => a.question_id === questionId);
     if (!answer || !answer.id) {
-      toast.error("Esta entrega aún no tiene respuesta para la pregunta.");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_workshops.noAnswerForQuestion", {
+          defaultValue: "Esta entrega aún no tiene respuesta para la pregunta.",
+        }),
+      );
       return;
     }
     setSavingAnswerId(answer.id);
@@ -1460,7 +1526,11 @@ function TeacherWorkshops() {
         .eq("id", subId);
       if (subErr) {
         toast.error(
-          `Calificación guardada, pero falló recalcular calificación global: ${subErr.message}`,
+          i18n.t("toast.routes_app_teacher_workshops.gradeSavedRecomputeFailed", {
+            defaultValue:
+              "Calificación guardada, pero falló recalcular calificación global: {{error}}",
+            error: subErr.message,
+          }),
         );
       } else {
         setWsSubs((prev) =>
@@ -1469,7 +1539,11 @@ function TeacherWorkshops() {
           ),
         );
         toast.success(
-          `Pregunta guardada · calificación global: ${newFinal}/${gradingWs?.max_score ?? 100}`,
+          i18n.t("toast.routes_app_teacher_workshops.questionSavedGlobalGrade", {
+            defaultValue: "Pregunta guardada · calificación global: {{grade}}/{{max}}",
+            grade: newFinal,
+            max: gradingWs?.max_score ?? 100,
+          }),
         );
       }
     } finally {
@@ -1515,7 +1589,10 @@ function TeacherWorkshops() {
 
     if (!raw || !raw.trim()) {
       toast.error(
-        "Esta entrega no tiene respuesta a esta pregunta ni contenido global. No hay nada para recalificar.",
+        i18n.t("toast.routes_app_teacher_workshops.nothingToRegrade", {
+          defaultValue:
+            "Esta entrega no tiene respuesta a esta pregunta ni contenido global. No hay nada para recalificar.",
+        }),
       );
       return;
     }
@@ -1544,7 +1621,14 @@ function TeacherWorkshops() {
       });
       if (error || data?.error) {
         const detail = await extractEdgeError(error, data);
-        toast.error(`Error IA: ${detail || "Desconocido"}`);
+        toast.error(
+          i18n.t("toast.routes_app_teacher_workshops.aiError", {
+            defaultValue: "Error IA: {{detail}}",
+            detail:
+              detail ||
+              i18n.t("toast.routes_app_teacher_workshops.unknown", { defaultValue: "Desconocido" }),
+          }),
+        );
         return;
       }
       const newGrade = Number(data?.grade ?? 0);
@@ -1638,7 +1722,15 @@ function TeacherWorkshops() {
       );
       return { ...prev, [submissionId]: list };
     });
-    toast.success(currentlyReviewed ? "Marcada como pendiente" : "Marcada como revisada");
+    toast.success(
+      currentlyReviewed
+        ? i18n.t("toast.routes_app_teacher_workshops.markedPending", {
+            defaultValue: "Marcada como pendiente",
+          })
+        : i18n.t("toast.routes_app_teacher_workshops.markedReviewed", {
+            defaultValue: "Marcada como revisada",
+          }),
+    );
   };
 
   /** Marca/desmarca un par de copia (similarity_pairs) como revisado.
@@ -1659,7 +1751,15 @@ function TeacherWorkshops() {
     setWsSimilarityPairs((prev) =>
       prev.map((p) => (p.id === pairId ? { ...p, reviewed_at: next } : p)),
     );
-    toast.success(currentlyReviewed ? "Marcada como pendiente" : "Marcada como revisada");
+    toast.success(
+      currentlyReviewed
+        ? i18n.t("toast.routes_app_teacher_workshops.markedPending", {
+            defaultValue: "Marcada como pendiente",
+          })
+        : i18n.t("toast.routes_app_teacher_workshops.markedReviewed", {
+            defaultValue: "Marcada como revisada",
+          }),
+    );
   };
   /** Estado del botón "Detectar copias" del modal de calificación. La
    *  edge function `detect-plagiarism` compara respuestas POR PREGUNTA
@@ -1696,7 +1796,14 @@ function TeacherWorkshops() {
       });
       if (found > 0) {
         toast.success(
-          `Detección completada: ${found} par${found === 1 ? "" : "es"} sospechoso${found === 1 ? "" : "s"} encontrado${found === 1 ? "" : "s"}.`,
+          found === 1
+            ? i18n.t("toast.routes_app_teacher_workshops.detectionDoneOne", {
+                defaultValue: "Detección completada: 1 par sospechoso encontrado.",
+              })
+            : i18n.t("toast.routes_app_teacher_workshops.detectionDoneMany", {
+                defaultValue: "Detección completada: {{count}} pares sospechosos encontrados.",
+                count: found,
+              }),
         );
       } else {
         toast.message("Detección completada", {
@@ -1754,7 +1861,10 @@ function TeacherWorkshops() {
       }
     } catch (e) {
       toast.error(
-        `No se pudo ejecutar la detección: ${e instanceof Error ? e.message : String(e)}`,
+        i18n.t("toast.routes_app_teacher_workshops.detectionFailed", {
+          defaultValue: "No se pudo ejecutar la detección: {{error}}",
+          error: e instanceof Error ? e.message : String(e),
+        }),
       );
     } finally {
       setDetectingCopies(false);
@@ -1873,7 +1983,17 @@ function TeacherWorkshops() {
             },
           );
           if (bErr || bData?.error) {
-            toast.error(`Error IA: ${bData?.error ?? bErr?.message ?? "desconocido"}`);
+            toast.error(
+              i18n.t("toast.routes_app_teacher_workshops.aiError", {
+                defaultValue: "Error IA: {{detail}}",
+                detail:
+                  bData?.error ??
+                  bErr?.message ??
+                  i18n.t("toast.routes_app_teacher_workshops.unknownLower", {
+                    defaultValue: "desconocido",
+                  }),
+              }),
+            );
             return false;
           }
           const results = (bData?.results ?? {}) as Record<
@@ -1918,7 +2038,12 @@ function TeacherWorkshops() {
           .update({ ai_grade: finalGrade, ai_feedback: summary, status: "ai_revisado" })
           .eq("id", sub.id);
         if (updateErr) {
-          toast.error(`Error guardando: ${friendlyError(updateErr)}`);
+          toast.error(
+            i18n.t("toast.routes_app_teacher_workshops.saveError", {
+              defaultValue: "Error guardando: {{error}}",
+              error: friendlyError(updateErr),
+            }),
+          );
           return false;
         }
         setWsSubs((prev) =>
@@ -1964,7 +2089,10 @@ function TeacherWorkshops() {
 
       if (aiErr || aiData?.error) {
         toast.error(
-          "La calificación IA requiere actualizar la edge function. Usa calificación manual.",
+          i18n.t("toast.routes_app_teacher_workshops.aiGradingNeedsUpdate", {
+            defaultValue:
+              "La calificación IA requiere actualizar la edge function. Usa calificación manual.",
+          }),
         );
         return false;
       } else {
@@ -1982,7 +2110,12 @@ function TeacherWorkshops() {
         .eq("id", sub.id);
 
       if (updateErr) {
-        toast.error(`Error guardando: ${friendlyError(updateErr)}`);
+        toast.error(
+          i18n.t("toast.routes_app_teacher_workshops.saveError", {
+            defaultValue: "Error guardando: {{error}}",
+            error: friendlyError(updateErr),
+          }),
+        );
         return false;
       }
 
@@ -1995,7 +2128,12 @@ function TeacherWorkshops() {
       );
       return true;
     } catch (e: any) {
-      toast.error(`Error IA: ${friendlyError(e, "Error desconocido")}`);
+      toast.error(
+        i18n.t("toast.routes_app_teacher_workshops.aiError", {
+          defaultValue: "Error IA: {{detail}}",
+          detail: friendlyError(e, "Error desconocido"),
+        }),
+      );
       return false;
     } finally {
       setAiGradingId(null);
@@ -2008,7 +2146,11 @@ function TeacherWorkshops() {
       (s) => s.status === "entregado" || s.status === "calificado" || s.status === "ai_revisado",
     );
     if (!pending.length) {
-      toast.info("No hay entregas para calificar");
+      toast.info(
+        i18n.t("toast.routes_app_teacher_workshops.noSubmissionsToGrade", {
+          defaultValue: "No hay entregas para calificar",
+        }),
+      );
       return;
     }
     setAiGradingAll(true);
@@ -2018,7 +2160,13 @@ function TeacherWorkshops() {
       if (ok) graded++;
     }
     setAiGradingAll(false);
-    if (graded > 0) toast.success(`${graded} entrega(s) calificadas con IA correctamente`);
+    if (graded > 0)
+      toast.success(
+        i18n.t("toast.routes_app_teacher_workshops.submissionsGradedWithAi", {
+          defaultValue: "{{count}} entrega(s) calificadas con IA correctamente",
+          count: graded,
+        }),
+      );
   };
 
   const approveAIGrade = async (subId: string) => {
@@ -2116,7 +2264,11 @@ function TeacherWorkshops() {
         previous_grade: sub.final_grade,
       },
     });
-    toast.success("Entrega reabierta. El estudiante puede reenviar.");
+    toast.success(
+      i18n.t("toast.routes_app_teacher_workshops.submissionReopened", {
+        defaultValue: "Entrega reabierta. El estudiante puede reenviar.",
+      }),
+    );
     setWsSubs((prev) =>
       prev.map((s) =>
         s.id === sub.id ? { ...s, status: "entregado", final_grade: null, ai_grade: null } : s,
@@ -2136,11 +2288,20 @@ function TeacherWorkshops() {
       .maybeSingle();
 
     if (error) {
-      toast.error(`Error: ${friendlyError(error)}`);
+      toast.error(
+        i18n.t("toast.routes_app_teacher_workshops.genericError", {
+          defaultValue: "Error: {{error}}",
+          error: friendlyError(error),
+        }),
+      );
       return;
     }
     if (!data) {
-      toast.error("No se pudo actualizar. Verifica los permisos.");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_workshops.updateFailedCheckPermissions", {
+          defaultValue: "No se pudo actualizar. Verifica los permisos.",
+        }),
+      );
       return;
     }
     toast.success(t("workshop.gradeSaved"));
@@ -3649,7 +3810,15 @@ function TeacherWorkshops() {
                                 .from("workshop-files")
                                 .createSignedUrl(sub.file_url!, 3600);
                               if (data?.signedUrl) window.open(data.signedUrl, "_blank");
-                              else toast.error("No se pudo generar el enlace de descarga");
+                              else
+                                toast.error(
+                                  i18n.t(
+                                    "toast.routes_app_teacher_workshops.downloadLinkFailed",
+                                    {
+                                      defaultValue: "No se pudo generar el enlace de descarga",
+                                    },
+                                  ),
+                                );
                             }}
                             className="flex items-center gap-1.5 text-sm text-primary hover:underline"
                           >
@@ -4174,7 +4343,15 @@ function TeacherWorkshops() {
                                         ),
                                       );
                                       toast.info(
-                                        `Calificación global recalculada: ${newFinal}/${gradingWs?.max_score ?? 100}. Pulsa "Guardar calificación" para persistir.`,
+                                        i18n.t(
+                                          "toast.routes_app_teacher_workshops.globalGradeRecomputed",
+                                          {
+                                            defaultValue:
+                                              'Calificación global recalculada: {{grade}}/{{max}}. Pulsa "Guardar calificación" para persistir.',
+                                            grade: newFinal,
+                                            max: gradingWs?.max_score ?? 100,
+                                          },
+                                        ),
                                       );
                                     }}
                                   >

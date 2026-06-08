@@ -86,6 +86,7 @@ import { AssignSelector } from "@/shared/components/AssignSelector";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 
 // grade_cuts/grade_cut_items aren't always reflected in the auto-generated types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -327,7 +328,12 @@ export function AdminCourses() {
     // tampoco se borran — el restore reactiva el árbol intacto.
     const { error } = await softDeleteMany("courses", ids);
     if (error) throw new Error(error.message);
-    toast.success(`${ids.length} curso(s) enviado(s) a papelera`);
+    toast.success(
+      i18n.t("toast.routes_app_admin_courses.coursesSentToTrash", {
+        defaultValue: "{{count}} curso(s) enviado(s) a papelera",
+        count: ids.length,
+      }),
+    );
     void logEvent({
       action: "course.deleted",
       category: "course",
@@ -745,13 +751,21 @@ export function AdminCourses() {
 
   const save = async () => {
     if (!editing?.name?.trim()) {
-      toast.error("Nombre requerido");
+      toast.error(
+        i18n.t("toast.routes_app_admin_courses.nameRequired", {
+          defaultValue: "Nombre requerido",
+        }),
+      );
       return;
     }
     const startInput = toDateInput(editing.start_date);
     const endInput = toDateInput(editing.end_date);
     if (startInput && endInput && startInput > endInput) {
-      toast.error("La fecha de fin debe ser posterior a la fecha de inicio");
+      toast.error(
+        i18n.t("toast.routes_app_admin_courses.endDateAfterStart", {
+          defaultValue: "La fecha de fin debe ser posterior a la fecha de inicio",
+        }),
+      );
       return;
     }
 
@@ -767,7 +781,12 @@ export function AdminCourses() {
         Number(editing.attendance_weight ?? 0) +
         Number(editing.project_weight ?? 0);
       if (Math.abs(total - 100) >= TOL) {
-        toast.error(`Los pesos del curso deben sumar 100% (suma actual: ${formatPercent(total)}%)`);
+        toast.error(
+          i18n.t("toast.routes_app_admin_courses.courseWeightsMustSum100", {
+            defaultValue: "Los pesos del curso deben sumar 100% (suma actual: {{total}}%)",
+            total: formatPercent(total),
+          }),
+        );
         return;
       }
     } else {
@@ -776,7 +795,10 @@ export function AdminCourses() {
       const sumCuts = editingCuts.reduce((a, c) => a + Number(c.weight || 0), 0);
       if (Math.abs(sumCuts - 100) >= TOL) {
         toast.error(
-          `Los pesos de los cortes deben sumar 100% (suma actual: ${formatPercent(sumCuts)}%)`,
+          i18n.t("toast.routes_app_admin_courses.cutWeightsMustSum100", {
+            defaultValue: "Los pesos de los cortes deben sumar 100% (suma actual: {{total}}%)",
+            total: formatPercent(sumCuts),
+          }),
         );
         return;
       }
@@ -810,7 +832,12 @@ export function AdminCourses() {
           })
           .map(({ i }) => i);
         setExpandedCuts(new Set(idxsWithError));
-        toast.error(`Sub-pesos no cuadran con el peso del corte:\n${offending.join("\n")}`);
+        toast.error(
+          i18n.t("toast.routes_app_admin_courses.subWeightsMismatch", {
+            defaultValue: "Sub-pesos no cuadran con el peso del corte:\n{{details}}",
+            details: offending.join("\n"),
+          }),
+        );
         return;
       }
     }
@@ -905,7 +932,12 @@ export function AdminCourses() {
       // mismo curso) lo traducimos al mensaje humano.
       const friendly = friendlyUniqueViolation(e);
       const msg = friendly ?? (e instanceof Error ? e.message : String(e));
-      toast.error(`Curso guardado, pero falló la sincronización de cortes: ${msg}`);
+      toast.error(
+        i18n.t("toast.routes_app_admin_courses.courseSavedCutsSyncFailed", {
+          defaultValue: "Curso guardado, pero falló la sincronización de cortes: {{error}}",
+          error: msg,
+        }),
+      );
       setOpen(false);
       setEditing(null);
       setEditingCuts([]);
@@ -914,7 +946,11 @@ export function AdminCourses() {
       return;
     }
 
-    toast.success("Curso guardado correctamente");
+    toast.success(
+      i18n.t("toast.routes_app_admin_courses.courseSaved", {
+        defaultValue: "Curso guardado correctamente",
+      }),
+    );
     void logEvent({
       action: editing?.id ? "course.updated" : "course.created",
       category: "course",
@@ -978,7 +1014,11 @@ export function AdminCourses() {
         );
       if (error) return toast.error(friendlyError(error));
       setEnrolledIds((prev) => new Set([...prev, uid]));
-      toast.success("Estudiante matriculado correctamente");
+      toast.success(
+        i18n.t("toast.routes_app_admin_courses.studentEnrolled", {
+          defaultValue: "Estudiante matriculado correctamente",
+        }),
+      );
     } else {
       const { error } = await supabase
         .from("course_enrollments")
@@ -991,7 +1031,11 @@ export function AdminCourses() {
         s.delete(uid);
         return s;
       });
-      toast.success("Estudiante desmatriculado correctamente");
+      toast.success(
+        i18n.t("toast.routes_app_admin_courses.studentUnenrolled", {
+          defaultValue: "Estudiante desmatriculado correctamente",
+        }),
+      );
     }
   };
 
@@ -1004,7 +1048,12 @@ export function AdminCourses() {
       .insert(toAdd.map((id) => ({ course_id: enrollCourse.id, user_id: id })));
     if (error) return toast.error(friendlyError(error));
     setEnrolledIds((prev) => new Set([...prev, ...toAdd]));
-    toast.success(`${toAdd.length} estudiante(s) matriculados correctamente`);
+    toast.success(
+      i18n.t("toast.routes_app_admin_courses.studentsEnrolledMany", {
+        defaultValue: "{{count}} estudiante(s) matriculados correctamente",
+        count: toAdd.length,
+      }),
+    );
   };
 
   const unenrollMany = async (visibleIds: string[]) => {
@@ -1023,7 +1072,12 @@ export function AdminCourses() {
       toRemove.forEach((id) => s.delete(id));
       return s;
     });
-    toast.success(`${toRemove.length} estudiante(s) desmatriculados correctamente`);
+    toast.success(
+      i18n.t("toast.routes_app_admin_courses.studentsUnenrolledMany", {
+        defaultValue: "{{count}} estudiante(s) desmatriculados correctamente",
+        count: toRemove.length,
+      }),
+    );
   };
 
   // ── Teacher Assignment ───────────────────────────────────
@@ -1062,7 +1116,11 @@ export function AdminCourses() {
         .insert({ course_id: teacherCourse.id, user_id: uid });
       if (error) return toast.error(friendlyError(error));
       setAssignedTeacherIds((prev) => new Set([...prev, uid]));
-      toast.success("Docente asignado correctamente");
+      toast.success(
+        i18n.t("toast.routes_app_admin_courses.teacherAssigned", {
+          defaultValue: "Docente asignado correctamente",
+        }),
+      );
     } else {
       const { error } = await supabase
         .from("course_teachers")
@@ -1075,7 +1133,11 @@ export function AdminCourses() {
         s.delete(uid);
         return s;
       });
-      toast.success("Docente desasignado correctamente");
+      toast.success(
+        i18n.t("toast.routes_app_admin_courses.teacherUnassigned", {
+          defaultValue: "Docente desasignado correctamente",
+        }),
+      );
     }
   };
 
@@ -1088,7 +1150,12 @@ export function AdminCourses() {
       .insert(toAdd.map((id) => ({ course_id: teacherCourse.id, user_id: id })));
     if (error) return toast.error(friendlyError(error));
     setAssignedTeacherIds((prev) => new Set([...prev, ...toAdd]));
-    toast.success(`${toAdd.length} docente(s) asignados correctamente`);
+    toast.success(
+      i18n.t("toast.routes_app_admin_courses.teachersAssignedMany", {
+        defaultValue: "{{count}} docente(s) asignados correctamente",
+        count: toAdd.length,
+      }),
+    );
   };
 
   const unassignTeachersMany = async (visibleIds: string[]) => {
@@ -1107,7 +1174,12 @@ export function AdminCourses() {
       toRemove.forEach((id) => s.delete(id));
       return s;
     });
-    toast.success(`${toRemove.length} docente(s) desasignados correctamente`);
+    toast.success(
+      i18n.t("toast.routes_app_admin_courses.teachersUnassignedMany", {
+        defaultValue: "{{count}} docente(s) desasignados correctamente",
+        count: toRemove.length,
+      }),
+    );
   };
 
   // ── Duplicate Course ─────────────────────────────────────
@@ -1125,7 +1197,11 @@ export function AdminCourses() {
 
   const doDuplicate = async () => {
     if (!dupSource || !dupName.trim()) {
-      toast.error("Nombre requerido");
+      toast.error(
+        i18n.t("toast.routes_app_admin_courses.duplicateNameRequired", {
+          defaultValue: "Nombre requerido",
+        }),
+      );
       return;
     }
     setDupLoading(true);
@@ -1179,7 +1255,12 @@ export function AdminCourses() {
             });
           if (insErr) {
             console.error("copy enrollments:", insErr);
-            toast.error(`No se pudieron copiar las matrículas: ${friendlyError(insErr)}`);
+            toast.error(
+              i18n.t("toast.routes_app_admin_courses.copyEnrollmentsFailed", {
+                defaultValue: "No se pudieron copiar las matrículas: {{error}}",
+                error: friendlyError(insErr),
+              }),
+            );
           } else {
             copiedStudents = count ?? rows.length;
           }
@@ -1277,9 +1358,17 @@ export function AdminCourses() {
       }
 
       const studentsMsg = dupCopyStudents
-        ? ` (${copiedStudents} estudiante${copiedStudents === 1 ? "" : "s"} copiado${copiedStudents === 1 ? "" : "s"})`
+        ? i18n.t("toast.routes_app_admin_courses.duplicateStudentsSuffix", {
+            defaultValue: " ({{count}} estudiante(s) copiado(s))",
+            count: copiedStudents,
+          })
         : "";
-      toast.success(`Curso duplicado correctamente${studentsMsg}`);
+      toast.success(
+        i18n.t("toast.routes_app_admin_courses.courseDuplicated", {
+          defaultValue: "Curso duplicado correctamente{{suffix}}",
+          suffix: studentsMsg,
+        }),
+      );
       setDupOpen(false);
       load();
     } catch (e: any) {

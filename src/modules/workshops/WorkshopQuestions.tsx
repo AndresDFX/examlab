@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { logEvent } from "@/shared/lib/audit";
 import { useAuth } from "@/hooks/use-auth";
@@ -223,18 +224,30 @@ export function TeacherWorkshopQuestionsEditor({
 
   const submitManual = async () => {
     if (!qContent.trim()) {
-      toast.error("Escribe el enunciado");
+      toast.error(
+        i18n.t("toast.modules_workshops_WorkshopQuestions.writeStatement", {
+          defaultValue: "Escribe el enunciado",
+        }),
+      );
       return;
     }
     if (qType === "cerrada_multi") {
       if (qCorrectIndices.length === 0) {
-        toast.error("Marca al menos una opción correcta en opción múltiple");
+        toast.error(
+          i18n.t("toast.modules_workshops_WorkshopQuestions.markAtLeastOneCorrect", {
+            defaultValue: "Marca al menos una opción correcta en opción múltiple",
+          }),
+        );
         return;
       }
       const minN = typeof qMinSelections === "number" ? qMinSelections : 0;
       const maxN = typeof qMaxSelections === "number" ? qMaxSelections : 0;
       if (minN && maxN && minN > maxN) {
-        toast.error("Mínimo de marcadas no puede ser mayor al máximo");
+        toast.error(
+          i18n.t("toast.modules_workshops_WorkshopQuestions.minMaxInverted", {
+            defaultValue: "Mínimo de marcadas no puede ser mayor al máximo",
+          }),
+        );
         return;
       }
     }
@@ -299,7 +312,11 @@ export function TeacherWorkshopQuestionsEditor({
         toast.error(friendlyError(error));
         return;
       }
-      toast.success("Pregunta actualizada");
+      toast.success(
+        i18n.t("toast.modules_workshops_WorkshopQuestions.questionUpdated", {
+          defaultValue: "Pregunta actualizada",
+        }),
+      );
     } else {
       const { error } = await dbAny.from("workshop_questions").insert({
         workshop_id: workshopId,
@@ -326,7 +343,11 @@ export function TeacherWorkshopQuestionsEditor({
         toast.error(friendlyError(error));
         return;
       }
-      toast.success("Pregunta agregada — puedes continuar añadiendo");
+      toast.success(
+        i18n.t("toast.modules_workshops_WorkshopQuestions.questionAdded", {
+          defaultValue: "Pregunta agregada — puedes continuar añadiendo",
+        }),
+      );
     }
     resetForm();
     load();
@@ -372,17 +393,30 @@ export function TeacherWorkshopQuestionsEditor({
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Pregunta eliminada");
+    toast.success(
+      i18n.t("toast.modules_workshops_WorkshopQuestions.questionDeleted", {
+        defaultValue: "Pregunta eliminada",
+      }),
+    );
     load();
   };
 
   const generateWithAI = async () => {
     if (!aiTopics.trim()) {
-      toast.error("Indica los temas");
+      toast.error(
+        i18n.t("toast.modules_workshops_WorkshopQuestions.indicateTopics", {
+          defaultValue: "Indica los temas",
+        }),
+      );
       return;
     }
     const validRows = aiRows.filter((r) => r.count > 0);
-    if (!validRows.length) return toast.error("Configura al menos un tipo con cantidad > 0");
+    if (!validRows.length)
+      return toast.error(
+        i18n.t("toast.modules_workshops_WorkshopQuestions.configureAtLeastOneType", {
+          defaultValue: "Configura al menos un tipo con cantidad > 0",
+        }),
+      );
     // El gate evalúa: modo sync / código de IA inmediata activo / async.
     // allowQueue=true → si el docente está en async sin código, en lugar
     // de bloquear, el gate retorna 'proceed-async' y nosotros encolamos
@@ -398,7 +432,11 @@ export function TeacherWorkshopQuestionsEditor({
       const dbAny3 = supabase as any;
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) {
-        toast.error("No autenticado");
+        toast.error(
+          i18n.t("toast.modules_workshops_WorkshopQuestions.notAuthenticated", {
+            defaultValue: "No autenticado",
+          }),
+        );
         return;
       }
       const rows = validRows.map((row) => ({
@@ -424,9 +462,12 @@ export function TeacherWorkshopQuestionsEditor({
         return;
       }
       toast.success(
-        `${rows.length} job${rows.length === 1 ? "" : "s"} de generación encolados. ` +
-          `Cuando tengas un código de IA inmediata o un administrador los procese, ` +
-          `las preguntas aparecerán automáticamente. Puedes verlos en el panel de Cola IA.`,
+        i18n.t("toast.modules_workshops_WorkshopQuestions.generationJobsQueued", {
+          defaultValue:
+            "{{count}} job{{plural}} de generación encolados. Cuando tengas un código de IA inmediata o un administrador los procese, las preguntas aparecerán automáticamente. Puedes verlos en el panel de Cola IA.",
+          count: rows.length,
+          plural: rows.length === 1 ? "" : "s",
+        }),
       );
       setAiTopics("");
       return;
@@ -448,13 +489,29 @@ export function TeacherWorkshopQuestionsEditor({
         });
         if (error || data?.error) {
           const detail = await extractEdgeError(error, data);
-          toast.error(`Error en ${row.type}: ${detail || "Error desconocido"}`);
+          toast.error(
+            i18n.t("toast.modules_workshops_WorkshopQuestions.errorInType", {
+              defaultValue: "Error en {{type}}: {{detail}}",
+              type: row.type,
+              detail:
+                detail ||
+                i18n.t("toast.modules_workshops_WorkshopQuestions.unknownError", {
+                  defaultValue: "Error desconocido",
+                }),
+            }),
+          );
         } else {
           totalInserted += data?.inserted?.length ?? 0;
         }
       }
       if (totalInserted > 0) {
-        toast.success(`${totalInserted} pregunta${totalInserted !== 1 ? "s" : ""} generadas`);
+        toast.success(
+          i18n.t("toast.modules_workshops_WorkshopQuestions.questionsGenerated", {
+            defaultValue: "{{count}} pregunta{{plural}} generadas",
+            count: totalInserted,
+            plural: totalInserted !== 1 ? "s" : "",
+          }),
+        );
         setAiTopics("");
         void logEvent({
           action: "ai_questions.generated",
@@ -1161,11 +1218,19 @@ export function StudentWorkshopTaker({
   const submit = async () => {
     if (!user) return;
     if (!questions.length) {
-      toast.error("Este taller no tiene preguntas");
+      toast.error(
+        i18n.t("toast.modules_workshops_WorkshopQuestions.workshopHasNoQuestions", {
+          defaultValue: "Este taller no tiene preguntas",
+        }),
+      );
       return;
     }
     if (videoGateBlocking) {
-      toast.error("Debes ver todos los videos introductorios antes de entregar.");
+      toast.error(
+        i18n.t("toast.modules_workshops_WorkshopQuestions.mustWatchIntroVideos", {
+          defaultValue: "Debes ver todos los videos introductorios antes de entregar.",
+        }),
+      );
       return;
     }
     // Si el alumno deja preguntas sin responder, pedimos confirmación
@@ -1227,7 +1292,12 @@ export function StudentWorkshopTaker({
       const nextAttemptCount = incrementAttempt ? previousCount + 1 : previousCount;
       if (nextAttemptCount > effectiveMaxAttempts) {
         toast.error(
-          `Ya consumiste tus ${effectiveMaxAttempts} intento${effectiveMaxAttempts === 1 ? "" : "s"} de entrega. Recarga para ver la entrega actual.`,
+          i18n.t("toast.modules_workshops_WorkshopQuestions.attemptsExhausted", {
+            defaultValue:
+              "Ya consumiste tus {{count}} intento{{plural}} de entrega. Recarga para ver la entrega actual.",
+            count: effectiveMaxAttempts,
+            plural: effectiveMaxAttempts === 1 ? "" : "s",
+          }),
         );
         setSubmitting(false);
         return;
@@ -1900,7 +1970,13 @@ export function StudentWorkshopTaker({
 
         setGraded({ grade: finalGrade, breakdown });
         onGraded?.(finalGrade);
-        toast.success(`Calificación: ${finalGrade} / ${maxScore}`);
+        toast.success(
+          i18n.t("toast.modules_workshops_WorkshopQuestions.gradeResult", {
+            defaultValue: "Calificación: {{grade}} / {{maxScore}}",
+            grade: finalGrade,
+            maxScore,
+          }),
+        );
       }
     } finally {
       setSubmitting(false);
@@ -2122,19 +2198,31 @@ export function StudentWorkshopTaker({
                         const picked = e.target.files?.[0];
                         if (!picked) return;
                         if (picked.size === 0) {
-                          toast.error("El archivo está vacío.");
+                          toast.error(
+                            i18n.t("toast.modules_workshops_WorkshopQuestions.fileEmpty", {
+                              defaultValue: "El archivo está vacío.",
+                            }),
+                          );
                           e.target.value = "";
                           return;
                         }
                         if (picked.size > MAX_CODE_FILES_TOTAL_BYTES) {
                           toast.error(
-                            `El ZIP pesa ${formatFileSize(picked.size)} y supera el tope de 50 MB.`,
+                            i18n.t("toast.modules_workshops_WorkshopQuestions.zipTooLarge", {
+                              defaultValue:
+                                "El ZIP pesa {{size}} y supera el tope de 50 MB.",
+                              size: formatFileSize(picked.size),
+                            }),
                           );
                           e.target.value = "";
                           return;
                         }
                         if (!picked.name.toLowerCase().endsWith(".zip")) {
-                          toast.error("Solo se acepta un archivo .zip.");
+                          toast.error(
+                            i18n.t("toast.modules_workshops_WorkshopQuestions.onlyZipAccepted", {
+                              defaultValue: "Solo se acepta un archivo .zip.",
+                            }),
+                          );
                           e.target.value = "";
                           return;
                         }
@@ -2202,7 +2290,16 @@ export function StudentWorkshopTaker({
                               .join(", ");
                             const more = bad.length > 5 ? ` (+${bad.length - 5} más)` : "";
                             toast.error(
-                              `Archivos no permitidos: ${sample}${more}. Solo se aceptan ${allowedLabel}.`,
+                              i18n.t(
+                                "toast.modules_workshops_WorkshopQuestions.filesNotAllowed",
+                                {
+                                  defaultValue:
+                                    "Archivos no permitidos: {{sample}}{{more}}. Solo se aceptan {{allowed}}.",
+                                  sample,
+                                  more,
+                                  allowed: allowedLabel,
+                                },
+                              ),
                               { duration: 8000 },
                             );
                             e.target.value = "";
@@ -2220,20 +2317,39 @@ export function StudentWorkshopTaker({
                         const totalBytes = merged.reduce((a, f) => a + f.size, 0);
                         if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
                           toast.error(
-                            `Los archivos suman ${formatFileSize(totalBytes)} y superan el tope de 50 MB.`,
+                            i18n.t(
+                              "toast.modules_workshops_WorkshopQuestions.filesTotalTooLarge",
+                              {
+                                defaultValue:
+                                  "Los archivos suman {{size}} y superan el tope de 50 MB.",
+                                size: formatFileSize(totalBytes),
+                              },
+                            ),
                           );
                           e.target.value = "";
                           return;
                         }
                         if (merged.length > MAX_CODE_FILES_COUNT) {
                           toast.error(
-                            `Seleccionaste ${merged.length} archivos. Máximo permitido: ${MAX_CODE_FILES_COUNT}.`,
+                            i18n.t("toast.modules_workshops_WorkshopQuestions.tooManyFiles", {
+                              defaultValue:
+                                "Seleccionaste {{count}} archivos. Máximo permitido: {{max}}.",
+                              count: merged.length,
+                              max: MAX_CODE_FILES_COUNT,
+                            }),
                           );
                           e.target.value = "";
                           return;
                         }
                         if (picked.some((f) => f.size === 0)) {
-                          toast.error("Hay archivos vacíos en la selección.");
+                          toast.error(
+                            i18n.t(
+                              "toast.modules_workshops_WorkshopQuestions.emptyFilesInSelection",
+                              {
+                                defaultValue: "Hay archivos vacíos en la selección.",
+                              },
+                            ),
+                          );
                           e.target.value = "";
                           return;
                         }

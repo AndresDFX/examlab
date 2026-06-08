@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { logEvent } from "@/shared/lib/audit";
@@ -328,7 +329,15 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
           : p,
       ),
     );
-    toast.success(currentlyReviewed ? "Marcada como pendiente" : "Marcada como revisada");
+    toast.success(
+      currentlyReviewed
+        ? i18n.t("toast.modules_exams_FraudPanel.markedPending", {
+            defaultValue: "Marcada como pendiente",
+          })
+        : i18n.t("toast.modules_exams_FraudPanel.markedReviewed", {
+            defaultValue: "Marcada como revisada",
+          }),
+    );
   };
 
   /**
@@ -354,7 +363,15 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
           : row,
       ),
     );
-    toast.success(currentlyReviewed ? "Marcada como pendiente" : "Marcada como revisada");
+    toast.success(
+      currentlyReviewed
+        ? i18n.t("toast.modules_exams_FraudPanel.markedPending", {
+            defaultValue: "Marcada como pendiente",
+          })
+        : i18n.t("toast.modules_exams_FraudPanel.markedReviewed", {
+            defaultValue: "Marcada como revisada",
+          }),
+    );
   };
 
   const runDetection = async () => {
@@ -365,7 +382,10 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
     if (decision === "cancel") return;
     if (decision === "proceed-async") {
       toast.error(
-        "La detección de plagio no soporta modo cola. Activá un código de IA inmediata para continuar.",
+        i18n.t("toast.modules_exams_FraudPanel.plagiarismNoQueueMode", {
+          defaultValue:
+            "La detección de plagio no soporta modo cola. Activá un código de IA inmediata para continuar.",
+        }),
       );
       return;
     }
@@ -389,8 +409,12 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
         metadata: { pairs_found: found },
       });
       if (found > 0) {
+        const pairsLabel = `${found} par${found === 1 ? "" : "es"} sospechoso${found === 1 ? "" : "s"}`;
         toast.success(
-          `Detección completada: ${found} par${found === 1 ? "" : "es"} sospechoso${found === 1 ? "" : "s"}.`,
+          i18n.t("toast.modules_exams_FraudPanel.detectionDoneWithPairs", {
+            defaultValue: "Detección completada: {{pairsLabel}}.",
+            pairsLabel,
+          }),
         );
       } else {
         toast.message("Detección completada", {
@@ -400,7 +424,12 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
       await load();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      toast.error(`No se pudo ejecutar la detección: ${msg}`);
+      toast.error(
+        i18n.t("toast.modules_exams_FraudPanel.detectionFailed", {
+          defaultValue: "No se pudo ejecutar la detección: {{detail}}",
+          detail: msg,
+        }),
+      );
     } finally {
       setDetecting(false);
     }
@@ -503,18 +532,31 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
     async (userId: string, gradeToApply: number | null) => {
       const snap = gradesByUser[userId];
       if (!snap) {
-        toast.error("No se encontró la entrega del estudiante");
+        toast.error(
+          i18n.t("toast.modules_exams_FraudPanel.submissionNotFound", {
+            defaultValue: "No se encontró la entrega del estudiante",
+          }),
+        );
         return;
       }
       if (gradeToApply == null || Number.isNaN(gradeToApply)) {
-        toast.error("Ingresa un valor numérico para la nota");
+        toast.error(
+          i18n.t("toast.modules_exams_FraudPanel.gradeMustBeNumeric", {
+            defaultValue: "Ingresa un valor numérico para la nota",
+          }),
+        );
         return;
       }
       // Validación dura: nota dentro del rango permitido por la entrega
       // (0 a maxScore). El docente puede haber editado el input a un
       // valor fuera de rango — preferimos rechazar antes de persistir.
       if (gradeToApply < 0 || gradeToApply > snap.maxScore) {
-        toast.error(`La nota debe estar entre 0 y ${snap.maxScore}`);
+        toast.error(
+          i18n.t("toast.modules_exams_FraudPanel.gradeOutOfRange", {
+            defaultValue: "La nota debe estar entre 0 y {{max}}",
+            max: snap.maxScore,
+          }),
+        );
         return;
       }
       setApplying((p) => ({ ...p, [userId]: true }));
@@ -530,7 +572,10 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
         }
         if (!data || (data as unknown as { id: string }[]).length === 0) {
           toast.error(
-            "No se pudo aplicar (sin permisos o la entrega ya no existe). Recarga e intenta de nuevo.",
+            i18n.t("toast.modules_exams_FraudPanel.applyDenied", {
+              defaultValue:
+                "No se pudo aplicar (sin permisos o la entrega ya no existe). Recarga e intenta de nuevo.",
+            }),
           );
           return;
         }
@@ -539,7 +584,11 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
           [userId]: { ...snap, currentGrade: gradeToApply },
         }));
         toast.success(
-          `Nota de ${shortName(userId, userNames)} actualizada a ${gradeToApply.toFixed(2)}`,
+          i18n.t("toast.modules_exams_FraudPanel.gradeUpdated", {
+            defaultValue: "Nota de {{student}} actualizada a {{grade}}",
+            student: shortName(userId, userNames),
+            grade: gradeToApply.toFixed(2),
+          }),
         );
       } finally {
         setApplying((p) => ({ ...p, [userId]: false }));
@@ -567,7 +616,11 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
           r.severity >= INTEGRITY_ALERT_THRESHOLD,
       );
       if (applicable.length === 0) {
-        toast.info("Ninguna fila tiene sugerencia aplicable");
+        toast.info(
+          i18n.t("toast.modules_exams_FraudPanel.noApplicableSuggestion", {
+            defaultValue: "Ninguna fila tiene sugerencia aplicable",
+          }),
+        );
         return;
       }
       const ok = await confirm({
@@ -594,9 +647,15 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
       }
       setBulkApplying(false);
       if (okCount > 0) {
+        const okLabel = `${okCount} estudiante${okCount === 1 ? "" : "s"}`;
+        const failSuffix =
+          failCount > 0 ? ` · ${failCount} fallido${failCount === 1 ? "" : "s"}` : "";
         toast.success(
-          `Sugerencia aplicada a ${okCount} estudiante${okCount === 1 ? "" : "s"}` +
-            (failCount > 0 ? ` · ${failCount} fallido${failCount === 1 ? "" : "s"}` : ""),
+          i18n.t("toast.modules_exams_FraudPanel.suggestionAppliedBulk", {
+            defaultValue: "Sugerencia aplicada a {{okLabel}}{{failSuffix}}",
+            okLabel,
+            failSuffix,
+          }),
         );
       }
     },

@@ -57,6 +57,7 @@ import {
 } from "lucide-react";
 import { formatDateTime, formatDate } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/forum/$courseId")({ component: ForumsList });
 
@@ -201,13 +202,21 @@ function ForumsList() {
     if (!user) return;
     const title = newTitle.trim();
     if (title.length < 3) {
-      toast.error("El título debe tener al menos 3 caracteres");
+      toast.error(
+        i18n.t("toast.routes_app_forum_courseId.titleMinLength", {
+          defaultValue: "El título debe tener al menos 3 caracteres",
+        }),
+      );
       return;
     }
     const opensAt = datetimeLocalToIso(newOpensAt);
     const closesAt = datetimeLocalToIso(newClosesAt);
     if (opensAt && closesAt && new Date(opensAt) >= new Date(closesAt)) {
-      toast.error("La fecha de apertura debe ser anterior a la de cierre");
+      toast.error(
+        i18n.t("toast.routes_app_forum_courseId.opensBeforeCloses", {
+          defaultValue: "La fecha de apertura debe ser anterior a la de cierre",
+        }),
+      );
       return;
     }
     setCreating(true);
@@ -225,7 +234,11 @@ function ForumsList() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Foro creado");
+    toast.success(
+      i18n.t("toast.routes_app_forum_courseId.forumCreated", {
+        defaultValue: "Foro creado",
+      }),
+    );
     setCreateOpen(false);
     setNewTitle("");
     setNewDescription("");
@@ -256,7 +269,15 @@ function ForumsList() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success(`Foro ${action === "cerrar" ? "cerrado" : "reabierto"}`);
+    toast.success(
+      action === "cerrar"
+        ? i18n.t("toast.routes_app_forum_courseId.forumClosed", {
+            defaultValue: "Foro cerrado",
+          })
+        : i18n.t("toast.routes_app_forum_courseId.forumReopened", {
+            defaultValue: "Foro reabierto",
+          }),
+    );
     await load();
   };
 
@@ -273,7 +294,11 @@ function ForumsList() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Foro eliminado");
+    toast.success(
+      i18n.t("toast.routes_app_forum_courseId.forumDeleted", {
+        defaultValue: "Foro eliminado",
+      }),
+    );
     await load();
   };
 

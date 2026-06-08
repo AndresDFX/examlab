@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { readOverrideExpiry, writeOverrideExpiry, clearOverrideExpiry } from "@/modules/ai/ai-grading";
 import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 interface Props {
   open: boolean;
@@ -73,7 +74,11 @@ export function AiOverrideDialog({ open, onOpenChange }: Props) {
   const activate = async () => {
     const c = code.trim().toUpperCase();
     if (!c) {
-      toast.error("Ingresa el código de override");
+      toast.error(
+        i18n.t("toast.modules_ai_AiOverrideDialog.enterOverrideCode", {
+          defaultValue: "Ingresa el código de override",
+        }),
+      );
       return;
     }
     setSubmitting(true);
@@ -109,14 +114,24 @@ export function AiOverrideDialog({ open, onOpenChange }: Props) {
       ? ` · cupo: ${res.max_messages_per_activation} mensajes`
       : "";
     toast.success(
-      `IA inmediata activa por ${res.window_minutes} min${capDescr} — tus próximas calificaciones IA corren al instante.`,
+      i18n.t("toast.modules_ai_AiOverrideDialog.overrideActivated", {
+        defaultValue:
+          "IA inmediata activa por {{minutes}} min{{capDescr}} — tus próximas calificaciones IA corren al instante.",
+        minutes: res.window_minutes,
+        capDescr,
+      }),
     );
   };
 
   const deactivate = () => {
     clearOverrideExpiry();
     setActiveExpiry(null);
-    toast.info("Ventana de IA inmediata cerrada. Las nuevas calificaciones vuelven a la cola.");
+    toast.info(
+      i18n.t("toast.modules_ai_AiOverrideDialog.overrideClosed", {
+        defaultValue:
+          "Ventana de IA inmediata cerrada. Las nuevas calificaciones vuelven a la cola.",
+      }),
+    );
   };
 
   const minutesLeft = activeExpiry

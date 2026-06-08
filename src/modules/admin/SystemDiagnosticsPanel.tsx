@@ -23,6 +23,7 @@ import {
   Mail,
 } from "lucide-react";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -373,7 +374,11 @@ export function SystemDiagnosticsPanel() {
     try {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) {
-        toast.error("No estás autenticado");
+        toast.error(
+          i18n.t("toast.modules_admin_SystemDiagnosticsPanel.notAuthenticated", {
+            defaultValue: "No estás autenticado",
+          }),
+        );
         return;
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -389,7 +394,10 @@ export function SystemDiagnosticsPanel() {
         return;
       }
       toast.success(
-        "Notificación encolada. Si tienes la PWA instalada con permisos, debería llegar en segundos.",
+        i18n.t("toast.modules_admin_SystemDiagnosticsPanel.notificationQueued", {
+          defaultValue:
+            "Notificación encolada. Si tienes la PWA instalada con permisos, debería llegar en segundos.",
+        }),
       );
       void logEvent({
         action: "system.diagnostic.test_push_sent",

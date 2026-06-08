@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { Code2, Plus, Trash2, Copy, Check } from "lucide-react";
@@ -233,7 +234,11 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
   // del JWT del caller (auth.uid()).
   const runSnippet = async (snippet: SnippetRow) => {
     if (!snippet.source_code.trim()) {
-      toast.error("El snippet está vacío");
+      toast.error(
+        i18n.t("toast.modules_sessions_SessionCodeSnippets.snippetEmpty", {
+          defaultValue: "El snippet está vacío",
+        }),
+      );
       return;
     }
     setRunningId(snippet.id);
@@ -306,7 +311,11 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
       if (copyResetRef.current) clearTimeout(copyResetRef.current);
       copyResetRef.current = setTimeout(() => setCopiedId(null), 1500);
     } catch {
-      toast.error("No se pudo copiar al portapapeles");
+      toast.error(
+        i18n.t("toast.modules_sessions_SessionCodeSnippets.clipboardCopyFailed", {
+          defaultValue: "No se pudo copiar al portapapeles",
+        }),
+      );
     }
   };
 

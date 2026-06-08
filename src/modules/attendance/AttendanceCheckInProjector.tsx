@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { Maximize2, Minimize2, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 import {
   attendancePeriod,
   attendanceSecondsToNextRotation,
@@ -109,7 +110,7 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
         // sigue true pero la ventana ya pasó → al reabrir el proyector,
         // el tick vuelve a detectar expiración y se cierra en loop.
         cancelled = true;
-        toast.info("La ventana de check-in expiró");
+        toast.info(i18n.t("toast.modules_attendance_AttendanceCheckInProjector.windowExpired", { defaultValue: "La ventana de check-in expiró" }));
         void db
           .rpc("teacher_close_attendance_check_in", { p_session_id: state.sessionId })
           .finally(() => onClose());
@@ -213,7 +214,7 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
       // hasta el próximo fullscreenchange y eso bloquea el handler.
       void exitFullscreen();
       onClose();
-      toast.success("Check-in cerrado");
+      toast.success(i18n.t("toast.modules_attendance_AttendanceCheckInProjector.closedOk", { defaultValue: "Check-in cerrado" }));
     } finally {
       setClosing(false);
     }

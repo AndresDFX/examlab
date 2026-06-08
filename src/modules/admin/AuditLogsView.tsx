@@ -52,6 +52,7 @@ import { formatDateTime } from "@/shared/lib/format";
 import { toCSV } from "@/shared/lib/csv";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -522,7 +523,12 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
         if (reset) {
           setLoadError(friendlyError(err, "Error cargando auditoría."));
         } else {
-          toast.error(`Error cargando auditoría: ${friendlyError(err)}`);
+          toast.error(
+            i18n.t("toast.modules_admin_AuditLogsView.loadAuditError", {
+              defaultValue: "Error cargando auditoría: {{detail}}",
+              detail: friendlyError(err),
+            }),
+          );
         }
       } finally {
         setLoading(false);

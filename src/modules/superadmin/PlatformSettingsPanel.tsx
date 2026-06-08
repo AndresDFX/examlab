@@ -31,6 +31,7 @@ import { Settings2, Save, LifeBuoy, Info } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -94,7 +95,7 @@ export function PlatformSettingsPanel() {
         toast.error(friendlyError(error));
         return;
       }
-      toast.success("Configuración guardada");
+      toast.success(i18n.t("toast.modules_superadmin_PlatformSettingsPanel.savedOk", { defaultValue: "Configuración guardada" }));
       void logEvent({
         action: "platform_settings.updated",
         category: "system",

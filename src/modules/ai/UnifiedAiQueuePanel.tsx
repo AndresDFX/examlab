@@ -81,6 +81,7 @@ import {
   Copy,
 } from "lucide-react";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 import { formatDateTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -571,7 +572,11 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
           .eq("id", job.id);
         if (error) throw error;
       }
-      toast.success("Job cancelado");
+      toast.success(
+        i18n.t("toast.modules_ai_UnifiedAiQueuePanel.jobCancelled", {
+          defaultValue: "Job cancelado",
+        }),
+      );
       void logEvent({
         action:
           job.source === "grading"
@@ -610,7 +615,11 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
           .eq("id", job.id);
         if (error) throw error;
       }
-      toast.success("Job re-encolado");
+      toast.success(
+        i18n.t("toast.modules_ai_UnifiedAiQueuePanel.jobRequeued", {
+          defaultValue: "Job re-encolado",
+        }),
+      );
       await load();
     } catch (e) {
       toast.error(friendlyError(e, "No se pudo re-encolar"));
@@ -632,7 +641,10 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       const mode = await getProcessingMode();
       if (mode === "async" && !readOverrideExpiry()) {
         toast.info(
-          "La cola está en modo async. Activá un código de IA inmediata para procesar jobs al instante.",
+          i18n.t("toast.modules_ai_UnifiedAiQueuePanel.asyncModeActivateCode", {
+            defaultValue:
+              "La cola está en modo async. Activá un código de IA inmediata para procesar jobs al instante.",
+          }),
         );
         setOverrideOpen(true);
         return;
@@ -653,11 +665,24 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         return;
       }
       if (d?.processed === 0) {
-        toast.info("El job ya no estaba pending — quizás el worker lo levantó primero.");
+        toast.info(
+          i18n.t("toast.modules_ai_UnifiedAiQueuePanel.jobNoLongerPending", {
+            defaultValue:
+              "El job ya no estaba pending — quizás el worker lo levantó primero.",
+          }),
+        );
       } else if (d?.failed > 0) {
-        toast.error("El job se procesó pero falló — revisá el error en la cola.");
+        toast.error(
+          i18n.t("toast.modules_ai_UnifiedAiQueuePanel.jobProcessedButFailed", {
+            defaultValue: "El job se procesó pero falló — revisá el error en la cola.",
+          }),
+        );
       } else {
-        toast.success("Job procesado");
+        toast.success(
+          i18n.t("toast.modules_ai_UnifiedAiQueuePanel.jobProcessed", {
+            defaultValue: "Job procesado",
+          }),
+        );
       }
       await load();
     } catch (e) {
@@ -687,9 +712,22 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       const procG = g?.processed ?? 0;
       const procGn = gn?.processed ?? 0;
       const failG = (g?.failed ?? 0) + (gn?.failed ?? 0);
+      const failedSuffix =
+        failG > 0
+          ? i18n.t("toast.modules_ai_UnifiedAiQueuePanel.drainedFailedSuffix", {
+              defaultValue: " — {{failed}} fallaron",
+              failed: failG,
+            })
+          : "";
       toast.success(
-        `Drenado: ${procG + procGn} job(s) (${procG} grading + ${procGn} generación)` +
-          (failG > 0 ? ` — ${failG} fallaron` : ""),
+        i18n.t("toast.modules_ai_UnifiedAiQueuePanel.drained", {
+          defaultValue:
+            "Drenado: {{total}} job(s) ({{grading}} grading + {{generation}} generación){{failedSuffix}}",
+          total: procG + procGn,
+          grading: procG,
+          generation: procGn,
+          failedSuffix,
+        }),
       );
       await load();
     } catch (e) {
@@ -707,7 +745,11 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
   const confirmReject = async () => {
     if (!rejectTarget) return;
     if (rejectReason.trim().length < 5) {
-      toast.error("La razón es obligatoria (mínimo 5 caracteres).");
+      toast.error(
+        i18n.t("toast.modules_ai_UnifiedAiQueuePanel.reasonRequired", {
+          defaultValue: "La razón es obligatoria (mínimo 5 caracteres).",
+        }),
+      );
       return;
     }
     setRejecting(true);
@@ -717,7 +759,11 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         _reason: rejectReason.trim(),
       });
       if (error) throw error;
-      toast.success("Job rechazado. El docente recibió la notificación.");
+      toast.success(
+        i18n.t("toast.modules_ai_UnifiedAiQueuePanel.jobRejected", {
+          defaultValue: "Job rechazado. El docente recibió la notificación.",
+        }),
+      );
       setRejectTarget(null);
       await load();
     } catch (e) {
@@ -734,7 +780,11 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         _job_id: job.id,
       });
       if (error) throw error;
-      toast.success("Rechazo cerrado. El job se movió al historial.");
+      toast.success(
+        i18n.t("toast.modules_ai_UnifiedAiQueuePanel.rejectionClosed", {
+          defaultValue: "Rechazo cerrado. El job se movió al historial.",
+        }),
+      );
       await load();
     } catch (e) {
       toast.error(friendlyError(e, "No se pudo cerrar el rechazo"));
@@ -764,7 +814,12 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         `No se pudieron cancelar ${failures.length} de ${ids.length} jobs. Reintentá.`,
       );
     }
-    toast.success(`${ids.length} job(s) cancelado(s)`);
+    toast.success(
+      i18n.t("toast.modules_ai_UnifiedAiQueuePanel.bulkCancelled", {
+        defaultValue: "{{count}} job(s) cancelado(s)",
+        count: ids.length,
+      }),
+    );
     multi.clear();
     await load();
   };
@@ -1187,8 +1242,22 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                                 e.stopPropagation();
                                 void navigator.clipboard
                                   .writeText(j.last_error ?? "")
-                                  .then(() => toast.success("Error copiado"))
-                                  .catch(() => toast.error("No se pudo copiar"));
+                                  .then(() =>
+                                    toast.success(
+                                      i18n.t(
+                                        "toast.modules_ai_UnifiedAiQueuePanel.errorCopied",
+                                        { defaultValue: "Error copiado" },
+                                      ),
+                                    ),
+                                  )
+                                  .catch(() =>
+                                    toast.error(
+                                      i18n.t(
+                                        "toast.modules_ai_UnifiedAiQueuePanel.copyFailed",
+                                        { defaultValue: "No se pudo copiar" },
+                                      ),
+                                    ),
+                                  );
                               }}
                               className="shrink-0 text-[10px] text-destructive/80 hover:text-destructive flex items-center gap-0.5"
                               title="Copiar error completo"

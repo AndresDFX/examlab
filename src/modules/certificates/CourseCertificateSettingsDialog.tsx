@@ -30,6 +30,7 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
 import { Award, Save, Info, RotateCcw } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -149,7 +150,11 @@ export function CourseCertificateSettingsDialog({
         entityName: course.name,
         metadata: { override: payload },
       });
-      toast.success("Configuración del curso guardada");
+      toast.success(
+        i18n.t("toast.modules_certificates_CourseCertificateSettingsDialog.savedOk", {
+          defaultValue: "Configuración del curso guardada",
+        }),
+      );
       onClose();
     } finally {
       setSaving(false);
@@ -176,7 +181,11 @@ export function CourseCertificateSettingsDialog({
         entityId: course.id,
         entityName: course.name,
       });
-      toast.success("Override eliminado — vuelve a usar la configuración global");
+      toast.success(
+        i18n.t("toast.modules_certificates_CourseCertificateSettingsDialog.overrideRemoved", {
+          defaultValue: "Override eliminado — vuelve a usar la configuración global",
+        }),
+      );
       onClose();
     } finally {
       setSaving(false);

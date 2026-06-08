@@ -67,6 +67,7 @@ import { toCSV } from "@/shared/lib/csv";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import {
   useMultiSelect,
@@ -343,10 +344,20 @@ function AdminUsers() {
       metadata: { count: okCount, total: ids.length, failed_count: failed.length },
     });
     if (failed.length === 0) {
-      toast.success(`${okCount} usuario(s) eliminado(s) correctamente`);
+      toast.success(
+        i18n.t("toast.routes_app_admin_users.bulkDeleteSuccess", {
+          defaultValue: "{{count}} usuario(s) eliminado(s) correctamente",
+          count: okCount,
+        }),
+      );
     } else {
       toast.warning(
-        `${okCount} usuario(s) eliminados, ${failed.length} fallaron — revisá la consola para detalles.`,
+        i18n.t("toast.routes_app_admin_users.bulkDeletePartial", {
+          defaultValue:
+            "{{ok}} usuario(s) eliminados, {{failed}} fallaron — revisá la consola para detalles.",
+          ok: okCount,
+          failed: failed.length,
+        }),
       );
     }
     sel.clear();
@@ -392,15 +403,27 @@ function AdminUsers() {
     if (!viewPwValue) return;
     try {
       await navigator.clipboard.writeText(viewPwValue);
-      toast.success("Contraseña copiada al portapapeles");
+      toast.success(
+        i18n.t("toast.routes_app_admin_users.passwordCopied", {
+          defaultValue: "Contraseña copiada al portapapeles",
+        }),
+      );
     } catch {
-      toast.error("No se pudo copiar");
+      toast.error(
+        i18n.t("toast.routes_app_admin_users.copyFailed", {
+          defaultValue: "No se pudo copiar",
+        }),
+      );
     }
   };
 
   const handleImpersonate = async (r: Row) => {
     if (r.roles.includes("Admin")) {
-      toast.error("No se puede impersonar a otro administrador");
+      toast.error(
+        i18n.t("toast.routes_app_admin_users.cannotImpersonateAdmin", {
+          defaultValue: "No se puede impersonar a otro administrador",
+        }),
+      );
       return;
     }
     const ok = await confirm({
@@ -539,7 +562,11 @@ function AdminUsers() {
         // explícitamente para que reintente; no podemos auto-revertir
         // sin riesgo (el DELETE ya fue confirmado por la DB).
         toast.error(
-          `${friendlyError(error)}. Los roles a quitar SÍ se eliminaron; revisa el estado del usuario y reintentá agregar los nuevos.`,
+          i18n.t("toast.routes_app_admin_users.rolesAddFailedAfterRemove", {
+            defaultValue:
+              "{{error}}. Los roles a quitar SÍ se eliminaron; revisa el estado del usuario y reintentá agregar los nuevos.",
+            error: friendlyError(error),
+          }),
         );
         return false;
       }
@@ -662,8 +689,15 @@ function AdminUsers() {
       if (data === true) {
         toast.error(
           kind === "institutional"
-            ? `El email institucional "${clean}" ya está en uso por otro usuario.`
-            : `El email personal "${clean}" ya está en uso por otro usuario.`,
+            ? i18n.t("toast.routes_app_admin_users.institutionalEmailTaken", {
+                defaultValue:
+                  'El email institucional "{{email}}" ya está en uso por otro usuario.',
+                email: clean,
+              })
+            : i18n.t("toast.routes_app_admin_users.personalEmailTaken", {
+                defaultValue: 'El email personal "{{email}}" ya está en uso por otro usuario.',
+                email: clean,
+              }),
         );
         return true;
       }
@@ -677,7 +711,11 @@ function AdminUsers() {
   const saveProfile = async () => {
     if (!editing) return;
     if (!editing.full_name.trim() || !editing.institutional_email.trim()) {
-      toast.error("Nombre y email institucional son requeridos");
+      toast.error(
+        i18n.t("toast.routes_app_admin_users.nameAndEmailRequired", {
+          defaultValue: "Nombre y email institucional son requeridos",
+        }),
+      );
       return;
     }
     setSavingUser(true);
@@ -704,7 +742,10 @@ function AdminUsers() {
         !editing.roles.includes("SuperAdmin")
       ) {
         toast.error(
-          "Solo el rol SuperAdmin puede no tener institución. Asigna una institución o agrega el rol SuperAdmin.",
+          i18n.t("toast.routes_app_admin_users.onlySuperAdminNoTenant", {
+            defaultValue:
+              "Solo el rol SuperAdmin puede no tener institución. Asigna una institución o agrega el rol SuperAdmin.",
+          }),
         );
         return;
       }
@@ -759,7 +800,11 @@ function AdminUsers() {
         // Update password if provided
         if (password.trim()) {
           if (password.length < 8) {
-            toast.error("La contraseña debe tener al menos 8 caracteres");
+            toast.error(
+              i18n.t("toast.routes_app_admin_users.passwordMinLength", {
+                defaultValue: "La contraseña debe tener al menos 8 caracteres",
+              }),
+            );
             return;
           }
           const { data: pwRes, error: pwErr } = await supabase.functions.invoke(
@@ -776,8 +821,12 @@ function AdminUsers() {
         }
         toast.success(
           password.trim()
-            ? "Usuario actualizado correctamente (contraseña incluida)"
-            : "Usuario actualizado correctamente",
+            ? i18n.t("toast.routes_app_admin_users.userUpdatedWithPassword", {
+                defaultValue: "Usuario actualizado correctamente (contraseña incluida)",
+              })
+            : i18n.t("toast.routes_app_admin_users.userUpdated", {
+                defaultValue: "Usuario actualizado correctamente",
+              }),
         );
         void logEvent({
           action: "user.updated",
@@ -791,7 +840,11 @@ function AdminUsers() {
       } else {
         // Create via bulk-import (single row)
         if (!password || password.length < 8) {
-          toast.error("Contraseña requerida (mínimo 8 caracteres)");
+          toast.error(
+            i18n.t("toast.routes_app_admin_users.passwordRequired", {
+              defaultValue: "Contraseña requerida (mínimo 8 caracteres)",
+            }),
+          );
           return;
         }
         const { data, error } = await supabase.functions.invoke("bulk-import-users", {
@@ -821,7 +874,11 @@ function AdminUsers() {
         if (!result?.ok) {
           if (result?.duplicate) {
             toast.error(
-              `No se pudo crear: ya existe un usuario con el email "${editing.institutional_email}"`,
+              i18n.t("toast.routes_app_admin_users.createDuplicateEmail", {
+                defaultValue:
+                  'No se pudo crear: ya existe un usuario con el email "{{email}}"',
+                email: editing.institutional_email,
+              }),
             );
           } else {
             toast.error(result?.error ?? result?.reason ?? "Error al crear usuario");
@@ -858,7 +915,10 @@ function AdminUsers() {
             // No bloqueamos: el usuario quedó creado, solo le falta el tenant
             // correcto. Toast warning para que el admin lo arregle desde el edit.
             toast.warning(
-              "Usuario creado, pero no se pudo asignar a la institución. Edítalo y guarda de nuevo.",
+              i18n.t("toast.routes_app_admin_users.tenantAssignFailed", {
+                defaultValue:
+                  "Usuario creado, pero no se pudo asignar a la institución. Edítalo y guarda de nuevo.",
+              }),
             );
           }
         }
@@ -875,7 +935,10 @@ function AdminUsers() {
           if (enrollErr) {
             console.warn("[admin.users] enrollment failed:", enrollErr.message);
             toast.warning(
-              "Usuario creado, pero no se pudo inscribir al curso. Matricúlalo manualmente desde el curso.",
+              i18n.t("toast.routes_app_admin_users.enrollmentFailed", {
+                defaultValue:
+                  "Usuario creado, pero no se pudo inscribir al curso. Matricúlalo manualmente desde el curso.",
+              }),
             );
           } else {
             void logEvent({
@@ -888,7 +951,11 @@ function AdminUsers() {
             });
           }
         }
-        toast.success("Usuario creado correctamente");
+        toast.success(
+          i18n.t("toast.routes_app_admin_users.userCreated", {
+            defaultValue: "Usuario creado correctamente",
+          }),
+        );
         void logEvent({
           action: "user.created",
           category: "user",
@@ -1040,10 +1107,21 @@ function AdminUsers() {
       const otherFails = results.filter((r) => !r.ok && !r.duplicate);
 
       if (duplicates.length === 0 && otherFails.length === 0) {
-        toast.success(`Importados correctamente: ${ok}`);
+        toast.success(
+          i18n.t("toast.routes_app_admin_users.importSuccess", {
+            defaultValue: "Importados correctamente: {{count}}",
+            count: ok,
+          }),
+        );
       } else {
         toast.warning(
-          `Importados: ${ok} · Duplicados: ${duplicates.length} · Errores: ${otherFails.length}`,
+          i18n.t("toast.routes_app_admin_users.importPartial", {
+            defaultValue:
+              "Importados: {{ok}} · Duplicados: {{duplicates}} · Errores: {{errors}}",
+            ok,
+            duplicates: duplicates.length,
+            errors: otherFails.length,
+          }),
           {
             duration: 12000,
             description:

@@ -89,6 +89,7 @@ import { RowAction } from "@/components/ui/row-action";
 import { CodeRunOutput } from "@/modules/code/CodeRunOutput";
 import { CodeEditor, type CodeLanguage } from "@/modules/code/CodeEditor";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/teacher/monitor/$examId")({
   component: ExamMonitor,
@@ -761,7 +762,13 @@ function ExamMonitor() {
       resume: "Examen reanudado",
       add_time: `+${Math.floor(extraSeconds / 60)} minuto(s) añadidos`,
     };
-    toast.success(`${labels[action]} ${targetUserId ? "(estudiante)" : "(global)"}`);
+    toast.success(
+      i18n.t("toast.routes_app_teacher_monitor_examId.timerControlApplied", {
+        defaultValue: "{{label}} {{scope}}",
+        label: labels[action],
+        scope: targetUserId ? "(estudiante)" : "(global)",
+      }),
+    );
   };
 
   const saveTeacherFeedback = async () => {
@@ -781,7 +788,11 @@ function ExamMonitor() {
           : s,
       ),
     );
-    toast.success("Retroalimentación guardada");
+    toast.success(
+      i18n.t("toast.routes_app_teacher_monitor_examId.feedbackSaved", {
+        defaultValue: "Retroalimentación guardada",
+      }),
+    );
   };
 
   const reGradeWithAI = async (sub: Submission, questionId?: string) => {
@@ -887,7 +898,11 @@ function ExamMonitor() {
           });
         }
       }
-      toast.success("Pregunta recalificada con IA");
+      toast.success(
+        i18n.t("toast.routes_app_teacher_monitor_examId.questionRegradedWithAi", {
+          defaultValue: "Pregunta recalificada con IA",
+        }),
+      );
       load();
     } catch (e: any) {
       toast.error(friendlyError(e, "Error desconocido"));
@@ -1001,7 +1016,11 @@ function ExamMonitor() {
           mode: "dry_run_accepted",
         },
       });
-      toast.success("Nueva calificación aplicada");
+      toast.success(
+        i18n.t("toast.routes_app_teacher_monitor_examId.newGradeApplied", {
+          defaultValue: "Nueva calificación aplicada",
+        }),
+      );
       setReGradePreview(null);
       load();
     } finally {
@@ -1170,7 +1189,12 @@ function ExamMonitor() {
     const entry = qOverrides[q.id] ?? { score: null, feedback: "" };
     const numScore: number | null = entry.score;
     if (numScore != null && (Number.isNaN(numScore) || numScore < 0 || numScore > q.points)) {
-      toast.error(`La calificación debe estar entre 0 y ${q.points}`);
+      toast.error(
+        i18n.t("toast.routes_app_teacher_monitor_examId.gradeOutOfRange", {
+          defaultValue: "La calificación debe estar entre 0 y {{max}}",
+          max: q.points,
+        }),
+      );
       return;
     }
     setSavingQid(q.id);
@@ -1617,14 +1641,28 @@ function ExamMonitor() {
         // por defecto, así que el docente debe procesar la cola
         // manualmente desde el módulo Cola cuando quiera ver las notas.
         toast.success(
-          `${queued} job(s) encolado(s). Procesa la cola desde el módulo Cola o espera a la tarea programada.`,
+          i18n.t("toast.routes_app_teacher_monitor_examId.jobsQueued", {
+            defaultValue:
+              "{{count}} job(s) encolado(s). Procesa la cola desde el módulo Cola o espera a la tarea programada.",
+            count: queued,
+          }),
         );
       }
       if (failed > 0) {
-        toast.error(`${failed} job(s) no se pudieron encolar — reintenta más tarde.`);
+        toast.error(
+          i18n.t("toast.routes_app_teacher_monitor_examId.jobsQueueFailed", {
+            defaultValue: "{{count}} job(s) no se pudieron encolar — reintenta más tarde.",
+            count: failed,
+          }),
+        );
       }
       if (cancelled > 0) {
-        toast.info(`Cancelado: ${cancelled} job(s) no se encolaron.`);
+        toast.info(
+          i18n.t("toast.routes_app_teacher_monitor_examId.jobsQueueCancelled", {
+            defaultValue: "Cancelado: {{count}} job(s) no se encolaron.",
+            count: cancelled,
+          }),
+        );
       }
       void load();
       return;
@@ -1704,12 +1742,29 @@ function ExamMonitor() {
     if (signal.aborted) {
       const okCount = rows.length - failed;
       toast.info(
-        `Cancelado en ${rows.length}/${targets.length}. ${okCount} propuesta(s) listas para revisar.`,
+        i18n.t("toast.routes_app_teacher_monitor_examId.regradeCancelled", {
+          defaultValue:
+            "Cancelado en {{done}}/{{total}}. {{ok}} propuesta(s) listas para revisar.",
+          done: rows.length,
+          total: targets.length,
+          ok: okCount,
+        }),
       );
     } else if (failed > 0) {
-      toast.warning(`Recalificación lista. ${rows.length - failed} ok, ${failed} con error.`);
+      toast.warning(
+        i18n.t("toast.routes_app_teacher_monitor_examId.regradeReadyWithErrors", {
+          defaultValue: "Recalificación lista. {{ok}} ok, {{failed}} con error.",
+          ok: rows.length - failed,
+          failed,
+        }),
+      );
     } else {
-      toast.success(`Recalificación lista. ${rows.length} propuestas para revisar.`);
+      toast.success(
+        i18n.t("toast.routes_app_teacher_monitor_examId.regradeReady", {
+          defaultValue: "Recalificación lista. {{count}} propuestas para revisar.",
+          count: rows.length,
+        }),
+      );
     }
     void logEvent({
       action: "ai_grading.batch_dryrun",
@@ -1804,7 +1859,13 @@ function ExamMonitor() {
         entityId: examId,
         metadata: { applied: ok, total: regradeAllRows.length },
       });
-      if (ok > 0) toast.success(`${ok} nota(s) aplicada(s).`);
+      if (ok > 0)
+        toast.success(
+          i18n.t("toast.routes_app_teacher_monitor_examId.gradesApplied", {
+            defaultValue: "{{count}} nota(s) aplicada(s).",
+            count: ok,
+          }),
+        );
       await load();
     } finally {
       setApplyingBulk(false);

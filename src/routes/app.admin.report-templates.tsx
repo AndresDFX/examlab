@@ -9,6 +9,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import i18n from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -170,11 +171,19 @@ function Inner() {
   const handleSave = async () => {
     if (!user) return;
     if (!draft.name.trim()) {
-      toast.error("El nombre es obligatorio");
+      toast.error(
+        i18n.t("toast.routes_app_admin_report_templates.nameRequired", {
+          defaultValue: "El nombre es obligatorio",
+        }),
+      );
       return;
     }
     if (!draft.body_html.trim()) {
-      toast.error("El cuerpo no puede estar vacío");
+      toast.error(
+        i18n.t("toast.routes_app_admin_report_templates.bodyEmpty", {
+          defaultValue: "El cuerpo no puede estar vacío",
+        }),
+      );
       return;
     }
     setSaving(true);
@@ -202,7 +211,15 @@ function Inner() {
       toast.error(friendlyError(error, "No se pudo guardar la plantilla"));
       return;
     }
-    toast.success(editing ? "Plantilla actualizada" : "Plantilla creada");
+    toast.success(
+      editing
+        ? i18n.t("toast.routes_app_admin_report_templates.updatedOk", {
+            defaultValue: "Plantilla actualizada",
+          })
+        : i18n.t("toast.routes_app_admin_report_templates.createdOk", {
+            defaultValue: "Plantilla creada",
+          }),
+    );
     setDialogOpen(false);
     void load();
   };
@@ -222,7 +239,11 @@ function Inner() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Plantilla eliminada");
+    toast.success(
+      i18n.t("toast.routes_app_admin_report_templates.deletedOk", {
+        defaultValue: "Plantilla eliminada",
+      }),
+    );
     void load();
   };
 
@@ -249,7 +270,11 @@ function Inner() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Plantilla duplicada");
+    toast.success(
+      i18n.t("toast.routes_app_admin_report_templates.duplicatedOk", {
+        defaultValue: "Plantilla duplicada",
+      }),
+    );
     void load();
   };
 

@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 import { notifyExamNoteReviewed } from "@/modules/exams/exam-notes-notify";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
@@ -84,7 +85,11 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
   const submit = async () => {
     const txt = content.trim();
     if (!txt) {
-      toast.error("Escribe el contenido de tus notas");
+      toast.error(
+        i18n.t("toast.modules_exams_ExamNotesManager.emptyContent", {
+          defaultValue: "Escribe el contenido de tus notas",
+        }),
+      );
       return;
     }
     setBusy(true);
@@ -98,14 +103,28 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
         .select("id");
       if (error) toast.error(friendlyError(error));
       else if (!updated || (updated as unknown as { id: string }[]).length === 0)
-        toast.error("No se pudo enviar la nota. Recarga e intenta de nuevo.");
-      else toast.success("Notas enviadas para revisión");
+        toast.error(
+          i18n.t("toast.modules_exams_ExamNotesManager.submitFailed", {
+            defaultValue: "No se pudo enviar la nota. Recarga e intenta de nuevo.",
+          }),
+        );
+      else
+        toast.success(
+          i18n.t("toast.modules_exams_ExamNotesManager.submittedForReview", {
+            defaultValue: "Notas enviadas para revisión",
+          }),
+        );
     } else {
       const { error } = await supabase
         .from("exam_notes" as any)
         .insert({ exam_id: examId, user_id: userId, content: txt, status: "pendiente" });
       if (error) toast.error(friendlyError(error));
-      else toast.success("Notas enviadas para revisión");
+      else
+        toast.success(
+          i18n.t("toast.modules_exams_ExamNotesManager.submittedForReview", {
+            defaultValue: "Notas enviadas para revisión",
+          }),
+        );
     }
     setBusy(false);
     void load();
@@ -295,11 +314,18 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
     }
     if (!updated || (updated as unknown as { id: string }[]).length === 0) {
       toast.error(
-        "No se pudo aprobar la nota (sin permisos o la nota ya no existe). Recarga e intenta de nuevo.",
+        i18n.t("toast.modules_exams_ExamNotesManager.approveFailed", {
+          defaultValue:
+            "No se pudo aprobar la nota (sin permisos o la nota ya no existe). Recarga e intenta de nuevo.",
+        }),
       );
       return;
     }
-    toast.success("Notas aprobadas");
+    toast.success(
+      i18n.t("toast.modules_exams_ExamNotesManager.approved", {
+        defaultValue: "Notas aprobadas",
+      }),
+    );
     // Notif al estudiante → dispara correo. El examId lo tenemos en el
     // scope; el user_id lo sacamos del row local (cargado por `load`).
     // El helper resuelve el título del examen vía query si hace falta.
@@ -321,7 +347,11 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
 
   const confirmReject = async () => {
     if (!reason.trim()) {
-      toast.error("Debes ingresar un motivo de rechazo");
+      toast.error(
+        i18n.t("toast.modules_exams_ExamNotesManager.rejectReasonRequired", {
+          defaultValue: "Debes ingresar un motivo de rechazo",
+        }),
+      );
       return;
     }
     if (!rejectDialog.noteId) return;
@@ -346,11 +376,18 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
     }
     if (!updated || (updated as unknown as { id: string }[]).length === 0) {
       toast.error(
-        "No se pudo rechazar la nota (sin permisos o la nota ya no existe). Recarga e intenta de nuevo.",
+        i18n.t("toast.modules_exams_ExamNotesManager.rejectFailed", {
+          defaultValue:
+            "No se pudo rechazar la nota (sin permisos o la nota ya no existe). Recarga e intenta de nuevo.",
+        }),
       );
       return;
     }
-    toast.success("Notas rechazadas — el estudiante podrá reenviar");
+    toast.success(
+      i18n.t("toast.modules_exams_ExamNotesManager.rejected", {
+        defaultValue: "Notas rechazadas — el estudiante podrá reenviar",
+      }),
+    );
     const rejectedNoteId = rejectDialog.noteId;
     const rejectedReason = reason.trim();
     setRejectDialog({ open: false, noteId: null });

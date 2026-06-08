@@ -43,6 +43,7 @@ import { Send, Paperclip, Download, X, UserCheck, CheckCircle2 } from "lucide-re
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -311,7 +312,7 @@ export function SupportTicketDetailDialog({
   const uploadFile = async (file: File) => {
     if (!ticket || !currentUserId || uploading) return;
     if (file.size > 25 * 1024 * 1024) {
-      toast.error("El archivo supera 25 MB. Subí algo más pequeño.");
+      toast.error(i18n.t("toast.modules_support_SupportTicketDetailDialog.fileTooLarge", { defaultValue: "El archivo supera 25 MB. Subí algo más pequeño." }));
       return;
     }
     setUploading(true);
@@ -338,7 +339,7 @@ export function SupportTicketDetailDialog({
         toast.error(friendlyError(insErr, "Adjunto cargado pero no se registró"));
         return;
       }
-      toast.success("Adjunto cargado");
+      toast.success(i18n.t("toast.modules_support_SupportTicketDetailDialog.attachmentUploaded", { defaultValue: "Adjunto cargado" }));
       await load();
     } catch (e) {
       toast.error(friendlyError(e, "Error subiendo"));
@@ -380,7 +381,7 @@ export function SupportTicketDetailDialog({
         toast.error(friendlyError(error, "No se pudo guardar"));
         return;
       }
-      toast.success("Cambios guardados");
+      toast.success(i18n.t("toast.modules_support_SupportTicketDetailDialog.changesSaved", { defaultValue: "Cambios guardados" }));
       onMutate?.();
     } catch (e) {
       toast.error(friendlyError(e, "Error guardando"));
@@ -401,7 +402,7 @@ export function SupportTicketDetailDialog({
         return;
       }
       setStatus("in_progress");
-      toast.success("Asignado a vos");
+      toast.success(i18n.t("toast.modules_support_SupportTicketDetailDialog.assignedToYou", { defaultValue: "Asignado a vos" }));
       onMutate?.();
     } catch (e) {
       toast.error(friendlyError(e, "Error asignando"));
@@ -430,7 +431,7 @@ export function SupportTicketDetailDialog({
         toast.error(friendlyError(error, "No se pudo cerrar"));
         return;
       }
-      toast.success("Ticket cerrado");
+      toast.success(i18n.t("toast.modules_support_SupportTicketDetailDialog.ticketClosed", { defaultValue: "Ticket cerrado" }));
       setStatus("closed");
       onMutate?.();
     } catch (e) {

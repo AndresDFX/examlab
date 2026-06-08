@@ -36,6 +36,7 @@ import { LinkCalendarEventsDialog } from "@/modules/calendar/LinkCalendarEventsD
 import { CalendarDays, Link2, Unlink, RefreshCw, CheckCircle2 } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 
 export const Route = createFileRoute("/app/teacher/calendar")({ component: CalendarPage });
@@ -345,7 +346,10 @@ function CalendarPage() {
         // Refrescamos el estado para que la UI muestre el selector y el
         // docente elija un calendario válido.
         toast.error(
-          "El calendario seleccionado ya no es accesible en Google. Elige otro y vuelve a sincronizar.",
+          i18n.t("toast.routes_app_teacher_calendar.calendarNotAccessible", {
+            defaultValue:
+              "El calendario seleccionado ya no es accesible en Google. Elige otro y vuelve a sincronizar.",
+          }),
           { duration: 10000 },
         );
         await loadStatus();

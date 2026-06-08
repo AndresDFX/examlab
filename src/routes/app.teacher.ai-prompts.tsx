@@ -25,6 +25,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/teacher/ai-prompts")({
   component: TeacherAIPrompts,
@@ -267,7 +268,11 @@ function TeacherAIPrompts() {
     if (!user || !courseId) return;
     const text = drafts[uc.key].trim();
     if (!text) {
-      toast.error("El prompt no puede estar vacío");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_ai_prompts.promptEmpty", {
+          defaultValue: "El prompt no puede estar vacío",
+        }),
+      );
       return;
     }
     setSavingKey(uc.key);
@@ -304,7 +309,12 @@ function TeacherAIPrompts() {
         courseId,
         metadata: { use_case: uc.key, scope: "course", length: text.length },
       });
-      toast.success(`Override de "${uc.label}" guardado para este curso`);
+      toast.success(
+        i18n.t("toast.routes_app_teacher_ai_prompts.overrideSaved", {
+          defaultValue: 'Override de "{{label}}" guardado para este curso',
+          label: uc.label,
+        }),
+      );
       await loadPrompts(courseId);
     } finally {
       setSavingKey(null);
@@ -339,7 +349,12 @@ function TeacherAIPrompts() {
         courseId,
         metadata: { use_case: uc.key, scope: "course" },
       });
-      toast.success(`"${uc.label}" volvió al prompt global`);
+      toast.success(
+        i18n.t("toast.routes_app_teacher_ai_prompts.revertedToGlobal", {
+          defaultValue: '"{{label}}" volvió al prompt global',
+          label: uc.label,
+        }),
+      );
       await loadPrompts(courseId);
     } finally {
       setSavingKey(null);

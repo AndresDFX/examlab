@@ -54,6 +54,7 @@ import {
 import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 interface CronJob {
   jobid: number;
@@ -178,8 +179,15 @@ export function SupabaseCronPanel() {
       }
       toast.success(
         !previous
-          ? `"${job.jobname}" activado — aplica al próximo tick del scheduler (~1 min)`
-          : `"${job.jobname}" pausado — no se disparará en el próximo tick`,
+          ? i18n.t("toast.modules_admin_SupabaseCronPanel.jobActivated", {
+              defaultValue:
+                '"{{jobName}}" activado — aplica al próximo tick del scheduler (~1 min)',
+              jobName: job.jobname,
+            })
+          : i18n.t("toast.modules_admin_SupabaseCronPanel.jobPaused", {
+              defaultValue: '"{{jobName}}" pausado — no se disparará en el próximo tick',
+              jobName: job.jobname,
+            }),
       );
       // Re-fetch para confirmar contra DB que el cambio realmente se
       // aplicó (cron.alter_job actualiza la fila inmediatamente — pero
@@ -223,7 +231,12 @@ export function SupabaseCronPanel() {
         toast.error(friendlyError(error, "No se pudo actualizar la descripción"));
         return;
       }
-      toast.success(`Descripción de "${editingDesc.jobname}" actualizada`);
+      toast.success(
+        i18n.t("toast.modules_admin_SupabaseCronPanel.descriptionUpdated", {
+          defaultValue: 'Descripción de "{{jobName}}" actualizada',
+          jobName: editingDesc.jobname,
+        }),
+      );
       setEditingDesc(null);
       await load();
     } finally {
@@ -250,7 +263,11 @@ export function SupabaseCronPanel() {
         return;
       }
       toast.success(
-        `Frecuencia de "${editingJob.jobname}" actualizada — aplica al próximo tick (~1 min)`,
+        i18n.t("toast.modules_admin_SupabaseCronPanel.scheduleUpdated", {
+          defaultValue:
+            'Frecuencia de "{{jobName}}" actualizada — aplica al próximo tick (~1 min)',
+          jobName: editingJob.jobname,
+        }),
       );
       setEditingJob(null);
       await load();

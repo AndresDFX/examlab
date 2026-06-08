@@ -9,6 +9,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { logEvent } from "@/shared/lib/audit";
 import { useAuth } from "@/hooks/use-auth";
@@ -238,18 +239,30 @@ export function TeacherProjectFilesEditor({
 
   const submitManual = async () => {
     if (!qContent.trim()) {
-      toast.error("Escribe el enunciado");
+      toast.error(
+        i18n.t("toast.modules_projects_ProjectFiles.writeStatement", {
+          defaultValue: "Escribe el enunciado",
+        }),
+      );
       return;
     }
     if (qType === "cerrada_multi") {
       if (qCorrectIndices.length === 0) {
-        toast.error("Marca al menos una opción correcta en opción múltiple");
+        toast.error(
+          i18n.t("toast.modules_projects_ProjectFiles.markAtLeastOneCorrect", {
+            defaultValue: "Marca al menos una opción correcta en opción múltiple",
+          }),
+        );
         return;
       }
       const minN = typeof qMinSelections === "number" ? qMinSelections : 0;
       const maxN = typeof qMaxSelections === "number" ? qMaxSelections : 0;
       if (minN && maxN && minN > maxN) {
-        toast.error("Mínimo de marcadas no puede ser mayor al máximo");
+        toast.error(
+          i18n.t("toast.modules_projects_ProjectFiles.minGreaterThanMax", {
+            defaultValue: "Mínimo de marcadas no puede ser mayor al máximo",
+          }),
+        );
         return;
       }
     }
@@ -294,7 +307,11 @@ export function TeacherProjectFilesEditor({
         toast.error(friendlyError(error));
         return;
       }
-      toast.success("Pregunta actualizada");
+      toast.success(
+        i18n.t("toast.modules_projects_ProjectFiles.questionUpdated", {
+          defaultValue: "Pregunta actualizada",
+        }),
+      );
     } else {
       // Proyectos no usan starter_code (no es un IDE inline). El ZIP
       // trae los archivos del estudiante sin plantilla del docente.
@@ -315,7 +332,11 @@ export function TeacherProjectFilesEditor({
         toast.error(friendlyError(error));
         return;
       }
-      toast.success("Pregunta agregada — puedes continuar añadiendo");
+      toast.success(
+        i18n.t("toast.modules_projects_ProjectFiles.questionAdded", {
+          defaultValue: "Pregunta agregada — puedes continuar añadiendo",
+        }),
+      );
     }
     resetForm();
     void load();
@@ -371,7 +392,11 @@ export function TeacherProjectFilesEditor({
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Pregunta eliminada");
+    toast.success(
+      i18n.t("toast.modules_projects_ProjectFiles.questionDeleted", {
+        defaultValue: "Pregunta eliminada",
+      }),
+    );
     void load();
   };
 
@@ -382,7 +407,10 @@ export function TeacherProjectFilesEditor({
   const generateFromDescription = async () => {
     if (!autoDescription.trim()) {
       toast.error(
-        "El proyecto no tiene descripción todavía. Escríbela o genérala con IA antes de continuar.",
+        i18n.t("toast.modules_projects_ProjectFiles.projectHasNoDescription", {
+          defaultValue:
+            "El proyecto no tiene descripción todavía. Escríbela o genérala con IA antes de continuar.",
+        }),
       );
       return;
     }
@@ -401,7 +429,11 @@ export function TeacherProjectFilesEditor({
       const dbAny = supabase as any;
       const { data: userRes } = await supabase.auth.getUser();
       if (!userRes.user) {
-        toast.error("No autenticado");
+        toast.error(
+          i18n.t("toast.modules_projects_ProjectFiles.notAuthenticated", {
+            defaultValue: "No autenticado",
+          }),
+        );
         return;
       }
       const { error: enqErr } = await dbAny.from("ai_generation_queue").insert({
@@ -424,9 +456,10 @@ export function TeacherProjectFilesEditor({
         return;
       }
       toast.success(
-        "1 job de generación encolado. Cuando tengas un código de IA inmediata o un " +
-          "administrador lo procese, las preguntas aparecerán automáticamente. Puedes verlo " +
-          "en el panel de Cola IA.",
+        i18n.t("toast.modules_projects_ProjectFiles.oneGenerationJobQueued", {
+          defaultValue:
+            "1 job de generación encolado. Cuando tengas un código de IA inmediata o un administrador lo procese, las preguntas aparecerán automáticamente. Puedes verlo en el panel de Cola IA.",
+        }),
       );
       return;
     }
@@ -447,7 +480,11 @@ export function TeacherProjectFilesEditor({
         toast.error(data.error);
       } else if (data?.inserted) {
         toast.success(
-          `${data.inserted.length} pregunta(s) generadas — incluye 1 entrega de código (archivos)`,
+          i18n.t("toast.modules_projects_ProjectFiles.questionsGeneratedWithCode", {
+            defaultValue:
+              "{{count}} pregunta(s) generadas — incluye 1 entrega de código (archivos)",
+            count: data.inserted.length,
+          }),
         );
         void logEvent({
           action: "ai_questions.generated",
@@ -469,11 +506,20 @@ export function TeacherProjectFilesEditor({
 
   const generateWithAI = async () => {
     if (!aiTopics.trim()) {
-      toast.error("Indica los temas");
+      toast.error(
+        i18n.t("toast.modules_projects_ProjectFiles.indicateTopics", {
+          defaultValue: "Indica los temas",
+        }),
+      );
       return;
     }
     const validRows = aiRows.filter((r) => r.count > 0);
-    if (!validRows.length) return toast.error("Configura al menos un tipo con cantidad > 0");
+    if (!validRows.length)
+      return toast.error(
+        i18n.t("toast.modules_projects_ProjectFiles.configureAtLeastOneType", {
+          defaultValue: "Configura al menos un tipo con cantidad > 0",
+        }),
+      );
     // Mismo gate que generateFromDescription: allowQueue=true → encolamos
     // a `ai_generation_queue` cuando el docente está en async sin código.
     const decision = await aiGate.ensureAuthorized({ allowQueue: true });
@@ -493,7 +539,11 @@ export function TeacherProjectFilesEditor({
       const dbAny = supabase as any;
       const { data: userRes } = await supabase.auth.getUser();
       if (!userRes.user) {
-        toast.error("No autenticado");
+        toast.error(
+          i18n.t("toast.modules_projects_ProjectFiles.notAuthenticated", {
+            defaultValue: "No autenticado",
+          }),
+        );
         return;
       }
       const rows = validRows.map((row) => ({
@@ -520,9 +570,11 @@ export function TeacherProjectFilesEditor({
         return;
       }
       toast.success(
-        `${rows.length} job${rows.length === 1 ? "" : "s"} de generación encolados. ` +
-          `Cuando tengas un código de IA inmediata o un administrador los procese, ` +
-          `las preguntas aparecerán automáticamente. Puedes verlos en el panel de Cola IA.`,
+        i18n.t("toast.modules_projects_ProjectFiles.generationJobsQueued", {
+          defaultValue:
+            "{{count}} job(s) de generación encolados. Cuando tengas un código de IA inmediata o un administrador los procese, las preguntas aparecerán automáticamente. Puedes verlos en el panel de Cola IA.",
+          count: rows.length,
+        }),
       );
       setAiTopics("");
       return;
@@ -553,13 +605,26 @@ export function TeacherProjectFilesEditor({
         });
         if (error || data?.error) {
           const detail = await extractEdgeError(error, data);
-          toast.error(`Error en ${row.type}: ${detail || "Error desconocido"}`);
+          toast.error(
+            i18n.t("toast.modules_projects_ProjectFiles.errorInType", {
+              defaultValue: "Error en {{type}}: {{detail}}",
+              type: row.type,
+              detail: detail || i18n.t("toast.modules_projects_ProjectFiles.unknownError", {
+                defaultValue: "Error desconocido",
+              }),
+            }),
+          );
         } else {
           totalInserted += data?.inserted?.length ?? 0;
         }
       }
       if (totalInserted > 0) {
-        toast.success(`${totalInserted} pregunta${totalInserted !== 1 ? "s" : ""} generadas`);
+        toast.success(
+          i18n.t("toast.modules_projects_ProjectFiles.questionsGenerated", {
+            defaultValue: "{{count}} pregunta(s) generadas",
+            count: totalInserted,
+          }),
+        );
         setAiTopics("");
         void logEvent({
           action: "ai_questions.generated",
@@ -1332,7 +1397,11 @@ export function StudentProjectTaker({
   const submit = async () => {
     if (!user) return;
     if (!questions.length) {
-      toast.error("Este proyecto no tiene preguntas");
+      toast.error(
+        i18n.t("toast.modules_projects_ProjectFiles.projectHasNoQuestions", {
+          defaultValue: "Este proyecto no tiene preguntas",
+        }),
+      );
       return;
     }
     // Enforcement de max_attempts: si el estudiante/grupo ya consumió
@@ -1341,7 +1410,11 @@ export function StudentProjectTaker({
     // max_attempts=N → hasta N reintentos.
     if (attemptsExhausted) {
       toast.error(
-        `Ya consumiste tus ${effectiveMaxAttempts} intento${effectiveMaxAttempts === 1 ? "" : "s"} de entrega. No puedes volver a entregar este proyecto.`,
+        i18n.t("toast.modules_projects_ProjectFiles.attemptsExhausted", {
+          defaultValue:
+            "Ya consumiste tus {{count}} intento(s) de entrega. No puedes volver a entregar este proyecto.",
+          count: effectiveMaxAttempts,
+        }),
       );
       return;
     }
@@ -1350,11 +1423,19 @@ export function StudentProjectTaker({
     // queda al docente al revisar manualmente.
     const url = repositoryUrl.trim();
     if (!url) {
-      toast.error("El link al repositorio (GitHub o Drive) es obligatorio");
+      toast.error(
+        i18n.t("toast.modules_projects_ProjectFiles.repositoryUrlRequired", {
+          defaultValue: "El link al repositorio (GitHub o Drive) es obligatorio",
+        }),
+      );
       return;
     }
     if (!/^https?:\/\/\S+\.\S+/i.test(url)) {
-      toast.error("Ingresa una URL válida (debe empezar con http:// o https://)");
+      toast.error(
+        i18n.t("toast.modules_projects_ProjectFiles.invalidUrl", {
+          defaultValue: "Ingresa una URL válida (debe empezar con http:// o https://)",
+        }),
+      );
       return;
     }
     // ── Pre-validación de archivos/ZIPs ANTES de crear la submission ──
@@ -1443,7 +1524,10 @@ export function StudentProjectTaker({
         toast.error(err.message, { duration: 10000 });
       }
       toast.error(
-        "Corrige los archivos señalados y vuelve a entregar — no se guardó nada todavía.",
+        i18n.t("toast.modules_projects_ProjectFiles.fixFilesAndResubmit", {
+          defaultValue:
+            "Corrige los archivos señalados y vuelve a entregar — no se guardó nada todavía.",
+        }),
         { duration: 10000 },
       );
       return;
@@ -1516,7 +1600,11 @@ export function StudentProjectTaker({
       // sin gastar intento siempre se permite.
       if (nextAttemptCount > effectiveMaxAttempts) {
         toast.error(
-          `Ya consumiste tus ${effectiveMaxAttempts} intento${effectiveMaxAttempts === 1 ? "" : "s"} de entrega. Recarga para ver la entrega actual.`,
+          i18n.t("toast.modules_projects_ProjectFiles.attemptsExhaustedReload", {
+            defaultValue:
+              "Ya consumiste tus {{count}} intento(s) de entrega. Recarga para ver la entrega actual.",
+            count: effectiveMaxAttempts,
+          }),
         );
         setSubmitting(false);
         return;
@@ -2047,7 +2135,11 @@ export function StudentProjectTaker({
             if (retryErr) {
               console.error("[project-submit] upsert retry failed", qid, retryErr);
               toast.error(
-                `No se pudo guardar la calificación de una sección: ${retryErr.message}`,
+                i18n.t("toast.modules_projects_ProjectFiles.sectionGradeSaveFailed", {
+                  defaultValue:
+                    "No se pudo guardar la calificación de una sección: {{detail}}",
+                  detail: retryErr.message,
+                }),
                 { duration: 10000 },
               );
             } else {
@@ -2058,7 +2150,11 @@ export function StudentProjectTaker({
           } else {
             console.error("[project-submit] upsert failed", qid, error);
             toast.error(
-              `No se pudo guardar la calificación de una sección: ${friendlyError(error)}`,
+              i18n.t("toast.modules_projects_ProjectFiles.sectionGradeSaveFailed", {
+                defaultValue:
+                  "No se pudo guardar la calificación de una sección: {{detail}}",
+                detail: friendlyError(error),
+              }),
               {
                 duration: 10000,
               },
@@ -2161,7 +2257,12 @@ export function StudentProjectTaker({
       setGraded({ grade: submissionScore });
       onGraded?.(submissionScore);
       toast.success(
-        `Entrega calificada: ${submissionScore} / ${maxScore}. La nota final se calcula tras la sustentación.`,
+        i18n.t("toast.modules_projects_ProjectFiles.submissionGraded", {
+          defaultValue:
+            "Entrega calificada: {{score}} / {{max}}. La nota final se calcula tras la sustentación.",
+          score: submissionScore,
+          max: maxScore,
+        }),
       );
     } finally {
       setSubmitting(false);
@@ -2420,20 +2521,32 @@ export function StudentProjectTaker({
                         const picked = e.target.files?.[0];
                         if (!picked) return;
                         if (picked.size === 0) {
-                          toast.error("El archivo está vacío.");
+                          toast.error(
+                            i18n.t("toast.modules_projects_ProjectFiles.fileEmpty", {
+                              defaultValue: "El archivo está vacío.",
+                            }),
+                          );
                           e.target.value = "";
                           return;
                         }
                         if (picked.size > MAX_CODE_FILES_TOTAL_BYTES) {
                           toast.error(
-                            `El ZIP pesa ${formatFileSize(picked.size)} y supera el tope de 50 MB.`,
+                            i18n.t("toast.modules_projects_ProjectFiles.zipExceedsLimit", {
+                              defaultValue:
+                                "El ZIP pesa {{size}} y supera el tope de 50 MB.",
+                              size: formatFileSize(picked.size),
+                            }),
                           );
                           e.target.value = "";
                           return;
                         }
                         const lowerName = picked.name.toLowerCase();
                         if (!lowerName.endsWith(".zip")) {
-                          toast.error("Solo se acepta un archivo .zip.");
+                          toast.error(
+                            i18n.t("toast.modules_projects_ProjectFiles.onlyZipAccepted", {
+                              defaultValue: "Solo se acepta un archivo .zip.",
+                            }),
+                          );
                           e.target.value = "";
                           return;
                         }
@@ -2511,7 +2624,13 @@ export function StudentProjectTaker({
                               .join(", ");
                             const more = bad.length > 5 ? ` (+${bad.length - 5} más)` : "";
                             toast.error(
-                              `Archivos no permitidos: ${sample}${more}. Solo se aceptan ${allowedLabel}.`,
+                              i18n.t("toast.modules_projects_ProjectFiles.disallowedFiles", {
+                                defaultValue:
+                                  "Archivos no permitidos: {{sample}}{{more}}. Solo se aceptan {{allowed}}.",
+                                sample,
+                                more,
+                                allowed: allowedLabel,
+                              }),
                               { duration: 8000 },
                             );
                             e.target.value = "";
@@ -2535,21 +2654,33 @@ export function StudentProjectTaker({
                         const totalBytes = merged.reduce((a, f) => a + f.size, 0);
                         if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
                           toast.error(
-                            `Los archivos suman ${formatFileSize(totalBytes)} y superan el tope de 50 MB.`,
+                            i18n.t("toast.modules_projects_ProjectFiles.filesExceedLimit", {
+                              defaultValue:
+                                "Los archivos suman {{size}} y superan el tope de 50 MB.",
+                              size: formatFileSize(totalBytes),
+                            }),
                           );
                           e.target.value = "";
                           return;
                         }
                         if (merged.length > MAX_CODE_FILES_COUNT) {
                           toast.error(
-                            `Seleccionaste ${merged.length} archivos. Máximo permitido: ${MAX_CODE_FILES_COUNT}.`,
+                            i18n.t("toast.modules_projects_ProjectFiles.tooManyFiles", {
+                              defaultValue:
+                                "Seleccionaste {{count}} archivos. Máximo permitido: {{max}}.",
+                              count: merged.length,
+                              max: MAX_CODE_FILES_COUNT,
+                            }),
                           );
                           e.target.value = "";
                           return;
                         }
                         if (picked.some((f) => f.size === 0)) {
                           toast.error(
-                            "Hay archivos vacíos en la selección. Verifica que no estés subiendo archivos rotos.",
+                            i18n.t("toast.modules_projects_ProjectFiles.emptyFilesInSelection", {
+                              defaultValue:
+                                "Hay archivos vacíos en la selección. Verifica que no estés subiendo archivos rotos.",
+                            }),
                           );
                           e.target.value = "";
                           return;

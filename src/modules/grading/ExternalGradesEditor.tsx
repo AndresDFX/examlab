@@ -20,6 +20,7 @@ import { CheckCircle2, ClipboardList, Save, Search, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { HelpHint } from "@/components/ui/help-hint";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 /**
  * Editor de notas para actividades externas (parciales/talleres
@@ -149,7 +150,12 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
       newRows.sort((a, b) => a.fullName.localeCompare(b.fullName));
       setRows(newRows);
     } catch (e) {
-      toast.error(`No se pudieron cargar los estudiantes: ${friendlyError(e)}`);
+      toast.error(
+        i18n.t("toast.modules_grading_ExternalGradesEditor.loadStudentsFailed", {
+          defaultValue: "No se pudieron cargar los estudiantes: {{error}}",
+          error: friendlyError(e),
+        }),
+      );
     } finally {
       setLoading(false);
     }
@@ -182,7 +188,13 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
   const saveRow = async (row: Row): Promise<boolean> => {
     const v = validateGrade(row.grade);
     if (!v.ok) {
-      toast.error(`${row.fullName}: ${v.msg}`);
+      toast.error(
+        i18n.t("toast.modules_grading_ExternalGradesEditor.gradeValidationFailed", {
+          defaultValue: "{{name}}: {{message}}",
+          name: row.fullName,
+          message: v.msg,
+        }),
+      );
       return false;
     }
     const now = new Date().toISOString();
@@ -200,7 +212,13 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           })
           .eq("id", row.submissionId);
         if (error) {
-          toast.error(`${row.fullName}: ${friendlyError(error)}`);
+          toast.error(
+            i18n.t("toast.modules_grading_ExternalGradesEditor.saveRowFailed", {
+              defaultValue: "{{name}}: {{error}}",
+              name: row.fullName,
+              error: friendlyError(error),
+            }),
+          );
           return false;
         }
       } else {
@@ -219,7 +237,13 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           .select("id")
           .single();
         if (error) {
-          toast.error(`${row.fullName}: ${friendlyError(error)}`);
+          toast.error(
+            i18n.t("toast.modules_grading_ExternalGradesEditor.saveRowFailed", {
+              defaultValue: "{{name}}: {{error}}",
+              name: row.fullName,
+              error: friendlyError(error),
+            }),
+          );
           return false;
         }
         if (data?.id) updateRow(row.userId, { submissionId: data.id });
@@ -236,7 +260,13 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           })
           .eq("id", row.submissionId);
         if (error) {
-          toast.error(`${row.fullName}: ${friendlyError(error)}`);
+          toast.error(
+            i18n.t("toast.modules_grading_ExternalGradesEditor.saveRowFailed", {
+              defaultValue: "{{name}}: {{error}}",
+              name: row.fullName,
+              error: friendlyError(error),
+            }),
+          );
           return false;
         }
       } else {
@@ -253,7 +283,13 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           .select("id")
           .single();
         if (error) {
-          toast.error(`${row.fullName}: ${friendlyError(error)}`);
+          toast.error(
+            i18n.t("toast.modules_grading_ExternalGradesEditor.saveRowFailed", {
+              defaultValue: "{{name}}: {{error}}",
+              name: row.fullName,
+              error: friendlyError(error),
+            }),
+          );
           return false;
         }
         if (data?.id) updateRow(row.userId, { submissionId: data.id });
@@ -271,7 +307,13 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           })
           .eq("id", row.submissionId);
         if (error) {
-          toast.error(`${row.fullName}: ${friendlyError(error)}`);
+          toast.error(
+            i18n.t("toast.modules_grading_ExternalGradesEditor.saveRowFailed", {
+              defaultValue: "{{name}}: {{error}}",
+              name: row.fullName,
+              error: friendlyError(error),
+            }),
+          );
           return false;
         }
       } else {
@@ -288,7 +330,13 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           .select("id")
           .single();
         if (error) {
-          toast.error(`${row.fullName}: ${friendlyError(error)}`);
+          toast.error(
+            i18n.t("toast.modules_grading_ExternalGradesEditor.saveRowFailed", {
+              defaultValue: "{{name}}: {{error}}",
+              name: row.fullName,
+              error: friendlyError(error),
+            }),
+          );
           return false;
         }
         if (data?.id) updateRow(row.userId, { submissionId: data.id });
@@ -308,7 +356,12 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           originalGrade: row.grade,
           originalFeedback: row.feedback,
         });
-        toast.success(`Nota guardada: ${row.fullName}`);
+        toast.success(
+          i18n.t("toast.modules_grading_ExternalGradesEditor.gradeSaved", {
+            defaultValue: "Nota guardada: {{name}}",
+            name: row.fullName,
+          }),
+        );
       }
     } finally {
       setSavingId(null);
@@ -350,12 +403,35 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
         }
       }
       if (okCount > 0) {
-        toast.success(
-          `${okCount} cambio${okCount === 1 ? "" : "s"} guardado${okCount === 1 ? "" : "s"}` +
-            (failCount > 0 ? ` · ${failCount} fallido${failCount === 1 ? "" : "s"}` : ""),
-        );
+        const savedPart =
+          okCount === 1
+            ? i18n.t("toast.modules_grading_ExternalGradesEditor.bulkSavedOne", {
+                defaultValue: "{{count}} cambio guardado",
+                count: okCount,
+              })
+            : i18n.t("toast.modules_grading_ExternalGradesEditor.bulkSavedMany", {
+                defaultValue: "{{count}} cambios guardados",
+                count: okCount,
+              });
+        const failPart =
+          failCount > 0
+            ? failCount === 1
+              ? i18n.t("toast.modules_grading_ExternalGradesEditor.bulkFailedOne", {
+                  defaultValue: " · {{count}} fallido",
+                  count: failCount,
+                })
+              : i18n.t("toast.modules_grading_ExternalGradesEditor.bulkFailedMany", {
+                  defaultValue: " · {{count}} fallidos",
+                  count: failCount,
+                })
+            : "";
+        toast.success(savedPart + failPart);
       } else if (failCount === 0) {
-        toast.info("No hay cambios sin guardar");
+        toast.info(
+          i18n.t("toast.modules_grading_ExternalGradesEditor.noUnsavedChanges", {
+            defaultValue: "No hay cambios sin guardar",
+          }),
+        );
       }
     } finally {
       setBulkSaving(false);

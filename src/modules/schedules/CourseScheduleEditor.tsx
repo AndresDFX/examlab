@@ -36,6 +36,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Trash2, CalendarClock, AlertTriangle } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 import { logEvent } from "@/shared/lib/audit";
 import {
   blocksOverlap,
@@ -151,7 +152,10 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
     for (const b of visible) {
       if (b.end_time <= b.start_time) {
         toast.error(
-          `${DAY_LABELS[b.day_of_week]}: la hora de fin debe ser posterior a la de inicio.`,
+          i18n.t("toast.modules_schedules_CourseScheduleEditor.endTimeAfterStart", {
+            defaultValue: "{{day}}: la hora de fin debe ser posterior a la de inicio.",
+            day: DAY_LABELS[b.day_of_week],
+          }),
         );
         return;
       }
@@ -190,7 +194,11 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
         courseName,
         metadata: { blocks: visible.length },
       });
-      toast.success("Horario guardado");
+      toast.success(
+        i18n.t("toast.modules_schedules_CourseScheduleEditor.scheduleSaved", {
+          defaultValue: "Horario guardado",
+        }),
+      );
       onOpenChange(false);
     } catch (e) {
       toast.error(friendlyError(e, "No se pudo guardar el horario"));

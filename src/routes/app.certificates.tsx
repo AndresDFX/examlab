@@ -47,6 +47,7 @@ import { downloadCertificate, buildVerifyUrl } from "@/modules/certificates/cert
 import { friendlyError } from "@/shared/lib/db-errors";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
+import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/certificates")({ component: CertificatesAdmin });
 
@@ -232,7 +233,7 @@ function CertificatesAdmin() {
 
   const handleCopyLink = (cert: CertificateRow) => {
     void navigator.clipboard.writeText(buildVerifyUrl(cert.short_code));
-    toast.success("Link de verificación copiado");
+    toast.success(i18n.t("toast.routes_app_certificates.verifyLinkCopied", { defaultValue: "Link de verificación copiado" }));
   };
 
   if (!isAdmin && !isDocente) {

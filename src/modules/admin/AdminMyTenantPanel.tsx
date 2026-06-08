@@ -45,6 +45,7 @@ import { ErrorState } from "@/components/ui/empty-state";
 import { Save, Building2, Upload, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -129,11 +130,19 @@ export function AdminMyTenantPanel() {
     if (!tenant) return;
     const validTypes = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"];
     if (!validTypes.includes(file.type)) {
-      toast.error("Formato no soportado. Usa PNG, JPG, SVG o WebP.");
+      toast.error(
+        i18n.t("toast.modules_admin_AdminMyTenantPanel.logoFormatUnsupported", {
+          defaultValue: "Formato no soportado. Usa PNG, JPG, SVG o WebP.",
+        }),
+      );
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("El logo no puede pesar más de 2 MB.");
+      toast.error(
+        i18n.t("toast.modules_admin_AdminMyTenantPanel.logoTooLarge", {
+          defaultValue: "El logo no puede pesar más de 2 MB.",
+        }),
+      );
       return;
     }
     setUploadingLogo(true);
@@ -168,10 +177,19 @@ export function AdminMyTenantPanel() {
         const kbBefore = Math.round(originalSize / 1024);
         const kbAfter = Math.round(finalSize / 1024);
         toast.success(
-          `Logo subido (optimizado: ${kbBefore} KB → ${kbAfter} KB). Recuerda 'Guardar'.`,
+          i18n.t("toast.modules_admin_AdminMyTenantPanel.logoUploadedOptimized", {
+            defaultValue:
+              "Logo subido (optimizado: {{kbBefore}} KB → {{kbAfter}} KB). Recuerda 'Guardar'.",
+            kbBefore,
+            kbAfter,
+          }),
         );
       } else {
-        toast.success("Logo subido. Recuerda 'Guardar' para aplicarlo.");
+        toast.success(
+          i18n.t("toast.modules_admin_AdminMyTenantPanel.logoUploaded", {
+            defaultValue: "Logo subido. Recuerda 'Guardar' para aplicarlo.",
+          }),
+        );
       }
     } finally {
       setUploadingLogo(false);
@@ -181,7 +199,11 @@ export function AdminMyTenantPanel() {
 
   const removeLogo = () => {
     setForm((p) => ({ ...p, logo_path: "", logo_url: "" }));
-    toast.info("Logo removido. 'Guardar' para aplicar.");
+    toast.info(
+      i18n.t("toast.modules_admin_AdminMyTenantPanel.logoRemoved", {
+        defaultValue: "Logo removido. 'Guardar' para aplicar.",
+      }),
+    );
   };
 
   if (loading) return <SectionLoader text="Cargando datos de la institución…" />;
@@ -223,7 +245,11 @@ export function AdminMyTenantPanel() {
 
   const save = async () => {
     if (!form.name.trim()) {
-      toast.error("El nombre es obligatorio.");
+      toast.error(
+        i18n.t("toast.modules_admin_AdminMyTenantPanel.nameRequired", {
+          defaultValue: "El nombre es obligatorio.",
+        }),
+      );
       return;
     }
     setSaving(true);
@@ -242,7 +268,11 @@ export function AdminMyTenantPanel() {
       toast.error(friendlyError(rpcErr, "No se pudo guardar"));
       return;
     }
-    toast.success("Institución actualizada");
+    toast.success(
+      i18n.t("toast.modules_admin_AdminMyTenantPanel.tenantUpdated", {
+        defaultValue: "Institución actualizada",
+      }),
+    );
     refresh();
   };
 

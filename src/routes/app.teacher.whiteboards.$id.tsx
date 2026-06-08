@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { type WhiteboardScene } from "@/modules/whiteboard/WhiteboardEditor";
 import { MultiPageWhiteboard } from "@/modules/whiteboard/MultiPageWhiteboard";
@@ -123,7 +124,11 @@ function WhiteboardEditorPage() {
   const saveMeta = async () => {
     if (!wb) return;
     if (!metaName.trim()) {
-      toast.error("La pizarra necesita un nombre");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_whiteboards_id.whiteboardNeedsName", {
+          defaultValue: "La pizarra necesita un nombre",
+        }),
+      );
       return;
     }
     setSavingMeta(true);
@@ -140,7 +145,11 @@ function WhiteboardEditorPage() {
         toast.error(friendlyError(error, "No se pudo guardar"));
         return;
       }
-      toast.success("Cambios guardados");
+      toast.success(
+        i18n.t("toast.routes_app_teacher_whiteboards_id.changesSaved", {
+          defaultValue: "Cambios guardados",
+        }),
+      );
       setWb({
         ...wb,
         name: metaName.trim(),

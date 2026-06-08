@@ -33,6 +33,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -207,15 +208,31 @@ export function UploadExternalContentDialog({
     for (const f of incoming) {
       const ext = f.name.slice(f.name.lastIndexOf(".")).toLowerCase();
       if (!ACCEPTED_EXTENSIONS.includes(ext)) {
-        toast.error(`Formato no soportado: ${f.name}`);
+        toast.error(
+          i18n.t("toast.modules_contents_UploadExternalContentDialog.unsupportedFormat", {
+            defaultValue: "Formato no soportado: {{fileName}}",
+            fileName: f.name,
+          }),
+        );
         continue;
       }
       if (f.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-        toast.error(`Archivo > ${MAX_FILE_SIZE_MB} MB: ${f.name}`);
+        toast.error(
+          i18n.t("toast.modules_contents_UploadExternalContentDialog.fileTooLarge", {
+            defaultValue: "Archivo > {{maxMb}} MB: {{fileName}}",
+            maxMb: MAX_FILE_SIZE_MB,
+            fileName: f.name,
+          }),
+        );
         continue;
       }
       if (totalBytes + f.size > MAX_TOTAL_SIZE_MB * 1024 * 1024) {
-        toast.error(`Excede el total de ${MAX_TOTAL_SIZE_MB} MB`);
+        toast.error(
+          i18n.t("toast.modules_contents_UploadExternalContentDialog.totalSizeExceeded", {
+            defaultValue: "Excede el total de {{maxTotalMb}} MB",
+            maxTotalMb: MAX_TOTAL_SIZE_MB,
+          }),
+        );
         break;
       }
       totalBytes += f.size;
@@ -254,12 +271,31 @@ export function UploadExternalContentDialog({
   const handleSubmit = async () => {
     if (!user) return;
     if (!canSubmit) {
-      if (!displayName.trim()) toast.error("Indica un nombre para el contenido.");
-      else if (!topic.trim()) toast.error("Indica el tema del contenido.");
+      if (!displayName.trim())
+        toast.error(
+          i18n.t("toast.modules_contents_UploadExternalContentDialog.nameRequired", {
+            defaultValue: "Indica un nombre para el contenido.",
+          }),
+        );
+      else if (!topic.trim())
+        toast.error(
+          i18n.t("toast.modules_contents_UploadExternalContentDialog.topicRequired", {
+            defaultValue: "Indica el tema del contenido.",
+          }),
+        );
       else if (tags.length === 0) toast.error(t("contents.tagsRequired"));
-      else if (files.length === 0) toast.error("Adjunta al menos un archivo.");
+      else if (files.length === 0)
+        toast.error(
+          i18n.t("toast.modules_contents_UploadExternalContentDialog.fileRequired", {
+            defaultValue: "Adjunta al menos un archivo.",
+          }),
+        );
       else if (selectedCourseIds.size === 0)
-        toast.error("Selecciona al menos un curso destino.");
+        toast.error(
+          i18n.t("toast.modules_contents_UploadExternalContentDialog.courseRequired", {
+            defaultValue: "Selecciona al menos un curso destino.",
+          }),
+        );
       return;
     }
     setSaving(true);
@@ -297,7 +333,13 @@ export function UploadExternalContentDialog({
     if (insErr || !created?.id) {
       const code = (insErr as { code?: string } | null)?.code;
       if (code === "23505") {
-        toast.error(`Ya tienes un contenido llamado "${displayName.trim()}". Usa otro nombre.`);
+        const dupName = displayName.trim();
+        toast.error(
+          i18n.t("toast.modules_contents_UploadExternalContentDialog.duplicateName", {
+            defaultValue: 'Ya tienes un contenido llamado "{{name}}". Usa otro nombre.',
+            name: dupName,
+          }),
+        );
       } else {
         toast.error(friendlyError(insErr, "No se pudo crear el contenido"));
       }
@@ -338,7 +380,11 @@ export function UploadExternalContentDialog({
     if (uploaded.length === 0) {
       // Todo falló — borramos la fila para no dejarla huérfana.
       await db.from("generated_contents").delete().eq("id", contentId);
-      toast.error("No se pudo subir ningún archivo. Reintenta.");
+      toast.error(
+        i18n.t("toast.modules_contents_UploadExternalContentDialog.noFilesUploaded", {
+          defaultValue: "No se pudo subir ningún archivo. Reintenta.",
+        }),
+      );
       setSaving(false);
       return;
     }
@@ -349,7 +395,12 @@ export function UploadExternalContentDialog({
       .update({ files: uploaded })
       .eq("id", contentId);
     if (updErr) {
-      toast.warning(`Archivos subidos, pero no se pudo guardar el listado: ${updErr.message}`);
+      toast.warning(
+        i18n.t("toast.modules_contents_UploadExternalContentDialog.fileListSaveFailed", {
+          defaultValue: "Archivos subidos, pero no se pudo guardar el listado: {{error}}",
+          error: updErr.message,
+        }),
+      );
     }
 
     // 4) Junction N-N: insertar 1 fila por curso elegido. Si alguna
@@ -365,7 +416,11 @@ export function UploadExternalContentDialog({
       .insert(junctionRows);
     if (juncErr) {
       toast.warning(
-        `Contenido subido, pero falló la asociación a algunos cursos: ${juncErr.message}`,
+        i18n.t("toast.modules_contents_UploadExternalContentDialog.courseAssociationFailed", {
+          defaultValue:
+            "Contenido subido, pero falló la asociación a algunos cursos: {{error}}",
+          error: juncErr.message,
+        }),
       );
     }
 

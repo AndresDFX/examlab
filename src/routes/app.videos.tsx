@@ -74,6 +74,7 @@ import { formatFileSize } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
+import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/videos")({ component: VideoLibrary });
 
@@ -328,13 +329,20 @@ function VideoLibrary() {
     const title = form.title.trim();
     const url = form.url.trim();
     if (!title || !url) {
-      toast.error("Título y URL son obligatorios");
+      toast.error(
+        i18n.t("toast.routes_app_videos.titleAndUrlRequired", {
+          defaultValue: "Título y URL son obligatorios",
+        }),
+      );
       return;
     }
     const provider = detectProvider(url);
     if (!provider) {
       toast.error(
-        "URL no reconocida. Usa YouTube, Vimeo o un archivo MP4/WebM directo (terminado en .mp4/.webm).",
+        i18n.t("toast.routes_app_videos.urlNotRecognized", {
+          defaultValue:
+            "URL no reconocida. Usa YouTube, Vimeo o un archivo MP4/WebM directo (terminado en .mp4/.webm).",
+        }),
       );
       return;
     }
@@ -364,7 +372,9 @@ function VideoLibrary() {
         toast.error(friendlyError(error));
         return;
       }
-      toast.success("Video actualizado");
+      toast.success(
+        i18n.t("toast.routes_app_videos.videoUpdated", { defaultValue: "Video actualizado" }),
+      );
     } else {
       const insertPayload: Record<string, unknown> = {
         title,
@@ -382,7 +392,13 @@ function VideoLibrary() {
         return;
       }
       toast.success(
-        publishGlobal ? "Video agregado al catálogo global" : "Video agregado a la biblioteca",
+        publishGlobal
+          ? i18n.t("toast.routes_app_videos.videoAddedGlobal", {
+              defaultValue: "Video agregado al catálogo global",
+            })
+          : i18n.t("toast.routes_app_videos.videoAddedLibrary", {
+              defaultValue: "Video agregado a la biblioteca",
+            }),
       );
     }
     setDialogOpen(false);
@@ -393,7 +409,11 @@ function VideoLibrary() {
     if (!user) return;
     const title = form.title.trim();
     if (!title) {
-      toast.error("El título es obligatorio");
+      toast.error(
+        i18n.t("toast.routes_app_videos.titleRequired", {
+          defaultValue: "El título es obligatorio",
+        }),
+      );
       return;
     }
     const publishGlobal = isSuperAdminActive && form.publishAsGlobal;
@@ -414,23 +434,37 @@ function VideoLibrary() {
         toast.error(friendlyError(error));
         return;
       }
-      toast.success("Video actualizado");
+      toast.success(
+        i18n.t("toast.routes_app_videos.videoUpdated", { defaultValue: "Video actualizado" }),
+      );
       setDialogOpen(false);
       await load();
       return;
     }
     if (!file) {
-      toast.error("Selecciona un archivo de video");
+      toast.error(
+        i18n.t("toast.routes_app_videos.selectVideoFile", {
+          defaultValue: "Selecciona un archivo de video",
+        }),
+      );
       return;
     }
     if (!ACCEPTED_VIDEO_MIME.includes(file.type)) {
       toast.error(
-        `Tipo de archivo no permitido (${file.type || "desconocido"}). Sube MP4, WebM o MOV.`,
+        i18n.t("toast.routes_app_videos.fileTypeNotAllowed", {
+          defaultValue: "Tipo de archivo no permitido ({{fileType}}). Sube MP4, WebM o MOV.",
+          fileType: file.type || "desconocido",
+        }),
       );
       return;
     }
     if (file.size > MAX_VIDEO_BYTES) {
-      toast.error(`Archivo demasiado grande (${formatFileSize(file.size)}). El máximo es 500 MB.`);
+      toast.error(
+        i18n.t("toast.routes_app_videos.fileTooLarge", {
+          defaultValue: "Archivo demasiado grande ({{size}}). El máximo es 500 MB.",
+          size: formatFileSize(file.size),
+        }),
+      );
       return;
     }
     setSaving(true);
@@ -446,7 +480,12 @@ function VideoLibrary() {
     if (upErr) {
       setSaving(false);
       setUploadPct(0);
-      toast.error(`Error al subir el video: ${friendlyError(upErr)}`);
+      toast.error(
+        i18n.t("toast.routes_app_videos.uploadError", {
+          defaultValue: "Error al subir el video: {{error}}",
+          error: friendlyError(upErr),
+        }),
+      );
       return;
     }
     setUploadPct(80);
@@ -455,7 +494,11 @@ function VideoLibrary() {
     if (!publicUrl) {
       setSaving(false);
       setUploadPct(0);
-      toast.error("No se pudo obtener la URL pública del video subido");
+      toast.error(
+        i18n.t("toast.routes_app_videos.publicUrlFailed", {
+          defaultValue: "No se pudo obtener la URL pública del video subido",
+        }),
+      );
       return;
     }
     if (editing && editing.storage_path) {
@@ -485,7 +528,9 @@ function VideoLibrary() {
       }
       void supabase.storage.from("videos").remove([oldPath]);
       setUploadPct(100);
-      toast.success("Video reemplazado");
+      toast.success(
+        i18n.t("toast.routes_app_videos.videoReplaced", { defaultValue: "Video reemplazado" }),
+      );
     } else {
       const insertPayload: Record<string, unknown> = {
         title,
@@ -507,7 +552,13 @@ function VideoLibrary() {
       }
       setUploadPct(100);
       toast.success(
-        publishGlobal ? "Video subido al catálogo global" : "Video subido a la biblioteca",
+        publishGlobal
+          ? i18n.t("toast.routes_app_videos.videoUploadedGlobal", {
+              defaultValue: "Video subido al catálogo global",
+            })
+          : i18n.t("toast.routes_app_videos.videoUploadedLibrary", {
+              defaultValue: "Video subido a la biblioteca",
+            }),
       );
     }
     setSaving(false);
@@ -522,7 +573,11 @@ function VideoLibrary() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success(next ? "Video archivado" : "Video restaurado");
+    toast.success(
+      next
+        ? i18n.t("toast.routes_app_videos.videoArchived", { defaultValue: "Video archivado" })
+        : i18n.t("toast.routes_app_videos.videoRestored", { defaultValue: "Video restaurado" }),
+    );
     void load();
   };
 
@@ -546,13 +601,21 @@ function VideoLibrary() {
       const { error: stErr } = await supabase.storage.from("videos").remove([v.storage_path]);
       if (stErr) {
         toast.warning(
-          `Video eliminado, pero quedó el archivo huérfano en Storage (${stErr.message})`,
+          i18n.t("toast.routes_app_videos.videoDeletedOrphanFile", {
+            defaultValue:
+              "Video eliminado, pero quedó el archivo huérfano en Storage ({{error}})",
+            error: stErr.message,
+          }),
         );
       } else {
-        toast.success("Video eliminado");
+        toast.success(
+          i18n.t("toast.routes_app_videos.videoDeleted", { defaultValue: "Video eliminado" }),
+        );
       }
     } else {
-      toast.success("Video eliminado");
+      toast.success(
+        i18n.t("toast.routes_app_videos.videoDeleted", { defaultValue: "Video eliminado" }),
+      );
     }
     void load();
   };

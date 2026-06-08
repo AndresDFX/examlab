@@ -80,6 +80,7 @@ import { formatDateShort } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
@@ -396,7 +397,11 @@ function TeacherAttendance() {
   // Create session
   const createSession = async () => {
     if (!courseId || !user || !newDate) {
-      toast.error("Fecha requerida");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_attendance.dateRequired", {
+          defaultValue: "Fecha requerida",
+        }),
+      );
       return;
     }
     // Validación de horas: ambos opcionales, pero si vienen los dos
@@ -405,7 +410,11 @@ function TeacherAttendance() {
     const startMin = newStartTime ? parseHHMMToMinutes(newStartTime) : null;
     const endMin = newEndTime ? parseHHMMToMinutes(newEndTime) : null;
     if (startMin != null && endMin != null && endMin <= startMin) {
-      toast.error("La hora de fin debe ser posterior a la de inicio.");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_attendance.endTimeAfterStart", {
+          defaultValue: "La hora de fin debe ser posterior a la de inicio.",
+        }),
+      );
       return;
     }
     // Derivamos duration desde end-start cuando ambos están. Si solo hay
@@ -438,7 +447,11 @@ function TeacherAttendance() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Sesión creada correctamente");
+    toast.success(
+      i18n.t("toast.routes_app_teacher_attendance.sessionCreated", {
+        defaultValue: "Sesión creada correctamente",
+      }),
+    );
     setNewSessionOpen(false);
     setNewTitle("");
     setNewCutId("");
@@ -484,7 +497,11 @@ function TeacherAttendance() {
       ),
     );
     setRecordingEditSession(null);
-    toast.success("Grabación actualizada");
+    toast.success(
+      i18n.t("toast.routes_app_teacher_attendance.recordingUpdated", {
+        defaultValue: "Grabación actualizada",
+      }),
+    );
   };
 
   // Reasignar el corte de una sesión existente (la fecha NO cambia).
@@ -597,7 +614,11 @@ function TeacherAttendance() {
         });
       }
     }
-    toast.success("Todos los estudiantes marcados como presentes");
+    toast.success(
+      i18n.t("toast.routes_app_teacher_attendance.allMarkedPresent", {
+        defaultValue: "Todos los estudiantes marcados como presentes",
+      }),
+    );
     loadCourse();
   };
 
@@ -618,7 +639,11 @@ function TeacherAttendance() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Asistencia de la sesión reiniciada");
+    toast.success(
+      i18n.t("toast.routes_app_teacher_attendance.sessionAttendanceReset", {
+        defaultValue: "Asistencia de la sesión reiniciada",
+      }),
+    );
     loadCourse();
   };
 
@@ -817,7 +842,11 @@ function TeacherAttendance() {
       await (supabase as any).rpc("teacher_close_attendance_check_in", {
         p_session_id: sess.id,
       });
-      toast.info("El check-in anterior expiró. Inicia uno nuevo.");
+      toast.info(
+        i18n.t("toast.routes_app_teacher_attendance.previousCheckInExpired", {
+          defaultValue: "El check-in anterior expiró. Inicia uno nuevo.",
+        }),
+      );
       loadCourse();
       openCheckInConfig(sess);
       return;
@@ -830,7 +859,11 @@ function TeacherAttendance() {
       await (supabase as any).rpc("teacher_close_attendance_check_in", {
         p_session_id: sess.id,
       });
-      toast.info("El check-in anterior expiró. Inicia uno nuevo.");
+      toast.info(
+        i18n.t("toast.routes_app_teacher_attendance.previousCheckInExpired", {
+          defaultValue: "El check-in anterior expiró. Inicia uno nuevo.",
+        }),
+      );
       loadCourse();
       openCheckInConfig(sess);
       return;
@@ -889,7 +922,12 @@ function TeacherAttendance() {
         courseId: courseId || undefined,
         metadata: { marked_absent: result.marked_absent ?? 0 },
       });
-      toast.success(`${result.marked_absent ?? 0} estudiante(s) marcado(s) como ausentes`);
+      toast.success(
+        i18n.t("toast.routes_app_teacher_attendance.studentsMarkedAbsent", {
+          defaultValue: "{{count}} estudiante(s) marcado(s) como ausentes",
+          count: result.marked_absent ?? 0,
+        }),
+      );
       loadCourse();
     } else {
       toast.error(result?.error ?? "No se pudo marcar pendientes");

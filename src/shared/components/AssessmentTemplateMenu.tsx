@@ -43,6 +43,7 @@ import {
 import { toast } from "sonner";
 import { LayoutTemplate, Save, Trash2 } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -113,7 +114,12 @@ export function AssessmentTemplateMenu<T extends Record<string, unknown>>({
       }
     }
     onApply(next as T);
-    toast.success(`Plantilla "${tpl.name}" aplicada`);
+    toast.success(
+      i18n.t("toast.shared_components_AssessmentTemplateMenu.templateApplied", {
+        defaultValue: 'Plantilla "{{name}}" aplicada',
+        name: tpl.name,
+      }),
+    );
   };
 
   const remove = async (tpl: TemplateRow) => {
@@ -122,7 +128,11 @@ export function AssessmentTemplateMenu<T extends Record<string, unknown>>({
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Plantilla eliminada");
+    toast.success(
+      i18n.t("toast.shared_components_AssessmentTemplateMenu.templateDeleted", {
+        defaultValue: "Plantilla eliminada",
+      }),
+    );
     await load();
   };
 
@@ -130,7 +140,11 @@ export function AssessmentTemplateMenu<T extends Record<string, unknown>>({
     if (!user) return;
     const name = draftName.trim();
     if (!name) {
-      toast.error("Ingresa un nombre");
+      toast.error(
+        i18n.t("toast.shared_components_AssessmentTemplateMenu.nameRequired", {
+          defaultValue: "Ingresa un nombre",
+        }),
+      );
       return;
     }
     setSaving(true);
@@ -152,7 +166,11 @@ export function AssessmentTemplateMenu<T extends Record<string, unknown>>({
         toast.error(friendlyError(error));
         return;
       }
-      toast.success("Plantilla guardada");
+      toast.success(
+        i18n.t("toast.shared_components_AssessmentTemplateMenu.templateSaved", {
+          defaultValue: "Plantilla guardada",
+        }),
+      );
       setSaveDialogOpen(false);
       setDraftName("");
       setDraftDesc("");

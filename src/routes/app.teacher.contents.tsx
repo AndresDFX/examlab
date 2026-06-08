@@ -5,6 +5,7 @@ import { softDelete } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -524,11 +525,19 @@ function TeacherContents() {
     // reglas que el helper `validateDisplayName` para feedback inmediato.
     const dn = displayName.trim();
     if (!dn) {
-      toast.error("Indica un nombre único para este contenido.");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_contents.displayNameRequired", {
+          defaultValue: "Indica un nombre único para este contenido.",
+        }),
+      );
       return;
     }
     if (dn.length > 120) {
-      toast.error("El nombre es demasiado largo (máx 120 caracteres).");
+      toast.error(
+        i18n.t("toast.routes_app_teacher_contents.displayNameTooLong", {
+          defaultValue: "El nombre es demasiado largo (máx 120 caracteres).",
+        }),
+      );
       return;
     }
     if (tags.length === 0) {
@@ -585,8 +594,10 @@ function TeacherContents() {
         return;
       }
       toast.success(
-        "Generación encolada. Cuando tengas un código de IA inmediata o un administrador la procese, " +
-          'el contenido aparecerá en tu lista. Puedes verla en "Cola IA → Generaciones".',
+        i18n.t("toast.routes_app_teacher_contents.generationEnqueued", {
+          defaultValue:
+            'Generación encolada. Cuando tengas un código de IA inmediata o un administrador la procese, el contenido aparecerá en tu lista. Puedes verla en "Cola IA → Generaciones".',
+        }),
       );
       // Reset del form para no inducir doble-encolado.
       setDialogOpen(false);
@@ -620,7 +631,12 @@ function TeacherContents() {
         // que el docente sepa que es por display_name duplicado.
         const code = (insErr as { code?: string } | null | undefined)?.code;
         if (code === "23505") {
-          toast.error(`Ya tienes un contenido llamado "${dn}". Usa un nombre distinto.`);
+          toast.error(
+            i18n.t("toast.routes_app_teacher_contents.duplicateDisplayName", {
+              defaultValue: 'Ya tienes un contenido llamado "{{name}}". Usa un nombre distinto.',
+              name: dn,
+            }),
+          );
           return;
         }
         throw new Error(insErr?.message ?? "insert failed");
@@ -696,8 +712,12 @@ function TeacherContents() {
     setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, is_published: next } : i)));
     toast.success(
       next
-        ? "Contenido publicado. Los alumnos del curso recibirán notificación."
-        : "Contenido despublicado. Los alumnos ya no lo ven.",
+        ? i18n.t("toast.routes_app_teacher_contents.published", {
+            defaultValue: "Contenido publicado. Los alumnos del curso recibirán notificación.",
+          })
+        : i18n.t("toast.routes_app_teacher_contents.unpublished", {
+            defaultValue: "Contenido despublicado. Los alumnos ya no lo ven.",
+          }),
     );
   };
 
