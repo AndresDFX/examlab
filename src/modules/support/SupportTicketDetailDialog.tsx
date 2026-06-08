@@ -39,10 +39,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Send, Paperclip, Download, X, UserCheck, CheckCircle2 } from "lucide-react";
+import { Send, Paperclip, Download, X, UserCheck, CheckCircle2, Trash2 } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { canDeleteSupportTicket } from "@/modules/support/ticket-permissions";
 import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -439,6 +440,55 @@ export function SupportTicketDetailDialog({
     }
   };
 
+  // Eliminar (soft-delete) el ticket: visible para el creador (Admin) o
+  // el SuperAdmin. Usa la RPC `soft_delete_support_ticket` (mig
+  // 20260913000000) que valida la autorización server-side y setea
+  // deleted_at — las listas filtran `deleted_at IS NULL`, así que el
+  // ticket desaparece de ambas vistas. No exponemos hard-delete acá.
+  const canDelete =
+    !!ticket &&
+    canDeleteSupportTicket({
+      mode,
+      ticketCreatedBy: ticket.created_by,
+      currentUserId,
+    });
+
+  const deleteTicket = async () => {
+    if (!ticket || !canDelete) return;
+    const ok = await confirm({
+      title: i18n.t("toast.modules_support_SupportTicketDetailDialog.deleteConfirmTitle", {
+        defaultValue: "¿Eliminar este ticket?",
+      }),
+      description: i18n.t("toast.modules_support_SupportTicketDetailDialog.deleteConfirmDesc", {
+        defaultValue:
+          "El ticket y su conversación se eliminarán de tu bandeja. Esta acción no se puede deshacer.",
+      }),
+      tone: "destructive",
+      confirmLabel: i18n.t("toast.modules_support_SupportTicketDetailDialog.deleteConfirmLabel", {
+        defaultValue: "Eliminar",
+      }),
+    });
+    if (!ok) return;
+    try {
+      const { error } = await db.rpc("soft_delete_support_ticket", {
+        _ticket_id: ticket.id,
+      });
+      if (error) {
+        toast.error(friendlyError(error, "No se pudo eliminar el ticket"));
+        return;
+      }
+      toast.success(
+        i18n.t("toast.modules_support_SupportTicketDetailDialog.ticketDeleted", {
+          defaultValue: "Ticket eliminado",
+        }),
+      );
+      onOpenChange(false);
+      onMutate?.();
+    } catch (e) {
+      toast.error(friendlyError(e, "Error eliminando el ticket"));
+    }
+  };
+
   const generalAttachments = useMemo(
     () => attachments.filter((a) => a.message_id === null),
     [attachments],
@@ -717,6 +767,20 @@ export function SupportTicketDetailDialog({
             <p className="text-xs text-muted-foreground text-center italic">
               Este ticket está cerrado. {mode === "superadmin" ? "Cambia el estado arriba para reabrirlo." : ""}
             </p>
+          )}
+
+          {/* Eliminar ticket — creador (Admin) o SuperAdmin. Soft-delete
+              vía RPC: el ticket sale de ambas bandejas. */}
+          {canDelete && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void deleteTicket()}
+              className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1" />
+              Eliminar ticket
+            </Button>
           )}
         </div>
 

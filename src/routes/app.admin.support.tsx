@@ -43,9 +43,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { LifeBuoy, Plus, MessageSquare, Clock, CheckCircle2, AlertCircle, Paperclip, X as XIcon } from "lucide-react";
+import { LifeBuoy, Plus, MessageSquare, Clock, CheckCircle2, AlertCircle, Paperclip, X as XIcon, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import i18n from "@/i18n";
 import {
   SupportTicketDetailDialog,
@@ -69,6 +71,7 @@ const db = supabase as any;
 
 function AdminSupportPage() {
   const { user, profile } = useAuth();
+  const confirm = useConfirm();
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -361,6 +364,37 @@ function AdminSupportPage() {
     setDetailOpen(true);
   };
 
+  // Eliminar (soft-delete) un ticket propio. RPC valida que el caller sea
+  // el creador o SuperAdmin (mig 20260913000000). Las listas filtran
+  // `deleted_at IS NULL`, así que sale de la bandeja tras refrescar.
+  const deleteTicket = async (t: SupportTicket) => {
+    const ok = await confirm({
+      title: i18n.t("toast.routes_app_admin_support.deleteConfirmTitle", {
+        defaultValue: "¿Eliminar este ticket?",
+      }),
+      description: i18n.t("toast.routes_app_admin_support.deleteConfirmDesc", {
+        defaultValue:
+          "El ticket y su conversación se eliminarán de tu bandeja. Esta acción no se puede deshacer.",
+      }),
+      tone: "destructive",
+      confirmLabel: i18n.t("toast.routes_app_admin_support.deleteConfirmLabel", {
+        defaultValue: "Eliminar",
+      }),
+    });
+    if (!ok) return;
+    const { error } = await db.rpc("soft_delete_support_ticket", { _ticket_id: t.id });
+    if (error) {
+      toast.error(friendlyError(error, "No se pudo eliminar el ticket"));
+      return;
+    }
+    toast.success(
+      i18n.t("toast.routes_app_admin_support.ticketDeleted", {
+        defaultValue: "Ticket eliminado",
+      }),
+    );
+    await load();
+  };
+
   if (loadError) {
     return (
       <ErrorState
@@ -453,6 +487,7 @@ function AdminSupportPage() {
                   <TableHead>Estado</TableHead>
                   <TableHead className="hidden md:table-cell">Creado</TableHead>
                   <TableHead className="hidden lg:table-cell">Resuelto</TableHead>
+                  <TableHead className="w-12 text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -485,6 +520,20 @@ function AdminSupportPage() {
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
                       {t.resolved_at ? <DateCell value={t.resolved_at} variant="datetime" /> : "—"}
+                    </TableCell>
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <RowActionsMenu
+                        actions={[
+                          {
+                            label: i18n.t("toast.routes_app_admin_support.deleteAction", {
+                              defaultValue: "Eliminar",
+                            }),
+                            icon: Trash2,
+                            tone: "destructive",
+                            onClick: () => void deleteTicket(t),
+                          },
+                        ]}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
