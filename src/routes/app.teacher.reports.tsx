@@ -67,7 +67,10 @@ import {
   FileText,
   Globe,
   Lock,
+  Upload,
+  Sparkles,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { StatCard } from "@/components/ui/stat-card";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
@@ -77,8 +80,9 @@ import {
   draftEqual,
   type TemplateDraft,
 } from "@/modules/reports/TemplateEditor";
-import { renderTemplate } from "@/modules/reports/template-engine";
+import { renderTemplate, buildAiReportPrompt } from "@/modules/reports/template-engine";
 import { buildReportContext, buildReportContextFromActa } from "@/modules/reports/report-context";
+import { parseDocxToText, extractPlaceholders } from "@/modules/reports/docx-import";
 import { ActasManager } from "@/modules/reports/ActasManager";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -176,6 +180,16 @@ function Inner() {
   // presente, handleGenerate lee del snapshot en vez de datos vivos.
   const [genActaId, setGenActaId] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Importar .docx → cargar como plantilla privada editable inline.
+  const docxInputRef = useRef<HTMLInputElement>(null);
+
+  // Generar con IA (dentro del editor): el docente describe qué quiere,
+  // elegimos un curso de referencia para el contexto, y armamos el prompt.
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiInstruction, setAiInstruction] = useState("");
+  const [aiCourseId, setAiCourseId] = useState<string>("");
+  const [aiBusy, setAiBusy] = useState(false);
 
   const load = async () => {
     if (!user) return;
@@ -433,6 +447,140 @@ function Inner() {
     void load();
   };
 
+  // ── Importar .docx ────────────────────────────────────────────────
+
+  // Un .docx es un ZIP OOXML. parseDocxToText (fflate) extrae el texto del
+  // cuerpo; lo cargamos como body de una nueva plantilla PRIVADA que el
+  // docente edita inline (mismo editor/textarea) e inserta {{variables}}.
+  const handleDocxFile = async (file: File) => {
+    if (!user) return;
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const text = parseDocxToText(bytes);
+      if (!text.trim()) {
+        toast.error(
+          i18n.t("toast.routes_app_teacher_reports.docxEmpty", {
+            defaultValue: "El documento no contiene texto que importar.",
+          }),
+        );
+        return;
+      }
+      const baseName = file.name.replace(/\.docx$/i, "").trim() || "Documento importado";
+      const d: TemplateDraft = {
+        ...emptyDraft(),
+        name: baseName,
+        description: i18n.t("toast.routes_app_teacher_reports.docxImportedDesc", {
+          defaultValue: "Importado de un .docx",
+        }),
+        // El texto del .docx no es HTML — lo metemos tal cual; el docente
+        // puede agregar etiquetas HTML y {{variables}} desde el editor.
+        body_html: text,
+      };
+      setDraft(d);
+      setOriginal(emptyDraft());
+      setEditorMode("new_private");
+      setEditorCourseId("");
+      setEditorParentId(null);
+      setEditorTemplateId(null);
+      setEditorOpen(true);
+
+      const placeholders = extractPlaceholders(text);
+      toast.success(
+        placeholders.length > 0
+          ? i18n.t("toast.routes_app_teacher_reports.docxImportedWithVars", {
+              defaultValue: "Documento importado. Se detectaron {{count}} variable(s): {{vars}}",
+              count: placeholders.length,
+              vars: placeholders.join(", "),
+            })
+          : i18n.t("toast.routes_app_teacher_reports.docxImported", {
+              defaultValue: "Documento importado. Edítalo e inserta variables del panel derecho.",
+            }),
+      );
+    } catch (e) {
+      toast.error(
+        e instanceof Error
+          ? e.message
+          : i18n.t("toast.routes_app_teacher_reports.docxImportError", {
+              defaultValue: "No se pudo importar el documento.",
+            }),
+      );
+    }
+  };
+
+  const onDocxInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset para permitir re-importar el mismo archivo.
+    e.target.value = "";
+    if (file) void handleDocxFile(file);
+  };
+
+  // ── Generar con IA (rellenar/redactar el body del editor) ─────────
+
+  // No existe un edge de "prosa libre" en el repo. Construimos el prompt
+  // con datos REALES del curso (report-context) y lo entregamos al docente
+  // para que lo use con la IA. El wiring directo a un edge queda
+  // documentado (needsManualVerify) — ver buildAiReportPrompt.
+  const handleAiGenerate = async () => {
+    if (!aiCourseId) {
+      toast.error(
+        i18n.t("toast.routes_app_teacher_reports.aiSelectCourse", {
+          defaultValue: "Selecciona un curso de referencia para los datos.",
+        }),
+      );
+      return;
+    }
+    setAiBusy(true);
+    try {
+      const ctx = await buildReportContext({
+        courseId: aiCourseId,
+        // Para scope estudiante no fijamos un alumno: el contexto de curso
+        // alcanza para que la IA conozca el shape de datos disponible.
+        studentId: undefined,
+      });
+      const { system, user: userMsg } = buildAiReportPrompt({
+        draftText: draft.body_html,
+        instruction: aiInstruction,
+        ctx,
+      });
+      const prompt = `### SYSTEM\n${system}\n\n### USER\n${userMsg}`;
+      // Path funcional inmediato: copiar el prompt listo al portapapeles
+      // para pegarlo en cualquier IA. (El wiring a un edge dedicado queda
+      // pendiente — no hay edge de prosa libre que devuelva el texto.)
+      let copied = false;
+      try {
+        await navigator.clipboard.writeText(prompt);
+        copied = true;
+      } catch {
+        copied = false;
+      }
+      setAiOpen(false);
+      toast.success(
+        copied
+          ? i18n.t("toast.routes_app_teacher_reports.aiPromptCopied", {
+              defaultValue:
+                "Prompt con los datos del curso copiado al portapapeles. Pégalo en tu IA y trae el resultado al editor.",
+            })
+          : i18n.t("toast.routes_app_teacher_reports.aiPromptReady", {
+              defaultValue: "Prompt generado. Cópialo manualmente desde la consola.",
+            }),
+      );
+      if (!copied) {
+        // Fallback: dejar el prompt en el body para que el docente lo vea.
+        // eslint-disable-next-line no-console
+        console.info("[reports][ai-prompt]\n", prompt);
+      }
+    } catch (e) {
+      toast.error(
+        e instanceof Error
+          ? e.message
+          : i18n.t("toast.routes_app_teacher_reports.aiGenerateError", {
+              defaultValue: "No se pudo preparar la generación con IA.",
+            }),
+      );
+    }
+    setAiBusy(false);
+  };
+
   // ── Generador handlers ───────────────────────────────────────────
 
   const openGenerate = (t: Template) => {
@@ -579,11 +727,26 @@ function Inner() {
         title="Informes"
         subtitle={loading ? undefined : `${templates.length} plantilla(s) disponibles`}
         actions={
-          <Button onClick={openNewPrivate}>
-            <Plus className="h-4 w-4 mr-1" />
-            Nueva plantilla
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => docxInputRef.current?.click()}>
+              <Upload className="h-4 w-4 mr-1" />
+              Importar .docx
+            </Button>
+            <Button onClick={openNewPrivate}>
+              <Plus className="h-4 w-4 mr-1" />
+              Nueva plantilla
+            </Button>
+          </div>
         }
+      />
+
+      {/* Input oculto para importar .docx (se dispara desde el botón). */}
+      <input
+        ref={docxInputRef}
+        type="file"
+        accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        className="hidden"
+        onChange={onDocxInputChange}
       />
 
       {/* Stats 4-card — patrón compartido (Videos, Cursos, Pizarras, etc.).
@@ -759,12 +922,78 @@ function Inner() {
 
           <TemplateEditor value={draft} onChange={setDraft} />
 
+          <DialogFooter className="sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setAiInstruction("");
+                setAiCourseId(editorCourseId || courses[0]?.id || "");
+                setAiOpen(true);
+              }}
+              disabled={editorSaving}
+            >
+              <Sparkles className="h-4 w-4 mr-1 text-violet-500" />
+              Generar con IA
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => void closeEditor()} disabled={editorSaving}>
+                Cancelar
+              </Button>
+              <Button onClick={() => void handleSave()} disabled={editorSaving}>
+                {editorSaving ? "Guardando…" : "Guardar"}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog: Generar con IA ── */}
+      <Dialog open={aiOpen} onOpenChange={(o) => !aiBusy && setAiOpen(o)}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Generar con IA</DialogTitle>
+            <DialogDescription>
+              Describe qué sección quieres que la IA redacte. Usaremos los datos reales del curso
+              elegido para que la IA conozca las variables disponibles y arme un texto con
+              placeholders {`{{...}}`} reutilizables.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label required>Curso de referencia</Label>
+              <Select value={aiCourseId} onValueChange={setAiCourseId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona un curso" />
+                </SelectTrigger>
+                <SelectContent>
+                  {courses.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>¿Qué quieres que genere?</Label>
+              <Textarea
+                value={aiInstruction}
+                onChange={(e) => setAiInstruction(e.target.value)}
+                placeholder="Ej: Redacta un párrafo de observaciones de desempeño usando la nota final y la asistencia."
+                className="min-h-[120px]"
+              />
+            </div>
+          </div>
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => void closeEditor()} disabled={editorSaving}>
+            <Button variant="outline" onClick={() => setAiOpen(false)} disabled={aiBusy}>
               Cancelar
             </Button>
-            <Button onClick={() => void handleSave()} disabled={editorSaving}>
-              {editorSaving ? "Guardando…" : "Guardar"}
+            <Button onClick={() => void handleAiGenerate()} disabled={aiBusy || !aiCourseId}>
+              {aiBusy ? <Spinner size="sm" className="mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
+              {aiBusy ? "Preparando…" : "Preparar prompt"}
             </Button>
           </DialogFooter>
         </DialogContent>

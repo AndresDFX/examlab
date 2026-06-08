@@ -382,3 +382,135 @@ export function variableSnippet(node: VariableNode): string {
   if (node.kind === "group") return "";
   return `{{${node.path}}}`;
 }
+
+// ── Generación de informes con IA ─────────────────────────────────────
+
+/**
+ * Lista plana de los paths de variable disponibles (recorre el catálogo).
+ * Útil para inyectar en el prompt de IA "estas son las variables que
+ * puedes usar" y para validaciones. Incluye scalars y eaches.
+ */
+export function flattenCatalogPaths(
+  catalog: VariableNode[] = REPORT_VARIABLE_CATALOG,
+): string[] {
+  const out: string[] = [];
+  const walk = (nodes: VariableNode[]) => {
+    for (const n of nodes) {
+      if (n.kind !== "group") out.push(n.path);
+      if (n.children) walk(n.children);
+    }
+  };
+  walk(catalog);
+  return out;
+}
+
+/**
+ * Resume un TemplateContext a un bloque de texto compacto y legible que
+ * se puede inyectar en el `user` message de la IA como "datos del curso".
+ * Aplana objetos anidados a `clave: valor` (un nivel) y trunca arrays
+ * largos para no inflar el prompt — la IA necesita el shape de los datos,
+ * no las 90 filas completas.
+ *
+ * PURA: no toca DB ni red. El caller pasa el ctx ya construido por
+ * `buildReportContext`. Testeada en docx-import.test.ts.
+ */
+export function summarizeContextForAi(ctx: TemplateContext, maxArrayItems = 5): string {
+  const lines: string[] = [];
+
+  const fmtPrimitive = (v: unknown): string => {
+    if (v == null) return "—";
+    if (typeof v === "string") return v || "—";
+    if (typeof v === "number" || typeof v === "boolean") return String(v);
+    if (v instanceof Date) return v.toISOString();
+    return JSON.stringify(v);
+  };
+
+  const isPrimitive = (v: unknown): boolean =>
+    v == null || typeof v === "string" || typeof v === "number" || typeof v === "boolean";
+
+  for (const [key, value] of Object.entries(ctx)) {
+    if (isPrimitive(value)) {
+      lines.push(`${key}: ${fmtPrimitive(value)}`);
+    } else if (Array.isArray(value)) {
+      lines.push(`${key} (${value.length} elementos):`);
+      for (const item of value.slice(0, maxArrayItems)) {
+        if (isPrimitive(item)) {
+          lines.push(`  - ${fmtPrimitive(item)}`);
+        } else if (item && typeof item === "object") {
+          const pairs = Object.entries(item as Record<string, unknown>)
+            .filter(([, v]) => isPrimitive(v))
+            .map(([k, v]) => `${k}=${fmtPrimitive(v)}`)
+            .join(", ");
+          lines.push(`  - ${pairs}`);
+        }
+      }
+      if (value.length > maxArrayItems) {
+        lines.push(`  … y ${value.length - maxArrayItems} más`);
+      }
+    } else if (value && typeof value === "object") {
+      const pairs = Object.entries(value as Record<string, unknown>)
+        .filter(([, v]) => isPrimitive(v))
+        .map(([k, v]) => `  ${k}: ${fmtPrimitive(v)}`)
+        .join("\n");
+      lines.push(`${key}:`);
+      if (pairs) lines.push(pairs);
+    }
+  }
+  return lines.join("\n");
+}
+
+export interface AiReportPromptArgs {
+  /** Texto del informe que el docente está editando (con o sin {{vars}}). */
+  draftText: string;
+  /** Instrucción libre del docente: qué quiere que la IA genere/rellene. */
+  instruction: string;
+  /** Contexto del curso ya construido (buildReportContext). */
+  ctx: TemplateContext;
+  /** Variables disponibles para que la IA inserte placeholders. */
+  catalog?: VariableNode[];
+}
+
+/**
+ * Compone el prompt de IA para generar/rellenar una sección del informe.
+ * Devuelve `{ system, user }` listos para el formato chat-completions
+ * (mismo contrato que usan los edges IA del repo).
+ *
+ * Decisión: el prompt instruye a la IA a DEVOLVER el texto del informe
+ * usando los placeholders `{{var}}` cuando un dato venga del catálogo (en
+ * vez de incrustar el valor concreto), para que el resultado siga siendo
+ * una PLANTILLA reutilizable que el template-engine resuelve por
+ * estudiante/curso. Los valores concretos van solo como referencia.
+ *
+ * PURA: no invoca la IA — solo arma los mensajes. El wiring del edge
+ * queda en el caller (app.teacher.reports.tsx).
+ */
+export function buildAiReportPrompt(args: AiReportPromptArgs): { system: string; user: string } {
+  const { draftText, instruction, ctx, catalog } = args;
+  const paths = flattenCatalogPaths(catalog);
+  const ctxSummary = summarizeContextForAi(ctx);
+
+  const system = [
+    "Eres un asistente que redacta secciones de informes académicos para un docente.",
+    "Escribe en español (es-CO), tono formal e institucional, claro y conciso.",
+    "El texto que produces es una PLANTILLA: cuando un dato provenga de las variables",
+    "disponibles, inserta el placeholder con doble llave (por ejemplo {{estudiante.nombre}})",
+    "EN LUGAR del valor concreto, para que el sistema lo reemplace luego por cada",
+    "estudiante o curso. Usa los valores concretos solo como referencia de contexto.",
+    "Devuelve únicamente el texto/HTML de la sección, sin explicaciones ni comentarios,",
+    "sin envolver en bloques de código.",
+  ].join("\n");
+
+  const user = [
+    `INSTRUCCIÓN DEL DOCENTE:\n${instruction.trim() || "Genera el contenido del informe."}`,
+    "",
+    `VARIABLES DISPONIBLES (usa estos placeholders {{...}} cuando apliquen):\n${paths.join(", ")}`,
+    "",
+    `DATOS DEL CURSO (referencia de contexto, no los incrustes literalmente si hay una variable):\n${ctxSummary}`,
+    "",
+    draftText.trim()
+      ? `TEXTO ACTUAL DEL INFORME (mejóralo / complétalo según la instrucción):\n${draftText.trim()}`
+      : "El informe está vacío: genera el contenido desde cero según la instrucción.",
+  ].join("\n");
+
+  return { system, user };
+}
