@@ -1042,20 +1042,28 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         />
       </div>
 
-      {/* Calendario de eventos del estudiante — vista de mes con dots
-          de color por tipo (Examen / Taller / Proyecto / Clase /
-          Inicio-Fin de curso). Reemplaza al widget "Mi semana" que
-          vivía en /app/student/courses. */}
-      <StudentEventsCalendar userId={userId} />
+      {/* Calendario (izq) + agenda de 2 cards (der) lado a lado en
+          desktop. Antes el calendario de eventos iba como bloque aparte
+          ENTRE los stats y los 2 cards, lo que empujaba la agenda fuera
+          del viewport y forzaba scroll de página. Ahora comparte la
+          región flex-1 con la agenda → todo cabe en UNA pantalla en
+          desktop sin scroll. En mobile (<lg) se apilan y el scroll
+          natural es esperado. La agenda (clases + exámenes) prioriza lo
+          time-critical; los contadores siguen arriba como stats. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
+        {/* Calendario de eventos (dots por tipo: Examen / Taller /
+            Proyecto / Clase / Inicio-Fin de curso). overflow-y-auto: en
+            pantallas muy bajas el mes scrollea DENTRO de su columna, sin
+            empujar el scroll de la página. */}
+        <div className="min-h-0 lg:overflow-y-auto">
+          <StudentEventsCalendar userId={userId} />
+        </div>
 
-      {/* 2 cards abajo que ocupan el alto restante. Antes eran 4
-          (clases / proyectos / exámenes / talleres); talleres y
-          proyectos pendientes se ven en sus módulos dedicados, el
-          dashboard prioriza lo time-critical (clases + exámenes). Los
-          contadores siguen visibles arriba como stats. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 min-h-0">
-        {/* Próximas clases */}
-        <Card className="flex flex-col min-h-0">
+        {/* Próximas clases + Próximos exámenes apilados a la derecha.
+            Cada card scrollea su lista internamente (flex-1 + min-h-0). */}
+        <div className="flex flex-col gap-4 min-h-0">
+          {/* Próximas clases */}
+          <Card className="flex flex-col min-h-0 lg:flex-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <CalendarClock className="h-4 w-4 text-cyan-500 dark:text-cyan-300" />{" "}
@@ -1091,10 +1099,10 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
               </Button>
             </Link>
           </CardContent>
-        </Card>
+          </Card>
 
-        {/* Próximos exámenes */}
-        <Card className="flex flex-col min-h-0">
+          {/* Próximos exámenes */}
+          <Card className="flex flex-col min-h-0 lg:flex-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Calendar className="h-4 w-4 text-violet-500 dark:text-violet-400" />{" "}
@@ -1149,7 +1157,8 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
               </Button>
             </Link>
           </CardContent>
-        </Card>
+          </Card>
+        </div>
       </div>
 
       {/* Modal "Conversaciones pendientes" — abre desde el stat tile.
