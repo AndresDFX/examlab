@@ -61,8 +61,6 @@ import {
   Video as VideoIcon,
   Plus,
   ExternalLink,
-  Archive,
-  RotateCcw,
   Trash2,
   Upload,
   Link as LinkIcon,
@@ -161,7 +159,6 @@ function VideoLibrary() {
   const isSuperAdminActive = activeRole === "SuperAdmin" && roles.includes("SuperAdmin");
   const [rows, setRows] = useState<VideoRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showArchived, setShowArchived] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<VideoRow | null>(null);
   const [mode, setMode] = useState<"url" | "upload">("url");
@@ -236,8 +233,6 @@ function VideoLibrary() {
   // Stats compactas arriba del listado — mismo patrón que proyectos /
   // talleres / exámenes / pizarras / contenidos / encuestas.
   // Estados conceptuales de un video:
-  //   - Activos: !is_archived (visibles para el docente al referenciar)
-  //   - Archivados: is_archived=true (ocultos por default, recuperables)
   //   - En curso: course_id != null (atado a un curso específico)
   //   - Globales: course_id IS NULL (reutilizable, sin curso específico).
   //     Matchea con el badge "Global" de la columna Curso en la tabla.
@@ -247,23 +242,18 @@ function VideoLibrary() {
   // SuperAdmin) es distinto y se filtra desde el Select de scope
   // (tenantFilter="global"), no desde un stat.
   const videoStats = useMemo(() => {
-    let active = 0;
-    let archived = 0;
     let global = 0;
     let inCourse = 0;
     for (const r of rows) {
-      if (r.is_archived) archived += 1;
-      else active += 1;
       if (r.course_id) inCourse += 1;
       else global += 1;
     }
-    return { active, archived, global, inCourse };
+    return { total: rows.length, global, inCourse };
   }, [rows]);
 
   const visible = useMemo(
     () =>
       rows.filter((r) => {
-        if (!showArchived && r.is_archived) return false;
         if (filterCourseId && r.course_id !== filterCourseId) return false;
         if (search) {
           const q = search.toLowerCase();
@@ -274,12 +264,12 @@ function VideoLibrary() {
         }
         return true;
       }),
-    [rows, showArchived, filterCourseId, search],
+    [rows, filterCourseId, search],
   );
   const pagination = usePagination(visible, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:videos",
-    resetKey: `${search}|${filterCourseId ?? ""}|${showArchived}|${tenantFilter}`,
+    resetKey: `${search}|${filterCourseId ?? ""}|${tenantFilter}`,
   });
 
   const courseNameById = useMemo(() => {
@@ -566,21 +556,6 @@ function VideoLibrary() {
     await load();
   };
 
-  const toggleArchive = async (v: VideoRow) => {
-    const next = !v.is_archived;
-    const { error } = await db.from("videos").update({ is_archived: next }).eq("id", v.id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
-    }
-    toast.success(
-      next
-        ? i18n.t("toast.routes_app_videos.videoArchived", { defaultValue: "Video archivado" })
-        : i18n.t("toast.routes_app_videos.videoRestored", { defaultValue: "Video restaurado" }),
-    );
-    void load();
-  };
-
   const remove = async (v: VideoRow) => {
     const ok = await confirm({
       title: `¿Borrar "${v.title}"?`,
@@ -635,36 +610,23 @@ function VideoLibrary() {
         subtitle="Videos reutilizables. Referenciados desde proyectos, talleres y módulos que exijan reproducción obligatoria."
         icon={<VideoIcon className="h-6 w-6 text-cyan-500" />}
         actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowArchived((v) => !v)}
-              title="Mostrar/ocultar videos archivados"
-            >
-              <Archive className="h-3.5 w-3.5 mr-1" />
-              {showArchived ? "Ocultar archivados" : "Ver archivados"}
-            </Button>
-            <Button size="sm" onClick={openNew}>
-              <Plus className="h-4 w-4 mr-1" />
-              Nuevo video
-            </Button>
-          </div>
+          <Button size="sm" onClick={openNew}>
+            <Plus className="h-4 w-4 mr-1" />
+            Nuevo video
+          </Button>
         }
       />
 
-      {/* Stats 4-card — patrón compartido (StatCard). Aparece SIEMPRE,
-          incluso cuando rows.length === 0. Un dashboard de zeros es
-          informativo y mantiene consistencia visual con el resto de los
-          módulos cuando el tenant todavía no ha generado contenido. */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* Stats — patrón compartido (StatCard). Aparece SIEMPRE, incluso
+          cuando rows.length === 0. Un dashboard de zeros es informativo y
+          mantiene consistencia visual con el resto de los módulos. */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <StatCard
           icon={VideoIcon}
-          label="Activos"
-          value={videoStats.active}
-          tone={videoStats.active > 0 ? "success" : "default"}
+          label="Total"
+          value={videoStats.total}
+          tone={videoStats.total > 0 ? "success" : "default"}
         />
-        <StatCard icon={Archive} label="Archivados" value={videoStats.archived} />
         <StatCard icon={LinkIcon} label="En curso" value={videoStats.inCourse} />
         <StatCard icon={Globe} label="Globales" value={videoStats.global} />
       </div>
@@ -749,7 +711,7 @@ function VideoLibrary() {
                       );
                     })()
                   : pagination.paginatedItems.map((v) => (
-                      <TableRow key={v.id} className={v.is_archived ? "opacity-60" : undefined}>
+                      <TableRow key={v.id}>
                         <TableCell className="max-w-md">
                           <div className="flex items-start gap-3">
                             <div className="h-9 w-9 rounded-md bg-cyan-500/10 flex items-center justify-center shrink-0">
@@ -806,11 +768,6 @@ function VideoLibrary() {
                                 <Upload className="h-2.5 w-2.5" /> Subido
                               </Badge>
                             )}
-                            {v.is_archived && (
-                              <Badge variant="secondary" className="text-[10px] w-fit">
-                                Archivado
-                              </Badge>
-                            )}
                           </div>
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
@@ -832,11 +789,6 @@ function VideoLibrary() {
                                 label: "Editar",
                                 icon: Edit2,
                                 onClick: () => openEdit(v),
-                              },
-                              {
-                                label: v.is_archived ? "Restaurar" : "Archivar",
-                                icon: v.is_archived ? RotateCcw : Archive,
-                                onClick: () => void toggleArchive(v),
                               },
                               {
                                 label: "Eliminar",
