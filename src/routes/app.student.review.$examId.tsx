@@ -109,11 +109,13 @@ function StudentExamReview() {
           .from("exams")
           .select("id, parent_exam_id")
           .eq("id", examId)
+          .is("deleted_at", null)
           .maybeSingle();
         const { data: makeupRows } = await supabase
           .from("exams")
           .select("id")
-          .eq("parent_exam_id", examId);
+          .eq("parent_exam_id", examId)
+          .is("deleted_at", null);
         const relatedExamIds = Array.from(
           new Set<string>([
             examId,
@@ -156,6 +158,7 @@ function StudentExamReview() {
               "id, title, description, course:courses(name, grade_scale_min, grade_scale_max)",
             )
             .eq("id", examId)
+            .is("deleted_at", null)
             .single(),
           // Último intento del alumno en CUALQUIERA de los exam_ids
           // relacionados (la URL, su padre, o un makeup hijo). Si el

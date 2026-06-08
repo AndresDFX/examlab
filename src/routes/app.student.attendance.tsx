@@ -227,6 +227,7 @@ function StudentAttendance() {
         .from("courses")
         .select("id, name, period")
         .in("id", courseIds)
+        .is("deleted_at", null)
         .order("name");
       if (cancelled) return;
       const list = (cs ?? []) as Course[];
@@ -261,6 +262,7 @@ function StudentAttendance() {
             "id, course_id, session_date, title, recording_url, recording_video_id, notes_url, whiteboard_shared, code_shared",
           )
           .eq("course_id", selectedCourseId)
+          .is("deleted_at", null)
           .order("session_date", { ascending: false }),
         // RLS limita a auth.uid() = user_id; igual filtramos explícitamente
         // para no traer todo si en el futuro la policy se relaja.
@@ -326,6 +328,7 @@ function StudentAttendance() {
       .from("attendance_sessions")
       .select("id, course_id, session_date, title, check_in_open")
       .eq("check_in_open", true)
+      .is("deleted_at", null)
       .in("course_id", courseIds);
     const sessions = (data ?? []) as Session[];
     const sessionIds = sessions.map((s) => s.id);

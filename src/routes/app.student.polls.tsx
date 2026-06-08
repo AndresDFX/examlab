@@ -182,6 +182,7 @@ function StudentPolls() {
             "id, course_id, attendance_session_id, title, description, poll_type, results_visible_to_students, allow_change_response, opens_at, closes_at, closed_manually, options:poll_options(id, poll_id, label, position, max_responses, responses_count)",
           )
           .in("id", pollIds)
+          .is("deleted_at", null)
           .order("created_at", { ascending: false }),
         db.from("poll_responses").select("poll_id, option_id").eq("user_id", user.id),
       ]);

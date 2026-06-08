@@ -139,6 +139,7 @@ function StudentProjectDetail() {
               "id, course_id, title, description, instructions, external_link, due_date, max_files, max_score, status, group_mode",
             )
             .eq("id", projectId)
+            .is("deleted_at", null)
             .maybeSingle(),
           db
             .from("project_files")
@@ -222,6 +223,7 @@ function StudentProjectDetail() {
             .from("courses")
             .select("name, grade_scale_min, grade_scale_max")
             .eq("id", courseIdToShow)
+            .is("deleted_at", null)
             .maybeSingle();
           courseRow = data ?? null;
         }

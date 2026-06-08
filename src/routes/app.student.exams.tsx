@@ -162,7 +162,8 @@ function StudentExams() {
         const { data: mr } = await supabase
           .from("exams")
           .select("id, parent_exam_id")
-          .in("parent_exam_id", assignedIds);
+          .in("parent_exam_id", assignedIds)
+          .is("deleted_at", null);
         makeupRows = mr ?? [];
       }
       const submissionExamIds = [...new Set([...assignedIds, ...makeupRows.map((m) => m.id)])];

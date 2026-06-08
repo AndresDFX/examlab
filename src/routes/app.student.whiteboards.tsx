@@ -77,6 +77,7 @@ function StudentWhiteboards() {
           .from("whiteboards")
           .select("id, name, description, course_id, is_shared_with_course, updated_at")
           .eq("is_shared_with_course", true)
+          .is("deleted_at", null)
           .order("updated_at", { ascending: false }),
         db.from("course_enrollments").select("course_id, courses(id, name)").eq("user_id", user.id),
       ]);

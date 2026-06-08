@@ -360,6 +360,7 @@ function TakeExam() {
         .from("exams")
         .select("*, course:courses(language, max_exam_attempts)")
         .eq("id", examId)
+        .is("deleted_at", null)
         .single();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let e: any = examData;

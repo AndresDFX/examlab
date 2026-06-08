@@ -133,6 +133,7 @@ function StudentGrades() {
         .from("courses")
         .select("id, name, period, grade_scale_min, grade_scale_max, passing_grade")
         .in("id", ids)
+        .is("deleted_at", null)
         .order("period", { ascending: false, nullsFirst: false })
         .order("name");
       if (cancelled) return;
@@ -179,12 +180,14 @@ function StudentGrades() {
             .from("exams")
             .select("id, title, parent_exam_id, cut_id, weight, retry_mode, status")
             .eq("course_id", courseId)
-            .neq("status", "draft"),
+            .neq("status", "draft")
+            .is("deleted_at", null),
           supabase
             .from("workshops")
             .select("id, title, max_score, cut_id, weight, is_external, status")
             .eq("course_id", courseId)
-            .neq("status", "draft"),
+            .neq("status", "draft")
+            .is("deleted_at", null),
           // Proyectos via project_courses para incluir secundarios y usar
           // cut_id/weight por curso. El filtro de draft se aplica abajo
           // sobre el join (project_courses no tiene status).
@@ -195,7 +198,8 @@ function StudentGrades() {
           db
             .from("attendance_sessions")
             .select("id, session_date, cut_id")
-            .eq("course_id", courseId),
+            .eq("course_id", courseId)
+            .is("deleted_at", null),
         ]);
 
         const cuts = (cutsData ?? []) as Cut[];

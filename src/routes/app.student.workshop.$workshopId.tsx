@@ -130,6 +130,7 @@ function StudentWorkshopDetail() {
             "id, title, description, instructions, external_link, due_date, max_score, status, group_mode, course:courses(name, grade_scale_min, grade_scale_max)",
           )
           .eq("id", workshopId)
+          .is("deleted_at", null)
           .single();
         if (cancelled) return;
         if (wsErr || !ws) {

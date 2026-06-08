@@ -243,6 +243,7 @@ function StudentProjects() {
           "id, title, description, instructions, start_date, due_date, max_files, max_score, is_external, status, group_mode, max_attempts, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, language)",
         )
         .in("id", allIds)
+        .is("deleted_at", null)
         .neq("status", "draft");
       if (res.error) {
         console.warn("[student-projects] projects+join failed, retrying without join", res.error);
@@ -252,6 +253,7 @@ function StudentProjects() {
             "id, title, description, instructions, start_date, due_date, max_files, max_score, status, group_mode, max_attempts, course_id",
           )
           .in("id", allIds)
+          .is("deleted_at", null)
           .neq("status", "draft");
       }
       if (res.error) throw new Error(`projects: ${res.error.message}`);

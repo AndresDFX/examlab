@@ -167,6 +167,7 @@ function StudentCourses() {
         .from("courses")
         .select("id, name, description, period, start_date, end_date, language")
         .in("id", courseIds)
+        .is("deleted_at", null)
         .order("period", { ascending: false, nullsFirst: false })
         .order("name");
       if (cancelled) return;
@@ -366,6 +367,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
         .from("attendance_sessions")
         .select("id, course_id, session_date, title, content_id, content_class_index, meeting_url")
         .eq("course_id", course.id)
+        .is("deleted_at", null)
         .order("session_date", { ascending: true });
       const sessRows = (ses ?? []) as SessionRow[];
       setSessions(sessRows);
@@ -378,7 +380,8 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
         const { data: cs } = await db
           .from("generated_contents")
           .select("id, topic, mode, duration_minutes, modality, files, release_after_session_date")
-          .in("id", contentIds);
+          .in("id", contentIds)
+          .is("deleted_at", null);
         const map: Record<string, ContentRow> = {};
         for (const c of (cs ?? []) as ContentRow[]) map[c.id] = c;
         setContents(map);
@@ -416,16 +419,19 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
           .from("exams")
           .select("id, title, end_time, status")
           .eq("course_id", course.id)
+          .is("deleted_at", null)
           .neq("status", "draft"),
         supabase
           .from("workshops")
           .select("id, title, due_date, status")
           .eq("course_id", course.id)
+          .is("deleted_at", null)
           .neq("status", "draft"),
         supabase
           .from("projects")
           .select("id, title, due_date, status")
           .eq("course_id", course.id)
+          .is("deleted_at", null)
           .neq("status", "draft"),
       ]);
       const items: ScheduledItem[] = [];
