@@ -53,7 +53,7 @@ import {
 } from "@/components/ui/table";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TableEmpty } from "@/components/ui/empty-state";
-import { Search, Link2, Unlink, CheckCircle2, Video } from "lucide-react";
+import { Search, Link2, Unlink, CheckCircle2, Video, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
@@ -82,6 +82,10 @@ interface CalendarEvent {
    *  tras grabar). null si el evento aún no tiene grabación. Al vincular,
    *  el edge la persiste en `attendance_sessions.recording_url`. */
   recordingUrl: string | null;
+  /** Link a las notas de reunión / minuta (Google adjunta el doc de notas
+   *  al evento). null si el evento aún no tiene notas. Al vincular,
+   *  el edge las persiste en `attendance_sessions.notes_url`. */
+  notesUrl: string | null;
 }
 
 interface Session {
@@ -328,8 +332,9 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
           <DialogDescription>
             Asocia las sesiones de este curso con eventos que ya existen en tu calendario. ExamLab
             heredará el link de Meet/Zoom de cada evento y, si el evento ya tiene una{" "}
-            <strong>grabación</strong>, también la vinculará. No se crean eventos nuevos — para eso
-            usá <em>Sincronizar curso</em> en la pantalla principal.
+            <strong>grabación</strong> o <strong>notas de reunión</strong>, también las vinculará. No
+            se crean eventos nuevos — para eso usá <em>Sincronizar curso</em> en la pantalla
+            principal.
           </DialogDescription>
         </DialogHeader>
 
@@ -462,6 +467,20 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
                                     <div className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400">
                                       <Video className="h-3 w-3 shrink-0" />
                                       <span className="truncate">Grabación disponible — se vinculará</span>
+                                    </div>
+                                  )}
+                                  {ev.notesUrl && (
+                                    <div className="flex items-center gap-1 text-[10px] text-sky-600 dark:text-sky-400">
+                                      <FileText className="h-3 w-3 shrink-0" />
+                                      <span className="truncate">
+                                        {i18n.t(
+                                          "modules_calendar_LinkCalendarEventsDialog.notesAvailable",
+                                          {
+                                            defaultValue:
+                                              "Notas de reunión disponibles — se vincularán",
+                                          },
+                                        )}
+                                      </span>
                                     </div>
                                   )}
                                 </div>

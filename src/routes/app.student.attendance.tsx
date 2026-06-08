@@ -48,6 +48,7 @@ import {
   Sparkles,
   PlayCircle,
   ExternalLink,
+  FileText,
   Code2,
   Palette,
 } from "lucide-react";
@@ -94,6 +95,9 @@ type Session = {
   /** Referencia a un video de la biblioteca con la grabación. Cuando
    *  está poblado, el estudiante puede embeberlo desde el detalle. */
   recording_video_id?: string | null;
+  /** Enlace libre a las notas / minuta de la reunión (Google Docs,
+   *  Notion, etc.). Se abre en nueva pestaña. Análogo a recording_url. */
+  notes_url?: string | null;
 };
 type OpenSession = Session & { course_name: string };
 type Record_ = {
@@ -243,14 +247,14 @@ function StudentAttendance() {
     (async () => {
       setLoadingData(true);
       const [{ data: sess }, { data: recs }] = await Promise.all([
-        // Cast a `any` porque la columna recording_url/recording_video_id
-        // se agrega en una migración nueva y types.ts auto-generado todavía
-        // no la incluye hasta el próximo Publish en Lovable.
+        // Cast a `any` porque las columnas recording_url/recording_video_id/
+        // notes_url se agregan en migraciones nuevas y types.ts auto-generado
+        // todavía no las incluye hasta el próximo Publish en Lovable.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (supabase as any)
           .from("attendance_sessions")
           .select(
-            "id, course_id, session_date, title, recording_url, recording_video_id, whiteboard_shared",
+            "id, course_id, session_date, title, recording_url, recording_video_id, notes_url, whiteboard_shared",
           )
           .eq("course_id", selectedCourseId)
           .order("session_date", { ascending: false }),
@@ -703,6 +707,29 @@ function StudentAttendance() {
                                     </a>
                                   </Button>
                                 )}
+                                {/* Enlace a las notas / minuta de la reunión.
+                                    Análogo a recording_url: link libre que se
+                                    abre en nueva pestaña. */}
+                                {s.notes_url && (
+                                  <Button
+                                    asChild
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-[11px]"
+                                  >
+                                    <a
+                                      href={s.notes_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      <FileText className="h-3 w-3 mr-1" />
+                                      {t(
+                                        "routes_app_student_attendance.viewNotes",
+                                        { defaultValue: "Ver notas" },
+                                      )}
+                                    </a>
+                                  </Button>
+                                )}
                                 {/* Botón "Código" — abre el dialog read-only
                                     con los snippets compartidos por el docente.
                                     Lo mostramos SIEMPRE; si la sesión no tiene
@@ -745,7 +772,7 @@ function StudentAttendance() {
                                     Pizarra
                                   </Button>
                                 )}
-                                {!video && !s.recording_url && (
+                                {!video && !s.recording_url && !s.notes_url && (
                                   <span className="text-xs text-muted-foreground">—</span>
                                 )}
                               </div>

@@ -770,6 +770,34 @@ function extractGoogleRecordingUrl(ev: GoogleEvent): string | null {
   return match?.fileUrl ?? null;
 }
 
+/** Extrae el link a las NOTAS / minuta de un evento de Google Calendar.
+ *  Cuando la reunión usó "tomar notas con Gemini", Google adjunta el
+ *  documento generado (un Google Doc) como `attachments` del evento.
+ *  Heurística: primer Google Doc cuyo título sugiera notas (nota/notes/
+ *  recap/acta/minut). Si no hay match por título pero existe UN solo Google
+ *  Doc en el evento, lo usamos (es casi seguro la minuta — los eventos no
+ *  suelen llevar Docs sueltos). Devuelve null si el evento no tiene notas. */
+function extractGoogleNotesUrl(ev: GoogleEvent): string | null {
+  const docs = (ev.attachments ?? []).filter(
+    (a) => (a.mimeType ?? "").toLowerCase() === "application/vnd.google-apps.document",
+  );
+  const titled = docs.find((a) => {
+    const title = (a.title ?? "").toLowerCase();
+    return (
+      title.includes("nota") ||
+      title.includes("notes") ||
+      title.includes("recap") ||
+      title.includes("acta") ||
+      title.includes("minut")
+    );
+  });
+  if (titled) return titled.fileUrl ?? null;
+  // Sin match por título: si hay exactamente UN Google Doc, asumimos que es
+  // la minuta. Con varios no adivinamos (podría ser material de clase).
+  if (docs.length === 1) return docs[0].fileUrl ?? null;
+  return null;
+}
+
 async function handleListEvents(userId: string, body: ListEventsBody, provider: Provider) {
   if (!body.fromDate || !body.toDate) return jsonError("date_range_required", 400);
   // Sanity check de formato (no consultamos al proveedor si los datos
@@ -817,6 +845,8 @@ async function handleListEvents(userId: string, body: ListEventsBody, provider: 
           // Microsoft no expone la grabación de Teams en el evento (vive en
           // Graph onlineMeetings/recordings, otra API) → null por ahora.
           recordingUrl: null,
+          // Graph no expone las notas de la reunión en el evento → null.
+          notesUrl: null,
         }));
       return jsonOk({ events: items });
     } catch (e) {
@@ -855,6 +885,8 @@ async function handleListEvents(userId: string, body: ListEventsBody, provider: 
         htmlLink: e.htmlLink ?? null,
         // Grabación de Meet (si el evento ya la tiene adjunta en Drive).
         recordingUrl: extractGoogleRecordingUrl(e),
+        // Notas / minuta (Google Doc de Gemini adjunto al evento, si existe).
+        notesUrl: extractGoogleNotesUrl(e),
       }));
     return jsonOk({ events: items });
   } catch (e) {
@@ -938,8 +970,10 @@ async function handleLinkEventsToSessions(
       // `/me/events/{id}` (cualquier calendario del usuario).
       let eventId: string;
       let meetingUrl: string | null;
-      // Grabación: solo Google la expone en el evento (attachment de Drive).
+      // Grabación y notas: solo Google las expone en el evento (attachments
+      // de Drive). Microsoft no.
       let recordingUrl: string | null = null;
+      let notesUrl: string | null = null;
       if (provider === "microsoft") {
         const ev = await callMicrosoft<MsEvent>(
           userId,
@@ -957,14 +991,16 @@ async function handleLinkEventsToSessions(
         eventId = ev.id;
         meetingUrl = ev.hangoutLink ?? ev.htmlLink ?? null;
         recordingUrl = extractGoogleRecordingUrl(ev);
+        notesUrl = extractGoogleNotesUrl(ev);
       }
-      // recording_url solo se setea si el evento TIENE grabación — así no
-      // pisamos con null una grabación cargada manualmente en la sesión.
+      // recording_url / notes_url solo se setean si el evento los TIENE —
+      // así no pisamos con null un enlace cargado manualmente en la sesión.
       const updatePayload: Record<string, unknown> = {
         google_event_id: eventId,
         meeting_url: meetingUrl,
       };
       if (recordingUrl) updatePayload.recording_url = recordingUrl;
+      if (notesUrl) updatePayload.notes_url = notesUrl;
       await adminClient
         .from("attendance_sessions")
         .update(updatePayload)

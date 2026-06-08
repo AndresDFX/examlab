@@ -137,6 +137,10 @@ type Session = {
    *  nueva pestaña — no se intenta embed porque esos servicios bloquean
    *  iframes externos. */
   recording_url?: string | null;
+  /** Enlace libre a las notas de reunión / minuta (Google Docs, Notion,
+   *  etc.). Google Calendar lo trae automáticamente como attachment; el
+   *  docente también lo puede pegar a mano. Se abre en nueva pestaña. */
+  notes_url?: string | null;
   /** Referencia opcional a un video de la biblioteca con la grabación.
    *  Cuando está poblado, la UI lo embebe en el detalle de la sesión. */
   recording_video_id?: string | null;
@@ -222,6 +226,10 @@ function TeacherAttendance() {
   // Independientes — uno, ambos o ninguno pueden estar poblados.
   const [newRecordingUrl, setNewRecordingUrl] = useState("");
   const [newRecordingVideoId, setNewRecordingVideoId] = useState<string>("");
+  // Notas de reunión / minuta de la clase. Análogo a newRecordingUrl —
+  // enlace libre (Google Docs/Notion/…). Google Calendar lo trae como
+  // attachment al vincular; también editable a mano.
+  const [newNotesUrl, setNewNotesUrl] = useState("");
   // Lista de videos disponibles para asociar a la sesión (biblioteca
   // filtrada al curso actual + globales sin course_id). Cargada lazy
   // cuando se abre el dialog.
@@ -234,6 +242,9 @@ function TeacherAttendance() {
   const [recordingEditSession, setRecordingEditSession] = useState<Session | null>(null);
   const [recordingEditUrl, setRecordingEditUrl] = useState("");
   const [recordingEditVideoId, setRecordingEditVideoId] = useState<string>("");
+  // Notas de reunión / minuta para sesiones existentes (mismo dialog que
+  // la grabación de fila). Análogo a recordingEditUrl.
+  const [notesEditUrl, setNotesEditUrl] = useState("");
 
   // Check-in self-service: configuración + estado del proyector activo
   const [checkInConfigSession, setCheckInConfigSession] = useState<Session | null>(null);
@@ -442,6 +453,7 @@ function TeacherAttendance() {
       cut_id: newCutId || null,
       recording_url: newRecordingUrl.trim() || null,
       recording_video_id: newRecordingVideoId || null,
+      notes_url: newNotesUrl.trim() || null,
     });
     if (error) {
       toast.error(friendlyError(error));
@@ -457,6 +469,7 @@ function TeacherAttendance() {
     setNewCutId("");
     setNewRecordingUrl("");
     setNewRecordingVideoId("");
+    setNewNotesUrl("");
     loadCourse();
   };
 
@@ -469,6 +482,7 @@ function TeacherAttendance() {
     setRecordingEditSession(s);
     setRecordingEditUrl(s.recording_url ?? "");
     setRecordingEditVideoId(s.recording_video_id ?? "");
+    setNotesEditUrl(s.notes_url ?? "");
   };
 
   const saveRecordingEdit = async () => {
@@ -479,6 +493,7 @@ function TeacherAttendance() {
       .update({
         recording_url: recordingEditUrl.trim() || null,
         recording_video_id: recordingEditVideoId || null,
+        notes_url: notesEditUrl.trim() || null,
       })
       .eq("id", recordingEditSession.id);
     if (error) {
@@ -492,6 +507,7 @@ function TeacherAttendance() {
               ...s,
               recording_url: recordingEditUrl.trim() || null,
               recording_video_id: recordingEditVideoId || null,
+              notes_url: notesEditUrl.trim() || null,
             }
           : s,
       ),
@@ -1281,9 +1297,13 @@ function TeacherAttendance() {
                               </DropdownMenuItem>
                               <DropdownMenuItem onSelect={() => openRecordingEdit(sess)}>
                                 <PlayCircle className="h-4 w-4 mr-2 text-primary" />
-                                {sess.recording_url || sess.recording_video_id
-                                  ? "Editar grabación"
-                                  : "Agregar grabación"}
+                                {sess.recording_url || sess.recording_video_id || sess.notes_url
+                                  ? t("attendance.editRecordingNotes", {
+                                      defaultValue: "Editar grabación / notas",
+                                    })
+                                  : t("attendance.addRecordingNotes", {
+                                      defaultValue: "Agregar grabación / notas",
+                                    })}
                               </DropdownMenuItem>
                               {/* Lanzar encuesta en vivo durante esta
                                   sesión. El attendance_session_id queda
@@ -1553,6 +1573,24 @@ function TeacherAttendance() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="border-t pt-3 space-y-2">
+              <Label>
+                {t("attendance.notesUrlLabel", {
+                  defaultValue: "Enlace de notas / minuta (opcional)",
+                })}{" "}
+                <HelpHint>
+                  {t("attendance.notesUrlHelp", {
+                    defaultValue:
+                      "Enlace a las notas de reunión o minuta (Google Docs, Notion…). Al vincular con Google Calendar se trae automáticamente. Se abre en una pestaña nueva.",
+                  })}
+                </HelpHint>
+              </Label>
+              <Input
+                value={newNotesUrl}
+                onChange={(e) => setNewNotesUrl(e.target.value)}
+                placeholder="https://docs.google.com/… ó https://notion.so/…"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewSessionOpen(false)}>
@@ -1570,7 +1608,11 @@ function TeacherAttendance() {
       >
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Editar grabación</DialogTitle>
+            <DialogTitle>
+              {t("attendance.editRecordingNotesTitle", {
+                defaultValue: "Editar grabación / notas",
+              })}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
@@ -1602,6 +1644,24 @@ function TeacherAttendance() {
               <p className="text-[11px] text-muted-foreground mt-1">
                 Sube el video desde el módulo "Videos" y aparecerá en esta lista.
               </p>
+            </div>
+            <div className="border-t pt-3">
+              <Label>
+                {t("attendance.notesUrlLabel", {
+                  defaultValue: "Enlace de notas / minuta (opcional)",
+                })}{" "}
+                <HelpHint>
+                  {t("attendance.notesUrlHelp", {
+                    defaultValue:
+                      "Enlace a las notas de reunión o minuta (Google Docs, Notion…). Al vincular con Google Calendar se trae automáticamente. Se abre en una pestaña nueva.",
+                  })}
+                </HelpHint>
+              </Label>
+              <Input
+                value={notesEditUrl}
+                onChange={(e) => setNotesEditUrl(e.target.value)}
+                placeholder="https://docs.google.com/… ó https://notion.so/…"
+              />
             </div>
           </div>
           <DialogFooter>
