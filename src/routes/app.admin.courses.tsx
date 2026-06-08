@@ -414,6 +414,12 @@ export function AdminCourses() {
   const [dupPeriod, setDupPeriod] = useState("");
   const [dupCopyExams, setDupCopyExams] = useState(true);
   const [dupCopyWorkshops, setDupCopyWorkshops] = useState(true);
+  // Copiar el TABLERO (sesiones del cronograma) al curso nuevo. Útil para
+  // cursos que se repiten cada periodo con la misma estructura de clases.
+  // Copia fecha/hora/título/enlace de reunión; NO content_id (los
+  // contenidos son del curso origen) ni grabaciones/notas (son de esa
+  // instancia puntual).
+  const [dupCopyBoard, setDupCopyBoard] = useState(true);
   const [dupCopyStudents, setDupCopyStudents] = useState(false);
   // Por defecto NO copiar docentes (opt-in).
   const [dupCopyTeachers, setDupCopyTeachers] = useState(false);
@@ -1193,6 +1199,7 @@ export function AdminCourses() {
     setDupPeriod(c.period ?? "");
     setDupCopyExams(true);
     setDupCopyWorkshops(true);
+    setDupCopyBoard(true);
     setDupCopyStudents(true);
     setDupCopyTeachers(false); // opt-in
     setDupOpen(true);
@@ -1357,6 +1364,43 @@ export function AdminCourses() {
               status: "draft",
             })),
           );
+        }
+      }
+
+      // 6. Copy board (sesiones del cronograma). Copiamos la ESTRUCTURA:
+      // fecha, hora, duración, título y enlace de reunión. NO copiamos
+      // content_id/content_class_index (los contenidos pertenecen al curso
+      // origen y no se duplican acá) ni recording_url/notes_url (son de la
+      // instancia puntual de la clase). El docente reasigna contenido en el
+      // curso nuevo. Excluimos las sesiones en papelera (deleted_at).
+      if (dupCopyBoard) {
+        const { data: sess } = await supabase
+          .from("attendance_sessions")
+          .select("session_date, start_time, duration_minutes, title, meeting_url")
+          .eq("course_id", dupSource.id)
+          .is("deleted_at", null)
+          .order("session_date", { ascending: true });
+        if (sess?.length) {
+          const { error: sErr } = await db.from("attendance_sessions").insert(
+            (sess as any[]).map((s) => ({
+              course_id: newCourse.id,
+              session_date: s.session_date,
+              start_time: s.start_time,
+              duration_minutes: s.duration_minutes,
+              title: s.title,
+              meeting_url: s.meeting_url,
+              created_by: user?.id ?? null,
+            })),
+          );
+          if (sErr) {
+            console.error("copy board sessions:", sErr);
+            toast.error(
+              i18n.t("toast.routes_app_admin_courses.copyBoardFailed", {
+                defaultValue: "No se pudo copiar el tablero: {{error}}",
+                error: friendlyError(sErr),
+              }),
+            );
+          }
         }
       }
 
@@ -2408,6 +2452,16 @@ export function AdminCourses() {
                     </div>
                   </div>
                   <Switch checked={dupCopyWorkshops} onCheckedChange={setDupCopyWorkshops} />
+                </label>
+                <label className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm">Tablero (sesiones / cronograma)</div>
+                    <div className="text-xs text-muted-foreground">
+                      Copia las clases del tablero (fecha, hora, título, enlace de reunión) al curso
+                      nuevo. No copia el contenido asignado ni grabaciones — eso se reasigna.
+                    </div>
+                  </div>
+                  <Switch checked={dupCopyBoard} onCheckedChange={setDupCopyBoard} />
                 </label>
                 <label className="flex items-center justify-between">
                   <div>
