@@ -2749,9 +2749,21 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
           .select("id, topic, mode, course_id, files")
           .eq("status", "done")
           .or(`course_id.eq.${course.id},course_id.is.null`),
-        supabase.from("exams").select("id, title, end_time").eq("course_id", course.id),
-        supabase.from("workshops").select("id, title, due_date").eq("course_id", course.id),
-        supabase.from("projects").select("id, title, due_date").eq("course_id", course.id),
+        supabase
+          .from("exams")
+          .select("id, title, end_time")
+          .eq("course_id", course.id)
+          .is("deleted_at", null),
+        supabase
+          .from("workshops")
+          .select("id, title, due_date")
+          .eq("course_id", course.id)
+          .is("deleted_at", null),
+        supabase
+          .from("projects")
+          .select("id, title, due_date")
+          .eq("course_id", course.id)
+          .is("deleted_at", null),
       ]);
 
       setSessions((sesRes.data ?? []) as SessionRow[]);
