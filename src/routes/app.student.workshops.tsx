@@ -720,7 +720,7 @@ function StudentWorkshops() {
           if (!open && user) void reload(user.id);
         }}
       >
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{questionsWs?.workshop.title}</DialogTitle>
           </DialogHeader>

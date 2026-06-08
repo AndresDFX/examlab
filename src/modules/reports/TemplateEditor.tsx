@@ -226,7 +226,7 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
 
       <div>
         <Card className="lg:sticky lg:top-4">
-          <CardContent className="p-3 space-y-1 max-h-[80vh] overflow-y-auto">
+          <CardContent className="p-3 space-y-1 max-h-[80dvh] overflow-y-auto">
             <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium pb-1">
               Variables disponibles
             </p>

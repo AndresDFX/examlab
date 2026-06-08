@@ -421,7 +421,7 @@ function ToolbarButton({
       onClick={onClick}
       title={label}
       aria-label={label}
-      className="h-7 w-7 p-0 shrink-0"
+      className="h-8 w-8 p-0 shrink-0"
     >
       <Icon className="h-3.5 w-3.5" />
     </Button>

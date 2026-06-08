@@ -494,11 +494,11 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
                       <Textarea
-                        rows={1}
+                        rows={2}
                         value={row.feedback}
                         onChange={(e) => updateRow(row.userId, { feedback: e.target.value })}
                         placeholder="Comentario opcional"
-                        className="min-h-[32px] text-xs"
+                        className="min-h-[44px] text-xs resize-y"
                       />
                     </TableCell>
                     <TableCell className="text-right">

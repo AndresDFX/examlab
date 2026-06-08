@@ -2565,7 +2565,7 @@ function TeacherWorkshops() {
       {/* Create/Edit Dialog */}
       <Dialog open={open} onOpenChange={workshopDirty.guardOpenChange(setOpen)}>
         <DialogContent
-          className="max-w-lg max-h-[90vh] overflow-y-auto"
+          className="max-w-lg max-h-[90dvh] overflow-y-auto"
           data-tour-id="dialog-workshop"
         >
           <DialogHeader>
@@ -3015,7 +3015,7 @@ function TeacherWorkshops() {
                           }}
                         >
                           <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Biblioteca o URL personalizada…" />
+                            <SelectValue placeholder="Biblioteca o URL…" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="__custom">
@@ -3252,7 +3252,7 @@ function TeacherWorkshops() {
           if (!o) setViewingSubId(null);
         }}
       >
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-6xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Calificaciones — {gradingWs?.title}</DialogTitle>
           </DialogHeader>
@@ -4240,7 +4240,7 @@ function TeacherWorkshops() {
 
       {/* Workshop groups editor dialog */}
       <Dialog open={groupsOpen} onOpenChange={setGroupsOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Grupos del taller {groupsWs ? `— ${groupsWs.title}` : ""}</DialogTitle>
           </DialogHeader>
@@ -4252,7 +4252,7 @@ function TeacherWorkshops() {
 
       {/* Workshop questions editor dialog */}
       <Dialog open={questionsOpen} onOpenChange={setQuestionsOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Preguntas del taller {questionsWs ? `— ${questionsWs.title}` : ""}

@@ -149,7 +149,7 @@ export function ForceChangePasswordDialog({ userId, onChanged, onSignOut }: Prop
               <button
                 type="button"
                 onClick={() => setShowNew(!showNew)}
-                className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                className="absolute right-1 top-1 p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
                 aria-label={showNew ? "Ocultar contraseña" : "Mostrar contraseña"}
               >
                 {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

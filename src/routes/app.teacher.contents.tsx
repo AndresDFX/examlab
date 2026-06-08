@@ -1550,7 +1550,7 @@ function TeacherContents() {
             <DialogTitle>{t("contents.raw")}</DialogTitle>
             <DialogDescription>{rawItem?.topic}</DialogDescription>
           </DialogHeader>
-          <pre className="text-[11px] whitespace-pre-wrap max-h-[60vh] overflow-y-auto bg-muted/30 p-3 rounded">
+          <pre className="text-[11px] whitespace-pre-wrap max-h-[60dvh] overflow-y-auto bg-muted/30 p-3 rounded">
             {rawItem?.raw_output ?? ""}
           </pre>
         </DialogContent>
@@ -1568,7 +1568,7 @@ function TeacherContents() {
             </DialogTitle>
             <DialogDescription>{items.find((i) => i.id === errorForId)?.topic}</DialogDescription>
           </DialogHeader>
-          <pre className="text-[11px] whitespace-pre-wrap max-h-[60vh] overflow-y-auto bg-destructive/5 border border-destructive/30 p-3 rounded text-destructive-foreground/90 select-text">
+          <pre className="text-[11px] whitespace-pre-wrap max-h-[60dvh] overflow-y-auto bg-destructive/5 border border-destructive/30 p-3 rounded text-destructive-foreground/90 select-text">
             {items.find((i) => i.id === errorForId)?.error ?? ""}
           </pre>
           <p className="text-[11px] text-muted-foreground">{t("contents.errorDialogHint")}</p>
@@ -2528,7 +2528,7 @@ function MaterializeCourseDialog({
             {t("contents.materializeNoProposals")}
           </div>
         ) : (
-          <div className="space-y-2 max-h-[55vh] overflow-y-auto">
+          <div className="space-y-2 max-h-[55dvh] overflow-y-auto">
             {proposals.map((p) => {
               const isChecked = !!checked[p.key];
               return (
@@ -2761,7 +2761,7 @@ function AssignToSessionsDialog({
             {t("contents.assignNoSessions")}
           </div>
         ) : (
-          <div className="space-y-2 max-h-[55vh] overflow-y-auto pr-2">
+          <div className="space-y-2 max-h-[55dvh] overflow-y-auto pr-2">
             {sessions.map((s) => {
               const value = draft[s.id] ?? -1;
               return (
@@ -3147,7 +3147,7 @@ function FilesByClassDialog({
   return (
     <>
       <Dialog open={!!content} onOpenChange={(o) => !o && onClose()}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-5xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />

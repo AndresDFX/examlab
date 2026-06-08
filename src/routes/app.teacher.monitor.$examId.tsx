@@ -2483,7 +2483,7 @@ function ExamMonitor() {
                   <Trash2 className="h-3.5 w-3.5 mr-1" /> Eliminar todos
                 </Button>
               </div>
-              <ScrollArea className="max-h-[55vh] pr-3">
+              <ScrollArea className="max-h-[55dvh] pr-3">
                 <div className="space-y-2">
                   {attemptsRow.attempts.map((a, idx) => {
                     const grade = a.final_override_grade ?? a.ai_grade;
@@ -3505,7 +3505,7 @@ function ExamMonitor() {
                     ?.get(q.id);
                   const pair = similarityPairs.find((p) => p.id === comparisonForCopy.pairId);
                   return (
-                    <div className="basis-1/2 flex-1 min-w-0 border-l pl-3 max-h-[55vh] overflow-y-auto">
+                    <div className="basis-1/2 flex-1 min-w-0 border-l pl-3 max-h-[55dvh] overflow-y-auto">
                       <div className="space-y-3">
                         <div className="flex items-start justify-between gap-2 pb-2 border-b">
                           <div>
@@ -3780,7 +3780,7 @@ function ExamMonitor() {
             mientras corre + "Aprobar todas" en modo sync). La X de la
             esquina duplicaba el control y confundía con "Cancelar". */}
         <DialogContent
-          className="max-w-4xl max-h-[88vh] overflow-hidden flex flex-col"
+          className="max-w-4xl max-h-[88dvh] overflow-hidden flex flex-col"
           hideCloseButton
         >
           <DialogHeader>
@@ -4114,7 +4114,7 @@ function ExamMonitor() {
           if (!open && !applyingReGrade) setReGradePreview(null);
         }}
       >
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh] overflow-hidden flex flex-col">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-indigo-500" />
@@ -4129,7 +4129,7 @@ function ExamMonitor() {
             // flex-1 + overflow-y-auto: si el examen tiene 20+ preguntas
             // el detalle por pregunta crece y antes desbordaba la
             // ventana, recortando preguntas del final. Ahora el modal
-            // tiene altura fija (max-h-[90vh]) con scroll interno; el
+            // tiene altura fija (max-h-[90dvh]) con scroll interno; el
             // header y el footer quedan pinned.
             <div className="space-y-4 flex-1 overflow-y-auto -mx-6 px-6 pb-2">
               {/* Resumen OLD vs NEW */}

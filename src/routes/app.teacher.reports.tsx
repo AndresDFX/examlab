@@ -711,7 +711,7 @@ function Inner() {
 
       {/* ── Dialog: Editor ── */}
       <Dialog open={editorOpen} onOpenChange={(o) => !o && void closeEditor()}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-5xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editorMode === "new_private" && "Nueva plantilla privada"}
@@ -732,7 +732,7 @@ function Inner() {
               <Label required>Curso</Label>
               <Select value={editorCourseId} onValueChange={setEditorCourseId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona el curso del override" />
+                  <SelectValue placeholder="Curso del override" />
                 </SelectTrigger>
                 <SelectContent>
                   {courses.map((c) => (
@@ -760,7 +760,7 @@ function Inner() {
 
       {/* ── Dialog: Generador ── */}
       <Dialog open={genOpen} onOpenChange={setGenOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-6xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Generar: {genTemplate?.name}</DialogTitle>
             <DialogDescription>

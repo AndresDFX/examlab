@@ -443,7 +443,7 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl max-h-[85dvh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {filterMode === "needsMyResponse" || filterMode === "studentNeedsResponse" ? (
@@ -655,7 +655,7 @@ function ThreadRowItem({
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 w-7 p-0"
+            className="h-8 w-8 p-0"
             onClick={onClose}
             aria-label="Cerrar conversación"
             title="Cerrar conversación"

@@ -449,7 +449,7 @@ export function SupportTicketDetailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* `DialogContent` ya tiene `max-h-[calc(100dvh-2rem)] overflow-y-auto`
           por default (ver dialog.tsx). Dejamos solo el max-w para mobile.
-          Antes el override `max-h-[90vh]` redundante daba problemas en
+          Antes el override `max-h-[90dvh]` redundante daba problemas en
           dialogs muy altos donde el composer del chat se iba al fondo y
           requería scrollear todo el modal. Ahora el composer queda en
           flujo normal y el área de mensajes scrollea independientemente

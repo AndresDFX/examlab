@@ -270,7 +270,7 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-7 w-7 p-0"
+                className="h-8 w-8 p-0"
                 onClick={() => setZoom((z) => Math.min(2, z + 0.2))}
               >
                 <ZoomIn className="h-3.5 w-3.5" />
@@ -279,7 +279,7 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-7 w-7 p-0"
+                className="h-8 w-8 p-0"
                 onClick={() => setZoom((z) => Math.max(0.4, z - 0.2))}
               >
                 <ZoomOut className="h-3.5 w-3.5" />
@@ -288,7 +288,7 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-7 w-7 p-0"
+                className="h-8 w-8 p-0"
                 onClick={() => setZoom(1)}
               >
                 <RotateCcw className="h-3.5 w-3.5" />

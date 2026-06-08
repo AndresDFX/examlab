@@ -1044,7 +1044,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
       {/* Modal: detalle por pregunta del par seleccionado. Lista cada
           coincidencia con su question label, similitud y razón. */}
       <Dialog open={detailOpen != null} onOpenChange={(o) => !o && setDetailOpen(null)}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Detalle: {shortName(detailOpen?.a ?? "", userNames)} ↔{" "}

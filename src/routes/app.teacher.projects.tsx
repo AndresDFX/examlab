@@ -2390,7 +2390,7 @@ function TeacherProjects() {
                           }}
                         >
                           <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Biblioteca o URL personalizada…" />
+                            <SelectValue placeholder="Biblioteca o URL…" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="__custom">
@@ -2672,7 +2672,7 @@ function TeacherProjects() {
 
       {/* Project groups editor dialog */}
       <Dialog open={groupsOpen} onOpenChange={setGroupsOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Grupos del proyecto {groupsProject ? `— ${groupsProject.title}` : ""}
@@ -2693,7 +2693,7 @@ function TeacherProjects() {
 
       {/* Files (slots) editor */}
       <Dialog open={filesOpen} onOpenChange={setFilesOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Preguntas — {filesProject?.title}</DialogTitle>
           </DialogHeader>
@@ -2777,7 +2777,7 @@ function TeacherProjects() {
 
       {/* Grading / submissions dialog */}
       <Dialog open={gradingOpen} onOpenChange={setGradingOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {gradingProject?.is_external ? "Notas externas" : "Entregas"} —{" "}

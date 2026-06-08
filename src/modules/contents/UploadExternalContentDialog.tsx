@@ -399,7 +399,7 @@ export function UploadExternalContentDialog({
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
       <DialogContent
         data-tour-id="dialog-upload-external"
-        className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-y-auto"
+        className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh] overflow-y-auto"
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

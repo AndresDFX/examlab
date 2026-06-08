@@ -192,7 +192,7 @@ export function CourseCertificateSettingsDialog({
 
   return (
     <Dialog open={!!course} onOpenChange={(v) => !v && !saving && onClose()}>
-      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Award className="h-4 w-4 text-amber-500" />

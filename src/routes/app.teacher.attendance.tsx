@@ -1504,7 +1504,7 @@ function TeacherAttendance() {
                 onValueChange={(v) => setNewRecordingVideoId(v === "__none" ? "" : v)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Video de la biblioteca (opcional)" />
+                  <SelectValue placeholder="Video de biblioteca (opc.)" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none">Sin video de biblioteca</SelectItem>

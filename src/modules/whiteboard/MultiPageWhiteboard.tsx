@@ -394,7 +394,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
           size="sm"
           onClick={() => scrollBy(-220)}
           disabled={!canScrollLeft}
-          className={cn("h-7 w-7 p-0 shrink-0", !canScrollLeft && "invisible")}
+          className={cn("h-8 w-8 p-0 shrink-0", !canScrollLeft && "invisible")}
           aria-label="Desplazar hojas a la izquierda"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -514,7 +514,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
           size="sm"
           onClick={() => scrollBy(220)}
           disabled={!canScrollRight}
-          className={cn("h-7 w-7 p-0 shrink-0", !canScrollRight && "invisible")}
+          className={cn("h-8 w-8 p-0 shrink-0", !canScrollRight && "invisible")}
           aria-label="Desplazar hojas a la derecha"
         >
           <ChevronRight className="h-4 w-4" />

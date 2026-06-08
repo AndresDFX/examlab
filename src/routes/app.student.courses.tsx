@@ -656,7 +656,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       {/* Preview inline de archivos .md/.txt — usa el body que viaja en
           generated_contents.files (JSONB), evita un round-trip a Storage. */}
       <Dialog open={previewFile != null} onOpenChange={(o) => !o && setPreviewFile(null)}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
               <FileText className="h-4 w-4 text-primary" />

@@ -506,7 +506,7 @@ export function StudentEventsCalendar({ userId }: { userId: string | undefined }
               size="sm"
               onClick={goPrev}
               aria-label={t("studentCalendar.nav.prevMonth", { defaultValue: "Mes anterior" })}
-              className="h-7 w-7 p-0"
+              className="h-8 w-8 p-0"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -524,7 +524,7 @@ export function StudentEventsCalendar({ userId }: { userId: string | undefined }
               size="sm"
               onClick={goNext}
               aria-label={t("studentCalendar.nav.nextMonth", { defaultValue: "Mes siguiente" })}
-              className="h-7 w-7 p-0"
+              className="h-8 w-8 p-0"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>

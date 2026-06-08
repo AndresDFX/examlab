@@ -352,7 +352,7 @@ function Inner() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={(o) => !o && void handleClose()}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-5xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editing ? `Editar "${editing.name}"` : "Nueva plantilla global"}

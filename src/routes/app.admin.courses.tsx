@@ -1644,7 +1644,7 @@ export function AdminCourses() {
       {/* ── Create/Edit Dialog ── */}
       <Dialog open={open} onOpenChange={courseDirty.guardOpenChange(setOpen)}>
         <DialogContent
-          className="max-w-3xl max-h-[90vh] overflow-y-auto"
+          className="max-w-3xl max-h-[90dvh] overflow-y-auto"
           data-tour-id="dialog-course"
         >
           <DialogHeader>
@@ -2037,7 +2037,7 @@ export function AdminCourses() {
                   )}
 
                   <div
-                    className={`space-y-2 ${editingCuts.length > 3 ? "max-h-[40vh] overflow-y-auto pr-1" : ""}`}
+                    className={`space-y-2 ${editingCuts.length > 3 ? "max-h-[40dvh] overflow-y-auto pr-1" : ""}`}
                   >
                     {editingCuts.map((cut, idx) => {
                       const subSum =
@@ -2950,7 +2950,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
 
   return (
     <Dialog open={!!course} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto" hideCloseButton>
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90dvh] overflow-y-auto" hideCloseButton>
         <DialogHeader>
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
