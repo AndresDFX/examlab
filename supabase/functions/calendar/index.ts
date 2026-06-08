@@ -745,6 +745,29 @@ interface GoogleEvent {
   hangoutLink?: string;
   htmlLink?: string;
   status?: string;
+  /** Adjuntos del evento. Google Meet agrega la grabación (video en Drive)
+   *  como attachment una vez procesada tras la reunión. */
+  attachments?: Array<{ fileUrl?: string; title?: string; mimeType?: string }>;
+}
+
+/** Extrae el link de la GRABACIÓN de un evento de Google Calendar. Google
+ *  Meet adjunta la grabación (video de Drive) como `attachments` del evento
+ *  cuando la reunión fue grabada y procesada. Heurística: primer adjunto que
+ *  sea video (mimeType `video/*` o el tipo nativo de Drive) o cuyo título
+ *  sugiera grabación. Devuelve null si el evento aún no tiene grabación. */
+function extractGoogleRecordingUrl(ev: GoogleEvent): string | null {
+  const atts = ev.attachments ?? [];
+  const match = atts.find((a) => {
+    const mt = (a.mimeType ?? "").toLowerCase();
+    const title = (a.title ?? "").toLowerCase();
+    return (
+      mt.startsWith("video/") ||
+      mt === "application/vnd.google-apps.video" ||
+      title.includes("grabaci") ||
+      title.includes("recording")
+    );
+  });
+  return match?.fileUrl ?? null;
 }
 
 async function handleListEvents(userId: string, body: ListEventsBody, provider: Provider) {
@@ -791,6 +814,9 @@ async function handleListEvents(userId: string, body: ListEventsBody, provider: 
           end: e.end?.dateTime ?? null,
           hangoutLink: e.onlineMeeting?.joinUrl ?? null,
           htmlLink: e.webLink ?? null,
+          // Microsoft no expone la grabación de Teams en el evento (vive en
+          // Graph onlineMeetings/recordings, otra API) → null por ahora.
+          recordingUrl: null,
         }));
       return jsonOk({ events: items });
     } catch (e) {
@@ -827,6 +853,8 @@ async function handleListEvents(userId: string, body: ListEventsBody, provider: 
         end: e.end?.dateTime ?? e.end?.date ?? null,
         hangoutLink: e.hangoutLink ?? null,
         htmlLink: e.htmlLink ?? null,
+        // Grabación de Meet (si el evento ya la tiene adjunta en Drive).
+        recordingUrl: extractGoogleRecordingUrl(e),
       }));
     return jsonOk({ events: items });
   } catch (e) {
@@ -910,6 +938,8 @@ async function handleLinkEventsToSessions(
       // `/me/events/{id}` (cualquier calendario del usuario).
       let eventId: string;
       let meetingUrl: string | null;
+      // Grabación: solo Google la expone en el evento (attachment de Drive).
+      let recordingUrl: string | null = null;
       if (provider === "microsoft") {
         const ev = await callMicrosoft<MsEvent>(
           userId,
@@ -926,13 +956,18 @@ async function handleLinkEventsToSessions(
         );
         eventId = ev.id;
         meetingUrl = ev.hangoutLink ?? ev.htmlLink ?? null;
+        recordingUrl = extractGoogleRecordingUrl(ev);
       }
+      // recording_url solo se setea si el evento TIENE grabación — así no
+      // pisamos con null una grabación cargada manualmente en la sesión.
+      const updatePayload: Record<string, unknown> = {
+        google_event_id: eventId,
+        meeting_url: meetingUrl,
+      };
+      if (recordingUrl) updatePayload.recording_url = recordingUrl;
       await adminClient
         .from("attendance_sessions")
-        .update({
-          google_event_id: eventId,
-          meeting_url: meetingUrl,
-        })
+        .update(updatePayload)
         .eq("id", link.sessionId);
       linked += 1;
     } catch (e) {

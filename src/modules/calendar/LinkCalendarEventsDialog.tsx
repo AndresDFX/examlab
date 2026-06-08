@@ -53,7 +53,7 @@ import {
 } from "@/components/ui/table";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TableEmpty } from "@/components/ui/empty-state";
-import { Search, Link2, Unlink, CheckCircle2 } from "lucide-react";
+import { Search, Link2, Unlink, CheckCircle2, Video } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
@@ -78,6 +78,10 @@ interface CalendarEvent {
   end: string | null;
   hangoutLink: string | null;
   htmlLink: string | null;
+  /** Link a la grabación (Google Meet adjunta el video de Drive al evento
+   *  tras grabar). null si el evento aún no tiene grabación. Al vincular,
+   *  el edge la persiste en `attendance_sessions.recording_url`. */
+  recordingUrl: string | null;
 }
 
 interface Session {
@@ -323,7 +327,8 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
           </DialogTitle>
           <DialogDescription>
             Asocia las sesiones de este curso con eventos que ya existen en tu calendario. ExamLab
-            heredará el link de Meet/Zoom de cada evento. No se crean eventos nuevos — para eso
+            heredará el link de Meet/Zoom de cada evento y, si el evento ya tiene una{" "}
+            <strong>grabación</strong>, también la vinculará. No se crean eventos nuevos — para eso
             usá <em>Sincronizar curso</em> en la pantalla principal.
           </DialogDescription>
         </DialogHeader>
@@ -449,8 +454,16 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
                               const ev = eventById.get(effective);
                               if (!ev) return null;
                               return (
-                                <div className="text-[10px] text-muted-foreground mt-1 truncate">
-                                  {ev.hangoutLink ?? ev.htmlLink ?? "(sin link Meet)"}
+                                <div className="mt-1 space-y-0.5">
+                                  <div className="text-[10px] text-muted-foreground truncate">
+                                    {ev.hangoutLink ?? ev.htmlLink ?? "(sin link Meet)"}
+                                  </div>
+                                  {ev.recordingUrl && (
+                                    <div className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400">
+                                      <Video className="h-3 w-3 shrink-0" />
+                                      <span className="truncate">Grabación disponible — se vinculará</span>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })()}

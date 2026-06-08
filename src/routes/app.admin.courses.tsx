@@ -2495,6 +2495,10 @@ interface SessionRow {
    *  por CHECK en BD. Aparece como botón "Unirse" en el tablero del
    *  estudiante y como ícono link en el tablero del docente. */
   meeting_url: string | null;
+  /** Enlace opcional a la grabación de la clase (Meet/Teams/Zoom/etc.).
+   *  Se puede poner manualmente o heredarse al vincular un evento de
+   *  Google Calendar que ya tenga la grabación adjunta. */
+  recording_url: string | null;
 }
 
 interface AvailableContent {
@@ -2648,6 +2652,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
   const [draftDuration, setDraftDuration] = useState(90);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftMeetingUrl, setDraftMeetingUrl] = useState("");
+  const [draftRecordingUrl, setDraftRecordingUrl] = useState("");
   // CSV import: bandera que muestra spinner mientras procesa, y un
   // contador de filas insertadas vs omitidas para el toast final.
   const [importing, setImporting] = useState(false);
@@ -2669,7 +2674,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
         db
           .from("attendance_sessions")
           .select(
-            "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, meeting_url",
+            "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, meeting_url, recording_url",
           )
           .eq("course_id", course.id)
           .is("deleted_at", null)
@@ -2789,10 +2794,11 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
           duration_minutes: draftDuration > 0 ? draftDuration : 90,
           title: draftTitle.trim() || null,
           meeting_url: draftMeetingUrl.trim() || null,
+          recording_url: draftRecordingUrl.trim() || null,
           created_by: user.id,
         })
         .select(
-          "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, meeting_url",
+          "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, meeting_url, recording_url",
         )
         .single();
       if (error || !data) {
@@ -2808,6 +2814,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
       setDraftDuration(90);
       setDraftTitle("");
       setDraftMeetingUrl("");
+      setDraftRecordingUrl("");
       toast.success(t("course.boardSessionCreated"));
     } finally {
       setSaving(false);
@@ -2878,7 +2885,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
         .from("attendance_sessions")
         .insert(rows)
         .select(
-          "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, meeting_url",
+          "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, meeting_url, recording_url",
         );
       if (error) {
         toast.error(friendlyError(error));
@@ -2910,6 +2917,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
     setDraftDuration(s.duration_minutes ?? 90);
     setDraftTitle(s.title ?? "");
     setDraftMeetingUrl(s.meeting_url ?? "");
+    setDraftRecordingUrl(s.recording_url ?? "");
   };
 
   const cancelEdit = () => {
@@ -2919,6 +2927,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
     setDraftDuration(90);
     setDraftTitle("");
     setDraftMeetingUrl("");
+    setDraftRecordingUrl("");
   };
 
   /** Persiste cambios de fecha/hora/título/duración de la sesión en
@@ -2938,6 +2947,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
           duration_minutes: newDuration,
           title: draftTitle.trim() || null,
           meeting_url: draftMeetingUrl.trim() || null,
+          recording_url: draftRecordingUrl.trim() || null,
         })
         .eq("id", editingId);
       if (error) {
@@ -2955,6 +2965,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                   duration_minutes: newDuration,
                   title: draftTitle.trim() || null,
                   meeting_url: draftMeetingUrl.trim() || null,
+                  recording_url: draftRecordingUrl.trim() || null,
                 }
               : s,
           )
@@ -3123,6 +3134,21 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                   setDraftMeetingUrl(e.target.value);
                 }}
                 placeholder="https://meet.google.com/…"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1 flex-1 min-w-[160px] sm:min-w-48">
+              <Label className="text-[11px]">
+                {t("course.boardRecordingUrl", { defaultValue: "Enlace de grabación (opcional)" })}
+              </Label>
+              <Input
+                type="url"
+                value={editingId ? "" : draftRecordingUrl}
+                onChange={(e) => {
+                  if (editingId) setEditingId(null);
+                  setDraftRecordingUrl(e.target.value);
+                }}
+                placeholder="https://… (grabación de la clase)"
                 className="h-8 text-xs"
               />
             </div>
