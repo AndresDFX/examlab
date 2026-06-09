@@ -28,6 +28,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import { isStaffActive } from "@/shared/lib/roles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -177,6 +179,7 @@ const ROLE_BADGE_CLASS: Record<MessageableUser["role_label"], string> = {
 
 function MessagesPage() {
   const { user } = useAuth();
+  const activeRole = useActiveRole();
   const confirm = useConfirm();
   const myUserId = user?.id ?? null;
 
@@ -217,7 +220,11 @@ function MessagesPage() {
   // Solo carga cuando se detecta rol Docente o Admin en mount; el botón
   // y diálogo se ocultan para Estudiantes (no son destinatarios válidos
   // ni autorizados a enviar masivos).
-  const [isStaff, setIsStaff] = useState(false);
+  // Roles POSEÍDOS (query a user_roles). El gate efectivo `isStaff` combina
+  // esto con el ROL ACTIVO abajo — un multi-rol actuando como Estudiante no
+  // ve difusión/programados aunque posea el rol Docente.
+  const [staffRoles, setStaffRoles] = useState<string[]>([]);
+  const isStaff = isStaffActive(activeRole, staffRoles);
   const [broadcastDialogOpen, setBroadcastDialogOpen] = useState(false);
   const [broadcastCourses, setBroadcastCourses] = useState<
     Array<{ id: string; name: string; student_count?: number }>
@@ -442,13 +449,10 @@ function MessagesPage() {
     void (async () => {
       const { data } = await db.from("user_roles").select("role").eq("user_id", myUserId);
       const roles = (data ?? []) as Array<{ role: string }>;
-      // SuperAdmin también es "staff" para efectos de programar mensajes,
-      // difundir a curso, etc. — paridad con la nav y RBAC del resto
-      // del producto. Sin esto, un SuperAdmin operando 1-a-1 con un
-      // docente no podía programar respuesta para más tarde.
-      setIsStaff(
-        roles.some((r) => r.role === "Docente" || r.role === "Admin" || r.role === "SuperAdmin"),
-      );
+      // Guardamos los roles poseídos; `isStaff` se deriva combinándolos con
+      // el rol activo (isStaffActive). SuperAdmin también es "staff" para
+      // difundir/programar — paridad con la nav y RBAC del resto del producto.
+      setStaffRoles(roles.map((r) => r.role));
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myUserId]);

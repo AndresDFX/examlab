@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isAdminLike, isStaffRole, isStudent, isSuperAdmin } from "./roles";
+import { isAdminLike, isStaffActive, isStaffRole, isStudent, isSuperAdmin } from "./roles";
 
 describe("roles helpers", () => {
   describe("isSuperAdmin", () => {
@@ -46,6 +46,37 @@ describe("roles helpers", () => {
       expect(isStudent(["Estudiante"])).toBe(true);
       expect(isStudent(["Docente"])).toBe(false);
       expect(isStudent(["SuperAdmin"])).toBe(false);
+    });
+  });
+
+  describe("isStaffActive", () => {
+    const allThree = ["Estudiante", "Docente", "Admin"];
+
+    it("multi-rol actuando como Estudiante NO es staff (bug reportado)", () => {
+      // Aunque POSEE Docente+Admin, el rol activo manda.
+      expect(isStaffActive("Estudiante", allThree)).toBe(false);
+    });
+
+    it("mismo usuario actuando como Docente/Admin SÍ es staff", () => {
+      expect(isStaffActive("Docente", allThree)).toBe(true);
+      expect(isStaffActive("Admin", allThree)).toBe(true);
+    });
+
+    it("SuperAdmin activo es staff", () => {
+      expect(isStaffActive("SuperAdmin", ["SuperAdmin"])).toBe(true);
+    });
+
+    it("rol activo manda aunque NO esté en los poseídos (no debería pasar, pero el contrato es claro)", () => {
+      expect(isStaffActive("Docente", ["Estudiante"])).toBe(true);
+      expect(isStaffActive("Estudiante", ["Docente"])).toBe(false);
+    });
+
+    it("activeRole null/vacío cae a los roles poseídos (primer render)", () => {
+      expect(isStaffActive(null, allThree)).toBe(true);
+      expect(isStaffActive(undefined, ["Docente"])).toBe(true);
+      expect(isStaffActive(null, ["Estudiante"])).toBe(false);
+      expect(isStaffActive("", ["Estudiante"])).toBe(false);
+      expect(isStaffActive("", ["Docente"])).toBe(true);
     });
   });
 });

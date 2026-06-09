@@ -14,6 +14,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import { isStaffActive } from "@/shared/lib/roles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -80,9 +82,11 @@ interface Reply {
 function ThreadDetail() {
   const { courseId, forumId, threadId } = Route.useParams();
   const { user, roles } = useAuth();
+  const activeRole = useActiveRole();
   const navigate = useNavigate();
   const confirm = useConfirm();
-  const isStaff = roles.includes("Admin") || roles.includes("Docente");
+  // Moderar (eliminar hilos/respuestas ajenas) ligado al ROL ACTIVO.
+  const isStaff = isStaffActive(activeRole, roles);
 
   const [thread, setThread] = useState<Thread | null>(null);
   const [replies, setReplies] = useState<Reply[]>([]);

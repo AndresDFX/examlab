@@ -49,3 +49,30 @@ export function isStaffRole(roles: ReadonlyArray<RoleName>): boolean {
 export function isStudent(roles: ReadonlyArray<RoleName>): boolean {
   return roles.includes("Estudiante");
 }
+
+/**
+ * Capacidad de "staff" LIGADA AL ROL ACTIVO (el del role-switcher), NO a
+ * los roles que el usuario POSEE. Para páginas COMPARTIDAS accesibles por
+ * varios roles bajo el mismo path `/app/*` (foros, mensajes): un usuario
+ * multi-rol actuando como Estudiante NO debe ver acciones de docente/admin
+ * aunque tenga esos roles.
+ *
+ * `activeRole` null/vacío (aún sin inicializar en el primer render) → cae a
+ * los roles poseídos (`isStaffRole`) para no ocultar acciones a un docente
+ * legítimo durante el arranque. El signal del rol activo se puebla en ms.
+ *
+ * OJO: esto es UX. La RLS usa `has_role()` (rol POSEÍDO), así que un usuario
+ * con el rol Docente pasaría el INSERT a nivel DB aunque actúe como
+ * Estudiante — por eso este gate SOLO puede vivir en el cliente. No es un
+ * control de seguridad; es coherencia de la persona activa. El acceso a
+ * RUTAS sí está gateado por rol activo en `checkAccess` (rbac.ts).
+ */
+export function isStaffActive(
+  activeRole: RoleName | null | undefined,
+  heldRoles: ReadonlyArray<RoleName>,
+): boolean {
+  if (activeRole != null && activeRole !== "") {
+    return activeRole === "Docente" || activeRole === "Admin" || activeRole === "SuperAdmin";
+  }
+  return isStaffRole(heldRoles);
+}

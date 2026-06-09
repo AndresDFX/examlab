@@ -18,6 +18,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import { isStaffActive } from "@/shared/lib/roles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -117,7 +119,10 @@ function isForumOpen(f: Forum): boolean {
 function ForumThreads() {
   const { courseId, forumId } = Route.useParams();
   const { user, roles } = useAuth();
-  const isStaff = roles.includes("Admin") || roles.includes("Docente");
+  const activeRole = useActiveRole();
+  // Capacidad de docente (postear en foro cerrado, moderar) ligada al ROL
+  // ACTIVO, no a los roles poseídos (un multi-rol como Estudiante no modera).
+  const isStaff = isStaffActive(activeRole, roles);
 
   const [course, setCourse] = useState<{ id: string; name: string } | null>(null);
   const [forum, setForum] = useState<Forum | null>(null);
