@@ -997,7 +997,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
           {detail && (
             <div className="space-y-4 text-sm">
               {/* Cabecera del evento */}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">{t("common.date")}</p>
                   <DateCell value={detail.created_at} variant="datetime" />

@@ -313,7 +313,7 @@ function TutorChat() {
         />
       )}
 
-      <Card className="flex flex-col max-h-[70vh]">
+      <Card className="flex flex-col max-h-[70dvh]">
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
           {loading ? (
             <div className="text-center text-sm text-muted-foreground py-8">

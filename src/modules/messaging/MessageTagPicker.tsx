@@ -121,7 +121,7 @@ export function MessageTagPicker({ open, onOpenChange, onPick }: Props) {
                 onChange={setSearch}
                 placeholder={`Buscar ${TAG_TYPE_LABEL[t.value].toLowerCase()}…`}
               />
-              <div className="max-h-[50vh] overflow-y-auto rounded-md border divide-y">
+              <div className="max-h-[50dvh] overflow-y-auto rounded-md border divide-y">
                 {loading ? (
                   <SectionLoader text="Cargando…" />
                 ) : filtered.length === 0 ? (

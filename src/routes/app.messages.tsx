@@ -1491,13 +1491,13 @@ function MessagesPage() {
       />
 
       <Card>
-        <CardContent className="p-0 grid grid-cols-1 md:grid-cols-[280px_1fr] min-h-[60vh]">
+        <CardContent className="p-0 grid grid-cols-1 md:grid-cols-[280px_1fr] min-h-[60dvh]">
           {/* Lista de conversaciones — en mobile se oculta cuando hay
               conv activa (single-pane navigation tipo iMessage). En md+
               siempre visible. */}
           <div
             className={cn(
-              "border-r min-h-[60vh] max-h-[75vh] overflow-y-auto md:block",
+              "border-r min-h-[60dvh] max-h-[75dvh] overflow-y-auto md:block",
               activeConvId ? "hidden" : "block",
             )}
           >
@@ -1746,7 +1746,7 @@ function MessagesPage() {
               activa. En md+ siempre visible. */}
           <div
             className={cn(
-              "flex-col min-h-[60vh] max-h-[75vh] md:flex",
+              "flex-col min-h-[60dvh] max-h-[75dvh] md:flex",
               activeConvId ? "flex" : "hidden",
             )}
           >
@@ -2356,7 +2356,7 @@ function MessagesPage() {
                 className="pl-8"
               />
             </div>
-            <div className="max-h-[50vh] overflow-y-auto -mx-3">
+            <div className="max-h-[50dvh] overflow-y-auto -mx-3">
               {contactsLoadError ? (
                 <p className="text-sm text-destructive px-3 py-4 text-center">
                   {contactsLoadError}
@@ -2661,7 +2661,7 @@ function MessagesPage() {
               </Button>
             </div>
           )}
-          <div className="max-h-[60vh] overflow-y-auto">
+          <div className="max-h-[60dvh] overflow-y-auto">
             {scheduledLoading ? (
               <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-6">
                 <Spinner size="sm" /> Cargando…

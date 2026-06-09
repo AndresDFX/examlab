@@ -161,7 +161,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, Props>(function R
         onKeyUp={saveSelection}
         onMouseUp={saveSelection}
         className={cn(
-          "min-h-[400px] max-h-[60vh] overflow-y-auto p-3 text-sm outline-none",
+          "min-h-[400px] max-h-[60dvh] overflow-y-auto p-3 text-sm outline-none",
           // Espaciado tipo documento (el reporte real lo hereda del CSS de
           // impresión; acá damos un default legible para que NO se vea apretado).
           "[&_h1]:text-xl [&_h1]:font-semibold [&_h1]:mt-3 [&_h1]:mb-2",

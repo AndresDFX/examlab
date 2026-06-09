@@ -1186,7 +1186,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                     {expanded && (
                       <div className="px-10 pr-3 pb-3 -mt-1 space-y-2">
                         <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs space-y-1.5">
-                          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1">
                             <div>
                               <span className="text-muted-foreground">ID:</span>{" "}
                               <code className="font-mono text-[10px]">{j.id.slice(0, 8)}…</code>
