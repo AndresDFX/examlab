@@ -647,27 +647,27 @@ export function TeacherProjectFilesEditor({
     <div className="space-y-4">
       {aiLoading && (
         <LoadingOverlay
-          title="Generando preguntas con IA…"
-          subtitle="Cada tipo de pregunta toma 10-30 segundos. Si configuraste varios tipos, esto puede tardar 1-2 minutos. No cierres esta pestaña."
+          title={t("projectFiles.aiLoadingTitle")}
+          subtitle={t("projectFiles.aiLoadingSubtitle")}
         />
       )}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList>
-          <TabsTrigger value="list">Preguntas ({questions.length})</TabsTrigger>
+          <TabsTrigger value="list">{t("projectFiles.tabList", { count: questions.length })}</TabsTrigger>
           <TabsTrigger value="manual">
-            {editingId ? "Editar pregunta" : "Agregar manual"}
+            {editingId ? t("projectFiles.tabEditQuestion") : t("projectFiles.tabManual")}
           </TabsTrigger>
-          <TabsTrigger value="ai">Generar con IA</TabsTrigger>
+          <TabsTrigger value="ai">{t("projectFiles.tabAi")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="list" className="space-y-2">
           {loading && (
             <p className="text-sm text-muted-foreground">
-              <Spinner size="xs" inline className="mr-1" /> Cargando…
+              <Spinner size="xs" inline className="mr-1" /> {t("projectFiles.loadingQuestions")}
             </p>
           )}
           {!loading && questions.length === 0 && (
-            <p className="text-sm text-muted-foreground">Aún no hay preguntas.</p>
+            <p className="text-sm text-muted-foreground">{t("projectFiles.noQuestions")}</p>
           )}
           {questions.map((q, idx) => (
             <Card key={q.id}>
@@ -688,24 +688,24 @@ export function TeacherProjectFilesEditor({
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <RowAction
-                    label="Subir"
+                    label={t("projectFiles.rowActionMoveUp")}
                     icon={ChevronUp}
                     disabled={idx === 0}
                     onClick={() => moveQ(q.id, "up")}
                   />
                   <RowAction
-                    label="Bajar"
+                    label={t("projectFiles.rowActionMoveDown")}
                     icon={ChevronDown}
                     disabled={idx === questions.length - 1}
                     onClick={() => moveQ(q.id, "down")}
                   />
                   <RowAction
-                    label="Editar pregunta"
+                    label={t("projectFiles.rowActionEdit")}
                     icon={Pencil}
                     onClick={() => loadIntoForm(q)}
                   />
                   <RowAction
-                    label="Eliminar pregunta"
+                    label={t("projectFiles.rowActionDelete")}
                     icon={Trash2}
                     tone="destructive"
                     onClick={() => removeQ(q.id)}
@@ -745,7 +745,7 @@ export function TeacherProjectFilesEditor({
                 ))}
                 {questions.length > 9 && (
                   <span className="inline-flex items-center rounded border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                    +{questions.length - 9} más
+                    {t("projectFiles.moreItems", { n: questions.length - 9 })}
                   </span>
                 )}
               </div>
@@ -754,7 +754,7 @@ export function TeacherProjectFilesEditor({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label required>
-                Tipo{" "}
+                {t("projectFiles.labelType")}{" "}
                 <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.projectCodeTypeHint") }} /></HelpHint>
               </Label>
               <Select value={qType} onValueChange={(v) => setQType(v as any)}>
@@ -762,16 +762,16 @@ export function TeacherProjectFilesEditor({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="abierta">Abierta</SelectItem>
-                  <SelectItem value="cerrada">Selección única</SelectItem>
-                  <SelectItem value="cerrada_multi">Opción múltiple</SelectItem>
-                  <SelectItem value="diagrama">Diagrama (Mermaid)</SelectItem>
-                  <SelectItem value="codigo_zip">Código fuente (archivos)</SelectItem>
+                  <SelectItem value="abierta">{t("projectFiles.typeOpen")}</SelectItem>
+                  <SelectItem value="cerrada">{t("projectFiles.typeClosedSingle")}</SelectItem>
+                  <SelectItem value="cerrada_multi">{t("projectFiles.typeClosedMulti")}</SelectItem>
+                  <SelectItem value="diagrama">{t("projectFiles.typeDiagram")}</SelectItem>
+                  <SelectItem value="codigo_zip">{t("projectFiles.typeCodeFiles")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label required>Puntos</Label>
+              <Label required>{t("projectFiles.labelPoints")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -781,17 +781,17 @@ export function TeacherProjectFilesEditor({
             </div>
           </div>
           <div>
-            <Label required>Enunciado</Label>
+            <Label required>{t("projectFiles.labelStatement")}</Label>
             <Textarea
               value={qContent}
               onChange={(e) => setQContent(e.target.value)}
               rows={3}
-              placeholder="Describe la pregunta…"
+              placeholder={t("projectFiles.placeholderStatement")}
             />
           </div>
           {qType === "cerrada" && (
             <div className="space-y-2">
-              <Label required>Opciones (marca la correcta)</Label>
+              <Label required>{t("projectFiles.labelOptions")}</Label>
               {qChoices.map((c, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <input
@@ -814,10 +814,9 @@ export function TeacherProjectFilesEditor({
           {qType === "cerrada_multi" && (
             <div className="space-y-3">
               <div className="space-y-2">
-                <Label required>Opciones (marca las correctas)</Label>
+                <Label required>{t("projectFiles.labelOptionsMulti")}</Label>
                 <p className="text-xs text-muted-foreground">
-                  Puntaje proporcional según cuántas correctas marque, sin penalización por
-                  incorrectas.
+                  {t("projectFiles.proportionalScore")}
                 </p>
                 {qChoices.map((c, i) => (
                   <div key={i} className="flex items-center gap-2">
@@ -844,7 +843,7 @@ export function TeacherProjectFilesEditor({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Label>Mínimo de marcadas</Label>
+                  <Label>{t("projectFiles.labelMinSelected")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -852,11 +851,11 @@ export function TeacherProjectFilesEditor({
                     onChange={(e) =>
                       setQMinSelections(e.target.value === "" ? "" : Number(e.target.value))
                     }
-                    placeholder="sin mínimo"
+                    placeholder={t("projectFiles.placeholderNoMin")}
                   />
                 </div>
                 <div>
-                  <Label>Máximo de marcadas</Label>
+                  <Label>{t("projectFiles.labelMaxSelected")}</Label>
                   <Input
                     type="number"
                     min={1}
@@ -864,7 +863,7 @@ export function TeacherProjectFilesEditor({
                     onChange={(e) =>
                       setQMaxSelections(e.target.value === "" ? "" : Number(e.target.value))
                     }
-                    placeholder="sin máximo"
+                    placeholder={t("projectFiles.placeholderNoMax")}
                   />
                 </div>
               </div>
@@ -873,7 +872,7 @@ export function TeacherProjectFilesEditor({
           {qType === "java_gui" && (
             <div>
               <Label className="flex items-center gap-1.5">
-                Framework
+                {t("projectFiles.labelFramework")}
                 <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.projectJavaFrameworkHint") }} /></HelpHint>
               </Label>
               <Select
@@ -890,8 +889,8 @@ export function TeacherProjectFilesEditor({
               </Select>
               <p className="text-[11px] text-muted-foreground mt-1">
                 {qJavaFramework === "javafx"
-                  ? "Requiere modo runner AWS Lambda — CheerpJ no incluye OpenJFX."
-                  : "Compatible con ambos runners (CheerpJ + AWS Lambda)."}
+                  ? t("projectFiles.javaFxWarning")
+                  : t("projectFiles.swingCompat")}
               </p>
             </div>
           )}
@@ -899,7 +898,7 @@ export function TeacherProjectFilesEditor({
             <>
               <div>
                 <Label required>
-                  Lenguaje principal{" "}
+                  {t("projectFiles.labelMainLanguage")}{" "}
                   <HelpHint>{t("help.projectLanguageExtensionHint")}</HelpHint>
                 </Label>
                 <Select value={qLanguage} onValueChange={setQLanguage}>
@@ -938,11 +937,11 @@ export function TeacherProjectFilesEditor({
               <div className="flex items-start justify-between gap-3 rounded-md border border-amber-400/40 bg-amber-500/5 p-3">
                 <div className="space-y-0.5 min-w-0">
                   <Label htmlFor="qZipSingle" className="text-sm">
-                    Modo ZIP único{" "}
+                    {t("projectFiles.labelZipSingleMode")}{" "}
                     <HelpHint>{t("help.projectZipSingleModeHint")}</HelpHint>
                   </Label>
                   <p className="text-[11px] text-muted-foreground leading-tight">
-                    POC para probar grading con código sin minificar.
+                    {t("projectFiles.zipSinglePoc")}
                   </p>
                 </div>
                 <Switch id="qZipSingle" checked={qZipSingle} onCheckedChange={setQZipSingle} />
@@ -950,29 +949,29 @@ export function TeacherProjectFilesEditor({
             </>
           )}
           <div>
-            <Label required>Rúbrica esperada (para IA)</Label>
+            <Label required>{t("projectFiles.labelRubric")}</Label>
             <Textarea
               value={qRubric}
               onChange={(e) => setQRubric(e.target.value)}
               rows={2}
-              placeholder="¿Qué debe contener una buena respuesta?"
+              placeholder={t("projectFiles.placeholderRubric")}
             />
           </div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={submitManual}>
               {editingId ? (
                 <>
-                  <Save className="h-4 w-4 mr-1" /> Guardar cambios
+                  <Save className="h-4 w-4 mr-1" /> {t("projectFiles.btnSaveChanges")}
                 </>
               ) : (
                 <>
-                  <Plus className="h-4 w-4 mr-1" /> Agregar pregunta
+                  <Plus className="h-4 w-4 mr-1" /> {t("projectFiles.btnAddQuestion")}
                 </>
               )}
             </Button>
             {!editingId && projectCourseId && (
               <Button variant="outline" onClick={() => setBankDialogOpen(true)}>
-                <Library className="h-4 w-4 mr-1" /> Importar del banco
+                <Library className="h-4 w-4 mr-1" /> {t("projectFiles.btnImportBank")}
               </Button>
             )}
             {editingId && (
@@ -983,7 +982,7 @@ export function TeacherProjectFilesEditor({
                   setActiveTab("list");
                 }}
               >
-                <X className="h-4 w-4 mr-1" /> Cancelar edición
+                <X className="h-4 w-4 mr-1" /> {t("projectFiles.btnCancelEdit")}
               </Button>
             )}
           </div>
@@ -1000,7 +999,7 @@ export function TeacherProjectFilesEditor({
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
-                Auto-generar preguntas desde la descripción{" "}
+                {t("projectFiles.autoGenerateTitle")}{" "}
                 <HelpHint>
                   La IA lee la descripción del proyecto y propone el set completo de preguntas.
                   Siempre genera <strong>1 pregunta de código (archivos)</strong> y entre 2 y 5
@@ -1017,8 +1016,7 @@ export function TeacherProjectFilesEditor({
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground italic">
-                  Este proyecto aún no tiene descripción. Escríbela en el editor del proyecto (o
-                  genérala con IA) antes de usar este modo.
+                  {t("projectFiles.noDescriptionYet")}
                 </p>
               )}
               <Button
@@ -1030,27 +1028,27 @@ export function TeacherProjectFilesEditor({
                 ) : (
                   <Sparkles className="h-4 w-4 mr-1" />
                 )}
-                Generar preguntas con IA
+                {t("projectFiles.btnGenerateWithAi")}
               </Button>
             </CardContent>
           </Card>
 
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground uppercase tracking-wide">
-            <span className="h-px flex-1 bg-border" />o por temas y tipos específicos
+            <span className="h-px flex-1 bg-border" />{t("projectFiles.orByTopics")}
             <span className="h-px flex-1 bg-border" />
           </div>
 
           <div>
-            <Label required>Temas</Label>
+            <Label required>{t("projectFiles.labelTopics")}</Label>
             <Textarea
               value={aiTopics}
               onChange={(e) => setAiTopics(e.target.value)}
               rows={3}
-              placeholder="Listas enlazadas, recursión, complejidad…"
+              placeholder={t("projectFiles.placeholderTopics")}
             />
           </div>
           <div className="space-y-2">
-            <Label>Tipos de preguntas a generar</Label>
+            <Label>{t("projectFiles.labelQuestionTypes")}</Label>
             {aiRows.map((row, i) => (
               <div key={i} className="flex items-end gap-2">
                 <div className="flex-1 min-w-0">
@@ -1062,11 +1060,11 @@ export function TeacherProjectFilesEditor({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="abierta">Abierta</SelectItem>
-                      <SelectItem value="cerrada">Selección única</SelectItem>
-                      <SelectItem value="cerrada_multi">Opción múltiple</SelectItem>
-                      <SelectItem value="diagrama">Diagrama</SelectItem>
-                      <SelectItem value="codigo_zip">Código (archivos)</SelectItem>
+                      <SelectItem value="abierta">{t("projectFiles.typeOpen")}</SelectItem>
+                      <SelectItem value="cerrada">{t("projectFiles.typeClosedSingle")}</SelectItem>
+                      <SelectItem value="cerrada_multi">{t("projectFiles.typeClosedMulti")}</SelectItem>
+                      <SelectItem value="diagrama">{t("projectFiles.typeDiagramShort")}</SelectItem>
+                      <SelectItem value="codigo_zip">{t("projectFiles.typeCodeFilesShort")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1117,12 +1115,12 @@ export function TeacherProjectFilesEditor({
               </div>
             ))}
             <Button type="button" variant="outline" size="sm" onClick={addAiRow}>
-              <Plus className="h-4 w-4 mr-1" /> Agregar tipo
+              <Plus className="h-4 w-4 mr-1" /> {t("projectFiles.btnAddType")}
             </Button>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">
-              Total: {aiRows.reduce((s, r) => s + (r.count || 0), 0)} preguntas
+              {t("projectFiles.totalQuestions", { count: aiRows.reduce((s, r) => s + (r.count || 0), 0) })}
             </span>
             <Button onClick={generateWithAI} disabled={aiLoading}>
               {aiLoading ? (
@@ -1130,7 +1128,7 @@ export function TeacherProjectFilesEditor({
               ) : (
                 <Sparkles className="h-4 w-4 mr-1" />
               )}
-              Generar con IA
+              {t("projectFiles.btnGenerateAi")}
             </Button>
           </div>
         </TabsContent>

@@ -210,24 +210,24 @@ export function LaunchPollDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-sky-500" />
-            Lanzar encuesta en vivo
+            {t("launchPollDialog.dialogTitle")}
           </DialogTitle>
-          {sessionLabel && <p className="text-xs text-muted-foreground">Sesión: {sessionLabel}</p>}
+          {sessionLabel && <p className="text-xs text-muted-foreground">{t("launchPollDialog.sessionLabel", { label: sessionLabel })}</p>}
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label required>Pregunta</Label>
+            <Label required>{t("launchPollDialog.labelQuestion")}</Label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ej: ¿Quedó claro el concepto?"
+              placeholder={t("launchPollDialog.placeholderQuestion")}
               autoFocus
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label required>
-                Tipo{" "}
+                {t("launchPollDialog.labelType")}{" "}
                 <HelpHint side="right">
                   <div className="space-y-2 text-xs">
                     <p>
@@ -253,25 +253,25 @@ export function LaunchPollDialog({
                 <SelectContent>
                   <SelectItem value="single">
                     <div className="flex flex-col gap-0.5">
-                      <span>Opción única</span>
+                      <span>{t("launchPollDialog.typeSingleLabel")}</span>
                       <span className="text-[11px] text-muted-foreground">
-                        El alumno elige una sola opción
+                        {t("launchPollDialog.typeSingleDesc")}
                       </span>
                     </div>
                   </SelectItem>
                   <SelectItem value="multiple">
                     <div className="flex flex-col gap-0.5">
-                      <span>Múltiple</span>
+                      <span>{t("launchPollDialog.typeMultipleLabel")}</span>
                       <span className="text-[11px] text-muted-foreground">
-                        El alumno puede marcar varias opciones
+                        {t("launchPollDialog.typeMultipleDesc")}
                       </span>
                     </div>
                   </SelectItem>
                   <SelectItem value="slot">
                     <div className="flex flex-col gap-0.5">
-                      <span>Cupo por opción (Doodle)</span>
+                      <span>{t("launchPollDialog.typeSlotLabel")}</span>
                       <span className="text-[11px] text-muted-foreground">
-                        Cupo limitado por opción — ej. fechas de sustentación
+                        {t("launchPollDialog.typeSlotDesc")}
                       </span>
                     </div>
                   </SelectItem>
@@ -280,7 +280,7 @@ export function LaunchPollDialog({
             </div>
             <div>
               <Label>
-                Resultados{" "}
+                {t("launchPollDialog.labelResults")}{" "}
                 <HelpHint side="left">
                   <div className="space-y-2 text-xs">
                     <p>
@@ -304,25 +304,25 @@ export function LaunchPollDialog({
                 <SelectContent>
                   <SelectItem value="always">
                     <div className="flex flex-col gap-0.5">
-                      <span>Visibles al alumno</span>
+                      <span>{t("launchPollDialog.visAlwaysLabel")}</span>
                       <span className="text-[11px] text-muted-foreground">
-                        Ve resultados parciales mientras vota
+                        {t("launchPollDialog.visAlwaysDesc")}
                       </span>
                     </div>
                   </SelectItem>
                   <SelectItem value="after_close">
                     <div className="flex flex-col gap-0.5">
-                      <span>Tras cerrar</span>
+                      <span>{t("launchPollDialog.visAfterCloseLabel")}</span>
                       <span className="text-[11px] text-muted-foreground">
-                        Solo cuando termines la encuesta
+                        {t("launchPollDialog.visAfterCloseDesc")}
                       </span>
                     </div>
                   </SelectItem>
                   <SelectItem value="never">
                     <div className="flex flex-col gap-0.5">
-                      <span>Solo docente</span>
+                      <span>{t("launchPollDialog.visNeverLabel")}</span>
                       <span className="text-[11px] text-muted-foreground">
-                        El alumno nunca los ve
+                        {t("launchPollDialog.visNeverDesc")}
                       </span>
                     </div>
                   </SelectItem>
@@ -337,7 +337,7 @@ export function LaunchPollDialog({
             <label className="flex items-start justify-between gap-2 cursor-pointer">
               <span className="flex-1 min-w-0">
                 <span className="font-medium flex items-center gap-1">
-                  Permitir cambiar respuesta
+                  {t("launchPollDialog.switchAllowChange")}
                   <HelpHint>{t("help.pollAllowChangeResponseShort")}</HelpHint>
                 </span>
               </span>
@@ -346,7 +346,7 @@ export function LaunchPollDialog({
             <label className="flex items-start justify-between gap-2 cursor-pointer pt-1.5 border-t">
               <span className="flex-1 min-w-0">
                 <span className="font-medium flex items-center gap-1">
-                  Cerrar al responder todos
+                  {t("launchPollDialog.switchAutoClose")}
                   <HelpHint>{t("help.pollAutoCloseAllRespondedShort")}</HelpHint>
                 </span>
               </span>
@@ -356,7 +356,7 @@ export function LaunchPollDialog({
 
           <div>
             <Label required>
-              Opciones{" "}
+              {t("launchPollDialog.labelOptions")}{" "}
               <HelpHint side="right">
                 <div className="space-y-1 text-xs">
                   <p>Mínimo 2 respuestas para que el alumno elija.</p>
@@ -379,11 +379,11 @@ export function LaunchPollDialog({
                     placeholder={
                       type === "slot"
                         ? idx === 0
-                          ? "Ej: Lun 10 jun, 9:00 AM"
+                          ? t("launchPollDialog.slotPlaceholder0")
                           : idx === 1
-                            ? "Ej: Lun 10 jun, 10:00 AM"
-                            : `Opción ${idx + 1}`
-                        : `Opción ${idx + 1}`
+                            ? t("launchPollDialog.slotPlaceholder1")
+                            : t("launchPollDialog.optionPlaceholder", { n: idx + 1 })
+                        : t("launchPollDialog.optionPlaceholder", { n: idx + 1 })
                     }
                     className="flex-1"
                   />
@@ -393,14 +393,14 @@ export function LaunchPollDialog({
                       min={1}
                       value={o.max_responses}
                       onChange={(e) => updateOption(idx, { max_responses: e.target.value })}
-                      placeholder="Cupo"
+                      placeholder={t("launchPollDialog.placeholderSlotCapacity")}
                       className="w-20"
                       title="Máximo de alumnos que pueden elegir esta opción"
                     />
                   )}
                   {options.length > 2 && (
                     <RowAction
-                      label="Quitar opción"
+                      label={t("launchPollDialog.btnRemoveOption")}
                       icon={Trash2}
                       tone="destructive"
                       onClick={() => removeOption(idx)}
@@ -410,23 +410,22 @@ export function LaunchPollDialog({
               ))}
               <Button variant="outline" size="sm" onClick={addOption}>
                 <Plus className="h-3.5 w-3.5 mr-1" />
-                Agregar opción
+                {t("launchPollDialog.btnAddOption")}
               </Button>
             </div>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            La encuesta queda abierta hasta que la cierres manualmente desde el módulo de Encuestas
-            o la dejes vencer.
+            {t("launchPollDialog.openUntilManual")}
           </p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancelar
+            {t("launchPollDialog.btnCancel")}
           </Button>
           <Button onClick={() => void save()} disabled={saving}>
             {saving && <Spinner size="sm" className="mr-1" />}
             <Zap className="h-3.5 w-3.5 mr-1" />
-            Lanzar
+            {t("launchPollDialog.btnLaunch")}
           </Button>
         </DialogFooter>
       </DialogContent>

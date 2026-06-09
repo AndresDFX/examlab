@@ -166,7 +166,7 @@ export function AdminGeneralSettingsPanel() {
   if (loadError) {
     return (
       <ErrorState
-        message="No pudimos cargar los parámetros generales"
+        message={t("adminGeneralSettings.loadErrorTitle")}
         hint={loadError}
         onRetry={() => setRetryNonce((n) => n + 1)}
       />
@@ -177,7 +177,7 @@ export function AdminGeneralSettingsPanel() {
     return (
       <Card>
         <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-          <Spinner size="sm" /> Cargando parámetros…
+          <Spinner size="sm" /> {t("adminGeneralSettings.loadingParams")}
         </CardContent>
       </Card>
     );
@@ -190,13 +190,13 @@ export function AdminGeneralSettingsPanel() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <GraduationCap className="h-4 w-4 text-blue-500" />
-            Defaults para cursos nuevos
+            {t("adminGeneralSettings.cardCoursesTitle")}
             <HelpHint>{t("help.courseDefaultsHint")}</HelpHint>
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <Label>Nota mínima de la escala</Label>
+            <Label>{t("adminGeneralSettings.labelScaleMin")}</Label>
             <Input
               type="number"
               step="0.1"
@@ -207,7 +207,7 @@ export function AdminGeneralSettingsPanel() {
             />
           </div>
           <div>
-            <Label>Nota máxima de la escala</Label>
+            <Label>{t("adminGeneralSettings.labelScaleMax")}</Label>
             <Input
               type="number"
               step="0.1"
@@ -216,10 +216,10 @@ export function AdminGeneralSettingsPanel() {
                 setDraft({ ...draft, default_grade_scale_max: Number(e.target.value) })
               }
             />
-            <p className="text-[11px] text-muted-foreground mt-1">Colombia: 0-5. Otros: 0-10.</p>
+            <p className="text-[11px] text-muted-foreground mt-1">{t("adminGeneralSettings.hintScaleMax")}</p>
           </div>
           <div>
-            <Label>Nota mínima de aprobación</Label>
+            <Label>{t("adminGeneralSettings.labelPassingGrade")}</Label>
             <Input
               type="number"
               step="0.1"
@@ -237,13 +237,13 @@ export function AdminGeneralSettingsPanel() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <FileText className="h-4 w-4 text-violet-500" />
-            Defaults para exámenes nuevos
+            {t("adminGeneralSettings.cardExamsTitle")}
             <HelpHint>{t("help.examDefaultsHint")}</HelpHint>
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <Label>Máximo de advertencias (proctoring)</Label>
+            <Label>{t("adminGeneralSettings.labelMaxWarnings")}</Label>
             <Input
               type="number"
               min={0}
@@ -257,11 +257,11 @@ export function AdminGeneralSettingsPanel() {
               }
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              Cuántos strikes antes de marcar sospechoso.
+              {t("adminGeneralSettings.hintMaxWarnings")}
             </p>
           </div>
           <div>
-            <Label>Navegación</Label>
+            <Label>{t("adminGeneralSettings.labelNavigation")}</Label>
             <Select
               value={draft.default_exam_navigation}
               onValueChange={(v) =>
@@ -275,13 +275,13 @@ export function AdminGeneralSettingsPanel() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="libre">Libre</SelectItem>
-                <SelectItem value="secuencial">Secuencial (sin retroceso)</SelectItem>
+                <SelectItem value="libre">{t("adminGeneralSettings.navFree")}</SelectItem>
+                <SelectItem value="secuencial">{t("adminGeneralSettings.navSequential")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Intentos máximos exámenes</Label>
+            <Label>{t("adminGeneralSettings.labelMaxAttemptsExam")}</Label>
             <Input
               type="number"
               min={1}
@@ -297,7 +297,7 @@ export function AdminGeneralSettingsPanel() {
           </div>
           <div>
             <Label className="flex items-center gap-1.5">
-              Intentos máx. talleres
+              {t("adminGeneralSettings.labelMaxAttemptsWorkshop")}
               <HelpHint>{t("help.workshopMaxAttempts")}</HelpHint>
             </Label>
             <Input
@@ -315,7 +315,7 @@ export function AdminGeneralSettingsPanel() {
           </div>
           <div>
             <Label className="flex items-center gap-1.5">
-              Intentos máx. proyectos
+              {t("adminGeneralSettings.labelMaxAttemptsProject")}
               <HelpHint>{t("help.projectMaxAttempts")}</HelpHint>
             </Label>
             <Input
@@ -333,7 +333,7 @@ export function AdminGeneralSettingsPanel() {
           </div>
           <div className="sm:col-span-3">
             <Label className="flex items-center gap-1.5">
-              Máx. caracteres en respuesta abierta
+              {t("adminGeneralSettings.labelMaxOpenChars")}
               <HelpHint>
                 Tope de caracteres que el alumno puede escribir en una pregunta tipo "abierta".
                 Aplica a nivel frontend (Textarea con maxLength). Default 500 — fuerza respuestas
@@ -369,13 +369,13 @@ export function AdminGeneralSettingsPanel() {
               />
               <div className="flex-1">
                 <div className="flex items-center gap-1.5 text-sm font-medium">
-                  Requerir pantalla completa
+                  {t("adminGeneralSettings.labelFullscreen")}
                   <HelpHint>{t("help.requireExamFullscreen")}</HelpHint>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   {draft.require_exam_fullscreen
-                    ? "Activo — los exámenes corren en pantalla completa obligatoria."
-                    : "Desactivado — los exámenes corren en ventana normal (modo depuración). Los strikes por fullscreen_exit NO aplican."}
+                    ? t("adminGeneralSettings.fullscreenActive")
+                    : t("adminGeneralSettings.fullscreenInactive")}
                 </p>
               </div>
             </label>
@@ -395,14 +395,14 @@ export function AdminGeneralSettingsPanel() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Mail className="h-4 w-4 text-cyan-500" />
-            Alerta de volumen de correos
+            {t("adminGeneralSettings.cardEmailAlertTitle")}
             <HelpHint>{t("help.emailAlertThreshold")}</HelpHint>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <Label>Umbral (correos / 24h)</Label>
+              <Label>{t("adminGeneralSettings.labelThreshold")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -416,11 +416,11 @@ export function AdminGeneralSettingsPanel() {
                 placeholder="0 = desactivado"
               />
               <p className="text-[11px] text-muted-foreground mt-1">
-                0 desactiva la alerta. Recomendado: ajustar según volumen típico × 1.5.
+                {t("adminGeneralSettings.hintThreshold")}
               </p>
             </div>
             <div>
-              <Label>Cooldown (horas entre alertas)</Label>
+              <Label>{t("adminGeneralSettings.labelCooldown")}</Label>
               <Input
                 type="number"
                 min={1}
@@ -434,16 +434,14 @@ export function AdminGeneralSettingsPanel() {
                 }
               />
               <p className="text-[11px] text-muted-foreground mt-1">
-                Evita ráfagas de alertas si el problema persiste.
+                {t("adminGeneralSettings.hintCooldown")}
               </p>
             </div>
           </div>
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              La revisión corre automáticamente cada 30 min vía cron{" "}
-              <code className="text-[11px]">email-alert-threshold</code>. Asegúrate de que el cron
-              esté activo en <strong>Admin → Sistema → Tareas programadas</strong>.
+              {t("adminGeneralSettings.alertCronNote")}
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -453,12 +451,12 @@ export function AdminGeneralSettingsPanel() {
       <div className="flex flex-wrap gap-2 justify-end">
         {dirty && (
           <Button variant="ghost" size="sm" onClick={() => setDraft(row)} disabled={saving}>
-            Cancelar
+            {t("adminGeneralSettings.btnCancel")}
           </Button>
         )}
         <Button size="sm" onClick={() => void save()} disabled={saving || !dirty}>
           {saving ? <Spinner size="sm" className="mr-1" /> : <Save className="h-4 w-4 mr-1" />}
-          Guardar parámetros
+          {t("adminGeneralSettings.btnSave")}
         </Button>
       </div>
     </div>

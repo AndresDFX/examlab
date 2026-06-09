@@ -534,27 +534,27 @@ export function TeacherWorkshopQuestionsEditor({
     <div className="space-y-4">
       {aiLoading && (
         <LoadingOverlay
-          title="Generando preguntas con IA…"
-          subtitle="Cada tipo de pregunta toma 10-30 segundos. Si configuraste varios tipos, esto puede tardar 1-2 minutos. No cierres esta pestaña."
+          title={t("workshopQuestions.aiLoadingTitle")}
+          subtitle={t("workshopQuestions.aiLoadingSubtitle")}
         />
       )}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList>
-          <TabsTrigger value="list">Preguntas ({questions.length})</TabsTrigger>
+          <TabsTrigger value="list">{t("workshopQuestions.tabList", { count: questions.length })}</TabsTrigger>
           <TabsTrigger value="manual">
-            {editingId ? "Editar pregunta" : "Agregar manual"}
+            {editingId ? t("workshopQuestions.tabEditQuestion") : t("workshopQuestions.tabManual")}
           </TabsTrigger>
-          <TabsTrigger value="ai">Generar con IA</TabsTrigger>
+          <TabsTrigger value="ai">{t("workshopQuestions.tabAi")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="list" className="space-y-2">
           {loading && (
             <p className="text-sm text-muted-foreground">
-              <Spinner size="xs" inline className="mr-1" /> Cargando…
+              <Spinner size="xs" inline className="mr-1" /> {t("workshopQuestions.loadingQuestions")}
             </p>
           )}
           {!loading && questions.length === 0 && (
-            <p className="text-sm text-muted-foreground">Aún no hay preguntas.</p>
+            <p className="text-sm text-muted-foreground">{t("workshopQuestions.noQuestions")}</p>
           )}
           {questions.map((q, idx) => (
             <Card key={q.id}>
@@ -575,24 +575,24 @@ export function TeacherWorkshopQuestionsEditor({
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <RowAction
-                    label="Subir"
+                    label={t("workshopQuestions.rowActionMoveUp")}
                     icon={ChevronUp}
                     disabled={idx === 0}
                     onClick={() => moveQ(q.id, "up")}
                   />
                   <RowAction
-                    label="Bajar"
+                    label={t("workshopQuestions.rowActionMoveDown")}
                     icon={ChevronDown}
                     disabled={idx === questions.length - 1}
                     onClick={() => moveQ(q.id, "down")}
                   />
                   <RowAction
-                    label="Editar pregunta"
+                    label={t("workshopQuestions.rowActionEdit")}
                     icon={Pencil}
                     onClick={() => loadIntoForm(q)}
                   />
                   <RowAction
-                    label="Eliminar pregunta"
+                    label={t("workshopQuestions.rowActionDelete")}
                     icon={Trash2}
                     tone="destructive"
                     onClick={() => removeQ(q.id)}
@@ -632,7 +632,7 @@ export function TeacherWorkshopQuestionsEditor({
                 ))}
                 {questions.length > 9 && (
                   <span className="inline-flex items-center rounded border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                    +{questions.length - 9} más
+                    {t("workshopQuestions.moreItems", { n: questions.length - 9 })}
                   </span>
                 )}
               </div>
@@ -640,25 +640,25 @@ export function TeacherWorkshopQuestionsEditor({
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <Label required>Tipo</Label>
+              <Label required>{t("workshopQuestions.labelType")}</Label>
               <Select value={qType} onValueChange={(v) => setQType(v as any)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="abierta">Abierta</SelectItem>
-                  <SelectItem value="cerrada">Selección única</SelectItem>
-                  <SelectItem value="cerrada_multi">Opción múltiple</SelectItem>
-                  <SelectItem value="codigo">Código</SelectItem>
-                  <SelectItem value="diagrama">Diagrama (Mermaid)</SelectItem>
-                  <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
-                  <SelectItem value="python_gui">Python GUI (tkinter)</SelectItem>
-                  <SelectItem value="codigo_zip">Código (ZIP / multi-archivo)</SelectItem>
+                  <SelectItem value="abierta">{t("workshopQuestions.typeOpen")}</SelectItem>
+                  <SelectItem value="cerrada">{t("workshopQuestions.typeClosedSingle")}</SelectItem>
+                  <SelectItem value="cerrada_multi">{t("workshopQuestions.typeClosedSingle")}</SelectItem>
+                  <SelectItem value="codigo">{t("workshopQuestions.typeCode")}</SelectItem>
+                  <SelectItem value="diagrama">{t("workshopQuestions.typeDiagramMermaid")}</SelectItem>
+                  <SelectItem value="java_gui">{t("workshopQuestions.typeJavaGui")}</SelectItem>
+                  <SelectItem value="python_gui">{t("workshopQuestions.typePythonGui")}</SelectItem>
+                  <SelectItem value="codigo_zip">{t("workshopQuestions.typeCodeZip")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label required>Puntos</Label>
+              <Label required>{t("workshopQuestions.labelPoints")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -668,17 +668,17 @@ export function TeacherWorkshopQuestionsEditor({
             </div>
           </div>
           <div>
-            <Label required>Enunciado</Label>
+            <Label required>{t("workshopQuestions.labelStatement")}</Label>
             <Textarea
               value={qContent}
               onChange={(e) => setQContent(e.target.value)}
               rows={3}
-              placeholder="Describe la pregunta…"
+              placeholder={t("workshopQuestions.placeholderStatement")}
             />
           </div>
           {qType === "cerrada" && (
             <div className="space-y-2">
-              <Label required>Opciones (marca la correcta)</Label>
+              <Label required>{t("workshopQuestions.labelOptions")}</Label>
               {qChoices.map((c, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <input
@@ -701,10 +701,9 @@ export function TeacherWorkshopQuestionsEditor({
           {qType === "cerrada_multi" && (
             <div className="space-y-3">
               <div className="space-y-2">
-                <Label required>Opciones (marca las correctas)</Label>
+                <Label required>{t("workshopQuestions.labelOptionsMulti")}</Label>
                 <p className="text-xs text-muted-foreground">
-                  El estudiante recibe puntaje proporcional según cuántas correctas marque, sin
-                  penalización por incorrectas.
+                  {t("workshopQuestions.proportionalScore")}
                 </p>
                 {qChoices.map((c, i) => (
                   <div key={i} className="flex items-center gap-2">
@@ -731,7 +730,7 @@ export function TeacherWorkshopQuestionsEditor({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Label>Mínimo de marcadas</Label>
+                  <Label>{t("workshopQuestions.labelMinSelected")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -739,11 +738,11 @@ export function TeacherWorkshopQuestionsEditor({
                     onChange={(e) =>
                       setQMinSelections(e.target.value === "" ? "" : Number(e.target.value))
                     }
-                    placeholder="sin mínimo"
+                    placeholder={t("workshopQuestions.placeholderNoMin")}
                   />
                 </div>
                 <div>
-                  <Label>Máximo de marcadas</Label>
+                  <Label>{t("workshopQuestions.labelMaxSelected")}</Label>
                   <Input
                     type="number"
                     min={1}
@@ -751,7 +750,7 @@ export function TeacherWorkshopQuestionsEditor({
                     onChange={(e) =>
                       setQMaxSelections(e.target.value === "" ? "" : Number(e.target.value))
                     }
-                    placeholder="sin máximo"
+                    placeholder={t("workshopQuestions.placeholderNoMax")}
                   />
                 </div>
               </div>
@@ -759,7 +758,7 @@ export function TeacherWorkshopQuestionsEditor({
           )}
           {qType === "codigo" && (
             <div>
-              <Label required>Lenguaje</Label>
+              <Label required>{t("workshopQuestions.labelLanguage")}</Label>
               <Select value={qLanguage} onValueChange={setQLanguage}>
                 <SelectTrigger>
                   <SelectValue />
@@ -775,7 +774,7 @@ export function TeacherWorkshopQuestionsEditor({
           {qType === "java_gui" && (
             <div>
               <Label className="flex items-center gap-1.5">
-                Framework
+                {t("workshopQuestions.labelFramework")}
                 <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.workshopJavaFrameworkHelp") }} /></HelpHint>
               </Label>
               <Select
@@ -792,8 +791,8 @@ export function TeacherWorkshopQuestionsEditor({
               </Select>
               <p className="text-[11px] text-muted-foreground mt-1">
                 {qJavaFramework === "javafx"
-                  ? "Requiere modo runner AWS Lambda — CheerpJ no incluye OpenJFX."
-                  : "Compatible con ambos runners (CheerpJ + AWS Lambda)."}
+                  ? t("workshopQuestions.javaFxWarning")
+                  : t("workshopQuestions.swingCompat")}
               </p>
             </div>
           )}
@@ -829,13 +828,13 @@ export function TeacherWorkshopQuestionsEditor({
               <div className="flex items-center justify-between gap-3 rounded-md border bg-card p-3">
                 <div className="space-y-0.5">
                   <Label className="flex items-center gap-1.5">
-                    Modo ZIP único (scaffolding)
+                    {t("workshopQuestions.labelZipSingleMode")}
                     <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.codigoZipSingleModeToggle") }} /></HelpHint>
                   </Label>
                   <p className="text-[11px] text-muted-foreground">
                     {qZipSingle
-                      ? "El alumno sube UN .zip — el servidor lo descomprime y califica todo junto."
-                      : "El alumno sube archivos individuales — solo los del lenguaje seleccionado."}
+                      ? t("workshopQuestions.zipSingleOn")
+                      : t("workshopQuestions.zipSingleOff")}
                   </p>
                 </div>
                 <Switch checked={qZipSingle} onCheckedChange={setQZipSingle} />
@@ -843,29 +842,29 @@ export function TeacherWorkshopQuestionsEditor({
             </div>
           )}
           <div>
-            <Label required>Rúbrica esperada (para IA)</Label>
+            <Label required>{t("workshopQuestions.labelRubric")}</Label>
             <Textarea
               value={qRubric}
               onChange={(e) => setQRubric(e.target.value)}
               rows={2}
-              placeholder="¿Qué debe contener una buena respuesta?"
+              placeholder={t("workshopQuestions.placeholderRubric")}
             />
           </div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={submitManual}>
               {editingId ? (
                 <>
-                  <Save className="h-4 w-4 mr-1" /> Guardar cambios
+                  <Save className="h-4 w-4 mr-1" /> {t("workshopQuestions.btnSaveChanges")}
                 </>
               ) : (
                 <>
-                  <Plus className="h-4 w-4 mr-1" /> Agregar pregunta
+                  <Plus className="h-4 w-4 mr-1" /> {t("workshopQuestions.btnAddQuestion")}
                 </>
               )}
             </Button>
             {!editingId && workshopCourseId && (
               <Button variant="outline" onClick={() => setBankDialogOpen(true)}>
-                <Library className="h-4 w-4 mr-1" /> Importar del banco
+                <Library className="h-4 w-4 mr-1" /> {t("workshopQuestions.btnImportBank")}
               </Button>
             )}
             {editingId && (
@@ -876,7 +875,7 @@ export function TeacherWorkshopQuestionsEditor({
                   setActiveTab("list");
                 }}
               >
-                <X className="h-4 w-4 mr-1" /> Cancelar edición
+                <X className="h-4 w-4 mr-1" /> {t("workshopQuestions.btnCancelEdit")}
               </Button>
             )}
           </div>
@@ -884,16 +883,16 @@ export function TeacherWorkshopQuestionsEditor({
 
         <TabsContent value="ai" className="space-y-4">
           <div>
-            <Label required>Temas</Label>
+            <Label required>{t("workshopQuestions.labelTopics")}</Label>
             <Textarea
               value={aiTopics}
               onChange={(e) => setAiTopics(e.target.value)}
               rows={3}
-              placeholder="Listas enlazadas, recursión, complejidad…"
+              placeholder={t("workshopQuestions.placeholderTopics")}
             />
           </div>
           <div className="space-y-2">
-            <Label>Tipos de preguntas a generar</Label>
+            <Label>{t("workshopQuestions.labelQuestionTypes")}</Label>
             {aiRows.map((row, i) => (
               <div key={i} className="flex items-end gap-2">
                 <div className="flex-1 min-w-0">
@@ -905,12 +904,12 @@ export function TeacherWorkshopQuestionsEditor({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="abierta">Abierta</SelectItem>
-                      <SelectItem value="cerrada">Opción múltiple</SelectItem>
-                      <SelectItem value="codigo">Código</SelectItem>
-                      <SelectItem value="diagrama">Diagrama</SelectItem>
-                      <SelectItem value="java_gui">Java GUI</SelectItem>
-                      <SelectItem value="python_gui">Python GUI (tkinter)</SelectItem>
+                      <SelectItem value="abierta">{t("workshopQuestions.typeOpen")}</SelectItem>
+                      <SelectItem value="cerrada">{t("workshopQuestions.typeClosedSingle")}</SelectItem>
+                      <SelectItem value="codigo">{t("workshopQuestions.typeCode")}</SelectItem>
+                      <SelectItem value="diagrama">{t("workshopQuestions.typeDiagram")}</SelectItem>
+                      <SelectItem value="java_gui">{t("workshopQuestions.typeJavaGuiShort")}</SelectItem>
+                      <SelectItem value="python_gui">{t("workshopQuestions.typePythonGui")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -959,12 +958,12 @@ export function TeacherWorkshopQuestionsEditor({
               </div>
             ))}
             <Button type="button" variant="outline" size="sm" onClick={addAiRow}>
-              <Plus className="h-4 w-4 mr-1" /> Agregar tipo
+              <Plus className="h-4 w-4 mr-1" /> {t("workshopQuestions.btnAddType")}
             </Button>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">
-              Total: {aiRows.reduce((s, r) => s + (r.count || 0), 0)} preguntas
+              {t("workshopQuestions.totalQuestions", { count: aiRows.reduce((s, r) => s + (r.count || 0), 0) })}
             </span>
             <Button onClick={generateWithAI} disabled={aiLoading}>
               {aiLoading ? (
@@ -972,7 +971,7 @@ export function TeacherWorkshopQuestionsEditor({
               ) : (
                 <Sparkles className="h-4 w-4 mr-1" />
               )}
-              Generar con IA
+              {t("workshopQuestions.btnGenerateAi")}
             </Button>
           </div>
         </TabsContent>

@@ -11,6 +11,7 @@
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +59,7 @@ interface VerifyResult {
 }
 
 function VerifyPage() {
+  const { t } = useTranslation();
   const { shortCode } = Route.useParams();
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<VerifyResult | null>(null);
@@ -94,21 +96,21 @@ function VerifyPage() {
             <GraduationCap className="h-6 w-6 text-indigo-600" />
             <span className="font-semibold text-lg">ExamLab</span>
           </Link>
-          <Badge variant="outline">Verificación pública</Badge>
+          <Badge variant="outline">{t("verifyCertificate.publicVerification")}</Badge>
         </header>
 
         {loading ? (
           <Card>
             <CardContent className="p-4 sm:p-12 text-center text-muted-foreground">
               <Spinner size="md" inline className="mr-2" />
-              Verificando código <code>{shortCode}</code>…
+              {t("verifyCertificate.verifying")} <code>{shortCode}</code>…
             </CardContent>
           </Card>
         ) : error ? (
           <Card className="border-destructive/50">
             <CardContent className="p-8 text-center space-y-2">
               <AlertTriangle className="h-10 w-10 text-destructive mx-auto" />
-              <p className="text-sm text-muted-foreground">No se pudo consultar el certificado.</p>
+              <p className="text-sm text-muted-foreground">{t("verifyCertificate.loadError")}</p>
               <p className="text-xs text-destructive">{error}</p>
             </CardContent>
           </Card>
@@ -121,8 +123,7 @@ function VerifyPage() {
         )}
 
         <footer className="text-center text-xs text-muted-foreground pt-4">
-          La verificación consulta directamente la base de datos de ExamLab. Los datos mostrados
-          provienen del snapshot inmutable del certificado al momento de su emisión.
+          {t("verifyCertificate.footerText")}
         </footer>
       </div>
     </div>
@@ -130,49 +131,51 @@ function VerifyPage() {
 }
 
 function NotFoundCard({ shortCode }: { shortCode: string }) {
+  const { t } = useTranslation();
   return (
     <Card className="border-destructive/50 bg-destructive/5">
       <CardHeader className="text-center pb-3">
         <div className="mx-auto w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
           <XCircle className="h-10 w-10 text-destructive" />
         </div>
-        <CardTitle className="text-lg pt-2">Certificado no encontrado</CardTitle>
+        <CardTitle className="text-lg pt-2">{t("verifyCertificate.notFoundTitle")}</CardTitle>
       </CardHeader>
       <CardContent className="text-center text-sm text-muted-foreground space-y-2">
         <p>
-          No existe un certificado con el código{" "}
+          {t("verifyCertificate.notFoundBody")}{" "}
           <code className="font-mono text-foreground">{shortCode}</code>.
         </p>
-        <p>
-          Verifica que escribiste correctamente el código o que el QR es del certificado original.
-        </p>
+        <p>{t("verifyCertificate.notFoundHint")}</p>
       </CardContent>
     </Card>
   );
 }
 
 function RevokedCard({ data }: { data: VerifyResult }) {
+  const { t } = useTranslation();
   return (
     <Card className="border-destructive/50 bg-destructive/5">
       <CardHeader className="text-center pb-3">
         <div className="mx-auto w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
           <XCircle className="h-10 w-10 text-destructive" />
         </div>
-        <CardTitle className="text-lg pt-2">Certificado REVOCADO</CardTitle>
+        <CardTitle className="text-lg pt-2">{t("verifyCertificate.revokedTitle")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="text-center text-sm text-muted-foreground">
-          Este certificado fue revocado por la institución y NO debe considerarse válido.
+          {t("verifyCertificate.revokedBody")}
         </div>
         {data.revoke_reason && (
           <div className="rounded border border-destructive/30 bg-background p-3 text-sm">
-            <span className="font-medium">Motivo: </span>
+            <span className="font-medium">{t("verifyCertificate.revokedReason")}</span>
             {data.revoke_reason}
           </div>
         )}
         <SnapshotDetails data={data} />
         <div className="text-xs text-muted-foreground text-center pt-2">
-          Revocado el {data.revoked_at ? formatDateLong(new Date(data.revoked_at)) : "—"}
+          {t("verifyCertificate.revokedOn", {
+            date: data.revoked_at ? formatDateLong(new Date(data.revoked_at)) : "—",
+          })}
         </div>
       </CardContent>
     </Card>
@@ -180,6 +183,7 @@ function RevokedCard({ data }: { data: VerifyResult }) {
 }
 
 function ValidCard({ data }: { data: VerifyResult }) {
+  const { t } = useTranslation();
   const handleDownload = async () => {
     if (!data.short_code || !data.student_full_name || !data.course_name) return;
     await downloadCertificate({
@@ -205,14 +209,14 @@ function ValidCard({ data }: { data: VerifyResult }) {
           <CheckCircle2 className="h-10 w-10 text-emerald-600" />
         </div>
         <CardTitle className="text-lg pt-2 text-emerald-700 dark:text-emerald-400">
-          Certificado válido
+          {t("verifyCertificate.validTitle")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <SnapshotDetails data={data} />
         <div className="flex flex-wrap gap-2 justify-end pt-2">
           <Button onClick={() => void handleDownload()} size="sm">
-            Descargar PDF
+            {t("verifyCertificate.downloadPdf")}
           </Button>
         </div>
       </CardContent>
@@ -221,13 +225,14 @@ function ValidCard({ data }: { data: VerifyResult }) {
 }
 
 function SnapshotDetails({ data }: { data: VerifyResult }) {
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm pt-2">
-      <Detail icon={User} label="Estudiante" value={data.student_full_name ?? "—"} />
-      <Detail icon={School} label="Curso" value={data.course_name ?? "—"} />
+      <Detail icon={User} label={t("verifyCertificate.labelStudent")} value={data.student_full_name ?? "—"} />
+      <Detail icon={School} label={t("verifyCertificate.labelCourse")} value={data.course_name ?? "—"} />
       <Detail
         icon={GraduationCap}
-        label="Nota final"
+        label={t("verifyCertificate.labelFinalGrade")}
         value={
           data.final_grade != null
             ? `${Number(data.final_grade).toFixed(2)} / ${data.grade_scale_max ?? "—"}`
@@ -236,23 +241,23 @@ function SnapshotDetails({ data }: { data: VerifyResult }) {
       />
       <Detail
         icon={Calendar}
-        label="Emitido"
+        label={t("verifyCertificate.labelIssued")}
         value={data.issued_at ? formatDateLong(new Date(data.issued_at)) : "—"}
       />
-      {data.course_period && <Detail icon={Calendar} label="Periodo" value={data.course_period} />}
+      {data.course_period && <Detail icon={Calendar} label={t("verifyCertificate.labelPeriod")} value={data.course_period} />}
       {data.teacher_names && data.teacher_names.length > 0 && (
         <Detail
           icon={User}
-          label={data.teacher_names.length === 1 ? "Docente" : "Docentes"}
+          label={data.teacher_names.length === 1 ? t("verifyCertificate.labelTeacher") : t("verifyCertificate.labelTeachers")}
           value={data.teacher_names.join(", ")}
         />
       )}
       {data.university_name && (
-        <Detail icon={School} label="Institución" value={data.university_name} />
+        <Detail icon={School} label={t("verifyCertificate.labelInstitution")} value={data.university_name} />
       )}
       <Detail
         icon={Hash}
-        label="Código"
+        label={t("verifyCertificate.labelCode")}
         value={<code className="font-mono">{data.short_code}</code>}
       />
     </div>
