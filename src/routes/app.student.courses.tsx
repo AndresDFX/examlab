@@ -28,6 +28,7 @@ import {
   Copy,
   MessageSquareText,
   Play,
+  NotebookPen,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
@@ -35,6 +36,8 @@ import {
   CodeFileRunnerDialog,
   codeLanguageForFile,
 } from "@/modules/code/CodeFileRunnerDialog";
+import { NotebookRunnerDialog } from "@/modules/code/NotebookRunnerDialog";
+import { isNotebookFile } from "@/modules/code/notebook";
 import { formatDateOnly, formatWeekdayName } from "@/shared/lib/format";
 import { Spinner } from "@/components/ui/spinner";
 import { SectionLoader } from "@/components/ui/loaders";
@@ -364,6 +367,8 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
   const [previewFile, setPreviewFile] = useState<ContentFileEntry | null>(null);
   // Archivo de código (.java/.py/.js) seleccionado para ver + ejecutar.
   const [runCodeFile, setRunCodeFile] = useState<ContentFileEntry | null>(null);
+  // Notebook (.ipynb) seleccionado para ver celdas + ejecutar.
+  const [notebookFile, setNotebookFile] = useState<ContentFileEntry | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -648,6 +653,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
               onDownload={downloadFile}
               onPreview={setPreviewFile}
               onRunCode={setRunCodeFile}
+              onOpenNotebook={setNotebookFile}
               downloadingPath={downloadingPath}
             />
           )}
@@ -662,6 +668,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
               onDownload={downloadFile}
               onPreview={setPreviewFile}
               onRunCode={setRunCodeFile}
+              onOpenNotebook={setNotebookFile}
               downloadingPath={downloadingPath}
             />
           )}
@@ -675,6 +682,14 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       <CodeFileRunnerDialog
         file={runCodeFile}
         onOpenChange={(o) => !o && setRunCodeFile(null)}
+      />
+
+      {/* Visor + runner de Jupyter notebooks (.ipynb) subidos en Contenidos
+          y asignados a la sesión. Renderiza celdas + ejecuta todo el código
+          Python via execute-code. */}
+      <NotebookRunnerDialog
+        file={notebookFile}
+        onOpenChange={(o) => !o && setNotebookFile(null)}
       />
 
       {/* Preview inline de archivos .md/.txt — usa el body que viaja en
@@ -739,6 +754,7 @@ function SessionGroup({
   onDownload,
   onPreview,
   onRunCode,
+  onOpenNotebook,
   downloadingPath,
 }: {
   title: string;
@@ -750,6 +766,7 @@ function SessionGroup({
   onDownload: (file: ContentFileEntry, topic: string) => Promise<void>;
   onPreview: (file: ContentFileEntry) => void;
   onRunCode: (file: ContentFileEntry) => void;
+  onOpenNotebook: (file: ContentFileEntry) => void;
   downloadingPath: string | null;
 }) {
   const { t } = useTranslation();
@@ -812,8 +829,39 @@ function SessionGroup({
                       // Archivo de código subido (.java/.py/.js) con su texto
                       // inline en body → se puede ver + ejecutar en la sesión.
                       const canRunCode = !!codeLanguageForFile(f.name) && !!f.body;
+                      // Notebook .ipynb con su JSON inline → ver celdas + ejecutar.
+                      const canOpenNotebook = isNotebookFile(f.name) && !!f.body;
                       const TypeIcon = iconForFile(f);
                       const label = humanLabelForFile(f);
+                      if (canOpenNotebook) {
+                        return (
+                          <div
+                            key={f.path}
+                            className="inline-flex rounded-md border overflow-hidden"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => onOpenNotebook(f)}
+                              className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
+                              title={`${f.name} — Abrir y ejecutar notebook`}
+                              aria-label={`${f.name} — Abrir y ejecutar notebook`}
+                            >
+                              <NotebookPen className="h-3.5 w-3.5 text-orange-500" />
+                              <span className="truncate max-w-[120px]">{f.name}</span>
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => onDownload(f, content?.topic ?? s.title ?? "Material")}
+                              className="flex items-center justify-center w-8 h-8 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
+                              title={`${f.name} — ${t("contents.downloadHint")}`}
+                              aria-label={`${f.name} — ${t("contents.downloadHint")}`}
+                            >
+                              {busy ? <Spinner size="xs" /> : <Download className="h-3.5 w-3.5" />}
+                            </button>
+                          </div>
+                        );
+                      }
                       if (canRunCode) {
                         return (
                           <div

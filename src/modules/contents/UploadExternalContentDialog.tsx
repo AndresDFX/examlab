@@ -70,6 +70,7 @@ import {
 } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { logEvent } from "@/shared/lib/audit";
+import { stripNotebookOutputs } from "@/modules/code/notebook";
 // Helpers PUROS — testeados en `upload-external-helpers.test.ts`.
 import {
   tagsToModality,
@@ -112,16 +113,21 @@ const ACCEPTED_EXTENSIONS = [
   ".java",
   ".py",
   ".js",
+  // Jupyter notebooks: el alumno los abre + ejecuta en la sesión (corre el
+  // código Python concatenado via execute-code).
+  ".ipynb",
 ];
 
 /** Extensiones cuyo CONTENIDO de texto guardamos inline en `files[].body`
  *  (además del objeto en Storage). Incluye los archivos de código
- *  ejecutables — el visor/runner de la sesión los lee de `body`. Los
- *  binarios (pdf/pptx/imágenes/zip) NO entran acá. */
-const INLINE_BODY_EXTENSIONS = [".java", ".py", ".js"];
+ *  ejecutables + notebooks — el visor/runner de la sesión los lee de `body`.
+ *  Los binarios (pdf/pptx/imágenes/zip) NO entran acá. */
+const INLINE_BODY_EXTENSIONS = [".java", ".py", ".js", ".ipynb"];
 /** Tope de chars del body inline — los archivos de código son chicos; esto
- *  evita inflar la fila JSON si alguien sube algo enorme con esa extensión. */
-const MAX_INLINE_BODY_CHARS = 200_000;
+ *  evita inflar la fila JSON si alguien sube algo enorme con esa extensión.
+ *  Los .ipynb se limpian de outputs antes (stripNotebookOutputs), así que el
+ *  body queda chico aunque el notebook original traiga plots embebidos. */
+const MAX_INLINE_BODY_CHARS = 500_000;
 
 interface CourseOption {
   id: string;
@@ -411,7 +417,10 @@ export function UploadExternalContentDialog({
         let body: string | undefined;
         if (INLINE_BODY_EXTENSIONS.some((ext) => lower.endsWith(ext))) {
           try {
-            const text = await f.text();
+            let text = await f.text();
+            // .ipynb: limpiamos outputs/figuras embebidas antes de guardar —
+            // el notebook queda liviano + igual de ejecutable/visible.
+            if (lower.endsWith(".ipynb")) text = stripNotebookOutputs(text);
             body = text.length > MAX_INLINE_BODY_CHARS ? text.slice(0, MAX_INLINE_BODY_CHARS) : text;
           } catch {
             /* sin body — degrada a descargable */
