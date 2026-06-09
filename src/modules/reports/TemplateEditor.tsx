@@ -12,7 +12,7 @@
  * (TipTap, ProseMirror) y sigue sin resolver el problema de inyectar
  * `{{#each}}` correctamente. Esto es deliberadamente simple.
  */
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -53,26 +53,38 @@ interface Props {
   catalog?: VariableNode[];
 }
 
+type EditTab = "body" | "header" | "footer" | "css";
+type Tab = EditTab | "preview";
+
 export function TemplateEditor({ value, onChange, showMetadata = true, catalog }: Props) {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<"body" | "header" | "footer" | "css">("body");
+  const [activeTab, setActiveTab] = useState<Tab>("body");
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const headerRef = useRef<HTMLTextAreaElement>(null);
   const footerRef = useRef<HTMLTextAreaElement>(null);
   const cssRef = useRef<HTMLTextAreaElement>(null);
 
-  const refFor = (tab: typeof activeTab) =>
+  const refFor = (tab: EditTab) =>
     tab === "body" ? bodyRef : tab === "header" ? headerRef : tab === "footer" ? footerRef : cssRef;
 
-  const fieldFor = (tab: typeof activeTab): keyof TemplateDraft =>
+  const fieldFor = (tab: EditTab): keyof TemplateDraft =>
     tab === "body" ? "body_html"
       : tab === "header" ? "header_html"
         : tab === "footer" ? "footer_html"
           : "css";
 
+  // HTML compuesto para la vista previa en vivo (body + header/footer + CSS
+  // + @page). Los {{placeholders}} se resaltan como "campos" para que se
+  // distingan del contenido estático; se reemplazan por datos reales al
+  // generar el informe (flujo "Generar").
+  const previewHtml = useMemo(() => composePreviewHtml(value), [value]);
+
   const insertAtCursor = (snippet: string) => {
-    const field = fieldFor(activeTab);
-    const ref = refFor(activeTab).current;
+    // En la pestaña de vista previa no hay textarea donde insertar.
+    if (activeTab === "preview") return;
+    const tab: EditTab = activeTab;
+    const field = fieldFor(tab);
+    const ref = refFor(tab).current;
     if (!ref) return;
     const start = ref.selectionStart ?? 0;
     const end = ref.selectionEnd ?? 0;
@@ -81,7 +93,7 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
     onChange({ ...value, [field]: next });
     // Re-posicionar cursor al final del snippet insertado (next tick).
     requestAnimationFrame(() => {
-      const r = refFor(activeTab).current;
+      const r = refFor(tab).current;
       if (!r) return;
       const newPos = start + snippet.length;
       r.focus();
@@ -178,6 +190,10 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
                 <TabsTrigger value="header">Encabezado</TabsTrigger>
                 <TabsTrigger value="footer">Pie</TabsTrigger>
                 <TabsTrigger value="css">CSS</TabsTrigger>
+                <TabsTrigger value="preview">
+                  <Eye className="h-3.5 w-3.5 mr-1" />
+                  Vista previa
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="body" className="mt-2">
                 <Textarea
@@ -217,6 +233,26 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
                   className="font-mono text-sm min-h-[200px]"
                   placeholder="Estilos del informe (h1 { font-size: 18pt; })"
                   spellCheck={false}
+                />
+              </TabsContent>
+              {/* Vista previa en vivo: renderiza el documento (body + header/
+                  footer + CSS) tal como se verá. Para un Word importado se ve
+                  formateado; los {{campos}} se resaltan y se reemplazan por
+                  datos reales al Generar. sandbox="" = solo HTML/CSS, sin
+                  scripts (seguro para HTML de plantilla). */}
+              <TabsContent value="preview" className="mt-2">
+                <p className="text-[11px] text-muted-foreground mb-1.5">
+                  Así se verá el informe. Los{" "}
+                  <span className="font-mono bg-amber-100 text-amber-800 rounded px-1">
+                    {"{{campos}}"}
+                  </span>{" "}
+                  resaltados se reemplazan por los datos reales al Generar.
+                </p>
+                <iframe
+                  srcDoc={previewHtml}
+                  sandbox=""
+                  title="Vista previa del informe"
+                  className="w-full min-h-[440px] border rounded bg-white"
                 />
               </TabsContent>
             </Tabs>
@@ -313,6 +349,42 @@ ${draft.header_html ? `<header>${draft.header_html}</header>` : ""}
 <main>${draft.body_html}</main>
 ${draft.footer_html ? `<footer>${draft.footer_html}</footer>` : ""}
 </body></html>`;
+}
+
+// Estilo del resaltado de placeholders en la vista previa.
+const PH_PREVIEW_STYLE =
+  ".examlab-ph{background:#fef3c7;color:#92400e;border-radius:3px;padding:0 2px;" +
+  "font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.85em;white-space:nowrap;}";
+
+/**
+ * Resalta los `{{placeholders}}` que aparecen en CONTENIDO de texto (entre
+ * `>` y `<`) — nunca dentro de atributos de tag (ej. `src="{{logo}}"`), para
+ * no romper el HTML. Hace visibles los "campos" dinámicos sin necesidad de
+ * scripts en el iframe (puede ir con sandbox="").
+ */
+function highlightPlaceholders(html: string): string {
+  return html.replace(/>([^<]*)</g, (full: string, text: string) => {
+    if (!text.includes("{{")) return full;
+    const wrapped = text.replace(
+      /\{\{\{?[^{}]+\}?\}\}/g,
+      (tok: string) => `<span class="examlab-ph">${tok}</span>`,
+    );
+    return `>${wrapped}<`;
+  });
+}
+
+/**
+ * HTML para la VISTA PREVIA en vivo del editor: el documento compuesto, con
+ * los placeholders resaltados como campos. Para un .docx importado (sin
+ * placeholders todavía) se ve el documento formateado tal cual; a medida que
+ * el docente inserta variables, se ven resaltadas. Se reemplazan por datos
+ * reales al "Generar". Pensado para `<iframe srcDoc sandbox="">`.
+ */
+export function composePreviewHtml(
+  draft: Pick<TemplateDraft, "body_html" | "header_html" | "footer_html" | "css" | "page_orientation" | "page_size">,
+): string {
+  const styled = composeTemplateHtml(draft).replace("</style>", `${PH_PREVIEW_STYLE}\n</style>`);
+  return highlightPlaceholders(styled);
 }
 
 /**
