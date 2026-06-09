@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { CodeEditor, type CodeLanguage, getStarterCode } from "@/modules/code/CodeEditor";
+import { combineFilesForExec } from "@/modules/code/combine-files";
 import {
   Select,
   SelectContent,
@@ -512,6 +513,8 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
       const { data, error } = await supabase.functions.invoke("execute-code", {
         body: {
           files,
+          // `sourceCode` legacy para edges aún sin soporte multi-archivo.
+          sourceCode: combineFilesForExec(files, snippet.language),
           language: snippet.language,
           questionId: snippet.id,
         },

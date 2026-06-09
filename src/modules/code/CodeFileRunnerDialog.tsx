@@ -27,6 +27,7 @@ import {
 import { FileCode2 } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { combineFilesForExec } from "@/modules/code/combine-files";
 
 /** Mapea la extensión de un archivo a un lenguaje ejecutable. Devuelve null
  *  si la extensión no es código ejecutable por `execute-code`. */
@@ -80,9 +81,12 @@ export function CodeFileRunnerDialog({ file, onOpenChange, auditId }: Props) {
     }
     setRunning(true);
     try {
+      const files = [{ filename: file?.name ?? `main.${language}`, content: value }];
       const { data, error } = await supabase.functions.invoke("execute-code", {
         body: {
-          files: [{ filename: file?.name ?? `main.${language}`, content: value }],
+          files,
+          // `sourceCode` legacy para edges aún sin soporte multi-archivo.
+          sourceCode: combineFilesForExec(files, language),
           language,
           // Solo metadata de audit (el edge no lo valida como FK).
           questionId: auditId,

@@ -30,6 +30,7 @@ import { NotebookPen, Play, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { parseNotebook, notebookCodeToScript, countCodeCells } from "@/modules/code/notebook";
+import { combineFilesForExec } from "@/modules/code/combine-files";
 
 interface NotebookFileLike {
   name: string;
@@ -68,9 +69,12 @@ export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
     }
     setRunning(true);
     try {
+      const files = [{ filename: "notebook.py", content: script }];
       const { data, error } = await supabase.functions.invoke("execute-code", {
         body: {
-          files: [{ filename: "notebook.py", content: script }],
+          files,
+          // `sourceCode` legacy para edges aún sin soporte multi-archivo.
+          sourceCode: combineFilesForExec(files, "python"),
           language: "python",
           questionId: auditId,
         },
