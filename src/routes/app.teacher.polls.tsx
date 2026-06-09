@@ -52,6 +52,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDialog";
 import {
   Select,
   SelectContent,
@@ -201,6 +202,8 @@ function TeacherPolls() {
   const [editPoll, setEditPoll] = useState<Poll | null>(null);
   // Detalle de resultados.
   const [viewPoll, setViewPoll] = useState<Poll | null>(null);
+  // Encuesta a duplicar — abre el DuplicatePollDialog parametrizable.
+  const [duplicateFor, setDuplicateFor] = useState<Poll | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -431,19 +434,13 @@ function TeacherPolls() {
     setRetryNonce((n) => n + 1);
   };
 
-  /** Duplica la ESTRUCTURA de una encuesta (opciones, cupos, cursos y
-   *  configuración) SIN copiar respuestas. La copia queda como borrador
-   *  (is_published=false) para que el docente la revise antes de publicar;
-   *  no hereda la ventana de cierre ni el vínculo a la sesión original. */
-  const duplicatePoll = async (p: Poll) => {
+  /** Duplica la ESTRUCTURA de una encuesta (config + opcionalmente opciones
+   *  y cursos asociados) SIN copiar respuestas. La copia queda como
+   *  borrador (is_published=false); no hereda la ventana de cierre ni el
+   *  vínculo a la sesión original. Parametrizable vía `opts` desde el
+   *  DuplicatePollDialog (qué info interna copiar). */
+  const duplicatePoll = async (p: Poll, opts: { copyOptions: boolean; copyCourses: boolean }) => {
     if (!user) return;
-    const ok = await confirm({
-      title: `Duplicar "${p.title}"`,
-      description:
-        "Se crea una copia con la misma estructura (opciones, cupos, cursos y configuración) pero SIN respuestas. La copia queda como borrador para que la revises y la publiques cuando quieras.",
-      confirmLabel: "Duplicar",
-    });
-    if (!ok) return;
     try {
       const { data: newPoll, error: pErr } = await db
         .from("polls")
@@ -467,35 +464,43 @@ function TeacherPolls() {
         return;
       }
       // El trigger AFTER INSERT en polls ya creó el row ancla en
-      // poll_courses; el upsert con ignoreDuplicates agrega los demás
-      // cursos sin chocar (mismo patrón que el create multi-curso).
-      const linkedIds = (p.linked_courses ?? []).map((c) => c.id);
-      const courseIds = linkedIds.length > 0 ? linkedIds : [p.course_id];
-      const { error: jErr } = await db
-        .from("poll_courses")
-        .upsert(
-          courseIds.map((cid) => ({ poll_id: newPoll.id, course_id: cid })),
-          { onConflict: "poll_id,course_id", ignoreDuplicates: true },
-        );
-      if (jErr) {
-        await db.from("polls").delete().eq("id", newPoll.id);
-        toast.error(friendlyError(jErr, "No se pudieron asociar los cursos a la copia"));
-        return;
-      }
-      // Opciones: copiamos estructura (label + cupo). responses_count
-      // arranca en 0 por default — la copia nace sin votos.
-      const optsPayload = (p.options ?? []).map((o, i) => ({
-        poll_id: newPoll.id,
-        label: o.label,
-        position: i,
-        max_responses: o.max_responses,
-      }));
-      if (optsPayload.length > 0) {
-        const { error: oErr } = await db.from("poll_options").insert(optsPayload);
-        if (oErr) {
+      // poll_courses (curso = p.course_id). Si el docente pidió copiar los
+      // cursos asociados, agregamos los demás con upsert ignoreDuplicates
+      // (mismo patrón que el create multi-curso). Si NO, la copia queda
+      // solo en el curso ancla.
+      if (opts.copyCourses) {
+        const linkedIds = (p.linked_courses ?? []).map((c) => c.id);
+        const courseIds = linkedIds.length > 0 ? linkedIds : [p.course_id];
+        const { error: jErr } = await db
+          .from("poll_courses")
+          .upsert(
+            courseIds.map((cid) => ({ poll_id: newPoll.id, course_id: cid })),
+            { onConflict: "poll_id,course_id", ignoreDuplicates: true },
+          );
+        if (jErr) {
           await db.from("polls").delete().eq("id", newPoll.id);
-          toast.error(friendlyError(oErr, "No se pudieron copiar las opciones"));
+          toast.error(friendlyError(jErr, "No se pudieron asociar los cursos a la copia"));
           return;
+        }
+      }
+      // Opciones: copiamos estructura (label + cupo) solo si el docente lo
+      // pidió. responses_count arranca en 0 por default — la copia nace sin
+      // votos. Si NO se copian, la copia queda como borrador sin opciones
+      // (el docente las define antes de publicar).
+      if (opts.copyOptions) {
+        const optsPayload = (p.options ?? []).map((o, i) => ({
+          poll_id: newPoll.id,
+          label: o.label,
+          position: i,
+          max_responses: o.max_responses,
+        }));
+        if (optsPayload.length > 0) {
+          const { error: oErr } = await db.from("poll_options").insert(optsPayload);
+          if (oErr) {
+            await db.from("polls").delete().eq("id", newPoll.id);
+            toast.error(friendlyError(oErr, "No se pudieron copiar las opciones"));
+            return;
+          }
         }
       }
       toast.success(
@@ -750,7 +755,7 @@ function TeacherPolls() {
                                 onClick: () => void sharePoll(p),
                               },
                               { label: "Editar", icon: Pencil, onClick: () => setEditPoll(p) },
-                              { label: "Duplicar", icon: Copy, onClick: () => void duplicatePoll(p) },
+                              { label: "Duplicar", icon: Copy, onClick: () => setDuplicateFor(p) },
                               {
                                 label: p.closed_manually ? "Reabrir" : "Cerrar",
                                 icon: p.closed_manually ? Unlock : Lock,
@@ -795,6 +800,42 @@ function TeacherPolls() {
         }}
       />
       <ResultsDialog poll={viewPoll} onOpenChange={(open) => !open && setViewPoll(null)} />
+      <DuplicateOptionsDialog
+        open={duplicateFor !== null}
+        onOpenChange={(open) => !open && setDuplicateFor(null)}
+        title="Duplicar encuesta"
+        description={
+          <>
+            Se crea una copia como <strong>borrador</strong>, SIN respuestas y sin la ventana de
+            cierre ni el vínculo a la sesión del original. Elige qué información interna copiar.
+          </>
+        }
+        options={[
+          {
+            param: "copyOptions",
+            label: `Copiar opciones y cupos${
+              (duplicateFor?.options?.length ?? 0) > 0 ? ` (${duplicateFor?.options?.length})` : ""
+            }`,
+            hint: "Clona las opciones con su cupo. Si lo desmarcas, la copia queda sin opciones (las defines antes de publicar).",
+          },
+          {
+            param: "copyCourses",
+            label: `Copiar cursos asociados${
+              (duplicateFor?.linked_courses?.length ?? 0) > 1
+                ? ` (${duplicateFor?.linked_courses?.length})`
+                : ""
+            }`,
+            hint: "Mantiene los mismos cursos. Si lo desmarcas, la copia queda solo en el curso ancla del original.",
+          },
+        ]}
+        onConfirm={async (flags) => {
+          if (duplicateFor)
+            await duplicatePoll(duplicateFor, {
+              copyOptions: flags.copyOptions !== false,
+              copyCourses: flags.copyCourses !== false,
+            });
+        }}
+      />
     </div>
   );
 }

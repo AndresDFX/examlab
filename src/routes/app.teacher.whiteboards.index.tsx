@@ -53,7 +53,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Palette, Globe, Lock, BookOpen } from "lucide-react";
+import { Plus, Trash2, Palette, Globe, Lock, BookOpen, Copy } from "lucide-react";
+import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDialog";
 import { StatCard } from "@/components/ui/stat-card";
 import { HelpHint } from "@/components/ui/help-hint";
 import { formatDate } from "@/shared/lib/format";
@@ -255,6 +256,8 @@ function TeacherWhiteboards() {
   // todas las páginas del filtro activo.
   const sel = useMultiSelect(filteredAndSorted);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  // Pizarra a duplicar — abre el DuplicateOptionsDialog parametrizable.
+  const [duplicateFor, setDuplicateFor] = useState<Whiteboard | null>(null);
   const bulkDeleteWhiteboards = async (ids: string[]) => {
     if (ids.length === 0) return;
     const { error } = await softDeleteMany("whiteboards", ids);
@@ -367,6 +370,73 @@ function TeacherWhiteboards() {
       // rejections del network/RLS y mostrar toast amigable.
       toast.error(friendlyError(e, "No se pudo eliminar la pizarra"));
     }
+  };
+
+  /** Duplica una pizarra: crea una fila nueva (mía, en borrador de
+   *  contenido) y, según los flags, copia las hojas (whiteboard_pages) y la
+   *  asociación al curso. NUNCA copia el vínculo a la sesión (es de la
+   *  instancia puntual de clase) ni el flag de compartida. Lanza si algo
+   *  falla — el DuplicateOptionsDialog lo captura y muestra el toast. */
+  const duplicateWhiteboard = async (
+    w: Whiteboard,
+    opts: { copyContent: boolean; copyCourse: boolean },
+  ) => {
+    if (!user) return;
+    const payload: Record<string, unknown> = {
+      owner_id: user.id,
+      name: `Copia de ${w.name}`,
+      description: w.description,
+    };
+    if (opts.copyCourse && w.course_id) payload.course_id = w.course_id;
+    const { data: created, error: insErr } = await db
+      .from("whiteboards")
+      .insert(payload)
+      .select("id")
+      .single();
+    if (insErr || !created?.id) throw insErr ?? new Error("insert failed");
+    const newId = created.id as string;
+
+    if (opts.copyContent) {
+      const { data: pages, error: pagesErr } = await db
+        .from("whiteboard_pages")
+        .select("position, name, scene_json, page_type")
+        .eq("whiteboard_id", w.id)
+        .order("position");
+      if (pagesErr) {
+        // Rollback: dejamos la pizarra sin contenido en vez de a medias.
+        await db.from("whiteboards").delete().eq("id", newId);
+        throw pagesErr;
+      }
+      const rows = (pages ?? []) as Array<{
+        position: number;
+        name: string | null;
+        scene_json: unknown;
+        page_type: string | null;
+      }>;
+      if (rows.length > 0) {
+        const { error: copyErr } = await db.from("whiteboard_pages").insert(
+          rows.map((p) => ({
+            whiteboard_id: newId,
+            position: p.position,
+            name: p.name,
+            scene_json: p.scene_json,
+            page_type: p.page_type,
+          })),
+        );
+        if (copyErr) {
+          await db.from("whiteboards").delete().eq("id", newId);
+          throw copyErr;
+        }
+      }
+    }
+
+    toast.success(
+      i18n.t("toast.routes_app_teacher_whiteboards_index.duplicated", {
+        defaultValue: 'Pizarra duplicada: "{{name}}"',
+        name: `Copia de ${w.name}`,
+      }),
+    );
+    setRetryNonce((n) => n + 1);
   };
 
   if (loadError) {
@@ -540,7 +610,16 @@ function TeacherWhiteboards() {
                           reciba el click (el padre del flex lo ignora
                           para que el Link de abajo capture el click en
                           el área vacía). */}
-                      <span className="shrink-0 -mt-2 -mr-2 pointer-events-auto">
+                      <span className="shrink-0 -mt-2 -mr-2 pointer-events-auto flex items-center">
+                        <RowAction
+                          label="Duplicar"
+                          icon={Copy}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setDuplicateFor(w);
+                          }}
+                        />
                         <RowAction
                           label="Eliminar"
                           icon={Trash2}
@@ -690,6 +769,39 @@ function TeacherWhiteboards() {
         entityNameSingular="pizarra"
         entityNamePlural="pizarras"
         onConfirm={bulkDeleteWhiteboards}
+      />
+
+      <DuplicateOptionsDialog
+        open={duplicateFor !== null}
+        onOpenChange={(o) => !o && setDuplicateFor(null)}
+        title="Duplicar pizarra"
+        description={
+          <>
+            Crea una copia tuya de la pizarra. NO se copia el vínculo a una sesión ni el estado
+            de compartida. Elige qué información interna copiar.
+          </>
+        }
+        options={[
+          {
+            param: "copyContent",
+            label: "Copiar contenido (hojas y dibujos)",
+            hint: "Clona todas las hojas del pizarrón. Si lo desmarcas, la copia nace en blanco con el mismo nombre.",
+          },
+          {
+            param: "copyCourse",
+            label: "Copiar asociación al curso",
+            hint: duplicateFor?.course_id
+              ? "Mantiene el mismo curso. Si lo desmarcas, la copia queda sin curso (personal)."
+              : "Esta pizarra no está asociada a un curso.",
+          },
+        ]}
+        onConfirm={async (flags) => {
+          if (duplicateFor)
+            await duplicateWhiteboard(duplicateFor, {
+              copyContent: flags.copyContent !== false,
+              copyCourse: flags.copyCourse !== false,
+            });
+        }}
       />
     </div>
   );
