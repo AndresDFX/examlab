@@ -24,6 +24,7 @@ import { KeyRound, ShieldAlert } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { logEvent } from "@/shared/lib/audit";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { requestBrowserSaveCredential } from "@/shared/lib/credential-store";
 import i18n from "@/i18n";
 
 interface Props {
@@ -88,6 +89,14 @@ export function ForceChangePasswordDialog({ userId, onChanged, onSignOut }: Prop
         severity: "warning",
         metadata: { self: true, forced: true },
       });
+      // Ofrecer al navegador GUARDAR/ACTUALIZAR la contraseña REAL recién
+      // elegida. Acá el heurístico del form NO alcanza: el submit es
+      // preventDefault y el diálogo solo se DESMONTA (sin navegación), así
+      // que sin esto el navegador se quedaría con la contraseña temporal (o
+      // con nada). store() dispara la burbuja nativa de "actualizar". Es un
+      // no-op fuera de Chromium. Lo hacemos ANTES de onChanged() (que
+      // desmonta el diálogo) para que el input password siga vivo.
+      await requestBrowserSaveCredential(username, newPassword);
       toast.success(i18n.t("toast.modules_auth_ForceChangePasswordDialog.passwordUpdated", { defaultValue: "Contraseña actualizada. ¡Bienvenido!" }));
       await onChanged();
     } finally {

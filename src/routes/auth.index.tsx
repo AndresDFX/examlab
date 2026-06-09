@@ -29,6 +29,7 @@ import { GraduationCap, KeyRound, Mail, Eye, EyeOff, Building2, Chrome } from "l
 import { Spinner } from "@/components/ui/spinner";
 import { getTenantSlugFromUrl } from "@/modules/tenants/url";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { requestBrowserSaveCredential } from "@/shared/lib/credential-store";
 
 export const Route = createFileRoute("/auth/")({
   head: () => ({
@@ -389,6 +390,13 @@ function AuthPage() {
           /* ignore */
         }
       }
+
+      // Disparamos el prompt nativo de "¿Guardar contraseña?" del navegador
+      // ANTES de navegar. Es lo que faltaba para que, al entrar con una
+      // cuenta nueva, Chrome/Edge ofrezcan guardarla (el heurístico de form
+      // por sí solo no lo hace en este flujo SPA). Awaiteado para que la
+      // burbuja quede encolada; el redirect siguiente la muestra.
+      await requestBrowserSaveCredential(email, password);
       window.location.href = "/app";
     } catch (err) {
       console.error("[auth] post-login validation failed", err);

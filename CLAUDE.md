@@ -478,6 +478,13 @@ Los usuarios los crea el Admin/SuperAdmin con contraseña temporal. En su primer
 - **`useAuth` Profile** incluye `must_change_password?: boolean` (el `select("*")` ya lo trae; opcional en el type por compat con entornos sin la migración).
 - **No es control de seguridad** (un cliente podría flipear el flag por API) — es un nudge de UX. La sesión ya es válida; lo que forzamos es el cambio de la contraseña temporal.
 
+### Guardar contraseña en el navegador — Credential Management API ([credential-store.ts](src/shared/lib/credential-store.ts))
+
+ExamLab es una SPA: el login (`signInWithPassword` + `window.location.href`) y el cambio forzado (`updateUser` + desmontar el diálogo, SIN navegar) evitan el "submit de form real + navegación" del que depende el heurístico de Chrome para ofrecer **guardar contraseña**. Síntoma: al ENTRAR con una cuenta nueva el navegador no ofrecía guardarla (las ya guardadas se autocompletaban, por eso solo se notaba con cuentas nuevas). Fix: `requestBrowserSaveCredential(email, password)` llama `navigator.credentials.store(new PasswordCredential(...))` para disparar la burbuja nativa explícitamente.
+
+- Se llama en [auth.index.tsx](src/routes/auth.index.tsx) `onLogin` (solo en el camino válido, ANTES de `window.location.href` — awaiteado para que la burbuja quede encolada y Chrome la muestre tras el redirect) y en [ForceChangePasswordDialog](src/modules/auth/ForceChangePasswordDialog.tsx) tras `updateUser` (ANTES de `onChanged()`, que desmonta el diálogo — así el navegador actualiza la credencial a la contraseña REAL en vez de quedarse con la temporal).
+- Feature-detected + try/catch: `PasswordCredential` es Chromium-only (Firefox/Safari caen al heurístico del form, que ya tiene `autoComplete` username/current-password/new-password); en contextos http (no seguros) y SSR es no-op. Los `autoComplete` + el `<form>` se mantienen como fallback — NO quitarlos.
+
 ### Notificaciones realtime + push
 
 `use-notifications.ts` hace polling cada 15s + Supabase realtime + refetch al volver al tab. Toast aparece en first-load detection. Set de IDs a nivel de módulo deduplica entre múltiples instancias del hook (sidebar bell + mobile header bell + dashboard). Si tab oculto, push via Service Worker.
