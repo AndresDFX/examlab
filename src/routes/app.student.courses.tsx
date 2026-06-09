@@ -27,9 +27,14 @@ import {
   CheckSquare,
   Copy,
   MessageSquareText,
+  Play,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
+import {
+  CodeFileRunnerDialog,
+  codeLanguageForFile,
+} from "@/modules/code/CodeFileRunnerDialog";
 import { formatDateOnly, formatWeekdayName } from "@/shared/lib/format";
 import { Spinner } from "@/components/ui/spinner";
 import { SectionLoader } from "@/components/ui/loaders";
@@ -357,6 +362,8 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
   const [downloadingPath, setDownloadingPath] = useState<string | null>(null);
   // Archivo .md/.txt seleccionado para preview inline (sin descargar).
   const [previewFile, setPreviewFile] = useState<ContentFileEntry | null>(null);
+  // Archivo de código (.java/.py/.js) seleccionado para ver + ejecutar.
+  const [runCodeFile, setRunCodeFile] = useState<ContentFileEntry | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -640,6 +647,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
               contents={contents}
               onDownload={downloadFile}
               onPreview={setPreviewFile}
+              onRunCode={setRunCodeFile}
               downloadingPath={downloadingPath}
             />
           )}
@@ -653,11 +661,21 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
               contents={contents}
               onDownload={downloadFile}
               onPreview={setPreviewFile}
+              onRunCode={setRunCodeFile}
               downloadingPath={downloadingPath}
             />
           )}
         </>
       )}
+
+      {/* Visor + runner de archivos de código (.java/.py/.js) subidos por
+          el docente en Contenidos y asignados a la sesión. Lee el `body`
+          inline; ejecuta via el edge execute-code (mismo pipeline que los
+          snippets de sesión). */}
+      <CodeFileRunnerDialog
+        file={runCodeFile}
+        onOpenChange={(o) => !o && setRunCodeFile(null)}
+      />
 
       {/* Preview inline de archivos .md/.txt — usa el body que viaja en
           generated_contents.files (JSONB), evita un round-trip a Storage. */}
@@ -720,6 +738,7 @@ function SessionGroup({
   contents,
   onDownload,
   onPreview,
+  onRunCode,
   downloadingPath,
 }: {
   title: string;
@@ -730,6 +749,7 @@ function SessionGroup({
   contents: Record<string, ContentRow>;
   onDownload: (file: ContentFileEntry, topic: string) => Promise<void>;
   onPreview: (file: ContentFileEntry) => void;
+  onRunCode: (file: ContentFileEntry) => void;
   downloadingPath: string | null;
 }) {
   const { t } = useTranslation();
@@ -789,8 +809,40 @@ function SessionGroup({
                     {files.map((f) => {
                       const busy = downloadingPath === f.path;
                       const canPreview = (f.kind === "md" || f.kind === "txt") && !!f.body;
+                      // Archivo de código subido (.java/.py/.js) con su texto
+                      // inline en body → se puede ver + ejecutar en la sesión.
+                      const canRunCode = !!codeLanguageForFile(f.name) && !!f.body;
                       const TypeIcon = iconForFile(f);
                       const label = humanLabelForFile(f);
+                      if (canRunCode) {
+                        return (
+                          <div
+                            key={f.path}
+                            className="inline-flex rounded-md border overflow-hidden"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => onRunCode(f)}
+                              className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
+                              title={`${f.name} — Ver y ejecutar`}
+                              aria-label={`${f.name} — Ver y ejecutar`}
+                            >
+                              <Play className="h-3.5 w-3.5 text-indigo-500" />
+                              <span className="truncate max-w-[120px]">{f.name}</span>
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => onDownload(f, content?.topic ?? s.title ?? "Material")}
+                              className="flex items-center justify-center w-8 h-8 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
+                              title={`${f.name} — ${t("contents.downloadHint")}`}
+                              aria-label={`${f.name} — ${t("contents.downloadHint")}`}
+                            >
+                              {busy ? <Spinner size="xs" /> : <Download className="h-3.5 w-3.5" />}
+                            </button>
+                          </div>
+                        );
+                      }
                       if (canPreview) {
                         return (
                           <div

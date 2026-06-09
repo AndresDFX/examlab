@@ -105,7 +105,23 @@ const ACCEPTED_EXTENSIONS = [
   ".webp",
   ".svg",
   ".zip",
+  // Archivos de código: el alumno los ve y ejecuta en la sesión (Java /
+  // Python / JavaScript via el edge execute-code). Se sube el archivo a
+  // Storage Y se guarda su texto inline en `files[].body` para poder
+  // mostrarlos/ejecutarlos sin un round-trip a Storage.
+  ".java",
+  ".py",
+  ".js",
 ];
+
+/** Extensiones cuyo CONTENIDO de texto guardamos inline en `files[].body`
+ *  (además del objeto en Storage). Incluye los archivos de código
+ *  ejecutables — el visor/runner de la sesión los lee de `body`. Los
+ *  binarios (pdf/pptx/imágenes/zip) NO entran acá. */
+const INLINE_BODY_EXTENSIONS = [".java", ".py", ".js"];
+/** Tope de chars del body inline — los archivos de código son chicos; esto
+ *  evita inflar la fila JSON si alguien sube algo enorme con esa extensión. */
+const MAX_INLINE_BODY_CHARS = 200_000;
 
 interface CourseOption {
   id: string;
@@ -373,7 +389,7 @@ export function UploadExternalContentDialog({
     //    abortamos los otros — el docente recibe parcial y puede
     //    reintentar los fallados. Al final actualizamos `files` JSON
     //    con SOLO los que subieron bien.
-    const uploaded: Array<{ name: string; path: string; kind: string }> = [];
+    const uploaded: Array<{ name: string; path: string; kind: string; body?: string }> = [];
     const failed: string[] = [];
     for (const f of files) {
       const safeName = slugifyFilename(f.name);
@@ -386,6 +402,21 @@ export function UploadExternalContentDialog({
         console.warn("[upload-external] failed:", path, upErr);
         failed.push(f.name);
       } else {
+        // Para archivos de código (.java/.py/.js) leemos el texto y lo
+        // guardamos inline en `body` — así el visor/runner de la sesión los
+        // muestra y ejecuta sin descargar de Storage. Best-effort: si la
+        // lectura falla, el archivo igual queda subido (sin body → no
+        // ejecutable, pero descargable).
+        const lower = f.name.toLowerCase();
+        let body: string | undefined;
+        if (INLINE_BODY_EXTENSIONS.some((ext) => lower.endsWith(ext))) {
+          try {
+            const text = await f.text();
+            body = text.length > MAX_INLINE_BODY_CHARS ? text.slice(0, MAX_INLINE_BODY_CHARS) : text;
+          } catch {
+            /* sin body — degrada a descargable */
+          }
+        }
         uploaded.push({
           name: f.name,
           path,
@@ -393,6 +424,7 @@ export function UploadExternalContentDialog({
           // ("pptx-source", "md", "txt"). El viewer del estudiante puede
           // mapear por extensión del path para mostrar el ícono correcto.
           kind: "uploaded",
+          ...(body !== undefined ? { body } : {}),
         });
       }
       setProgress((p) => ({ ...p, done: p.done + 1 }));
