@@ -212,6 +212,24 @@ export function extractContentText(
   return out;
 }
 
+/** Extensiones cuyo `body` NO sirve como título de clase: notebooks (JSON),
+ *  código fuente, JSON/ZIP/CSV. Para esos no extraemos título de su body. */
+const NON_TITLE_EXT_RE = /\.(ipynb|py|java|js|mjs|cjs|ts|tsx|json|zip|csv)$/i;
+
+/**
+ * ¿El `body` de este archivo es texto legible apto para extraer un título
+ * de clase? Excluye notebooks/código (su body es JSON/código, no un
+ * encabezado) y cualquier body que arranque con "{" (JSON suelto) — sin
+ * esto, un `.ipynb` subido mostraba `{"nbformat":4,…}` como título de la
+ * clase en el visor "archivos por clase".
+ */
+function isTitleSourceFile(f: ContentFile): boolean {
+  if (!f.body) return false;
+  if (NON_TITLE_EXT_RE.test(f.name)) return false;
+  if (f.body.trimStart().startsWith("{")) return false;
+  return true;
+}
+
 /**
  * Variante que recibe el bucket de archivos ya agrupados, sin intentar
  * re-detectar el classNumber desde el filename. Util cuando el
@@ -220,8 +238,8 @@ export function extractContentText(
  */
 export function extractClassTitleFromBucket(files: ContentFile[]): string | null {
   for (const f of files) {
-    if (!f.body) continue;
-    const lines = f.body.split(/\r?\n/);
+    if (!isTitleSourceFile(f)) continue;
+    const lines = f.body!.split(/\r?\n/);
     for (const line of lines) {
       const t = line.trim();
       if (!t) continue;
@@ -251,8 +269,8 @@ export function extractClassTitleFromBucket(files: ContentFile[]): string | null
 export function extractClassTitle(files: ContentFile[], classNumber: number): string | null {
   const filtered = files.filter((f) => classNumberFromFilename(f.name) === classNumber);
   for (const f of filtered) {
-    if (!f.body) continue;
-    const lines = f.body.split(/\r?\n/);
+    if (!isTitleSourceFile(f)) continue;
+    const lines = f.body!.split(/\r?\n/);
     for (const line of lines) {
       const t = line.trim();
       if (!t) continue;

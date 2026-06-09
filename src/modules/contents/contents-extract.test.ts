@@ -274,6 +274,26 @@ describe("extractClassTitle", () => {
     ];
     expect(extractClassTitle(files, 2)).toBe("Tema clase 2");
   });
+
+  it("NO usa el JSON de un .ipynb como título (cae a null)", () => {
+    const files: ContentFile[] = [
+      F("notebook_CLASE_6.ipynb", '{"nbformat":4,"nbformat_minor":0,"cells":[]}'),
+    ];
+    expect(extractClassTitle(files, 6)).toBeNull();
+  });
+
+  it("ignora bodies que arrancan con { (JSON) aunque la extensión no sea .ipynb", () => {
+    const files: ContentFile[] = [F("data_CLASE_7.MD", '{"foo":"bar"}')];
+    expect(extractClassTitle(files, 7)).toBeNull();
+  });
+
+  it("usa el .md de la clase cuando hay notebook + guía juntos", () => {
+    const files: ContentFile[] = [
+      F("nb_CLASE_8.ipynb", '{"nbformat":4}'),
+      F("GUIA_CLASE_8.MD", "# Herencia y polimorfismo\n\n..."),
+    ];
+    expect(extractClassTitle(files, 8)).toBe("Herencia y polimorfismo");
+  });
 });
 
 describe("extractClassTitleFromBucket", () => {
