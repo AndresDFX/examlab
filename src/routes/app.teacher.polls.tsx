@@ -85,6 +85,7 @@ import {
   Link2,
 } from "lucide-react";
 import { usePollRealtime } from "@/modules/polls/use-poll-realtime";
+import { optionFillPercent } from "@/modules/polls/poll-results";
 import { cn } from "@/shared/lib/utils";
 import { softDelete } from "@/modules/trash/soft-delete";
 import { useTranslation } from "react-i18next";
@@ -2340,17 +2341,14 @@ function ResultsDialog({
           <div className="space-y-2">
             {options.map((o) => {
               // En encuestas de CUPO (slot) la barra/porcentaje miden el
-              // LLENADO DEL CUPO de la opción (responses_count / max_responses),
-              // no la cuota sobre el total de votos — así una opción con cupo
-              // lleno (ej. 1/1) se ve al 100% (completa), no al 20%. En single/
-              // multiple sí medimos la cuota sobre el total de respuestas.
-              const isSlot = poll.poll_type === "slot";
-              const cap = o.max_responses ?? 0;
-              const cupoPct = cap > 0 ? Math.min(100, Math.round((o.responses_count / cap) * 100)) : 0;
-              const sharePct = total > 0 ? Math.round((o.responses_count / total) * 100) : 0;
-              const pct = isSlot ? cupoPct : sharePct;
-              const showPct = isSlot ? cap > 0 : total > 0;
-              const slotFull = isSlot && cap > 0 && o.responses_count >= cap;
+              // LLENADO DEL CUPO de la opción; en single/multiple, la cuota
+              // sobre el total. Lógica pura testeada en poll-results.test.ts.
+              const { pct, full: slotFull, showPct } = optionFillPercent({
+                pollType: poll.poll_type,
+                responsesCount: o.responses_count,
+                maxResponses: o.max_responses,
+                totalResponses: total,
+              });
               const voters = respondents.filter((r) => r.option_id === o.id);
               return (
                 <div key={o.id} className="space-y-1">
