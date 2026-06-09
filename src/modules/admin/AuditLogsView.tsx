@@ -78,242 +78,74 @@ type AuditLog = {
 
 // ─── Catálogos de etiquetas ────────────────────────────────────────────────────
 
-// Mapa completo de `action` → etiqueta humana. Lo agrupamos por
-// dominio (CRUD, entregas, IA, fraude, etc.) para que sea fácil revisar
-// si falta alguno y editar de un vistazo. Si un evento entra a `audit_logs`
-// sin entrada en este mapa, el grid lo muestra con el string crudo
-// (`ai.grading_started` en vez de "Calificación IA iniciada") — lo cual
-// es perfectamente válido como fallback, pero menos legible.
-const ACTION_LABELS: Record<string, string> = {
-  // ── Exámenes — CRUD + ciclo de vida ──
-  "exam.created": "Examen creado",
-  "exam.updated": "Examen actualizado",
-  "exam.deleted": "Examen eliminado",
-  "exam.bulk_deleted": "Exámenes eliminados (masivo)",
-  "exam.published": "Examen publicado",
-  "exam.closed": "Examen cerrado",
-  "exam.duplicated": "Examen duplicado",
-
-  // ── Talleres — CRUD ──
-  "workshop.created": "Taller creado",
-  "workshop.updated": "Taller actualizado",
-  "workshop.deleted": "Taller eliminado",
-  "workshop.bulk_deleted": "Talleres eliminados (masivo)",
-
-  // ── Proyectos — CRUD ──
-  "project.created": "Proyecto creado",
-  "project.updated": "Proyecto actualizado",
-  "project.deleted": "Proyecto eliminado",
-  "project.bulk_deleted": "Proyectos eliminados (masivo)",
-
-  // ── Cursos ──
-  "course.created": "Curso creado",
-  "course.updated": "Curso actualizado",
-  "course.deleted": "Curso eliminado",
-
-  // ── Institución — programas, periodos, asignaturas, actas ──
-  "program.created": "Programa creado",
-  "program.updated": "Programa actualizado",
-  "program.deleted": "Programa eliminado",
-  "program.toggled": "Programa activado/desactivado",
-  "period.created": "Periodo creado",
-  "period.updated": "Periodo actualizado",
-  "period.closed": "Periodo cerrado",
-  "period.reopened": "Periodo reabierto",
-  "period.deleted": "Periodo eliminado",
-  "subject.created": "Asignatura creada",
-  "subject.updated": "Asignatura actualizada",
-  "subject.deleted": "Asignatura eliminada",
-  "acta.generated": "Acta oficial generada",
-  "acta.deleted": "Acta oficial eliminada",
-
-  // ── Matrículas ──
-  "enrollment.added": "Estudiante matriculado",
-  "enrollment.removed": "Estudiante desmatriculado",
-  "enrollment.bulk_added": "Matriculación masiva",
-
-  // ── Entregas de examen ──
-  "submission.exam.started": "Examen iniciado",
-  "submission.exam.submitted": "Examen entregado",
-  "submission.exam.graded": "Examen calificado",
-  "submission.exam.grade_updated": "Nota de examen actualizada",
-  "submission.exam.flagged_suspicious": "Examen marcado sospechoso",
-  // Eventos crudos del flujo de toma de examen (app.student.take). El
-  // trigger SQL persiste el equivalente `submission.exam.*` cuando
-  // cambia el row, pero el cliente además registra estos con metadata
-  // extra (focusWarnings, stage de pantalla completa, etc.). Las
-  // entradas viejas siguen apareciendo con el slug snake_case original
-  // — las mapeamos a labels legibles en lugar de renombrar para no
-  // perder histórico.
-  exam_started: "Examen iniciado",
-  exam_submitted: "Examen entregado",
-  exam_suspended: "Examen suspendido",
-  exam_fullscreen_denied: "Pantalla completa rechazada",
-
-  // ── Entregas de taller ──
-  "submission.workshop.submitted": "Taller entregado",
-  "submission.workshop.graded": "Taller calificado",
-  "submission.workshop.updated_in_progress": "Taller editado en progreso",
-
-  // ── Entregas de proyecto ──
-  "submission.project.submitted": "Proyecto entregado",
-  "submission.project.graded": "Proyecto calificado",
-  "submission.project.updated_in_progress": "Proyecto editado en progreso",
-
-  // ── Calificación manual (docente sobreescribe IA) ──
-  "grade.manual_override": "Nota manual guardada",
-  "grade.manual_cleared": "Nota manual eliminada",
-  "grading.ai_triggered": "Calificación IA iniciada",
-  "grading.grade_override": "Nota manual guardada",
-  "grading.defense_saved": "Sustentación guardada",
-  "grading.manual_save": "Calificación manual guardada",
-
-  // ── IA — generación + calificación ──
-  "ai.grading_started": "Calificación IA iniciada",
-  "ai.grading_failed": "Error de IA — calificación",
-  "ai.questions_generation_failed": "Error de IA — generación de preguntas",
-  "ai_grading.completed": "Calificación IA completada",
-  "ai_questions.generated": "Preguntas generadas con IA",
-  "ai_plagiarism.detected": "Plagio detectado por IA",
-  "ai.grading_retry_run": "Reintento automático de calificación IA",
-  "ai.grading_retry_run_failed": "Reintento automático de calificación IA falló",
-  // Ciclo de vida de un job en `ai_grading_queue` (módulo Cola). El
-  // enqueue lo dispara `aiGradeOrEnqueue` del cliente; los demás los
-  // dispara el worker (server-side, actor_id null = "sistema") o el
-  // docente desde el módulo Cola → tab IA.
-  "ai_grading.job_enqueued": "Job IA encolado",
-  "ai_grading.job_completed": "Job IA completado",
-  "ai_grading.job_failed": "Job IA falló",
-  "ai_grading.job_discarded_cancelled": "Job IA descartado (cancelado a mitad)",
-  "ai_grading.job_cancelled": "Job IA cancelado",
-  "ai_grading.job_processed_manual": "Job IA procesado manualmente",
-  "ai_grading.job_requeued": "Job IA re-encolado",
-  "ai_grading.jobs_cancelled_bulk": "Jobs IA cancelados en lote",
-  // ── Ejecución de código (compilador remoto) ──
-  "code.executed": "Código ejecutado",
-  "code.compile_error": "Error de compilación",
-  "code.execute_failed": "Error de IA — compilador",
-  // Disparado desde el cliente (app.student.take) cuando el invoke de
-  // execute-code falla (HTTP no-2xx o excepción de red).
-  code_execution_error: "Error ejecutando código",
-
-  // ── Fraude / integridad ──
-  "fraud.plagiarism_run": "Análisis de plagio ejecutado",
-  "fraud.plagiarism_detection_started": "Detección de plagio iniciada",
-  "fraud.plagiarism_detected": "Detección de plagio completada",
-  "fraud.plagiarism_detection_failed": "Detección de plagio fallida",
-  "fraud.manual_flag": "Marcado como fraude manualmente",
-  "fraud.warnings_cleared_all": "Advertencias borradas",
-
-  // ── Asistencia (check-in con QR) ──
-  "attendance.checkin_opened": "Check-in de asistencia abierto",
-  "attendance.checkin_closed": "Check-in de asistencia cerrado",
-  "attendance.pending_marked_absent": "Pendientes marcados como ausentes",
-
-  // ── Contenidos (módulo Contenidos del docente) ──
-  "content.generated": "Contenido generado",
-  "content.generation_failed": "Generación de contenido fallida",
-  "content.regeneration_failed": "Regeneración de contenido fallida",
-
-  // ── Configuración del sistema (admin) ──
-  "edge_secrets.set": "Edge Function Secret actualizado",
-  "edge_secrets.unset": "Edge Function Secret eliminado",
-  "edge_secrets.error": "Error gestionando Edge Function Secret",
-  "ai_model.activated": "Modelo de IA actualizado",
-  "ai_prompt.updated": "Prompt de IA actualizado",
-  "ai_prompt.restored_default": "Prompt de IA restaurado al default",
-  "ai_prompt.course_override_saved": "Prompt de IA override por curso",
-  "ai_prompt.course_override_removed": "Prompt de IA override removido",
-  "branding.created": "Marca institucional creada",
-  "branding.updated": "Marca institucional actualizada",
-
-  // ── Usuarios ──
-  "user.created": "Usuario creado",
-  "user.updated": "Usuario actualizado",
-  "user.deleted": "Usuario eliminado",
-  "user.bulk_deleted": "Usuarios eliminados (masivo)",
-  "user.bulk_imported": "Usuarios importados (masivo)",
-  "user.role_added": "Rol asignado",
-  "user.role_removed": "Rol removido",
-  "user.roles_updated": "Roles actualizados",
-  "user.password_changed": "Contraseña cambiada",
-  "user.password_change_failed": "Cambio de contraseña fallido",
-  "user.password_reset_by_admin": "Contraseña restablecida por admin",
-  "user.password_reset_failed": "Reset de contraseña fallido",
-  // Flow custom de cambio de correo (edge functions request/confirm-email-change).
-  // Reemplaza el correo opaco que disparaba Supabase Auth — ahora el correo
-  // sale por nuestro SMTP y el cambio queda en audit con ambos eventos.
-  "user.email_change_requested": "Cambio de correo solicitado",
-  "user.email_changed": "Correo actualizado",
-  "user.logged_out": "Sesión cerrada",
-  "user.login_failed": "Inicio de sesión fallido",
-  "user.login_success": "Inicio de sesión exitoso",
-  "user.navigated": "Navegación interna",
-
-  // ── Errores de aplicación (capturados por ErrorBoundary y handlers globales) ──
-  "app.render_error": "Error en render (ErrorBoundary)",
-  "app.runtime_error": "Error en runtime (window.error)",
-  "app.unhandled_rejection": "Promesa rechazada sin manejar",
-
-  // ── Calendario externo (Google / Outlook) ──
-  "calendar.connected": "Calendario conectado",
-  "calendar.connect_failed": "Conexión de calendario fallida",
-  "calendar.disconnected": "Calendario desconectado",
-  "calendar.synced": "Calendario sincronizado",
-  "calendar.sync_failed": "Sincronización de calendario fallida",
-  "calendar.calendar_missing": "Calendario externo no accesible",
-
-  // ── Notificaciones por correo (trigger SQL + edge function send-email) ──
-  "email.dispatched": "Correo enviado al SMTP",
-  "email.delivered": "Correo entregado",
-  "email.skipped": "Correo omitido",
-  "email.failed": "Correo fallido",
-
-  // ── Recalificación IA en lote (botón "Recalificar último intento") ──
-  "ai_grading.batch_dryrun": "Recalificación IA simulada (preview)",
-  "ai_grading.batch_applied": "Recalificación IA aplicada en lote",
-
-  // ── Settings de plataforma (panel admin) ──
-  "app_settings.updated": "Parámetros globales actualizados",
-  "audit_retention.updated": "Política de retención de auditoría actualizada",
-  "email_settings.updated": "Política de correos actualizada",
-  "code_execution.provider_changed": "Compilador de código cambiado",
-
-  // ── Certificados (configuración + emisión) ──
-  "certificate_settings.updated": "Configuración global de certificados actualizada",
-  "certificate_settings.course_override_saved": "Override de certificado por curso guardado",
-  "certificate_settings.course_override_removed": "Override de certificado por curso removido",
-
-  // ── Mensajería masiva (broadcast a curso) ──
-  "broadcast.sent": "Mensaje masivo enviado",
-  "broadcast.email_failed": "Correo de mensaje masivo fallido",
-  "broadcast.email_skipped": "Correo de mensaje masivo omitido",
-  "broadcast.error": "Error en envío de mensaje masivo",
-
-  // ── Java GUI screenshot (AWS Lambda) ──
-  "java_gui.screenshot_executed": "Captura GUI Java generada",
-  "java_gui.screenshot_failed": "Captura GUI Java fallida",
-  "java_gui.screenshot_error": "Error en captura GUI Java",
-
-  // ── Python GUI screenshot (AWS Lambda + tkinter) ──
-  "python_gui.screenshot_executed": "Captura GUI Python generada",
-  "python_gui.screenshot_failed": "Captura GUI Python fallida",
-  "python_gui.screenshot_error": "Error en captura GUI Python",
-
-  // ── Reabrir entregas (taller / proyecto) ──
-  "workshop.submission_reopened": "Entrega de taller reabierta",
-  "project.submission_reopened": "Entrega de proyecto reabierta",
-
-  // ── Diagnóstico del sistema (panel admin) ──
-  "system.diagnostic.warnings_detected": "Diagnóstico del sistema: advertencias",
-  "system.diagnostic.db_failed": "Diagnóstico del sistema: error de base de datos",
-  "system.diagnostic.edge_function_failed": "Diagnóstico del sistema: error de edge function",
-
-  // ── Cola IA (cuando el worker batch procesa pendientes) ──
-  "ai_queue.processed": "Cola IA procesada",
-  "ai_queue.job_failed": "Job IA fallido",
-  "ai_override.activated": "Override IA inmediata activado",
-};
+// Set of known action keys — used to decide whether to try t() lookup or
+// fall back to the raw slug. We keep only the set of keys so the component
+// can call t(`audit.actionLabels.${action}`) and fall back gracefully.
+const ACTION_LABEL_KEYS = new Set<string>([
+  "exam.created", "exam.updated", "exam.deleted", "exam.bulk_deleted",
+  "exam.published", "exam.closed", "exam.duplicated",
+  "workshop.created", "workshop.updated", "workshop.deleted", "workshop.bulk_deleted",
+  "project.created", "project.updated", "project.deleted", "project.bulk_deleted",
+  "course.created", "course.updated", "course.deleted",
+  "program.created", "program.updated", "program.deleted", "program.toggled",
+  "period.created", "period.updated", "period.closed", "period.reopened", "period.deleted",
+  "subject.created", "subject.updated", "subject.deleted",
+  "acta.generated", "acta.deleted",
+  "enrollment.added", "enrollment.removed", "enrollment.bulk_added",
+  "submission.exam.started", "submission.exam.submitted", "submission.exam.graded",
+  "submission.exam.grade_updated", "submission.exam.flagged_suspicious",
+  "exam_started", "exam_submitted", "exam_suspended", "exam_fullscreen_denied",
+  "submission.workshop.submitted", "submission.workshop.graded",
+  "submission.workshop.updated_in_progress",
+  "submission.project.submitted", "submission.project.graded",
+  "submission.project.updated_in_progress",
+  "grade.manual_override", "grade.manual_cleared",
+  "grading.ai_triggered", "grading.grade_override", "grading.defense_saved",
+  "grading.manual_save",
+  "ai.grading_started", "ai.grading_failed", "ai.questions_generation_failed",
+  "ai_grading.completed", "ai_questions.generated", "ai_plagiarism.detected",
+  "ai.grading_retry_run", "ai.grading_retry_run_failed",
+  "ai_grading.job_enqueued", "ai_grading.job_completed", "ai_grading.job_failed",
+  "ai_grading.job_discarded_cancelled", "ai_grading.job_cancelled",
+  "ai_grading.job_processed_manual", "ai_grading.job_requeued",
+  "ai_grading.jobs_cancelled_bulk",
+  "code.executed", "code.compile_error", "code.execute_failed", "code_execution_error",
+  "fraud.plagiarism_run", "fraud.plagiarism_detection_started",
+  "fraud.plagiarism_detected", "fraud.plagiarism_detection_failed",
+  "fraud.manual_flag", "fraud.warnings_cleared_all",
+  "attendance.checkin_opened", "attendance.checkin_closed",
+  "attendance.pending_marked_absent",
+  "content.generated", "content.generation_failed", "content.regeneration_failed",
+  "edge_secrets.set", "edge_secrets.unset", "edge_secrets.error",
+  "ai_model.activated", "ai_prompt.updated", "ai_prompt.restored_default",
+  "ai_prompt.course_override_saved", "ai_prompt.course_override_removed",
+  "branding.created", "branding.updated",
+  "user.created", "user.updated", "user.deleted", "user.bulk_deleted",
+  "user.bulk_imported", "user.role_added", "user.role_removed", "user.roles_updated",
+  "user.password_changed", "user.password_change_failed",
+  "user.password_reset_by_admin", "user.password_reset_failed",
+  "user.email_change_requested", "user.email_changed",
+  "user.logged_out", "user.login_failed", "user.login_success", "user.navigated",
+  "app.render_error", "app.runtime_error", "app.unhandled_rejection",
+  "calendar.connected", "calendar.connect_failed", "calendar.disconnected",
+  "calendar.synced", "calendar.sync_failed", "calendar.calendar_missing",
+  "email.dispatched", "email.delivered", "email.skipped", "email.failed",
+  "ai_grading.batch_dryrun", "ai_grading.batch_applied",
+  "app_settings.updated", "audit_retention.updated", "email_settings.updated",
+  "code_execution.provider_changed",
+  "certificate_settings.updated", "certificate_settings.course_override_saved",
+  "certificate_settings.course_override_removed",
+  "broadcast.sent", "broadcast.email_failed", "broadcast.email_skipped",
+  "broadcast.error",
+  "java_gui.screenshot_executed", "java_gui.screenshot_failed",
+  "java_gui.screenshot_error",
+  "python_gui.screenshot_executed", "python_gui.screenshot_failed",
+  "python_gui.screenshot_error",
+  "workshop.submission_reopened", "project.submission_reopened",
+  "system.diagnostic.warnings_detected", "system.diagnostic.db_failed",
+  "system.diagnostic.edge_function_failed",
+  "ai_queue.processed", "ai_queue.job_failed", "ai_override.activated",
+]);
 
 // Solo guardamos las clases CSS; el label se resuelve con t("audit.categories.<key>").
 const CATEGORY_CONFIG: Record<string, { cls: string }> = {
@@ -392,6 +224,13 @@ const PAGE_SIZE = 100;
 
 export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
   const { t } = useTranslation();
+
+  // Resolves a human-readable label for an audit action. Falls back to the
+  // raw slug if no translation key exists (forward-compat with new events).
+  const actionLabel = (action: string) =>
+    ACTION_LABEL_KEYS.has(action)
+      ? t(`audit.actionLabels.${action}`, { defaultValue: action })
+      : action;
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -564,7 +403,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
         l.actor_email?.toLowerCase().includes(q) ||
         l.entity_name?.toLowerCase().includes(q) ||
         l.course_name?.toLowerCase().includes(q) ||
-        ACTION_LABELS[l.action]?.toLowerCase().includes(q) ||
+        actionLabel(l.action)?.toLowerCase().includes(q) ||
         l.action.toLowerCase().includes(q),
     );
   }, [logs, search]);
@@ -610,7 +449,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
         fecha: formatDateTime(l.created_at),
         actor: l.actor_email ?? "",
         rol: l.actor_role ?? "",
-        accion: ACTION_LABELS[l.action] ?? l.action,
+        accion: actionLabel(l.action),
         categoria: CATEGORY_CONFIG[l.category] ? t(`audit.categories.${l.category}`) : l.category,
         nivel: SEVERITY_CONFIG[l.severity] ? t(`audit.severities.${l.severity}`) : l.severity,
         entidad: l.entity_name ?? "",
@@ -837,7 +676,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
         <CardContent className="p-0">
           {loadError ? (
             <ErrorState
-              message="No pudimos cargar la auditoría"
+              message={t("audit.loadError")}
               hint={loadError}
               onRetry={() => setRetryNonce((n) => n + 1)}
             />
@@ -907,7 +746,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
 
                           {/* Acción */}
                           <TableCell className="text-sm">
-                            {ACTION_LABELS[log.action] ?? log.action}
+                            {actionLabel(log.action)}
                           </TableCell>
 
                           {/* Categoría */}
@@ -980,7 +819,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
               </Button>
             </div>
           )}
-          <DataPagination state={pagination} entityNamePlural="eventos" />
+          <DataPagination state={pagination} entityNamePlural={t("audit.entityNamePlural")} />
         </CardContent>
       </Card>
 
@@ -990,7 +829,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {detail && SEVERITY_ICONS[detail.severity]}
-              <span>{detail ? (ACTION_LABELS[detail.action] ?? detail.action) : ""}</span>
+              <span>{detail ? actionLabel(detail.action) : ""}</span>
             </DialogTitle>
           </DialogHeader>
 

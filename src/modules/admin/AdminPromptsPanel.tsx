@@ -6,6 +6,7 @@
  * curso desde su propia ruta.
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -84,14 +85,15 @@ type UseCaseDef = {
   defaultPrompt: string;
 };
 
-const MODULE_LABELS: Record<PromptModule, string> = {
-  exams: "Exámenes",
-  workshops: "Talleres",
-  projects: "Proyectos",
-  fraud: "Detección de fraude",
-  contents: "Contenidos",
-  branding: "Marca institucional",
-  tutor: "Tutor IA",
+// Labels resolved at call-site via t() — see getModuleLabel() in the component.
+const MODULE_LABEL_KEYS: Record<PromptModule, string> = {
+  exams: "adminPromptsPanel.filterModuleExams",
+  workshops: "adminPromptsPanel.filterModuleWorkshops",
+  projects: "adminPromptsPanel.filterModuleProjects",
+  fraud: "adminPromptsPanel.filterModuleFraud",
+  contents: "adminPromptsPanel.filterModuleContents",
+  branding: "adminPromptsPanel.filterModuleBranding",
+  tutor: "adminPromptsPanel.filterModuleTutor",
 };
 
 // Sincronizado con seeds de la migración 20260508100000_ai_prompts.sql.
@@ -262,7 +264,9 @@ type PromptRow = {
 };
 
 export function AdminPromptsPanel() {
+  const { t } = useTranslation();
   const { user, roles } = useAuth();
+  const getModuleLabel = (m: PromptModule) => t(MODULE_LABEL_KEYS[m]);
   const activeRole = useActiveRole();
   // Scope: SuperAdmin cross-tenant escribe el "platform default"
   // (tenant_id IS NULL, course_id IS NULL). Cualquier otro caller (Admin
@@ -522,11 +526,11 @@ export function AdminPromptsPanel() {
     // global scope (SuperAdmin), volvemos al texto hardcodeado del
     // sistema (el `defaultPrompt` definido en USE_CASES).
     const ok = await confirm({
-      title: `Restaurar default de "${uc.label}"`,
+      title: t("adminPromptsPanel.confirmRestoreTitle", { label: uc.label }),
       description: isGlobalScope
-        ? "Volverás al prompt por defecto hardcodeado del sistema. Es el último fallback de la cadena."
-        : "Eliminás el override de tu institución; la calificación va a usar el prompt default de la plataforma. Los overrides por curso no se afectan.",
-      confirmLabel: "Restaurar",
+        ? t("adminPromptsPanel.confirmRestoreDescGlobal")
+        : t("adminPromptsPanel.confirmRestoreDescTenant"),
+      confirmLabel: t("adminPromptsPanel.confirmRestoreLabel"),
       tone: "warning",
     });
     if (!ok) return;
@@ -602,7 +606,7 @@ export function AdminPromptsPanel() {
     return (
       <Card>
         <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-          <Spinner size="md" /> Cargando prompts…
+          <Spinner size="md" /> {t("adminPromptsPanel.loadingPrompts")}
         </CardContent>
       </Card>
     );
@@ -611,7 +615,7 @@ export function AdminPromptsPanel() {
   if (loadError) {
     return (
       <ErrorState
-        message="No pudimos cargar los prompts"
+        message={t("adminPromptsPanel.loadError")}
         hint={loadError}
         onRetry={() => setRetryNonce((n) => n + 1)}
       />
@@ -625,12 +629,12 @@ export function AdminPromptsPanel() {
           contador inline "X de Y prompt(s)" para que el panel se vea
           consistente con el resto de la app. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={FileText} label="Total" value={promptStats.total} />
-        <StatCard icon={Pencil} label="Personalizados" value={promptStats.customized} />
-        <StatCard icon={RotateCcw} label="Por default" value={promptStats.fallback} />
+        <StatCard icon={FileText} label={t("adminPromptsPanel.statTotal")} value={promptStats.total} />
+        <StatCard icon={Pencil} label={t("adminPromptsPanel.statCustomized")} value={promptStats.customized} />
+        <StatCard icon={RotateCcw} label={t("adminPromptsPanel.statDefault")} value={promptStats.fallback} />
         <StatCard
           icon={Clock}
-          label="Última edición"
+          label={t("adminPromptsPanel.statLastEdit")}
           value={promptStats.latestIso ? formatDateTime(promptStats.latestIso) : "—"}
           valueSize="md"
         />
@@ -642,7 +646,7 @@ export function AdminPromptsPanel() {
       <div className="flex flex-wrap items-end gap-3 rounded-md border bg-muted/30 p-3">
         <div className="flex-1 min-w-[160px] sm:min-w-48">
           <Label className="text-xs flex items-center gap-1">
-            <Filter className="h-3 w-3" /> Módulo
+            <Filter className="h-3 w-3" /> {t("adminPromptsPanel.filterModuleLabel")}
           </Label>
           <Select
             value={moduleFilter}
@@ -652,11 +656,11 @@ export function AdminPromptsPanel() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos los módulos</SelectItem>
+              <SelectItem value="all">{t("adminPromptsPanel.filterModuleAll")}</SelectItem>
               {(["exams", "workshops", "projects", "fraud", "contents", "branding"] as const).map(
                 (m) => (
                   <SelectItem key={m} value={m}>
-                    {MODULE_LABELS[m]}
+                    {getModuleLabel(m)}
                   </SelectItem>
                 ),
               )}
@@ -667,7 +671,7 @@ export function AdminPromptsPanel() {
             propio Card de marca institucional, no use_cases de IA. */}
         {moduleFilter !== "branding" && (
           <Badge variant="outline" className="text-[11px] tabular-nums h-6">
-            Mostrando {filteredUseCases.length} de {USE_CASES.length}
+            {t("adminPromptsPanel.showingCount", { shown: filteredUseCases.length, total: USE_CASES.length })}
           </Badge>
         )}
       </div>
@@ -686,26 +690,23 @@ export function AdminPromptsPanel() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                 <Palette className="h-4 w-4 text-primary" />
-                Marca institucional
+                {t("adminPromptsPanel.brandingTitle")}
                 <HelpHint>
-                  Estos valores se inyectan al prompt de Generación de contenidos como{" "}
-                  <code>{`{{university_name}}`}</code>, <code>{`{{logo_url}}`}</code>,{" "}
-                  <code>{`{{primary_color}}`}</code> y <code>{`{{secondary_color}}`}</code>.
-                  Aparecen también en la portada del .pptx generado.
+                  {t("adminPromptsPanel.brandingHelpHint")}
                 </HelpHint>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Nombre de la institución</Label>
+                  <Label className="text-xs">{t("adminPromptsPanel.brandingFieldUniversity")}</Label>
                   <Input
                     value={brand.university_name}
                     onChange={(e) => setBrand({ ...brand, university_name: e.target.value })}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">URL del logo</Label>
+                  <Label className="text-xs">{t("adminPromptsPanel.brandingFieldLogoUrl")}</Label>
                   <Input
                     type="url"
                     placeholder="https://…/logo.png"
@@ -714,7 +715,7 @@ export function AdminPromptsPanel() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Color primario</Label>
+                  <Label className="text-xs">{t("adminPromptsPanel.brandingFieldPrimaryColor")}</Label>
                   <div className="flex items-center gap-2">
                     <Input
                       type="color"
@@ -729,7 +730,7 @@ export function AdminPromptsPanel() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Color secundario</Label>
+                  <Label className="text-xs">{t("adminPromptsPanel.brandingFieldSecondaryColor")}</Label>
                   <div className="flex items-center gap-2">
                     <Input
                       type="color"
@@ -744,13 +745,13 @@ export function AdminPromptsPanel() {
                   </div>
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
-                  <Label className="text-xs">Autor por defecto</Label>
+                  <Label className="text-xs">{t("adminPromptsPanel.brandingFieldAuthor")}</Label>
                   <Input
                     value={brand.author_default ?? ""}
                     onChange={(e) => setBrand({ ...brand, author_default: e.target.value || null })}
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Aparece en la portada cuando el docente no indica autor.
+                    {t("adminPromptsPanel.brandingFieldAuthorHint")}
                   </p>
                 </div>
               </div>
@@ -761,7 +762,7 @@ export function AdminPromptsPanel() {
                   ) : (
                     <Save className="h-4 w-4 mr-1" />
                   )}
-                  Guardar marca
+                  {t("adminPromptsPanel.brandingSaveBtn")}
                 </Button>
               </div>
             </CardContent>
@@ -773,7 +774,7 @@ export function AdminPromptsPanel() {
         {filteredUseCases.length === 0 && moduleFilter !== "branding" ? (
           <Card>
             <CardContent className="p-6 text-sm text-muted-foreground text-center">
-              No hay prompts en este módulo.
+              {t("adminPromptsPanel.noPromptsInModule")}
             </CardContent>
           </Card>
         ) : null}
@@ -787,20 +788,18 @@ export function AdminPromptsPanel() {
                   {uc.label}
                   {isDefault ? (
                     <Badge variant="secondary" className="text-[10px]">
-                      Default
+                      {t("adminPromptsPanel.badgeDefault")}
                     </Badge>
                   ) : (
                     <Badge className="text-[10px] bg-indigo-500/15 text-indigo-700 border-indigo-500/25 dark:bg-indigo-400/15 dark:text-indigo-300 dark:border-indigo-400/25">
-                      Personalizado
+                      {t("adminPromptsPanel.badgeCustomized")}
                     </Badge>
                   )}
                   <HelpHint>
                     {uc.description}
                     <br />
                     <br />
-                    Solo edita el rol/criterios del modelo. Los datos dinámicos (rúbrica, respuesta
-                    del estudiante, idioma, puntaje máximo) se inyectan automáticamente por la
-                    función — no necesitas placeholders.
+                    {t("adminPromptsPanel.helpHintDynamic")}
                   </HelpHint>
                 </CardTitle>
               </CardHeader>
@@ -820,7 +819,7 @@ export function AdminPromptsPanel() {
                       onClick={() => setDrafts((d) => ({ ...d, [uc.key]: saved[uc.key] }))}
                       disabled={savingKey === uc.key}
                     >
-                      Cancelar
+                      {t("adminPromptsPanel.btnCancel")}
                     </Button>
                   )}
                   <Button
@@ -830,7 +829,7 @@ export function AdminPromptsPanel() {
                     disabled={savingKey === uc.key || isDefault}
                   >
                     <RotateCcw className="h-4 w-4 mr-1" />
-                    Restaurar default
+                    {t("adminPromptsPanel.btnRestoreDefault")}
                   </Button>
                   <Button
                     size="sm"
@@ -842,7 +841,7 @@ export function AdminPromptsPanel() {
                     ) : (
                       <Save className="h-4 w-4 mr-1" />
                     )}
-                    Guardar
+                    {t("adminPromptsPanel.btnSave")}
                   </Button>
                 </div>
               </CardContent>
