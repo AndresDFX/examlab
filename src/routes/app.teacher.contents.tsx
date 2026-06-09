@@ -77,6 +77,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { UploadExternalContentDialog } from "@/modules/contents/UploadExternalContentDialog";
+import { EditExternalContentDialog } from "@/modules/contents/EditExternalContentDialog";
 import { MarkdownEditorDialog } from "@/modules/contents/MarkdownEditorDialog";
 import { PptxViewerDialog } from "@/modules/contents/PptxViewerDialog";
 import { RegenerateContentDialog } from "@/modules/contents/RegenerateContentDialog";
@@ -173,6 +174,16 @@ interface BrandConfig {
   secondary_color: string;
   logo_url: string | null;
   author_default: string | null;
+}
+
+/** Un contenido es "externo" (subido por el docente, no generado por IA)
+ *  cuando alguno de sus archivos tiene `kind="uploaded"` — así los marca el
+ *  upload externo; la IA usa "pptx-source" / "md" / "txt". Solo en externos
+ *  el `mode` es metadata editable (en los generados es estructural: define
+ *  cómo se crearon los archivos `_CLASE_<N>`), por eso únicamente ahí
+ *  ofrecemos "Editar contenido externo". */
+function isExternalContent(c: GeneratedContent): boolean {
+  return (c.files ?? []).some((f) => (f as { kind?: string }).kind === "uploaded");
 }
 
 function statusVariant(s: ContentStatus): "default" | "secondary" | "destructive" | "outline" {
@@ -347,6 +358,10 @@ function TeacherContents() {
   // el último corte). Acelera el flujo "abrir CreateAssessment N veces"
   // cuando el curso tiene varios cortes.
   const [materializeFor, setMaterializeFor] = useState<GeneratedContent | null>(null);
+  // "Editar contenido externo": corrige metadata (modo individual ↔ curso
+  // completo, n_clases, nombre, tema) de un material SUBIDO mal
+  // clasificado. Solo se ofrece para contenidos externos (ver isExternal).
+  const [editExternalFor, setEditExternalFor] = useState<GeneratedContent | null>(null);
 
   // Form
   // `displayName` es el nombre único que el docente le pone a este
@@ -1275,6 +1290,21 @@ function TeacherContents() {
                           // duplicamos las acciones acá. Mantener una
                           // sola UI evita confusión sobre cuál es la
                           // fuente de verdad.
+                          // "Editar contenido externo" — solo para
+                          // material SUBIDO (no generado por IA). Corrige
+                          // metadata mal clasificada: modo individual ↔
+                          // curso completo, n_clases, nombre, tema. En el
+                          // contenido de IA el modo es estructural, por eso
+                          // no se ofrece ahí.
+                          isExternalContent(it)
+                            ? {
+                                label: t("contents.editExternalAction", {
+                                  defaultValue: "Editar (modo / nombre / tema)",
+                                }),
+                                icon: Pencil,
+                                onClick: () => setEditExternalFor(it),
+                              }
+                            : null,
                           // "Personalizar prompts" — abre el editor de
                           // overrides POR CONTENIDO. Aparece siempre (no
                           // depende de status) porque el docente puede
@@ -1698,6 +1728,16 @@ function TeacherContents() {
         courses={courses}
         defaultCourseId={courseFilter || null}
         onCreated={() => void load()}
+      />
+
+      {/* Dialog "Editar contenido externo" — corrige metadata de un
+          material subido mal clasificado (modo individual ↔ curso
+          completo, n_clases, nombre, tema). Solo se abre desde la acción
+          que aparece para contenidos externos (isExternalContent). */}
+      <EditExternalContentDialog
+        content={editExternalFor}
+        onOpenChange={(o) => !o && setEditExternalFor(null)}
+        onSaved={() => void load()}
       />
 
       <aiGate.GateDialog />
