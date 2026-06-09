@@ -92,6 +92,8 @@ type SessionRow = {
   title: string | null;
   content_id: string | null;
   content_class_index: number | null;
+  /** Subconjunto de paths a mostrar (NULL = todos los de la clase/contenido). */
+  content_file_paths: string[] | null;
   meeting_url: string | null;
 };
 
@@ -377,7 +379,9 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       // 1. Sesiones del curso (incluye content_id + class_index)
       const { data: ses } = await db
         .from("attendance_sessions")
-        .select("id, course_id, session_date, title, content_id, content_class_index, meeting_url")
+        .select(
+          "id, course_id, session_date, title, content_id, content_class_index, content_file_paths, meeting_url",
+        )
         .eq("course_id", course.id)
         .is("deleted_at", null)
         .order("session_date", { ascending: true });
@@ -482,11 +486,24 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       if (Date.now() < releaseAt) return [];
     }
     const visible = c.files.filter((f) => !isTeacherOnlyFile(f.name));
-    if (s.content_class_index == null) return visible;
-    const filtered = visible.filter(
-      (f) => classNumberFromFilename(f.name) === s.content_class_index,
-    );
-    return filtered.length > 0 ? filtered : visible;
+    // Base: por clase (curso_completo) o todos (individual).
+    let base: ContentFileEntry[];
+    if (s.content_class_index == null) {
+      base = visible;
+    } else {
+      const filtered = visible.filter(
+        (f) => classNumberFromFilename(f.name) === s.content_class_index,
+      );
+      base = filtered.length > 0 ? filtered : visible;
+    }
+    // Subconjunto explícito elegido por el docente: NULL = todos; un array
+    // (incluso vacío) = exactamente esos paths. Así el docente puede asignar
+    // "unos archivos u otros" según el modo del contenido.
+    if (s.content_file_paths != null) {
+      const allow = new Set(s.content_file_paths);
+      return base.filter((f) => allow.has(f.path));
+    }
+    return base;
   };
 
   /** Items "vinculados" a una sesión: due dentro de ±3 días de la fecha

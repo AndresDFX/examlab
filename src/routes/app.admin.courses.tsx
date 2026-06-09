@@ -74,6 +74,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { classNumberFromFilename, isTeacherOnlyFile } from "@/modules/contents/contents-extract";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { HelpHint } from "@/components/ui/help-hint";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -2547,6 +2550,9 @@ interface SessionRow {
   title: string | null;
   content_id: string | null;
   content_class_index: number | null;
+  /** Subconjunto opcional de paths de archivos del contenido a mostrar en
+   *  esta sesión. NULL = todos los del contenido/clase. */
+  content_file_paths: string[] | null;
   /** URL de Meet/Teams/Zoom para la sesión. Validado a `https?://`
    *  por CHECK en BD. Aparece como botón "Unirse" en el tablero del
    *  estudiante y como ícono link en el tablero del docente. */
@@ -2566,28 +2572,42 @@ interface AvailableContent {
   topic: string;
   mode: "curso_completo" | "material_individual";
   classes: number[];
+  /** Archivos del contenido (name + path) para elegir un subconjunto a
+   *  asignar. Se filtran los de uso docente (solución, guía) en el selector. */
+  files: { name: string; path: string }[];
 }
 
 /**
- * Selector de asignación de contenido en 2 pasos:
+ * Selector de asignación de contenido en 3 pasos:
  *   1. Primer Select → ¿qué contenido? (un curso puede tener varios).
  *   2. Segundo Select → ¿qué clase dentro de ese contenido?
- *      Si el contenido es `material_individual` (sin clases), el 2do
- *      select se oculta y se asigna directo con classIndex=null.
- * Las opciones de "Sin asignar" se concentran en el 1er select para
- * que el caller no tenga que limpiar dos cosas a mano.
+ *      Solo para `curso_completo` (con clases). En `material_individual`
+ *      se oculta y se asigna con classIndex=null.
+ *   3. Popover "Archivos" → subconjunto OPCIONAL de archivos a mostrar.
+ *      Se adapta al modo: en curso_completo lista los archivos de la CLASE
+ *      elegida; en individual lista todos los del contenido. Por defecto
+ *      van TODOS (content_file_paths=null); el docente puede destildar para
+ *      asignar solo algunos. Filtra archivos de uso docente (solución/guía).
+ * Las opciones de "Sin asignar" se concentran en el 1er select.
  */
 function ContentAssignmentSelector({
   contents,
   contentId,
   classIndex,
+  filePaths,
   onChange,
   assignedClassesByContent,
 }: {
   contents: AvailableContent[];
   contentId: string | null;
   classIndex: number | null;
-  onChange: (contentId: string | null, classIndex: number | null) => void;
+  /** Subconjunto de paths asignado. null = todos los de la clase/contenido. */
+  filePaths: string[] | null;
+  onChange: (
+    contentId: string | null,
+    classIndex: number | null,
+    filePaths: string[] | null,
+  ) => void;
   /** Map de clases ya asignadas a OTRAS sesiones del mismo curso
    *  (excluye la sesión actual). El selector oculta esas clases para
    *  evitar que el docente asigne dos veces la misma clase. */
@@ -2605,6 +2625,42 @@ function ContentAssignmentSelector({
     ? selected.classes.filter((n) => n === classIndex || !blockedForSelected.has(n))
     : [];
   const hasClasses = selected && availableClasses.length > 0;
+
+  // Archivos elegibles para el contenido + clase actual: sin los de uso
+  // docente y, en curso_completo, acotados a la CLASE seleccionada (misma
+  // lógica que filesForSession del tablero del estudiante).
+  const eligibleFiles = useMemo(() => {
+    if (!selected) return [] as { name: string; path: string }[];
+    let files = selected.files.filter((f) => !isTeacherOnlyFile(f.name));
+    if (selected.classes.length > 0 && classIndex != null) {
+      const byClass = files.filter((f) => classNumberFromFilename(f.name) === classIndex);
+      if (byClass.length > 0) files = byClass;
+    }
+    return files;
+  }, [selected, classIndex]);
+
+  // Set de paths actualmente "incluidos": null = todos.
+  const includedSet = filePaths == null ? null : new Set(filePaths);
+  const isIncluded = (p: string) => includedSet == null || includedSet.has(p);
+  const includedCount = eligibleFiles.filter((f) => isIncluded(f.path)).length;
+  const allIncluded = includedCount === eligibleFiles.length;
+
+  const toggleFile = (path: string) => {
+    // Partimos del set efectivo (todos si era null) y toggle el path.
+    const current = new Set(
+      includedSet == null ? eligibleFiles.map((f) => f.path) : Array.from(includedSet),
+    );
+    if (current.has(path)) current.delete(path);
+    else current.add(path);
+    // Si quedaron TODOS los elegibles → null (= "todos", limpio).
+    const next =
+      current.size >= eligibleFiles.length &&
+      eligibleFiles.every((f) => current.has(f.path))
+        ? null
+        : eligibleFiles.filter((f) => current.has(f.path)).map((f) => f.path);
+    onChange(contentId, classIndex, next);
+  };
+
   return (
     <div className="flex items-center gap-1.5">
       {/* 1) Contenido */}
@@ -2612,21 +2668,19 @@ function ContentAssignmentSelector({
         value={contentId ?? "__none"}
         onValueChange={(v) => {
           if (v === "__none") {
-            onChange(null, null);
+            onChange(null, null, null);
             return;
           }
-          // Al cambiar de contenido, reseteamos la clase. Si el nuevo
-          // contenido tiene clases, escogemos la primera DISPONIBLE
-          // (no asignada a otra sesión). Si todas estan tomadas
-          // dejamos classIndex en null y el segundo select muestra el
-          // placeholder "todas las clases asignadas".
+          // Al cambiar de contenido, reseteamos clase Y subconjunto de
+          // archivos. Si el nuevo contenido tiene clases, escogemos la
+          // primera DISPONIBLE (no asignada a otra sesión).
           const next = contents.find((c) => c.id === v);
           if (next && next.classes.length > 0) {
             const taken = assignedClassesByContent?.get(v) ?? new Set<number>();
             const firstFree = next.classes.find((n) => !taken.has(n)) ?? null;
-            onChange(v, firstFree);
+            onChange(v, firstFree, null);
           } else {
-            onChange(v, null);
+            onChange(v, null, null);
           }
         }}
       >
@@ -2642,11 +2696,12 @@ function ContentAssignmentSelector({
           ))}
         </SelectContent>
       </Select>
-      {/* 2) Clase — solo si el contenido elegido tiene clases. */}
+      {/* 2) Clase — solo si el contenido elegido tiene clases. Cambiar de
+          clase resetea el subconjunto de archivos. */}
       {hasClasses && (
         <Select
           value={classIndex != null ? String(classIndex) : ""}
-          onValueChange={(v) => onChange(contentId, Number(v))}
+          onValueChange={(v) => onChange(contentId, Number(v), null)}
         >
           <SelectTrigger className="w-28 h-8 text-xs">
             <SelectValue placeholder={t("contents.classPlaceholder")} />
@@ -2659,6 +2714,45 @@ function ContentAssignmentSelector({
             ))}
           </SelectContent>
         </Select>
+      )}
+      {/* 3) Archivos — subconjunto opcional. Solo si hay 2+ elegibles
+          (con 0/1 no tiene sentido elegir). */}
+      {selected && eligibleFiles.length > 1 && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+              <FileText className="h-3.5 w-3.5" />
+              {allIncluded
+                ? `Archivos (${eligibleFiles.length})`
+                : `Archivos (${includedCount}/${eligibleFiles.length})`}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-72 p-2">
+            <div className="text-[11px] text-muted-foreground px-1 pb-1">
+              Elegí qué archivos ver en esta sesión. Por defecto se muestran todos.
+            </div>
+            <div className="max-h-56 overflow-y-auto space-y-0.5">
+              {eligibleFiles.map((f) => (
+                <label
+                  key={f.path}
+                  className="flex items-start gap-2 rounded px-1.5 py-1 hover:bg-muted/50 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={isIncluded(f.path)}
+                    onCheckedChange={() => toggleFile(f.path)}
+                    className="mt-0.5"
+                  />
+                  <span className="text-xs break-all">{f.name}</span>
+                </label>
+              ))}
+            </div>
+            {includedCount === 0 && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 px-1 pt-1">
+                Sin archivos seleccionados: el estudiante no verá material en esta sesión.
+              </p>
+            )}
+          </PopoverContent>
+        </Popover>
       )}
     </div>
   );
@@ -2736,7 +2830,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
         db
           .from("attendance_sessions")
           .select(
-            "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, meeting_url, recording_url, notes_url",
+            "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, content_file_paths, meeting_url, recording_url, notes_url",
           )
           .eq("course_id", course.id)
           .is("deleted_at", null)
@@ -2772,7 +2866,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
       setContents(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ((contentsRes.data ?? []) as any[]).map((g) => {
-          const files = (g.files ?? []) as Array<{ name: string }>;
+          const files = (g.files ?? []) as Array<{ name: string; path?: string }>;
           const set = new Set<number>();
           for (const f of files) {
             const m = f.name.match(/(?:CLASE|CLASS|SESION|SESSION)[_\s-]*(\d+)/i);
@@ -2783,6 +2877,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
             topic: g.topic,
             mode: g.mode,
             classes: Array.from(set).sort((a, b) => a - b),
+            files: files.map((f) => ({ name: f.name, path: f.path ?? f.name })),
           };
         }),
       );
@@ -2816,19 +2911,18 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
   };
 
   /** Persiste el cambio de contenido para UNA sesión. Optimista —
-   *  actualiza el state local en cuanto la BD responde OK. */
-  const updateAssignment = async (sessionId: string, raw: string) => {
-    let content_id: string | null = null;
-    let content_class_index: number | null = null;
-    if (raw !== "__none") {
-      const [cid, idx] = raw.split(":");
-      content_id = cid;
-      const n = Number(idx);
-      content_class_index = Number.isFinite(n) && n > 0 ? n : null;
-    }
+   *  actualiza el state local en cuanto la BD responde OK.
+   *  `content_file_paths`: subconjunto opcional de archivos a mostrar
+   *  (NULL = todos los del contenido/clase). */
+  const updateAssignment = async (
+    sessionId: string,
+    content_id: string | null,
+    content_class_index: number | null,
+    content_file_paths: string[] | null,
+  ) => {
     const { error } = await db
       .from("attendance_sessions")
-      .update({ content_id, content_class_index })
+      .update({ content_id, content_class_index, content_file_paths })
       .eq("id", sessionId);
     if (error) {
       // 23505 = unique_violation. La constraint `attendance_sessions_unique_content_class`
@@ -2844,7 +2938,9 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
       return;
     }
     setSessions((prev) =>
-      prev.map((s) => (s.id === sessionId ? { ...s, content_id, content_class_index } : s)),
+      prev.map((s) =>
+        s.id === sessionId ? { ...s, content_id, content_class_index, content_file_paths } : s,
+      ),
     );
   };
 
@@ -2874,7 +2970,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
           created_by: user.id,
         })
         .select(
-          "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, meeting_url, recording_url, notes_url",
+          "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, content_file_paths, meeting_url, recording_url, notes_url",
         )
         .single();
       if (error || !data) {
@@ -2962,7 +3058,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
         .from("attendance_sessions")
         .insert(rows)
         .select(
-          "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, meeting_url, recording_url, notes_url",
+          "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, content_file_paths, meeting_url, recording_url, notes_url",
         );
       if (error) {
         toast.error(friendlyError(error));
@@ -3408,11 +3504,11 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                           contents={contents}
                           contentId={s.content_id}
                           classIndex={s.content_class_index}
+                          filePaths={s.content_file_paths}
                           assignedClassesByContent={assignedClassesByContent}
-                          onChange={(cid, idx) => {
-                            const raw = cid == null ? "__none" : `${cid}:${idx ?? 0}`;
-                            void updateAssignment(s.id, raw);
-                          }}
+                          onChange={(cid, idx, paths) =>
+                            void updateAssignment(s.id, cid, idx, paths)
+                          }
                         />
                         {/* Acciones de la sesión: editar metadata + eliminar.
                             Iconos discretos pero accesibles — el menú "tres
