@@ -388,7 +388,14 @@
     "reduceCutsTitle": "Reducir cortes a {{target}}",
     "reduceCutsBodyItems": "Se eliminarán {{cuts}} corte(s) y {{items}} item(s) asociado(s). Esta acción se aplica al guardar y no se puede deshacer.",
     "reduceCutsBody": "Se eliminarán {{cuts}} corte(s). Esta acción se aplica al guardar.",
-    "reduceCutsConfirm": "Reducir"
+    "reduceCutsConfirm": "Reducir",
+    "boardCalendarTooltip": "Vincular sesiones con Google Calendar y resincronizar grabaciones",
+    "boardCalendar": "Calendario",
+    "boardRecordingUrl": "Enlace de grabación (opcional)",
+    "boardNotesUrl": "Enlace de notas / minuta (opcional)",
+    "boardRecording": "Grabación",
+    "boardNotes": "Notas",
+    "boardSessionCode": "Código"
   },
   "users": {
     "title": "Usuarios",
@@ -493,7 +500,10 @@
     "errorInstitutionalInvalid": "El correo institucional no es válido.",
     "errorPersonalInvalid": "El correo personal no es válido.",
     "errorInstitutionalTaken": "El correo institucional ya está en uso por otro usuario.",
-    "errorPersonalTaken": "El correo personal ya está en uso por otro usuario."
+    "errorPersonalTaken": "El correo personal ya está en uso por otro usuario.",
+    "emailSameAsCurrent": "El correo nuevo es igual al actual.",
+    "emailChangeRequested": "Solicitud enviada",
+    "emailChangeRequestedHint": "Te enviamos un correo a la nueva dirección. Tu correo actual seguirá activo hasta que confirmes el cambio (el enlace es válido 1 hora)."
   },
   "monitorGrid": {
     "student": "Estudiante",
@@ -515,7 +525,12 @@
     "submit": "Entrar",
     "welcome": "Bienvenido a ExamLab",
     "invalidCredentials": "Credenciales inválidas. Contacta a tu administrador si no tienes cuenta.",
-    "forgot": "¿Olvidaste tu contraseña?",
+    "forgot": {
+      "title": "Recuperar contraseña",
+      "subtitle": "Ingresa el correo de tu cuenta. Te enviaremos un enlace para definir una nueva contraseña.",
+      "send": "Enviar enlace",
+      "sent": "Si esa dirección está registrada, recibirás un correo con el enlace de recuperación en los próximos minutos. Revisa también la carpeta de spam."
+    },
     "institutionalEmail": "Email institucional",
     "brandSubtitle": "Plataforma de Gestión Educativa",
     "brandTagline": "Una plataforma integral para tu institución: cursos, evaluaciones, talleres, proyectos, asistencia, contenido y comunicación — todo en un solo lugar.",
@@ -547,6 +562,63 @@
       "rejectedTitle": "No pudimos iniciar tu sesión",
       "backToLogin": "Volver al inicio de sesión",
       "noSession": "No se pudo recuperar la sesión del proveedor. Vuelve a intentar."
+    },
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "hidePassword": "Ocultar contraseña",
+    "showPassword": "Mostrar contraseña",
+    "rememberMe": "Recordarme",
+    "reset": {
+      "passwordTooShort": "Mínimo 8 caracteres",
+      "passwordsDontMatch": "Las contraseñas no coinciden",
+      "tokenInvalid": "Token inválido o ya usado. Solicita un nuevo enlace.",
+      "tokenExpired": "El enlace expiró (vigencia 1h). Solicita uno nuevo.",
+      "success": "Contraseña actualizada. Inicia sesión con la nueva.",
+      "title": "Restablecer contraseña",
+      "subtitle": "Define una nueva contraseña para tu cuenta.",
+      "verifying": "Verificando el enlace…",
+      "invalidLink": "El enlace es inválido o ya expiró (vigencia 1h). Pide uno nuevo desde la pantalla de inicio de sesión.",
+      "backToLogin": "Volver a iniciar sesión",
+      "newPassword": "Nueva contraseña",
+      "minChars": "Mínimo 8 caracteres.",
+      "confirmPassword": "Confirmar contraseña",
+      "submit": "Actualizar contraseña"
+    },
+    "confirmEmailChange": {
+      "errorExpired": "El enlace expiró (vigencia 1h). Vuelve a solicitar el cambio desde tu perfil.",
+      "errorCancelled": "Este cambio fue cancelado desde el correo anterior. Si fuiste tú, solicita uno nuevo desde tu perfil.",
+      "errorAlreadyConfirmed": "Este cambio ya fue confirmado y aplicado. Si necesitás revertirlo, usá el link del correo de aviso que mandamos al correo anterior (válido por 24h).",
+      "errorEmailTaken": "El correo destino ya está en uso por otra cuenta. Solicita el cambio nuevamente con una dirección diferente.",
+      "errorMissingToken": "El enlace no contiene el token de confirmación. Verifica que abriste el correo completo.",
+      "errorGeneric": "El enlace es inválido o ya fue utilizado. Pide uno nuevo desde tu perfil si aún necesitas cambiar el correo.",
+      "title": "Confirmar cambio de correo",
+      "subtitle": "Estamos validando tu enlace para actualizar el correo de tu cuenta.",
+      "verifying": "Confirmando el cambio…",
+      "appliedTitle": "Cambio aplicado — tu correo fue actualizado",
+      "appliedBody": "A partir de ahora iniciás sesión con este correo:",
+      "revertUntil": "Podés revertir hasta el:",
+      "revertHint": "Mandamos un aviso a tu correo anterior con un link para revertir por seguridad. Si no fuiste vos, usá ese link antes de las 24h.",
+      "backToLoginCurrent": "Volver al inicio de sesión",
+      "backToLogin": "Volver a iniciar sesión"
+    },
+    "cancelEmailChange": {
+      "errorWindowExpired": "Pasaron más de 24h desde el cambio; la ventana para revertir desde este link ya cerró. Si no reconocés el cambio, contactá a soporte y reseteá tu contraseña.",
+      "errorLegacyToken": "Este link corresponde a un cambio previo al nuevo flujo de reverso. El cambio fue cancelado, pero no podemos restaurar automáticamente. Si necesitás tu correo anterior, contactá a soporte.",
+      "errorPreviousTaken": "Tu correo anterior fue tomado por otra cuenta. No podemos revertir automáticamente — contactá a soporte para resolverlo.",
+      "errorMissingToken": "El enlace no contiene el token de cancelación.",
+      "errorGeneric": "El enlace es inválido o expiró. Si crees que es un intento de toma de cuenta, cambia tu contraseña.",
+      "title": "Cancelar cambio de correo",
+      "subtitle": "Estamos procesando la cancelación del cambio solicitado.",
+      "cancelling": "Cancelando…",
+      "alreadyRevertedTitle": "Ya estaba revertido",
+      "alreadyCancelledTitle": "Ya estaba cancelado",
+      "successRevertTitle": "Cambio revertido — correo restaurado",
+      "successTitle": "Cambio cancelado",
+      "successRevertBody": "Tu cuenta volvió a usar tu correo anterior. Iniciá sesión con él:",
+      "successBody": "El correo de tu cuenta NO se cambiará. Tu acceso sigue funcionando con tu correo actual.",
+      "securityHintTitle": "🛡️ Recomendación de seguridad",
+      "securityHint": "Si NO solicitaste este cambio, alguien pudo haber comprometido tu contraseña. Cámbiala ahora desde el login (¿olvidaste tu contraseña?).",
+      "goToLogin": "Ir al inicio de sesión",
+      "backToLogin": "Volver a iniciar sesión"
     }
   },
   "tenant": {
@@ -589,7 +661,9 @@
       "completed": "Completados",
       "unansweredMessages": "Mensajes pendientes sin responder",
       "todaySessions": "Sesiones hoy",
-      "pendingTeacherResponses": "Pendientes docentes"
+      "pendingTeacherResponses": "Pendientes docentes",
+      "pendingMyResponse": "Comentarios pendientes por respuesta",
+      "conversationsPending": "Conversaciones pendientes"
     },
     "viewAudit": "Ver auditoría",
     "recentUsers": "Usuarios recientes",
@@ -725,7 +799,10 @@
       "notFound": "No se encontró el examen.",
       "loadError": "Cargando resultado del examen…",
       "mustSignIn": "Inicia sesión para ver tus resultados."
-    }
+    },
+    "deleteTitle": "Enviar a papelera",
+    "deleted": "Examen enviado a papelera",
+    "deleteDesc": "El examen \"{{title}}\" se ocultará de la lista pero quedará en papelera por 30 días por si querés restaurarlo. Las preguntas, asignaciones y entregas no se borran todavía."
   },
   "project": {
     "start": "Iniciar entrega",
@@ -1058,7 +1135,23 @@
     "classMaterialsCol": "Materiales",
     "classActionsCol": "Acciones",
     "classNoSession": "Sin sesión",
-    "classNoSessionHint": "Esta clase aún no está asignada a una sesión del curso. Usa \"Asignar a sesiones\" o \"Programar sesiones\" desde el menú del contenido."
+    "classNoSessionHint": "Esta clase aún no está asignada a una sesión del curso. Usa \"Asignar a sesiones\" o \"Programar sesiones\" desde el menú del contenido.",
+    "editExternalTitle": "Editar contenido externo",
+    "editExternalSubtitle": "Corrige la metadata de un material subido (sin tocar los archivos). Útil cuando lo clasificaste mal — por ejemplo, lo subiste como material individual y en realidad es un curso completo.",
+    "classTopic": "Tema de esta clase",
+    "classTopicHint": "Tema específico de esta clase (no del curso completo). El curso conserva su tema general; solo se regenera esta clase con el nuevo enfoque.",
+    "classTopicPlaceholder": "Ej. Operadores y expresiones aritméticas",
+    "classInstructions": "Instrucciones puntuales (opcional)",
+    "classInstructionsHint": "Notas adicionales solo para esta clase. Si lo dejas vacío, se usan las instrucciones generales del curso.",
+    "uploadExternalTitle": "Subir contenido externo",
+    "uploadExternalSubtitle": "Sube archivos creados por fuera de ExamLab (PDF, presentaciones, docs) y completa la misma metadata pedagógica que usaría la IA. No se invoca generación — solo se registra el material.",
+    "uploadInstructionsHint": "Notas libres sobre este material. Se guardan con el contenido; útiles si después decides regenerar con IA o materializar evaluaciones.",
+    "coursesTarget": "Cursos donde aparecerá",
+    "files": "Archivos",
+    "uploadAndCreate": "Subir y crear contenido",
+    "uploadExternal": "Subir externo",
+    "editExternalAction": "Editar (modo / nombre / tema)",
+    "duplicateAction": "Duplicar"
   },
   "courseBoard": {
     "indexSubtitle": "Selecciona un curso para ver el tablero de sesiones, contenido y entregas.",
@@ -1184,7 +1277,12 @@
     "markAbsentsConfirm": "Sí, marcar ausentes",
     "deleteSessionTitle": "Eliminar sesión",
     "deleteSessionBody": "Se eliminará la sesión \"{{session}}\" y sus {{count}} registro(s) de asistencia. Esta acción no se puede deshacer.",
-    "sessionDeleted": "Sesión eliminada correctamente"
+    "sessionDeleted": "Sesión eliminada correctamente",
+    "editRecordingNotes": "Editar grabación / notas",
+    "addRecordingNotes": "Agregar grabación / notas",
+    "notesUrlLabel": "Enlace de notas / minuta (opcional)",
+    "notesUrlHelp": "Enlace a las notas de reunión o minuta (Google Docs, Notion…). Al vincular con Google Calendar se trae automáticamente. Se abre en una pestaña nueva.",
+    "editRecordingNotesTitle": "Editar grabación / notas"
   },
   "preferences": {
     "title": "Preferencias de notificación",
@@ -2254,7 +2352,10 @@
       "noEventsInRange": "No hay eventos en ese rango de fechas.",
       "eventsLoaded": "{{eventCount}} evento(s) cargados",
       "noChangesToApply": "No hay cambios para aplicar",
-      "linkFailed": "No se pudo vincular: {{error}}"
+      "linkFailed": "No se pudo vincular: {{error}}",
+      "noLinkedInRange": "No hay sesiones vinculadas a eventos en este rango. Ajustá las fechas para cubrir las sesiones ya vinculadas y reintentá.",
+      "resyncFailed": "No se pudo resincronizar: {{error}}",
+      "resynced": "Grabaciones y notas resincronizadas en {{count}} sesión(es) vinculada(s)."
     },
     "modules_certificates_CourseCertificateSettingsDialog": {
       "savedOk": "Configuración del curso guardada",
@@ -2463,7 +2564,8 @@
       "copyEnrollmentsFailed": "No se pudieron copiar las matrículas: {{error}}",
       "courseDuplicated": "Curso duplicado correctamente{{suffix}}",
       "coursesSentToTrash": "{{count}} curso(s) enviado(s) a papelera",
-      "duplicateStudentsSuffix": " ({{count}} estudiante(s) copiado(s))"
+      "duplicateStudentsSuffix": " ({{count}} estudiante(s) copiado(s))",
+      "copyBoardFailed": "No se pudo copiar el tablero: {{error}}"
     },
     "routes_app_admin_support": {
       "noTenantAssigned": "Tu cuenta no tiene institución asignada. Contacta al SuperAdmin.",
@@ -2735,7 +2837,9 @@
       "generationEnqueued": "Generación encolada. Cuando tengas un código de IA inmediata o un administrador la procese, el contenido aparecerá en tu lista. Puedes verla en \"Cola IA → Generaciones\".",
       "duplicateDisplayName": "Ya tienes un contenido llamado \"{{name}}\". Usa un nombre distinto.",
       "published": "Contenido publicado. Los alumnos del curso recibirán notificación.",
-      "unpublished": "Contenido despublicado. Los alumnos ya no lo ven."
+      "unpublished": "Contenido despublicado. Los alumnos ya no lo ven.",
+      "duplicatePartialFiles": "Copia creada, pero fallaron {{count}} archivo(s): {{names}}",
+      "duplicated": "Contenido duplicado como borrador: \"Copia de {{name}}\""
     },
     "routes_app_teacher_exams_examId": {
       "createQuestionBeforeTimeEval": "Crea al menos una pregunta antes de evaluar el tiempo.",
@@ -2820,7 +2924,14 @@
       "pollUpdated": "Encuesta actualizada",
       "pollCreated": "Encuesta creada",
       "pollCreatedMultiCourse": "Encuesta creada ({{count}} cursos)",
-      "responseClearedForUser": "Respuesta de \"{{label}}\" borrada. Ya puede volver a votar."
+      "responseClearedForUser": "Respuesta de \"{{label}}\" borrada. Ya puede volver a votar.",
+      "shareLinkCopied": "Enlace copiado. Compártelo con tus estudiantes (deben iniciar sesión y estar matriculados).",
+      "shareLinkDraft": "Ojo: esta encuesta es un borrador. Publícala para que los estudiantes puedan verla con el enlace.",
+      "pickSlotDateTime": "Elegí fecha y hora para el slot",
+      "invalidSlotDateTime": "Fecha u hora inválida",
+      "slotAdded": "Slot agregado",
+      "slotNeedsConfig": "Agregá al menos una fecha y una ventana horaria válida (inicio antes de fin) para generar los slots.",
+      "pollDuplicated": "Encuesta duplicada como borrador: \"{{title}} (copia)\""
     },
     "routes_app_teacher_projects": {
       "bulkSentToTrash": "{{n}} proyecto(s) enviado(s) a papelera",
@@ -2874,7 +2985,17 @@
       "actaTemplateNotFound": "No se encontró la plantilla 'Acta de finalización del curso'. Pídele al admin que la publique.",
       "selectStudent": "Selecciona un estudiante",
       "generateReportError": "Error al generar el informe",
-      "previewUnavailable": "Vista previa no disponible"
+      "previewUnavailable": "Vista previa no disponible",
+      "docxEmpty": "El documento no contiene texto que importar.",
+      "docxImportedDesc": "Importado de un Word (.docx)",
+      "docxImportedWithVars": "Documento importado. Se detectaron {{count}} variable(s): {{vars}}",
+      "docxImported": "Documento importado. Edítalo e inserta variables del panel derecho.",
+      "docxImportError": "No se pudo importar el documento.",
+      "aiSelectCourse": "Selecciona un curso de referencia para los datos.",
+      "aiGenerateError": "No se pudo preparar la generación con IA.",
+      "aiGenerated": "Informe generado con IA e insertado en el editor. Revísalo y ajusta los {{...}} antes de guardar.",
+      "aiFallbackCopied": "No se pudo generar con la IA de la plataforma. Copiamos el prompt (con los datos del curso) al portapapeles — pégalo en tu IA y trae el resultado al editor.",
+      "aiFallbackReady": "No se pudo generar con la IA de la plataforma. El prompt quedó en la consola del navegador."
     },
     "routes_app_teacher_whiteboards_id": {
       "whiteboardNeedsName": "La pizarra necesita un nombre",
@@ -2885,7 +3006,8 @@
       "nameRequired": "Dale un nombre a la pizarra",
       "sessionNeedsCourse": "Si elegís una sesión, primero hay que elegir el curso.",
       "created": "Pizarra creada",
-      "sentToTrash": "Pizarra enviada a papelera"
+      "sentToTrash": "Pizarra enviada a papelera",
+      "duplicated": "Pizarra duplicada: \"{{name}}\""
     },
     "routes_app_teacher_workshops": {
       "bulkMovedToTrash": "{{count}} taller(es) enviado(s) a papelera",
@@ -2979,6 +3101,14 @@
       "createdOk": "Plantilla creada",
       "deletedOk": "Plantilla eliminada",
       "duplicatedOk": "Plantilla duplicada"
+    },
+    "modules_contents_EditExternalContentDialog": {
+      "saved": "Contenido actualizado",
+      "duplicateName": "Ya tienes un contenido llamado \"{{name}}\". Usa otro nombre."
+    },
+    "modules_sessions_SessionCodeSnippetsDialog": {
+      "sharedEnabled": "Código compartido con los alumnos",
+      "sharedDisabled": "Código oculto para los alumnos"
     }
   },
   "systemDiagnosticsPanel": {
@@ -4120,5 +4250,14 @@
     "descEditable": "Podés ajustar el código y ejecutarlo. Los cambios y la salida son temporales (no se guardan).",
     "descReadOnly": "Vista de solo lectura — este tipo de archivo no se puede ejecutar aquí.",
     "outputEmpty": "(sin salida)"
+  },
+  "modules_calendar_LinkCalendarEventsDialog": {
+    "notesAvailable": "Notas de reunión disponibles — se vincularán"
+  },
+  "modules_sessions_SessionCodeSnippetsDialog": {
+    "shareWithStudents": "Compartir con alumnos"
+  },
+  "routes_app_student_attendance": {
+    "viewNotes": "Ver notas"
   }
 }

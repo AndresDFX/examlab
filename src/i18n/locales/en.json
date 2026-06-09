@@ -388,7 +388,14 @@
     "reduceCutsTitle": "Reduce cuts to {{target}}",
     "reduceCutsBodyItems": "{{cuts}} cut(s) and {{items}} associated item(s) will be deleted. This action applies on save and cannot be undone.",
     "reduceCutsBody": "{{cuts}} cut(s) will be deleted. This action applies on save.",
-    "reduceCutsConfirm": "Reduce"
+    "reduceCutsConfirm": "Reduce",
+    "boardCalendarTooltip": "Link sessions with Google Calendar and resync recordings",
+    "boardCalendar": "Calendar",
+    "boardRecordingUrl": "Recording link (optional)",
+    "boardNotesUrl": "Notes / minutes link (optional)",
+    "boardRecording": "Recording",
+    "boardNotes": "Notes",
+    "boardSessionCode": "Code"
   },
   "users": {
     "title": "Users",
@@ -493,7 +500,10 @@
     "errorInstitutionalInvalid": "Institutional email is not valid.",
     "errorPersonalInvalid": "Personal email is not valid.",
     "errorInstitutionalTaken": "Institutional email is already in use by another user.",
-    "errorPersonalTaken": "Personal email is already in use by another user."
+    "errorPersonalTaken": "Personal email is already in use by another user.",
+    "emailSameAsCurrent": "The new email is the same as the current one.",
+    "emailChangeRequested": "Request sent",
+    "emailChangeRequestedHint": "We sent an email to the new address. Your current email stays active until you confirm the change (the link is valid for 1 hour)."
   },
   "monitorGrid": {
     "student": "Student",
@@ -515,7 +525,12 @@
     "submit": "Sign in",
     "welcome": "Welcome to ExamLab",
     "invalidCredentials": "Invalid credentials. Contact your administrator if you don't have an account.",
-    "forgot": "Forgot your password?",
+    "forgot": {
+      "title": "Recover password",
+      "subtitle": "Enter your account email. We'll send you a link to set a new password.",
+      "send": "Send link",
+      "sent": "If that address is registered, you'll receive an email with the recovery link in the next few minutes. Check your spam folder too."
+    },
     "institutionalEmail": "Institutional email",
     "brandSubtitle": "Educational Management Platform",
     "brandTagline": "An integral platform for your institution: courses, assessments, workshops, projects, attendance, content and communication — all in one place.",
@@ -547,6 +562,63 @@
       "rejectedTitle": "We couldn't sign you in",
       "backToLogin": "Back to sign in",
       "noSession": "Could not retrieve the session from the provider. Please try again."
+    },
+    "forgotPassword": "Forgot your password?",
+    "hidePassword": "Hide password",
+    "showPassword": "Show password",
+    "rememberMe": "Remember me",
+    "reset": {
+      "passwordTooShort": "At least 8 characters",
+      "passwordsDontMatch": "Passwords don't match",
+      "tokenInvalid": "Invalid or already used token. Request a new link.",
+      "tokenExpired": "The link expired (valid for 1h). Request a new one.",
+      "success": "Password updated. Sign in with the new one.",
+      "title": "Reset password",
+      "subtitle": "Set a new password for your account.",
+      "verifying": "Verifying the link…",
+      "invalidLink": "The link is invalid or has expired (valid for 1h). Request a new one from the sign-in screen.",
+      "backToLogin": "Back to sign in",
+      "newPassword": "New password",
+      "minChars": "At least 8 characters.",
+      "confirmPassword": "Confirm password",
+      "submit": "Update password"
+    },
+    "confirmEmailChange": {
+      "errorExpired": "The link expired (valid for 1h). Request the change again from your profile.",
+      "errorCancelled": "This change was cancelled from the previous email. If it was you, request a new one from your profile.",
+      "errorAlreadyConfirmed": "This change was already confirmed and applied. If you need to revert it, use the link in the notice email we sent to the previous address (valid for 24h).",
+      "errorEmailTaken": "The target email is already in use by another account. Request the change again with a different address.",
+      "errorMissingToken": "The link doesn't contain the confirmation token. Make sure you opened the full email.",
+      "errorGeneric": "The link is invalid or has already been used. Request a new one from your profile if you still need to change your email.",
+      "title": "Confirm email change",
+      "subtitle": "We're validating your link to update your account email.",
+      "verifying": "Confirming the change…",
+      "appliedTitle": "Change applied — your email was updated",
+      "appliedBody": "From now on you sign in with this email:",
+      "revertUntil": "You can revert until:",
+      "revertHint": "We sent a notice to your previous email with a link to revert for security. If it wasn't you, use that link within 24h.",
+      "backToLoginCurrent": "Back to sign in",
+      "backToLogin": "Back to sign in"
+    },
+    "cancelEmailChange": {
+      "errorWindowExpired": "More than 24h have passed since the change; the window to revert from this link has closed. If you don't recognize the change, contact support and reset your password.",
+      "errorLegacyToken": "This link corresponds to a change made before the new revert flow. The change was cancelled, but we can't restore it automatically. If you need your previous email, contact support.",
+      "errorPreviousTaken": "Your previous email was taken by another account. We can't revert automatically — contact support to resolve it.",
+      "errorMissingToken": "The link doesn't contain the cancellation token.",
+      "errorGeneric": "The link is invalid or expired. If you think this is an account takeover attempt, change your password.",
+      "title": "Cancel email change",
+      "subtitle": "We're processing the cancellation of the requested change.",
+      "cancelling": "Cancelling…",
+      "alreadyRevertedTitle": "Already reverted",
+      "alreadyCancelledTitle": "Already cancelled",
+      "successRevertTitle": "Change reverted — email restored",
+      "successTitle": "Change cancelled",
+      "successRevertBody": "Your account is using your previous email again. Sign in with it:",
+      "successBody": "Your account email will NOT be changed. Your access keeps working with your current email.",
+      "securityHintTitle": "🛡️ Security recommendation",
+      "securityHint": "If you did NOT request this change, someone may have compromised your password. Change it now from the login (forgot your password?).",
+      "goToLogin": "Go to sign in",
+      "backToLogin": "Back to sign in"
     }
   },
   "tenant": {
@@ -589,7 +661,9 @@
       "completed": "Completed",
       "unansweredMessages": "Unanswered messages",
       "todaySessions": "Sessions today",
-      "pendingTeacherResponses": "Pending teacher replies"
+      "pendingTeacherResponses": "Pending teacher replies",
+      "pendingMyResponse": "Comments awaiting your reply",
+      "conversationsPending": "Pending conversations"
     },
     "viewAudit": "View audit",
     "recentUsers": "Recent users",
@@ -725,7 +799,10 @@
       "notFound": "Exam not found.",
       "loadError": "Loading exam result…",
       "mustSignIn": "Sign in to see your results."
-    }
+    },
+    "deleteTitle": "Send to trash",
+    "deleted": "Exam sent to trash",
+    "deleteDesc": "The exam \"{{title}}\" will be hidden from the list but kept in the trash for 30 days in case you want to restore it. Questions, assignments and submissions are not deleted yet."
   },
   "project": {
     "start": "Start submission",
@@ -1058,7 +1135,23 @@
     "classMaterialsCol": "Materials",
     "classActionsCol": "Actions",
     "classNoSession": "Not scheduled",
-    "classNoSessionHint": "This class is not assigned to a course session yet. Use \"Assign to sessions\" or \"Generate sessions\" from the content menu."
+    "classNoSessionHint": "This class is not assigned to a course session yet. Use \"Assign to sessions\" or \"Generate sessions\" from the content menu.",
+    "editExternalTitle": "Edit external content",
+    "editExternalSubtitle": "Fix the metadata of an uploaded material (without touching the files). Useful when you misclassified it — for example, you uploaded it as individual material but it's actually a full course.",
+    "classTopic": "Topic of this class",
+    "classTopicHint": "Specific topic for this class (not the full course). The course keeps its general topic; only this class is regenerated with the new focus.",
+    "classTopicPlaceholder": "E.g. Operators and arithmetic expressions",
+    "classInstructions": "Specific instructions (optional)",
+    "classInstructionsHint": "Additional notes for this class only. If left empty, the course's general instructions are used.",
+    "uploadExternalTitle": "Upload external content",
+    "uploadExternalSubtitle": "Upload files created outside ExamLab (PDF, slides, docs) and fill in the same pedagogical metadata the AI would use. No generation is invoked — the material is just registered.",
+    "uploadInstructionsHint": "Free notes about this material. Saved with the content; useful if you later decide to regenerate with AI or materialize assessments.",
+    "coursesTarget": "Courses where it will appear",
+    "files": "Files",
+    "uploadAndCreate": "Upload and create content",
+    "uploadExternal": "Upload external",
+    "editExternalAction": "Edit (mode / name / topic)",
+    "duplicateAction": "Duplicate"
   },
   "courseBoard": {
     "indexSubtitle": "Select a course to see its sessions, content and deliverables board.",
@@ -1184,7 +1277,12 @@
     "markAbsentsConfirm": "Yes, mark absent",
     "deleteSessionTitle": "Delete session",
     "deleteSessionBody": "The session \"{{session}}\" and its {{count}} attendance record(s) will be deleted. This action cannot be undone.",
-    "sessionDeleted": "Session deleted successfully"
+    "sessionDeleted": "Session deleted successfully",
+    "editRecordingNotes": "Edit recording / notes",
+    "addRecordingNotes": "Add recording / notes",
+    "notesUrlLabel": "Notes / minutes link (optional)",
+    "notesUrlHelp": "Link to meeting notes or minutes (Google Docs, Notion…). Pulled in automatically when linking with Google Calendar. Opens in a new tab.",
+    "editRecordingNotesTitle": "Edit recording / notes"
   },
   "preferences": {
     "title": "Notification preferences",
@@ -2254,7 +2352,10 @@
       "noEventsInRange": "There are no events in that date range.",
       "eventsLoaded": "{{eventCount}} event(s) loaded",
       "noChangesToApply": "There are no changes to apply",
-      "linkFailed": "Couldn't link: {{error}}"
+      "linkFailed": "Couldn't link: {{error}}",
+      "noLinkedInRange": "There are no sessions linked to events in this range. Adjust the dates to cover the already-linked sessions and try again.",
+      "resyncFailed": "Could not resync: {{error}}",
+      "resynced": "Recordings and notes resynced in {{count}} linked session(s)."
     },
     "modules_certificates_CourseCertificateSettingsDialog": {
       "savedOk": "Course settings saved",
@@ -2463,7 +2564,8 @@
       "copyEnrollmentsFailed": "Could not copy enrollments: {{error}}",
       "courseDuplicated": "Course duplicated successfully{{suffix}}",
       "coursesSentToTrash": "{{count}} course(s) sent to trash",
-      "duplicateStudentsSuffix": " ({{count}} student(s) copied)"
+      "duplicateStudentsSuffix": " ({{count}} student(s) copied)",
+      "copyBoardFailed": "Could not copy the board: {{error}}"
     },
     "routes_app_admin_support": {
       "noTenantAssigned": "Your account has no institution assigned. Contact the SuperAdmin.",
@@ -2735,7 +2837,9 @@
       "generationEnqueued": "Generation queued. Once you have an instant AI code or an administrator processes it, the content will appear in your list. You can view it under \"AI Queue → Generations\".",
       "duplicateDisplayName": "You already have a content named \"{{name}}\". Use a different name.",
       "published": "Content published. Students in the course will be notified.",
-      "unpublished": "Content unpublished. Students can no longer see it."
+      "unpublished": "Content unpublished. Students can no longer see it.",
+      "duplicatePartialFiles": "Copy created, but {{count}} file(s) failed: {{names}}",
+      "duplicated": "Content duplicated as a draft: \"Copy of {{name}}\""
     },
     "routes_app_teacher_exams_examId": {
       "createQuestionBeforeTimeEval": "Create at least one question before evaluating the time.",
@@ -2820,7 +2924,14 @@
       "pollUpdated": "Poll updated",
       "pollCreated": "Poll created",
       "pollCreatedMultiCourse": "Poll created ({{count}} courses)",
-      "responseClearedForUser": "Response from \"{{label}}\" cleared. They can vote again."
+      "responseClearedForUser": "Response from \"{{label}}\" cleared. They can vote again.",
+      "shareLinkCopied": "Link copied. Share it with your students (they must sign in and be enrolled).",
+      "shareLinkDraft": "Note: this poll is a draft. Publish it so students can view it with the link.",
+      "pickSlotDateTime": "Pick a date and time for the slot",
+      "invalidSlotDateTime": "Invalid date or time",
+      "slotAdded": "Slot added",
+      "slotNeedsConfig": "Add at least one date and a valid time window (start before end) to generate the slots.",
+      "pollDuplicated": "Poll duplicated as a draft: \"{{title}} (copy)\""
     },
     "routes_app_teacher_projects": {
       "bulkSentToTrash": "{{n}} project(s) moved to trash",
@@ -2874,7 +2985,17 @@
       "actaTemplateNotFound": "The 'Course completion record' template was not found. Ask the admin to publish it.",
       "selectStudent": "Select a student",
       "generateReportError": "Error generating the report",
-      "previewUnavailable": "Preview unavailable"
+      "previewUnavailable": "Preview unavailable",
+      "docxEmpty": "The document contains no text to import.",
+      "docxImportedDesc": "Imported from a Word file (.docx)",
+      "docxImportedWithVars": "Document imported. {{count}} variable(s) detected: {{vars}}",
+      "docxImported": "Document imported. Edit it and insert variables from the right panel.",
+      "docxImportError": "Could not import the document.",
+      "aiSelectCourse": "Select a reference course for the data.",
+      "aiGenerateError": "Could not prepare AI generation.",
+      "aiGenerated": "Report generated with AI and inserted into the editor. Review it and adjust the {{...}} before saving.",
+      "aiFallbackCopied": "Could not generate with the platform's AI. We copied the prompt (with the course data) to the clipboard — paste it into your AI and bring the result to the editor.",
+      "aiFallbackReady": "Could not generate with the platform's AI. The prompt was left in the browser console."
     },
     "routes_app_teacher_whiteboards_id": {
       "whiteboardNeedsName": "The whiteboard needs a name",
@@ -2885,7 +3006,8 @@
       "nameRequired": "Give the whiteboard a name",
       "sessionNeedsCourse": "If you choose a session, you must first choose the course.",
       "created": "Whiteboard created",
-      "sentToTrash": "Whiteboard moved to trash"
+      "sentToTrash": "Whiteboard moved to trash",
+      "duplicated": "Whiteboard duplicated: \"{{name}}\""
     },
     "routes_app_teacher_workshops": {
       "bulkMovedToTrash": "{{count}} workshop(s) moved to trash",
@@ -2979,6 +3101,14 @@
       "createdOk": "Template created",
       "deletedOk": "Template deleted",
       "duplicatedOk": "Template duplicated"
+    },
+    "modules_contents_EditExternalContentDialog": {
+      "saved": "Content updated",
+      "duplicateName": "You already have content named \"{{name}}\". Use a different name."
+    },
+    "modules_sessions_SessionCodeSnippetsDialog": {
+      "sharedEnabled": "Code shared with students",
+      "sharedDisabled": "Code hidden from students"
     }
   },
   "systemDiagnosticsPanel": {
@@ -4120,5 +4250,14 @@
     "descEditable": "You can edit the code and run it. Changes and output are temporary (not saved).",
     "descReadOnly": "Read-only view — this file type cannot be run here.",
     "outputEmpty": "(no output)"
+  },
+  "modules_calendar_LinkCalendarEventsDialog": {
+    "notesAvailable": "Meeting notes available — they'll be linked"
+  },
+  "modules_sessions_SessionCodeSnippetsDialog": {
+    "shareWithStudents": "Share with students"
+  },
+  "routes_app_student_attendance": {
+    "viewNotes": "View notes"
   }
 }
