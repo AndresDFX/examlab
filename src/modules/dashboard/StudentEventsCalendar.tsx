@@ -233,7 +233,8 @@ export function StudentEventsCalendar({
             db
               .from("courses")
               .select("id, name, start_date, end_date")
-              .in("id", courseIds),
+              .in("id", courseIds)
+              .is("deleted_at", null),
             db
               .from("attendance_sessions")
               .select("id, title, session_date, course:courses(id, name)")
@@ -242,25 +243,25 @@ export function StudentEventsCalendar({
             db
               .from("exam_assignments")
               .select(
-                "exam:exams(id, title, start_time, status, course:courses(name))",
+                "exam:exams(id, title, start_time, status, deleted_at, course:courses(name))",
               )
               .eq("user_id", userId),
             db
               .from("workshop_assignments")
               .select(
-                "workshop:workshops(id, title, due_date, status, course:courses(name))",
+                "workshop:workshops(id, title, due_date, status, deleted_at, course:courses(name))",
               )
               .eq("user_id", userId),
             db
               .from("project_assignments")
               .select(
-                "project:projects(id, title, due_date, status, course:courses(name))",
+                "project:projects(id, title, due_date, status, deleted_at, course:courses(name))",
               )
               .eq("user_id", userId),
             db
               .from("project_courses")
               .select(
-                "project:projects(id, title, due_date, status, course:courses(name))",
+                "project:projects(id, title, due_date, status, deleted_at, course:courses(name))",
               )
               .in("course_id", courseIds),
           ]);
@@ -321,10 +322,12 @@ export function StudentEventsCalendar({
             title: string;
             start_time: string;
             status: string | null;
+            deleted_at: string | null;
             course: { name: string } | null;
           } | null;
         }>) {
           if (!a.exam) continue;
+          if (a.exam.deleted_at) continue; // en papelera → no se muestra
           if ((a.exam.status ?? "published") !== "published") continue;
           const date = isoToLocalDateKey(a.exam.start_time);
           if (!date) continue;
@@ -346,10 +349,12 @@ export function StudentEventsCalendar({
             title: string;
             due_date: string | null;
             status: string | null;
+            deleted_at: string | null;
             course: { name: string } | null;
           } | null;
         }>) {
           if (!a.workshop) continue;
+          if (a.workshop.deleted_at) continue; // en papelera → no se muestra
           if (a.workshop.status !== "published") continue;
           if (!a.workshop.due_date) continue;
           const date = isoToLocalDateKey(a.workshop.due_date);
@@ -373,9 +378,11 @@ export function StudentEventsCalendar({
           title: string;
           due_date: string | null;
           status: string | null;
+          deleted_at: string | null;
           course: { name: string } | null;
         } | null) => {
           if (!p) return;
+          if (p.deleted_at) return; // en papelera → no se muestra
           if (p.status !== "published") return;
           if (!p.due_date) return;
           if (projectsSeen.has(p.id)) return;
@@ -397,6 +404,7 @@ export function StudentEventsCalendar({
             title: string;
             due_date: string | null;
             status: string | null;
+            deleted_at: string | null;
             course: { name: string } | null;
           } | null;
         }>) {
@@ -408,6 +416,7 @@ export function StudentEventsCalendar({
             title: string;
             due_date: string | null;
             status: string | null;
+            deleted_at: string | null;
             course: { name: string } | null;
           } | null;
         }>) {
@@ -643,8 +652,12 @@ function DayCell({
     { label: string; dotClass: string; icon: typeof Flag; legendClass: string }
   >;
 }) {
+  // NO usar `aspect-square`: en columnas anchas (dashboard a 1-col, o el
+  // calendario full-width de /app/student/calendar) la celda cuadrada se
+  // vuelve altísima y el mes deja de caber sin scroll. Una altura fija
+  // modesta mantiene el calendario compacto sin importar el ancho.
   const cellClasses = [
-    "relative aspect-square min-h-[44px] rounded-md border flex flex-col items-center justify-start p-1 transition-colors",
+    "relative min-h-[34px] sm:min-h-[40px] rounded-md border flex flex-col items-center justify-start p-1 transition-colors",
     inMonth ? "bg-card" : "bg-muted/20",
     isToday ? "ring-1 ring-primary border-primary/40" : "border-transparent",
     hasEvents

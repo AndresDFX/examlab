@@ -261,6 +261,7 @@ function Gradebook() {
       .from("exams")
       .select("id, title, parent_exam_id, course_id, cut_id, weight, retry_mode")
       .eq("course_id", courseId)
+      .is("deleted_at", null)
       .order("start_time");
 
     // Workshops
@@ -268,6 +269,7 @@ function Gradebook() {
       .from("workshops")
       .select("id, title, course_id, max_score, cut_id, weight, is_external")
       .eq("course_id", courseId)
+      .is("deleted_at", null)
       .order("created_at");
 
     // Cortes evaluativos
@@ -283,13 +285,15 @@ function Gradebook() {
     // cut_id/weight por curso en vez del global de projects.
     const { data: pcData } = await db
       .from("project_courses")
-      .select("cut_id, weight, project:projects(id, title, course_id, max_score, is_external)")
+      .select("cut_id, weight, project:projects(id, title, course_id, max_score, is_external, deleted_at)")
       .eq("course_id", courseId);
-    const projectsData = (pcData ?? []).map((pc: any) => ({
-      ...pc.project,
-      cut_id: pc.cut_id,
-      weight: pc.weight,
-    }));
+    const projectsData = (pcData ?? [])
+      .filter((pc: any) => pc.project && !pc.project.deleted_at) // en papelera → excluido
+      .map((pc: any) => ({
+        ...pc.project,
+        cut_id: pc.cut_id,
+        weight: pc.weight,
+      }));
 
     // Sesiones de asistencia. cut_id es el FK explícito al corte
     // (migración 20260509020000). Si llega null, la sesión no aporta a
@@ -297,7 +301,8 @@ function Gradebook() {
     const { data: sessions } = await db
       .from("attendance_sessions")
       .select("id, session_date, cut_id")
-      .eq("course_id", courseId);
+      .eq("course_id", courseId)
+      .is("deleted_at", null);
 
     setAllExams((exams ?? []) as Exam[]);
     setAllWorkshops((workshops ?? []) as Workshop[]);

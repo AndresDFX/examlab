@@ -188,9 +188,9 @@ function AdminDashboard() {
         const courseIds = ((courseRows ?? []) as Array<{ id: string }>).map((r) => r.id);
         if (courseIds.length > 0) {
           const [examsRes, workshopsRes, projectsRes] = await Promise.all([
-            dbAny.from("exams").select("id").in("course_id", courseIds),
-            dbAny.from("workshops").select("id").in("course_id", courseIds),
-            dbAny.from("projects").select("id").in("course_id", courseIds),
+            dbAny.from("exams").select("id").in("course_id", courseIds).is("deleted_at", null),
+            dbAny.from("workshops").select("id").in("course_id", courseIds).is("deleted_at", null),
+            dbAny.from("projects").select("id").in("course_id", courseIds).is("deleted_at", null),
           ]);
           if (cancelled) return;
           examIds = ((examsRes.data ?? []) as Array<{ id: string }>).map((r) => r.id);
@@ -534,7 +534,8 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         (supabase as any)
           .from("attendance_sessions")
           .select("id", { count: "exact", head: true })
-          .eq("session_date", todayStr),
+          .eq("session_date", todayStr)
+          .is("deleted_at", null),
       ]);
       const openThreadIds: string[] = (openThreadsList.data ?? []).map((r: any) => r.id);
       let pendingMyResponse = 0;
@@ -583,6 +584,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         .from("attendance_sessions")
         .select("id, title, session_date, start_time, course_id, course:courses(name)")
         .gte("session_date", todayStr)
+        .is("deleted_at", null)
         .order("session_date", { ascending: true })
         .order("start_time", { ascending: true, nullsFirst: false })
         // Limit subido de 5 a 8 para que las cards (que ahora se expanden
@@ -599,6 +601,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         .select("id, title, start_time, end_time, time_limit_minutes, status, course:courses(name)")
         .eq("status", "published")
         .gte("end_time", now)
+        .is("deleted_at", null)
         .order("start_time")
         .limit(8);
       if (cancelled) return;
@@ -813,7 +816,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       const { data: asg } = await supabase
         .from("exam_assignments")
         .select(
-          "exam:exams(id, title, start_time, end_time, time_limit_minutes, status, course:courses(name))",
+          "exam:exams(id, title, start_time, end_time, time_limit_minutes, status, deleted_at, course:courses(name))",
         )
         .eq("user_id", userId);
       const examIds = (asg ?? []).map((a: any) => a.exam?.id).filter(Boolean);
@@ -831,6 +834,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         .filter(
           (e: any) =>
             e &&
+            !e.deleted_at &&
             (e.status ?? "published") === "published" &&
             new Date(e.end_time) > new Date() &&
             !doneExamIds.has(e.id),
@@ -850,7 +854,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       // y confundía al alumno.
       const { data: wasg } = await supabase
         .from("workshop_assignments")
-        .select("workshop:workshops(id, title, due_date, status, start_date, course:courses(name))")
+        .select("workshop:workshops(id, title, due_date, status, start_date, deleted_at, course:courses(name))")
         .eq("user_id", userId);
       const todayISO = new Date().toISOString();
       const candidateWs = (wasg ?? [])
@@ -858,6 +862,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         .filter(
           (w: any) =>
             w &&
+            !w.deleted_at &&
             w.status === "published" &&
             (!w.start_date || new Date(w.start_date) <= new Date()) &&
             // Cierre futuro (o sin cierre — entonces siempre "open").
@@ -926,6 +931,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
             .select("id, title, due_date, status, start_date, course:courses(name)")
             .in("id", projectIds)
             .eq("status", "published")
+            .is("deleted_at", null)
         : { data: [] as any[] };
       const { data: pSubs } = projectIds.length
         ? await dbAny
@@ -992,6 +998,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
             .select("id, title, session_date, start_time, course_id, course:courses(name)")
             .gte("session_date", todayStr)
             .in("course_id", enrolledCourseIds)
+            .is("deleted_at", null)
             .order("session_date", { ascending: true })
             .order("start_time", { ascending: true, nullsFirst: false })
             .limit(8)

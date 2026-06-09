@@ -193,7 +193,7 @@ function StudentGrades() {
           // sobre el join (project_courses no tiene status).
           db
             .from("project_courses")
-            .select("cut_id, weight, project:projects(id, title, max_score, is_external, status)")
+            .select("cut_id, weight, project:projects(id, title, max_score, is_external, status, deleted_at)")
             .eq("course_id", courseId),
           db
             .from("attendance_sessions")
@@ -209,7 +209,10 @@ function StudentGrades() {
         // Excluimos drafts: si el proyecto está en borrador no debe pesar
         // todavía en la nota del estudiante.
         const flatProjects = (projects ?? [])
-          .filter((pc: any) => (pc.project?.status ?? "published") !== "draft")
+          .filter(
+            (pc: any) =>
+              !pc.project?.deleted_at && (pc.project?.status ?? "published") !== "draft",
+          )
           .map((pc: any) => ({
             ...(pc.project ?? pc),
             cut_id: pc.cut_id ?? null,

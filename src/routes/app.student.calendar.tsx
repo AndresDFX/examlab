@@ -9,11 +9,12 @@
  * el estudiante lo agregue a Google/Outlook/Apple Calendar. Botón
  * "Regenerar URL" rota el token si lo compartió accidentalmente.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { StudentEventsCalendar } from "@/modules/dashboard/StudentEventsCalendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -112,21 +113,21 @@ function StudentCalendar() {
         db
           .from("exam_assignments")
           .select(
-            "exam_id, exams(id, title, start_time, end_time, status, courses(name))",
+            "exam_id, exams(id, title, start_time, end_time, status, deleted_at, courses(name))",
           )
           .eq("user_id", user.id),
         db
           .from("course_enrollments")
-          .select("course_id, courses(id, name, workshops(id, title, due_date, status))")
+          .select("course_id, courses(id, name, workshops(id, title, due_date, status, deleted_at))")
           .eq("user_id", user.id),
         db
           .from("course_enrollments")
-          .select("course_id, courses(id, name, projects(id, title, due_date, status))")
+          .select("course_id, courses(id, name, projects(id, title, due_date, status, deleted_at))")
           .eq("user_id", user.id),
         db
           .from("course_enrollments")
           .select(
-            "course_id, courses(id, name, attendance_sessions(id, session_date, start_time, title, meeting_url))",
+            "course_id, courses(id, name, attendance_sessions(id, session_date, start_time, title, meeting_url, deleted_at))",
           )
           .eq("user_id", user.id),
       ]);
@@ -145,6 +146,7 @@ function StudentCalendar() {
       for (const row of (examsRes.data ?? []) as any[]) {
         const e = row.exams;
         if (!e?.start_time || !e?.end_time) continue;
+        if (e.deleted_at) continue; // en papelera → no se muestra
         // Filtra draft/closed. `exams.status` puede venir undefined si la
         // columna aún no se aplicó (migración 20260603120000); en ese
         // caso asumimos 'published' para no perder visibilidad.
@@ -168,6 +170,7 @@ function StudentCalendar() {
         const c = enr.courses;
         if (!c?.workshops) continue;
         for (const ws of c.workshops) {
+          if (ws.deleted_at) continue; // en papelera → no se muestra
           if (!ws.due_date || (ws.status && ws.status !== "published")) continue;
           if (String(ws.due_date) < lookbackDate) continue;
           const hasTime = /T\d{2}:\d{2}/.test(String(ws.due_date));
@@ -188,6 +191,7 @@ function StudentCalendar() {
         const c = enr.courses;
         if (!c?.projects) continue;
         for (const pj of c.projects) {
+          if (pj.deleted_at) continue; // en papelera → no se muestra
           if (!pj.due_date || (pj.status && pj.status !== "published")) continue;
           if (String(pj.due_date) < lookbackDate) continue;
           const hasTime = /T\d{2}:\d{2}/.test(String(pj.due_date));
@@ -208,6 +212,7 @@ function StudentCalendar() {
         const c = enr.courses;
         if (!c?.attendance_sessions) continue;
         for (const s of c.attendance_sessions) {
+          if (s.deleted_at) continue; // en papelera → no se muestra
           if (!s.session_date) continue;
           if (String(s.session_date) < lookbackDate) continue;
           const timeStr = s.start_time ? String(s.start_time).slice(0, 5) : null;
@@ -335,9 +340,13 @@ function StudentCalendar() {
     <div className="container mx-auto space-y-6 p-4 sm:p-6">
       <PageHeader
         icon={<CalendarIcon className="h-6 w-6 text-blue-500" />}
-        title="Mi calendario"
+        title="Calendario"
         subtitle="Vista unificada de exámenes, talleres, proyectos y sesiones. Suscríbete desde tu calendario favorito."
       />
+
+      {/* Vista mensual (overview visual). Reusa el componente del dashboard;
+          los días con eventos abren un popover con detalle clickeable. */}
+      <StudentEventsCalendar userId={user?.id} />
 
       {/* Bloque de suscripción .ics */}
       <Card>
@@ -495,34 +504,48 @@ function StudentCalendar() {
 
 function EventRow({ event }: { event: CalendarEvent }) {
   const Icon = KIND_ICON[event.kind];
-  return (
-    <Card className={`border-l-4 ${BORDER_LEFT_CLASS[event.kind]}`}>
-      <CardContent className="p-3 flex items-start gap-3">
-        <div className={`shrink-0 rounded-md p-2 ${KIND_COLOR[event.kind]}`}>
-          <Icon className="h-4 w-4" />
+  // El contenido principal (ícono + título + fecha) es clickeable y navega
+  // al módulo del recurso (SPA, sin recarga). El link de "Reunión" externo
+  // va aparte para no anidar <a> dentro de <Link> (HTML inválido).
+  const content = (
+    <div className="flex items-start gap-3 flex-1 min-w-0">
+      <div className={`shrink-0 rounded-md p-2 ${KIND_COLOR[event.kind]}`}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium truncate">{event.title}</span>
+          <Badge variant="outline" className="text-[10px]">
+            {KIND_LABEL[event.kind]}
+          </Badge>
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium truncate">{event.title}</span>
-            <Badge variant="outline" className="text-[10px]">
-              {KIND_LABEL[event.kind]}
+        <div className="text-xs text-muted-foreground mt-0.5">{event.courseName}</div>
+        <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+          <span>{event.allDay ? formatWeekday(event.start) : formatDateTime(event.start)}</span>
+          {event.end && !event.allDay && <span>Fin: {formatDateTime(event.end)}</span>}
+          {event.allDay && (
+            <Badge variant="secondary" className="text-[9px]">
+              Todo el día
             </Badge>
-          </div>
-          <div className="text-xs text-muted-foreground mt-0.5">{event.courseName}</div>
-          <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-            <span>
-              {event.allDay
-                ? formatWeekday(event.start)
-                : formatDateTime(event.start)}
-            </span>
-            {event.end && !event.allDay && (
-              <span>
-                Fin: {formatDateTime(event.end)}
-              </span>
-            )}
-            {event.allDay && <Badge variant="secondary" className="text-[9px]">Todo el día</Badge>}
-          </div>
+          )}
         </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <Card className={`border-l-4 ${BORDER_LEFT_CLASS[event.kind]} transition-colors`}>
+      <CardContent className="p-3 flex items-start gap-3">
+        {event.link ? (
+          <Link
+            to={event.link}
+            className="flex items-start gap-3 flex-1 min-w-0 rounded-md hover:opacity-90"
+          >
+            {content}
+          </Link>
+        ) : (
+          content
+        )}
         <div className="shrink-0 flex flex-col gap-1 items-end">
           {event.location && (
             <a
@@ -536,12 +559,9 @@ function EventRow({ event }: { event: CalendarEvent }) {
             </a>
           )}
           {event.link && (
-            <a
-              href={event.link}
-              className="text-[11px] text-muted-foreground hover:underline"
-            >
+            <Link to={event.link} className="text-[11px] text-muted-foreground hover:underline">
               Ir →
-            </a>
+            </Link>
           )}
         </div>
       </CardContent>

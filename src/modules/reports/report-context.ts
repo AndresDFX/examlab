@@ -194,23 +194,26 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       db
         .from("exams")
         .select("id, title, cut_id, weight, parent_exam_id")
-        .eq("course_id", courseId),
+        .eq("course_id", courseId)
+        .is("deleted_at", null),
       db
         .from("workshops")
         .select("id, title, cut_id, weight, max_score")
-        .eq("course_id", courseId),
+        .eq("course_id", courseId)
+        .is("deleted_at", null),
       db
         .from("project_courses")
-        .select("cut_id, weight, project:projects(id, title, max_score)")
+        .select("cut_id, weight, project:projects(id, title, max_score, deleted_at)")
         .eq("course_id", courseId),
       db
         .from("attendance_sessions")
         .select("id, cut_id, session_date")
-        .eq("course_id", courseId),
+        .eq("course_id", courseId)
+        .is("deleted_at", null),
     ]);
 
-  const projects = ((pcRows ?? []) as Array<{ cut_id: string | null; weight: number; project: { id: string; title: string; max_score: number } | null }>)
-    .filter((r): r is { cut_id: string | null; weight: number; project: { id: string; title: string; max_score: number } } => r.project != null)
+  const projects = ((pcRows ?? []) as Array<{ cut_id: string | null; weight: number; project: { id: string; title: string; max_score: number; deleted_at: string | null } | null }>)
+    .filter((r): r is { cut_id: string | null; weight: number; project: { id: string; title: string; max_score: number; deleted_at: string | null } } => r.project != null && !r.project.deleted_at)
     .map((r) => ({ id: r.project.id, title: r.project.title, cut_id: r.cut_id, weight: r.weight }));
 
   // Filtrar exámenes sin parent (los make-up children se agregan al original)

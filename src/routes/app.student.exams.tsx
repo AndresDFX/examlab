@@ -139,7 +139,7 @@ function StudentExams() {
       const { data: asg, error: asgErr } = await supabase
         .from("exam_assignments")
         .select(
-          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, max_warnings, is_external, allow_exam_notes, status, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, max_exam_attempts))",
+          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, max_warnings, is_external, allow_exam_notes, status, deleted_at, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, max_exam_attempts))",
         )
         .eq("user_id", user.id);
       if (asgErr) {
@@ -155,7 +155,10 @@ function StudentExams() {
       //     La toma queda bloqueada server-side por app.student.take.
       const exams = (asg ?? [])
         .map((a: any) => a.exam)
-        .filter((e: any) => Boolean(e) && !e.is_external && (e.status ?? "published") !== "draft");
+        .filter(
+          (e: any) =>
+            Boolean(e) && !e.deleted_at && !e.is_external && (e.status ?? "published") !== "draft",
+        );
       const assignedIds = exams.map((e: any) => e.id);
       let makeupRows: { id: string; parent_exam_id: string | null }[] = [];
       if (assignedIds.length) {

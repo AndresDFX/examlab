@@ -199,7 +199,7 @@ function StudentWorkshops() {
     const { data: asg, error: asgErr } = await client
       .from("workshop_assignments")
       .select(
-        "workshop:workshops(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, group_mode, max_attempts, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, language))",
+        "workshop:workshops(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, group_mode, max_attempts, deleted_at, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, language))",
       )
       .eq("user_id", uid);
     if (asgErr) {
@@ -215,7 +215,10 @@ function StudentWorkshops() {
     // entregas/notas previas — coherente con projects.
     const workshops = (asg ?? [])
       .map((a: any) => a.workshop)
-      .filter((w: any) => Boolean(w) && !w.is_external && (w.status ?? "published") !== "draft");
+      .filter(
+        (w: any) =>
+          Boolean(w) && !w.deleted_at && !w.is_external && (w.status ?? "published") !== "draft",
+      );
     const ids = workshops.map((w: any) => w.id);
 
     // Para talleres grupales: el estudiante puede tener un grupo, y la

@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     admin
       .from("exam_assignments")
       .select(
-        "exam_id, exams(id, title, start_time, end_time, course_id, status, courses(name))",
+        "exam_id, exams(id, title, start_time, end_time, course_id, status, deleted_at, courses(name))",
       )
       .eq("user_id", userId)
       .gte("exams.end_time", lookbackIso),
@@ -64,21 +64,21 @@ Deno.serve(async (req) => {
     admin
       .from("course_enrollments")
       .select(
-        "course_id, courses(id, name, workshops(id, title, due_date, status))",
+        "course_id, courses(id, name, workshops(id, title, due_date, status, deleted_at))",
       )
       .eq("user_id", userId),
     // PROYECTOS: vía project_assignments + project_courses + course_enrollments (mixto)
     admin
       .from("course_enrollments")
       .select(
-        "course_id, courses(id, name, projects(id, title, due_date, status))",
+        "course_id, courses(id, name, projects(id, title, due_date, status, deleted_at))",
       )
       .eq("user_id", userId),
     // SESIONES de asistencia: solo de cursos donde el estudiante está matriculado
     admin
       .from("course_enrollments")
       .select(
-        "course_id, courses(id, name, attendance_sessions(id, session_date, start_time, title, meeting_url))",
+        "course_id, courses(id, name, attendance_sessions(id, session_date, start_time, title, meeting_url, deleted_at))",
       )
       .eq("user_id", userId),
   ]);
@@ -90,6 +90,7 @@ Deno.serve(async (req) => {
   for (const row of (examsRes.data ?? []) as any[]) {
     const exam = row.exams;
     if (!exam || !exam.start_time || !exam.end_time) continue;
+    if (exam.deleted_at) continue; // en papelera → no se exporta
     if (exam.status && exam.status !== "publicado") continue;
     const courseName = exam.courses?.name ?? "Curso";
     events.push({
@@ -110,6 +111,7 @@ Deno.serve(async (req) => {
     if (!course?.workshops) continue;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const ws of course.workshops as any[]) {
+      if (ws.deleted_at) continue; // en papelera → no se exporta
       if (!ws.due_date) continue;
       if (ws.status && ws.status !== "published") continue;
       if (String(ws.due_date) < lookbackDate) continue;
@@ -136,6 +138,7 @@ Deno.serve(async (req) => {
     if (!course?.projects) continue;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const pj of course.projects as any[]) {
+      if (pj.deleted_at) continue; // en papelera → no se exporta
       if (!pj.due_date) continue;
       if (pj.status && pj.status !== "published") continue;
       if (String(pj.due_date) < lookbackDate) continue;
@@ -160,6 +163,7 @@ Deno.serve(async (req) => {
     if (!course?.attendance_sessions) continue;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const s of course.attendance_sessions as any[]) {
+      if (s.deleted_at) continue; // en papelera → no se exporta
       if (!s.session_date) continue;
       if (String(s.session_date) < lookbackDate) continue;
       // session_date es DATE; start_time es TIME (HH:MM:SS). Combinamos.
