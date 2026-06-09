@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { isStaffRole } from "@/shared/lib/roles";
@@ -71,6 +72,7 @@ export const Route = createFileRoute("/app/teacher/statistics")({
 type CourseOpt = { id: string; name: string; period: string | null };
 
 function TeacherStatistics() {
+  const { t } = useTranslation();
   const { roles, user } = useAuth();
   // SA accede a pantallas Docente para soporte / diagnóstico — sin SA
   // en el set, recibía "Necesitas rol Docente" silencioso al entrar.
@@ -149,15 +151,15 @@ function TeacherStatistics() {
   }, [courseId]);
 
   if (!isTeacher) {
-    return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
+    return <p className="text-muted-foreground">{t("statistics.noRole")}</p>;
   }
 
   if (loadError) {
     return (
       <div className="space-y-5">
-        <PageHeader icon={<BarChart3 className="h-6 w-6" />} title="Estadísticas" />
+        <PageHeader icon={<BarChart3 className="h-6 w-6" />} title={t("statistics.title")} />
         <ErrorState
-          message="No pudimos cargar tus cursos"
+          message={t("statistics.loadError")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -169,12 +171,12 @@ function TeacherStatistics() {
     <div className="space-y-5">
       <PageHeader
         icon={<BarChart3 className="h-6 w-6" />}
-        title="Estadísticas"
-        subtitle="Aprobación, fraude, asistencia y tendencia por corte del curso seleccionado."
+        title={t("statistics.title")}
+        subtitle={t("statistics.subtitle")}
         actions={
           <Select value={courseId} onValueChange={setCourseId}>
             <SelectTrigger className="w-full sm:w-72">
-              <SelectValue placeholder="Curso" />
+              <SelectValue placeholder={t("statistics.coursePlaceholder")} />
             </SelectTrigger>
             <SelectContent>
               {courses.map((c) => (
@@ -191,8 +193,8 @@ function TeacherStatistics() {
       {courses.length === 0 ? (
         <EmptyState
           icon={BarChart3}
-          text="Sin cursos asignados"
-          hint="No tienes cursos asociados como docente. Pide a un administrador que te asigne uno."
+          text={t("statistics.emptyCourses")}
+          hint={t("statistics.emptyCoursesHint")}
         />
       ) : loading || !dataset ? (
         <PageLoader />
@@ -206,6 +208,7 @@ function TeacherStatistics() {
 // ─── Dashboard de un curso ───────────────────────────────────────────
 
 export function CourseDashboard({ ds }: { ds: CourseDataset }) {
+  const { t } = useTranslation();
   const enrolledIds = useMemo(
     () => new Set(ds.enrollments.map((e) => e.user_id)),
     [ds.enrollments],
@@ -252,26 +255,26 @@ export function CourseDashboard({ ds }: { ds: CourseDataset }) {
     <div className="space-y-5">
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard icon={Users} label="Estudiantes" value={totalEnrolled} accent="text-sky-500" />
+        <KpiCard icon={Users} label={t("statistics.kpiStudents")} value={totalEnrolled} accent="text-sky-500" />
         <KpiCard
           icon={CheckCircle2}
-          label="% Aprobación"
+          label={t("statistics.kpiApproval")}
           value={`${approvalRate}%`}
           subline={`${overallApproval.approved}/${overallApproval.total}`}
           accent="text-emerald-500"
         />
         <KpiCard
           icon={CalendarCheck}
-          label="Asistencia promedio"
+          label={t("statistics.kpiAttendance")}
           value={`${avgAttendance}%`}
-          subline={`${attendance.length} sesión${attendance.length === 1 ? "" : "es"}`}
+          subline={t("statistics.kpiSessions", { count: attendance.length })}
           accent="text-cyan-500"
         />
         <KpiCard
           icon={Bot}
-          label="Alertas fraude IA"
+          label={t("statistics.kpiFraud")}
           value={fraud.aiSuspect}
-          subline={`${fraud.plagiarismPairs} par${fraud.plagiarismPairs === 1 ? "" : "es"} de copia`}
+          subline={t("statistics.kpiPlagiarismPairs", { count: fraud.plagiarismPairs })}
           accent="text-amber-500"
         />
       </div>
@@ -281,16 +284,16 @@ export function CourseDashboard({ ds }: { ds: CourseDataset }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard
           icon={XCircle}
-          label="Perdieron exámenes"
+          label={t("statistics.kpiFailedExams")}
           value={examFailed.failed}
-          subline={`de ${totalEnrolled} estudiante${totalEnrolled === 1 ? "" : "s"}`}
+          subline={t("statistics.kpiStudentsOf", { count: totalEnrolled })}
           accent="text-rose-500"
         />
         <KpiCard
           icon={UserX}
-          label="No presentaron"
+          label={t("statistics.kpiNoPresented")}
           value={examNoPresented.notPresented}
-          subline={`de ${totalEnrolled} estudiante${totalEnrolled === 1 ? "" : "s"}`}
+          subline={t("statistics.kpiStudentsOf", { count: totalEnrolled })}
           accent="text-zinc-500"
         />
       </div>
@@ -346,15 +349,19 @@ function ApprovalDonutCard({
 }: {
   approval: { approved: number; failed: number; pending: number; total: number };
 }) {
+  const { t } = useTranslation();
+  const lApproved = t("statistics.labelApproved");
+  const lFailed = t("statistics.labelFailed");
+  const lPending = t("statistics.labelPending");
   const data = [
-    { name: "Aprobados", value: approval.approved, fill: "hsl(142 71% 45%)" },
-    { name: "Reprobados", value: approval.failed, fill: "hsl(0 84% 60%)" },
-    { name: "Pendientes", value: approval.pending, fill: "hsl(45 93% 58%)" },
+    { name: lApproved, value: approval.approved, fill: "hsl(142 71% 45%)" },
+    { name: lFailed, value: approval.failed, fill: "hsl(0 84% 60%)" },
+    { name: lPending, value: approval.pending, fill: "hsl(45 93% 58%)" },
   ];
   const config: ChartConfig = {
-    Aprobados: { label: "Aprobados", color: "hsl(142 71% 45%)" },
-    Reprobados: { label: "Reprobados", color: "hsl(0 84% 60%)" },
-    Pendientes: { label: "Pendientes", color: "hsl(45 93% 58%)" },
+    [lApproved]: { label: lApproved, color: "hsl(142 71% 45%)" },
+    [lFailed]: { label: lFailed, color: "hsl(0 84% 60%)" },
+    [lPending]: { label: lPending, color: "hsl(45 93% 58%)" },
   };
   const empty = approval.total === 0;
   return (
@@ -362,15 +369,15 @@ function ApprovalDonutCard({
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-          Aprobación global del curso
+          {t("statistics.donutTitle")}
         </CardTitle>
         <CardDescription>
-          Conteo (matriculado × actividad). Pendientes = sin entrega o sin nota.
+          {t("statistics.donutDesc")}
         </CardDescription>
       </CardHeader>
       <CardContent>
         {empty ? (
-          <EmptyChart text="Aún no hay actividades calificadas." />
+          <EmptyChart text={t("statistics.donutEmpty")} />
         ) : (
           <ChartContainer config={config} className="h-[260px] w-full">
             <PieChart>
@@ -397,6 +404,7 @@ function ApprovalDonutCard({
 }
 
 function GradeDistributionCard({ ds, subs }: { ds: CourseDataset; subs: SubmissionLike[] }) {
+  const { t } = useTranslation();
   const data = useMemo(() => computeGradeDistribution(subs, ds.course), [subs, ds.course]);
   const total = data.reduce((a, b) => a + b.count, 0);
   const min = ds.course.grade_scale_min ?? 0;
@@ -409,7 +417,7 @@ function GradeDistributionCard({ ds, subs }: { ds: CourseDataset; subs: Submissi
     Math.max(0, Math.floor(((ds.course.passing_grade - min) / (max - min || 1)) * 5)),
   );
   const config: ChartConfig = {
-    count: { label: "Entregas", color: "hsl(217 91% 60%)" },
+    count: { label: t("statistics.distLabel"), color: "hsl(217 91% 60%)" },
   };
 
   return (
@@ -417,16 +425,15 @@ function GradeDistributionCard({ ds, subs }: { ds: CourseDataset; subs: Submissi
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-blue-500" />
-          Distribución de notas
+          {t("statistics.distTitle")}
         </CardTitle>
         <CardDescription>
-          Reescalada a {min}–{max}. Verde = bucket aprobatorio (≥ {ds.course.passing_grade}), rojo =
-          reprobatorio.
+          {t("statistics.distDesc", { min, max, passing: ds.course.passing_grade })}
         </CardDescription>
       </CardHeader>
       <CardContent>
         {total === 0 ? (
-          <EmptyChart text="Aún no hay entregas calificadas." />
+          <EmptyChart text={t("statistics.distEmpty")} />
         ) : (
           <ChartContainer config={config} className="h-[260px] w-full">
             <BarChart data={data}>
@@ -448,25 +455,26 @@ function GradeDistributionCard({ ds, subs }: { ds: CourseDataset; subs: Submissi
 }
 
 function ApprovalByKindCard({ ds }: { ds: CourseDataset }) {
+  const { t } = useTranslation();
   const data = useMemo(() => computeApprovalByKind(ds), [ds]);
   const empty = data.every((d) => d.approved + d.failed + d.pending === 0);
   const config: ChartConfig = {
-    approved: { label: "Aprobados", color: "hsl(142 71% 45%)" },
-    failed: { label: "Reprobados", color: "hsl(0 84% 60%)" },
-    pending: { label: "Pendientes", color: "hsl(45 93% 58%)" },
+    approved: { label: t("statistics.labelApproved"), color: "hsl(142 71% 45%)" },
+    failed: { label: t("statistics.labelFailed"), color: "hsl(0 84% 60%)" },
+    pending: { label: t("statistics.labelPending"), color: "hsl(45 93% 58%)" },
   };
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-orange-500" />
-          Aprobación por tipo de actividad
+          {t("statistics.kindTitle")}
         </CardTitle>
-        <CardDescription>Conteo apilado de matriculado × actividad por tipo.</CardDescription>
+        <CardDescription>{t("statistics.kindDesc")}</CardDescription>
       </CardHeader>
       <CardContent>
         {empty ? (
-          <EmptyChart text="Aún no hay actividades en el curso." />
+          <EmptyChart text={t("statistics.kindEmpty")} />
         ) : (
           <ChartContainer config={config} className="h-[260px] w-full">
             <BarChart data={data}>
@@ -497,31 +505,31 @@ function ApprovalByKindCard({ ds }: { ds: CourseDataset }) {
 }
 
 function CutTrendCard({ ds }: { ds: CourseDataset }) {
+  const { t } = useTranslation();
   const data = useMemo(
     () => computeCutTrend(ds.examSubs, ds.workshopSubs, ds.projectSubs, ds.cuts, ds.course),
     [ds],
   );
   const empty = data.every((d) => d.avg == null);
   const config: ChartConfig = {
-    avg: { label: "Nota promedio", color: "hsl(262 83% 58%)" },
+    avg: { label: t("statistics.cutAvgLabel"), color: "hsl(262 83% 58%)" },
   };
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <TrendingUp className="h-4 w-4 text-violet-500" />
-          Tendencia por corte
+          {t("statistics.cutTitle")}
         </CardTitle>
         <CardDescription>
-          Nota promedio (escala {ds.course.grade_scale_min}–{ds.course.grade_scale_max}) combinando
-          exámenes, talleres y proyectos.
+          {t("statistics.cutDesc", { min: ds.course.grade_scale_min, max: ds.course.grade_scale_max })}
         </CardDescription>
       </CardHeader>
       <CardContent>
         {ds.cuts.length === 0 ? (
-          <EmptyChart text="Este curso aún no tiene cortes definidos." />
+          <EmptyChart text={t("statistics.cutNoCuts")} />
         ) : empty ? (
-          <EmptyChart text="Aún no hay actividades calificadas en ningún corte." />
+          <EmptyChart text={t("statistics.cutEmpty")} />
         ) : (
           <ChartContainer config={config} className="h-[260px] w-full">
             <LineChart data={data}>
@@ -556,6 +564,7 @@ function CutTrendCard({ ds }: { ds: CourseDataset }) {
 }
 
 function AttendanceCard({ sessions }: { sessions: ReturnType<typeof computeAttendanceBySession> }) {
+  const { t } = useTranslation();
   const data = sessions.map((s) => ({
     label: formatDateShort(`${s.date}T12:00:00`),
     presentPct: s.presentPct,
@@ -563,22 +572,22 @@ function AttendanceCard({ sessions }: { sessions: ReturnType<typeof computeAtten
     total: s.total,
   }));
   const config: ChartConfig = {
-    presentPct: { label: "% Presentes", color: "hsl(189 94% 43%)" },
+    presentPct: { label: t("statistics.attendPctLabel"), color: "hsl(189 94% 43%)" },
   };
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <CalendarCheck className="h-4 w-4 text-cyan-500" />
-          Asistencia por sesión
+          {t("statistics.attendTitle")}
         </CardTitle>
         <CardDescription>
-          % de matriculados que se marcaron presentes en cada sesión, en orden cronológico.
+          {t("statistics.attendDesc")}
         </CardDescription>
       </CardHeader>
       <CardContent>
         {data.length === 0 ? (
-          <EmptyChart text="Aún no hay sesiones de asistencia registradas." />
+          <EmptyChart text={t("statistics.attendEmpty")} />
         ) : (
           <ChartContainer config={config} className="h-[260px] w-full">
             <BarChart data={data}>
@@ -623,12 +632,13 @@ function FraudCard({
     plagiarismStudents: number;
   };
 }) {
+  const { t } = useTranslation();
   // Distribución de fraude por tipo de actividad
   const data = useMemo(() => {
     const rows = [
-      { kind: "Exámenes", subs: ds.examSubs },
-      { kind: "Talleres", subs: ds.workshopSubs },
-      { kind: "Proyectos", subs: ds.projectSubs },
+      { kind: t("statistics.fraudKindExams"), subs: ds.examSubs },
+      { kind: t("statistics.fraudKindWorkshops"), subs: ds.workshopSubs },
+      { kind: t("statistics.fraudKindProjects"), subs: ds.projectSubs },
     ];
     return rows.map(({ kind, subs }) => {
       const aiSuspect = subs.filter((s) => (s.ai_detected_score ?? 0) >= 0.6).length;
@@ -637,11 +647,12 @@ function FraudCard({
       ).length;
       return { kind, aiSuspect, plagiarismPairs };
     });
-  }, [ds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ds, t]);
   const empty = fraud.aiSuspect === 0 && fraud.plagiarismPairs === 0 && fraud.totalGraded === 0;
   const config: ChartConfig = {
-    aiSuspect: { label: "Sospecha IA", color: "hsl(45 93% 58%)" },
-    plagiarismPairs: { label: "Pares plagio", color: "hsl(0 84% 60%)" },
+    aiSuspect: { label: t("statistics.fraudAiLabel"), color: "hsl(45 93% 58%)" },
+    plagiarismPairs: { label: t("statistics.fraudPlagiarismLabel"), color: "hsl(0 84% 60%)" },
   };
 
   return (
@@ -649,25 +660,25 @@ function FraudCard({
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
-          Integridad académica
+          {t("statistics.fraudTitle")}
         </CardTitle>
         <CardDescription>
-          Entregas con probabilidad de IA ≥ 60% y pares de copia detectados (similitud ≥ 60%).
+          {t("statistics.fraudDesc")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap gap-2">
           <Badge variant="outline" className="text-xs">
             <Bot className="h-3 w-3 mr-1 text-amber-500" />
-            {fraud.aiSuspect}/{fraud.totalGraded} con sospecha IA
+            {t("statistics.fraudBadgeAi", { suspect: fraud.aiSuspect, total: fraud.totalGraded })}
           </Badge>
           <Badge variant="outline" className="text-xs">
             <XCircle className="h-3 w-3 mr-1 text-rose-500" />
-            {fraud.plagiarismPairs} pares · {fraud.plagiarismStudents} estudiantes
+            {t("statistics.fraudBadgePlagiarism", { pairs: fraud.plagiarismPairs, students: fraud.plagiarismStudents })}
           </Badge>
         </div>
         {empty ? (
-          <EmptyChart text="Sin alertas de integridad. Ejecuta 'Detectar copias' por actividad para poblar pares." />
+          <EmptyChart text={t("statistics.fraudEmpty")} />
         ) : (
           <ChartContainer config={config} className="h-[200px] w-full">
             <BarChart data={data}>

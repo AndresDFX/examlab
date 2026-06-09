@@ -53,6 +53,7 @@ import { Zap, Clock, X, KeyRound } from "lucide-react";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { readOverrideExpiry, getProcessingMode } from "@/modules/ai/ai-grading";
 import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
+import { useTranslation } from "react-i18next";
 
 export type GateDecision = "proceed-sync" | "proceed-async" | "cancel";
 
@@ -102,6 +103,7 @@ interface PendingResolver {
 }
 
 export function useAiAuthorizationGate() {
+  const { t } = useTranslation();
   const activeRole = useActiveRole();
   // Admin Y SuperAdmin bypassean el gate. Ambos roles gestionan los
   // códigos de IA inmediata + ven la cola, así que pedirles confirmación
@@ -228,35 +230,22 @@ export function useAiAuthorizationGate() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Zap className="h-4 w-4 text-amber-500" />
-                IA en modo cola
+                {t("aiQueue.gateTitle")}
               </DialogTitle>
               <DialogDescription className="text-xs">
-                El modo global de IA está configurado como{" "}
-                <Badge variant="outline" className="text-[10px] mx-1">
-                  cola (batch)
-                </Badge>
-                .{" "}
-                {allowQueue
-                  ? "Las llamadas IA quedan pendientes hasta que el worker drene la cola (máx. 1 hora). Si necesitás la nota ya, podés activar un código de IA inmediata que el administrador te haya entregado."
-                  : "Esta acción NO se puede encolar (no hay worker para ella). Para continuar, activá un código de IA inmediata o cancelá."}
+                {allowQueue ? t("aiQueue.gateDescQueue") : t("aiQueue.gateDescNoQueue")}
               </DialogDescription>
             </DialogHeader>
 
             <div className="text-xs text-muted-foreground space-y-1.5 px-1">
               <div className="flex items-start gap-2">
                 <KeyRound className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
-                <span>
-                  <strong>Activar IA inmediata</strong>: pegás el código del administrador y abre
-                  una ventana sincrónica corta.
-                </span>
+                <span>{t("aiQueue.gateHintActivate")}</span>
               </div>
               {allowQueue && (
                 <div className="flex items-start gap-2">
                   <Clock className="h-3.5 w-3.5 text-sky-500 mt-0.5 shrink-0" />
-                  <span>
-                    <strong>Continuar en cola</strong>: el job se encola y procesa cuando corra el
-                    worker. Sin costo de cuota inmediato.
-                  </span>
+                  <span>{t("aiQueue.gateHintQueue")}</span>
                 </div>
               )}
             </div>
@@ -264,17 +253,17 @@ export function useAiAuthorizationGate() {
             <DialogFooter className="static gap-2 flex-col sm:flex-row">
               <Button variant="ghost" size="sm" onClick={handleCancel} className="sm:mr-auto">
                 <X className="h-3.5 w-3.5 mr-1" />
-                Cancelar
+                {t("aiQueue.gateCancel")}
               </Button>
               {allowQueue && (
                 <Button variant="outline" size="sm" onClick={handleProceedAsync}>
                   <Clock className="h-3.5 w-3.5 mr-1" />
-                  Continuar en cola
+                  {t("aiQueue.gateProceedAsync")}
                 </Button>
               )}
               <Button size="sm" onClick={handleActivate}>
                 <Zap className="h-3.5 w-3.5 mr-1" />
-                Activar IA inmediata
+                {t("aiQueue.gateActivate")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -283,6 +272,7 @@ export function useAiAuthorizationGate() {
       </>
     );
   }, [
+    t,
     open,
     overrideDialogOpen,
     onOpenChange,

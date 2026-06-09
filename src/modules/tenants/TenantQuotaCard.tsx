@@ -32,6 +32,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { Spinner } from "@/components/ui/spinner";
 import { Users as UsersIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -45,14 +46,15 @@ interface Counts {
 interface TenantQuotaCardProps {
   /** Mostrar en variante compacta (1 fila horizontal) o card completo. */
   compact?: boolean;
-  /** Título del Card. Default "Licencias de usuarios". */
+  /** Título del Card. Default: t("tenantQuota.defaultTitle"). */
   title?: string;
 }
 
 export function TenantQuotaCard({
   compact = false,
-  title = "Licencias de usuarios",
+  title,
 }: TenantQuotaCardProps) {
+  const { t } = useTranslation();
   const { tenant, loading: tenantLoading } = useTenant();
   const { roles } = useAuth();
   const activeRole = useActiveRole();
@@ -98,7 +100,7 @@ export function TenantQuotaCard({
     return (
       <Card>
         <CardContent className="p-4 text-sm text-muted-foreground flex items-center gap-2">
-          <Spinner size="sm" /> Cargando licencias…
+          <Spinner size="sm" /> {t("tenantQuota.loading")}
         </CardContent>
       </Card>
     );
@@ -106,9 +108,9 @@ export function TenantQuotaCard({
 
   const tiles = (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-      <QuotaTile label="Administradores" current={counts.admins} max={tenant.max_admins} />
-      <QuotaTile label="Docentes" current={counts.teachers} max={tenant.max_teachers} />
-      <QuotaTile label="Estudiantes" current={counts.students} max={tenant.max_students} />
+      <QuotaTile label={t("tenantQuota.labelAdmins")} current={counts.admins} max={tenant.max_admins} />
+      <QuotaTile label={t("tenantQuota.labelTeachers")} current={counts.teachers} max={tenant.max_teachers} />
+      <QuotaTile label={t("tenantQuota.labelStudents")} current={counts.students} max={tenant.max_students} />
     </div>
   );
 
@@ -125,7 +127,7 @@ export function TenantQuotaCard({
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <UsersIcon className="h-4 w-4 text-indigo-500" />
-          {title}
+          {title ?? t("tenantQuota.defaultTitle")}
         </CardTitle>
       </CardHeader>
       <CardContent>{tiles}</CardContent>

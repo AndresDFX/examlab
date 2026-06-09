@@ -36,6 +36,8 @@ import {
   MessageSquareWarning,
 } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
+import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -61,22 +63,23 @@ interface RecentJob {
   created_at: string;
 }
 
-/** Etiqueta humana corta para `kind`. Se mantiene corta a propósito —
- *  cabe en una sola línea junto al ícono de estado y la antigüedad. */
-const KIND_SHORT: Record<string, string> = {
-  exam_submission: "Examen",
-  exam_question: "Pregunta examen",
-  workshop_submission: "Taller",
-  workshop_question: "Pregunta taller",
-  project_submission: "Proyecto",
-  project_file: "Archivo proyecto",
-  project_codigo_zip: "ZIP código",
-};
+function getKindShort(kind: string): string {
+  const map: Record<string, string> = {
+    exam_submission: i18n.t("aiQueue.kindShortExam"),
+    exam_question: i18n.t("aiQueue.kindShortExamQuestion"),
+    workshop_submission: i18n.t("aiQueue.kindShortWorkshop"),
+    workshop_question: i18n.t("aiQueue.kindShortWorkshopQuestion"),
+    project_submission: i18n.t("aiQueue.kindShortProject"),
+    project_file: i18n.t("aiQueue.kindShortProjectFile"),
+    project_codigo_zip: i18n.t("aiQueue.kindShortProjectZip"),
+  };
+  return map[kind] ?? kind;
+}
 
-/** Formato relativo simple ("ahora", "5m", "2h", "1d"). */
+/** Formato relativo simple ("ahora"/"now", "5m", "2h", "1d"). */
 function relativeAge(iso: string): string {
   const diffMin = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (diffMin < 1) return "ahora";
+  if (diffMin < 1) return i18n.t("aiQueue.relativeNow");
   if (diffMin < 60) return `${diffMin}m`;
   const diffH = Math.floor(diffMin / 60);
   if (diffH < 24) return `${diffH}h`;
@@ -84,6 +87,7 @@ function relativeAge(iso: string): string {
 }
 
 export function AiGradingQueueWidget({ isAdmin = false }: Props) {
+  const { t } = useTranslation();
   // Rol activo determina a qué ruta del módulo "Cron" enlaza el link
   // del pie del card.
   const activeRole = useActiveRole();
@@ -212,13 +216,13 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
       <CardHeader className="pb-2">
         <CardTitle className="text-sm flex items-center gap-2">
           <ListOrdered className="h-4 w-4 text-primary" />
-          Cola (IA)
+          {t("aiQueue.widgetTitle")}
           <Button
             variant="ghost"
             size="icon"
             className="h-6 w-6 ml-auto"
             onClick={() => void load()}
-            title="Refrescar"
+            title={t("aiQueue.widgetRefresh")}
           >
             <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
           </Button>
@@ -227,7 +231,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
       <CardContent className="space-y-2.5 flex-1 flex flex-col min-h-0">
         {loading ? (
           <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
-            <Spinner size="sm" /> Cargando…
+            <Spinner size="sm" /> {t("aiQueue.widgetLoading")}
           </div>
         ) : (
           <>
@@ -240,7 +244,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                 <div className="rounded-md border border-orange-500/40 bg-orange-500/10 px-2.5 py-1.5 flex items-center gap-2 hover:bg-orange-500/15 transition-colors">
                   <MessageSquareWarning className="h-3.5 w-3.5 text-orange-500 shrink-0" />
                   <span className="text-[11px] font-medium text-orange-700 dark:text-orange-400 flex-1 min-w-0 truncate">
-                    {myRejectedPending} rechazo{myRejectedPending === 1 ? "" : "s"} sin cerrar
+                    {t("aiQueue.widgetRejections", { count: myRejectedPending })}
                   </span>
                   <ArrowRight className="h-3 w-3 text-orange-500 shrink-0" />
                 </div>
@@ -255,19 +259,19 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
               {/* Pendientes = pending + failed: un job fallado sigue sin
                   calificar. Los failed se desglosan en su propio tile. */}
               <Stat
-                label="Pendientes"
+                label={t("aiQueue.widgetPending")}
                 value={counts.pending + counts.failed}
                 color="text-sky-600 dark:text-sky-400"
                 bg="bg-sky-500/10"
               />
               <Stat
-                label="En proceso"
+                label={t("aiQueue.widgetProcessing")}
                 value={counts.processing}
                 color="text-amber-600 dark:text-amber-400"
                 bg="bg-amber-500/10"
               />
               <Stat
-                label="Fallados"
+                label={t("aiQueue.widgetFailed")}
                 value={counts.failed}
                 color="text-destructive"
                 bg="bg-destructive/10"
@@ -275,7 +279,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
             </div>
             <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
               <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
-              Último éxito: {counts.lastDoneAt ? formatDateTime(counts.lastDoneAt) : "—"}
+              {t("aiQueue.widgetLastSuccess")} {counts.lastDoneAt ? formatDateTime(counts.lastDoneAt) : "—"}
             </div>
 
             {/* Lista compacta de jobs activos — UNA línea por job para
@@ -286,16 +290,16 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                 que el card no se vea vacío. */}
             <div className="flex-1 min-h-0 flex flex-col gap-1 border-t pt-2">
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium shrink-0">
-                En cola
+                {t("aiQueue.widgetQueue")}
               </div>
               <div className="flex-1 overflow-y-auto pr-1 space-y-0.5 min-h-0">
                 {jobs.length === 0 ? (
                   <div className="text-xs text-muted-foreground italic py-2 text-center">
-                    Sin jobs activos.
+                    {t("aiQueue.widgetEmpty")}
                   </div>
                 ) : (
                   jobs.map((j) => {
-                    const kindLabel = KIND_SHORT[j.kind] ?? j.kind;
+                    const kindLabel = getKindShort(j.kind);
                     const isProcessing = j.status === "processing";
                     const isFailed = j.status === "failed";
                     return (
@@ -330,7 +334,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
             {activeRole && (
               <Link to={cronModulePath} className="block">
                 <Button variant="ghost" size="sm" className="w-full text-xs h-7">
-                  Ver Cola <ArrowRight className="h-3 w-3 ml-1" />
+                  {t("aiQueue.widgetViewQueue")} <ArrowRight className="h-3 w-3 ml-1" />
                 </Button>
               </Link>
             )}
