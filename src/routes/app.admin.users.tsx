@@ -114,12 +114,8 @@ type Row = {
 
 const ALL_ROLES: AppRole[] = ["Admin", "Docente", "Estudiante", "SuperAdmin"];
 
-const ESTADO_OPTIONS: Array<{ value: StudentEstado; label: string }> = [
-  { value: "activo", label: "Activo" },
-  { value: "retirado", label: "Retirado" },
-  { value: "graduado", label: "Graduado" },
-  { value: "aplazado", label: "Aplazado" },
-];
+// Labels resolved at render time via t() — see estadoActivo/etc. keys
+const ESTADO_VALUES: StudentEstado[] = ["activo", "retirado", "graduado", "aplazado"];
 
 const EMPTY_NEW: Row = {
   id: "",
@@ -1147,14 +1143,14 @@ function AdminUsers() {
   };
 
   if (authLoading) return null;
-  if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
+  if (!isAdmin) return <p className="text-muted-foreground">{t("adminUsers.needsRole")}</p>;
 
   if (loadError) {
     return (
       <div className="space-y-5">
-        <PageHeader icon={<UsersIcon className="h-6 w-6" />} title="Usuarios" />
+        <PageHeader icon={<UsersIcon className="h-6 w-6" />} title={t("adminUsers.pageTitle")} />
         <ErrorState
-          message="No pudimos cargar la lista de usuarios"
+          message={t("adminUsers.loadError")}
           hint={loadError}
           onRetry={() => void load()}
         />
@@ -1172,17 +1168,17 @@ function AdminUsers() {
           proceso. */}
       {importing && (
         <LoadingOverlay
-          title="Importando usuarios…"
-          subtitle="Cada usuario lleva ~500ms para evitar saturar Supabase Auth. Si son 90 alumnos puede tomar hasta 1 minuto. No cierres esta pestaña."
+          title={t("adminUsers.importingTitle")}
+          subtitle={t("adminUsers.importingSubtitle")}
         />
       )}
       <PageHeader
         icon={<UsersIcon className="h-6 w-6" />}
-        title="Usuarios"
+        title={t("adminUsers.pageTitle")}
         subtitle={
           search.trim()
-            ? `${filteredRows.length} de ${rows.length} cuentas`
-            : `${rows.length} cuentas registradas`
+            ? t("adminUsers.subtitleFiltered", { filtered: filteredRows.length, total: rows.length })
+            : t("adminUsers.subtitleTotal", { total: rows.length })
         }
         actions={
           <>
@@ -1202,10 +1198,10 @@ function AdminUsers() {
                 className="h-8 max-w-[200px] hidden md:flex text-xs"
                 title="Curso para el bulk import (opcional). Solo aplica al importar CSV."
               >
-                <SelectValue placeholder="Curso al importar" />
+                <SelectValue placeholder={t("adminUsers.bulkImportCoursePlaceholder")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">Sin curso por defecto</SelectItem>
+                <SelectItem value="__none__">{t("adminUsers.bulkImportCourseNone")}</SelectItem>
                 {coursesForBulkImport.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.name}
@@ -1214,7 +1210,7 @@ function AdminUsers() {
                 ))}
                 {coursesForBulkImportLoaded && coursesForBulkImport.length === 0 && (
                   <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                    No hay cursos disponibles.
+                    {t("adminUsers.bulkImportNoCourses")}
                   </div>
                 )}
               </SelectContent>
@@ -1229,8 +1225,8 @@ function AdminUsers() {
             />
             <Button size="sm" onClick={openNew} data-tour-id="create-user">
               <Plus className="h-4 w-4 mr-1" />
-              <span className="hidden xs:inline">Nuevo usuario</span>
-              <span className="xs:hidden">Nuevo</span>
+              <span className="hidden xs:inline">{t("adminUsers.btnNewUser")}</span>
+              <span className="xs:hidden">{t("adminUsers.btnNew")}</span>
             </Button>
           </>
         }
@@ -1241,10 +1237,10 @@ function AdminUsers() {
           tenant filtrado (o todos si tenantFilter="all"). Aparece
           SIEMPRE — un 0 es informativo. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={UsersIcon} label="Total" value={userStats.total} />
-        <StatCard icon={GraduationCap} label="Estudiantes" value={userStats.students} />
-        <StatCard icon={Briefcase} label="Docentes" value={userStats.teachers} />
-        <StatCard icon={ShieldCheck} label="Admins" value={userStats.admins} />
+        <StatCard icon={UsersIcon} label={t("adminUsers.statTotal")} value={userStats.total} />
+        <StatCard icon={GraduationCap} label={t("adminUsers.statStudents")} value={userStats.students} />
+        <StatCard icon={Briefcase} label={t("adminUsers.statTeachers")} value={userStats.teachers} />
+        <StatCard icon={ShieldCheck} label={t("adminUsers.statAdmins")} value={userStats.admins} />
       </div>
 
       {/* Licencias del tenant — el componente tiene su propio gate
@@ -1254,13 +1250,13 @@ function AdminUsers() {
           Antes había un guard manual `{!isSuperAdminCaller && ...}`
           que escondía el card en ambos casos — quitado para que ahora
           aparezca correctamente cuando el SuperAdmin está overrideado. */}
-      <TenantQuotaCard compact title="Licencias de usuarios" />
+      <TenantQuotaCard compact title={t("adminUsers.quotaCardTitle")} />
 
       <div className="flex flex-col sm:flex-row gap-2">
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Buscar por nombre, correo o rol…"
+          placeholder={t("adminUsers.searchPlaceholder")}
           className="flex-1"
         />
         {/* Filtro por rol — siempre visible. Compone con search e
@@ -1269,10 +1265,10 @@ function AdminUsers() {
             vea una opción que su RLS nunca le mostraría. */}
         <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as "all" | AppRole)}>
           <SelectTrigger className="sm:w-44">
-            <SelectValue placeholder="Todos los roles" />
+            <SelectValue placeholder={t("adminUsers.filterRolePlaceholder")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos los roles</SelectItem>
+            <SelectItem value="all">{t("adminUsers.filterRoleAll")}</SelectItem>
             {ALL_ROLES.filter((r) => r !== "SuperAdmin" || isSuperAdminCaller).map((r) => (
               <SelectItem key={r} value={r}>
                 {r}
@@ -1289,7 +1285,7 @@ function AdminUsers() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t("tenant.filterAllTenants")}</SelectItem>
-              <SelectItem value="none">Sin institución</SelectItem>
+              <SelectItem value="none">{t("adminUsers.filterTenantNone")}</SelectItem>
               {tenants.map((t) => (
                 <SelectItem key={t.id} value={t.id}>
                   {t.name}
@@ -1304,8 +1300,8 @@ function AdminUsers() {
         count={sel.count}
         onClear={sel.clear}
         onDelete={() => setBulkDeleteOpen(true)}
-        entityNameSingular="usuario"
-        entityNamePlural="usuarios"
+        entityNameSingular={t("adminUsers.bulkDeleteEntity")}
+        entityNamePlural={t("adminUsers.bulkDeleteEntityPlural")}
       />
 
       <Card>
@@ -1335,14 +1331,14 @@ function AdminUsers() {
                         Para el Admin normal es siempre su tenant
                         (redundante). */}
                     {showTenantUI && (
-                      <TableHead className="hidden lg:table-cell w-40">Institución</TableHead>
+                      <TableHead className="hidden lg:table-cell w-40">{t("adminUsers.colInstitution")}</TableHead>
                     )}
                     {/* Fecha de creación + último acceso. Ocultas hasta xl
                         porque la tabla ya carga muchas columnas; en mobile
                         no aportan vs nombre/email. Sin íconos para no
                         recargar la cabecera. */}
-                    <TableHead className="hidden xl:table-cell w-28">Creado</TableHead>
-                    <TableHead className="hidden xl:table-cell w-32">Último acceso</TableHead>
+                    <TableHead className="hidden xl:table-cell w-28">{t("adminUsers.colCreated")}</TableHead>
+                    <TableHead className="hidden xl:table-cell w-32">{t("adminUsers.colLastAccess")}</TableHead>
                     <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1353,12 +1349,12 @@ function AdminUsers() {
                       icon={UsersIcon}
                       text={
                         search.trim() && rows.length > 0
-                          ? "Sin coincidencias"
+                          ? t("adminUsers.tableEmptyNoMatch")
                           : t("users.emptyTitle")
                       }
                       hint={
                         search.trim() && rows.length > 0
-                          ? "Ajusta el buscador para ver más resultados."
+                          ? t("adminUsers.tableEmptyNoMatchHint")
                           : t("users.emptyHint")
                       }
                       action={
@@ -1438,9 +1434,9 @@ function AdminUsers() {
                               // SuperAdmin: sí puede (cross-tenant support).
                               if (r.roles.includes("Admin") && !isSuperAdminCaller) return null;
                               return {
-                                label: "Iniciar como",
+                                label: t("adminUsers.actionImpersonate"),
                                 icon: Eye,
-                                hint: `Acceder a la plataforma como ${r.full_name}`,
+                                hint: t("adminUsers.actionImpersonateHint", { name: r.full_name }),
                                 onClick: () => void handleImpersonate(r),
                                 // Pinta el ícono con el primary del tenant
                                 // actual (ya aplicado al theme via
@@ -1455,9 +1451,9 @@ function AdminUsers() {
                             // que existe la fila en admin_visible_passwords).
                             r.must_change_password
                               ? {
-                                  label: "Ver contraseña",
+                                  label: t("adminUsers.actionViewPassword"),
                                   icon: KeyRound,
-                                  hint: "Ver la contraseña temporal asignada",
+                                  hint: t("adminUsers.actionViewPasswordHint"),
                                   onClick: () => void openViewPassword(r),
                                 }
                               : null,
@@ -1477,26 +1473,26 @@ function AdminUsers() {
               </Table>
             </div>
           )}
-          <DataPagination state={pagination} entityNamePlural="usuarios" />
+          <DataPagination state={pagination} entityNamePlural={t("adminUsers.paginationEntity")} />
         </CardContent>
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent data-tour-id="dialog-user">
           <DialogHeader>
-            <DialogTitle>{editing?.id ? "Editar" : "Nuevo"} usuario</DialogTitle>
+            <DialogTitle>{editing?.id ? t("adminUsers.dialogTitleEdit") : t("adminUsers.dialogTitleNew")}</DialogTitle>
           </DialogHeader>
           {editing && (
             <div className="space-y-3">
               <div>
-                <Label required>Nombre completo</Label>
+                <Label required>{t("adminUsers.fieldFullName")}</Label>
                 <Input
                   value={editing.full_name}
                   onChange={(e) => setEditing({ ...editing, full_name: e.target.value })}
                 />
               </div>
               <div>
-                <Label required>Email institucional</Label>
+                <Label required>{t("adminUsers.fieldInstitutionalEmail")}</Label>
                 <Input
                   type="email"
                   value={editing.institutional_email}
@@ -1504,7 +1500,7 @@ function AdminUsers() {
                 />
               </div>
               <div>
-                <Label>Email personal</Label>
+                <Label>{t("adminUsers.fieldPersonalEmail")}</Label>
                 <Input
                   type="email"
                   value={editing.personal_email ?? ""}
@@ -1514,20 +1510,20 @@ function AdminUsers() {
               {!editing.id && (
                 <div className="space-y-2">
                   <div>
-                    <Label required>Contraseña inicial</Label>
+                    <Label required>{t("adminUsers.fieldInitialPassword")}</Label>
                     <div className="relative">
                       <Input
                         type={showPassword ? "text" : "password"}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Mínimo 8 caracteres"
+                        placeholder={t("adminUsers.fieldPasswordPlaceholder")}
                         className="pr-9"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword((v) => !v)}
                         className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
-                        aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                        aria-label={showPassword ? t("adminUsers.pwdAriaHide") : t("adminUsers.pwdAriaShow")}
                       >
                         {showPassword ? (
                           <EyeOff className="h-4 w-4" />
@@ -1547,12 +1543,12 @@ function AdminUsers() {
                   <div className="flex items-start justify-between gap-3 rounded-md border p-2.5">
                     <div className="space-y-0.5 min-w-0">
                       <Label htmlFor="force-pwd-change" className="text-sm font-medium">
-                        Pedir cambio de contraseña en el primer login
+                        {t("adminUsers.forcePwdChangeLabel")}
                       </Label>
                       <p className="text-[11px] text-muted-foreground">
                         {forcePasswordChange
-                          ? "El usuario deberá cambiar la contraseña antes de usar la app. Se envía un correo de bienvenida con un link para definirla."
-                          : "El usuario podrá usar la contraseña inicial directamente. NO se envía correo de bienvenida — coordina la contraseña con el usuario."}
+                          ? t("adminUsers.forcePwdChangeOnDesc")
+                          : t("adminUsers.forcePwdChangeOffDesc")}
                       </p>
                     </div>
                     <Switch
@@ -1566,7 +1562,7 @@ function AdminUsers() {
               {editing.id && (
                 <div>
                   <Label>
-                    Nueva contraseña{" "}
+                    {t("adminUsers.fieldNewPassword")}{" "}
                     <HelpHint>{t("help.newPasswordLeaveEmpty")}</HelpHint>
                   </Label>
                   <div className="relative">
@@ -1574,14 +1570,14 @@ function AdminUsers() {
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Mínimo 8 caracteres"
+                      placeholder={t("adminUsers.fieldPasswordPlaceholder")}
                       className="pr-9"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
                       className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
-                      aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                      aria-label={showPassword ? t("adminUsers.pwdAriaHide") : t("adminUsers.pwdAriaShow")}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -1590,7 +1586,7 @@ function AdminUsers() {
               )}
               <div>
                 <Label className="mb-2 block" required>
-                  Roles
+                  {t("adminUsers.fieldRoles")}
                 </Label>
                 <div className="space-y-1.5">
                   {ALL_ROLES
@@ -1632,7 +1628,7 @@ function AdminUsers() {
                   huérfano sin RLS funcional. */}
               {isSuperAdminCaller && (
                 <div>
-                  <Label className="mb-2 block">Institución</Label>
+                  <Label className="mb-2 block">{t("adminUsers.fieldInstitution")}</Label>
                   <Select
                     value={editing.tenant_id ?? "__none__"}
                     onValueChange={(v) =>
@@ -1640,12 +1636,12 @@ function AdminUsers() {
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecciona institución…" />
+                      <SelectValue placeholder={t("adminUsers.fieldInstitutionPlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
                       {editing.roles.includes("SuperAdmin") && (
                         <SelectItem value="__none__">
-                          — Sin institución (SuperAdmin puro) —
+                          {t("adminUsers.institutionNone")}
                         </SelectItem>
                       )}
                       {tenants.map((t) => (
@@ -1656,16 +1652,16 @@ function AdminUsers() {
                     </SelectContent>
                   </Select>
                   <p className="text-[11px] text-muted-foreground mt-1">
-                    El SuperAdmin puede asignar el usuario a cualquier institución
+                    {t("adminUsers.institutionSADesc")}
                     {editing.roles.includes("SuperAdmin")
-                      ? ", o dejarlo sin institución para que opere cross-tenant."
-                      : "."}
+                      ? t("adminUsers.institutionSADescCrossTenant")
+                      : t("adminUsers.institutionSADescDot")}
                     {editing.id &&
                       !editing.roles.includes("SuperAdmin") &&
-                      " Cambiar el valor falla si el usuario ya tiene cursos en la institución actual."}
+                      t("adminUsers.institutionSADescChangeFail")}
                     {editing.id &&
                       editing.roles.includes("SuperAdmin") &&
-                      " Los SuperAdmin pueden cambiar de institución libremente — sus cursos quedan ligados al tenant original, pero siguen accesibles porque su rol bypassa la RLS."}
+                      t("adminUsers.institutionSADescSAFree")}
                   </p>
                 </div>
               )}
@@ -1677,55 +1673,55 @@ function AdminUsers() {
               {editing.roles.includes("Estudiante") && (
                 <div className="rounded-md border p-3 space-y-3">
                   <p className="text-sm font-medium flex items-center gap-1.5">
-                    Identidad estudiantil
+                    {t("adminUsers.studentIdentityTitle")}
                     <HelpHint>{t("help.studentIdentityOfficialData")}</HelpHint>
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <Label className="text-xs">Código estudiantil</Label>
+                      <Label className="text-xs">{t("adminUsers.fieldStudentCode")}</Label>
                       <Input
                         value={editing.codigo ?? ""}
                         onChange={(e) => setEditing({ ...editing, codigo: e.target.value || null })}
-                        placeholder="Ej: 202412345"
+                        placeholder={t("adminUsers.fieldStudentCodePlaceholder")}
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Código de estudiante</Label>
+                      <Label className="text-xs">{t("adminUsers.fieldStudentCardCode")}</Label>
                       <Input
                         value={editing.student_code ?? ""}
                         onChange={(e) =>
                           setEditing({ ...editing, student_code: e.target.value || null })
                         }
-                        placeholder="Matrícula / carnet institucional"
+                        placeholder={t("adminUsers.fieldStudentCardCodePlaceholder")}
                       />
                       {/* La unicidad es por tenant cuando se asigna (mig
                           20260822). Si queda vacío, no choca con nadie. */}
                       <p className="text-[10px] text-muted-foreground mt-1">
-                        Único por institución cuando se asigna. Opcional.
+                        {t("adminUsers.fieldStudentCardCodeHint")}
                       </p>
                     </div>
                     <div>
-                      <Label className="text-xs">Documento de identidad</Label>
+                      <Label className="text-xs">{t("adminUsers.fieldDocumento")}</Label>
                       <Input
                         value={editing.documento ?? ""}
                         onChange={(e) =>
                           setEditing({ ...editing, documento: e.target.value || null })
                         }
-                        placeholder="Cédula / pasaporte"
+                        placeholder={t("adminUsers.fieldDocumentoPlaceholder")}
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Cohorte</Label>
+                      <Label className="text-xs">{t("adminUsers.fieldCohorte")}</Label>
                       <Input
                         value={editing.cohorte ?? ""}
                         onChange={(e) =>
                           setEditing({ ...editing, cohorte: e.target.value || null })
                         }
-                        placeholder="Ej: 2024-1"
+                        placeholder={t("adminUsers.fieldCohortePlaceholder")}
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Estado</Label>
+                      <Label className="text-xs">{t("adminUsers.fieldEstado")}</Label>
                       <Select
                         value={editing.estado ?? "__none__"}
                         onValueChange={(v) =>
@@ -1736,20 +1732,20 @@ function AdminUsers() {
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Sin estado" />
+                          <SelectValue placeholder={t("adminUsers.fieldEstadoPlaceholder")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="__none__">Sin estado</SelectItem>
-                          {ESTADO_OPTIONS.map((o) => (
-                            <SelectItem key={o.value} value={o.value}>
-                              {o.label}
+                          <SelectItem value="__none__">{t("adminUsers.fieldEstadoNone")}</SelectItem>
+                          {ESTADO_VALUES.map((v) => (
+                            <SelectItem key={v} value={v}>
+                              {t(`adminUsers.estado${v.charAt(0).toUpperCase() + v.slice(1)}`)}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="sm:col-span-2">
-                      <Label className="text-xs">Programa académico</Label>
+                      <Label className="text-xs">{t("adminUsers.fieldPrograma")}</Label>
                       <Select
                         value={editing.programa_id ?? "__none__"}
                         onValueChange={(v) =>
@@ -1760,10 +1756,10 @@ function AdminUsers() {
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Sin programa" />
+                          <SelectValue placeholder={t("adminUsers.fieldProgramaPlaceholder")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="__none__">Sin programa</SelectItem>
+                          <SelectItem value="__none__">{t("adminUsers.fieldProgramaNone")}</SelectItem>
                           {programs.map((p) => (
                             <SelectItem key={p.id} value={p.id}>
                               {p.name}
@@ -1780,16 +1776,16 @@ function AdminUsers() {
                         matricula manualmente desde el curso. */}
                     {!editing.id && (
                       <div className="sm:col-span-2">
-                        <Label className="text-xs">Inscribir en curso (opcional)</Label>
+                        <Label className="text-xs">{t("adminUsers.fieldEnrollCourse")}</Label>
                         <Select
                           value={enrollCourseId ?? "__none__"}
                           onValueChange={(v) => setEnrollCourseId(v === "__none__" ? null : v)}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="No inscribir todavía" />
+                            <SelectValue placeholder={t("adminUsers.fieldEnrollCoursePlaceholder")} />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__none__">No inscribir todavía</SelectItem>
+                            <SelectItem value="__none__">{t("adminUsers.fieldEnrollCourseNone")}</SelectItem>
                             {enrollCourses.map((c) => (
                               <SelectItem key={c.id} value={c.id}>
                                 {c.name}
@@ -1800,10 +1796,10 @@ function AdminUsers() {
                         </Select>
                         <p className="text-[11px] text-muted-foreground mt-1">
                           {isSuperAdminCaller && !editing.tenant_id
-                            ? "Eligí primero una institución arriba para filtrar los cursos."
+                            ? t("adminUsers.enrollHintChooseTenant")
                             : enrollCourses.length === 0
-                              ? "No hay cursos disponibles en esta institución."
-                              : "El alumno queda matriculado al guardar. Después podés ajustar desde el curso."}
+                              ? t("adminUsers.enrollHintNoCourses")
+                              : t("adminUsers.enrollHintAfterSave")}
                         </p>
                       </div>
                     )}
@@ -1814,11 +1810,11 @@ function AdminUsers() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={savingUser}>
-              Cancelar
+              {t("common.cancel")}
             </Button>
             <Button onClick={saveProfile} disabled={savingUser}>
               {savingUser && <Spinner size="md" className="mr-1" />}
-              Guardar
+              {t("common.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1828,9 +1824,9 @@ function AdminUsers() {
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}
         items={selectedItems}
-        entityNameSingular="usuario"
-        entityNamePlural="usuarios"
-        extraWarning="Se eliminarán los perfiles y todos sus roles. Las cuentas de autenticación NO se borran."
+        entityNameSingular={t("adminUsers.bulkDeleteEntity")}
+        entityNamePlural={t("adminUsers.bulkDeleteEntityPlural")}
+        extraWarning={t("adminUsers.bulkDeleteWarning")}
         onConfirm={handleBulkDelete}
       />
 
@@ -1849,19 +1845,19 @@ function AdminUsers() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <KeyRound className="h-5 w-5 text-primary" />
-              Contraseña temporal
+              {t("adminUsers.viewPwTitle")}
             </DialogTitle>
           </DialogHeader>
           {viewPwUser && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Contraseña asignada a <strong>{viewPwUser.full_name}</strong> (
-                {viewPwUser.institutional_email}). Comunícasela de forma segura — el
-                usuario deberá cambiarla en su primer inicio de sesión.
+                {t("adminUsers.viewPwDescPrefix")}{" "}
+                <strong>{viewPwUser.full_name}</strong> ({viewPwUser.institutional_email}).{" "}
+                {t("adminUsers.viewPwDescSuffix")}
               </p>
               {viewPwLoading ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                  <Spinner size="sm" /> Cargando…
+                  <Spinner size="sm" /> {t("adminUsers.viewPwLoading")}
                 </div>
               ) : viewPwValue ? (
                 <div className="flex items-center gap-2">
@@ -1876,7 +1872,7 @@ function AdminUsers() {
                       type="button"
                       onClick={() => setViewPwReveal((v) => !v)}
                       className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
-                      aria-label={viewPwReveal ? "Ocultar contraseña" : "Mostrar contraseña"}
+                      aria-label={viewPwReveal ? t("adminUsers.pwdAriaHide") : t("adminUsers.pwdAriaShow")}
                     >
                       {viewPwReveal ? (
                         <EyeOff className="h-4 w-4" />
@@ -1890,16 +1886,14 @@ function AdminUsers() {
                     variant="outline"
                     size="icon"
                     onClick={() => void copyViewPassword()}
-                    aria-label="Copiar contraseña"
+                    aria-label={t("adminUsers.pwdAriaCopy")}
                   >
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
               ) : (
                 <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
-                  No hay una contraseña guardada para este usuario. Probablemente ya la
-                  cambió, o fue creado por SSO / antes de esta función. Puedes asignarle
-                  una nueva desde <strong>Editar</strong>.
+                  {t("adminUsers.viewPwEmptyPrefix")} <strong>{t("common.edit")}</strong>{t("adminUsers.viewPwEmptySuffix")}
                 </div>
               )}
             </div>

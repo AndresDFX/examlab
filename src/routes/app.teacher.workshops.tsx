@@ -2367,14 +2367,14 @@ function TeacherWorkshops() {
   };
 
   if (authLoading) return null;
-  if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
+  if (!isTeacher) return <p className="text-muted-foreground">{t("teacherWorkshops.needsRole")}</p>;
 
   if (loadError) {
     return (
       <div className="space-y-5">
-        <PageHeader icon={<Hammer className="h-6 w-6" />} title="Talleres" />
+        <PageHeader icon={<Hammer className="h-6 w-6" />} title={t("teacherWorkshops.pageTitle")} />
         <ErrorState
-          message="No pudimos cargar los talleres"
+          message={t("teacherWorkshops.loadError")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -2386,17 +2386,17 @@ function TeacherWorkshops() {
     <div className="space-y-5">
       <PageHeader
         icon={<Hammer className="h-6 w-6" />}
-        title="Talleres"
+        title={t("teacherWorkshops.pageTitle")}
         subtitle={
           filteredWorkshops.length === workshops.length
-            ? `${workshops.length} talleres creados`
-            : `${filteredWorkshops.length} de ${workshops.length} talleres`
+            ? t("teacherWorkshops.subtitleTotal", { total: workshops.length, courses: courses.length })
+            : t("teacherWorkshops.subtitleFiltered", { filtered: filteredWorkshops.length, total: workshops.length })
         }
         actions={
           <>
             <ImportExportMenu
-              label="Talleres"
-              resourceName="talleres"
+              label={t("teacherWorkshops.importExportLabel")}
+              resourceName={t("teacherWorkshops.importExportResource")}
               templateCsv={WORKSHOPS_TEMPLATE}
               onExport={() => {
                 if (!workshops.length) return "";
@@ -2441,12 +2441,12 @@ function TeacherWorkshops() {
                   else created++;
                 }
                 await load();
-                return `${created} talleres creados · ${skipped} omitidos`;
+                return i18n.t("teacherWorkshops.importResult", { created, skipped });
               }}
             />
             <Button size="sm" onClick={openNew} data-tour-id="create-workshop">
               <Plus className="h-4 w-4 mr-1" />
-              Nuevo taller
+              {t("teacherWorkshops.btnNew")}
             </Button>
           </>
         }
@@ -2454,21 +2454,21 @@ function TeacherWorkshops() {
 
       {/* Stats 4-card — siempre visible. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={Pencil} label="Borradores" value={workshopStats.draft} />
+        <StatCard icon={Pencil} label={t("teacherWorkshops.statDrafts")} value={workshopStats.draft} />
         <StatCard
           icon={CheckCircle2}
-          label="Publicados"
+          label={t("teacherWorkshops.statPublished")}
           value={workshopStats.published}
           tone={workshopStats.published > 0 ? "success" : "default"}
         />
-        <StatCard icon={Lock} label="Cerrados" value={workshopStats.closed} />
-        <StatCard icon={ExternalLink} label="Externos" value={workshopStats.external} />
+        <StatCard icon={Lock} label={t("teacherWorkshops.statClosed")} value={workshopStats.closed} />
+        <StatCard icon={ExternalLink} label={t("teacherWorkshops.statExternal")} value={workshopStats.external} />
       </div>
 
       <ListFilters
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Buscar taller por título…"
+        searchPlaceholder={t("teacherWorkshops.searchPlaceholder")}
         courseId={courseFilter}
         onCourseChange={(v) => {
           setCourseFilter(v);
@@ -2487,8 +2487,8 @@ function TeacherWorkshops() {
         count={sel.count}
         onClear={sel.clear}
         onDelete={() => setBulkDeleteOpen(true)}
-        entityNameSingular="taller"
-        entityNamePlural="talleres"
+        entityNameSingular={t("teacherWorkshops.bulkEntitySingular")}
+        entityNamePlural={t("teacherWorkshops.bulkEntityPlural")}
       />
 
       {/* Resumen de pesos cuando se filtra por corte: muestra cuánto
@@ -2504,7 +2504,7 @@ function TeacherWorkshops() {
           return (
             <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
               <span className="text-muted-foreground">
-                Suma de pesos en <span className="font-medium text-foreground">{cut.name}</span>:
+                {t("common.weight")}: <span className="font-medium text-foreground">{cut.name}</span>:
               </span>
               <Badge
                 variant={ok ? "secondary" : sum > bucket + 0.01 ? "destructive" : "default"}
@@ -2514,12 +2514,12 @@ function TeacherWorkshops() {
               </Badge>
               {!ok && sum < bucket - 0.01 && (
                 <span className="text-muted-foreground">
-                  Quedan <strong>{formatPercent(bucket - sum)}%</strong> sin asignar.
+                  {t("workshop.weightRemaining", { pct: `${formatPercent(bucket - sum)}%` })}
                 </span>
               )}
               {sum > bucket + 0.01 && (
                 <span className="text-destructive">
-                  Sobrepasa el bucket por <strong>{formatPercent(sum - bucket)}%</strong>.
+                  {t("workshop.weightExceeds", { pct: `${formatPercent(sum - bucket)}%` })}
                 </span>
               )}
             </div>
@@ -2553,12 +2553,12 @@ function TeacherWorkshops() {
                 <TableEmpty
                   colSpan={10}
                   icon={Hammer}
-                  text="Aún no has creado ningún taller."
-                  hint="Crea tu primer taller — puedes asignarlo a varios cursos a la vez."
+                  text={t("teacherWorkshops.tableEmptyFirst")}
+                  hint={t("teacherWorkshops.tableEmptyFirstHint")}
                   action={
                     <Button size="sm" onClick={openNew}>
                       <Plus className="h-4 w-4 mr-1" />
-                      Crear primer taller
+                      {t("teacherWorkshops.tableEmptyFirstBtn")}
                     </Button>
                   }
                 />
@@ -2566,8 +2566,8 @@ function TeacherWorkshops() {
                 <TableEmpty
                   colSpan={10}
                   icon={Hammer}
-                  text="Sin resultados para los filtros actuales."
-                  hint="Limpia el buscador o el curso para ver todos los talleres."
+                  text={t("teacherWorkshops.tableEmptyFiltered")}
+                  hint={t("teacherWorkshops.tableEmptyFilteredHint")}
                 />
               ) : null}
               {pagination.paginatedItems.map((ws) => (
@@ -2645,26 +2645,26 @@ function TeacherWorkshops() {
                     <RowActionsMenu
                       actions={[
                         {
-                          label: "Asignación / excluir estudiantes",
+                          label: t("teacherWorkshops.actionAssign"),
                           icon: Users,
                           onClick: () => openAssign(ws),
                         },
                         !ws.is_external && {
-                          label: "Grupos",
+                          label: t("teacherWorkshops.actionGroups"),
                           icon: UsersRound,
                           onClick: () => openGroupsForWorkshop(ws),
                         },
                         {
-                          label: "Preguntas del taller",
+                          label: t("teacherWorkshops.actionQuestions"),
                           icon: ListChecks,
                           onClick: () => {
                             setQuestionsWs(ws);
                             setQuestionsOpen(true);
                           },
                         },
-                        { label: "Calificar", icon: CheckCircle2, onClick: () => openGrading(ws) },
+                        { label: t("teacherWorkshops.actionGrade"), icon: CheckCircle2, onClick: () => openGrading(ws) },
                         {
-                          label: "Editar",
+                          label: t("teacherWorkshops.actionEdit"),
                           icon: Pencil,
                           onClick: () => {
                             setForm({
@@ -2704,9 +2704,9 @@ function TeacherWorkshops() {
                             setOpen(true);
                           },
                         },
-                        { label: "Duplicar", icon: Copy, onClick: () => duplicateWorkshop(ws) },
+                        { label: t("teacherWorkshops.actionDuplicate"), icon: Copy, onClick: () => duplicateWorkshop(ws) },
                         {
-                          label: "Eliminar",
+                          label: t("teacherWorkshops.actionDelete"),
                           icon: Trash2,
                           tone: "destructive",
                           separatorBefore: true,
@@ -2719,7 +2719,7 @@ function TeacherWorkshops() {
               ))}
             </TableBody>
           </Table>
-          <DataPagination state={pagination} entityNamePlural="talleres" />
+          <DataPagination state={pagination} entityNamePlural={t("teacherWorkshops.paginationEntity")} />
         </CardContent>
       </Card>
 
@@ -2730,7 +2730,7 @@ function TeacherWorkshops() {
           data-tour-id="dialog-workshop"
         >
           <DialogHeader>
-            <DialogTitle>{form.id ? "Editar" : "Nuevo"} taller</DialogTitle>
+            <DialogTitle>{form.id ? t("teacherWorkshops.dialogTitleEdit") : t("teacherWorkshops.dialogTitleNew")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div
@@ -2739,11 +2739,10 @@ function TeacherWorkshops() {
             >
               <div className="space-y-0.5">
                 <Label htmlFor="ws-is-external" className="text-sm">
-                  Actividad externa
+                  {t("teacherWorkshops.fieldExternal")}
                 </Label>
                 <p className="text-[11px] text-muted-foreground leading-tight">
-                  Un taller que ocurrió fuera de la plataforma — presencial o hecho en otra
-                  herramienta. Solo registras notas para el cálculo del corte.
+                  {t("teacherWorkshops.fieldExternalDesc")}
                 </p>
               </div>
               <Switch
@@ -2765,7 +2764,7 @@ function TeacherWorkshops() {
                 entrega en grupo, los demas individual). */}
             {!(form as any).is_external && (
               <div className="space-y-1" data-tour-id="workshop-field-group-mode">
-                <Label>Modo de trabajo</Label>
+                <Label>{t("teacherWorkshops.fieldGroupMode")}</Label>
                 <Select
                   value={(form as any).group_mode ?? "individual"}
                   onValueChange={(v) =>
@@ -2780,23 +2779,23 @@ function TeacherWorkshops() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="individual">
-                      Individual — cada estudiante entrega por separado
+                      {t("teacherWorkshops.groupModeIndividual")}
                     </SelectItem>
                     <SelectItem value="group_required">
-                      Grupal — todos deben estar en un grupo para entregar
+                      {t("teacherWorkshops.groupModeRequired")}
                     </SelectItem>
                     <SelectItem value="teacher_assigned">
-                      Mixto — quien tenga grupo entrega en grupo, los demás individual
+                      {t("teacherWorkshops.groupModeMixed")}
                     </SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-muted-foreground leading-tight">
-                  En Grupal o Mixto administras los grupos desde el menú "Grupos".
+                  {t("teacherWorkshops.groupModeHint")}
                 </p>
               </div>
             )}
             <div data-tour-id="workshop-field-title">
-              <Label required>Título</Label>
+              <Label required>{t("teacherWorkshops.fieldTitle")}</Label>
               <Input
                 value={form.title ?? ""}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -2804,9 +2803,9 @@ function TeacherWorkshops() {
             </div>
             <div data-tour-id="workshop-field-courses">
               <Label required>
-                Cursos{" "}
+                {t("teacherWorkshops.fieldCourses")}{" "}
                 <span className="text-xs text-muted-foreground font-normal">
-                  (selecciona uno o más)
+                  {t("teacherWorkshops.fieldCoursesHint")}
                 </span>
               </Label>
               {/* Tanto en NEW como en EDIT usamos checkboxes M:N. El
@@ -2834,13 +2833,13 @@ function TeacherWorkshops() {
               {selectedCourseIds.size > 1 && (
                 <p className="text-xs text-muted-foreground mt-1">
                   {form.id
-                    ? "El taller queda asociado a todos los cursos seleccionados (1 sólo registro)."
-                    : "Se creará UN taller asociado a todos los cursos seleccionados."}
+                    ? t("teacherWorkshops.fieldCoursesMultiEdit")
+                    : t("teacherWorkshops.fieldCoursesMultiNew")}
                 </p>
               )}
               {form.id && selectedCourseIds.size === 0 && (
                 <p className="text-xs text-destructive mt-1">
-                  Debes mantener al menos 1 curso asociado.
+                  {t("teacherWorkshops.fieldCoursesMin1")}
                 </p>
               )}
             </div>
@@ -2848,7 +2847,7 @@ function TeacherWorkshops() {
             {!form.id && selectedCourseIds.size > 1 ? (
               <div className="space-y-2">
                 <Label>
-                  Corte y peso por curso{" "}
+                  {t("teacherWorkshops.cutPerCourse")}{" "}
                   <HelpHint>{t("help.courseWeightBudgetValidation")}</HelpHint>
                 </Label>
                 {[...selectedCourseIds].map((cid) => {
@@ -2871,7 +2870,7 @@ function TeacherWorkshops() {
                           corte se truncan. Stack en mobile. */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
-                          <Label className="text-xs text-muted-foreground">Corte</Label>
+                          <Label className="text-xs text-muted-foreground">{t("teacherWorkshops.cutColLabel")}</Label>
                           <Select
                             value={cc.cut_id ?? "__none__"}
                             onValueChange={(v) =>
@@ -2885,10 +2884,10 @@ function TeacherWorkshops() {
                             }
                           >
                             <SelectTrigger className="mt-1 h-8 text-sm">
-                              <SelectValue placeholder="Sin corte" />
+                              <SelectValue placeholder={t("teacherWorkshops.cutNone")} />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="__none__">Sin corte</SelectItem>
+                              <SelectItem value="__none__">{t("teacherWorkshops.cutNone")}</SelectItem>
                               {cutsForCourse.map((c) => (
                                 <SelectItem key={c.id} value={c.id}>
                                   {c.name}
@@ -2898,12 +2897,12 @@ function TeacherWorkshops() {
                           </Select>
                           {cutsForCourse.length === 0 && (
                             <p className="text-xs text-muted-foreground mt-1">
-                              Sin cortes definidos
+                              {t("teacherWorkshops.cutNoCuts")}
                             </p>
                           )}
                         </div>
                         <div>
-                          <Label className="text-xs text-muted-foreground">Peso (%)</Label>
+                          <Label className="text-xs text-muted-foreground">{t("teacherWorkshops.weightColLabel")}</Label>
                           <div className="relative mt-1">
                             <DecimalInput
                               min={0}
@@ -2927,16 +2926,15 @@ function TeacherWorkshops() {
                             <p
                               className={`text-xs mt-1 ${overBucket ? "text-destructive" : "text-muted-foreground"}`}
                             >
-                              Disponible: <strong>{wsMax.toFixed(1)}%</strong> (bucket {wsBucket}% −
-                              otros {sumOthers.toFixed(1)}%)
+                              {t("teacherWorkshops.weightAvailable", { max: wsMax.toFixed(1), bucket: wsBucket, others: sumOthers.toFixed(1) })}
                               {overBucket && (
-                                <span className="block">Excede el bucket disponible.</span>
+                                <span className="block">{t("teacherWorkshops.weightExceedsBucket")}</span>
                               )}
                             </p>
                           )}
                           {!cc.cut_id && (
                             <p className="text-xs text-muted-foreground mt-1">
-                              Asigna un corte para configurar el peso.
+                              {t("teacherWorkshops.weightAssignCut")}
                             </p>
                           )}
                         </div>
@@ -2949,7 +2947,7 @@ function TeacherWorkshops() {
               <>
                 <div>
                   <Label>
-                    Corte de evaluación{" "}
+                    {t("teacherWorkshops.cutSingle")}{" "}
                     <HelpHint>{t("help.cutAssignmentGradeCalculationWorkshop")}</HelpHint>
                   </Label>
                   {(() => {
@@ -2967,10 +2965,10 @@ function TeacherWorkshops() {
                         }
                       >
                         <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="Sin corte asignado" />
+                          <SelectValue placeholder={t("teacherWorkshops.cutSingleNone")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="__none__">Sin corte asignado</SelectItem>
+                          <SelectItem value="__none__">{t("teacherWorkshops.cutSingleNone")}</SelectItem>
                           {availableCuts.map((c) => (
                             <SelectItem key={c.id} value={c.id}>
                               {c.name}
@@ -2985,7 +2983,7 @@ function TeacherWorkshops() {
                       form.id ? c.course_id === form.course_id : selectedCourseIds.has(c.course_id),
                     ).length === 0 && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        Este curso aún no tiene cortes definidos.
+                        {t("teacherWorkshops.cutSingleNoCuts")}
                       </p>
                     )}
                 </div>
@@ -3006,7 +3004,7 @@ function TeacherWorkshops() {
                     const bucketFull = wsMax === 0 && wsBucket > 0;
                     return (
                       <>
-                        <Label>Peso del taller (% del bucket de talleres del corte)</Label>
+                        <Label>{t("teacherWorkshops.weightLabel")}</Label>
                         <div className="relative mt-1 w-32">
                           <DecimalInput
                             min={0}
@@ -3028,23 +3026,24 @@ function TeacherWorkshops() {
                         <p className="text-xs text-muted-foreground mt-1">
                           {selectedCut ? (
                             <>
-                              Bucket talleres del corte{" "}
-                              <span className="font-medium">{selectedCut.name}</span>: {wsBucket}%.
-                              Otros talleres del corte suman {otherWorkshopsSum.toFixed(1)}%, te
-                              queda <strong>{wsMax.toFixed(1)}%</strong> disponible
+                              {t("teacherWorkshops.weightBucketDesc", {
+                                cutName: selectedCut.name,
+                                bucket: wsBucket,
+                                others: otherWorkshopsSum.toFixed(1),
+                                max: wsMax.toFixed(1),
+                              })}
                               {currentWeight > 0 && wsMax > 0 && (
-                                <> (peso actual: {currentWeight.toFixed(1)}%)</>
+                                <>{t("teacherWorkshops.weightCurrent", { current: currentWeight.toFixed(1) })}</>
                               )}
                               .
                               {bucketFull && (
                                 <span className="block text-destructive mt-1">
-                                  El bucket de talleres está lleno. Aumenta workshop_weight del
-                                  corte o reduce el peso de otros talleres.
+                                  {t("teacherWorkshops.weightFull")}
                                 </span>
                               )}
                             </>
                           ) : (
-                            "Asigna primero un corte de evaluación arriba para poder configurar el peso."
+                            t("teacherWorkshops.weightNoCut")
                           )}
                         </p>
                       </>
@@ -3054,7 +3053,7 @@ function TeacherWorkshops() {
               </>
             )}
             <div>
-              <Label>Descripción</Label>
+              <Label>{t("teacherWorkshops.fieldDescription")}</Label>
               <Textarea
                 value={form.description ?? ""}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -3062,7 +3061,7 @@ function TeacherWorkshops() {
             </div>
             {!(form as any).is_external && (
               <div>
-                <Label>Instrucciones</Label>
+                <Label>{t("teacherWorkshops.fieldInstructions")}</Label>
                 <Textarea
                   rows={4}
                   value={form.instructions ?? ""}
@@ -3072,7 +3071,7 @@ function TeacherWorkshops() {
             )}
             {!(form as any).is_external && (
               <div>
-                <Label>Link externo (opcional)</Label>
+                <Label>{t("teacherWorkshops.fieldExternalLink")}</Label>
                 <Input
                   placeholder="https://..."
                   value={form.external_link ?? ""}
@@ -3083,12 +3082,12 @@ function TeacherWorkshops() {
             {!(form as any).is_external && (
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5">
-                  Videos introductorios obligatorios (opcional)
+                  {t("teacherWorkshops.fieldVideos")}
                   <HelpHint>{t("help.introVideosSequentialUnlockWorkshop")}</HelpHint>
                 </Label>
                 {formIntroVideos.length === 0 && (
                   <p className="text-[11px] text-muted-foreground italic">
-                    Sin videos. Click en "+ Agregar video" para empezar.
+                    {t("teacherWorkshops.fieldVideosEmpty")}
                   </p>
                 )}
                 <div className="space-y-2">
@@ -3133,7 +3132,7 @@ function TeacherWorkshops() {
                               className="h-7 w-7"
                               onClick={moveUp}
                               disabled={idx === 0}
-                              title="Mover arriba"
+                              title={t("teacherWorkshops.videoMoveUp")}
                             >
                               <ChevronUp className="h-3.5 w-3.5" />
                             </Button>
@@ -3144,7 +3143,7 @@ function TeacherWorkshops() {
                               className="h-7 w-7"
                               onClick={moveDown}
                               disabled={idx === formIntroVideos.length - 1}
-                              title="Mover abajo"
+                              title={t("teacherWorkshops.videoMoveDown")}
                             >
                               <ChevronDown className="h-3.5 w-3.5" />
                             </Button>
@@ -3154,7 +3153,7 @@ function TeacherWorkshops() {
                               variant="ghost"
                               className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
                               onClick={removeRow}
-                              title="Quitar video"
+                              title={t("teacherWorkshops.videoRemove")}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -3176,11 +3175,11 @@ function TeacherWorkshops() {
                           }}
                         >
                           <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Biblioteca o URL…" />
+                            <SelectValue placeholder={t("teacherWorkshops.videoLibraryOrUrl")} />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="__custom">
-                              URL personalizada (no reusable)
+                              {t("teacherWorkshops.videoCustomUrl")}
                             </SelectItem>
                             {videoLibrary.map((vl) => (
                               <SelectItem key={vl.id} value={vl.id}>
@@ -3211,20 +3210,19 @@ function TeacherWorkshops() {
                   }
                 >
                   <Plus className="h-3.5 w-3.5 mr-1" />
-                  Agregar video
+                  {t("teacherWorkshops.videoAddBtn")}
                 </Button>
                 <p className="text-[11px] text-muted-foreground">
-                  Tip: registra los videos en <strong>Videos</strong> (sidebar) y referénciálos aquí
-                  — evita re-pegar URLs.
+                  {t("teacherWorkshops.videoTip")}
                 </p>
               </div>
             )}
             <div>
-              <Label className="text-xs text-muted-foreground mb-1 block">Fechas</Label>
+              <Label className="text-xs text-muted-foreground mb-1 block">{t("teacherWorkshops.fieldDates")}</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {!(form as any).is_external && (
                   <div>
-                    <Label className="text-xs">Visible desde</Label>
+                    <Label className="text-xs">{t("teacherWorkshops.fieldVisibleFrom")}</Label>
                     <DateTimePicker
                       value={(form as any).start_date ?? ""}
                       onChange={(v) => setForm({ ...form, start_date: v } as any)}
@@ -3234,7 +3232,7 @@ function TeacherWorkshops() {
                 )}
                 <div>
                   <Label className="text-xs">
-                    {(form as any).is_external ? "Fecha del taller" : "Fecha límite"}
+                    {(form as any).is_external ? t("teacherWorkshops.fieldExternalDate") : t("teacherWorkshops.fieldDueDate")}
                   </Label>
                   <DateTimePicker
                     value={(form.due_date as any) ?? ""}
@@ -3251,7 +3249,7 @@ function TeacherWorkshops() {
                       del row "Fechas" de arriba, y `flex items-center
                       h-5` reserva el mismo alto en ambas columnas
                       (la del HelpHint del lado derecho no descoloca). */}
-                  <Label className="text-xs flex items-center gap-1.5 h-5">Estado</Label>
+                  <Label className="text-xs flex items-center gap-1.5 h-5">{t("teacherWorkshops.fieldStatus")}</Label>
                   <Select
                     value={form.status ?? "draft"}
                     onValueChange={(v) => setForm({ ...form, status: v })}
@@ -3260,15 +3258,15 @@ function TeacherWorkshops() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="draft">Borrador</SelectItem>
-                      <SelectItem value="published">Publicado</SelectItem>
-                      <SelectItem value="closed">Cerrado</SelectItem>
+                      <SelectItem value="draft">{t("teacherWorkshops.statusDraft")}</SelectItem>
+                      <SelectItem value="published">{t("teacherWorkshops.statusPublished")}</SelectItem>
+                      <SelectItem value="closed">{t("teacherWorkshops.statusClosed")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
                   <Label className="text-xs flex items-center gap-1.5 h-5">
-                    Intentos máximos
+                    {t("teacherWorkshops.fieldMaxAttempts")}
                     <HelpHint>
                       {`Cuántas veces puede entregar el alumno este taller. Vacío → usa el default de Admin → Configuración → Generales.`}
                     </HelpHint>
@@ -3277,7 +3275,7 @@ function TeacherWorkshops() {
                     type="number"
                     min={1}
                     max={10}
-                    placeholder="Hereda del default"
+                    placeholder={t("teacherWorkshops.fieldMaxAttemptsPlaceholder")}
                     value={form.max_attempts ?? ""}
                     onChange={(e) =>
                       setForm({
@@ -3300,9 +3298,9 @@ function TeacherWorkshops() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancelar
+              {t("teacherWorkshops.btnCancel")}
             </Button>
-            <Button onClick={save}>{form.id ? "Guardar" : "Crear"}</Button>
+            <Button onClick={save}>{form.id ? t("teacherWorkshops.btnSave") : t("teacherWorkshops.btnCreate")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3311,7 +3309,7 @@ function TeacherWorkshops() {
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Asignación del taller — {assignWs?.title}</DialogTitle>
+            <DialogTitle>{t("teacherWorkshops.assignDialogTitle", { title: assignWs?.title ?? "" })}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             {/* Course selector (read-only — workshops belong to one course) */}
