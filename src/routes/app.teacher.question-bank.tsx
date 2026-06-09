@@ -50,7 +50,7 @@ import {
 } from "@/components/ui/dialog";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { toast } from "sonner";
-import { Library, Plus, Search, Pencil, Trash2, X as XIcon, Save } from "lucide-react";
+import { Library, Plus, Search, Pencil, Trash2, X as XIcon, Save, Copy } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { toCSV } from "@/shared/lib/csv";
@@ -272,6 +272,31 @@ function QuestionBankPage() {
   const openEdit = (r: BankRow) => {
     setEditing(r);
     setDraft({ ...r });
+    setTagInput("");
+    setDialogOpen(true);
+  };
+
+  /** Duplicar: abre el dialog en modo CREAR (editing=null) pre-llenado con
+   *  los datos de la pregunta origen. Como una pregunta del banco es
+   *  atómica (no tiene sub-partes), la "parametrización de qué copiar" es
+   *  el propio formulario: el docente ajusta lo que quiera (enunciado,
+   *  opciones, rúbrica, dificultad, tags…) ANTES de guardar la variante.
+   *  No se inserta nada hasta que el docente confirma — así no quedan
+   *  duplicados idénticos accidentales. */
+  const duplicate = (r: BankRow) => {
+    setEditing(null);
+    setDraft({
+      type: r.type,
+      content: r.content,
+      options: r.options ?? null,
+      expected_rubric: r.expected_rubric,
+      language: r.language,
+      starter_code: r.starter_code,
+      suggested_points: r.suggested_points,
+      topic: r.topic,
+      difficulty: r.difficulty,
+      tags: r.tags ? [...r.tags] : [],
+    });
     setTagInput("");
     setDialogOpen(true);
   };
@@ -589,6 +614,7 @@ function QuestionBankPage() {
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <RowAction label="Editar" icon={Pencil} onClick={() => openEdit(r)} />
+                          <RowAction label="Duplicar" icon={Copy} onClick={() => duplicate(r)} />
                           <RowAction
                             label="Eliminar"
                             icon={Trash2}

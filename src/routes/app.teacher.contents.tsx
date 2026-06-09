@@ -73,11 +73,13 @@ import {
   MoreHorizontal,
   MessageSquareText,
   Upload,
+  Copy,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { UploadExternalContentDialog } from "@/modules/contents/UploadExternalContentDialog";
 import { EditExternalContentDialog } from "@/modules/contents/EditExternalContentDialog";
+import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDialog";
 import { MarkdownEditorDialog } from "@/modules/contents/MarkdownEditorDialog";
 import { PptxViewerDialog } from "@/modules/contents/PptxViewerDialog";
 import { RegenerateContentDialog } from "@/modules/contents/RegenerateContentDialog";
@@ -362,6 +364,9 @@ function TeacherContents() {
   // completo, n_clases, nombre, tema) de un material SUBIDO mal
   // clasificado. Solo se ofrece para contenidos externos (ver isExternal).
   const [editExternalFor, setEditExternalFor] = useState<GeneratedContent | null>(null);
+  // "Duplicar contenido": copia metadata + (opcional) archivos de storage +
+  // (opcional) cursos asociados. Abre el DuplicateOptionsDialog.
+  const [duplicateFor, setDuplicateFor] = useState<GeneratedContent | null>(null);
 
   // Form
   // `displayName` es el nombre único que el docente le pone a este
@@ -714,6 +719,122 @@ function TeacherContents() {
     }
     setItems((prev) => prev.filter((i) => i.id !== item.id));
     toast.success(t("contents.deletedToast"));
+  };
+
+  /** Duplica un contenido: nueva fila (mía, borrador) + opcionalmente copia
+   *  los archivos de Storage a la carpeta del nuevo contenido + opcionalmente
+   *  las asociaciones a cursos. Lanza si falla la creación de la fila (el
+   *  DuplicateOptionsDialog lo captura). La copia de archivos es best-effort
+   *  (igual que el upload externo): si algún archivo falla, se avisa y se
+   *  sigue con los demás.
+   *
+   *  Solo se ofrece para contenidos `status='done'` — no tiene sentido
+   *  duplicar una generación en cola/fallida. Los archivos `md`/`txt` con
+   *  `body` inline degradan con gracia: aunque la copia del objeto de
+   *  Storage falle, el preview sigue funcionando por el body preservado.
+   *
+   *  Limitación: la RLS del bucket exige leer bajo el uid del dueño. Si un
+   *  Admin duplica el contenido de OTRO docente, la copia de archivos puede
+   *  fallar (origen bajo otro uid) — la fila + metadata sí se crean. */
+  const duplicateContent = async (
+    c: GeneratedContent,
+    opts: { copyFiles: boolean; copyCourses: boolean },
+  ) => {
+    if (!user) return;
+    const insertPayload: Record<string, unknown> = {
+      teacher_id: user.id,
+      display_name: `Copia de ${c.display_name}`,
+      topic: c.topic,
+      mode: c.mode,
+      language: c.language,
+      n_classes: c.n_classes,
+      duration_minutes: c.duration_minutes,
+      modality: c.modality,
+      tags: c.tags,
+      course_id: c.course_id,
+      author: c.author,
+      instructions: c.instructions,
+      status: "done",
+      is_published: false,
+      files: [] as unknown[],
+    };
+    const { data: created, error: insErr } = await db
+      .from("generated_contents")
+      .insert(insertPayload)
+      .select("id")
+      .single();
+    if (insErr || !created?.id) {
+      if ((insErr as { code?: string } | null)?.code === "23505") {
+        throw new Error(
+          `Ya tienes un contenido llamado "Copia de ${c.display_name}". Renómbralo después de duplicar.`,
+        );
+      }
+      throw insErr ?? new Error("insert failed");
+    }
+    const newId = created.id as string;
+
+    // Copia de archivos de Storage al folder del nuevo contenido.
+    if (opts.copyFiles && (c.files?.length ?? 0) > 0) {
+      const newFiles: Array<Record<string, unknown>> = [];
+      const failed: string[] = [];
+      for (const f of c.files) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const srcPath = (f as any).path as string | undefined;
+        if (!srcPath) continue;
+        const filename = srcPath.split("/").pop() || f.name;
+        const dest = `${user.id}/${newId}/${filename}`;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: cpErr } = await (supabase.storage as any)
+          .from("generated-contents")
+          .copy(srcPath, dest);
+        if (cpErr) {
+          failed.push(f.name);
+          continue;
+        }
+        newFiles.push({
+          name: f.name,
+          path: dest,
+          kind: f.kind,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ...((f as any).body !== undefined ? { body: (f as any).body } : {}),
+        });
+      }
+      if (newFiles.length > 0) {
+        await db.from("generated_contents").update({ files: newFiles }).eq("id", newId);
+      }
+      if (failed.length > 0) {
+        toast.warning(
+          i18n.t("toast.routes_app_teacher_contents.duplicatePartialFiles", {
+            defaultValue: "Copia creada, pero fallaron {{count}} archivo(s): {{names}}",
+            count: failed.length,
+            names: failed.join(", "),
+          }),
+        );
+      }
+    }
+
+    // Copia de asociaciones a cursos (tabla N-N). Si no se pidió, la copia
+    // queda solo en el curso ancla (generated_contents.course_id).
+    if (opts.copyCourses) {
+      const { data: asg } = await db
+        .from("content_course_assignments")
+        .select("course_id")
+        .eq("content_id", c.id);
+      const courseIds = ((asg ?? []) as Array<{ course_id: string }>).map((a) => a.course_id);
+      if (courseIds.length > 0) {
+        await db.from("content_course_assignments").insert(
+          courseIds.map((cid) => ({ content_id: newId, course_id: cid, created_by: user.id })),
+        );
+      }
+    }
+
+    toast.success(
+      i18n.t("toast.routes_app_teacher_contents.duplicated", {
+        defaultValue: 'Contenido duplicado como borrador: "Copia de {{name}}"',
+        name: c.display_name,
+      }),
+    );
+    void load();
   };
 
   /** Toggle de publicación del contenido. Al pasar a `is_published=true`
@@ -1305,6 +1426,19 @@ function TeacherContents() {
                                 onClick: () => setEditExternalFor(it),
                               }
                             : null,
+                          // "Duplicar" — copia el contenido (metadata +
+                          // opcionalmente archivos + cursos). Solo para
+                          // status='done' (no tiene sentido duplicar una
+                          // generación en cola o fallida).
+                          it.status === "done"
+                            ? {
+                                label: t("contents.duplicateAction", {
+                                  defaultValue: "Duplicar",
+                                }),
+                                icon: Copy,
+                                onClick: () => setDuplicateFor(it),
+                              }
+                            : null,
                           // "Personalizar prompts" — abre el editor de
                           // overrides POR CONTENIDO. Aparece siempre (no
                           // depende de status) porque el docente puede
@@ -1738,6 +1872,41 @@ function TeacherContents() {
         content={editExternalFor}
         onOpenChange={(o) => !o && setEditExternalFor(null)}
         onSaved={() => void load()}
+      />
+
+      {/* Dialog "Duplicar contenido" — copia parametrizable (archivos de
+          Storage + cursos asociados). La copia nace como borrador. */}
+      <DuplicateOptionsDialog
+        open={duplicateFor !== null}
+        onOpenChange={(o) => !o && setDuplicateFor(null)}
+        title="Duplicar contenido"
+        description={
+          <>
+            Crea una copia como <strong>borrador</strong> (renombrada "Copia de…"). Elige qué
+            información interna copiar.
+          </>
+        }
+        options={[
+          {
+            param: "copyFiles",
+            label: `Copiar archivos${
+              (duplicateFor?.files?.length ?? 0) > 0 ? ` (${duplicateFor?.files?.length})` : ""
+            }`,
+            hint: "Clona los archivos al almacenamiento del nuevo contenido. Si lo desmarcas, la copia queda sin archivos (solo la metadata).",
+          },
+          {
+            param: "copyCourses",
+            label: "Copiar cursos asociados",
+            hint: "Mantiene las mismas asociaciones a cursos. Si lo desmarcas, la copia queda solo en el curso ancla del original.",
+          },
+        ]}
+        onConfirm={async (flags) => {
+          if (duplicateFor)
+            await duplicateContent(duplicateFor, {
+              copyFiles: flags.copyFiles !== false,
+              copyCourses: flags.copyCourses !== false,
+            });
+        }}
       />
 
       <aiGate.GateDialog />
