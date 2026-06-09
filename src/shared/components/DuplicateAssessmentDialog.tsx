@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Dialog,
@@ -67,6 +68,46 @@ const LABEL_BY_TARGET: Record<Props["target"], string> = {
   project: "proyecto",
 };
 
+/**
+ * Opciones parametrizables por tipo: qué información INTERNA copiar. Cada
+ * `param` es el nombre del argumento booleano del RPC clone_* (mig
+ * 20260918000000). `default: true` preserva el comportamiento histórico
+ * (copiaba todo) cuando el docente no toca nada.
+ */
+const COPY_OPTIONS_BY_TARGET: Record<
+  Props["target"],
+  Array<{ param: string; label: string; hint: string }>
+> = {
+  exam: [
+    { param: "_copy_questions", label: "Copiar preguntas", hint: "Clona todas las preguntas del examen origen." },
+    {
+      param: "_copy_proctoring",
+      label: "Copiar configuración de proctoring",
+      hint: "Navegación (secuencial/libre), mezcla de preguntas y máx. advertencias. Si lo desmarcas, la copia nace con valores por defecto (libre, sin mezcla, 3 advertencias).",
+    },
+  ],
+  workshop: [
+    { param: "_copy_questions", label: "Copiar preguntas", hint: "Clona todas las preguntas del taller origen." },
+    {
+      param: "_copy_groups",
+      label: "Copiar configuración de grupos",
+      hint: "Modo de grupo y tamaños. Si lo desmarcas, la copia queda como individual.",
+    },
+  ],
+  project: [
+    {
+      param: "_copy_files",
+      label: "Copiar archivos esperados",
+      hint: "Clona los slots/entregables definidos en el proyecto origen.",
+    },
+    {
+      param: "_copy_groups",
+      label: "Copiar configuración de grupos",
+      hint: "Modo de grupo y tamaños. Si lo desmarcas, la copia queda como individual.",
+    },
+  ],
+};
+
 export function DuplicateAssessmentDialog({
   open,
   onOpenChange,
@@ -77,9 +118,17 @@ export function DuplicateAssessmentDialog({
   const { roles } = useAuth();
   const isAdmin = roles.includes("Admin");
 
+  const copyOptions = COPY_OPTIONS_BY_TARGET[target];
+
   const [courses, setCourses] = useState<Course[]>([]);
   const [targetCourseId, setTargetCourseId] = useState<string>(source.courseId);
   const [newTitle, setNewTitle] = useState(`Copia de ${source.title}`);
+  // Flags "qué copiar". Default true para cada opción del tipo actual —
+  // preserva el comportamiento histórico (duplicar todo) si el docente no
+  // desmarca nada.
+  const [copyFlags, setCopyFlags] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(copyOptions.map((o) => [o.param, true])),
+  );
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -88,6 +137,7 @@ export function DuplicateAssessmentDialog({
     setLoading(true);
     setTargetCourseId(source.courseId);
     setNewTitle(`Copia de ${source.title}`);
+    setCopyFlags(Object.fromEntries(copyOptions.map((o) => [o.param, true])));
     (async () => {
       let query;
       if (isAdmin) {
@@ -135,6 +185,8 @@ export function DuplicateAssessmentDialog({
         _source_id: source.id,
         _target_course_id: targetCourseId,
         _new_title: newTitle.trim(),
+        // Flags "qué copiar" — el RPC clone_* los respeta (mig 20260918000000).
+        ...copyFlags,
       };
       const { data, error } = await db.rpc(RPC_BY_TARGET[target], params);
       if (error) {
@@ -164,9 +216,9 @@ export function DuplicateAssessmentDialog({
             Duplicar {LABEL_BY_TARGET[target]}
           </DialogTitle>
           <DialogDescription>
-            Crea una copia con preguntas y configuración. La copia queda en{" "}
-            <strong>borrador</strong> — debes revisar fechas, peso y corte antes de publicar.
-            Asignaciones, entregas y grupos NO se copian.
+            La copia queda en <strong>borrador</strong> — debes revisar fechas, peso y corte
+            antes de publicar. Asignaciones, entregas y grupos (miembros) NO se copian. Abajo
+            eliges qué información interna copiar.
           </DialogDescription>
         </DialogHeader>
 
@@ -190,6 +242,32 @@ export function DuplicateAssessmentDialog({
           <div>
             <Label>Título de la copia</Label>
             <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
+          </div>
+
+          {/* Parametrización: qué información interna copiar. */}
+          <div className="space-y-2 rounded-md border p-3">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+              Qué copiar
+            </Label>
+            {copyOptions.map((opt) => (
+              <label
+                key={opt.param}
+                className="flex items-start gap-2 cursor-pointer select-none"
+              >
+                <Checkbox
+                  checked={copyFlags[opt.param] ?? true}
+                  onCheckedChange={(v) =>
+                    setCopyFlags((prev) => ({ ...prev, [opt.param]: Boolean(v) }))
+                  }
+                  disabled={submitting}
+                  className="mt-0.5"
+                />
+                <span className="min-w-0">
+                  <span className="text-sm font-medium block">{opt.label}</span>
+                  <span className="text-[11px] text-muted-foreground block">{opt.hint}</span>
+                </span>
+              </label>
+            ))}
           </div>
         </div>
 
