@@ -33,6 +33,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 import {
@@ -114,13 +115,14 @@ const TYPE_ICONS: Record<PollType, typeof ListChecks> = {
   slot: CalendarRange,
 };
 
-const TYPE_HINT: Record<PollType, string> = {
-  single: "Elegí UNA opción.",
-  multiple: "Podés marcar varias opciones.",
-  slot: "Elegí UNA opción. Cada opción tiene cupo limitado.",
-};
+function getTypeHint(type: PollType): string {
+  if (type === "single") return i18n.t("studentPolls.typeHintSingle");
+  if (type === "multiple") return i18n.t("studentPolls.typeHintMultiple");
+  return i18n.t("studentPolls.typeHintSlot");
+}
 
 function StudentPolls() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   // Deep-link `?poll=<id>` compartido por el docente — resaltamos esa card.
   const { poll: deepLinkId } = Route.useSearch();
@@ -268,11 +270,7 @@ function StudentPolls() {
     // alumno ya votó, evitamos siquiera intentarlo. La RPC también lo
     // rechaza server-side; este guard solo da feedback inmediato.
     if (poll.poll_type !== "multiple" && poll.my_votes.length > 0 && !poll.allow_change_response) {
-      toast.info(
-        i18n.t("toast.routes_app_student_polls.cannotChangeVote", {
-          defaultValue: "Esta encuesta no permite cambiar el voto una vez emitido",
-        }),
-      );
+      toast.info(t("studentPolls.cannotChangeVote"));
       return;
     }
     setVoting(poll.id);
@@ -293,11 +291,7 @@ function StudentPolls() {
         toast.error(friendlyError(error));
         return;
       }
-      toast.success(
-        i18n.t("toast.routes_app_student_polls.voteRecorded", {
-          defaultValue: "Voto registrado",
-        }),
-      );
+      toast.success(t("studentPolls.voteRecorded"));
       setRetryNonce((n) => n + 1);
     } finally {
       setVoting(null);
@@ -319,12 +313,7 @@ function StudentPolls() {
         // permitimos al estudiante NO desmarcar (idempotente: cada voto
         // queda). Trade-off conocido: para des-votar en 'multiple'
         // habría que agregar `clear_poll_option(option_id)`.
-        toast.info(
-          i18n.t("toast.routes_app_student_polls.cannotUncheckMultiple", {
-            defaultValue:
-              "En encuestas de selección múltiple no podés desmarcar una opción una vez votada.",
-          }),
-        );
+        toast.info(t("studentPolls.cannotUncheckMultiple"));
         return;
       }
       setRetryNonce((n) => n + 1);
@@ -345,11 +334,7 @@ function StudentPolls() {
         toast.error(friendlyError(error));
         return;
       }
-      toast.success(
-        i18n.t("toast.routes_app_student_polls.responseCleared", {
-          defaultValue: "Quitaste tu respuesta",
-        }),
-      );
+      toast.success(t("studentPolls.responseCleared"));
       setRetryNonce((n) => n + 1);
     } finally {
       setVoting(null);
@@ -359,8 +344,8 @@ function StudentPolls() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Encuestas"
-        subtitle="Tus encuestas activas y las que ya cerraron."
+        title={t("studentPolls.title")}
+        subtitle={t("studentPolls.subtitle")}
         icon={<ListChecks className="h-6 w-6 text-sky-500" />}
         actions={
           <Button
@@ -370,46 +355,46 @@ function StudentPolls() {
             disabled={loading}
           >
             <RefreshCw className="h-4 w-4 mr-1" />
-            Actualizar
+            {t("studentPolls.refresh")}
           </Button>
         }
       />
 
       {loading ? (
         <div className="p-4 sm:p-8 flex items-center justify-center text-sm text-muted-foreground">
-          <Spinner size="sm" className="mr-2" /> Cargando…
+          <Spinner size="sm" className="mr-2" /> {t("studentPolls.loading")}
         </div>
       ) : loadError ? (
         <ErrorState
-          message="No pudimos cargar las encuestas"
+          message={t("studentPolls.loadError")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
       ) : polls.length === 0 ? (
         <EmptyState
           icon={ListChecks}
-          title="Sin encuestas"
-          description="Cuando un docente publique una encuesta en tus cursos, va a aparecer acá."
+          title={t("studentPolls.emptyTitle")}
+          description={t("studentPolls.emptySubtitle")}
         />
       ) : (
         <div className="space-y-5">
           <SearchInput
             value={search}
             onChange={setSearch}
-            placeholder="Buscar por título, descripción o curso…"
+            placeholder={t("studentPolls.searchPlaceholder")}
           />
           {filteredPolls.length === 0 ? (
             <EmptyState
               icon={ListChecks}
-              text="Sin coincidencias"
-              hint="Ajusta el buscador para ver más resultados."
+              text={t("studentPolls.noResults")}
+              hint={t("studentPolls.noResultsHint")}
             />
           ) : (
             <>
               {activePolls.length > 0 && (
                 <section className="space-y-3">
                   <h2 className="text-sm font-medium text-muted-foreground">
-                    Activas ({activePolls.length})
+                    {t("studentPolls.activeTitle")} ({activePolls.length})
                   </h2>
                   {activePagination.paginatedItems.map((p) => (
                     <PollCard
@@ -429,7 +414,7 @@ function StudentPolls() {
               {closedPolls.length > 0 && (
                 <section className="space-y-3">
                   <h2 className="text-sm font-medium text-muted-foreground">
-                    Cerradas ({closedPolls.length})
+                    {t("studentPolls.closedTitle")} ({closedPolls.length})
                   </h2>
                   {closedPagination.paginatedItems.map((p) => (
                     <PollCard
@@ -510,7 +495,7 @@ function PollCard({
               {poll.attendance_session_id && (
                 <Badge variant="outline" className="text-[10px] gap-1">
                   <Presentation className="h-3 w-3" />
-                  Sesión presencial
+                  {i18n.t("studentPolls.sessionBadge")}
                 </Badge>
               )}
             </div>
@@ -520,11 +505,11 @@ function PollCard({
           </div>
           <div className="flex flex-col items-end gap-1 shrink-0">
             <Badge variant={open ? "default" : "secondary"} className="text-[10px]">
-              {open ? "Abierta" : "Cerrada"}
+              {open ? i18n.t("studentPolls.badgeOpen") : i18n.t("studentPolls.badgeClosed")}
             </Badge>
             {poll.closes_at && (
               <span className="text-[10px] text-muted-foreground">
-                {open ? "Cierra " : "Cerró "}
+                {open ? i18n.t("studentPolls.closesPrefix") : i18n.t("studentPolls.closedPrefix")}
                 <DateCell value={poll.closes_at} variant="datetime" />
               </span>
             )}
@@ -532,7 +517,7 @@ function PollCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
-        <p className="text-[11px] text-muted-foreground">{TYPE_HINT[poll.poll_type]}</p>
+        <p className="text-[11px] text-muted-foreground">{getTypeHint(poll.poll_type)}</p>
         <div className="space-y-2">
           {poll.options.map((o) => {
             const myVote = poll.my_votes.includes(o.id);
@@ -593,7 +578,7 @@ function PollCard({
                       {poll.poll_type === "slot" && o.max_responses != null && (
                         <>
                           {o.responses_count} / {o.max_responses}
-                          {fullSlot && " · lleno"}
+                          {fullSlot && ` · ${i18n.t("studentPolls.slotFull")}`}
                         </>
                       )}
                       {poll.poll_type === "single" && showResults && (
@@ -621,8 +606,8 @@ function PollCard({
             {poll.poll_type !== "multiple" && (
               <p className="text-[11px] text-muted-foreground">
                 {poll.allow_change_response
-                  ? "Click otra opción para cambiar tu voto mientras la encuesta esté abierta."
-                  : "Tu voto ya quedó registrado. Esta encuesta no permite cambios."}
+                  ? i18n.t("studentPolls.changeVoteHint")
+                  : i18n.t("studentPolls.noChangeHint")}
               </p>
             )}
             {poll.allow_change_response && (
@@ -633,10 +618,10 @@ function PollCard({
                 className="h-7 px-2 text-[11px] text-muted-foreground hover:text-destructive ml-auto"
                 disabled={voting}
                 onClick={() => onClear(poll)}
-                title="Quitar tu respuesta sin elegir otra opción"
+                title={i18n.t("studentPolls.removeVoteTitle")}
               >
                 <X className="h-3.5 w-3.5 mr-1" />
-                Quitar mi respuesta
+                {i18n.t("studentPolls.removeVote")}
               </Button>
             )}
           </div>
@@ -644,8 +629,8 @@ function PollCard({
         {!showResults && (
           <p className="text-[11px] text-muted-foreground">
             {poll.results_visible_to_students === "never"
-              ? "Solo el docente verá los resultados."
-              : "Los resultados se mostrarán cuando la encuesta cierre."}
+              ? i18n.t("studentPolls.resultsNever")
+              : i18n.t("studentPolls.resultsAfterClose")}
           </p>
         )}
       </CardContent>

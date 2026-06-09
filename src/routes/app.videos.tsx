@@ -73,6 +73,7 @@ import { friendlyError } from "@/shared/lib/db-errors";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 export const Route = createFileRoute("/app/videos")({ component: VideoLibrary });
 
@@ -143,6 +144,7 @@ function extFromMime(mime: string): string {
 }
 
 function VideoLibrary() {
+  const { t } = useTranslation();
   const { user, roles } = useAuth();
   const activeRole = useActiveRole();
   const confirm = useConfirm();
@@ -606,13 +608,13 @@ function VideoLibrary() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Biblioteca de videos"
-        subtitle="Videos reutilizables. Referenciados desde proyectos, talleres y módulos que exijan reproducción obligatoria."
+        title={t("videosPage.title")}
+        subtitle={t("videosPage.subtitle")}
         icon={<VideoIcon className="h-6 w-6 text-cyan-500" />}
         actions={
           <Button size="sm" onClick={openNew}>
             <Plus className="h-4 w-4 mr-1" />
-            Nuevo video
+            {t("videosPage.newVideo")}
           </Button>
         }
       />
@@ -623,12 +625,12 @@ function VideoLibrary() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <StatCard
           icon={VideoIcon}
-          label="Total"
+          label={t("videosPage.statTotal")}
           value={videoStats.total}
           tone={videoStats.total > 0 ? "success" : "default"}
         />
-        <StatCard icon={LinkIcon} label="En curso" value={videoStats.inCourse} />
-        <StatCard icon={Globe} label="Globales" value={videoStats.global} />
+        <StatCard icon={LinkIcon} label={t("videosPage.statInProgress")} value={videoStats.inCourse} />
+        <StatCard icon={Globe} label={t("videosPage.statGlobal")} value={videoStats.global} />
       </div>
 
       <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
@@ -636,7 +638,7 @@ function VideoLibrary() {
           <ListFilters
             search={search}
             onSearchChange={setSearch}
-            searchPlaceholder="Buscar por título o descripción…"
+            searchPlaceholder={t("videosPage.searchPlaceholder")}
             courseId={filterCourseId}
             onCourseChange={setFilterCourseId}
             courses={courses}
@@ -670,7 +672,7 @@ function VideoLibrary() {
             <TableSkeleton rows={5} cols={5} />
           ) : loadError ? (
             <ErrorState
-              message="No pudimos cargar los videos"
+              message={t("videosPage.loadError")}
               hint={loadError}
               onRetry={() => setRetryNonce((n) => n + 1)}
             />
@@ -678,11 +680,11 @@ function VideoLibrary() {
             <Table resizable>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="max-w-[320px]">Video</TableHead>
-                  <TableHead className="w-24">Tipo</TableHead>
-                  <TableHead className="w-40 hidden md:table-cell">Curso</TableHead>
-                  <TableHead className="w-32 hidden lg:table-cell">Agregado</TableHead>
-                  <TableHead className="w-16 text-right">Acciones</TableHead>
+                  <TableHead className="max-w-[320px]">{t("videosPage.colTitle")}</TableHead>
+                  <TableHead className="w-24">{t("videosPage.colType")}</TableHead>
+                  <TableHead className="w-40 hidden md:table-cell">{t("videosPage.colCourse")}</TableHead>
+                  <TableHead className="w-32 hidden lg:table-cell">{t("videosPage.colAdded")}</TableHead>
+                  <TableHead className="w-16 text-right">{t("videosPage.colActions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -693,17 +695,17 @@ function VideoLibrary() {
                       return (
                         <TableEmpty
                           colSpan={5}
-                          text={noMatch ? "Sin coincidencias" : "Sin videos en la biblioteca"}
+                          text={noMatch ? t("videosPage.noResults") : t("videosPage.emptyTitle")}
                           hint={
                             noMatch
-                              ? "Ajusta el buscador o el filtro de curso para ver más resultados."
-                              : "Agrega un video por URL (YouTube, Vimeo, MP4 directo) o súbelo desde tu equipo para reutilizarlo en varios proyectos o módulos."
+                              ? t("common.tryClearFilter")
+                              : t("videosPage.emptySubtitle")
                           }
                           action={
                             noMatch ? undefined : (
                               <Button onClick={openNew}>
                                 <Plus className="h-4 w-4 mr-1" />
-                                Nuevo video
+                                {t("videosPage.newVideo")}
                               </Button>
                             )
                           }
@@ -733,7 +735,7 @@ function VideoLibrary() {
                                     className="text-[9px] gap-0.5 border-violet-500/40 text-violet-600 dark:text-violet-400 shrink-0"
                                   >
                                     <Globe className="h-2.5 w-2.5" />
-                                    Global plataforma
+                                    {t("videosPage.globalBadge")}
                                   </Badge>
                                 )}
                               </div>
@@ -786,12 +788,12 @@ function VideoLibrary() {
                           <RowActionsMenu
                             actions={[
                               {
-                                label: "Editar",
+                                label: t("videosPage.actionEdit"),
                                 icon: Edit2,
                                 onClick: () => openEdit(v),
                               },
                               {
-                                label: "Eliminar",
+                                label: t("videosPage.actionDelete"),
                                 icon: Trash2,
                                 tone: "destructive",
                                 separatorBefore: true,
@@ -812,7 +814,7 @@ function VideoLibrary() {
       <Dialog open={dialogOpen} onOpenChange={(o) => !saving && setDialogOpen(o)}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editing ? "Editar video" : "Nuevo video"}</DialogTitle>
+            <DialogTitle>{editing ? t("videosPage.actionEdit") : t("videosPage.newVideo")}</DialogTitle>
           </DialogHeader>
 
           <Tabs

@@ -42,6 +42,7 @@ import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { ErrorState } from "@/components/ui/empty-state";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 export const Route = createFileRoute("/app/forum/$courseId/$forumId/$threadId")({
   component: ThreadDetail,
@@ -81,6 +82,7 @@ interface Reply {
 
 function ThreadDetail() {
   const { courseId, forumId, threadId } = Route.useParams();
+  const { t } = useTranslation();
   const { user, roles } = useAuth();
   const activeRole = useActiveRole();
   const navigate = useNavigate();
@@ -236,12 +238,12 @@ function ThreadDetail() {
     //     comportamiento en el toggle del foro vs el del hilo.
     const isLocked = thread.is_locked;
     const ok = await confirm({
-      title: isLocked ? "¿Reabrir este hilo?" : "¿Cerrar este hilo?",
+      title: isLocked ? t("forumThread.confirmUnlockTitle") : t("forumThread.confirmLockTitle"),
       description: isLocked
-        ? "Los estudiantes podrán volver a responder en este hilo."
-        : "Los estudiantes no podrán publicar más respuestas. Tú y otros docentes sí pueden seguir respondiendo. Reabrirlo es inmediato.",
+        ? t("forumThread.confirmUnlockDesc")
+        : t("forumThread.confirmLockDesc"),
       tone: isLocked ? "default" : "warning",
-      confirmLabel: isLocked ? "Reabrir" : "Cerrar",
+      confirmLabel: isLocked ? t("forumThread.confirmUnlockLabel") : t("forumThread.confirmLockLabel"),
     });
     if (!ok) return;
     const { error } = await db
@@ -358,9 +360,9 @@ function ThreadDetail() {
   const deleteThread = async () => {
     if (!thread) return;
     const ok = await confirm({
-      title: "¿Borrar la pregunta?",
-      description: "Se borrarán también todas las respuestas. Esta acción no se puede deshacer.",
-      confirmLabel: "Borrar",
+      title: t("forumThread.confirmDeleteTitle"),
+      description: t("forumThread.confirmDeleteDesc"),
+      confirmLabel: t("forumThread.confirmDeleteLabel"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -380,9 +382,9 @@ function ThreadDetail() {
 
   const deleteReply = async (replyId: string) => {
     const ok = await confirm({
-      title: "¿Borrar respuesta?",
-      description: "Esta acción no se puede deshacer.",
-      confirmLabel: "Borrar",
+      title: t("forumThread.confirmDeleteReplyTitle"),
+      description: t("forumThread.confirmDeleteReplyDesc"),
+      confirmLabel: t("forumThread.confirmDeleteReplyLabel"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -404,7 +406,7 @@ function ThreadDetail() {
       <div className="container mx-auto p-6">
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
-            <Spinner size="md" /> Cargando…
+            <Spinner size="md" /> {t("forumThread.loading")}
           </CardContent>
         </Card>
       </div>
@@ -415,7 +417,7 @@ function ThreadDetail() {
     return (
       <div className="container mx-auto p-6">
         <ErrorState
-          message="No pudimos cargar este hilo"
+          message={t("forumThread.loadError")}
           hint={loadError}
           onRetry={() => void load()}
         />
@@ -428,7 +430,7 @@ function ThreadDetail() {
       <div className="container mx-auto p-6">
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
-            Hilo no encontrado o sin permisos.
+            {t("forumThread.notFound")}
           </CardContent>
         </Card>
       </div>
@@ -444,7 +446,7 @@ function ThreadDetail() {
         title={thread.title}
         subtitle={
           <>
-            Por {thread.author?.full_name ?? "Anónimo"} · {formatDateTime(thread.created_at)}
+            {t("forumThread.byAuthor", { author: thread.author?.full_name ?? "—", datetime: formatDateTime(thread.created_at) })}
             {thread.is_pinned && <ForumStatusBadge status="pinned" className="ml-2" />}
             {thread.is_locked && <ForumStatusBadge status="locked" className="ml-1" />}
           </>
@@ -455,11 +457,11 @@ function ThreadDetail() {
               <>
                 <Button size="sm" variant="outline" onClick={() => void togglePin()}>
                   <Pin className="h-3.5 w-3.5 mr-1" />
-                  {thread.is_pinned ? "Desfijar" : "Fijar"}
+                  {thread.is_pinned ? t("forumThread.actionUnpin") : t("forumThread.actionPin")}
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => void toggleLock()}>
                   <Lock className="h-3.5 w-3.5 mr-1" />
-                  {thread.is_locked ? "Reabrir" : "Cerrar"}
+                  {thread.is_locked ? t("forumThread.actionUnlock") : t("forumThread.actionLock")}
                 </Button>
               </>
             )}
@@ -467,7 +469,7 @@ function ThreadDetail() {
               <>
                 <Button size="sm" variant="ghost" onClick={startEditThread}>
                   <Edit2 className="h-3.5 w-3.5 mr-1" />
-                  Editar
+                  {t("forumThread.actionEdit")}
                 </Button>
                 <Button
                   size="sm"
@@ -476,7 +478,7 @@ function ThreadDetail() {
                   onClick={() => void deleteThread()}
                 >
                   <Trash2 className="h-3.5 w-3.5 mr-1" />
-                  Borrar
+                  {t("forumThread.actionDelete")}
                 </Button>
               </>
             )}
@@ -522,11 +524,11 @@ function ThreadDetail() {
                 <div className="flex justify-end gap-2">
                   <Button size="sm" variant="ghost" onClick={() => setEditingThread(false)}>
                     <X className="h-3.5 w-3.5 mr-1" />
-                    Cancelar
+                    {t("forumThread.editCancel")}
                   </Button>
                   <Button size="sm" onClick={() => void saveEditThread()}>
                     <Save className="h-3.5 w-3.5 mr-1" />
-                    Guardar
+                    {t("forumThread.editSave")}
                   </Button>
                 </div>
               </div>
@@ -542,7 +544,7 @@ function ThreadDetail() {
       {/* Respuestas */}
       <div className="space-y-3">
         <h2 className="text-sm font-semibold text-muted-foreground">
-          {replies.length} respuesta{replies.length === 1 ? "" : "s"}
+          {t("forumThread.replyCount", { count: replies.length })}
         </h2>
         {replies.map((r) => {
           const isMine = r.author_id === user?.id;
@@ -579,11 +581,11 @@ function ThreadDetail() {
                           onClick={() => setEditingReplyId(null)}
                         >
                           <X className="h-3.5 w-3.5 mr-1" />
-                          Cancelar
+                          {t("forumThread.editCancel")}
                         </Button>
                         <Button size="sm" onClick={() => void saveEditReply()}>
                           <Save className="h-3.5 w-3.5 mr-1" />
-                          Guardar
+                          {t("forumThread.editSave")}
                         </Button>
                       </div>
                     </div>
@@ -606,7 +608,7 @@ function ThreadDetail() {
                           onClick={() => void toggleOfficial(r.id, !r.is_official)}
                         >
                           <Crown className="h-3 w-3 mr-1" />
-                          {r.is_official ? "Quitar oficial" : "Marcar oficial"}
+                          {r.is_official ? t("forumThread.unmarkOfficial") : t("forumThread.markOfficial")}
                         </Button>
                       )}
                       {(isMine || canModerate) && editingReplyId !== r.id && (
@@ -618,7 +620,7 @@ function ThreadDetail() {
                             onClick={() => startEditReply(r)}
                           >
                             <Edit2 className="h-3 w-3 mr-1" />
-                            Editar
+                            {t("forumThread.actionEdit")}
                           </Button>
                           <Button
                             size="sm"
@@ -627,7 +629,7 @@ function ThreadDetail() {
                             onClick={() => void deleteReply(r.id)}
                           >
                             <Trash2 className="h-3 w-3 mr-1" />
-                            Borrar
+                            {t("forumThread.actionDelete")}
                           </Button>
                         </>
                       )}
@@ -644,19 +646,19 @@ function ThreadDetail() {
       {!thread.is_locked ? (
         <Card>
           <CardContent className="p-4 space-y-2">
-            <h3 className="text-sm font-semibold">Tu respuesta</h3>
+            <h3 className="text-sm font-semibold">{t("forumThread.replySection")}</h3>
             <Textarea
               value={newReply}
               onChange={(e) => setNewReply(e.target.value)}
               rows={6}
-              placeholder="Escribe tu respuesta. Soporta Markdown."
+              placeholder={t("forumThread.replyPlaceholder")}
               className="font-mono text-sm"
               maxLength={20000}
             />
             <div className="flex justify-end">
               <Button onClick={() => void submitReply()} disabled={posting || !newReply.trim()}>
                 {posting ? <Spinner size="sm" className="mr-1" /> : <Send className="h-4 w-4 mr-1" />}
-                Publicar respuesta
+                {t("forumThread.replySubmit")}
               </Button>
             </div>
           </CardContent>
@@ -665,7 +667,7 @@ function ThreadDetail() {
         <Card className="border-amber-500/40 bg-amber-500/5">
           <CardContent className="p-4 text-sm text-center text-amber-700 dark:text-amber-300">
             <Lock className="h-4 w-4 inline mr-1" />
-            Este hilo está cerrado. No se pueden agregar más respuestas.
+            {t("forumThread.lockedBanner")}
           </CardContent>
         </Card>
       )}
@@ -691,7 +693,7 @@ function UpvoteButton({
           ? "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300"
           : "hover:bg-muted text-muted-foreground"
       }`}
-      title={active ? "Quitar voto" : "Votar"}
+      title={active ? i18n.t("forumThread.unvoteTitle") : i18n.t("forumThread.voteTitle")}
     >
       <ArrowUp className={`h-4 w-4 ${active ? "fill-current" : ""}`} />
       <span className="text-xs font-semibold tabular-nums">{count}</span>

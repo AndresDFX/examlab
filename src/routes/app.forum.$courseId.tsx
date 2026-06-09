@@ -60,6 +60,7 @@ import {
 import { formatDateTime, formatDate, formatSessionLabel } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 export const Route = createFileRoute("/app/forum/$courseId")({ component: ForumsList });
 
@@ -115,6 +116,7 @@ function computeForumState(f: Forum): ForumState {
 
 function ForumsList() {
   const { courseId } = Route.useParams();
+  const { t } = useTranslation();
   const { user, roles } = useAuth();
   const activeRole = useActiveRole();
   const confirm = useConfirm();
@@ -256,14 +258,13 @@ function ForumsList() {
 
   const toggleClosed = async (forum: Forum) => {
     const isClosed = !!forum.manually_closed_at;
-    const action = isClosed ? "reabrir" : "cerrar";
     const ok = await confirm({
-      title: `¿${isClosed ? "Reabrir" : "Cerrar"} el foro?`,
+      title: isClosed ? t("forum.confirmReopenTitle") : t("forum.confirmCloseTitle"),
       description: isClosed
-        ? `Los estudiantes podrán volver a publicar y responder en "${forum.title}".`
-        : `Los estudiantes ya NO podrán publicar ni responder en "${forum.title}" hasta que lo reabras. Tú y otros docentes sí pueden seguir interactuando.`,
+        ? t("forum.confirmCloseDescClosed", { title: forum.title })
+        : t("forum.confirmCloseDescOpen", { title: forum.title }),
       tone: isClosed ? "default" : "warning",
-      confirmLabel: isClosed ? "Reabrir" : "Cerrar",
+      confirmLabel: isClosed ? t("forum.confirmReopenLabel") : t("forum.confirmCloseLabel"),
     });
     if (!ok) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -276,23 +277,22 @@ function ForumsList() {
       return;
     }
     toast.success(
-      action === "cerrar"
-        ? i18n.t("toast.routes_app_forum_courseId.forumClosed", {
-            defaultValue: "Foro cerrado",
-          })
-        : i18n.t("toast.routes_app_forum_courseId.forumReopened", {
-            defaultValue: "Foro reabierto",
-          }),
+      !isClosed
+        ? i18n.t("toast.routes_app_forum_courseId.forumClosed")
+        : i18n.t("toast.routes_app_forum_courseId.forumReopened"),
     );
     await load();
   };
 
   const deleteForum = async (forum: Forum) => {
     const ok = await confirm({
-      title: "¿Eliminar este foro?",
-      description: `Se eliminarán "${forum.title}" y TODOS sus hilos y respuestas (${forum.thread_count ?? 0} hilos). Esta acción no se puede deshacer.`,
+      title: t("forum.confirmDeleteTitle"),
+      description: t("forum.confirmDeleteDesc", {
+        title: forum.title,
+        count: forum.thread_count ?? 0,
+      }),
       tone: "destructive",
-      confirmLabel: "Eliminar",
+      confirmLabel: t("forum.confirmDeleteLabel"),
     });
     if (!ok) return;
     const { error } = await db.from("forums").delete().eq("id", forum.id);
@@ -324,13 +324,13 @@ function ForumsList() {
       <PageHeader
         backTo="/app"
         icon={<MessageSquareText className="h-6 w-6 text-indigo-500" />}
-        title={course ? `Foros · ${course.name}` : "Foros"}
-        subtitle="Espacios de discusión asíncrona por curso. Tu docente crea los foros y los estudiantes participan."
+        title={course ? t("forum.titleWithCourse", { courseName: course.name }) : t("forum.title")}
+        subtitle={t("forum.subtitle")}
         actions={
           isStaff ? (
             <Button size="sm" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4 mr-1" />
-              Nuevo foro
+              {t("forum.newForum")}
             </Button>
           ) : undefined
         }
@@ -339,12 +339,12 @@ function ForumsList() {
       {loading ? (
         <Card>
           <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
-            <Spinner size="md" /> Cargando foros…
+            <Spinner size="md" /> {t("forum.loading")}
           </CardContent>
         </Card>
       ) : loadError ? (
         <ErrorState
-          message="No pudimos cargar los foros"
+          message={t("forum.loadError")}
           hint={loadError}
           onRetry={() => void load()}
         />
@@ -353,17 +353,13 @@ function ForumsList() {
           <CardContent className="p-0">
             <TableEmpty
               icon={MessageSquareText}
-              title="Aún no hay foros en este curso"
-              description={
-                isStaff
-                  ? "Crea el primer foro para que los estudiantes empiecen a discutir."
-                  : "Tu docente abrirá uno cuando quiera iniciar una discusión."
-              }
+              title={t("forum.emptyTitle")}
+              description={isStaff ? t("forum.emptySubtitleStaff") : t("forum.emptySubtitleStudent")}
               action={
                 isStaff ? (
                   <Button size="sm" onClick={() => setCreateOpen(true)}>
                     <Plus className="h-4 w-4 mr-1" />
-                    Crear primer foro
+                    {t("forum.createFirst")}
                   </Button>
                 ) : undefined
               }
@@ -388,11 +384,11 @@ function ForumsList() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Nuevo foro</DialogTitle>
+            <DialogTitle>{t("forum.dialogTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label required>Título</Label>
+              <Label required>{t("forum.formTitle")}</Label>
               <Input
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
@@ -401,7 +397,7 @@ function ForumsList() {
               />
             </div>
             <div>
-              <Label>Descripción</Label>
+              <Label>{t("forum.formDescription")}</Label>
               <Textarea
                 value={newDescription}
                 onChange={(e) => setNewDescription(e.target.value)}
@@ -411,13 +407,13 @@ function ForumsList() {
               />
             </div>
             <div>
-              <Label>Asociar a sesión</Label>
+              <Label>{t("forum.formSession")}</Label>
               <Select value={newSessionId} onValueChange={setNewSessionId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Sin sesión asociada" />
+                  <SelectValue placeholder={t("forum.formNoSession")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Sin sesión asociada</SelectItem>
+                  <SelectItem value="__none__">{t("forum.formNoSession")}</SelectItem>
                   {sessions.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {formatSessionLabel(s.session_date, s.title)}
@@ -425,35 +421,28 @@ function ForumsList() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Útil cuando el foro corresponde a una clase específica. Si la sesión se elimina,
-                el foro sigue existiendo (solo pierde el vínculo).
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">{t("forum.formSessionHint")}</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label>Apertura (opcional)</Label>
+                <Label>{t("forum.formOpenAt")}</Label>
                 <DateTimePicker value={newOpensAt} onChange={setNewOpensAt} />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Vacío = abierto desde ya.
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">{t("forum.formOpenAtHint")}</p>
               </div>
               <div>
-                <Label>Cierre automático (opcional)</Label>
+                <Label>{t("forum.formCloseAt")}</Label>
                 <DateTimePicker value={newClosesAt} onChange={setNewClosesAt} />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Vacío = sin cierre. Puedes cerrarlo manualmente cuando quieras.
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">{t("forum.formCloseAtHint")}</p>
               </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setCreateOpen(false)}>
-              Cancelar
+              {t("forum.cancel")}
             </Button>
             <Button onClick={() => void createForum()} disabled={creating}>
               {creating ? <Spinner size="sm" className="mr-1" /> : null}
-              Crear foro
+              {t("forum.createConfirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -493,7 +482,7 @@ function ForumRow({
               {forum.session && (
                 <Badge variant="secondary" className="text-[10px]">
                   <CalendarClock className="h-2.5 w-2.5 mr-0.5" />
-                  Sesión {formatDate(forum.session.session_date)}
+                  {i18n.t("forum.sessionBadge", { date: formatDate(forum.session.session_date) })}
                   {forum.session.title ? ` · ${forum.session.title}` : ""}
                 </Badge>
               )}
@@ -504,8 +493,8 @@ function ForumRow({
               </p>
             )}
             <div className="text-[11px] text-muted-foreground mt-2">
-              {forum.thread_count ?? 0} hilo{forum.thread_count === 1 ? "" : "s"} · creado{" "}
-              {formatDateTime(forum.created_at)}
+              {i18n.t("forum.threadCount", { count: forum.thread_count ?? 0 })} ·{" "}
+              {i18n.t("forum.createdAt", { datetime: formatDateTime(forum.created_at) })}
             </div>
           </Link>
           <div className="flex items-center gap-1 shrink-0">
@@ -515,7 +504,7 @@ function ForumRow({
                   size="sm"
                   variant="ghost"
                   onClick={onToggleClosed}
-                  title={forum.manually_closed_at ? "Reabrir foro" : "Cerrar foro manualmente"}
+                  title={forum.manually_closed_at ? i18n.t("forum.actionReopen") : i18n.t("forum.actionClose")}
                 >
                   {forum.manually_closed_at ? (
                     <Unlock className="h-3.5 w-3.5" />
@@ -527,7 +516,7 @@ function ForumRow({
                   size="sm"
                   variant="ghost"
                   onClick={onDelete}
-                  title="Eliminar foro"
+                  title={i18n.t("forum.actionDelete")}
                   className="text-destructive hover:text-destructive hover:bg-destructive/10"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -539,7 +528,7 @@ function ForumRow({
               params={{ courseId, forumId: forum.id }}
             >
               <Button size="sm" variant="outline">
-                Entrar
+                {i18n.t("forum.actionEnter")}
                 <ArrowRight className="h-3.5 w-3.5 ml-1" />
               </Button>
             </Link>
@@ -558,8 +547,12 @@ function ForumStateBadge({ state }: { state: ForumState }) {
           variant="outline"
           className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
         >
-          Abierto
-          {state.closesAt && <span className="ml-1">· cierra {formatDateTime(state.closesAt)}</span>}
+          {i18n.t("forum.statusOpen")}
+          {state.closesAt && (
+            <span className="ml-1">
+              {i18n.t("forum.statusOpenCloses", { datetime: formatDateTime(state.closesAt) })}
+            </span>
+          )}
         </Badge>
       );
     case "scheduled":
@@ -568,21 +561,21 @@ function ForumStateBadge({ state }: { state: ForumState }) {
           variant="outline"
           className="text-[10px] text-amber-700 dark:text-amber-300 border-amber-500/40 bg-amber-500/10"
         >
-          Programado · abre {formatDateTime(state.opensAt)}
+          {i18n.t("forum.statusScheduled", { datetime: formatDateTime(state.opensAt) })}
         </Badge>
       );
     case "closed_auto":
       return (
         <Badge variant="outline" className="text-[10px]">
           <Lock className="h-2.5 w-2.5 mr-0.5" />
-          Cerrado (auto) · {formatDateTime(state.closedAt)}
+          {i18n.t("forum.statusClosedAuto", { datetime: formatDateTime(state.closedAt) })}
         </Badge>
       );
     case "closed_manual":
       return (
         <Badge variant="outline" className="text-[10px]">
           <Lock className="h-2.5 w-2.5 mr-0.5" />
-          Cerrado · {formatDateTime(state.closedAt)}
+          {i18n.t("forum.statusClosed", { datetime: formatDateTime(state.closedAt) })}
         </Badge>
       );
   }

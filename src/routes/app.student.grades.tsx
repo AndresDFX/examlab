@@ -11,6 +11,8 @@
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -100,6 +102,7 @@ type CutBreakdown = {
 };
 
 function StudentGrades() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState<string>("");
@@ -381,7 +384,7 @@ function StudentGrades() {
                 course.grade_scale_min + pct * (course.grade_scale_max - course.grade_scale_min);
               attItem = {
                 id: `attendance-${cut.id}`,
-                title: `Asistencia (${present}/${sessionsInCut.length} sesiones)`,
+                title: i18n.t("studentGrades.attendanceTitle", { present, total: sessionsInCut.length }),
                 kind: "attendance",
                 cut_id: cut.id,
                 rawGrade: present,
@@ -396,7 +399,7 @@ function StudentGrades() {
               // ignora null sin reescalar pesos vecinos.
               attItem = {
                 id: `attendance-${cut.id}`,
-                title: "Asistencia (sin sesiones asignadas a este corte)",
+                title: i18n.t("studentGrades.attendanceNoSessions"),
                 kind: "attendance",
                 cut_id: cut.id,
                 rawGrade: null,
@@ -487,11 +490,11 @@ function StudentGrades() {
       <div className="space-y-5">
         <PageHeader
           icon={<ClipboardList className="h-6 w-6" />}
-          title="Calificaciones"
-          subtitle="Consolidado por cortes y calificación final del curso"
+          title={t("studentGrades.title")}
+          subtitle={t("studentGrades.subtitle")}
         />
         <ErrorState
-          message="No pudimos cargar tus notas"
+          message={t("studentGrades.loadError")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -503,8 +506,8 @@ function StudentGrades() {
     <div className="space-y-5">
       <PageHeader
         icon={<ClipboardList className="h-6 w-6" />}
-        title="Calificaciones"
-        subtitle="Consolidado por cortes y calificación final del curso"
+        title={t("studentGrades.title")}
+        subtitle={t("studentGrades.subtitle")}
         actions={
           courses.length > 0 ? (
             <Select value={courseId} onValueChange={setCourseId}>
@@ -528,7 +531,7 @@ function StudentGrades() {
         <Card>
           <CardContent className="p-4 sm:p-10 text-center text-muted-foreground text-sm">
             <ClipboardList className="h-10 w-10 mx-auto text-muted-foreground/60 mb-2" />
-            No estás matriculado en ningún curso.
+            {t("studentGrades.notEnrolled")}
           </CardContent>
         </Card>
       ) : !course ? null : (
@@ -548,8 +551,10 @@ function StudentGrades() {
                   </div>
                   <div className="text-2xl font-semibold tabular-nums">{fmt(cb.grade)}</div>
                   <div className="text-[11px] text-muted-foreground">
-                    {cb.items.filter((i) => i.grade != null).length}/{cb.items.length} item(s)
-                    calificado(s)
+                    {t("studentGrades.gradedCount", {
+                      graded: cb.items.filter((i) => i.grade != null).length,
+                      total: cb.items.length,
+                    })}
                   </div>
                 </CardContent>
               </Card>
@@ -566,23 +571,23 @@ function StudentGrades() {
               <CardContent className="p-4 space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                    Calificación final
+                    {t("studentGrades.finalGradeLabel")}
                   </span>
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div className="text-2xl font-semibold tabular-nums">{fmt(finalGrade)}</div>
                 {passes === true && (
                   <div className="flex items-center gap-1 text-xs text-success">
-                    <CheckCircle2 className="h-3 w-3" /> Aprobando
+                    <CheckCircle2 className="h-3 w-3" /> {t("studentGrades.statusPassing")}
                   </div>
                 )}
                 {passes === false && (
                   <div className="flex items-center gap-1 text-xs text-destructive">
-                    <XCircle className="h-3 w-3" /> Por debajo del mínimo
+                    <XCircle className="h-3 w-3" /> {t("studentGrades.statusFailing")}
                   </div>
                 )}
                 {passes == null && (
-                  <div className="text-xs text-muted-foreground">Sin calificaciones aún</div>
+                  <div className="text-xs text-muted-foreground">{t("studentGrades.statusNoGrades")}</div>
                 )}
               </CardContent>
             </Card>
@@ -592,19 +597,16 @@ function StudentGrades() {
           <div className="flex flex-wrap items-center gap-4 rounded-md border p-3 bg-muted/30 text-sm">
             <div className="flex items-center gap-1.5">
               <Scale className="h-4 w-4 text-primary" />
-              <span className="font-medium">Escala:</span>
+              <span className="font-medium">{t("studentGrades.scaleLabel")}</span>
               <span className="tabular-nums">
                 {course.grade_scale_min} – {course.grade_scale_max}
               </span>
             </div>
             <div className="text-muted-foreground">
-              Aprobar ≥ <span className="font-medium tabular-nums">{course.passing_grade}</span>
+              {t("studentGrades.passingLabel")} <span className="font-medium tabular-nums">{course.passing_grade}</span>
             </div>
             <div className="text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Puntaje</span> = lo que sacaste sobre el
-              total de la actividad · <span className="font-medium text-foreground">Nota</span> =
-              ese puntaje convertido a la escala del curso, que es la que cuenta para tu
-              calificación final.
+              {t("studentGrades.scaleExplanation")}
             </div>
           </div>
 
@@ -618,7 +620,7 @@ function StudentGrades() {
           ) : cutsBreakdown.length === 0 ? (
             <Card>
               <CardContent className="p-4 sm:p-10 text-center text-sm text-muted-foreground">
-                Este curso aún no tiene cortes evaluativos configurados.
+                {t("studentGrades.noCuts")}
               </CardContent>
             </Card>
           ) : (
@@ -628,7 +630,7 @@ function StudentGrades() {
                   <div>
                     <CardTitle className="text-base">{cb.cut.name}</CardTitle>
                     <p className="text-xs text-muted-foreground">
-                      Peso: {cb.cut.weight}% del total · Calificación:{" "}
+                      {t("studentGrades.cutWeight", { weight: cb.cut.weight })}{" "}
                       <span className="font-medium tabular-nums">{fmt(cb.grade)}</span>
                     </p>
                   </div>
@@ -641,7 +643,7 @@ function StudentGrades() {
                 <CardContent className="p-3 space-y-3">
                   {cb.items.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      Sin actividades en este corte.
+                      {t("studentGrades.noCutActivities")}
                     </p>
                   ) : (
                     (["workshop", "exam", "project", "attendance"] as const).map((kind) => {
@@ -681,21 +683,20 @@ function StudentGrades() {
           {unassigned.length > 0 && (
             <Card className="border-dashed">
               <CardHeader>
-                <CardTitle className="text-base">Sin corte asignado</CardTitle>
+                <CardTitle className="text-base">{t("studentGrades.noAssignedCut")}</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Estas actividades aún no están asociadas a un corte y no afectan tu calificación
-                  final.
+                  {t("studentGrades.unassignedHint")}
                 </p>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Actividad</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead className="text-right">Puntaje</TableHead>
+                      <TableHead>{t("studentGrades.colActivity")}</TableHead>
+                      <TableHead>{t("studentGrades.colType")}</TableHead>
+                      <TableHead className="text-right">{t("studentGrades.colScore")}</TableHead>
                       <TableHead className="text-right">
-                        Nota ({course.grade_scale_min}–{course.grade_scale_max})
+                        {t("studentGrades.colGrade")} ({course.grade_scale_min}–{course.grade_scale_max})
                       </TableHead>
                     </TableRow>
                   </TableHeader>
@@ -719,9 +720,7 @@ function StudentGrades() {
           )}
 
           <p className="text-xs text-muted-foreground">
-            La calificación del curso se calcula sumando el promedio ponderado de cada corte. Cada
-            corte promedia talleres, exámenes, proyectos y asistencia con los pesos definidos por el
-            docente. Componentes sin datos no penalizan: sus pesos se reparten entre los demás.
+            {t("studentGrades.footerNote")}
           </p>
         </>
       )}
@@ -761,12 +760,12 @@ function KindGroup({
 }) {
   const label =
     kind === "workshop"
-      ? "Talleres"
+      ? i18n.t("studentGrades.kindWorkshops")
       : kind === "exam"
-        ? "Exámenes"
+        ? i18n.t("studentGrades.kindExams")
         : kind === "project"
-          ? "Proyectos"
-          : "Asistencia";
+          ? i18n.t("studentGrades.kindProjects")
+          : i18n.t("studentGrades.kindAttendance");
   return (
     <div className="rounded-md border overflow-hidden">
       <div className="flex items-center justify-between gap-2 bg-muted/40 px-3 py-2 border-b">
@@ -774,14 +773,14 @@ function KindGroup({
           <KindBadge kind={kind} />
           <span className="text-sm font-medium">{label}</span>
           <span className="text-[11px] text-muted-foreground">
-            {gradedCount}/{totalCount} con nota
+            {i18n.t("studentGrades.gradedCount", { graded: gradedCount, total: totalCount })}
           </span>
         </div>
         <div className="text-xs text-muted-foreground inline-flex items-center gap-2 tabular-nums">
-          <span>Peso bucket: {bucketWeight.toFixed(1)}%</span>
+          <span>{i18n.t("studentGrades.bucketWeight", { weight: bucketWeight.toFixed(1) })}</span>
           <span>·</span>
           <span>
-            Subtotal:{" "}
+            {i18n.t("studentGrades.subtotal")}{" "}
             <span className="font-semibold text-foreground tabular-nums">{fmt(subtotal)}</span>
           </span>
         </div>
@@ -789,14 +788,14 @@ function KindGroup({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Actividad</TableHead>
-            <TableHead className="text-right w-32">Peso</TableHead>
-            <TableHead className="text-right">Puntaje</TableHead>
+            <TableHead>{i18n.t("studentGrades.colActivity")}</TableHead>
+            <TableHead className="text-right w-32">{i18n.t("common.weight")}</TableHead>
+            <TableHead className="text-right">{i18n.t("studentGrades.colScore")}</TableHead>
             <TableHead className="text-right">
-              Nota ({gradeScaleMin}–{gradeScaleMax})
+              {i18n.t("studentGrades.colGrade")} ({gradeScaleMin}–{gradeScaleMax})
             </TableHead>
-            <TableHead className="hidden md:table-cell">Estado</TableHead>
-            <TableHead className="text-right w-[1%]">Detalle</TableHead>
+            <TableHead className="hidden md:table-cell">{i18n.t("common.status")}</TableHead>
+            <TableHead className="text-right w-[1%]">{i18n.t("studentGrades.colDetail")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -815,11 +814,11 @@ function KindGroup({
               </TableCell>
               <TableCell className="text-right">
                 {it.kind === "exam" && it.reviewExamId ? (
-                  <RowAction asChild label="Ver detalle" icon={MessageSquareText}>
+                  <RowAction asChild label={i18n.t("common.seeDetail")} icon={MessageSquareText}>
                     <Link to="/app/student/review/$examId" params={{ examId: it.reviewExamId }} />
                   </RowAction>
                 ) : it.kind === "workshop" && it.reviewWorkshopId ? (
-                  <RowAction asChild label="Ver detalle" icon={MessageSquareText}>
+                  <RowAction asChild label={i18n.t("common.seeDetail")} icon={MessageSquareText}>
                     <Link
                       to="/app/student/workshop/$workshopId"
                       params={{ workshopId: it.reviewWorkshopId }}
@@ -843,28 +842,28 @@ function KindBadge({ kind }: { kind: ItemRow["kind"] }) {
       return (
         <Badge variant="outline" className="text-[10px]">
           <FileText className="h-3 w-3 mr-1" />
-          Examen
+          {i18n.t("studentGrades.kindBadgeExam")}
         </Badge>
       );
     case "workshop":
       return (
         <Badge variant="outline" className="text-[10px]">
           <Hammer className="h-3 w-3 mr-1" />
-          Taller
+          {i18n.t("studentGrades.kindBadgeWorkshop")}
         </Badge>
       );
     case "project":
       return (
         <Badge variant="outline" className="text-[10px]">
           <FolderKanban className="h-3 w-3 mr-1" />
-          Proyecto
+          {i18n.t("studentGrades.kindBadgeProject")}
         </Badge>
       );
     case "attendance":
       return (
         <Badge variant="outline" className="text-[10px]">
           <CalendarCheck className="h-3 w-3 mr-1" />
-          Asistencia
+          {i18n.t("studentGrades.kindBadgeAttendance")}
         </Badge>
       );
   }

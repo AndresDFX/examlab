@@ -59,6 +59,7 @@ import {
 import { formatDateTime, formatDate } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 export const Route = createFileRoute("/app/forum/$courseId/$forumId")({ component: ForumThreads });
 
@@ -118,6 +119,7 @@ function isForumOpen(f: Forum): boolean {
 
 function ForumThreads() {
   const { courseId, forumId } = Route.useParams();
+  const { t } = useTranslation();
   const { user, roles } = useAuth();
   const activeRole = useActiveRole();
   // Capacidad de docente (postear en foro cerrado, moderar) ligada al ROL
@@ -251,13 +253,13 @@ function ForumThreads() {
         backTo="/app/forum/$courseId"
         backParams={{ courseId }}
         icon={<MessageSquareText className="h-6 w-6 text-indigo-500" />}
-        title={forum ? forum.title : "Foro"}
-        subtitle={course ? `${course.name} · pregunta, responde, marca lo útil.` : undefined}
+        title={forum ? forum.title : t("forumThreads.defaultTitle")}
+        subtitle={course ? t("forumThreads.subtitleFormat", { courseName: course.name }) : undefined}
         actions={
           canPost ? (
             <Button size="sm" onClick={() => setNewOpen(true)} disabled={!forum}>
               <Plus className="h-4 w-4 mr-1" />
-              Nueva pregunta
+              {t("forumThreads.newQuestion")}
             </Button>
           ) : undefined
         }
@@ -278,22 +280,22 @@ function ForumThreads() {
               variant="outline"
               className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
             >
-              Abierto
+              {t("forumThreads.statusOpen")}
             </Badge>
           ) : (
             <Badge variant="outline" className="text-[10px]">
               <Lock className="h-2.5 w-2.5 mr-0.5" />
               {forum.manually_closed_at
-                ? "Cerrado manualmente"
+                ? t("forumThreads.statusClosedManual")
                 : forum.opens_at && new Date(forum.opens_at) > new Date()
-                  ? "Aún no abre"
-                  : "Cerrado"}
+                  ? t("forumThreads.statusNotOpen")
+                  : t("forumThreads.statusClosed")}
             </Badge>
           )}
           {forum.session && (
             <Badge variant="secondary" className="text-[10px]">
               <CalendarClock className="h-2.5 w-2.5 mr-0.5" />
-              Sesión {formatDate(forum.session.session_date)}
+              {i18n.t("forum.sessionBadge", { date: formatDate(forum.session.session_date) })}
               {forum.session.title ? ` · ${forum.session.title}` : ""}
             </Badge>
           )}
@@ -302,17 +304,17 @@ function ForumThreads() {
           )}
           {!open && !isStaff && (
             <span className="text-amber-700 dark:text-amber-300 ml-auto">
-              No puedes publicar hasta que el docente lo reabra.
+              {t("forumThreads.bannedClosed")}
             </span>
           )}
           {forum.opens_at && new Date(forum.opens_at) > new Date() && (
             <span className="text-muted-foreground ml-auto">
-              Abre {formatDateTime(forum.opens_at)}
+              {t("forumThreads.opensAt", { datetime: formatDateTime(forum.opens_at) })}
             </span>
           )}
           {open && forum.closes_at && (
             <span className="text-muted-foreground ml-auto">
-              Cierra {formatDateTime(forum.closes_at)}
+              {t("forumThreads.closesAt", { datetime: formatDateTime(forum.closes_at) })}
             </span>
           )}
         </div>
@@ -326,7 +328,7 @@ function ForumThreads() {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por título, cuerpo o tag…"
+                placeholder={t("forumThreads.searchPlaceholder")}
                 className="pl-8"
               />
             </div>
@@ -335,9 +337,9 @@ function ForumThreads() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="recent">Actividad reciente</SelectItem>
-                <SelectItem value="top">Más votados</SelectItem>
-                <SelectItem value="unanswered">Sin respuesta</SelectItem>
+                <SelectItem value="recent">{t("forumThreads.sortRecent")}</SelectItem>
+                <SelectItem value="top">{t("forumThreads.sortTop")}</SelectItem>
+                <SelectItem value="unanswered">{t("forumThreads.sortUnanswered")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -347,12 +349,12 @@ function ForumThreads() {
       {loading ? (
         <Card>
           <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
-            <Spinner size="md" /> Cargando hilos…
+            <Spinner size="md" /> {t("forumThreads.loading")}
           </CardContent>
         </Card>
       ) : loadError ? (
         <ErrorState
-          message="No pudimos cargar este foro"
+          message={t("forumThreads.loadError")}
           hint={loadError}
           onRetry={() => void load()}
         />
@@ -360,13 +362,13 @@ function ForumThreads() {
         <Card>
           <CardContent className="p-0">
             <TableEmpty
-              title={search ? "Sin resultados" : "Aún no hay preguntas en este foro"}
+              title={search ? t("forumThreads.emptySearch") : t("forumThreads.emptyTitle")}
               description={
                 search
-                  ? "Ajusta el buscador o cambia el ordenamiento."
+                  ? t("forumThreads.emptySearchHint")
                   : canPost
-                    ? "Sé el primero en preguntar — tu docente y compañeros podrán responder."
-                    : "Espera a que el docente reabra el foro para participar."
+                    ? t("forumThreads.emptyHintCanPost")
+                    : t("forumThreads.emptyHintClosed")
               }
               icon={MessageSquareText}
             />
@@ -383,11 +385,11 @@ function ForumThreads() {
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Nueva pregunta</DialogTitle>
+            <DialogTitle>{t("forumThreads.dialogTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label required>Título</Label>
+              <Label required>{t("forumThreads.formTitle")}</Label>
               <Input
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
@@ -396,7 +398,7 @@ function ForumThreads() {
               />
             </div>
             <div>
-              <Label required>Cuerpo</Label>
+              <Label required>{t("forumThreads.formBody")}</Label>
               <Textarea
                 value={newBody}
                 onChange={(e) => setNewBody(e.target.value)}
@@ -407,7 +409,7 @@ function ForumThreads() {
               />
             </div>
             <div>
-              <Label>Tags (separados por coma)</Label>
+              <Label>{t("forumThreads.formTags")}</Label>
               <Input
                 value={newTagsRaw}
                 onChange={(e) => setNewTagsRaw(e.target.value)}
@@ -417,11 +419,11 @@ function ForumThreads() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setNewOpen(false)}>
-              Cancelar
+              {t("forumThreads.cancel")}
             </Button>
             <Button onClick={() => void createThread()} disabled={creating}>
               {creating ? <Spinner size="sm" className="mr-1" /> : null}
-              Publicar
+              {t("forumThreads.publish")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -463,7 +465,7 @@ function ThreadCard({
                     className="text-[10px] text-indigo-700 dark:text-indigo-300 border-indigo-500/40"
                   >
                     <Pin className="h-2.5 w-2.5 mr-0.5" />
-                    Fijado
+                    {i18n.t("forumThreads.badgePinned")}
                   </Badge>
                 )}
                 {thread.is_locked && (
@@ -472,7 +474,7 @@ function ThreadCard({
                     className="text-[10px] text-amber-700 dark:text-amber-300 border-amber-500/40"
                   >
                     <Lock className="h-2.5 w-2.5 mr-0.5" />
-                    Cerrado
+                    {i18n.t("forumThreads.badgeLocked")}
                   </Badge>
                 )}
                 {isResolved && (
@@ -481,7 +483,7 @@ function ThreadCard({
                     className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
                   >
                     <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />
-                    Resuelto
+                    {i18n.t("forumThreads.badgeResolved")}
                   </Badge>
                 )}
                 <h3 className="font-semibold text-sm truncate">{thread.title}</h3>
@@ -497,8 +499,8 @@ function ThreadCard({
                 ))}
               </div>
               <div className="text-[11px] text-muted-foreground mt-2">
-                {thread.author?.full_name ?? "Anónimo"} · última actividad{" "}
-                {formatDateTime(thread.last_activity_at)}
+                {thread.author?.full_name ?? "—"} ·{" "}
+                {i18n.t("forumThreads.lastActivity", { datetime: formatDateTime(thread.last_activity_at) })}
               </div>
             </div>
           </div>

@@ -29,6 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { toast } from "sonner";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -111,6 +112,7 @@ const TABLES: TrashTable[] = [
 ];
 
 function TrashPage() {
+  const { t } = useTranslation();
   const confirm = useConfirm();
   const [items, setItems] = useState<TrashItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -267,9 +269,9 @@ function TrashPage() {
 
   const handleHardDelete = async (item: TrashItem) => {
     const ok = await confirm({
-      title: "¿Eliminar definitivamente?",
-      description: `Vas a borrar "${item.name}" (${TRASH_TABLE_LABEL[item.table]}) y todos sus hijos asociados (preguntas, entregas, archivos, etc.). Esta acción NO se puede deshacer.`,
-      confirmLabel: "Eliminar definitivo",
+      title: t("trash.confirmHardDeleteTitle"),
+      description: t("trash.confirmHardDeleteDesc", { name: item.name, type: TRASH_TABLE_LABEL[item.table] }),
+      confirmLabel: t("trash.confirmHardDeleteLabel"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -301,10 +303,9 @@ function TrashPage() {
   const handleBulkRestore = async () => {
     if (selectedItems.length === 0) return;
     const ok = await confirm({
-      title: `¿Restaurar ${selectedItems.length} item(s)?`,
-      description:
-        "Las filas seleccionadas volverán a aparecer en sus listas normales. Sus hijos (preguntas, entregas, etc.) ya están intactos y seguirán visibles.",
-      confirmLabel: "Restaurar",
+      title: t("trash.confirmBulkRestoreTitle", { count: selectedItems.length }),
+      description: t("trash.confirmBulkRestoreDesc"),
+      confirmLabel: t("trash.confirmBulkRestoreLabel"),
       tone: "default",
     });
     if (!ok) return;
@@ -355,9 +356,9 @@ function TrashPage() {
   const handleBulkHardDelete = async () => {
     if (selectedItems.length === 0) return;
     const ok = await confirm({
-      title: `¿Eliminar definitivamente ${selectedItems.length} item(s)?`,
-      description: `Vas a borrar las filas seleccionadas y TODOS sus hijos asociados (preguntas, entregas, archivos, etc.) con CASCADE. Esta acción NO se puede deshacer.`,
-      confirmLabel: "Eliminar definitivo",
+      title: t("trash.confirmBulkHardDeleteTitle", { count: selectedItems.length }),
+      description: t("trash.confirmBulkHardDeleteDesc"),
+      confirmLabel: t("trash.confirmBulkHardDeleteLabel"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -433,7 +434,7 @@ function TrashPage() {
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground p-4 sm:p-8">
-        <Spinner size="sm" /> Cargando papelera…
+        <Spinner size="sm" /> {t("trash.loading")}
       </div>
     );
   }
@@ -441,7 +442,7 @@ function TrashPage() {
   if (loadError) {
     return (
       <ErrorState
-        message="No pudimos cargar la papelera"
+        message={t("trash.loadError")}
         hint={loadError}
         onRetry={() => setRetryNonce((n) => n + 1)}
       />
@@ -452,17 +453,17 @@ function TrashPage() {
     <div className="space-y-4">
       {bulkBusy && (
         <LoadingOverlay
-          title="Procesando papelera…"
-          subtitle={`Aplicando la operación a ${selectedItems.length} item(s) en paralelo. Cada uno puede llevar varios segundos cuando arrastra entregas, archivos o cascadas. No cierres esta pestaña.`}
+          title={t("trash.processingOverlay")}
+          subtitle={t("trash.processingSubtitle", { count: selectedItems.length })}
         />
       )}
       <PageHeader
         icon={<Trash2 className="h-6 w-6 text-primary" />}
-        title="Papelera"
+        title={t("trash.title")}
         subtitle={
           items.length === 0
-            ? "Sin items en papelera. Lo que elimines aparecerá acá."
-            : `${items.length} item(s) recuperables · purga automática a los ${RETENTION_DAYS} días`
+            ? t("trash.subtitleEmpty")
+            : t("trash.subtitleWithItems", { count: items.length, days: RETENTION_DAYS })
         }
       />
 
@@ -470,20 +471,20 @@ function TrashPage() {
           Conteos absolutos sobre `items` (sin aplicar search/filter) —
           dan contexto general; el detalle filtrado vive en la tabla. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={Trash2} label="Total en papelera" value={trashStats.total} />
+        <StatCard icon={Trash2} label={t("trash.statTotal")} value={trashStats.total} />
         <StatCard
           icon={AlertTriangle}
-          label="Próximos a purgar (≤3d)"
+          label={t("trash.statUrgent")}
           value={trashStats.urgent}
           tone={trashStats.urgent > 0 ? "destructive" : "default"}
         />
         <StatCard
           icon={Clock}
-          label="Esta semana (≤7d)"
+          label={t("trash.statSoon")}
           value={trashStats.soon}
           tone={trashStats.soon > 0 ? "warning" : "default"}
         />
-        <StatCard icon={Archive} label="Recuperables (>7d)" value={trashStats.safe} />
+        <StatCard icon={Archive} label={t("trash.statSafe")} value={trashStats.safe} />
       </div>
 
       {/* Toolbar de filtros: search libre + selector de tipo. Stack en
@@ -497,7 +498,7 @@ function TrashPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nombre o autor del borrado…"
+              placeholder={t("trash.searchPlaceholder")}
               className="pl-8 h-9"
             />
           </div>
@@ -509,7 +510,7 @@ function TrashPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos ({countByTable.all})</SelectItem>
+              <SelectItem value="all">{t("trash.filterAll", { count: countByTable.all })}</SelectItem>
               {TABLES.map((t) => (
                 <SelectItem key={t} value={t} disabled={countByTable[t] === 0}>
                   {TRASH_TABLE_LABEL[t]} ({countByTable[t] ?? 0})
@@ -527,7 +528,7 @@ function TrashPage() {
               }}
               className="h-9"
             >
-              <X className="h-4 w-4 mr-1" /> Limpiar
+              <X className="h-4 w-4 mr-1" /> {t("trash.clearFilters")}
             </Button>
           )}
         </div>
@@ -541,7 +542,7 @@ function TrashPage() {
         <Card className="bg-primary/5 border-primary/30">
           <CardContent className="p-2 px-3 flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium">
-              {sel.count} item{sel.count === 1 ? "" : "s"} seleccionado{sel.count === 1 ? "" : "s"}
+              {t("trash.bulkSelected", { count: sel.count })}
             </span>
             <div className="ml-auto flex items-center gap-1.5 flex-wrap">
               <Button
@@ -555,7 +556,7 @@ function TrashPage() {
                 ) : (
                   <RotateCcw className="h-3.5 w-3.5 mr-1" />
                 )}
-                Restaurar
+                {t("trash.bulkRestore")}
               </Button>
               <Button
                 size="sm"
@@ -565,10 +566,10 @@ function TrashPage() {
                 className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
               >
                 <X className="h-3.5 w-3.5 mr-1" />
-                Eliminar definitivo
+                {t("trash.bulkHardDelete")}
               </Button>
               <Button size="sm" variant="ghost" onClick={() => sel.clear()} disabled={bulkBusy}>
-                Cancelar
+                {t("trash.bulkCancel")}
               </Button>
             </div>
           </CardContent>
@@ -583,12 +584,12 @@ function TrashPage() {
                 <TableHead className="w-10">
                   <MultiSelectHeaderCheckbox state={sel} />
                 </TableHead>
-                <TableHead>Nombre</TableHead>
-                <TableHead className="hidden sm:table-cell">Tipo</TableHead>
-                <TableHead className="hidden md:table-cell">Borrado por</TableHead>
-                <TableHead className="hidden sm:table-cell">Borrado</TableHead>
-                <TableHead className="hidden sm:table-cell">Purga en</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
+                <TableHead>{t("trash.colName")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("trash.colType")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("trash.colDeletedBy")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("trash.colDeletedAt")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("trash.colPurgesIn")}</TableHead>
+                <TableHead className="text-right">{t("trash.colActions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -597,8 +598,8 @@ function TrashPage() {
                   colSpan={7}
                   text={
                     search || filterTable !== "all"
-                      ? "Sin resultados para los filtros activos."
-                      : "Sin items en papelera."
+                      ? t("trash.emptyFiltered")
+                      : t("trash.emptyAll")
                   }
                 />
               ) : (
@@ -648,20 +649,20 @@ function TrashPage() {
                           title={`Se purgará automáticamente cuando pasen ${RETENTION_DAYS} días desde la eliminación.`}
                         >
                           <Clock className="h-3 w-3" />
-                          {days <= 0 ? "Hoy" : `${days} día${days === 1 ? "" : "s"}`}
+                          {days <= 0 ? t("trash.purgeToday") : t("trash.purgeDays", { count: days })}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="inline-flex items-center gap-1">
                           <RowAction
-                            label="Restaurar"
+                            label={t("trash.actionRestore")}
                             icon={RotateCcw}
                             onClick={() => void handleRestore(item)}
                             disabled={isBusyItem || bulkBusy}
                             loading={isBusyItem}
                           />
                           <RowAction
-                            label="Eliminar definitivo"
+                            label={t("trash.actionHardDelete")}
                             icon={X}
                             onClick={() => void handleHardDelete(item)}
                             disabled={isBusyItem || bulkBusy}
