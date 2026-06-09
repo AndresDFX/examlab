@@ -667,6 +667,16 @@ Cada `attendance_session` puede tener N snippets de código (Java/Python/JavaScr
 - **UI** ([src/modules/sessions/SessionCodeSnippets.tsx](src/modules/sessions/SessionCodeSnippets.tsx) + [Dialog wrapper](src/modules/sessions/SessionCodeSnippetsDialog.tsx)): Monaco editor por snippet, autosave debounced 1.5s, botón Run via edge `execute-code` (pasa snippet.id como `questionId`), cacheado del último output. Modo readOnly para alumno: puede ejecutar pero output no persiste.
 - **Integración**: dropdown "Snippets de código" en `app.teacher.attendance.tsx` (icono `Code2`); botón "Código" en `app.student.attendance.tsx` por fila de sesión. El dialog muestra mensaje friendly cuando alumno entra y no hay snippets.
 
+### Archivos de código + notebooks SUBIDOS (Contenidos) ejecutables en la sesión
+
+Complementa los snippets (código creado inline): el docente puede **subir** archivos de código (`.java`/`.py`/`.js`) y **notebooks** (`.ipynb`) en Contenidos, asignarlos a una sesión, y el alumno los **ve + ejecuta** desde el tablero del curso ([app.student.courses.tsx](src/routes/app.student.courses.tsx)).
+
+- **Upload** ([UploadExternalContentDialog](src/modules/contents/UploadExternalContentDialog.tsx)): `.java/.py/.js/.ipynb` agregados a `ACCEPTED_EXTENSIONS`. Para esos (INLINE_BODY_EXTENSIONS) se lee el TEXTO del archivo y se guarda inline en `files[].body` (cap 500K) además del objeto en Storage — así el runner lee de `body` sin round-trip. Los `.ipynb` se pasan por `stripNotebookOutputs` antes de guardar (limpia outputs/figuras base64 → body liviano, igual de ejecutable). El bucket `generated-contents` NO tiene `allowed_mime_types`, así que no bloquea por MIME — el único gate era la whitelist de extensiones del cliente.
+- **Runner de código** ([CodeFileRunnerDialog](src/modules/code/CodeFileRunnerDialog.tsx)): visor + editor editable (playground efímero, no persiste) + Run via edge `execute-code` (mismo pipeline que los snippets). `codeLanguageForFile(name)` mapea extensión → java/python/javascript.
+- **Runner de notebook** ([NotebookRunnerDialog](src/modules/code/NotebookRunnerDialog.tsx) + helpers PUROS [notebook.ts](src/modules/code/notebook.ts)): renderiza celdas (markdown via `MarkdownViewer` + código en bloques) y "Ejecutar todo el código" concatena las celdas de código (`notebookCodeToScript`, descartando magics `%`/`!`) en UN script Python y lo corre via `execute-code`. **Stateless** — no hay kernel persistente entre celdas; las figuras/plots no se renderizan (el executor devuelve solo texto). Se avisa en la UI.
+- **Tablero del estudiante**: en el render de archivos por sesión, los archivos de código muestran botón "Ejecutar" (Play) y los `.ipynb` "Abrir notebook" (NotebookPen), ambos + descarga. Detección por extensión (`codeLanguageForFile` / `isNotebookFile`) + `!!f.body`.
+- `questionId` que recibe `execute-code` es solo metadata de audit (no FK) — los runners pasan el id del contenido (o undefined).
+
 ### Pizarra de sesión COMPARTIDA con realtime broadcast
 
 Toggle "Pizarra compartida" en el dialog de pizarra de sesión. Cuando ON, los alumnos matriculados pueden EDITAR la misma pizarra y los cambios se sincronizan en vivo via Supabase Realtime.
