@@ -2339,7 +2339,18 @@ function ResultsDialog({
           </p>
           <div className="space-y-2">
             {options.map((o) => {
-              const pct = total > 0 ? Math.round((o.responses_count / total) * 100) : 0;
+              // En encuestas de CUPO (slot) la barra/porcentaje miden el
+              // LLENADO DEL CUPO de la opción (responses_count / max_responses),
+              // no la cuota sobre el total de votos — así una opción con cupo
+              // lleno (ej. 1/1) se ve al 100% (completa), no al 20%. En single/
+              // multiple sí medimos la cuota sobre el total de respuestas.
+              const isSlot = poll.poll_type === "slot";
+              const cap = o.max_responses ?? 0;
+              const cupoPct = cap > 0 ? Math.min(100, Math.round((o.responses_count / cap) * 100)) : 0;
+              const sharePct = total > 0 ? Math.round((o.responses_count / total) * 100) : 0;
+              const pct = isSlot ? cupoPct : sharePct;
+              const showPct = isSlot ? cap > 0 : total > 0;
+              const slotFull = isSlot && cap > 0 && o.responses_count >= cap;
               const voters = respondents.filter((r) => r.option_id === o.id);
               return (
                 <div key={o.id} className="space-y-1">
@@ -2350,11 +2361,15 @@ function ResultsDialog({
                     <span className="text-muted-foreground tabular-nums">
                       {o.responses_count}
                       {o.max_responses != null && ` / ${o.max_responses}`}
-                      {total > 0 && ` · ${pct}%`}
+                      {showPct && ` · ${pct}%`}
+                      {slotFull && " · lleno"}
                     </span>
                   </div>
                   <div className="h-1.5 bg-muted rounded overflow-hidden">
-                    <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+                    <div
+                      className={`h-full ${slotFull ? "bg-emerald-500" : "bg-primary"}`}
+                      style={{ width: `${pct}%` }}
+                    />
                   </div>
                   {voters.length > 0 && (
                     // Lista de votantes como chips con botón borrar
