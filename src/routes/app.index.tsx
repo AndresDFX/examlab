@@ -82,12 +82,14 @@ function Dashboard() {
   }, []);
 
   return (
-    // Layout flex-col con altura mínima del viewport (descontado solo
-    // el padding del AppLayout). El card de notificaciones se quitó del
-    // dashboard, así que los cards de eventos (Próximas clases /
-    // proyectos / exámenes / talleres) usan TODO el espacio vertical
-    // disponible vía flex-1 + min-h-0 en el wrapper interno.
-    <div className="flex flex-col gap-6 min-h-[calc(100vh-5rem)]">
+    // Layout flex-col. En desktop (lg+) CAPEAMOS la altura al viewport
+    // (descontado el padding del AppLayout) + overflow-hidden → el dashboard
+    // NUNCA hace scroll de PÁGINA: los cards y el calendario scrollean
+    // internamente (flex-1 + min-h-0 + overflow-y-auto). En <lg (mobile/
+    // tablet) dejamos altura natural + scroll, que es lo esperado en pantallas
+    // chicas con layout apilado. Aplica a los 4 roles (wrapper compartido).
+    // gap-4 (no 6) para ganar espacio vertical y que entre sin recortar.
+    <div className="flex flex-col gap-4 lg:h-[calc(100dvh-5rem)] lg:overflow-hidden">
       <div>
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
           {t("dashboard.hello")}, {profile?.full_name ?? "👋"}
@@ -1055,8 +1057,8 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
             Proyecto / Clase / Inicio-Fin de curso). overflow-y-auto: en
             pantallas muy bajas el mes scrollea DENTRO de su columna, sin
             empujar el scroll de la página. */}
-        <div className="min-h-0 lg:overflow-y-auto">
-          <StudentEventsCalendar userId={userId} />
+        <div className="min-h-0 flex">
+          <StudentEventsCalendar userId={userId} className="h-full w-full flex flex-col min-h-0" />
         </div>
 
         {/* Próximas clases + Próximos exámenes apilados a la derecha.

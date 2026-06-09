@@ -46,6 +46,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { formatDate } from "@/shared/lib/format";
+import { cn } from "@/shared/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -154,7 +155,15 @@ function dateToLocalKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export function StudentEventsCalendar({ userId }: { userId: string | undefined }) {
+export function StudentEventsCalendar({
+  userId,
+  className,
+}: {
+  userId: string | undefined;
+  /** Permite que el dashboard estire el calendario para que llene su
+   *  columna (h-full flex flex-col) y se alinee con la agenda al lado. */
+  className?: string;
+}) {
   const { t } = useTranslation();
   // Labels traducidos derivados de la metadata estática + i18n.
   const KIND_META = useMemo(() => {
@@ -493,7 +502,7 @@ export function StudentEventsCalendar({ userId }: { userId: string | undefined }
     viewYear === today.getFullYear() && viewMonth === today.getMonth();
 
   return (
-    <Card>
+    <Card className={cn(className)}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-base flex items-center gap-2">
@@ -531,7 +540,11 @@ export function StudentEventsCalendar({ userId }: { userId: string | undefined }
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
+      {/* min-h-0 + overflow-y-auto: cuando el dashboard estira el Card
+          (h-full flex flex-col), el contenido del mes scrollea adentro en
+          vez de empujar la página. En uso standalone (sin flex parent),
+          flex-1 es no-op → altura natural, mismo comportamiento de antes. */}
+      <CardContent className="space-y-3 flex-1 min-h-0 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Spinner size="md" />
