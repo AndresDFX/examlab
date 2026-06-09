@@ -266,6 +266,20 @@ export function extractClassTitleFromBucket(files: ContentFile[]): string | null
  *   2) Si no, primera línea no vacía como fallback (truncada).
  * Devuelve null si ningún archivo de la clase tiene body.
  */
+/**
+ * Compone la etiqueta visible de una fila de clase en el visor "archivos por
+ * clase": `"<classWord> <N>"` y, si hay título, `": <título>"`. Pura para
+ * poder testear el string EXACTO que se renderiza (el `classWord` traducido
+ * lo pasa el caller, ej. t("contents.classNumber") = "Clase").
+ */
+export function composeClassLabel(
+  classWord: string,
+  classNumber: number,
+  title: string | null,
+): string {
+  return `${classWord} ${classNumber}${title ? `: ${title}` : ""}`;
+}
+
 export function extractClassTitle(files: ContentFile[], classNumber: number): string | null {
   const filtered = files.filter((f) => classNumberFromFilename(f.name) === classNumber);
   for (const f of filtered) {

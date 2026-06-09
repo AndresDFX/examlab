@@ -88,6 +88,7 @@ import { GenerateSessionsDialog } from "@/modules/contents/GenerateSessionsDialo
 import {
   availableClassNumbers,
   classNumberFromFilename,
+  composeClassLabel,
   extractClassTitle,
   extractClassTitleFromBucket,
   extractContentText,
@@ -3523,12 +3524,9 @@ function FilesByClassDialog({
                                   muestra "Clase X". */}
                               <div
                                 className="text-sm font-medium truncate max-w-[320px]"
-                                title={
-                                  title ? `${t("contents.classNumber")} ${n}: ${title}` : undefined
-                                }
+                                title={title ? composeClassLabel(t("contents.classNumber"), n, title) : undefined}
                               >
-                                {t("contents.classNumber")} {n}
-                                {title ? `: ${title}` : ""}
+                                {composeClassLabel(t("contents.classNumber"), n, title)}
                               </div>
                             </TableCell>
                             <TableCell className="hidden md:table-cell">

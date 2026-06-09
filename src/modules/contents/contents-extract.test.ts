@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   availableClassNumbers,
   classNumberFromFilename,
+  composeClassLabel,
   extractClassTitle,
   extractClassTitleFromBucket,
   extractContentText,
@@ -293,6 +294,33 @@ describe("extractClassTitle", () => {
       F("GUIA_CLASE_8.MD", "# Herencia y polimorfismo\n\n..."),
     ];
     expect(extractClassTitle(files, 8)).toBe("Herencia y polimorfismo");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// composeClassLabel — string EXACTO renderizado en el visor "archivos por
+// clase". Reproduce el bug del screenshot (notebook subido mostraba el JSON
+// como título de la clase) end-to-end por las mismas funciones del JSX.
+// ─────────────────────────────────────────────────────────────────────
+describe("composeClassLabel (etiqueta visible de la clase)", () => {
+  it('formatea "Clase N: Tema" cuando hay título', () => {
+    expect(composeClassLabel("Clase", 3, "Bucles")).toBe("Clase 3: Bucles");
+  });
+
+  it('formatea "Clase N" (sin dos puntos) cuando no hay título', () => {
+    expect(composeClassLabel("Clase", 5, null)).toBe("Clase 5");
+  });
+
+  it("REPRODUCE el screenshot: una clase con notebook subido renderiza 'Clase 1', NO el JSON", () => {
+    const notebookBody =
+      '{"nbformat":4,"nbformat_minor":0,"cells":[{"cell_type":"markdown","source":["# Intro"]}]}';
+    const sectionFiles: ContentFile[] = [F("Python_POO_CLASE_1.ipynb", notebookBody)];
+    // Mismo cómputo del FilesByClassDialog:
+    const title =
+      extractClassTitleFromBucket(sectionFiles) ?? extractClassTitle(sectionFiles, 1);
+    const label = composeClassLabel("Clase", 1, title);
+    expect(label).toBe("Clase 1"); // antes: 'Clase 1: {"nbformat":4,…}'
+    expect(label).not.toContain("nbformat");
   });
 });
 
