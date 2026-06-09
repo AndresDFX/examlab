@@ -23,6 +23,7 @@
  * texto para que la IA lo califique igual que las preguntas `codigo`.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,6 +76,7 @@ export function PythonGuiRunner({
   readOnly = false,
   blockClipboard = false,
 }: Readonly<Props>) {
+  const { t } = useTranslation();
   const editorRef = useRef<unknown>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -205,7 +207,7 @@ export function PythonGuiRunner({
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <Badge variant="outline" className="text-xs flex items-center gap-1">
-          <Camera className="h-3 w-3" /> Python GUI — tkinter (captura PNG)
+          <Camera className="h-3 w-3" /> {t("pythonGuiRunner.badge")}
         </Badge>
         <Button
           size="sm"
@@ -216,7 +218,7 @@ export function PythonGuiRunner({
           type="button"
         >
           <Camera className="h-3 w-3 mr-1" />
-          Generar captura
+          {t("pythonGuiRunner.btnGenerate")}
         </Button>
       </div>
 
@@ -226,18 +228,13 @@ export function PythonGuiRunner({
           onClick={() => setDialogOpen(true)}
           className="text-xs text-primary underline-offset-2 hover:underline"
         >
-          Volver a ver la captura
+          {t("pythonGuiRunner.btnReopen")}
         </button>
       )}
 
       <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground bg-muted/30 border rounded-md px-2.5 py-1.5">
         <Info className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
-        <span>
-          Tu código tkinter corre en el servidor y solo recibes una captura — no podrás interactuar
-          (clicks, teclas) con la ventana. Diseña la UI con valores iniciales visibles. No necesitas
-          cerrar la ventana manualmente; el runner lo hace tras unos segundos para que la captura se
-          tome a tiempo.
-        </span>
+        <span>{t("pythonGuiRunner.hint")}</span>
       </div>
 
       <div className="rounded-md border overflow-hidden">
@@ -267,11 +264,11 @@ export function PythonGuiRunner({
           <DialogHeader className="space-y-1">
             <DialogTitle className="flex items-center gap-2 text-base">
               <Camera className="h-4 w-4" />
-              Python GUI — captura del servidor
+              {t("pythonGuiRunner.dialogTitle")}
               {running && (
                 <span className="ml-2 inline-flex items-center gap-1 text-xs font-normal text-muted-foreground">
                   <Spinner size="xs" />
-                  Ejecutando y capturando…
+                  {t("pythonGuiRunner.statusRunning")}
                 </span>
               )}
             </DialogTitle>
@@ -288,7 +285,7 @@ export function PythonGuiRunner({
             <Card className="bg-muted/40 flex flex-col min-h-0">
               <CardHeader className="py-2 px-3 shrink-0">
                 <CardTitle className="text-xs flex items-center gap-1.5">
-                  <Terminal className="h-3 w-3" /> Consola
+                  <Terminal className="h-3 w-3" /> {t("pythonGuiRunner.consoleTitle")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-3 pb-3 pt-0 flex-1 min-h-0 overflow-hidden">
@@ -311,14 +308,14 @@ export function PythonGuiRunner({
                         .join("\n")
                     : running
                       ? ""
-                      : "(sin ejecución todavía)"}
+                      : t("pythonGuiRunner.consolePending")}
                 </pre>
               </CardContent>
             </Card>
             <Card className="bg-muted/40 flex flex-col min-h-0">
               <CardHeader className="py-2 px-3 shrink-0">
                 <CardTitle className="text-xs flex items-center gap-1.5">
-                  <Camera className="h-3 w-3" /> Captura
+                  <Camera className="h-3 w-3" /> {t("pythonGuiRunner.cardCaptureTitle")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-3 pb-3 pt-0 flex-1 min-h-0 overflow-hidden">
@@ -341,7 +338,7 @@ export function PythonGuiRunner({
                         screenshotData.pngBytes < 2000 && (
                           <div className="absolute inset-x-2 bottom-2 bg-amber-50/95 dark:bg-amber-950/95 border border-amber-300 dark:border-amber-700 rounded-md p-2 text-[10px] leading-snug shadow-md">
                             <p className="font-semibold text-amber-700 dark:text-amber-300">
-                              La ventana no alcanzó a pintarse — el PNG quedó casi vacío.
+                              {t("pythonGuiRunner.emptyPngTitle")}
                             </p>
                             <p className="text-amber-900 dark:text-amber-200 mt-0.5">
                               Tu script terminó antes de que tkinter rendereara. Llama{" "}
@@ -354,9 +351,9 @@ export function PythonGuiRunner({
                         )}
                     </>
                   ) : running ? (
-                    <span className="text-xs text-muted-foreground">Esperando captura…</span>
+                    <span className="text-xs text-muted-foreground">{t("pythonGuiRunner.captureWaiting")}</span>
                   ) : (
-                    <span className="text-xs text-muted-foreground">Sin captura disponible.</span>
+                    <span className="text-xs text-muted-foreground">{t("pythonGuiRunner.captureNone")}</span>
                   )}
                 </div>
               </CardContent>
@@ -371,10 +368,10 @@ export function PythonGuiRunner({
                 type="button"
                 onClick={cancelRun}
                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                title="Cancelar la ejecución actual (libera la UI sin esperar a que termine)"
+                title={t("pythonGuiRunner.cancelTitle")}
               >
                 <X className="h-3 w-3 mr-1" />
-                Cancelar
+                {t("pythonGuiRunner.cancelButton")}
               </Button>
             )}
             <Button
@@ -389,10 +386,10 @@ export function PythonGuiRunner({
               ) : (
                 <RotateCcw className="h-3 w-3 mr-1" />
               )}
-              Re-generar captura
+              {t("pythonGuiRunner.btnRegenerate")}
             </Button>
             <Button size="sm" variant="default" type="button" onClick={() => setDialogOpen(false)}>
-              Cerrar
+              {t("pythonGuiRunner.btnClose")}
             </Button>
           </div>
         </DialogContent>

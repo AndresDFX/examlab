@@ -14,6 +14,7 @@
  * inline, con outputs limpiados — ver UploadExternalContentDialog).
  */
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { MarkdownViewer } from "@/shared/components/MarkdownViewer";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ interface Props {
 }
 
 export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
+  const { t } = useTranslation();
   const open = file !== null;
   const notebook = useMemo(() => parseNotebook(file?.body), [file]);
   const codeCellCount = countCodeCells(notebook);
@@ -64,7 +66,7 @@ export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
   const runAll = async () => {
     const script = notebookCodeToScript(notebook);
     if (!script.trim()) {
-      toast.error("El notebook no tiene celdas de código para ejecutar.");
+      toast.error(t("notebookRunner.errorNoCells"));
       return;
     }
     setRunning(true);
@@ -80,13 +82,13 @@ export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
         },
       });
       if (error || data?.error) {
-        toast.error(friendlyError(error ?? data?.error, "Error ejecutando el notebook"));
+        toast.error(friendlyError(error ?? data?.error, t("notebookRunner.errorRunning")));
         return;
       }
       const stdout = (data?.stdout as string) ?? "";
       const stderr = (data?.stderr as string) ?? "";
       setOutput(
-        [stdout, stderr ? `\n[stderr]\n${stderr}` : ""].filter(Boolean).join("") || "(sin salida)",
+        [stdout, stderr ? `\n[stderr]\n${stderr}` : ""].filter(Boolean).join("") || t("notebookRunner.outputEmpty"),
       );
     } finally {
       setRunning(false);
@@ -103,8 +105,8 @@ export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
           </DialogTitle>
           <DialogDescription className="text-[11px]">
             {notebook
-              ? `Notebook con ${notebook.cells.length} celda(s), ${codeCellCount} de código. "Ejecutar" corre todo el código en orden (sin estado entre celdas; las magics y figuras no aplican).`
-              : "No se pudo leer el notebook — puede estar dañado o ser muy grande. Descárgalo para abrirlo en Jupyter."}
+              ? t("notebookRunner.descHasCells", { cells: notebook.cells.length, codeCells: codeCellCount })
+              : t("notebookRunner.descUnreadable")}
           </DialogDescription>
         </DialogHeader>
 
@@ -113,11 +115,11 @@ export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
             <div className="flex items-center gap-2 border-b pb-2">
               <Button size="sm" onClick={() => void runAll()} disabled={running || codeCellCount === 0}>
                 {running ? <Spinner size="sm" className="mr-1.5" /> : <Play className="h-4 w-4 mr-1.5" />}
-                Ejecutar todo el código
+                {t("notebookRunner.btnRunAll")}
               </Button>
               {codeCellCount === 0 && (
                 <span className="text-[11px] text-muted-foreground">
-                  Este notebook no tiene celdas de código.
+                  {t("notebookRunner.noCellsHint")}
                 </span>
               )}
             </div>

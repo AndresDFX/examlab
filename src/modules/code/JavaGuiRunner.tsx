@@ -24,6 +24,7 @@
  * preguntas de tipo "código".
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -243,6 +244,7 @@ export function JavaGuiRunner({
   blockClipboard = false,
   framework: defaultFramework = "swing",
 }: Props) {
+  const { t } = useTranslation();
   const editorRef = useRef<any>(null);
   const displayRef = useRef<HTMLDivElement>(null);
   const consoleRef = useRef<HTMLPreElement>(null);
@@ -567,14 +569,14 @@ export function JavaGuiRunner({
           <Badge variant="outline" className="text-xs flex items-center gap-1">
             {mode === "aws_screenshot" ? (
               <>
-                <Camera className="h-3 w-3" /> Java GUI — captura PNG
+                <Camera className="h-3 w-3" /> {t("javaGuiRunner.badgePngCapture")}
                 {framework === "javafx" && (
-                  <span className="ml-1 text-[10px] text-muted-foreground">(JavaFX)</span>
+                  <span className="ml-1 text-[10px] text-muted-foreground">{t("javaGuiRunner.badgeJavaFXNote")}</span>
                 )}
               </>
             ) : (
               <>
-                <Coffee className="h-3 w-3" /> Java GUI (Swing / AWT)
+                <Coffee className="h-3 w-3" /> {t("javaGuiRunner.badgeSwingAWT")}
               </>
             )}
           </Badge>
@@ -593,8 +595,8 @@ export function JavaGuiRunner({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="cheerp">CheerpJ (navegador)</SelectItem>
-                <SelectItem value="aws_screenshot">AWS Lambda — captura</SelectItem>
+                <SelectItem value="cheerp">{t("javaGuiRunner.modeCheerp")}</SelectItem>
+                <SelectItem value="aws_screenshot">{t("javaGuiRunner.modeAws")}</SelectItem>
               </SelectContent>
             </Select>
           )}
@@ -613,8 +615,8 @@ export function JavaGuiRunner({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="swing">Swing / AWT</SelectItem>
-                <SelectItem value="javafx">JavaFX</SelectItem>
+                <SelectItem value="swing">{t("javaGuiRunner.frameworkSwing")}</SelectItem>
+                <SelectItem value="javafx">{t("javaGuiRunner.frameworkJavaFX")}</SelectItem>
               </SelectContent>
             </Select>
           )}
@@ -630,12 +632,12 @@ export function JavaGuiRunner({
           {mode === "aws_screenshot" ? (
             <>
               <Camera className="h-3 w-3 mr-1" />
-              Generar captura
+              {t("javaGuiRunner.btnGenerateCapture")}
             </>
           ) : (
             <>
               <Maximize2 className="h-3 w-3 mr-1" />
-              Ejecutar y abrir vista Swing
+              {t("javaGuiRunner.btnRunSwing")}
             </>
           )}
         </Button>
@@ -647,7 +649,7 @@ export function JavaGuiRunner({
           onClick={() => setDialogOpen(true)}
           className="text-xs text-primary underline-offset-2 hover:underline"
         >
-          {mode === "aws_screenshot" ? "Volver a ver la captura" : "Volver a abrir la vista Swing"}
+          {mode === "aws_screenshot" ? t("javaGuiRunner.btnReopenCapture") : t("javaGuiRunner.btnReopenSwing")}
         </button>
       )}
 
@@ -655,10 +657,10 @@ export function JavaGuiRunner({
         <Info className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
         <span>
           {mode === "aws_screenshot" && framework === "javafx"
-            ? "JavaFX en el servidor — render por software (sin GPU). Tu clase debe extender javafx.application.Application; no llames Application.launch() vos, el runner lo hace. Diseña la UI con valores iniciales visibles."
+            ? t("javaGuiRunner.hintJavaFX")
             : mode === "aws_screenshot"
-              ? "Tu código corre en el servidor y solo recibes una captura de pantalla — no podrás interactuar (clicks, teclas) con la ventana. Diseña la UI con valores iniciales visibles."
-              : "La primera ejecución tarda más porque el navegador descarga la máquina virtual de Java una sola vez. Las siguientes son inmediatas."}
+              ? t("javaGuiRunner.hintAwsSwing")
+              : t("javaGuiRunner.hintCheerp")}
         </span>
       </div>
 
@@ -694,16 +696,16 @@ export function JavaGuiRunner({
                 <Coffee className="h-4 w-4" />
               )}
               {mode === "aws_screenshot"
-                ? "Java GUI — captura del servidor"
-                : "Java GUI — vista en vivo"}
+                ? t("javaGuiRunner.dialogTitleCapture")
+                : t("javaGuiRunner.dialogTitleLive")}
               {(loadingCJ || running) && (
                 <span className="ml-2 inline-flex items-center gap-1 text-xs font-normal text-muted-foreground">
                   <Spinner size="xs" />
                   {mode === "aws_screenshot"
-                    ? "Compilando y capturando…"
+                    ? t("javaGuiRunner.statusCompiling")
                     : loadingCJ
-                      ? "Cargando entorno Java…"
-                      : "Ejecutando…"}
+                      ? t("javaGuiRunner.statusLoadingJvm")
+                      : t("javaGuiRunner.statusRunning")}
                 </span>
               )}
             </DialogTitle>
@@ -720,7 +722,7 @@ export function JavaGuiRunner({
             <Card className="bg-muted/40 flex flex-col min-h-0">
               <CardHeader className="py-2 px-3 shrink-0">
                 <CardTitle className="text-xs flex items-center gap-1.5">
-                  <Terminal className="h-3 w-3" /> Consola
+                  <Terminal className="h-3 w-3" /> {t("javaGuiRunner.consoleTitle")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-3 pb-3 pt-0 flex-1 min-h-0 overflow-hidden">
@@ -750,7 +752,7 @@ export function JavaGuiRunner({
                           .join("\n")
                       : running
                         ? ""
-                        : "(sin ejecución todavía)"}
+                        : t("javaGuiRunner.consolePending")}
                   </pre>
                 ) : (
                   <pre
@@ -765,11 +767,11 @@ export function JavaGuiRunner({
                 <CardTitle className="text-xs flex items-center gap-1.5">
                   {mode === "aws_screenshot" ? (
                     <>
-                      <Camera className="h-3 w-3" /> Captura
+                      <Camera className="h-3 w-3" /> {t("javaGuiRunner.cardCaptureTitle")}
                     </>
                   ) : (
                     <>
-                      <Coffee className="h-3 w-3" /> Ventana Swing
+                      <Coffee className="h-3 w-3" /> {t("javaGuiRunner.cardSwingTitle")}
                     </>
                   )}
                 </CardTitle>
@@ -808,7 +810,7 @@ export function JavaGuiRunner({
                           screenshotData.pngBytes < 2000 && (
                             <div className="absolute inset-x-2 bottom-2 bg-amber-50/95 dark:bg-amber-950/95 border border-amber-300 dark:border-amber-700 rounded-md p-2 text-[10px] leading-snug shadow-md">
                               <p className="font-semibold text-amber-700 dark:text-amber-300">
-                                La ventana no alcanzó a pintarse — el PNG quedó casi vacío.
+                                {t("javaGuiRunner.emptyPngTitle")}
                               </p>
                               <p className="text-amber-900 dark:text-amber-200 mt-0.5">
                                 Tu <code className="font-mono">main</code> terminó antes de que
@@ -824,9 +826,9 @@ export function JavaGuiRunner({
                           )}
                       </>
                     ) : running ? (
-                      <span className="text-xs text-muted-foreground">Esperando captura…</span>
+                      <span className="text-xs text-muted-foreground">{t("javaGuiRunner.captureWaiting")}</span>
                     ) : (
-                      <span className="text-xs text-muted-foreground">Sin captura disponible.</span>
+                      <span className="text-xs text-muted-foreground">{t("javaGuiRunner.captureNone")}</span>
                     )}
                   </div>
                 ) : (
@@ -851,10 +853,10 @@ export function JavaGuiRunner({
                 type="button"
                 onClick={cancelRun}
                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                title="Cancelar la ejecución actual (libera la UI sin esperar a que termine)"
+                title={t("javaGuiRunner.cancelTitle")}
               >
                 <X className="h-3 w-3 mr-1" />
-                Cancelar
+                {t("javaGuiRunner.cancelButton")}
               </Button>
             )}
             <Button
@@ -869,10 +871,10 @@ export function JavaGuiRunner({
               ) : (
                 <RotateCcw className="h-3 w-3 mr-1" />
               )}
-              {mode === "aws_screenshot" ? "Re-generar captura" : "Re-ejecutar"}
+              {mode === "aws_screenshot" ? t("javaGuiRunner.btnRegenCapture") : t("javaGuiRunner.btnRerun")}
             </Button>
             <Button size="sm" variant="default" type="button" onClick={() => setDialogOpen(false)}>
-              Cerrar
+              {t("javaGuiRunner.btnClose")}
             </Button>
           </div>
         </DialogContent>

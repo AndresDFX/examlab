@@ -15,6 +15,7 @@
  * forma estándar (java / python / javascript).
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { CodeEditor, type CodeLanguage } from "@/modules/code/CodeEditor";
 import {
@@ -57,6 +58,7 @@ interface Props {
 }
 
 export function CodeFileRunnerDialog({ file, onOpenChange, auditId }: Props) {
+  const { t } = useTranslation();
   const open = file !== null;
   const language = codeLanguageForFile(file?.name);
 
@@ -76,7 +78,7 @@ export function CodeFileRunnerDialog({ file, onOpenChange, auditId }: Props) {
   const run = async () => {
     if (!language) return;
     if (!value.trim()) {
-      toast.error("El archivo está vacío.");
+      toast.error(t("codeFileRunner.errorEmpty"));
       return;
     }
     setRunning(true);
@@ -93,12 +95,12 @@ export function CodeFileRunnerDialog({ file, onOpenChange, auditId }: Props) {
         },
       });
       if (error || data?.error) {
-        toast.error(friendlyError(error ?? data?.error, "Error ejecutando el código"));
+        toast.error(friendlyError(error ?? data?.error, t("codeFileRunner.errorRunning")));
         return;
       }
       const stdout = (data?.stdout as string) ?? "";
       const stderr = (data?.stderr as string) ?? "";
-      setOutput([stdout, stderr ? `\n[stderr]\n${stderr}` : ""].filter(Boolean).join("") || "(sin salida)");
+      setOutput([stdout, stderr ? `\n[stderr]\n${stderr}` : ""].filter(Boolean).join("") || t("codeFileRunner.outputEmpty"));
     } finally {
       setRunning(false);
     }
@@ -114,8 +116,8 @@ export function CodeFileRunnerDialog({ file, onOpenChange, auditId }: Props) {
           </DialogTitle>
           <DialogDescription>
             {language
-              ? "Podés ajustar el código y ejecutarlo. Los cambios y la salida son temporales (no se guardan)."
-              : "Vista de solo lectura — este tipo de archivo no se puede ejecutar aquí."}
+              ? t("codeFileRunner.descEditable")
+              : t("codeFileRunner.descReadOnly")}
           </DialogDescription>
         </DialogHeader>
 

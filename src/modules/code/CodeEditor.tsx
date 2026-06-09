@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -127,6 +128,7 @@ export function CodeEditor({
   blockClipboard = false,
   hideHints = false,
 }: CodeEditorProps) {
+  const { t } = useTranslation();
   const editorRef = useRef<any>(null);
 
   const handleMount: OnMount = useCallback(
@@ -201,7 +203,7 @@ export function CodeEditor({
               ) : (
                 <Play className="h-3 w-3 mr-1" />
               )}
-              Ejecutar
+              {t("codeEditor.runButton")}
             </Button>
             {/* Cancelar visible solo mientras hay un run en curso. Si
                 el caller no pasó onCancel, no lo mostramos — algunos
@@ -212,10 +214,10 @@ export function CodeEditor({
                 variant="ghost"
                 onClick={onCancel}
                 className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-                title="Cancelar la ejecución actual (libera la UI para cambiar de compilador o reintentar)"
+                title={t("codeEditor.cancelTitle")}
               >
                 <X className="h-3 w-3 mr-1" />
-                Cancelar
+                {t("codeEditor.cancelButton")}
               </Button>
             )}
           </div>
@@ -226,8 +228,7 @@ export function CodeEditor({
         <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground bg-muted/30 border rounded-md px-2.5 py-1.5">
           <Info className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
           <span>
-            La primera ejecución de Java tarda más porque el navegador descarga la máquina virtual
-            una sola vez. Las siguientes son inmediatas.
+            {t("codeEditor.javaHint")}
           </span>
         </div>
       )}
@@ -258,12 +259,12 @@ export function CodeEditor({
         <Card className="bg-muted/50">
           <CardHeader className="py-2 px-3">
             <CardTitle className="text-xs flex items-center gap-1.5">
-              <Terminal className="h-3 w-3" /> Salida
+              <Terminal className="h-3 w-3" /> {t("codeEditor.outputTitle")}
             </CardTitle>
           </CardHeader>
           <CardContent className="px-3 pb-3 pt-0">
             <pre className="text-xs font-mono whitespace-pre-wrap max-h-40 overflow-auto">
-              {output || "(sin salida)"}
+              {output || t("codeEditor.outputEmpty")}
             </pre>
           </CardContent>
         </Card>
