@@ -29,6 +29,7 @@ import {
   variableSnippet,
   type VariableNode,
 } from "./template-engine";
+import { RichTextEditor, type RichTextEditorHandle } from "./RichTextEditor";
 
 export interface TemplateDraft {
   name: string;
@@ -59,6 +60,10 @@ type Tab = EditTab | "preview";
 export function TemplateEditor({ value, onChange, showMetadata = true, catalog }: Props) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<Tab>("body");
+  // Modo de edición del CUERPO: "visual" (WYSIWYG) por default, "html" para
+  // avanzados (bloques {{#each}}/{{#if}}). Header/Footer/CSS siguen en textarea.
+  const [bodyMode, setBodyMode] = useState<"visual" | "html">("visual");
+  const richRef = useRef<RichTextEditorHandle>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const headerRef = useRef<HTMLTextAreaElement>(null);
   const footerRef = useRef<HTMLTextAreaElement>(null);
@@ -80,8 +85,14 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
   const previewHtml = useMemo(() => composePreviewHtml(value), [value]);
 
   const insertAtCursor = (snippet: string) => {
-    // En la pestaña de vista previa no hay textarea donde insertar.
+    // En la pestaña de vista previa no hay dónde insertar.
     if (activeTab === "preview") return;
+    // En el cuerpo en modo Visual, insertamos el {{placeholder}} como texto
+    // en el cursor del editor WYSIWYG.
+    if (activeTab === "body" && bodyMode === "visual") {
+      richRef.current?.insertText(snippet);
+      return;
+    }
     const tab: EditTab = activeTab;
     const field = fieldFor(tab);
     const ref = refFor(tab).current;
@@ -195,15 +206,50 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
                   Vista previa
                 </TabsTrigger>
               </TabsList>
-              <TabsContent value="body" className="mt-2">
-                <Textarea
-                  ref={bodyRef}
-                  value={value.body_html}
-                  onChange={(e) => onChange({ ...value, body_html: e.target.value })}
-                  className="font-mono text-sm min-h-[400px]"
-                  placeholder="<h1>Boletín de {{estudiante.nombre}}</h1>…"
-                  spellCheck={false}
-                />
+              <TabsContent value="body" className="mt-2 space-y-2">
+                {/* Toggle Visual (WYSIWYG, default) / HTML (avanzado). El
+                    docente escribe el informe como en Word; las variables se
+                    insertan desde el panel derecho. HTML queda para bloques
+                    {{#each}}/{{#if}} que no se pueden tipear visualmente. */}
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={bodyMode === "visual" ? "default" : "outline"}
+                    className="h-7 text-xs"
+                    onClick={() => setBodyMode("visual")}
+                  >
+                    <Eye className="h-3.5 w-3.5 mr-1" />
+                    Visual
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={bodyMode === "html" ? "default" : "outline"}
+                    className="h-7 text-xs"
+                    onClick={() => setBodyMode("html")}
+                  >
+                    <Code2 className="h-3.5 w-3.5 mr-1" />
+                    HTML
+                  </Button>
+                </div>
+                {bodyMode === "visual" ? (
+                  <RichTextEditor
+                    ref={richRef}
+                    value={value.body_html}
+                    onChange={(html) => onChange({ ...value, body_html: html })}
+                    placeholder="Escribe el informe… usa la barra para dar formato y el panel derecho para insertar variables."
+                  />
+                ) : (
+                  <Textarea
+                    ref={bodyRef}
+                    value={value.body_html}
+                    onChange={(e) => onChange({ ...value, body_html: e.target.value })}
+                    className="font-mono text-sm min-h-[400px]"
+                    placeholder="<h1>Boletín de {{estudiante.nombre}}</h1>…"
+                    spellCheck={false}
+                  />
+                )}
               </TabsContent>
               <TabsContent value="header" className="mt-2">
                 <Textarea
