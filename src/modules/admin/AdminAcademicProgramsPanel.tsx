@@ -42,6 +42,7 @@ import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { logEvent } from "@/shared/lib/audit";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -72,6 +73,7 @@ const EMPTY_DRAFT: Draft = {
 };
 
 export function AdminAcademicProgramsPanel() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const confirm = useConfirm();
   const [rows, setRows] = useState<AcademicProgram[]>([]);
@@ -124,7 +126,7 @@ export function AdminAcademicProgramsPanel() {
     if (!user) return;
     const name = draft.name.trim();
     if (!name) {
-      toast.error(i18n.t("toast.modules_admin_AdminAcademicProgramsPanel.nameRequired", { defaultValue: "El nombre es obligatorio" }));
+      toast.error(i18n.t("academic.programs.toastNameRequired"));
       return;
     }
     setSaving(true);
@@ -154,8 +156,8 @@ export function AdminAcademicProgramsPanel() {
     });
     toast.success(
       draft.id
-        ? i18n.t("toast.modules_admin_AdminAcademicProgramsPanel.programUpdated", { defaultValue: "Programa actualizado" })
-        : i18n.t("toast.modules_admin_AdminAcademicProgramsPanel.programCreated", { defaultValue: "Programa creado" }),
+        ? i18n.t("academic.programs.toastUpdated")
+        : i18n.t("academic.programs.toastCreated"),
     );
     setOpen(false);
     void load();
@@ -187,12 +189,9 @@ export function AdminAcademicProgramsPanel() {
 
   const remove = async (r: AcademicProgram) => {
     const ok = await confirm({
-      title: `¿Eliminar "${r.name}"?`,
-      description:
-        "Los cursos asociados quedarán sin programa (program_id NULL); no se borran. " +
-        "Si solo quieres dejar de ofrecerlo, considera desactivarlo en lugar de eliminar. " +
-        "Esta acción no se puede deshacer.",
-      confirmLabel: "Eliminar",
+      title: i18n.t("academic.programs.confirmDeleteTitle", { name: r.name }),
+      description: i18n.t("academic.programs.confirmDeleteDesc"),
+      confirmLabel: i18n.t("academic.programs.confirmDeleteLabel"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -209,7 +208,7 @@ export function AdminAcademicProgramsPanel() {
       entityId: r.id,
       entityName: r.name,
     });
-    toast.success(i18n.t("toast.modules_admin_AdminAcademicProgramsPanel.programDeleted", { defaultValue: "Programa eliminado" }));
+    toast.success(i18n.t("academic.programs.toastDeleted"));
     void load();
   };
 
@@ -218,28 +217,25 @@ export function AdminAcademicProgramsPanel() {
       <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 flex-wrap">
         <CardTitle className="text-base flex items-center gap-2">
           <GraduationCap className="h-4 w-4 text-violet-500" />
-          Programas / Niveles
+          {t("academic.programs.title")}
         </CardTitle>
         <Button size="sm" onClick={openNew}>
           <Plus className="h-3.5 w-3.5 mr-1" />
-          Nuevo programa
+          {t("academic.programs.new")}
         </Button>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          La unidad organizativa principal: carrera, programa, nivel educativo o área técnica
-          según tu institución (ej. &quot;Ingeniería de Sistemas&quot;, &quot;Bachillerato Técnico&quot;,
-          &quot;Educación Básica Primaria&quot;, &quot;Auxiliar Contable&quot;). Los cursos se
-          asocian a un programa desde el formulario de cursos.
+          {t("academic.programs.description")}
         </p>
 
         {loading ? (
           <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
-            <Spinner size="sm" /> Cargando…
+            <Spinner size="sm" /> {t("academic.programs.loading")}
           </div>
         ) : loadError ? (
           <ErrorState
-            message="No pudimos cargar"
+            message={t("academic.programs.loadError")}
             hint={loadError}
             onRetry={() => setRetryNonce((n) => n + 1)}
           />
@@ -248,10 +244,10 @@ export function AdminAcademicProgramsPanel() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="max-w-[260px]">Nombre</TableHead>
-                  <TableHead className="hidden sm:table-cell w-24">Código</TableHead>
-                  <TableHead className="hidden md:table-cell">Área / Departamento</TableHead>
-                  <TableHead className="w-24">Activo</TableHead>
+                  <TableHead className="max-w-[260px]">{t("academic.programs.colName")}</TableHead>
+                  <TableHead className="hidden sm:table-cell w-24">{t("academic.programs.colCode")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("academic.programs.colFaculty")}</TableHead>
+                  <TableHead className="w-24">{t("academic.programs.colActive")}</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
@@ -259,8 +255,8 @@ export function AdminAcademicProgramsPanel() {
                 {rows.length === 0 ? (
                   <TableEmpty
                     colSpan={5}
-                    text="Sin programas registrados"
-                    hint="Crea el primer programa con el botón de arriba."
+                    text={t("academic.programs.empty")}
+                    hint={t("academic.programs.emptyHint")}
                   />
                 ) : (
                   rows.map((r) => (
@@ -285,7 +281,7 @@ export function AdminAcademicProgramsPanel() {
                           />
                           {!r.active && (
                             <Badge variant="outline" className="text-[10px]">
-                              inactivo
+                              {t("academic.programs.inactiveBadge")}
                             </Badge>
                           )}
                         </div>
@@ -293,9 +289,9 @@ export function AdminAcademicProgramsPanel() {
                       <TableCell className="text-right">
                         <RowActionsMenu
                           actions={[
-                            { label: "Editar", icon: Pencil, onClick: () => openEdit(r) },
+                            { label: t("academic.programs.actionEdit"), icon: Pencil, onClick: () => openEdit(r) },
                             {
-                              label: "Eliminar",
+                              label: t("academic.programs.actionDelete"),
                               icon: Trash2,
                               tone: "destructive",
                               separatorBefore: true,
@@ -320,11 +316,11 @@ export function AdminAcademicProgramsPanel() {
             flex/scroll propio — solo personalizamos el max-width. */}
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{draft.id ? "Editar programa" : "Nuevo programa"}</DialogTitle>
+            <DialogTitle>{draft.id ? t("academic.programs.editTitle") : t("academic.programs.createTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label required>Nombre</Label>
+              <Label required>{t("academic.programs.labelName")}</Label>
               <Input
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
@@ -332,7 +328,7 @@ export function AdminAcademicProgramsPanel() {
               />
             </div>
             <div className="space-y-1">
-              <Label>Código</Label>
+              <Label>{t("academic.programs.labelCode")}</Label>
               <Input
                 value={draft.code}
                 onChange={(e) => setDraft({ ...draft, code: e.target.value })}
@@ -340,7 +336,7 @@ export function AdminAcademicProgramsPanel() {
               />
             </div>
             <div className="space-y-1">
-              <Label>Área / Departamento</Label>
+              <Label>{t("academic.programs.labelFaculty")}</Label>
               <Input
                 value={draft.faculty}
                 onChange={(e) => setDraft({ ...draft, faculty: e.target.value })}
@@ -352,15 +348,15 @@ export function AdminAcademicProgramsPanel() {
                 checked={draft.active}
                 onCheckedChange={(v) => setDraft({ ...draft, active: v })}
               />
-              <Label className="text-sm">Activo (aparece al crear cursos)</Label>
+              <Label className="text-sm">{t("academic.programs.activeLabel")}</Label>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
-              Cancelar
+              {t("academic.programs.cancel")}
             </Button>
             <Button onClick={() => void save()} disabled={saving}>
-              {saving ? "Guardando…" : draft.id ? "Guardar cambios" : "Crear"}
+              {saving ? t("academic.programs.saving") : draft.id ? t("academic.programs.saveChanges") : t("academic.programs.create")}
             </Button>
           </DialogFooter>
         </DialogContent>

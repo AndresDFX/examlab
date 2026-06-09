@@ -53,6 +53,7 @@ import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { logEvent } from "@/shared/lib/audit";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -87,22 +88,14 @@ const EMPTY_DRAFT: Draft = {
   status: "planificado",
 };
 
-const STATUS_BADGE: Record<Status, { label: string; cls: string }> = {
-  planificado: {
-    label: "Planificado",
-    cls: "border-slate-300 text-slate-700 dark:border-slate-500/40 dark:text-slate-300",
-  },
-  activo: {
-    label: "Activo",
-    cls: "border-emerald-400 text-emerald-700 dark:border-emerald-500/50 dark:text-emerald-300",
-  },
-  cerrado: {
-    label: "Cerrado",
-    cls: "border-amber-400 text-amber-700 dark:border-amber-500/50 dark:text-amber-300",
-  },
+const STATUS_BADGE_CLS: Record<Status, string> = {
+  planificado: "border-slate-300 text-slate-700 dark:border-slate-500/40 dark:text-slate-300",
+  activo: "border-emerald-400 text-emerald-700 dark:border-emerald-500/50 dark:text-emerald-300",
+  cerrado: "border-amber-400 text-amber-700 dark:border-amber-500/50 dark:text-amber-300",
 };
 
 export function AdminAcademicPeriodsPanel() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const confirm = useConfirm();
   const [rows, setRows] = useState<AcademicPeriod[]>([]);
@@ -155,11 +148,11 @@ export function AdminAcademicPeriodsPanel() {
     if (!user) return;
     const code = draft.code.trim();
     if (!code) {
-      toast.error(i18n.t("toast.modules_admin_AdminAcademicPeriodsPanel.codeRequired", { defaultValue: "El código es obligatorio" }));
+      toast.error(i18n.t("academic.periods.toastCodeRequired"));
       return;
     }
     if (draft.start_date && draft.end_date && draft.start_date > draft.end_date) {
-      toast.error(i18n.t("toast.modules_admin_AdminAcademicPeriodsPanel.startBeforeEnd", { defaultValue: "La fecha de inicio debe ser anterior a la de fin" }));
+      toast.error(i18n.t("academic.periods.toastStartBeforeEnd"));
       return;
     }
     setSaving(true);
@@ -208,8 +201,8 @@ export function AdminAcademicPeriodsPanel() {
     });
     toast.success(
       draft.id
-        ? i18n.t("toast.modules_admin_AdminAcademicPeriodsPanel.periodUpdated", { defaultValue: "Periodo actualizado" })
-        : i18n.t("toast.modules_admin_AdminAcademicPeriodsPanel.periodCreated", { defaultValue: "Periodo creado" }),
+        ? i18n.t("academic.periods.toastUpdated")
+        : i18n.t("academic.periods.toastCreated"),
     );
     setOpen(false);
     void load();
@@ -219,12 +212,15 @@ export function AdminAcademicPeriodsPanel() {
     if (!user) return;
     const newStatus: Status = r.status === "cerrado" ? "activo" : "cerrado";
     const ok = await confirm({
-      title: newStatus === "cerrado" ? `¿Cerrar el periodo "${r.code}"?` : `¿Reabrir el periodo "${r.code}"?`,
-      description:
-        newStatus === "cerrado"
-          ? "Quedará marcado como cerrado. Próximamente esto bloqueará modificaciones a calificaciones."
-          : "Vuelve a estado 'activo' y se limpia la marca de cierre.",
-      confirmLabel: newStatus === "cerrado" ? "Cerrar periodo" : "Reabrir",
+      title: newStatus === "cerrado"
+        ? i18n.t("academic.periods.confirmCloseTitle", { code: r.code })
+        : i18n.t("academic.periods.confirmReopenTitle", { code: r.code }),
+      description: newStatus === "cerrado"
+        ? i18n.t("academic.periods.confirmCloseDesc")
+        : i18n.t("academic.periods.confirmReopenDesc"),
+      confirmLabel: newStatus === "cerrado"
+        ? i18n.t("academic.periods.confirmCloseLabel")
+        : i18n.t("academic.periods.confirmReopenLabel"),
       tone: "warning",
     });
     if (!ok) return;
@@ -256,12 +252,9 @@ export function AdminAcademicPeriodsPanel() {
 
   const remove = async (r: AcademicPeriod) => {
     const ok = await confirm({
-      title: `¿Eliminar el periodo "${r.code}"?`,
-      description:
-        "Los cursos asociados quedarán con period_id NULL pero conservarán el texto del periodo. " +
-        "Si solo quieres dejar de ofrecer este periodo, considera marcarlo como cerrado. " +
-        "Esta acción no se puede deshacer.",
-      confirmLabel: "Eliminar",
+      title: i18n.t("academic.periods.confirmDeleteTitle", { code: r.code }),
+      description: i18n.t("academic.periods.confirmDeleteDesc"),
+      confirmLabel: i18n.t("academic.periods.confirmDeleteLabel"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -278,7 +271,7 @@ export function AdminAcademicPeriodsPanel() {
       entityId: r.id,
       entityName: r.code,
     });
-    toast.success(i18n.t("toast.modules_admin_AdminAcademicPeriodsPanel.periodDeleted", { defaultValue: "Periodo eliminado" }));
+    toast.success(i18n.t("academic.periods.toastDeleted"));
     void load();
   };
 
@@ -287,27 +280,25 @@ export function AdminAcademicPeriodsPanel() {
       <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 flex-wrap">
         <CardTitle className="text-base flex items-center gap-2">
           <CalendarRange className="h-4 w-4 text-emerald-500" />
-          Periodos académicos
+          {t("academic.periods.title")}
         </CardTitle>
         <Button size="sm" onClick={openNew}>
           <Plus className="h-3.5 w-3.5 mr-1" />
-          Nuevo periodo
+          {t("academic.periods.new")}
         </Button>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          Define los periodos lectivos (semestres, trimestres, año lectivo) con sus fechas. Los
-          cursos se asocian a un periodo desde su formulario. Cerrar un periodo lo deja marcado
-          para referencia histórica.
+          {t("academic.periods.description")}
         </p>
 
         {loading ? (
           <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
-            <Spinner size="sm" /> Cargando…
+            <Spinner size="sm" /> {t("academic.periods.loading")}
           </div>
         ) : loadError ? (
           <ErrorState
-            message="No pudimos cargar"
+            message={t("academic.periods.loadError")}
             hint={loadError}
             onRetry={() => setRetryNonce((n) => n + 1)}
           />
@@ -316,11 +307,11 @@ export function AdminAcademicPeriodsPanel() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-28">Código</TableHead>
-                  <TableHead className="hidden md:table-cell">Nombre</TableHead>
-                  <TableHead className="hidden sm:table-cell w-28">Inicio</TableHead>
-                  <TableHead className="hidden sm:table-cell w-28">Fin</TableHead>
-                  <TableHead className="w-28">Estado</TableHead>
+                  <TableHead className="w-28">{t("academic.periods.colCode")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("academic.periods.colName")}</TableHead>
+                  <TableHead className="hidden sm:table-cell w-28">{t("academic.periods.colStart")}</TableHead>
+                  <TableHead className="hidden sm:table-cell w-28">{t("academic.periods.colEnd")}</TableHead>
+                  <TableHead className="w-28">{t("academic.periods.colStatus")}</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
@@ -328,12 +319,12 @@ export function AdminAcademicPeriodsPanel() {
                 {rows.length === 0 ? (
                   <TableEmpty
                     colSpan={6}
-                    text="Sin periodos registrados"
-                    hint="Crea el primer periodo con el botón de arriba."
+                    text={t("academic.periods.empty")}
+                    hint={t("academic.periods.emptyHint")}
                   />
                 ) : (
                   rows.map((r) => {
-                    const b = STATUS_BADGE[r.status];
+                    const statusLabel = t(`academic.periods.status${r.status.charAt(0).toUpperCase()}${r.status.slice(1)}`);
                     return (
                       <TableRow key={r.id}>
                         <TableCell className="font-medium tabular-nums">{r.code}</TableCell>
@@ -347,22 +338,22 @@ export function AdminAcademicPeriodsPanel() {
                           <DateCell value={r.end_date} variant="date" />
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={`text-xs ${b.cls}`}>
-                            {b.label}
+                          <Badge variant="outline" className={`text-xs ${STATUS_BADGE_CLS[r.status]}`}>
+                            {statusLabel}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
                           <RowActionsMenu
                             actions={[
-                              { label: "Editar", icon: Pencil, onClick: () => openEdit(r) },
+                              { label: t("academic.periods.actionEdit"), icon: Pencil, onClick: () => openEdit(r) },
                               {
-                                label: r.status === "cerrado" ? "Reabrir" : "Cerrar periodo",
+                                label: r.status === "cerrado" ? t("academic.periods.actionReopen") : t("academic.periods.actionClose"),
                                 icon: r.status === "cerrado" ? Unlock : Lock,
                                 onClick: () => void toggleClose(r),
                                 separatorBefore: true,
                               },
                               {
-                                label: "Eliminar",
+                                label: t("academic.periods.actionDelete"),
                                 icon: Trash2,
                                 tone: "destructive",
                                 separatorBefore: true,
@@ -384,11 +375,11 @@ export function AdminAcademicPeriodsPanel() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{draft.id ? "Editar periodo" : "Nuevo periodo"}</DialogTitle>
+            <DialogTitle>{draft.id ? t("academic.periods.editTitle") : t("academic.periods.createTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label required>Código</Label>
+              <Label required>{t("academic.periods.labelCode")}</Label>
               <Input
                 value={draft.code}
                 onChange={(e) => setDraft({ ...draft, code: e.target.value })}
@@ -396,7 +387,7 @@ export function AdminAcademicPeriodsPanel() {
               />
             </div>
             <div className="space-y-1">
-              <Label>Nombre</Label>
+              <Label>{t("academic.periods.labelName")}</Label>
               <Input
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
@@ -405,14 +396,14 @@ export function AdminAcademicPeriodsPanel() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Inicio</Label>
+                <Label>{t("academic.periods.labelStart")}</Label>
                 <DatePicker
                   value={draft.start_date}
                   onChange={(v) => setDraft({ ...draft, start_date: v || "" })}
                 />
               </div>
               <div className="space-y-1">
-                <Label>Fin</Label>
+                <Label>{t("academic.periods.labelEnd")}</Label>
                 <DatePicker
                   value={draft.end_date}
                   onChange={(v) => setDraft({ ...draft, end_date: v || "" })}
@@ -420,7 +411,7 @@ export function AdminAcademicPeriodsPanel() {
               </div>
             </div>
             <div className="space-y-1">
-              <Label>Estado</Label>
+              <Label>{t("academic.periods.labelStatus")}</Label>
               <Select
                 value={draft.status}
                 onValueChange={(v) => setDraft({ ...draft, status: v as Status })}
@@ -429,19 +420,19 @@ export function AdminAcademicPeriodsPanel() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="planificado">Planificado</SelectItem>
-                  <SelectItem value="activo">Activo</SelectItem>
-                  <SelectItem value="cerrado">Cerrado</SelectItem>
+                  <SelectItem value="planificado">{t("academic.periods.statusPlanificado")}</SelectItem>
+                  <SelectItem value="activo">{t("academic.periods.statusActivo")}</SelectItem>
+                  <SelectItem value="cerrado">{t("academic.periods.statusCerrado")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
-              Cancelar
+              {t("academic.periods.cancel")}
             </Button>
             <Button onClick={() => void save()} disabled={saving}>
-              {saving ? "Guardando…" : draft.id ? "Guardar cambios" : "Crear"}
+              {saving ? t("academic.periods.saving") : draft.id ? t("academic.periods.saveChanges") : t("academic.periods.create")}
             </Button>
           </DialogFooter>
         </DialogContent>

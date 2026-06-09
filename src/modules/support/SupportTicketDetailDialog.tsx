@@ -45,6 +45,7 @@ import { formatDateTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { canDeleteSupportTicket } from "@/modules/support/ticket-permissions";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -94,6 +95,17 @@ export interface SupportAttachment {
   uploaded_at: string;
 }
 
+export function getStatusLabel(s: TicketStatus): string {
+  const map: Record<TicketStatus, string> = {
+    open: i18n.t("support.statusOpen"),
+    in_progress: i18n.t("support.statusInProgress"),
+    waiting_admin: i18n.t("support.statusWaitingAdmin"),
+    resolved: i18n.t("support.statusResolved"),
+    closed: i18n.t("support.statusClosed"),
+  };
+  return map[s];
+}
+/** @deprecated use getStatusLabel() */
 export const STATUS_LABEL: Record<TicketStatus, string> = {
   open: "Abierto",
   in_progress: "En progreso",
@@ -110,6 +122,16 @@ export const STATUS_TONE: Record<TicketStatus, string> = {
   closed: "bg-muted text-muted-foreground border-muted-foreground/30",
 };
 
+export function getPriorityLabel(p: TicketPriority): string {
+  const map: Record<TicketPriority, string> = {
+    low: i18n.t("support.priorityLow"),
+    normal: i18n.t("support.priorityNormal"),
+    high: i18n.t("support.priorityHigh"),
+    urgent: i18n.t("support.priorityUrgent"),
+  };
+  return map[p];
+}
+/** @deprecated use getPriorityLabel() */
 export const PRIORITY_LABEL: Record<TicketPriority, string> = {
   low: "Baja",
   normal: "Normal",
@@ -124,6 +146,17 @@ export const PRIORITY_TONE: Record<TicketPriority, string> = {
   urgent: "text-destructive font-semibold",
 };
 
+export function getCategoryLabel(c: TicketCategory): string {
+  const map: Record<TicketCategory, string> = {
+    peticion: i18n.t("support.categoryPeticion"),
+    queja: i18n.t("support.categoryQueja"),
+    reclamo: i18n.t("support.categoryReclamo"),
+    sugerencia: i18n.t("support.categorySugerencia"),
+    otro: i18n.t("support.categoryOtro"),
+  };
+  return map[c];
+}
+/** @deprecated use getCategoryLabel() */
 export const CATEGORY_LABEL: Record<TicketCategory, string> = {
   peticion: "Petición",
   queja: "Queja",
@@ -151,6 +184,7 @@ export function SupportTicketDetailDialog({
   currentUserId,
   onMutate,
 }: Props) {
+  const { t } = useTranslation();
   const confirm = useConfirm();
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [attachments, setAttachments] = useState<SupportAttachment[]>([]);
@@ -209,7 +243,7 @@ export function SupportTicketDetailDialog({
       setMessages(msgs);
       setAttachments((attsRes.data ?? []) as SupportAttachment[]);
     } catch (e) {
-      toast.error(friendlyError(e, "No pudimos cargar el ticket"));
+      toast.error(friendlyError(e, i18n.t("support.loadError")));
     } finally {
       setLoading(false);
     }
@@ -313,7 +347,7 @@ export function SupportTicketDetailDialog({
   const uploadFile = async (file: File) => {
     if (!ticket || !currentUserId || uploading) return;
     if (file.size > 25 * 1024 * 1024) {
-      toast.error(i18n.t("toast.modules_support_SupportTicketDetailDialog.fileTooLarge", { defaultValue: "El archivo supera 25 MB. Subí algo más pequeño." }));
+      toast.error(i18n.t("support.fileTooLarge"));
       return;
     }
     setUploading(true);
@@ -340,7 +374,7 @@ export function SupportTicketDetailDialog({
         toast.error(friendlyError(insErr, "Adjunto cargado pero no se registró"));
         return;
       }
-      toast.success(i18n.t("toast.modules_support_SupportTicketDetailDialog.attachmentUploaded", { defaultValue: "Adjunto cargado" }));
+      toast.success(i18n.t("support.attachmentUploaded"));
       await load();
     } catch (e) {
       toast.error(friendlyError(e, "Error subiendo"));
@@ -382,7 +416,7 @@ export function SupportTicketDetailDialog({
         toast.error(friendlyError(error, "No se pudo guardar"));
         return;
       }
-      toast.success(i18n.t("toast.modules_support_SupportTicketDetailDialog.changesSaved", { defaultValue: "Cambios guardados" }));
+      toast.success(i18n.t("support.changesSaved"));
       onMutate?.();
     } catch (e) {
       toast.error(friendlyError(e, "Error guardando"));
@@ -403,7 +437,7 @@ export function SupportTicketDetailDialog({
         return;
       }
       setStatus("in_progress");
-      toast.success(i18n.t("toast.modules_support_SupportTicketDetailDialog.assignedToYou", { defaultValue: "Asignado a vos" }));
+      toast.success(i18n.t("support.assignedToYou"));
       onMutate?.();
     } catch (e) {
       toast.error(friendlyError(e, "Error asignando"));
@@ -416,11 +450,10 @@ export function SupportTicketDetailDialog({
     // puede reabrirlo). Pedimos confirmación con tono `warning` (no
     // destructive — los datos no se pierden, solo el estado cambia).
     const ok = await confirm({
-      title: "¿Cerrar este ticket?",
-      description:
-        "Una vez cerrado, no podrás reabrirlo desde tu vista. Si lo necesitas reabierto, el SuperAdmin puede hacerlo. Esta acción no se puede deshacer desde tu rol.",
+      title: i18n.t("support.closeConfirmTitle"),
+      description: i18n.t("support.closeConfirmDesc"),
       tone: "warning",
-      confirmLabel: "Cerrar ticket",
+      confirmLabel: i18n.t("support.closeConfirmLabel"),
     });
     if (!ok) return;
     try {
@@ -429,10 +462,10 @@ export function SupportTicketDetailDialog({
         .update({ status: "closed" })
         .eq("id", ticket.id);
       if (error) {
-        toast.error(friendlyError(error, "No se pudo cerrar"));
+        toast.error(friendlyError(error, i18n.t("support.ticketClosed")));
         return;
       }
-      toast.success(i18n.t("toast.modules_support_SupportTicketDetailDialog.ticketClosed", { defaultValue: "Ticket cerrado" }));
+      toast.success(i18n.t("support.ticketClosed"));
       setStatus("closed");
       onMutate?.();
     } catch (e) {
@@ -456,17 +489,10 @@ export function SupportTicketDetailDialog({
   const deleteTicket = async () => {
     if (!ticket || !canDelete) return;
     const ok = await confirm({
-      title: i18n.t("toast.modules_support_SupportTicketDetailDialog.deleteConfirmTitle", {
-        defaultValue: "¿Eliminar este ticket?",
-      }),
-      description: i18n.t("toast.modules_support_SupportTicketDetailDialog.deleteConfirmDesc", {
-        defaultValue:
-          "El ticket y su conversación se eliminarán de tu bandeja. Esta acción no se puede deshacer.",
-      }),
+      title: i18n.t("support.deleteConfirmTitle"),
+      description: i18n.t("support.deleteConfirmDesc"),
       tone: "destructive",
-      confirmLabel: i18n.t("toast.modules_support_SupportTicketDetailDialog.deleteConfirmLabel", {
-        defaultValue: "Eliminar",
-      }),
+      confirmLabel: i18n.t("support.deleteConfirmLabel"),
     });
     if (!ok) return;
     try {
@@ -477,11 +503,7 @@ export function SupportTicketDetailDialog({
         toast.error(friendlyError(error, "No se pudo eliminar el ticket"));
         return;
       }
-      toast.success(
-        i18n.t("toast.modules_support_SupportTicketDetailDialog.ticketDeleted", {
-          defaultValue: "Ticket eliminado",
-        }),
-      );
+      toast.success(i18n.t("support.ticketDeleted"));
       onOpenChange(false);
       onMutate?.();
     } catch (e) {
@@ -512,28 +534,28 @@ export function SupportTicketDetailDialog({
               <DialogTitle className="text-base flex items-center gap-2 flex-wrap">
                 <span className="truncate">{ticket.subject}</span>
                 <Badge variant="outline" className={`text-[10px] ${STATUS_TONE[status]}`}>
-                  {STATUS_LABEL[status]}
+                  {getStatusLabel(status)}
                 </Badge>
                 <Badge variant="outline" className={`text-[10px] ${PRIORITY_TONE[ticket.priority]}`}>
-                  {PRIORITY_LABEL[ticket.priority]}
+                  {getPriorityLabel(ticket.priority)}
                 </Badge>
                 <Badge variant="secondary" className="text-[10px]">
-                  {CATEGORY_LABEL[ticket.category]}
+                  {getCategoryLabel(ticket.category)}
                 </Badge>
               </DialogTitle>
               <DialogDescription className="text-xs mt-1">
-                Abierto por <strong>{ticket.creator_name ?? "—"}</strong>
+                {t("support.openedBy")} <strong>{ticket.creator_name ?? "—"}</strong>
                 {mode === "superadmin" && ticket.tenant_name && (
                   <>
                     {" "}
-                    de <strong>{ticket.tenant_name}</strong>
+                    {t("support.openedByTenant")} <strong>{ticket.tenant_name}</strong>
                   </>
                 )}
                 {" · "}
                 {formatDateTime(ticket.created_at)}
                 {ticket.resolved_at && (
                   <>
-                    {" · Resuelto "}
+                    {" · "}{t("support.resolvedLabel")}{" "}
                     {formatDateTime(ticket.resolved_at)}
                   </>
                 )}
@@ -552,7 +574,7 @@ export function SupportTicketDetailDialog({
         {/* Adjuntos del ticket inicial */}
         {generalAttachments.length > 0 && (
           <div className="space-y-1">
-            <Label className="text-xs">Adjuntos del ticket</Label>
+            <Label className="text-xs">{t("support.attachments")}</Label>
             <div className="flex flex-wrap gap-1">
               {generalAttachments.map((a) => (
                 <Button
@@ -575,11 +597,11 @@ export function SupportTicketDetailDialog({
           <Card className="border-violet-500/30 bg-violet-500/5">
             <CardContent className="p-3 space-y-2">
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                Gestión (SuperAdmin)
+                {t("support.managementTitle")}
               </Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-xs">Estado</Label>
+                  <Label className="text-xs">{t("support.statusLabel")}</Label>
                   <Select value={status} onValueChange={(v) => setStatus(v as TicketStatus)}>
                     <SelectTrigger className="h-8 text-xs">
                       <SelectValue />
@@ -587,7 +609,7 @@ export function SupportTicketDetailDialog({
                     <SelectContent>
                       {(Object.keys(STATUS_LABEL) as TicketStatus[]).map((s) => (
                         <SelectItem key={s} value={s}>
-                          {STATUS_LABEL[s]}
+                          {getStatusLabel(s)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -602,24 +624,24 @@ export function SupportTicketDetailDialog({
                       onClick={() => void assignToMe()}
                     >
                       <UserCheck className="h-3.5 w-3.5 mr-1" />
-                      Asignarme
+                      {t("support.assignToMe")}
                     </Button>
                   )}
                   {ticket.assigned_to && (
                     <div className="text-xs text-muted-foreground truncate flex-1">
-                      Asignado: {ticket.assignee_name ?? ticket.assigned_to.slice(0, 8) + "…"}
+                      {t("support.assignedTo", { name: ticket.assignee_name ?? ticket.assigned_to.slice(0, 8) + "…" })}
                     </div>
                   )}
                 </div>
               </div>
               <div>
-                <Label className="text-xs">Notas de resolución (opcional)</Label>
+                <Label className="text-xs">{t("support.resolutionNotes")}</Label>
                 <Textarea
                   value={resolutionNotes}
                   onChange={(e) => setResolutionNotes(e.target.value)}
                   rows={2}
                   className="text-sm"
-                  placeholder="Anota qué se hizo, decisiones tomadas, etc."
+                  placeholder={t("support.resolutionNotesPlaceholder")}
                 />
               </div>
               <Button
@@ -629,7 +651,7 @@ export function SupportTicketDetailDialog({
                 className="w-full"
               >
                 {savingMeta && <Spinner size="sm" className="mr-2" />}
-                Guardar gestión
+                {t("support.saveMeta")}
               </Button>
             </CardContent>
           </Card>
@@ -637,18 +659,18 @@ export function SupportTicketDetailDialog({
 
         {/* Conversación */}
         <div className="space-y-2">
-          <Label className="text-xs">Conversación</Label>
+          <Label className="text-xs">{t("support.conversation")}</Label>
           <div
             ref={scrollRef}
             className="border rounded-md p-2 max-h-72 overflow-y-auto space-y-2 bg-muted/20"
           >
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground p-2">
-                <Spinner size="sm" /> Cargando…
+                <Spinner size="sm" /> {t("support.loading")}
               </div>
             ) : messages.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-3">
-                Sin respuestas todavía. {mode === "admin" ? "El SuperAdmin te responderá pronto." : "Sé el primero en responder."}
+                {mode === "admin" ? t("support.noRepliesAdmin") : t("support.noRepliesSuper")}
               </p>
             ) : (
               messages.map((m) => {
@@ -659,7 +681,7 @@ export function SupportTicketDetailDialog({
                     className={`flex flex-col gap-0.5 ${isMine ? "items-end" : "items-start"}`}
                   >
                     <div className="text-[10px] text-muted-foreground px-1">
-                      <strong>{m.sender_name ?? (isMine ? "Vos" : "—")}</strong>
+                      <strong>{m.sender_name ?? (isMine ? t("support.senderMe") : "—")}</strong>
                       {" · "}
                       {formatDateTime(m.created_at)}
                     </div>
@@ -694,7 +716,7 @@ export function SupportTicketDetailDialog({
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}
                 rows={3}
-                placeholder="Escribí tu respuesta…"
+                placeholder={t("support.replyPlaceholder")}
                 className="text-sm"
                 onKeyDown={(e) => {
                   if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
@@ -702,7 +724,7 @@ export function SupportTicketDetailDialog({
                     void sendReply();
                   }
                 }}
-                aria-label="Mensaje de respuesta"
+                aria-label={t("support.replyAriaLabel")}
               />
               <div className="flex items-center gap-2">
                 <input
@@ -713,7 +735,7 @@ export function SupportTicketDetailDialog({
                     const f = e.target.files?.[0];
                     if (f) void uploadFile(f);
                   }}
-                  aria-label="Adjuntar archivo al ticket"
+                  aria-label={t("support.attachAriaLabel")}
                 />
                 <Button
                   size="sm"
@@ -721,14 +743,14 @@ export function SupportTicketDetailDialog({
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
                   type="button"
-                  aria-label="Adjuntar archivo"
+                  aria-label={t("support.attachButton")}
                 >
                   {uploading ? (
                     <Spinner size="sm" className="mr-1" />
                   ) : (
                     <Paperclip className="h-3.5 w-3.5 mr-1" />
                   )}
-                  Adjuntar
+                  {t("support.attachButton")}
                 </Button>
                 <Button
                   size="sm"
@@ -741,7 +763,7 @@ export function SupportTicketDetailDialog({
                   ) : (
                     <Send className="h-3.5 w-3.5 mr-1" />
                   )}
-                  Enviar (Ctrl+Enter)
+                  {t("support.sendReply")}
                 </Button>
               </div>
             </form>
@@ -759,13 +781,13 @@ export function SupportTicketDetailDialog({
                 className="w-full"
               >
                 <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                Cerrar este ticket
+                {t("support.closeTicket")}
               </Button>
             )}
 
           {status === "closed" && (
             <p className="text-xs text-muted-foreground text-center italic">
-              Este ticket está cerrado. {mode === "superadmin" ? "Cambia el estado arriba para reabrirlo." : ""}
+              {t("support.closedTicket")}{mode === "superadmin" ? " " + t("support.closedTicketReopen") : ""}
             </p>
           )}
 
@@ -779,7 +801,7 @@ export function SupportTicketDetailDialog({
               className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
             >
               <Trash2 className="h-3.5 w-3.5 mr-1" />
-              Eliminar ticket
+              {t("support.deleteTicket")}
             </Button>
           )}
         </div>
@@ -787,7 +809,7 @@ export function SupportTicketDetailDialog({
         {/* Adjuntos sueltos (subidos sin estar atados a un mensaje) */}
         {attachments.filter((a) => a.message_id !== null).length > 0 && (
           <div className="space-y-1">
-            <Label className="text-xs">Otros adjuntos</Label>
+            <Label className="text-xs">{t("support.otherAttachments")}</Label>
             <div className="flex flex-wrap gap-1">
               {attachments
                 .filter((a) => a.message_id !== null)

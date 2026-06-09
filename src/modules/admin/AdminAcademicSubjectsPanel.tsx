@@ -52,6 +52,7 @@ import { friendlyError } from "@/shared/lib/db-errors";
 import { logEvent } from "@/shared/lib/audit";
 import { useNavigate } from "@tanstack/react-router";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -128,6 +129,7 @@ const EMPTY_DRAFT: Draft = {
 };
 
 export function AdminAcademicSubjectsPanel() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const confirm = useConfirm();
   const navigate = useNavigate();
@@ -237,11 +239,7 @@ export function AdminAcademicSubjectsPanel() {
     if (!user) return;
     const name = draft.name.trim();
     if (!name) {
-      toast.error(
-        i18n.t("toast.modules_admin_AdminAcademicSubjectsPanel.nameRequired", {
-          defaultValue: "El nombre es obligatorio",
-        }),
-      );
+      toast.error(i18n.t("academic.subjects.toastNameRequired"));
       return;
     }
     // Pesos de evaluación: si el admin no completó ninguno (suma 0),
@@ -250,13 +248,7 @@ export function AdminAcademicSubjectsPanel() {
     const evalSum =
       draft.exam_weight + draft.workshop_weight + draft.project_weight + draft.attendance_weight;
     if (evalSum > 0 && Math.abs(evalSum - 100) > 0.01) {
-      toast.error(
-        i18n.t("toast.modules_admin_AdminAcademicSubjectsPanel.evalWeightsMustSum100", {
-          defaultValue:
-            "Los pesos del sistema de evaluación deben sumar 100 (actualmente {{sum}})",
-          sum: evalSum,
-        }),
-      );
+      toast.error(i18n.t("academic.subjects.toastEvalWeightsMustSum100", { sum: evalSum }));
       return;
     }
     setSaving(true);
@@ -305,29 +297,22 @@ export function AdminAcademicSubjectsPanel() {
         credits: payload.credits,
       },
     });
-    toast.success(draft.id ? "Asignatura actualizada" : "Asignatura creada");
+    toast.success(draft.id ? i18n.t("academic.subjects.toastUpdated") : i18n.t("academic.subjects.toastCreated"));
     setOpen(false);
     void load();
   };
 
   const remove = async (r: Subject) => {
-    if ((r.course_count ?? 0) > 0) {
-      const ok = await confirm({
-        title: `¿Eliminar "${r.name}"?`,
-        description: `Hay ${r.course_count} curso(s) asociados. Quedarán con subject_id NULL pero no se borran. Esta acción no se puede deshacer.`,
-        confirmLabel: "Eliminar",
-        tone: "destructive",
-      });
-      if (!ok) return;
-    } else {
-      const ok = await confirm({
-        title: `¿Eliminar "${r.name}"?`,
-        description: "Esta acción no se puede deshacer.",
-        confirmLabel: "Eliminar",
-        tone: "destructive",
-      });
-      if (!ok) return;
-    }
+    const hasCourses = (r.course_count ?? 0) > 0;
+    const ok = await confirm({
+      title: i18n.t("academic.subjects.confirmDeleteTitle", { name: r.name }),
+      description: hasCourses
+        ? i18n.t("academic.subjects.confirmDeleteDescWithCourses", { count: r.course_count })
+        : i18n.t("academic.subjects.confirmDeleteDesc"),
+      confirmLabel: i18n.t("academic.subjects.confirmDeleteLabel"),
+      tone: "destructive",
+    });
+    if (!ok) return;
     const { error } = await db.from("academic_subjects").delete().eq("id", r.id);
     if (error) {
       toast.error(friendlyError(error));
@@ -342,11 +327,7 @@ export function AdminAcademicSubjectsPanel() {
       entityName: r.name,
       metadata: { course_count: r.course_count ?? 0 },
     });
-    toast.success(
-      i18n.t("toast.modules_admin_AdminAcademicSubjectsPanel.subjectDeleted", {
-        defaultValue: "Asignatura eliminada",
-      }),
-    );
+    toast.success(i18n.t("academic.subjects.toastDeleted"));
     void load();
   };
 
@@ -355,20 +336,16 @@ export function AdminAcademicSubjectsPanel() {
       <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
         <CardTitle className="text-base flex items-center gap-2">
           <BookOpen className="h-4 w-4 text-cyan-500" />
-          Asignaturas / Materias
+          {t("academic.subjects.title")}
         </CardTitle>
         <Button size="sm" onClick={openNew}>
           <Plus className="h-3.5 w-3.5 mr-1" />
-          Nueva asignatura
+          {t("academic.subjects.new")}
         </Button>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          La materia abstracta del plan de estudios. Sirve para universidad (asignaturas
-          por semestre), colegio (materias por grado) o instituto técnico (módulos por
-          nivel). Los cursos se asocian a una asignatura desde su formulario — una misma
-          &quot;Programación II&quot; / &quot;Matemáticas 5°&quot; puede tener N cursos
-          (grupos/periodos distintos).
+          {t("academic.subjects.description")}
         </p>
 
         <div className="flex flex-col sm:flex-row gap-2">
@@ -376,7 +353,7 @@ export function AdminAcademicSubjectsPanel() {
             <SearchInput
               value={search}
               onChange={setSearch}
-              placeholder="Buscar por nombre o código…"
+              placeholder={t("academic.subjects.searchPlaceholder")}
             />
           </div>
           <Select value={programFilter} onValueChange={setProgramFilter}>
@@ -384,7 +361,7 @@ export function AdminAcademicSubjectsPanel() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos los programas</SelectItem>
+              <SelectItem value="all">{t("academic.subjects.filterAllPrograms")}</SelectItem>
               {programs.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {p.name}
@@ -396,11 +373,11 @@ export function AdminAcademicSubjectsPanel() {
 
         {loading ? (
           <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
-            <Spinner size="sm" /> Cargando…
+            <Spinner size="sm" /> {t("academic.subjects.loading")}
           </div>
         ) : loadError ? (
           <ErrorState
-            message="No pudimos cargar"
+            message={t("academic.subjects.loadError")}
             hint={loadError}
             onRetry={() => setRetryNonce((n) => n + 1)}
           />
@@ -409,12 +386,12 @@ export function AdminAcademicSubjectsPanel() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="max-w-[260px]">Nombre</TableHead>
-                  <TableHead className="hidden sm:table-cell w-24">Código</TableHead>
-                  <TableHead className="hidden md:table-cell">Programa / Nivel</TableHead>
-                  <TableHead className="hidden sm:table-cell w-20 text-center">Grado</TableHead>
-                  <TableHead className="hidden sm:table-cell w-20 text-center">Cr.</TableHead>
-                  <TableHead className="w-20 text-center">Cursos</TableHead>
+                  <TableHead className="max-w-[260px]">{t("academic.subjects.colName")}</TableHead>
+                  <TableHead className="hidden sm:table-cell w-24">{t("academic.subjects.colCode")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("academic.subjects.colProgram")}</TableHead>
+                  <TableHead className="hidden sm:table-cell w-20 text-center">{t("academic.subjects.colGrade")}</TableHead>
+                  <TableHead className="hidden sm:table-cell w-20 text-center">{t("academic.subjects.colCredits")}</TableHead>
+                  <TableHead className="w-20 text-center">{t("academic.subjects.colCourses")}</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
@@ -422,8 +399,8 @@ export function AdminAcademicSubjectsPanel() {
                 {filtered.length === 0 ? (
                   <TableEmpty
                     colSpan={7}
-                    text="Sin asignaturas"
-                    hint="Crea la primera asignatura con el botón de arriba."
+                    text={t("academic.subjects.empty")}
+                    hint={t("academic.subjects.emptyHint")}
                   />
                 ) : (
                   filtered.map((r) => (
@@ -433,7 +410,7 @@ export function AdminAcademicSubjectsPanel() {
                           {r.name}
                           {!r.active && (
                             <Badge variant="outline" className="ml-2 text-[10px]">
-                              inactiva
+                              {t("academic.subjects.inactiveBadge")}
                             </Badge>
                           )}
                         </div>
@@ -456,13 +433,9 @@ export function AdminAcademicSubjectsPanel() {
                       <TableCell className="text-right">
                         <RowActionsMenu
                           actions={[
-                            { label: "Editar", icon: Pencil, onClick: () => openEdit(r) },
+                            { label: t("academic.subjects.actionEdit"), icon: Pencil, onClick: () => openEdit(r) },
                             {
-                              // Instanciar un curso a partir de esta asignatura.
-                              // Pasamos el subjectId vía search param para que
-                              // la ruta de cursos abra el dialog pre-rellenado
-                              // con name, program_id, semestre y pesos default.
-                              label: "Crear curso desde esta asignatura",
+                              label: t("academic.subjects.actionCreateCourse"),
                               icon: FilePlus2,
                               onClick: () =>
                                 void navigate({
@@ -472,7 +445,7 @@ export function AdminAcademicSubjectsPanel() {
                               separatorBefore: true,
                             },
                             (r.course_count ?? 0) > 0 && {
-                              label: `Ver cursos asociados (${r.course_count})`,
+                              label: t("academic.subjects.actionViewCourses", { count: r.course_count }),
                               icon: BookOpenCheck,
                               onClick: () =>
                                 void navigate({
@@ -481,7 +454,7 @@ export function AdminAcademicSubjectsPanel() {
                                 }),
                             },
                             {
-                              label: "Eliminar",
+                              label: t("academic.subjects.actionDelete"),
                               icon: Trash2,
                               tone: "destructive",
                               separatorBefore: true,
@@ -502,12 +475,12 @@ export function AdminAcademicSubjectsPanel() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{draft.id ? "Editar asignatura" : "Nueva asignatura"}</DialogTitle>
+            <DialogTitle>{draft.id ? t("academic.subjects.editTitle") : t("academic.subjects.createTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3">
               <div className="space-y-1">
-                <Label required>Nombre</Label>
+                <Label required>{t("academic.subjects.labelName")}</Label>
                 <Input
                   value={draft.name}
                   onChange={(e) => setDraft({ ...draft, name: e.target.value })}
@@ -515,7 +488,7 @@ export function AdminAcademicSubjectsPanel() {
                 />
               </div>
               <div className="space-y-1">
-                <Label>Código</Label>
+                <Label>{t("academic.subjects.labelCode")}</Label>
                 <Input
                   value={draft.code}
                   onChange={(e) => setDraft({ ...draft, code: e.target.value })}
@@ -524,7 +497,7 @@ export function AdminAcademicSubjectsPanel() {
               </div>
             </div>
             <div className="space-y-1">
-              <Label>Programa / Nivel</Label>
+              <Label>{t("academic.subjects.labelProgram")}</Label>
               <Select
                 value={draft.program_id ?? "__none__"}
                 onValueChange={(v) =>
@@ -532,10 +505,10 @@ export function AdminAcademicSubjectsPanel() {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Sin programa (transversal)" />
+                  <SelectValue placeholder={t("academic.subjects.placeholderNoProgram")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Sin programa (transversal)</SelectItem>
+                  <SelectItem value="__none__">{t("academic.subjects.placeholderNoProgram")}</SelectItem>
                   {programs.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
@@ -546,7 +519,7 @@ export function AdminAcademicSubjectsPanel() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Grado / Semestre / Cuatrimestre</Label>
+                <Label>{t("academic.subjects.labelGrade")}</Label>
                 <Input
                   type="number"
                   min={1}
@@ -562,7 +535,7 @@ export function AdminAcademicSubjectsPanel() {
                 />
               </div>
               <div className="space-y-1">
-                <Label>Créditos</Label>
+                <Label>{t("academic.subjects.labelCredits")}</Label>
                 <Input
                   type="number"
                   min={0}
@@ -579,7 +552,7 @@ export function AdminAcademicSubjectsPanel() {
               </div>
             </div>
             <div className="space-y-1">
-              <Label>Descripción</Label>
+              <Label>{t("academic.subjects.labelDescription")}</Label>
               <Textarea
                 value={draft.description}
                 onChange={(e) => setDraft({ ...draft, description: e.target.value })}
@@ -593,9 +566,9 @@ export function AdminAcademicSubjectsPanel() {
                 de la letra; sirven como referencia institucional + para que
                 los informes (acuerdo pedagógico, acta) puedan citarlos. */}
             <div className="rounded-md border p-3 space-y-3 bg-muted/30">
-              <p className="text-sm font-medium">Definición del plan</p>
+              <p className="text-sm font-medium">{t("academic.subjects.labelPlanTitle")}</p>
               <div className="space-y-1">
-                <Label className="text-xs">Objetivos</Label>
+                <Label className="text-xs">{t("academic.subjects.labelObjetivos")}</Label>
                 <Textarea
                   value={draft.objetivos}
                   onChange={(e) => setDraft({ ...draft, objetivos: e.target.value })}
@@ -604,7 +577,7 @@ export function AdminAcademicSubjectsPanel() {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Contenidos / temáticas</Label>
+                <Label className="text-xs">{t("academic.subjects.labelContenidos")}</Label>
                 <Textarea
                   value={draft.contenidos}
                   onChange={(e) => setDraft({ ...draft, contenidos: e.target.value })}
@@ -613,7 +586,7 @@ export function AdminAcademicSubjectsPanel() {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Bibliografía sugerida</Label>
+                <Label className="text-xs">{t("academic.subjects.labelBibliografia")}</Label>
                 <Textarea
                   value={draft.bibliografia}
                   onChange={(e) => setDraft({ ...draft, bibliografia: e.target.value })}
@@ -622,7 +595,7 @@ export function AdminAcademicSubjectsPanel() {
                 />
               </div>
               <div>
-                <Label className="text-xs">Intensidad horaria semanal</Label>
+                <Label className="text-xs">{t("academic.subjects.labelIntensidad")}</Label>
                 <Input
                   type="number"
                   min={0}
@@ -647,14 +620,14 @@ export function AdminAcademicSubjectsPanel() {
                 usa los defaults del sistema. */}
             <div className="rounded-md border p-3 space-y-3 bg-muted/30">
               <p className="text-sm font-medium">
-                Sistema de evaluación sugerido{" "}
+                {t("academic.subjects.labelEvalTitle")}{" "}
                 <span className="text-xs font-normal text-muted-foreground">
-                  (los pesos deben sumar 100; déjalo todo en 0 para usar defaults)
+                  {t("academic.subjects.labelEvalNote")}
                 </span>
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
-                  <Label className="text-xs">% Exámenes</Label>
+                  <Label className="text-xs">{t("academic.subjects.labelExamWeight")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -666,7 +639,7 @@ export function AdminAcademicSubjectsPanel() {
                   />
                 </div>
                 <div>
-                  <Label className="text-xs">% Talleres</Label>
+                  <Label className="text-xs">{t("academic.subjects.labelWorkshopWeight")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -678,7 +651,7 @@ export function AdminAcademicSubjectsPanel() {
                   />
                 </div>
                 <div>
-                  <Label className="text-xs">% Proyectos</Label>
+                  <Label className="text-xs">{t("academic.subjects.labelProjectWeight")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -690,7 +663,7 @@ export function AdminAcademicSubjectsPanel() {
                   />
                 </div>
                 <div>
-                  <Label className="text-xs">% Asistencia</Label>
+                  <Label className="text-xs">{t("academic.subjects.labelAttendanceWeight")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -703,7 +676,7 @@ export function AdminAcademicSubjectsPanel() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground tabular-nums">
-                Suma actual:{" "}
+                {t("academic.subjects.evalSumLabel")}{" "}
                 <strong>
                   {draft.exam_weight +
                     draft.workshop_weight +
@@ -719,15 +692,15 @@ export function AdminAcademicSubjectsPanel() {
                 checked={draft.active}
                 onCheckedChange={(v) => setDraft({ ...draft, active: v })}
               />
-              <Label className="text-sm">Activa (aparece en el selector de curso)</Label>
+              <Label className="text-sm">{t("academic.subjects.labelActive")}</Label>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
-              Cancelar
+              {t("academic.subjects.cancel")}
             </Button>
             <Button onClick={() => void save()} disabled={saving}>
-              {saving ? "Guardando…" : draft.id ? "Guardar cambios" : "Crear"}
+              {saving ? t("academic.subjects.saving") : draft.id ? t("academic.subjects.saveChanges") : t("academic.subjects.create")}
             </Button>
           </DialogFooter>
         </DialogContent>
