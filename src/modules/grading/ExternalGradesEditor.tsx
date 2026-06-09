@@ -21,6 +21,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { HelpHint } from "@/components/ui/help-hint";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 /**
  * Editor de notas para actividades externas (parciales/talleres
@@ -71,6 +72,7 @@ interface Row {
 }
 
 export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
+  const { t } = useTranslation();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -173,9 +175,9 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
     n: number | null,
   ): { ok: true; value: number | null } | { ok: false; msg: string } => {
     if (n == null) return { ok: true, value: null };
-    if (Number.isNaN(n)) return { ok: false, msg: "Nota inválida" };
-    if (n < 0) return { ok: false, msg: "La nota no puede ser negativa" };
-    if (n > maxScore) return { ok: false, msg: `La nota no puede superar ${maxScore}` };
+    if (Number.isNaN(n)) return { ok: false, msg: i18n.t("externalGrades.errorNoteInvalid") };
+    if (n < 0) return { ok: false, msg: i18n.t("externalGrades.errorNoteNegative") };
+    if (n > maxScore) return { ok: false, msg: i18n.t("externalGrades.errorNoteMax", { max: maxScore }) };
     return { ok: true, value: n };
   };
 
@@ -188,13 +190,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
   const saveRow = async (row: Row): Promise<boolean> => {
     const v = validateGrade(row.grade);
     if (!v.ok) {
-      toast.error(
-        i18n.t("toast.modules_grading_ExternalGradesEditor.gradeValidationFailed", {
-          defaultValue: "{{name}}: {{message}}",
-          name: row.fullName,
-          message: v.msg,
-        }),
-      );
+      toast.error(i18n.t("externalGrades.toastSaveFailed", { name: row.fullName, error: v.msg }));
       return false;
     }
     const now = new Date().toISOString();
@@ -212,13 +208,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           })
           .eq("id", row.submissionId);
         if (error) {
-          toast.error(
-            i18n.t("toast.modules_grading_ExternalGradesEditor.saveRowFailed", {
-              defaultValue: "{{name}}: {{error}}",
-              name: row.fullName,
-              error: friendlyError(error),
-            }),
-          );
+          toast.error(i18n.t("externalGrades.toastSaveFailed", { name: row.fullName, error: friendlyError(error) }));
           return false;
         }
       } else {
@@ -237,13 +227,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           .select("id")
           .single();
         if (error) {
-          toast.error(
-            i18n.t("toast.modules_grading_ExternalGradesEditor.saveRowFailed", {
-              defaultValue: "{{name}}: {{error}}",
-              name: row.fullName,
-              error: friendlyError(error),
-            }),
-          );
+          toast.error(i18n.t("externalGrades.toastSaveFailed", { name: row.fullName, error: friendlyError(error) }));
           return false;
         }
         if (data?.id) updateRow(row.userId, { submissionId: data.id });
@@ -260,13 +244,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           })
           .eq("id", row.submissionId);
         if (error) {
-          toast.error(
-            i18n.t("toast.modules_grading_ExternalGradesEditor.saveRowFailed", {
-              defaultValue: "{{name}}: {{error}}",
-              name: row.fullName,
-              error: friendlyError(error),
-            }),
-          );
+          toast.error(i18n.t("externalGrades.toastSaveFailed", { name: row.fullName, error: friendlyError(error) }));
           return false;
         }
       } else {
@@ -283,13 +261,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           .select("id")
           .single();
         if (error) {
-          toast.error(
-            i18n.t("toast.modules_grading_ExternalGradesEditor.saveRowFailed", {
-              defaultValue: "{{name}}: {{error}}",
-              name: row.fullName,
-              error: friendlyError(error),
-            }),
-          );
+          toast.error(i18n.t("externalGrades.toastSaveFailed", { name: row.fullName, error: friendlyError(error) }));
           return false;
         }
         if (data?.id) updateRow(row.userId, { submissionId: data.id });
@@ -307,13 +279,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           })
           .eq("id", row.submissionId);
         if (error) {
-          toast.error(
-            i18n.t("toast.modules_grading_ExternalGradesEditor.saveRowFailed", {
-              defaultValue: "{{name}}: {{error}}",
-              name: row.fullName,
-              error: friendlyError(error),
-            }),
-          );
+          toast.error(i18n.t("externalGrades.toastSaveFailed", { name: row.fullName, error: friendlyError(error) }));
           return false;
         }
       } else {
@@ -330,13 +296,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           .select("id")
           .single();
         if (error) {
-          toast.error(
-            i18n.t("toast.modules_grading_ExternalGradesEditor.saveRowFailed", {
-              defaultValue: "{{name}}: {{error}}",
-              name: row.fullName,
-              error: friendlyError(error),
-            }),
-          );
+          toast.error(i18n.t("externalGrades.toastSaveFailed", { name: row.fullName, error: friendlyError(error) }));
           return false;
         }
         if (data?.id) updateRow(row.userId, { submissionId: data.id });
@@ -356,12 +316,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           originalGrade: row.grade,
           originalFeedback: row.feedback,
         });
-        toast.success(
-          i18n.t("toast.modules_grading_ExternalGradesEditor.gradeSaved", {
-            defaultValue: "Nota guardada: {{name}}",
-            name: row.fullName,
-          }),
-        );
+        toast.success(i18n.t("externalGrades.toastSaved", { name: row.fullName }));
       }
     } finally {
       setSavingId(null);
@@ -403,35 +358,11 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
         }
       }
       if (okCount > 0) {
-        const savedPart =
-          okCount === 1
-            ? i18n.t("toast.modules_grading_ExternalGradesEditor.bulkSavedOne", {
-                defaultValue: "{{count}} cambio guardado",
-                count: okCount,
-              })
-            : i18n.t("toast.modules_grading_ExternalGradesEditor.bulkSavedMany", {
-                defaultValue: "{{count}} cambios guardados",
-                count: okCount,
-              });
-        const failPart =
-          failCount > 0
-            ? failCount === 1
-              ? i18n.t("toast.modules_grading_ExternalGradesEditor.bulkFailedOne", {
-                  defaultValue: " · {{count}} fallido",
-                  count: failCount,
-                })
-              : i18n.t("toast.modules_grading_ExternalGradesEditor.bulkFailedMany", {
-                  defaultValue: " · {{count}} fallidos",
-                  count: failCount,
-                })
-            : "";
+        const savedPart = i18n.t("externalGrades.toastBulkSaved", { count: okCount });
+        const failPart = failCount > 0 ? i18n.t("externalGrades.toastBulkFailed", { count: failCount }) : "";
         toast.success(savedPart + failPart);
       } else if (failCount === 0) {
-        toast.info(
-          i18n.t("toast.modules_grading_ExternalGradesEditor.noUnsavedChanges", {
-            defaultValue: "No hay cambios sin guardar",
-          }),
-        );
+        toast.info(i18n.t("externalGrades.toastNoChanges"));
       }
     } finally {
       setBulkSaving(false);
@@ -460,16 +391,12 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <ClipboardList className="h-4 w-4 text-primary" />
-            Notas externas
-            <HelpHint>
-              Esta actividad ya ocurrió fuera de la plataforma. Ingresa la nota de cada estudiante
-              (0–{maxScore}) para que cuente en el cálculo del corte. Usa coma para decimales (ej.{" "}
-              <strong>4,5</strong>).
-            </HelpHint>
+            {t("externalGrades.title")}
+            <HelpHint>{t("externalGrades.helpHint", { max: maxScore })}</HelpHint>
           </CardTitle>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-[11px]">
-              {summary.graded}/{summary.total} con nota
+              {t("externalGrades.gradedBadge", { graded: summary.graded, total: summary.total })}
             </Badge>
             <Button
               size="sm"
@@ -478,8 +405,8 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
               className="h-8 text-xs"
               title={
                 dirtyRows.length === 0
-                  ? "No hay cambios sin guardar"
-                  : `Guardar ${dirtyRows.length} cambio(s) pendiente(s)`
+                  ? t("externalGrades.saveAllTitleNone")
+                  : t("externalGrades.saveAllTitlePending", { count: dirtyRows.length })
               }
             >
               {bulkSaving ? (
@@ -487,7 +414,9 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
               ) : (
                 <Save className="h-3.5 w-3.5 mr-1.5" />
               )}
-              {dirtyRows.length > 0 ? `Guardar todos (${dirtyRows.length})` : "Guardar todos"}
+              {dirtyRows.length > 0
+                ? t("externalGrades.saveAllButtonCount", { count: dirtyRows.length })
+                : t("externalGrades.saveAllButton")}
             </Button>
           </div>
         </div>
@@ -498,14 +427,14 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar estudiante por nombre o correo…"
+                placeholder={t("externalGrades.searchPlaceholder")}
                 className="h-8 pl-8 pr-8 text-xs"
               />
               {search && (
                 <button
                   type="button"
                   onClick={() => setSearch("")}
-                  aria-label="Limpiar búsqueda"
+                  aria-label={t("externalGrades.clearSearch")}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -514,7 +443,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
             </div>
             {search && (
               <span className="text-[11px] text-muted-foreground tabular-nums">
-                {filteredRows.length} de {rows.length}
+                {t("externalGrades.filterCount", { filtered: filteredRows.length, total: rows.length })}
               </span>
             )}
           </div>
@@ -523,16 +452,16 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
       <CardContent className="p-0 overflow-x-auto">
         {!loading && rows.length === 0 ? (
           <p className="text-sm text-muted-foreground p-4 text-center">
-            No hay estudiantes matriculados en este curso aún.
+            {t("externalGrades.empty")}
           </p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-40">Estudiante</TableHead>
-                <TableHead className="w-32">Nota</TableHead>
-                <TableHead className="min-w-48 hidden sm:table-cell">Observación</TableHead>
-                <TableHead className="w-28 text-right">Acción</TableHead>
+                <TableHead className="min-w-40">{t("externalGrades.colStudent")}</TableHead>
+                <TableHead className="w-32">{t("externalGrades.colScore")}</TableHead>
+                <TableHead className="min-w-48 hidden sm:table-cell">{t("externalGrades.colObservation")}</TableHead>
+                <TableHead className="w-28 text-right">{t("externalGrades.colAction")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -540,7 +469,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
               {!loading && filteredRows.length === 0 && search && (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center text-sm text-muted-foreground py-6">
-                    Ningún estudiante coincide con "{search}".
+                    {t("externalGrades.noMatch", { q: search })}
                   </TableCell>
                 </TableRow>
               )}
@@ -573,7 +502,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
                         rows={2}
                         value={row.feedback}
                         onChange={(e) => updateRow(row.userId, { feedback: e.target.value })}
-                        placeholder="Comentario opcional"
+                        placeholder={t("externalGrades.feedbackPlaceholder")}
                         className="min-h-[44px] text-xs resize-y"
                       />
                     </TableCell>
@@ -592,7 +521,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
                         ) : (
                           <Save className="h-3.5 w-3.5 mr-1" />
                         )}
-                        Guardar
+                        {t("externalGrades.saveButton")}
                       </Button>
                     </TableCell>
                   </TableRow>

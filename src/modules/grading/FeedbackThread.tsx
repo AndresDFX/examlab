@@ -35,6 +35,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { formatDateTime } from "@/shared/lib/format";
 import { toast } from "sonner";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { FeedbackCommentAttachments } from "@/modules/grading/FeedbackCommentAttachments";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -100,6 +101,7 @@ export function FeedbackThread({
   className,
   onChanged,
 }: Props) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const confirm = useConfirm();
   const [thread, setThread] = useState<Thread | null>(null);
@@ -605,20 +607,20 @@ export function FeedbackThread({
       <div className="flex items-center justify-between">
         <div className="text-xs font-medium flex items-center gap-1.5">
           <MessageSquare className="h-3 w-3" />
-          Conversación
+          {t("feedbackThread.title")}
           {comments.length > 0 && (
             <span className="text-muted-foreground font-normal">({comments.length})</span>
           )}
           {closed && (
             <Badge variant="secondary" className="text-[9px] ml-1">
-              Cerrada
+              {t("feedbackThread.closedLabel")}
             </Badge>
           )}
         </div>
         {isTeacher && thread && (
           <Button size="sm" variant="ghost" onClick={toggleClosed} className="h-6 text-[11px]">
             {closed ? <Unlock className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
-            {closed ? "Reabrir" : "Cerrar"}
+            {closed ? t("feedbackThread.reopen") : t("feedbackThread.close")}
           </Button>
         )}
       </div>
@@ -626,15 +628,17 @@ export function FeedbackThread({
       {loading && (
         <p className="text-xs text-muted-foreground">
           <Spinner size="xs" inline className="mr-1" />
-          Cargando…
+          {t("feedbackThread.loading")}
         </p>
       )}
 
       {!loading && comments.length === 0 && (
         <p className="text-xs text-muted-foreground italic">
           {closed
-            ? "Sin comentarios. La conversación está cerrada."
-            : "Sin comentarios. Sé el primero en responder a esta retroalimentación."}
+            ? t("feedbackThread.emptyClosed")
+            : isTeacher
+              ? t("feedbackThread.emptyStaff")
+              : t("feedbackThread.emptyStudent")}
         </p>
       )}
 
@@ -659,7 +663,7 @@ export function FeedbackThread({
               >
                 <div className="flex items-center justify-between mb-1 gap-2">
                   <span className="font-medium truncate flex items-center gap-1.5">
-                    {c.profile?.full_name ?? "Usuario"}
+                    {c.profile?.full_name ?? t("feedbackThread.unknownUser")}
                     <Badge
                       variant="outline"
                       className={
@@ -669,10 +673,10 @@ export function FeedbackThread({
                           : "bg-primary/10 text-primary border-primary/30")
                       }
                     >
-                      {isTeacherComment ? "Docente" : "Estudiante"}
+                      {isTeacherComment ? t("feedbackThread.roleTeacher") : t("feedbackThread.roleStudent")}
                     </Badge>
                     {mine && (
-                      <span className="text-muted-foreground font-normal text-[10px]">· tú</span>
+                      <span className="text-muted-foreground font-normal text-[10px]">· {t("feedbackThread.youLabel")}</span>
                     )}
                   </span>
                   <span className="flex items-center gap-1 shrink-0">
@@ -682,13 +686,13 @@ export function FeedbackThread({
                     {mine && !isEditing && !closed && (
                       <>
                         <RowAction
-                          label="Editar"
+                          label={t("common.edit")}
                           icon={Pencil}
                           onClick={() => startEdit(c)}
                           disabled={isDeletingThis}
                         />
                         <RowAction
-                          label="Eliminar"
+                          label={t("common.delete")}
                           icon={Trash2}
                           tone="destructive"
                           onClick={() => removeComment(c)}
@@ -726,7 +730,7 @@ export function FeedbackThread({
                         disabled={savingEdit}
                       >
                         <X className="h-3 w-3 mr-1" />
-                        Cancelar
+                        {t("feedbackThread.editCancel")}
                       </Button>
                       <Button
                         size="sm"
@@ -739,7 +743,7 @@ export function FeedbackThread({
                         ) : (
                           <Check className="h-3 w-3 mr-1" />
                         )}
-                        Guardar
+                        {t("feedbackThread.editSave")}
                       </Button>
                     </div>
                   </div>
@@ -768,7 +772,7 @@ export function FeedbackThread({
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={2}
-              placeholder={comments.length === 0 ? "Escribe tu comentario…" : "Responder…"}
+              placeholder={t("feedbackThread.replyPlaceholder")}
               className="text-xs min-h-[2.5rem]"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
@@ -830,8 +834,8 @@ export function FeedbackThread({
                     className="h-5 w-5 shrink-0 text-destructive hover:text-destructive"
                     onClick={() => removePendingFile(idx)}
                     disabled={sending}
-                    title="Quitar"
-                    aria-label={`Quitar ${f.name}`}
+                    title={t("feedbackThread.removeAttachment")}
+                    aria-label={`${t("feedbackThread.removeAttachment")} ${f.name}`}
                   >
                     <X className="h-3 w-3" />
                   </Button>
@@ -844,7 +848,7 @@ export function FeedbackThread({
 
       {closed && (
         <p className="text-[11px] text-muted-foreground italic">
-          El docente cerró esta conversación.
+          {t("feedbackThread.closedBanner")}
         </p>
       )}
     </div>

@@ -29,6 +29,7 @@ import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
 import { formatDateTime } from "@/shared/lib/format";
 import { toast } from "sonner";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { Sparkles, Zap, X, RefreshCw, AlertTriangle, Wand2, Clock } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -61,22 +62,29 @@ interface Props {
   isAdmin?: boolean;
 }
 
-const KIND_LABELS: Record<string, string> = {
-  workshop_questions: "Preguntas de taller",
-  exam_questions: "Preguntas de examen",
-  project_files: "Archivos de proyecto",
-  content_generation: "Contenido didáctico",
-};
+function getKindLabel(kind: string): string {
+  const map: Record<string, string> = {
+    workshop_questions: i18n.t("aiQueue.kindWorkshopQuestions"),
+    exam_questions: i18n.t("aiQueue.kindExamQuestions"),
+    project_files: i18n.t("aiQueue.kindProjectFiles"),
+    content_generation: i18n.t("aiQueue.kindContentGeneration"),
+  };
+  return map[kind] ?? kind;
+}
 
-const STATUS_LABELS: Record<Status, string> = {
-  pending: "Pendiente",
-  processing: "Procesando",
-  done: "Completado",
-  failed: "Falló",
-  cancelled: "Cancelado",
-};
+function getStatusLabel(status: Status): string {
+  const map: Record<Status, string> = {
+    pending: i18n.t("aiQueue.statusPending"),
+    processing: i18n.t("aiQueue.statusProcessing"),
+    done: i18n.t("aiQueue.statusDone"),
+    failed: i18n.t("aiQueue.statusFailed"),
+    cancelled: i18n.t("aiQueue.statusCancelled"),
+  };
+  return map[status];
+}
 
 export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
+  const { t } = useTranslation();
   const confirm = useConfirm();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -217,11 +225,7 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
     if (!isAdmin) {
       const mode = await getProcessingMode();
       if (mode === "async" && !readOverrideExpiry()) {
-        toast.info(
-          i18n.t("toast.modules_ai_AiGenerationQueuePanel.activateImmediateAiFirst", {
-            defaultValue: "Para procesar este job, primero activa un código de IA inmediata.",
-          }),
-        );
+        toast.info(i18n.t("aiQueue.toastActivateFirst"));
         setOverrideOpen(true);
         return;
       }
@@ -245,25 +249,11 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
           const detail =
             (await extractEdgeError(error, data)) ||
             (d?.failed > 0 ? "El worker reportó falla en el job" : "Error desconocido");
-          toast.error(
-            i18n.t("toast.modules_ai_AiGenerationQueuePanel.couldNotProcess", {
-              defaultValue: "No se pudo procesar: {{detail}}",
-              detail,
-            }),
-          );
+          toast.error(i18n.t("aiQueue.toastCouldNotProcess") + ": " + detail);
         } else if (d?.succeeded === 0 && d?.processed === 0) {
-          toast.info(
-            i18n.t("toast.modules_ai_AiGenerationQueuePanel.jobNoLongerPending", {
-              defaultValue: "El job ya no estaba pending — quizás otro proceso lo levantó.",
-            }),
-          );
+          toast.info(i18n.t("aiQueue.toastJobNoLongerPending"));
         } else {
-          toast.success(
-            i18n.t("toast.modules_ai_AiGenerationQueuePanel.contentQueued", {
-              defaultValue:
-                "Contenido encolado para generación. Aparecerá en tu lista de contenidos.",
-            }),
-          );
+          toast.success(i18n.t("aiQueue.toastJobQueued"));
         }
         await load();
         return;
@@ -305,11 +295,7 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
             last_error: null,
           })
           .eq("id", job.id);
-        toast.success(
-          inserted > 0
-            ? `${inserted} item${inserted === 1 ? "" : "s"} generado${inserted === 1 ? "" : "s"}`
-            : "Job procesado",
-        );
+        toast.success(inserted > 0 ? `+${inserted} items` : i18n.t("aiQueue.toastJobProcessed"));
       }
       await load();
     } catch (e) {
@@ -344,33 +330,16 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
       const d = data as any;
       if (error) {
         const detail = (await extractEdgeError(error, data)) || "Error desconocido";
-        toast.error(
-          i18n.t("toast.modules_ai_AiGenerationQueuePanel.couldNotDrainQueue", {
-            defaultValue: "No se pudo drenar la cola: {{detail}}",
-            detail,
-          }),
-        );
+        toast.error(i18n.t("aiQueue.toastCouldNotDrain") + ": " + detail);
         return;
       }
       if (d?.skipped === "async_mode_no_jobid") {
-        toast.info(
-          i18n.t("toast.modules_ai_AiGenerationQueuePanel.aiInAsyncMode", {
-            defaultValue:
-              "La IA está en modo async. Cambia el modo a sync (en Configuración) o procesá uno a uno.",
-          }),
-        );
+        toast.info(i18n.t("aiQueue.toastAsyncMode"));
       } else {
         const proc = d?.processed ?? 0;
         const ok = d?.succeeded ?? 0;
         const fail = d?.failed ?? 0;
-        toast.success(
-          i18n.t("toast.modules_ai_AiGenerationQueuePanel.drained", {
-            defaultValue: "Drenado: {{proc}} job(s) procesados — {{ok}} ok, {{fail}} fallaron.",
-            proc,
-            ok,
-            fail,
-          }),
-        );
+        toast.success(`${i18n.t("aiQueue.toastDrained")}: ${proc} — ${ok} ok, ${fail} ✗`);
       }
       await load();
     } catch (e) {
@@ -383,10 +352,10 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
   const cancelJob = async (job: Job) => {
     if (cancelling.has(job.id)) return;
     const ok = await confirm({
-      title: "¿Cancelar generación?",
-      description: `El job "${KIND_LABELS[job.kind] ?? job.kind}" se marcará como cancelado y no se procesará. Podés crear uno nuevo cuando quieras.`,
+      title: i18n.t("aiQueue.cancelJobTitle"),
+      description: i18n.t("aiQueue.cancelJobDescription", { kind: getKindLabel(job.kind) }),
       tone: "destructive",
-      confirmLabel: "Cancelar job",
+      confirmLabel: i18n.t("aiQueue.cancelJobConfirm"),
     });
     if (!ok) return;
     setCancelling((prev) => new Set(prev).add(job.id));
@@ -399,11 +368,7 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
         toast.error(friendlyError(error, "No se pudo cancelar"));
         return;
       }
-      toast.success(
-        i18n.t("toast.modules_ai_AiGenerationQueuePanel.jobCancelled", {
-          defaultValue: "Job cancelado",
-        }),
-      );
+      toast.success(i18n.t("aiQueue.toastJobCancelled"));
       await load();
     } catch (e) {
       // Caller: `() => void cancelJob(j)` desde RowAction. Sin catch
@@ -422,24 +387,21 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
     <div className="space-y-4">
       {draining && (
         <LoadingOverlay
-          title="Drenando cola de generación…"
-          subtitle="El worker server-side procesa hasta 10 jobs por invocación. Puede tardar varios minutos. No cierres esta pestaña."
+          title={t("aiQueue.drainingTitle")}
+          subtitle={t("aiQueue.drainingSubtitle")}
         />
       )}
       {/* Banner explicativo */}
       <div className="flex flex-wrap items-center gap-3 rounded-md border bg-amber-50/40 dark:bg-amber-500/5 border-amber-300/40 dark:border-amber-500/20 px-3 py-2">
         <Wand2 className="h-4 w-4 text-amber-500 shrink-0" />
         <p className="text-xs text-muted-foreground flex-1 min-w-[200px]">
-          Acá viven los jobs de <strong>generación con IA</strong> (preguntas, archivos, contenido)
-          que se encolaron porque la IA estaba en modo async sin código de IA inmediata.{" "}
-          {isAdmin
-            ? "Como administrador podés procesar cualquier job."
-            : "Activa un código de IA inmediata para procesarlos vos mismo, o esperá a que un administrador los corra."}
+          {t("aiQueue.infoBannerTitle")}{" "}
+          {isAdmin ? t("aiQueue.infoBannerAdmin") : t("aiQueue.infoBannerTeacher")}
         </p>
         {!isAdmin && (
           <Button size="sm" variant="outline" className="h-8" onClick={() => setOverrideOpen(true)}>
             <Sparkles className="h-3.5 w-3.5 mr-1" />
-            Activar IA inmediata
+            {t("aiQueue.actionActivateImmediate")}
           </Button>
         )}
         {isAdmin && (
@@ -449,14 +411,14 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
             className="h-8"
             onClick={() => void drainAll()}
             disabled={draining}
-            title="Drenar todos los jobs pendientes invocando el worker server-side"
+            title={t("aiQueue.actionProcessAllTitle")}
           >
             {draining ? (
               <Spinner size="xs" className="mr-1" />
             ) : (
               <Zap className="h-3.5 w-3.5 mr-1" />
             )}
-            Procesar todos
+            {t("aiQueue.actionProcessAll")}
           </Button>
         )}
       </div>
@@ -464,7 +426,7 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
       <Card>
         <CardHeader className="pb-3 flex-row items-center justify-between gap-3 space-y-0 flex-wrap">
           <div className="flex items-center gap-2">
-            <CardTitle className="text-base">Generaciones encoladas</CardTitle>
+            <CardTitle className="text-base">{t("aiQueue.title")}</CardTitle>
             <Badge variant="secondary" className="text-[10px]">
               {filtered.length}
             </Badge>
@@ -476,14 +438,14 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
               className="h-7 text-xs"
               onClick={() => setStatusFilter((s) => (s === "active" ? "all" : "active"))}
             >
-              {statusFilter === "active" ? "Ver todos" : "Solo activos"}
+              {statusFilter === "active" ? t("aiQueue.filterAll") : t("aiQueue.filterActive")}
             </Button>
             <Button
               variant="ghost"
               size="icon"
               className="h-8 w-8"
               onClick={() => setRetryNonce((n) => n + 1)}
-              title="Refrescar"
+              title={t("aiQueue.refresh")}
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             </Button>
@@ -492,28 +454,24 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">
-              <Spinner size="sm" /> Cargando…
+              <Spinner size="sm" /> {t("aiQueue.loadingQueue")}
             </div>
           ) : loadError ? (
             <ErrorState
-              message="No pudimos cargar la cola"
+              message={t("aiQueue.loadError")}
               hint={loadError}
               onRetry={() => setRetryNonce((n) => n + 1)}
             />
           ) : filtered.length === 0 ? (
             <TableEmpty
               icon={Wand2}
-              title="Sin generaciones encoladas"
-              description={
-                statusFilter === "active"
-                  ? "Cuando intentes generar preguntas/archivos con IA en modo async sin código activo, los jobs aparecerán acá."
-                  : "Aún no se han encolado generaciones."
-              }
+              title={t("aiQueue.title")}
+              description={statusFilter === "active" ? t("aiQueue.empty_active") : t("aiQueue.empty_all")}
             />
           ) : (
             <div className="divide-y">
               {filtered.map((j) => {
-                const kindLabel = KIND_LABELS[j.kind] ?? j.kind;
+                const kindLabel = getKindLabel(j.kind);
                 const isProc = processing.has(j.id);
                 const isCanc = cancelling.has(j.id);
                 const busy = isProc || isCanc;
@@ -552,7 +510,7 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
                               : ""
                           }`}
                         >
-                          {STATUS_LABELS[j.status]}
+                          {getStatusLabel(j.status)}
                         </Badge>
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
@@ -581,24 +539,16 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
                               void navigator.clipboard
                                 .writeText(j.last_error ?? "")
                                 .then(() =>
-                                  toast.success(
-                                    i18n.t("toast.modules_ai_AiGenerationQueuePanel.errorCopied", {
-                                      defaultValue: "Error copiado",
-                                    }),
-                                  ),
+                                  toast.success(i18n.t("aiQueue.toastErrorCopied")),
                                 )
                                 .catch(() =>
-                                  toast.error(
-                                    i18n.t("toast.modules_ai_AiGenerationQueuePanel.couldNotCopy", {
-                                      defaultValue: "No se pudo copiar",
-                                    }),
-                                  ),
+                                  toast.error(i18n.t("aiQueue.toastCouldNotCopy")),
                                 );
                             }}
                             className="shrink-0 text-[10px] text-destructive/80 hover:text-destructive underline"
-                            title="Copiar error completo al portapapeles"
+                            title={t("aiQueue.copyErrorTitle")}
                           >
-                            Copiar
+                            {t("aiQueue.copyError")}
                           </button>
                         </div>
                       )}
@@ -610,7 +560,7 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
                     <div className="flex items-center gap-0.5 shrink-0">
                       {(j.status === "pending" || j.status === "failed") && (
                         <RowAction
-                          label={j.status === "failed" ? "Reintentar" : "Procesar"}
+                          label={j.status === "failed" ? t("aiQueue.actionRetry") : t("aiQueue.actionProcessNow")}
                           icon={j.status === "failed" ? RefreshCw : Zap}
                           loading={isProc}
                           disabled={busy}
@@ -619,7 +569,7 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
                       )}
                       {(j.status === "pending" || j.status === "failed") && (
                         <RowAction
-                          label="Cancelar"
+                          label={t("aiQueue.actionCancel")}
                           icon={X}
                           tone="destructive"
                           loading={isCanc}
