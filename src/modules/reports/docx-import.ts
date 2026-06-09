@@ -96,6 +96,146 @@ export function extractTextFromDocumentXml(documentXml: string): string {
   return paragraphs.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+// ── Variante HTML: preserva formato básico ────────────────────────────
+// Además del texto plano, ofrecemos una conversión a HTML que conserva
+// párrafos, encabezados (w:pStyle Heading/Título), negrita, itálica y
+// tablas — así el .docx cargado se ve parecido al original en el editor de
+// plantillas y el docente solo agrega las {{variables}} (la "lógica"). No
+// es una conversión OOXML completa (sin listas numeradas, imágenes ni
+// estilos finos) — cubre lo común de un informe institucional.
+
+/** Escapa los 3 caracteres peligrosos para insertar texto plano en HTML.
+ *  NO escapa llaves → preserva los `{{placeholders}}` que el docente ya
+ *  hubiera tipeado en el Word. */
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Texto + formato (negrita/itálica) de UN run `<w:r>`. */
+function runToHtml(runXml: string): string {
+  // Propiedades del run (rPr) → negrita / itálica. `w:val="false|0|off"`
+  // desactiva el atributo heredado de un estilo, así que lo excluimos.
+  const rPr = /<w:rPr>([\s\S]*?)<\/w:rPr>/.exec(runXml)?.[1] ?? "";
+  const isOn = (tag: string) =>
+    new RegExp(`<w:${tag}(?:\\s[^>]*)?/?>`).test(rPr) &&
+    !new RegExp(`<w:${tag}\\s+w:val="(?:false|0|off)"`).test(rPr);
+  const bold = isOn("b");
+  const italic = isOn("i");
+
+  let text = "";
+  const TOKEN_RE = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:tab\s*\/?>|<w:br(?:\s[^>]*)?\/?>/g;
+  let m: RegExpExecArray | null;
+  while ((m = TOKEN_RE.exec(runXml)) !== null) {
+    const tag = m[0];
+    if (tag.startsWith("<w:tab")) text += "&#9;";
+    else if (tag.startsWith("<w:br")) text += "<br/>";
+    else text += escapeHtml(decodeXmlEntities(m[1] ?? ""));
+  }
+  if (!text) return "";
+  let html = text;
+  if (italic) html = `<em>${html}</em>`;
+  if (bold) html = `<strong>${html}</strong>`;
+  return html;
+}
+
+/** Nivel de encabezado del párrafo (1..4) o null si es párrafo normal. */
+function paragraphHeadingLevel(paragraphXml: string): number | null {
+  const style = /<w:pStyle\s+w:val="([^"]*)"/.exec(paragraphXml)?.[1] ?? "";
+  const m = /(?:heading|t[íi]tulo)\s*([1-9])/i.exec(style);
+  if (m) return Math.min(4, Math.max(1, Number(m[1])));
+  return null;
+}
+
+/** Convierte un `<w:p>` a `<p>`/`<hN>` con sus runs formateados. */
+function paragraphToHtml(paragraphXml: string): string {
+  const runs: string[] = [];
+  const RUN_RE = /<w:r(?:\s[^>]*)?>([\s\S]*?)<\/w:r>/g;
+  let m: RegExpExecArray | null;
+  while ((m = RUN_RE.exec(paragraphXml)) !== null) {
+    const h = runToHtml(m[1] ?? "");
+    if (h) runs.push(h);
+  }
+  const inner = runs.join("");
+  if (!inner.trim()) return ""; // párrafo vacío → se omite
+  const level = paragraphHeadingLevel(paragraphXml);
+  return level ? `<h${level}>${inner}</h${level}>` : `<p>${inner}</p>`;
+}
+
+/** Convierte un `<w:tbl>` a un `<table>` HTML simple (texto plano por celda). */
+function tableToHtml(tableXml: string): string {
+  const rows: string[] = [];
+  const ROW_RE = /<w:tr(?:\s[^>]*)?>([\s\S]*?)<\/w:tr>/g;
+  let rm: RegExpExecArray | null;
+  while ((rm = ROW_RE.exec(tableXml)) !== null) {
+    const cells: string[] = [];
+    const CELL_RE = /<w:tc(?:\s[^>]*)?>([\s\S]*?)<\/w:tc>/g;
+    let cm: RegExpExecArray | null;
+    while ((cm = CELL_RE.exec(rm[1] ?? "")) !== null) {
+      // Texto de la celda: concatenamos sus párrafos (sin formato fino).
+      const cellText = escapeHtml(extractTextFromDocumentXml(cm[1] ?? "")).replace(/\n/g, "<br/>");
+      cells.push(`<td style="border:1px solid #ccc;padding:4px;">${cellText}</td>`);
+    }
+    if (cells.length > 0) rows.push(`<tr>${cells.join("")}</tr>`);
+  }
+  if (rows.length === 0) return "";
+  return `<table style="border-collapse:collapse;width:100%;">${rows.join("")}</table>`;
+}
+
+/**
+ * Convierte el XML del cuerpo a HTML preservando párrafos, encabezados,
+ * negrita/itálica y tablas, EN ORDEN. Una sola pasada con una regex que
+ * matchea tablas O párrafos top-level: cuando matchea un `<w:tbl>` consume
+ * el bloque completo (incl. sus párrafos internos), así que esos no se
+ * re-emiten sueltos.
+ */
+export function extractHtmlFromDocumentXml(documentXml: string): string {
+  const out: string[] = [];
+  const BLOCK_RE = /<w:tbl>([\s\S]*?)<\/w:tbl>|<w:p(?:\s[^>]*)?>([\s\S]*?)<\/w:p>/g;
+  let m: RegExpExecArray | null;
+  while ((m = BLOCK_RE.exec(documentXml)) !== null) {
+    if (m[1] !== undefined) {
+      const t = tableToHtml(m[1]);
+      if (t) out.push(t);
+    } else {
+      const p = paragraphToHtml(m[2] ?? "");
+      if (p) out.push(p);
+    }
+  }
+  return out.join("\n");
+}
+
+/**
+ * Parsea un .docx y devuelve HTML con formato básico preservado (párrafos,
+ * encabezados, negrita/itálica, tablas). Mismas validaciones de tamaño y
+ * contenedor que `parseDocxToText`.
+ */
+export function parseDocxToHtml(bytes: Uint8Array): string {
+  const xml = readDocumentXml(bytes);
+  return extractHtmlFromDocumentXml(xml);
+}
+
+/** Lee y descomprime `word/document.xml` de los bytes del .docx. Compartido
+ *  por las variantes texto/HTML. Lanza Error en español si algo falla. */
+function readDocumentXml(bytes: Uint8Array): string {
+  if (bytes.byteLength === 0) {
+    throw new Error("El archivo está vacío.");
+  }
+  if (bytes.byteLength > MAX_DOCX_BYTES) {
+    throw new Error("El archivo supera el tamaño máximo permitido (8 MB).");
+  }
+  let entries: Record<string, Uint8Array>;
+  try {
+    entries = unzipSync(bytes);
+  } catch {
+    throw new Error("El archivo no es un .docx válido (no se pudo descomprimir).");
+  }
+  const docXmlBytes = entries[DOCUMENT_XML_PATH];
+  if (!docXmlBytes) {
+    throw new Error("El archivo no contiene un documento de Word (falta word/document.xml).");
+  }
+  return strFromU8(docXmlBytes);
+}
+
 /**
  * Parsea un .docx (bytes del archivo subido) y devuelve su texto plano,
  * con un párrafo por línea. Lanza un Error con mensaje en español si el

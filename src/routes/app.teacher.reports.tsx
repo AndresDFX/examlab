@@ -82,11 +82,15 @@ import {
 } from "@/modules/reports/TemplateEditor";
 import { renderTemplate, buildAiReportPrompt } from "@/modules/reports/template-engine";
 import { buildReportContext, buildReportContextFromActa } from "@/modules/reports/report-context";
-import { parseDocxToText, extractPlaceholders } from "@/modules/reports/docx-import";
+import { parseDocxToHtml, extractPlaceholders } from "@/modules/reports/docx-import";
 import { ActasManager } from "@/modules/reports/ActasManager";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
+
+// Sentinel para "sin curso" en el Select de asociación de plantillas
+// privadas — Radix Select no admite SelectItem con value="".
+const NONE_COURSE = "__none__";
 
 export const Route = createFileRoute("/app/teacher/reports")({ component: TeacherReports });
 
@@ -371,7 +375,10 @@ function Inner() {
       payload = {
         ...base,
         owner_id: user.id,
-        course_id: null,
+        // Asociación OPCIONAL a un curso: si el docente eligió uno, queda
+        // ligada (el generador la pre-selecciona y se agrupa por curso); si
+        // no, queda reutilizable en cualquier curso (course_id NULL).
+        course_id: editorCourseId || null,
         parent_id: null,
       };
     } else {
@@ -456,7 +463,10 @@ function Inner() {
     if (!user) return;
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const text = parseDocxToText(bytes);
+      // Convertimos a HTML preservando formato básico (párrafos, encabezados,
+      // negrita/itálica, tablas) — así el Word cargado se ve parecido al
+      // original en el editor y el docente solo agrega los {{placeholders}}.
+      const text = parseDocxToHtml(bytes);
       if (!text.trim()) {
         toast.error(
           i18n.t("toast.routes_app_teacher_reports.docxEmpty", {
@@ -470,10 +480,10 @@ function Inner() {
         ...emptyDraft(),
         name: baseName,
         description: i18n.t("toast.routes_app_teacher_reports.docxImportedDesc", {
-          defaultValue: "Importado de un .docx",
+          defaultValue: "Importado de un Word (.docx)",
         }),
-        // El texto del .docx no es HTML — lo metemos tal cual; el docente
-        // puede agregar etiquetas HTML y {{variables}} desde el editor.
+        // HTML con formato preservado; el docente edita inline e inserta las
+        // {{variables}} del catálogo (la "lógica" del informe).
         body_html: text,
       };
       setDraft(d);
@@ -516,10 +526,13 @@ function Inner() {
 
   // ── Generar con IA (rellenar/redactar el body del editor) ─────────
 
-  // No existe un edge de "prosa libre" en el repo. Construimos el prompt
-  // con datos REALES del curso (report-context) y lo entregamos al docente
-  // para que lo use con la IA. El wiring directo a un edge queda
-  // documentado (needsManualVerify) — ver buildAiReportPrompt.
+  // Arma el prompt con datos REALES del curso (report-context combina
+  // valores de la plataforma + del curso) y lo manda al edge
+  // `ai-generate-report`, que corre la IA server-side (la API key vive como
+  // secret) y devuelve el HTML/texto del informe. El resultado se inserta
+  // en el editor como nuevo body. Si el edge falla (IA no configurada,
+  // saturada, etc.), caemos al fallback de copiar el prompt al portapapeles
+  // para usarlo en una IA externa.
   const handleAiGenerate = async () => {
     if (!aiCourseId) {
       toast.error(
@@ -530,6 +543,8 @@ function Inner() {
       return;
     }
     setAiBusy(true);
+    let system = "";
+    let userMsg = "";
     try {
       const ctx = await buildReportContext({
         courseId: aiCourseId,
@@ -537,39 +552,13 @@ function Inner() {
         // alcanza para que la IA conozca el shape de datos disponible.
         studentId: undefined,
       });
-      const { system, user: userMsg } = buildAiReportPrompt({
+      ({ system, user: userMsg } = buildAiReportPrompt({
         draftText: draft.body_html,
         instruction: aiInstruction,
         ctx,
-      });
-      const prompt = `### SYSTEM\n${system}\n\n### USER\n${userMsg}`;
-      // Path funcional inmediato: copiar el prompt listo al portapapeles
-      // para pegarlo en cualquier IA. (El wiring a un edge dedicado queda
-      // pendiente — no hay edge de prosa libre que devuelva el texto.)
-      let copied = false;
-      try {
-        await navigator.clipboard.writeText(prompt);
-        copied = true;
-      } catch {
-        copied = false;
-      }
-      setAiOpen(false);
-      toast.success(
-        copied
-          ? i18n.t("toast.routes_app_teacher_reports.aiPromptCopied", {
-              defaultValue:
-                "Prompt con los datos del curso copiado al portapapeles. Pégalo en tu IA y trae el resultado al editor.",
-            })
-          : i18n.t("toast.routes_app_teacher_reports.aiPromptReady", {
-              defaultValue: "Prompt generado. Cópialo manualmente desde la consola.",
-            }),
-      );
-      if (!copied) {
-        // Fallback: dejar el prompt en el body para que el docente lo vea.
-        // eslint-disable-next-line no-console
-        console.info("[reports][ai-prompt]\n", prompt);
-      }
+      }));
     } catch (e) {
+      setAiBusy(false);
       toast.error(
         e instanceof Error
           ? e.message
@@ -577,8 +566,64 @@ function Inner() {
               defaultValue: "No se pudo preparar la generación con IA.",
             }),
       );
+      return;
     }
+
+    // 1) Intento principal: el edge corre la IA y devuelve el contenido.
+    try {
+      const { data, error } = await db.functions.invoke("ai-generate-report", {
+        body: { system, user: userMsg, courseId: aiCourseId },
+      });
+      const content = typeof data?.content === "string" ? data.content.trim() : "";
+      if (!error && content) {
+        // Insertamos el resultado como nuevo body del editor (el prompt ya
+        // incluye el body actual y pide "mejóralo/complétalo", así que el
+        // texto devuelto es la versión completa).
+        setDraft((d) => ({ ...d, body_html: content }));
+        setAiOpen(false);
+        setAiBusy(false);
+        toast.success(
+          i18n.t("toast.routes_app_teacher_reports.aiGenerated", {
+            defaultValue:
+              "Informe generado con IA e insertado en el editor. Revísalo y ajusta los {{...}} antes de guardar.",
+          }),
+        );
+        return;
+      }
+      // Si el edge respondió error (o vacío), caemos al fallback de clipboard.
+      if (error) console.warn("[reports][ai-generate-report]", error);
+    } catch (e) {
+      console.warn("[reports][ai-generate-report] invoke failed", e);
+    }
+
+    // 2) Fallback: copiar el prompt al portapapeles para usarlo en una IA
+    //    externa (degrada con gracia si la IA no está configurada/saturada).
+    const prompt = `### SYSTEM\n${system}\n\n### USER\n${userMsg}`;
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      copied = true;
+    } catch {
+      copied = false;
+    }
+    setAiOpen(false);
     setAiBusy(false);
+    toast.warning(
+      copied
+        ? i18n.t("toast.routes_app_teacher_reports.aiFallbackCopied", {
+            defaultValue:
+              "No se pudo generar con la IA de la plataforma. Copiamos el prompt (con los datos del curso) al portapapeles — pégalo en tu IA y trae el resultado al editor.",
+          })
+        : i18n.t("toast.routes_app_teacher_reports.aiFallbackReady", {
+            defaultValue:
+              "No se pudo generar con la IA de la plataforma. El prompt quedó en la consola del navegador.",
+          }),
+      { duration: 12000 },
+    );
+    if (!copied) {
+      // eslint-disable-next-line no-console
+      console.info("[reports][ai-prompt]\n", prompt);
+    }
   };
 
   // ── Generador handlers ───────────────────────────────────────────
@@ -730,7 +775,7 @@ function Inner() {
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => docxInputRef.current?.click()}>
               <Upload className="h-4 w-4 mr-1" />
-              Importar .docx
+              Cargar Word (.docx)
             </Button>
             <Button onClick={openNewPrivate}>
               <Plus className="h-4 w-4 mr-1" />
@@ -902,7 +947,7 @@ function Inner() {
             )}
           </DialogHeader>
 
-          {(editorMode === "new_override" || editorMode === "edit_override") && (
+          {editorMode === "new_override" || editorMode === "edit_override" ? (
             <div className="space-y-1">
               <Label required>Curso</Label>
               <Select value={editorCourseId} onValueChange={setEditorCourseId}>
@@ -917,6 +962,34 @@ function Inner() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          ) : (
+            // Plantilla privada: asociación a curso OPCIONAL. Si se elige un
+            // curso, el generador lo pre-selecciona y la plantilla queda
+            // ligada a él; "Sin curso" la deja reutilizable en cualquiera.
+            <div className="space-y-1">
+              <Label>Curso asociado (opcional)</Label>
+              <Select
+                value={editorCourseId || NONE_COURSE}
+                onValueChange={(v) => setEditorCourseId(v === NONE_COURSE ? "" : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE_COURSE}>
+                    Sin curso (reutilizable en cualquier curso)
+                  </SelectItem>
+                  {courses.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Asóciala a un curso para tenerla a mano y que el generador lo elija por defecto.
+              </p>
             </div>
           )}
 
@@ -993,7 +1066,7 @@ function Inner() {
             </Button>
             <Button onClick={() => void handleAiGenerate()} disabled={aiBusy || !aiCourseId}>
               {aiBusy ? <Spinner size="sm" className="mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
-              {aiBusy ? "Preparando…" : "Preparar prompt"}
+              {aiBusy ? "Generando…" : "Generar con IA"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -3,6 +3,7 @@ import { strToU8, zipSync } from "fflate";
 import {
   extractPlaceholders,
   extractTextFromDocumentXml,
+  extractHtmlFromDocumentXml,
   MAX_DOCX_BYTES,
   parseDocxToText,
 } from "./docx-import";
@@ -289,5 +290,62 @@ describe("buildAiReportPrompt", () => {
   it("usa una instrucción por defecto cuando no se pasa ninguna", () => {
     const { user } = buildAiReportPrompt({ draftText: "", instruction: "", ctx });
     expect(user).toContain("Genera el contenido del informe");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// extractHtmlFromDocumentXml — variante con formato preservado
+// ─────────────────────────────────────────────────────────────────────
+
+/** Run con propiedades (negrita/itálica). */
+function runFmt(text: string, opts: { b?: boolean; i?: boolean } = {}): string {
+  const rPr = `<w:rPr>${opts.b ? "<w:b/>" : ""}${opts.i ? "<w:i/>" : ""}</w:rPr>`;
+  return `<w:r>${rPr}<w:t xml:space="preserve">${text}</w:t></w:r>`;
+}
+
+describe("extractHtmlFromDocumentXml", () => {
+  it("envuelve cada párrafo en <p>", () => {
+    const xml = documentXml([run("Hola"), run("Mundo")]);
+    expect(extractHtmlFromDocumentXml(xml)).toBe("<p>Hola</p>\n<p>Mundo</p>");
+  });
+
+  it("preserva negrita e itálica como <strong>/<em>", () => {
+    const xml = documentXml([runFmt("Negro", { b: true }) + runFmt(" cursiva", { i: true })]);
+    const html = extractHtmlFromDocumentXml(xml);
+    expect(html).toContain("<strong>Negro</strong>");
+    expect(html).toContain("<em> cursiva</em>");
+  });
+
+  it("ignora w:b con val='false' (negrita desactivada por estilo)", () => {
+    const xml = `<w:document><w:body><w:p><w:r><w:rPr><w:b w:val="false"/></w:rPr><w:t>normal</w:t></w:r></w:p></w:body></w:document>`;
+    const html = extractHtmlFromDocumentXml(xml);
+    expect(html).toBe("<p>normal</p>");
+  });
+
+  it("convierte encabezados (w:pStyle Heading2) a <h2>", () => {
+    const xml = `<w:document><w:body><w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>Sección</w:t></w:r></w:p></w:body></w:document>`;
+    expect(extractHtmlFromDocumentXml(xml)).toBe("<h2>Sección</h2>");
+  });
+
+  it("escapa HTML del texto pero preserva los {{placeholders}}", () => {
+    const xml = documentXml([run("a < b {{estudiante.nombre}}")]);
+    const html = extractHtmlFromDocumentXml(xml);
+    expect(html).toContain("a &lt; b {{estudiante.nombre}}");
+  });
+
+  it("omite párrafos vacíos", () => {
+    const xml = documentXml([run("Uno"), "", run("Dos")]);
+    expect(extractHtmlFromDocumentXml(xml)).toBe("<p>Uno</p>\n<p>Dos</p>");
+  });
+
+  it("convierte una tabla a <table> sin re-emitir sus párrafos internos", () => {
+    const xml = `<w:document><w:body><w:tbl><w:tr><w:tc><w:p><w:r><w:t>A1</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>B1</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:r><w:t>Después</w:t></w:r></w:p></w:body></w:document>`;
+    const html = extractHtmlFromDocumentXml(xml);
+    expect(html).toContain("<table");
+    expect(html).toContain("A1");
+    expect(html).toContain("B1");
+    expect(html).toContain("<p>Después</p>");
+    // El párrafo de la celda NO debe aparecer como <p> suelto.
+    expect(html).not.toContain("<p>A1</p>");
   });
 });
