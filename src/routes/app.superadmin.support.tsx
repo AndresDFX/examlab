@@ -39,6 +39,7 @@ import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 import {
   SupportTicketDetailDialog,
   STATUS_LABEL,
@@ -59,6 +60,7 @@ export const Route = createFileRoute("/app/superadmin/support")({
 const db = supabase as any;
 
 function SuperAdminSupportPage() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const confirm = useConfirm();
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
@@ -86,7 +88,7 @@ function SuperAdminSupportPage() {
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) {
-        setLoadError(friendlyError(error, "No pudimos cargar la bandeja"));
+        setLoadError(friendlyError(error, i18n.t("superadminSupport.loadError")));
         return;
       }
       const baseTickets = (data ?? []) as SupportTicket[];
@@ -122,7 +124,7 @@ function SuperAdminSupportPage() {
       }));
       setTickets(enriched);
     } catch (e) {
-      setLoadError(friendlyError(e, "No pudimos cargar la bandeja"));
+      setLoadError(friendlyError(e, i18n.t("superadminSupport.loadError")));
     } finally {
       if (!silent) setLoading(false);
     }
@@ -206,15 +208,15 @@ function SuperAdminSupportPage() {
   // (mig 20260913000000). Las listas filtran `deleted_at IS NULL`.
   const deleteTicket = async (t: SupportTicket) => {
     const ok = await confirm({
-      title: i18n.t("toast.routes_app_superadmin_support.deleteConfirmTitle", {
+      title: i18n.t("superadminSupport.deleteConfirmTitle", {
         defaultValue: "¿Eliminar este ticket?",
       }),
-      description: i18n.t("toast.routes_app_superadmin_support.deleteConfirmDesc", {
+      description: i18n.t("superadminSupport.deleteConfirmDesc", {
         defaultValue:
           "El ticket y su conversación se eliminarán de la bandeja. Esta acción no se puede deshacer.",
       }),
       tone: "destructive",
-      confirmLabel: i18n.t("toast.routes_app_superadmin_support.deleteConfirmLabel", {
+      confirmLabel: i18n.t("superadminSupport.deleteConfirmLabel", {
         defaultValue: "Eliminar",
       }),
     });
@@ -225,7 +227,7 @@ function SuperAdminSupportPage() {
       return;
     }
     toast.success(
-      i18n.t("toast.routes_app_superadmin_support.ticketDeleted", {
+      i18n.t("superadminSupport.ticketDeleted", {
         defaultValue: "Ticket eliminado",
       }),
     );
@@ -235,7 +237,7 @@ function SuperAdminSupportPage() {
   if (loadError) {
     return (
       <ErrorState
-        message="No pudimos cargar la bandeja"
+        message={t("superadminSupport.loadError")}
         hint={loadError}
         onRetry={() => setRetryNonce((n) => n + 1)}
       />
@@ -246,22 +248,22 @@ function SuperAdminSupportPage() {
     <div className="space-y-5">
       <PageHeader
         icon={<LifeBuoy className="h-6 w-6 text-primary" />}
-        title="Soporte"
-        subtitle="Bandeja de PQRS de los administradores de instituciones."
+        title={t("superadminSupport.title")}
+        subtitle={t("superadminSupport.subtitle")}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={MessageSquare} label="Total" value={stats.total} />
+        <StatCard icon={MessageSquare} label={t("superadminSupport.statTotal")} value={stats.total} />
         <StatCard
           icon={AlertCircle}
-          label="Abiertos / Esperando"
+          label={t("superadminSupport.statOpen")}
           value={stats.open}
           tone={stats.open > 0 ? "warning" : "default"}
         />
-        <StatCard icon={Clock} label="En progreso" value={stats.inProgress} />
+        <StatCard icon={Clock} label={t("superadminSupport.statInProgress")} value={stats.inProgress} />
         <StatCard
           icon={CheckCircle2}
-          label="Resueltos / Cerrados"
+          label={t("superadminSupport.statResolved")}
           value={stats.resolved}
           tone="success"
         />
@@ -273,16 +275,16 @@ function SuperAdminSupportPage() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por asunto, admin o institución…"
+            placeholder={t("superadminSupport.searchPlaceholder")}
             className="pl-8 h-9"
           />
         </div>
         <Select value={tenantFilter} onValueChange={setTenantFilter}>
           <SelectTrigger className="h-9 sm:w-56 text-xs">
-            <SelectValue placeholder="Institución" />
+            <SelectValue placeholder={t("superadminSupport.colAdminInstitution")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todas las instituciones</SelectItem>
+            <SelectItem value="all">{t("superadminSupport.filterAllInstitutions")}</SelectItem>
             {tenants.map((tn) => (
               <SelectItem key={tn.id} value={tn.id}>
                 {tn.name}
@@ -295,8 +297,8 @@ function SuperAdminSupportPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="active">Activos</SelectItem>
-            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="active">{t("superadminSupport.filterActive")}</SelectItem>
+            <SelectItem value="all">{t("superadminSupport.filterAll")}</SelectItem>
             {(Object.keys(STATUS_LABEL) as TicketStatus[]).map((s) => (
               <SelectItem key={s} value={s}>
                 {STATUS_LABEL[s]}
@@ -315,7 +317,7 @@ function SuperAdminSupportPage() {
             }}
             className="h-9"
           >
-            <X className="h-4 w-4 mr-1" /> Limpiar
+            <X className="h-4 w-4 mr-1" /> {t("superadminSupport.clearFiltersBtn")}
           </Button>
         )}
       </div>
@@ -324,26 +326,26 @@ function SuperAdminSupportPage() {
         <CardContent className="p-0 overflow-x-auto">
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">
-              <Spinner size="sm" /> Cargando…
+              <Spinner size="sm" /> {t("superadminSupport.loading")}
             </div>
           ) : filtered.length === 0 ? (
             <TableEmpty
               icon={LifeBuoy}
-              title="Sin tickets"
-              description="No hay tickets que coincidan con los filtros activos."
+              title={t("superadminSupport.emptyTitle")}
+              description={t("superadminSupport.emptyDesc")}
             />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Asunto</TableHead>
-                  <TableHead className="hidden sm:table-cell">Admin · Institución</TableHead>
-                  <TableHead className="hidden sm:table-cell">Categoría</TableHead>
-                  <TableHead className="hidden md:table-cell">Prioridad</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="hidden lg:table-cell">Asignado</TableHead>
-                  <TableHead className="hidden md:table-cell">Creado</TableHead>
-                  <TableHead className="w-12 text-right">Acciones</TableHead>
+                  <TableHead>{t("superadminSupport.colSubject")}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t("superadminSupport.colAdminInstitution")}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t("superadminSupport.colCategory")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("superadminSupport.colPriority")}</TableHead>
+                  <TableHead>{t("superadminSupport.colStatus")}</TableHead>
+                  <TableHead className="hidden lg:table-cell">{t("superadminSupport.colAssigned")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("superadminSupport.colCreated")}</TableHead>
+                  <TableHead className="w-12 text-right">{t("superadminSupport.colActions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -387,7 +389,7 @@ function SuperAdminSupportPage() {
                       <RowActionsMenu
                         actions={[
                           {
-                            label: i18n.t("toast.routes_app_superadmin_support.deleteAction", {
+                            label: i18n.t("superadminSupport.deleteAction", {
                               defaultValue: "Eliminar",
                             }),
                             icon: Trash2,

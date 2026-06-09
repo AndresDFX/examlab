@@ -67,6 +67,7 @@ import type { Tenant } from "@/modules/tenants/tenant";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 export const Route = createFileRoute("/app/superadmin/tenants")({
   component: SuperAdminTenantsPage,
@@ -76,6 +77,7 @@ export const Route = createFileRoute("/app/superadmin/tenants")({
 const db = supabase as any;
 
 function SuperAdminTenantsPage() {
+  const { t: tl } = useTranslation();
   const { roles, loading: authLoading } = useAuth();
   const confirm = useConfirm();
   const isSuper = roles.includes("SuperAdmin");
@@ -160,7 +162,7 @@ function SuperAdminTenantsPage() {
   });
 
   // Gate de rol — los no-SuperAdmin redirigen al dashboard.
-  if (authLoading) return <SectionLoader text="Cargando…" />;
+  if (authLoading) return <SectionLoader text={tl("superadminTenants.loadingText")} />;
   if (!isSuper) {
     return <Navigate to="/app" />;
   }
@@ -228,7 +230,7 @@ function SuperAdminTenantsPage() {
     const validTypes = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"];
     if (!validTypes.includes(file.type)) {
       toast.error(
-        i18n.t("toast.routes_app_superadmin_tenants.logoFormatUnsupported", {
+        i18n.t("superadminTenants.logoFormatUnsupported", {
           defaultValue: "Formato no soportado. Usa PNG, JPG, SVG o WebP.",
         }),
       );
@@ -236,7 +238,7 @@ function SuperAdminTenantsPage() {
     }
     if (file.size > 2 * 1024 * 1024) {
       toast.error(
-        i18n.t("toast.routes_app_superadmin_tenants.logoTooLarge", {
+        i18n.t("superadminTenants.logoTooLarge", {
           defaultValue: "El logo no puede pesar más de 2 MB.",
         }),
       );
@@ -275,7 +277,7 @@ function SuperAdminTenantsPage() {
       const kbBefore = Math.round(originalSize / 1024);
       const kbAfter = Math.round(finalSize / 1024);
       toast.success(
-        i18n.t("toast.routes_app_superadmin_tenants.logoUploadedOptimized", {
+        i18n.t("superadminTenants.logoUploadedOptimized", {
           defaultValue: "Logo subido (optimizado: {{before}} KB → {{after}} KB).",
           before: kbBefore,
           after: kbAfter,
@@ -304,7 +306,7 @@ function SuperAdminTenantsPage() {
       setForm((p) => ({ ...p, logo_url: "" }));
       if (logoFileInputRef.current) logoFileInputRef.current.value = "";
       toast.success(
-        i18n.t("toast.routes_app_superadmin_tenants.logoReady", {
+        i18n.t("superadminTenants.logoReady", {
           defaultValue: "Logo listo. Se subirá al guardar la institución.",
         }),
       );
@@ -318,7 +320,7 @@ function SuperAdminTenantsPage() {
       if (path) {
         setForm((p) => ({ ...p, logo_path: path, logo_url: "" }));
         toast.success(
-          i18n.t("toast.routes_app_superadmin_tenants.logoUploadedRememberSave", {
+          i18n.t("superadminTenants.logoUploadedRememberSave", {
             defaultValue: "Logo subido. Recuerda 'Guardar' para aplicarlo.",
           }),
         );
@@ -333,7 +335,7 @@ function SuperAdminTenantsPage() {
     setForm((p) => ({ ...p, logo_path: "", logo_url: "" }));
     clearPendingLogo();
     toast.info(
-      i18n.t("toast.routes_app_superadmin_tenants.logoRemoved", {
+      i18n.t("superadminTenants.logoRemoved", {
         defaultValue: "Logo removido.",
       }),
     );
@@ -342,7 +344,7 @@ function SuperAdminTenantsPage() {
   const save = async () => {
     if (!form.slug || !form.name) {
       toast.error(
-        i18n.t("toast.routes_app_superadmin_tenants.slugAndNameRequired", {
+        i18n.t("superadminTenants.slugAndNameRequired", {
           defaultValue: "Slug y nombre son obligatorios.",
         }),
       );
@@ -350,7 +352,7 @@ function SuperAdminTenantsPage() {
     }
     if (!isValidTenantSlug(form.slug)) {
       toast.error(
-        i18n.t("toast.routes_app_superadmin_tenants.slugInvalid", {
+        i18n.t("superadminTenants.slugInvalid", {
           defaultValue:
             "Slug inválido: usa minúsculas, números y guiones (3-50 chars). Ej: 'sena-bogota'.",
         }),
@@ -366,7 +368,7 @@ function SuperAdminTenantsPage() {
       const n = Number(v);
       if (!Number.isInteger(n) || n < 0) {
         toast.error(
-          i18n.t("toast.routes_app_superadmin_tenants.quotaInvalid", {
+          i18n.t("superadminTenants.quotaInvalid", {
             defaultValue:
               "Cuota inválida para {{label}}. Debe ser entero ≥ 0 (o vacío = ilimitado).",
             label,
@@ -406,7 +408,7 @@ function SuperAdminTenantsPage() {
         return;
       }
       toast.success(
-        i18n.t("toast.routes_app_superadmin_tenants.tenantUpdated", {
+        i18n.t("superadminTenants.tenantUpdated", {
           defaultValue: "Institución actualizada",
         }),
       );
@@ -443,7 +445,7 @@ function SuperAdminTenantsPage() {
         clearPendingLogo();
       }
       toast.success(
-        i18n.t("toast.routes_app_superadmin_tenants.tenantCreated", {
+        i18n.t("superadminTenants.tenantCreated", {
           defaultValue: "Institución creada",
         }),
       );
@@ -470,7 +472,7 @@ function SuperAdminTenantsPage() {
           if (provErr || !data?.ok) {
             const msg = data?.error || provErr?.message || "Error desconocido";
             toast.error(
-              i18n.t("toast.routes_app_superadmin_tenants.testUserCreationFailed", {
+              i18n.t("superadminTenants.testUserCreationFailed", {
                 defaultValue:
                   "Institución creada, pero falló crear usuario de prueba: {{error}}",
                 error: msg,
@@ -488,7 +490,7 @@ function SuperAdminTenantsPage() {
           }
         } catch (e) {
           toast.error(
-            i18n.t("toast.routes_app_superadmin_tenants.testUserCreationFailed", {
+            i18n.t("superadminTenants.testUserCreationFailed", {
               defaultValue:
                 "Institución creada, pero falló crear usuario de prueba: {{error}}",
               error: e instanceof Error ? e.message : String(e),
@@ -507,10 +509,9 @@ function SuperAdminTenantsPage() {
     const willDeactivate = t.is_active;
     if (willDeactivate) {
       const ok = await confirm({
-        title: `Pausar ${t.name}`,
-        description:
-          "Los usuarios de esta institución no podrán acceder mientras esté pausada. Puedes reactivarla en cualquier momento.",
-        confirmLabel: "Pausar",
+        title: i18n.t("superadminTenants.pauseConfirmTitle", { name: t.name }),
+        description: i18n.t("superadminTenants.pauseConfirmDesc"),
+        confirmLabel: i18n.t("superadminTenants.pauseConfirmLabel"),
         tone: "warning",
       });
       if (!ok) return;
@@ -520,7 +521,7 @@ function SuperAdminTenantsPage() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success(willDeactivate ? "Institución pausada" : "Institución reactivada");
+    toast.success(willDeactivate ? i18n.t("superadminTenants.pausedToast") : i18n.t("superadminTenants.reactivatedToast"));
     await load();
   };
 
@@ -531,7 +532,7 @@ function SuperAdminTenantsPage() {
   const viewAs = (t: Tenant) => {
     setTenantOverride(t.slug);
     toast.success(
-      i18n.t("toast.routes_app_superadmin_tenants.viewingAs", {
+      i18n.t("superadminTenants.viewingAs", {
         defaultValue: "Viendo como: {{name}}",
         name: t.name,
       }),
@@ -542,7 +543,7 @@ function SuperAdminTenantsPage() {
   const clearViewAs = () => {
     setTenantOverride(null);
     toast.success(
-      i18n.t("toast.routes_app_superadmin_tenants.backToCrossTenant", {
+      i18n.t("superadminTenants.backToCrossTenant", {
         defaultValue: "Volviste al modo cross-tenant",
       }),
     );
@@ -560,10 +561,9 @@ function SuperAdminTenantsPage() {
    */
   const softDeleteTenantHandler = async (t: Tenant) => {
     const ok = await confirm({
-      title: `Eliminar ${t.name}`,
-      description:
-        "La institución y TODO su contenido (cursos, exámenes, talleres, proyectos, sesiones, pizarras, contenidos y encuestas) van a la papelera. Los usuarios pierden acceso hasta que la restaures (queda 30 días disponible para revertir desde /app/trash). Pasados los 30 días, se elimina definitivamente.",
-      confirmLabel: "Enviar a papelera",
+      title: i18n.t("superadminTenants.deleteConfirmTitle", { name: t.name }),
+      description: i18n.t("superadminTenants.deleteConfirmDesc"),
+      confirmLabel: i18n.t("superadminTenants.deleteConfirmLabel"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -573,7 +573,7 @@ function SuperAdminTenantsPage() {
       return;
     }
     toast.success(
-      i18n.t("toast.routes_app_superadmin_tenants.tenantSentToTrash", {
+      i18n.t("superadminTenants.tenantSentToTrash", {
         defaultValue: "{{name}} fue enviada a la papelera",
         name: t.name,
       }),
@@ -608,7 +608,7 @@ function SuperAdminTenantsPage() {
     const adminUserIds = ((adminRoleRows ?? []) as { user_id: string }[]).map((r) => r.user_id);
     if (adminUserIds.length === 0) {
       toast.error(
-        i18n.t("toast.routes_app_superadmin_tenants.noAdminUsers", {
+        i18n.t("superadminTenants.noAdminUsers", {
           defaultValue: "No hay usuarios con rol Admin en la plataforma.",
         }),
       );
@@ -628,7 +628,7 @@ function SuperAdminTenantsPage() {
       | undefined;
     if (!target) {
       toast.error(
-        i18n.t("toast.routes_app_superadmin_tenants.tenantHasNoAdmin", {
+        i18n.t("superadminTenants.tenantHasNoAdmin", {
           defaultValue:
             "{{name}} no tiene Admin asignado. Crea o asigna uno antes de iniciar sesión como.",
           name: t.name,
@@ -641,13 +641,13 @@ function SuperAdminTenantsPage() {
     //    'warning' por ser cambio importante reversible, no destructivo
     //    en datos).
     const ok = await confirm({
-      title: "Iniciar sesión como Admin",
+      title: i18n.t("superadminTenants.impersonateConfirmTitle"),
       description:
         `Vas a reemplazar tu sesión de SuperAdmin por la de ` +
         `${target.full_name ?? target.institutional_email} (Admin de ${t.name}). ` +
         `Tu sesión queda guardada — para volver, usa el banner "Estás viendo como…" ` +
         `que aparece arriba.`,
-      confirmLabel: "Iniciar como Admin",
+      confirmLabel: i18n.t("superadminTenants.actionImpersonate"),
       tone: "warning",
     });
     if (!ok) return;
@@ -669,16 +669,16 @@ function SuperAdminTenantsPage() {
     <div className="space-y-4">
       <PageHeader
         icon={<Building2 className="h-6 w-6 text-violet-500 dark:text-violet-400" />}
-        title="Instituciones"
+        title={tl("superadminTenants.title")}
         subtitle={`${tenants.length} institucion${tenants.length === 1 ? "" : "es"} en la plataforma`}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={clearViewAs}>
-              Limpiar "ver como"
+              {tl("superadminTenants.clearViewAsBtn")}
             </Button>
             <Button size="sm" onClick={openCreate}>
               <Plus className="h-4 w-4 mr-1" />
-              Nueva institución
+              {tl("superadminTenants.newInstitutionBtn")}
             </Button>
           </div>
         }
@@ -687,16 +687,16 @@ function SuperAdminTenantsPage() {
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           {loading ? (
-            <SectionLoader text="Cargando…" />
+            <SectionLoader text={tl("superadminTenants.loadingText")} />
           ) : loadError ? (
-            <ErrorState message="No pudimos cargar" hint={loadError} onRetry={load} />
+            <ErrorState message={tl("superadminTenants.loadError")} hint={loadError} onRetry={load} />
           ) : tenants.length === 0 ? (
             <TableEmpty
-              text="Sin instituciones todavía"
+              text={tl("superadminTenants.emptyText")}
               action={
                 <Button size="sm" onClick={openCreate}>
                   <Plus className="h-4 w-4 mr-1" />
-                  Crear la primera
+                  {tl("superadminTenants.createFirstBtn")}
                 </Button>
               }
             />
@@ -704,10 +704,10 @@ function SuperAdminTenantsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Slug</TableHead>
-                  <TableHead className="hidden sm:table-cell">Dominio email</TableHead>
-                  <TableHead>Estado</TableHead>
+                  <TableHead>{tl("superadminTenants.colName")}</TableHead>
+                  <TableHead>{tl("superadminTenants.colSlug")}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{tl("superadminTenants.colEmailDomain")}</TableHead>
+                  <TableHead>{tl("superadminTenants.colStatus")}</TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -736,11 +736,11 @@ function SuperAdminTenantsPage() {
                     <TableCell>
                       {t.is_active ? (
                         <Badge variant="secondary" className="text-[10px]">
-                          Activa
+                          {tl("superadminTenants.statusActive")}
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="text-[10px]">
-                          Pausada
+                          {tl("superadminTenants.statusPaused")}
                         </Badge>
                       )}
                     </TableCell>
@@ -748,10 +748,10 @@ function SuperAdminTenantsPage() {
                       <RowActionsMenu
                         actions={[
                           {
-                            label: "Iniciar sesión como Admin",
+                            label: tl("superadminTenants.actionImpersonate"),
                             icon: LogIn,
                             onClick: () => void impersonateTenantAdmin(t),
-                            hint: "Reemplaza tu sesión por la del Admin del tenant",
+                            hint: tl("superadminTenants.actionImpersonateHint"),
                             // El ícono toma el primary del tenant de esta
                             // fila — pista visual de que la acción va a
                             // entrar al contexto de ESE tenant. Cae al
@@ -759,35 +759,35 @@ function SuperAdminTenantsPage() {
                             iconColor: t.primary_color ?? undefined,
                           },
                           {
-                            label: "Gestionar usuarios",
+                            label: tl("superadminTenants.actionManageUsers"),
                             icon: UserPlus,
                             onClick: () => setAssignUsersTenant(t),
                           },
                           {
-                            label: "Ver como esta institución",
+                            label: tl("superadminTenants.actionViewAs"),
                             icon: Eye,
                             onClick: () => viewAs(t),
-                            hint: "Solo cambia branding visual, mantiene tu sesión",
+                            hint: tl("superadminTenants.actionViewAsHint"),
                           },
                           {
-                            label: "Editar",
+                            label: tl("superadminTenants.actionEdit"),
                             icon: Pencil,
                             onClick: () => openEdit(t),
                             separatorBefore: true,
                           },
                           {
-                            label: t.is_active ? "Pausar" : "Reactivar",
+                            label: t.is_active ? tl("superadminTenants.actionPause") : tl("superadminTenants.actionReactivate"),
                             icon: Power,
                             onClick: () => void toggleActive(t),
                             tone: t.is_active ? "destructive" : undefined,
                           },
                           {
-                            label: "Eliminar institución",
+                            label: tl("superadminTenants.actionDelete"),
                             icon: Trash2,
                             onClick: () => void softDeleteTenantHandler(t),
                             tone: "destructive",
                             separatorBefore: true,
-                            hint: "Soft-delete cascadeado a todo el contenido. 30d para revertir desde la papelera.",
+                            hint: tl("superadminTenants.actionDeleteHint"),
                           },
                         ]}
                       />
@@ -804,7 +804,7 @@ function SuperAdminTenantsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editing ? `Editar ${editing.name}` : "Nueva institución"}</DialogTitle>
+            <DialogTitle>{editing ? tl("superadminTenants.dialogEditTitle", { name: editing.name }) : tl("superadminTenants.dialogNewTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             {/* Cada field es un stack vertical Label → Input → helper text
@@ -815,27 +815,26 @@ function SuperAdminTenantsPage() {
                 El gap entre fields se subió a space-y-4 (16px) para no
                 achicar la separación entre grupos. */}
             <div className="space-y-1.5">
-              <Label required>Slug</Label>
+              <Label required>{tl("superadminTenants.fieldSlug")}</Label>
               <Input
                 value={form.slug}
                 onChange={(e) => setForm((p) => ({ ...p, slug: e.target.value }))}
                 placeholder="sena-bogota"
               />
               <p className="text-[11px] text-muted-foreground">
-                URL: <code>/t/{form.slug || "..."}/app/...</code>. Minúsculas, números y guiones;
-                3–50 chars.
+                URL: <code>/t/{form.slug || "..."}/app/...</code>. {tl("superadminTenants.fieldSlugHintChars")}
                 {editing && (
                   <>
                     {" "}
                     <span className="text-amber-600 dark:text-amber-400">
-                      Cambiar el slug rompe links existentes a <code>/t/{editing.slug}/...</code>.
+                      {tl("superadminTenants.fieldSlugChangeWarning")} <code>/t/{editing.slug}/...</code>.
                     </span>
                   </>
                 )}
               </p>
             </div>
             <div className="space-y-1.5">
-              <Label required>Nombre</Label>
+              <Label required>{tl("superadminTenants.fieldName")}</Label>
               <Input
                 value={form.name}
                 onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
@@ -843,18 +842,18 @@ function SuperAdminTenantsPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Dominio email (opcional)</Label>
+              <Label>{tl("superadminTenants.fieldEmailDomain")}</Label>
               <Input
                 value={form.email_domain}
                 onChange={(e) => setForm((p) => ({ ...p, email_domain: e.target.value }))}
                 placeholder="sena.edu.co"
               />
               <p className="text-[11px] text-muted-foreground">
-                Reservado para futura asignación automática de usuarios por dominio.
+                {tl("superadminTenants.fieldEmailDomainHint")}
               </p>
             </div>
             <div className="space-y-1.5">
-              <Label>Logo institucional</Label>
+              <Label>{tl("superadminTenants.fieldLogo")}</Label>
               {/* Misma UI en crear y editar. La diferencia vive en uploadLogo:
                   - Editar: sube al bucket al instante (tenemos editing.id).
                   - Crear: stashea el File + preview local; el upload real lo
@@ -889,7 +888,7 @@ function SuperAdminTenantsPage() {
                   </div>
                 ) : (
                   <div className="h-14 w-14 rounded-lg border border-dashed bg-muted/30 flex items-center justify-center text-[10px] text-muted-foreground shrink-0">
-                    Sin logo
+                    {tl("superadminTenants.logoNoLogo")}
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
@@ -911,7 +910,7 @@ function SuperAdminTenantsPage() {
                       disabled={uploadingLogo}
                     >
                       <Upload className="h-3.5 w-3.5 mr-1" />
-                      {uploadingLogo ? "Subiendo…" : "Subir logo"}
+                      {uploadingLogo ? tl("superadminTenants.logoUploadingBtn") : tl("superadminTenants.logoUploadBtn")}
                     </Button>
                     {(form.logo_path || form.logo_url || pendingLogoFile) && (
                       <Button
@@ -921,13 +920,13 @@ function SuperAdminTenantsPage() {
                         onClick={removeLogo}
                       >
                         <Trash2 className="h-3.5 w-3.5 mr-1" />
-                        Quitar
+                        {tl("superadminTenants.logoRemoveBtn")}
                       </Button>
                     )}
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-1">
-                    PNG/JPG/SVG/WebP · 2 MB max.
-                    {!editing && pendingLogoFile ? " Se subirá al guardar la institución." : ""}
+                    {tl("superadminTenants.logoHint")}
+                    {!editing && pendingLogoFile ? tl("superadminTenants.logoPendingHint") : ""}
                   </p>
                 </div>
               </div>
@@ -939,52 +938,52 @@ function SuperAdminTenantsPage() {
                 <Input
                   value={form.logo_url}
                   onChange={(e) => setForm((p) => ({ ...p, logo_url: e.target.value }))}
-                  placeholder="...o pega una URL pública (opcional)"
+                  placeholder={tl("superadminTenants.logoUrlPlaceholder")}
                   className="mt-2"
                 />
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-4">
               <div className="space-y-1.5">
-                <Label>Color primario (hex)</Label>
+                <Label>{tl("superadminTenants.colorPrimary")}</Label>
                 <HexColorInput
                   value={form.primary_color}
                   onChange={(v) => setForm((p) => ({ ...p, primary_color: v }))}
                   placeholder="#3B82F6"
-                  ariaLabel="Color primario"
+                  ariaLabel={tl("superadminTenants.colorPrimary")}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Color secundario (hex)</Label>
+                <Label>{tl("superadminTenants.colorSecondary")}</Label>
                 <HexColorInput
                   value={form.secondary_color}
                   onChange={(v) => setForm((p) => ({ ...p, secondary_color: v }))}
                   placeholder="#8B5CF6"
-                  ariaLabel="Color secundario"
+                  ariaLabel={tl("superadminTenants.colorSecondary")}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Color de letra sobre el primario (hex)</Label>
+                <Label>{tl("superadminTenants.colorText")}</Label>
                 <HexColorInput
                   value={form.text_color}
                   onChange={(v) => setForm((p) => ({ ...p, text_color: v }))}
                   placeholder="#FFFFFF"
-                  ariaLabel="Color de letra sobre el primario"
+                  ariaLabel={tl("superadminTenants.colorText")}
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Override del texto sobre el sidebar y botones primarios. Vacío = auto.
+                  {tl("superadminTenants.colorTextHint")}
                 </p>
               </div>
               <div className="space-y-1.5">
-                <Label>Color de íconos del sidebar (hex)</Label>
+                <Label>{tl("superadminTenants.colorIcon")}</Label>
                 <HexColorInput
                   value={form.icon_color}
                   onChange={(v) => setForm((p) => ({ ...p, icon_color: v }))}
                   placeholder="#FFFFFF"
-                  ariaLabel="Color de íconos del sidebar"
+                  ariaLabel={tl("superadminTenants.colorIcon")}
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Override de íconos del menú lateral. Vacío = heredan el color de letra.
+                  {tl("superadminTenants.colorIconHint")}
                 </p>
               </div>
             </div>
@@ -995,13 +994,13 @@ function SuperAdminTenantsPage() {
                 solo a Admin/Docente/Estudiante (SuperAdmin es
                 cross-tenant, no cuenta). */}
             <div className="space-y-2 pt-2 border-t">
-              <Label className="text-sm font-medium">Cuotas de usuarios</Label>
+              <Label className="text-sm font-medium">{tl("superadminTenants.quotaSection")}</Label>
               <p className="text-[11px] text-muted-foreground">
-                Tope de usuarios por rol. Deja vacío para ilimitado. SuperAdmin no consume cuota.
+                {tl("superadminTenants.quotaHint")}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Administradores</Label>
+                  <Label className="text-xs">{tl("superadminTenants.quotaAdmins")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -1012,7 +1011,7 @@ function SuperAdminTenantsPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Docentes</Label>
+                  <Label className="text-xs">{tl("superadminTenants.quotaTeachers")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -1023,7 +1022,7 @@ function SuperAdminTenantsPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Estudiantes</Label>
+                  <Label className="text-xs">{tl("superadminTenants.quotaStudents")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -1038,11 +1037,11 @@ function SuperAdminTenantsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancelar
+              {tl("superadminTenants.cancelBtn")}
             </Button>
             <Button onClick={save} disabled={saving}>
               <Save className="h-4 w-4 mr-1" />
-              {saving ? "Guardando…" : "Guardar"}
+              {saving ? tl("superadminTenants.savingBtn") : tl("superadminTenants.saveBtn")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1076,26 +1075,24 @@ function SuperAdminTenantsPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <KeyRound className="h-4 w-4 text-amber-500" />
-              Usuario de prueba creado
+              {tl("superadminTenants.testUserDialogTitle")}
             </DialogTitle>
             <DialogDescription>
-              Se creó un usuario con todos los roles (Admin, Docente, Estudiante) para que puedas
-              probar la institución. <strong>Guarda la contraseña ahora</strong> — no se mostrará
-              de nuevo.
+              {tl("superadminTenants.testUserDialogDesc")} <strong>{tl("superadminTenants.testUserDialogDescStrong")}</strong> {tl("superadminTenants.testUserDialogDescSuffix")}
             </DialogDescription>
           </DialogHeader>
           {testUserCreds && (
             <div className="space-y-3 text-sm">
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Institución</Label>
+                <Label className="text-xs text-muted-foreground">{tl("superadminTenants.testUserLabelInstitution")}</Label>
                 <div className="font-medium">{testUserCreds.tenant_name}</div>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Nombre completo</Label>
+                <Label className="text-xs text-muted-foreground">{tl("superadminTenants.testUserLabelFullName")}</Label>
                 <div className="font-medium">{testUserCreds.full_name}</div>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Email</Label>
+                <Label className="text-xs text-muted-foreground">{tl("superadminTenants.testUserLabelEmail")}</Label>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 rounded bg-muted px-2 py-1 text-xs font-mono break-all">
                     {testUserCreds.email}
@@ -1107,7 +1104,7 @@ function SuperAdminTenantsPage() {
                     onClick={() => {
                       void navigator.clipboard.writeText(testUserCreds.email);
                       toast.success(
-                        i18n.t("toast.routes_app_superadmin_tenants.emailCopied", {
+                        i18n.t("superadminTenants.emailCopied", {
                           defaultValue: "Email copiado",
                         }),
                       );
@@ -1119,7 +1116,7 @@ function SuperAdminTenantsPage() {
                 </div>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Contraseña temporal</Label>
+                <Label className="text-xs text-muted-foreground">{tl("superadminTenants.testUserLabelPassword")}</Label>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 rounded bg-muted px-2 py-1 text-xs font-mono break-all">
                     {testUserCreds.password}
@@ -1131,7 +1128,7 @@ function SuperAdminTenantsPage() {
                     onClick={() => {
                       void navigator.clipboard.writeText(testUserCreds.password);
                       toast.success(
-                        i18n.t("toast.routes_app_superadmin_tenants.passwordCopied", {
+                        i18n.t("superadminTenants.passwordCopied", {
                           defaultValue: "Contraseña copiada",
                         }),
                       );
@@ -1143,7 +1140,7 @@ function SuperAdminTenantsPage() {
                 </div>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Roles asignados</Label>
+                <Label className="text-xs text-muted-foreground">{tl("superadminTenants.testUserLabelRoles")}</Label>
                 <div className="flex flex-wrap gap-1">
                   {testUserCreds.roles.map((r) => (
                     <Badge key={r} variant="secondary" className="text-[10px]">
@@ -1153,10 +1150,9 @@ function SuperAdminTenantsPage() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground border-t pt-3">
-                El usuario ya está marcado como confirmado — puede ingresar directamente en
+                {tl("superadminTenants.testUserLoginHint")}
                 <code className="mx-1 rounded bg-muted px-1">/auth</code>
-                con estas credenciales. El email termina en <code>.test</code> (dominio reservado
-                para pruebas — los correos a este dominio no se entregan).
+                {tl("superadminTenants.testUserDomainNote")} <code>.test</code> {tl("superadminTenants.testUserDomainNoteEnd")}
               </p>
             </div>
           )}
@@ -1168,7 +1164,7 @@ function SuperAdminTenantsPage() {
                   `Email: ${testUserCreds.email}\nContraseña: ${testUserCreds.password}`,
                 );
                 toast.success(
-                  i18n.t("toast.routes_app_superadmin_tenants.credentialsCopied", {
+                  i18n.t("superadminTenants.credentialsCopied", {
                     defaultValue: "Credenciales copiadas",
                   }),
                 );
@@ -1176,9 +1172,9 @@ function SuperAdminTenantsPage() {
               variant="outline"
             >
               <Copy className="h-3.5 w-3.5 mr-1" />
-              Copiar todo
+              {tl("superadminTenants.copyAllBtn")}
             </Button>
-            <Button onClick={() => setTestUserCreds(null)}>Cerrar</Button>
+            <Button onClick={() => setTestUserCreds(null)}>{tl("superadminTenants.closeBtn")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

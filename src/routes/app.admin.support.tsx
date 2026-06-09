@@ -49,6 +49,7 @@ import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 import {
   SupportTicketDetailDialog,
   STATUS_LABEL,
@@ -70,6 +71,7 @@ export const Route = createFileRoute("/app/admin/support")({
 const db = supabase as any;
 
 function AdminSupportPage() {
+  const { t } = useTranslation();
   const { user, profile } = useAuth();
   const confirm = useConfirm();
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
@@ -112,12 +114,12 @@ function AdminSupportPage() {
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) {
-        setLoadError(friendlyError(error, "No pudimos cargar tus tickets"));
+        setLoadError(friendlyError(error, i18n.t("adminSupport.loadError")));
         return;
       }
       setTickets((data ?? []) as SupportTicket[]);
     } catch (e) {
-      setLoadError(friendlyError(e, "No pudimos cargar tus tickets"));
+      setLoadError(friendlyError(e, i18n.t("adminSupport.loadError")));
     } finally {
       if (!silent) setLoading(false);
     }
@@ -198,7 +200,7 @@ function AdminSupportPage() {
     const oversized = incoming.filter((f) => f.size > MAX_FILE_BYTES);
     if (oversized.length > 0) {
       toast.error(
-        i18n.t("toast.routes_app_admin_support.filesOversized", {
+        i18n.t("adminSupport.filesOversized", {
           defaultValue:
             "{{count}} archivo(s) superan 25 MB y se descartaron: {{names}}",
           count: oversized.length,
@@ -217,7 +219,7 @@ function AdminSupportPage() {
   const createTicket = async () => {
     if (!user?.id || !profile?.tenant_id) {
       toast.error(
-        i18n.t("toast.routes_app_admin_support.noTenantAssigned", {
+        i18n.t("adminSupport.noTenantAssigned", {
           defaultValue: "Tu cuenta no tiene institución asignada. Contacta al SuperAdmin.",
         }),
       );
@@ -225,7 +227,7 @@ function AdminSupportPage() {
     }
     if (newSubject.trim().length < 3) {
       toast.error(
-        i18n.t("toast.routes_app_admin_support.subjectTooShort", {
+        i18n.t("adminSupport.subjectTooShort", {
           defaultValue: "El asunto debe tener al menos 3 caracteres.",
         }),
       );
@@ -233,7 +235,7 @@ function AdminSupportPage() {
     }
     if (newBody.trim().length < 10) {
       toast.error(
-        i18n.t("toast.routes_app_admin_support.bodyTooShort", {
+        i18n.t("adminSupport.bodyTooShort", {
           defaultValue: "La descripción debe tener al menos 10 caracteres.",
         }),
       );
@@ -302,7 +304,7 @@ function AdminSupportPage() {
 
       if (attachmentsFailed > 0) {
         toast.warning(
-          i18n.t("toast.routes_app_admin_support.ticketCreatedSomeAttachmentsFailed", {
+          i18n.t("adminSupport.ticketCreatedSomeAttachmentsFailed", {
             defaultValue:
               "Ticket creado. {{uploaded}} adjunto(s) subido(s), {{failed}} fallaron — podés volver a subirlos desde el detalle.",
             uploaded: attachmentsUploaded,
@@ -311,7 +313,7 @@ function AdminSupportPage() {
         );
       } else if (attachmentsUploaded > 0) {
         toast.success(
-          i18n.t("toast.routes_app_admin_support.ticketCreatedWithAttachments", {
+          i18n.t("adminSupport.ticketCreatedWithAttachments", {
             defaultValue:
               "Ticket abierto con {{uploaded}} adjunto(s). El SuperAdmin recibió la notificación.",
             uploaded: attachmentsUploaded,
@@ -319,7 +321,7 @@ function AdminSupportPage() {
         );
       } else {
         toast.success(
-          i18n.t("toast.routes_app_admin_support.ticketCreated", {
+          i18n.t("adminSupport.ticketCreated", {
             defaultValue: "Ticket abierto. El SuperAdmin recibió la notificación.",
           }),
         );
@@ -369,15 +371,15 @@ function AdminSupportPage() {
   // `deleted_at IS NULL`, así que sale de la bandeja tras refrescar.
   const deleteTicket = async (t: SupportTicket) => {
     const ok = await confirm({
-      title: i18n.t("toast.routes_app_admin_support.deleteConfirmTitle", {
+      title: i18n.t("adminSupport.deleteConfirmTitle", {
         defaultValue: "¿Eliminar este ticket?",
       }),
-      description: i18n.t("toast.routes_app_admin_support.deleteConfirmDesc", {
+      description: i18n.t("adminSupport.deleteConfirmDesc", {
         defaultValue:
           "El ticket y su conversación se eliminarán de tu bandeja. Esta acción no se puede deshacer.",
       }),
       tone: "destructive",
-      confirmLabel: i18n.t("toast.routes_app_admin_support.deleteConfirmLabel", {
+      confirmLabel: i18n.t("adminSupport.deleteConfirmLabel", {
         defaultValue: "Eliminar",
       }),
     });
@@ -388,7 +390,7 @@ function AdminSupportPage() {
       return;
     }
     toast.success(
-      i18n.t("toast.routes_app_admin_support.ticketDeleted", {
+      i18n.t("adminSupport.ticketDeleted", {
         defaultValue: "Ticket eliminado",
       }),
     );
@@ -398,7 +400,7 @@ function AdminSupportPage() {
   if (loadError) {
     return (
       <ErrorState
-        message="No pudimos cargar tus tickets"
+        message={t("adminSupport.loadError")}
         hint={loadError}
         onRetry={() => setRetryNonce((n) => n + 1)}
       />
@@ -409,41 +411,41 @@ function AdminSupportPage() {
     <div className="space-y-5">
       <PageHeader
         icon={<LifeBuoy className="h-6 w-6 text-primary" />}
-        title="Soporte"
-        subtitle="Tus peticiones, quejas, reclamos y sugerencias al SuperAdmin de la plataforma."
+        title={t("adminSupport.title")}
+        subtitle={t("adminSupport.subtitle")}
         actions={
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4 mr-1" />
-            Nuevo ticket
+            {t("adminSupport.newTicketBtn")}
           </Button>
         }
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={MessageSquare} label="Total" value={stats.total} />
+        <StatCard icon={MessageSquare} label={t("adminSupport.statTotal")} value={stats.total} />
         <StatCard
           icon={AlertCircle}
-          label="Abiertos / Esperando"
+          label={t("adminSupport.statOpen")}
           value={stats.open}
           tone={stats.open > 0 ? "warning" : "default"}
         />
-        <StatCard icon={Clock} label="En progreso" value={stats.inProgress} />
+        <StatCard icon={Clock} label={t("adminSupport.statInProgress")} value={stats.inProgress} />
         <StatCard
           icon={CheckCircle2}
-          label="Resueltos / Cerrados"
+          label={t("adminSupport.statResolved")}
           value={stats.resolved}
           tone="success"
         />
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
-        <Label className="text-xs text-muted-foreground">Estado:</Label>
+        <Label className="text-xs text-muted-foreground">{t("adminSupport.filterStatusLabel")}</Label>
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
           <SelectTrigger className="h-8 w-44 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="all">{t("adminSupport.filterAll")}</SelectItem>
             {(Object.keys(STATUS_LABEL) as TicketStatus[]).map((s) => (
               <SelectItem key={s} value={s}>
                 {STATUS_LABEL[s]}
@@ -457,22 +459,22 @@ function AdminSupportPage() {
         <CardContent className="p-0 overflow-x-auto">
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">
-              <Spinner size="sm" /> Cargando…
+              <Spinner size="sm" /> {t("adminSupport.loading")}
             </div>
           ) : filtered.length === 0 ? (
             <TableEmpty
               icon={LifeBuoy}
-              title={statusFilter === "all" ? "Sin tickets" : "Sin tickets con ese estado"}
+              title={statusFilter === "all" ? t("adminSupport.emptyAll") : t("adminSupport.emptyFiltered")}
               description={
                 statusFilter === "all"
-                  ? "No has abierto tickets todavía. Usa 'Nuevo ticket' para enviar una petición al SuperAdmin."
-                  : "Cambia el filtro de estado para ver otros tickets."
+                  ? t("adminSupport.emptyAllDesc")
+                  : t("adminSupport.emptyFilteredDesc")
               }
               action={
                 statusFilter === "all" ? (
                   <Button onClick={openCreate}>
                     <Plus className="h-4 w-4 mr-1" />
-                    Crear primer ticket
+                    {t("adminSupport.createFirstBtn")}
                   </Button>
                 ) : undefined
               }
@@ -481,13 +483,13 @@ function AdminSupportPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Asunto</TableHead>
-                  <TableHead className="hidden sm:table-cell">Categoría</TableHead>
-                  <TableHead className="hidden sm:table-cell">Prioridad</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="hidden md:table-cell">Creado</TableHead>
-                  <TableHead className="hidden lg:table-cell">Resuelto</TableHead>
-                  <TableHead className="w-12 text-right">Acciones</TableHead>
+                  <TableHead>{t("adminSupport.colSubject")}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t("adminSupport.colCategory")}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t("adminSupport.colPriority")}</TableHead>
+                  <TableHead>{t("adminSupport.colStatus")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("adminSupport.colCreated")}</TableHead>
+                  <TableHead className="hidden lg:table-cell">{t("adminSupport.colResolved")}</TableHead>
+                  <TableHead className="w-12 text-right">{t("adminSupport.colActions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -525,7 +527,7 @@ function AdminSupportPage() {
                       <RowActionsMenu
                         actions={[
                           {
-                            label: i18n.t("toast.routes_app_admin_support.deleteAction", {
+                            label: i18n.t("adminSupport.deleteAction", {
                               defaultValue: "Eliminar",
                             }),
                             icon: Trash2,
@@ -557,10 +559,9 @@ function AdminSupportPage() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Nuevo ticket de soporte</DialogTitle>
+            <DialogTitle>{t("adminSupport.dialogTitle")}</DialogTitle>
             <DialogDescription>
-              Describe tu petición, queja, reclamo o sugerencia. El SuperAdmin recibirá una
-              notificación de inmediato.
+              {t("adminSupport.dialogDesc")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -570,7 +571,7 @@ function AdminSupportPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <Label className="text-xs" required>
-                  Categoría
+                  {t("adminSupport.fieldCategory")}
                 </Label>
                 <Select value={newCategory} onValueChange={(v) => setNewCategory(v as TicketCategory)}>
                   <SelectTrigger className="h-9 text-sm">
@@ -586,7 +587,7 @@ function AdminSupportPage() {
                 </Select>
               </div>
               <div>
-                <Label className="text-xs">Prioridad</Label>
+                <Label className="text-xs">{t("adminSupport.fieldPriority")}</Label>
                 <Select value={newPriority} onValueChange={(v) => setNewPriority(v as TicketPriority)}>
                   <SelectTrigger className="h-9 text-sm">
                     <SelectValue />
@@ -603,23 +604,23 @@ function AdminSupportPage() {
             </div>
             <div>
               <Label className="text-xs" required>
-                Asunto
+                {t("adminSupport.fieldSubject")}
               </Label>
               <Input
                 value={newSubject}
                 onChange={(e) => setNewSubject(e.target.value)}
-                placeholder="Ej. No puedo invitar usuarios desde el panel"
+                placeholder={t("adminSupport.fieldSubjectPlaceholder")}
                 maxLength={200}
               />
             </div>
             <div>
               <Label className="text-xs" required>
-                Descripción
+                {t("adminSupport.fieldBody")}
               </Label>
               <Textarea
                 value={newBody}
                 onChange={(e) => setNewBody(e.target.value)}
-                placeholder="Cuenta con detalle el problema, qué intentaste, mensajes de error, etc."
+                placeholder={t("adminSupport.fieldBodyPlaceholder")}
                 rows={6}
                 maxLength={10000}
               />
@@ -634,7 +635,7 @@ function AdminSupportPage() {
             <div>
               <Label className="text-xs flex items-center gap-1.5">
                 <Paperclip className="h-3.5 w-3.5" />
-                Adjuntos (opcional)
+                {t("adminSupport.fieldAttachments")}
               </Label>
               <Input
                 type="file"
@@ -648,7 +649,7 @@ function AdminSupportPage() {
                 className="text-xs file:mr-2 file:text-xs"
               />
               <p className="text-[10px] text-muted-foreground mt-1">
-                Hasta 25 MB por archivo. Screenshots, logs o cualquier evidencia que ayude.
+                {t("adminSupport.attachmentsHint")}
               </p>
               {newAttachments.length > 0 && (
                 <div className="mt-2 space-y-1 max-h-32 overflow-y-auto rounded border bg-muted/30 p-2">
@@ -688,7 +689,7 @@ function AdminSupportPage() {
               entre opens, asi que el admin sabe que su info esta a salvo. */}
           {hasDraft && (
             <p className="text-[11px] text-muted-foreground italic">
-              El borrador se conserva si cerrás el diálogo.
+              {t("adminSupport.draftNote")}
             </p>
           )}
           <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -700,15 +701,15 @@ function AdminSupportPage() {
                 disabled={creating}
                 className="text-muted-foreground hover:text-destructive sm:mr-auto"
               >
-                Empezar de cero
+                {t("adminSupport.resetDraftBtn")}
               </Button>
             )}
             <Button variant="ghost" onClick={() => setCreateOpen(false)} disabled={creating}>
-              Cerrar
+              {t("adminSupport.closeBtn")}
             </Button>
             <Button onClick={() => void createTicket()} disabled={creating}>
               {creating && <Spinner size="sm" className="mr-2" />}
-              Crear ticket
+              {t("adminSupport.createBtn")}
             </Button>
           </DialogFooter>
         </DialogContent>

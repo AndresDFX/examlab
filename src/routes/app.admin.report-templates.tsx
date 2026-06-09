@@ -10,6 +10,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -90,6 +91,7 @@ function AdminReportTemplates() {
 }
 
 function Inner() {
+  const { t } = useTranslation();
   const { user, roles } = useAuth();
   const confirm = useConfirm();
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -170,7 +172,7 @@ function Inner() {
       const html = parseDocxToHtml(bytes);
       if (!html.trim()) {
         toast.error(
-          i18n.t("toast.routes_app_admin_report_templates.docxEmpty", {
+          i18n.t("adminReportTemplates.docxEmpty", {
             defaultValue: "El documento no contiene texto que importar.",
           }),
         );
@@ -185,11 +187,11 @@ function Inner() {
       const placeholders = extractPlaceholders(html);
       toast.success(
         placeholders.length > 0
-          ? i18n.t("toast.routes_app_admin_report_templates.docxImportedWithVars", {
+          ? i18n.t("adminReportTemplates.docxImportedWithVars", {
               defaultValue: "Word importado. Variables detectadas: {{vars}}",
               vars: placeholders.join(", "),
             })
-          : i18n.t("toast.routes_app_admin_report_templates.docxImported", {
+          : i18n.t("adminReportTemplates.docxImported", {
               defaultValue: "Word importado. Edítalo e inserta variables del panel derecho.",
             }),
       );
@@ -202,7 +204,7 @@ function Inner() {
   const handleAiGenerate = async () => {
     if (!aiCourseId) {
       toast.error(
-        i18n.t("toast.routes_app_admin_report_templates.aiSelectCourse", {
+        i18n.t("adminReportTemplates.aiSelectCourse", {
           defaultValue: "Selecciona un curso de referencia para los datos.",
         }),
       );
@@ -233,7 +235,7 @@ function Inner() {
         setAiOpen(false);
         setAiBusy(false);
         toast.success(
-          i18n.t("toast.routes_app_admin_report_templates.aiGenerated", {
+          i18n.t("adminReportTemplates.aiGenerated", {
             defaultValue:
               "Informe generado con IA e insertado en el editor. Revisa los {{...}} antes de guardar.",
           }),
@@ -257,11 +259,11 @@ function Inner() {
     setAiBusy(false);
     toast.warning(
       copied
-        ? i18n.t("toast.routes_app_admin_report_templates.aiFallbackCopied", {
+        ? i18n.t("adminReportTemplates.aiFallbackCopied", {
             defaultValue:
               "No se pudo generar con la IA de la plataforma. Copiamos el prompt al portapapeles — pégalo en tu IA y trae el resultado.",
           })
-        : i18n.t("toast.routes_app_admin_report_templates.aiFallbackReady", {
+        : i18n.t("adminReportTemplates.aiFallbackReady", {
             defaultValue: "No se pudo generar con la IA. El prompt quedó en la consola.",
           }),
       { duration: 12000 },
@@ -310,9 +312,9 @@ function Inner() {
   const handleClose = async () => {
     if (!draftEqual(draft, original)) {
       const ok = await confirm({
-        title: "¿Descartar cambios?",
-        description: "Hay cambios sin guardar que se perderán.",
-        confirmLabel: "Descartar",
+        title: i18n.t("adminReportTemplates.discardChangesTitle"),
+        description: i18n.t("adminReportTemplates.discardChangesDesc"),
+        confirmLabel: i18n.t("adminReportTemplates.discardChangesConfirm"),
         tone: "warning",
       });
       if (!ok) return;
@@ -324,7 +326,7 @@ function Inner() {
     if (!user) return;
     if (!draft.name.trim()) {
       toast.error(
-        i18n.t("toast.routes_app_admin_report_templates.nameRequired", {
+        i18n.t("adminReportTemplates.nameRequired", {
           defaultValue: "El nombre es obligatorio",
         }),
       );
@@ -332,7 +334,7 @@ function Inner() {
     }
     if (!draft.body_html.trim()) {
       toast.error(
-        i18n.t("toast.routes_app_admin_report_templates.bodyEmpty", {
+        i18n.t("adminReportTemplates.bodyEmpty", {
           defaultValue: "El cuerpo no puede estar vacío",
         }),
       );
@@ -365,10 +367,10 @@ function Inner() {
     }
     toast.success(
       editing
-        ? i18n.t("toast.routes_app_admin_report_templates.updatedOk", {
+        ? i18n.t("adminReportTemplates.updatedOk", {
             defaultValue: "Plantilla actualizada",
           })
-        : i18n.t("toast.routes_app_admin_report_templates.createdOk", {
+        : i18n.t("adminReportTemplates.createdOk", {
             defaultValue: "Plantilla creada",
           }),
     );
@@ -378,11 +380,9 @@ function Inner() {
 
   const handleDelete = async (t: Template) => {
     const ok = await confirm({
-      title: `¿Eliminar "${t.name}"?`,
-      description:
-        "Las personalizaciones que los docentes hayan hecho de esta plantilla quedarán huérfanas (parent_id NULL). " +
-        "Esta acción no se puede deshacer.",
-      confirmLabel: "Eliminar",
+      title: i18n.t("adminReportTemplates.deleteConfirmTitle", { name: t.name }),
+      description: i18n.t("adminReportTemplates.deleteConfirmDesc"),
+      confirmLabel: i18n.t("adminReportTemplates.deleteConfirmLabel"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -392,7 +392,7 @@ function Inner() {
       return;
     }
     toast.success(
-      i18n.t("toast.routes_app_admin_report_templates.deletedOk", {
+      i18n.t("adminReportTemplates.deletedOk", {
         defaultValue: "Plantilla eliminada",
       }),
     );
@@ -423,7 +423,7 @@ function Inner() {
       return;
     }
     toast.success(
-      i18n.t("toast.routes_app_admin_report_templates.duplicatedOk", {
+      i18n.t("adminReportTemplates.duplicatedOk", {
         defaultValue: "Plantilla duplicada",
       }),
     );
@@ -431,24 +431,24 @@ function Inner() {
   };
 
   if (!isAdmin) {
-    return <p className="text-muted-foreground p-4">Necesitas rol Admin.</p>;
+    return <p className="text-muted-foreground p-4">{t("adminReportTemplates.needsAdmin")}</p>;
   }
 
   return (
     <div className="space-y-5">
       <PageHeader
         icon={<ClipboardList className="h-5 w-5 text-pink-500" />}
-        title="Informes"
-        subtitle={loading ? undefined : `${templates.length} plantilla(s) global(es)`}
+        title={t("adminReportTemplates.title")}
+        subtitle={loading ? undefined : t("adminReportTemplates.subtitleCount", { count: templates.length })}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => docxInputRef.current?.click()}>
               <Upload className="h-4 w-4 mr-1" />
-              Cargar Word (.docx)
+              {t("adminReportTemplates.loadWordBtn")}
             </Button>
             <Button onClick={openNew}>
               <Plus className="h-4 w-4 mr-1" />
-              Nueva plantilla
+              {t("adminReportTemplates.newTemplateBtn")}
             </Button>
           </div>
         }
@@ -470,7 +470,7 @@ function Inner() {
       <SearchInput
         value={search}
         onChange={setSearch}
-        placeholder="Buscar por nombre o descripción…"
+        placeholder={t("adminReportTemplates.searchPlaceholder")}
       />
 
       <Card>
@@ -488,10 +488,10 @@ function Inner() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead className="hidden md:table-cell">Descripción</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead className="hidden sm:table-cell">Página</TableHead>
+                    <TableHead>{t("adminReportTemplates.colName")}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t("adminReportTemplates.colDescription")}</TableHead>
+                    <TableHead>{t("adminReportTemplates.colType")}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t("adminReportTemplates.colPage")}</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
@@ -499,40 +499,40 @@ function Inner() {
                   {filtered.length === 0 ? (
                     <TableEmpty
                       colSpan={5}
-                      text="Sin plantillas"
-                      hint="Crea la primera plantilla global con el botón de arriba."
+                      text={t("adminReportTemplates.emptyText")}
+                      hint={t("adminReportTemplates.emptyHint")}
                     />
                   ) : (
-                    filtered.map((t) => (
-                      <TableRow key={t.id}>
-                        <TableCell className="font-medium">{t.name}</TableCell>
+                    filtered.map((tmpl) => (
+                      <TableRow key={tmpl.id}>
+                        <TableCell className="font-medium">{tmpl.name}</TableCell>
                         <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                          {t.description ?? "—"}
+                          {tmpl.description ?? "—"}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">
-                            {t.scope === "curso" ? "Curso" : "Estudiante"}
+                            {tmpl.scope === "curso" ? t("adminReportTemplates.scopeCourse") : t("adminReportTemplates.scopeStudent")}
                           </Badge>
                         </TableCell>
                         <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
-                          {t.page_size}{" "}
-                          {t.page_orientation === "portrait" ? "vertical" : "horizontal"}
+                          {tmpl.page_size}{" "}
+                          {tmpl.page_orientation === "portrait" ? t("adminReportTemplates.orientationPortrait") : t("adminReportTemplates.orientationLandscape")}
                         </TableCell>
                         <TableCell className="text-right">
                           <RowActionsMenu
                             actions={[
-                              { label: "Editar", icon: Pencil, onClick: () => openEdit(t) },
+                              { label: t("adminReportTemplates.actionEdit"), icon: Pencil, onClick: () => openEdit(tmpl) },
                               {
-                                label: "Duplicar",
+                                label: t("adminReportTemplates.actionDuplicate"),
                                 icon: Copy,
-                                onClick: () => void handleDuplicate(t),
+                                onClick: () => void handleDuplicate(tmpl),
                               },
                               {
-                                label: "Eliminar",
+                                label: t("adminReportTemplates.actionDelete"),
                                 icon: Trash2,
                                 tone: "destructive",
                                 separatorBefore: true,
-                                onClick: () => void handleDelete(t),
+                                onClick: () => void handleDelete(tmpl),
                               },
                             ]}
                           />
@@ -551,7 +551,7 @@ function Inner() {
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-5xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editing ? `Editar "${editing.name}"` : "Nueva plantilla global"}
+              {editing ? t("adminReportTemplates.dialogEditTitle", { name: editing.name }) : t("adminReportTemplates.dialogNewTitle")}
             </DialogTitle>
           </DialogHeader>
 
@@ -569,14 +569,14 @@ function Inner() {
               disabled={saving}
             >
               <Sparkles className="h-4 w-4 mr-1 text-violet-500" />
-              Generar con IA
+              {t("adminReportTemplates.generateWithAiBtn")}
             </Button>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => void handleClose()} disabled={saving}>
-                Cancelar
+                {t("adminReportTemplates.cancelBtn")}
               </Button>
               <Button onClick={() => void handleSave()} disabled={saving}>
-                {saving ? "Guardando…" : editing ? "Guardar cambios" : "Crear plantilla"}
+                {saving ? t("adminReportTemplates.savingBtn") : editing ? t("adminReportTemplates.saveChangesBtn") : t("adminReportTemplates.createTemplateBtn")}
               </Button>
             </div>
           </DialogFooter>
@@ -588,19 +588,17 @@ function Inner() {
       <Dialog open={aiOpen} onOpenChange={(o) => !aiBusy && setAiOpen(o)}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Generar con IA</DialogTitle>
+            <DialogTitle>{t("adminReportTemplates.aiDialogTitle")}</DialogTitle>
             <DialogDescription>
-              Describe qué quieres que la IA redacte. Usaremos los datos reales del curso elegido
-              para que conozca las variables disponibles y arme la plantilla con placeholders{" "}
-              {`{{...}}`} reutilizables.
+              {t("adminReportTemplates.aiDialogDesc")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label required>Curso de referencia</Label>
+              <Label required>{t("adminReportTemplates.aiRefCourseLabel")}</Label>
               <Select value={aiCourseId} onValueChange={setAiCourseId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un curso" />
+                  <SelectValue placeholder={t("adminReportTemplates.aiSelectCoursePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {courses.map((c) => (
@@ -612,22 +610,22 @@ function Inner() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>¿Qué quieres que genere?</Label>
+              <Label>{t("adminReportTemplates.aiInstructionLabel")}</Label>
               <Textarea
                 value={aiInstruction}
                 onChange={(e) => setAiInstruction(e.target.value)}
-                placeholder="Ej: Redacta un informe de desempeño del curso usando notas y asistencia."
+                placeholder={t("adminReportTemplates.aiInstructionPlaceholder")}
                 className="min-h-[120px]"
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAiOpen(false)} disabled={aiBusy}>
-              Cancelar
+              {t("adminReportTemplates.cancelBtn")}
             </Button>
             <Button onClick={() => void handleAiGenerate()} disabled={aiBusy || !aiCourseId}>
               {aiBusy ? <Spinner size="sm" className="mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
-              {aiBusy ? "Generando…" : "Generar con IA"}
+              {aiBusy ? t("adminReportTemplates.aiGeneratingBtn") : t("adminReportTemplates.aiGenerateBtn")}
             </Button>
           </DialogFooter>
         </DialogContent>
