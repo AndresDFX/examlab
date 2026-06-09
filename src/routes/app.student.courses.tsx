@@ -486,24 +486,21 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       if (Date.now() < releaseAt) return [];
     }
     const visible = c.files.filter((f) => !isTeacherOnlyFile(f.name));
-    // Base: por clase (curso_completo) o todos (individual).
-    let base: ContentFileEntry[];
-    if (s.content_class_index == null) {
-      base = visible;
-    } else {
-      const filtered = visible.filter(
-        (f) => classNumberFromFilename(f.name) === s.content_class_index,
-      );
-      base = filtered.length > 0 ? filtered : visible;
-    }
-    // Subconjunto explícito elegido por el docente: NULL = todos; un array
-    // (incluso vacío) = exactamente esos paths. Así el docente puede asignar
-    // "unos archivos u otros" según el modo del contenido.
+    // Subconjunto EXPLÍCITO elegido por el docente — tiene PRIORIDAD sobre
+    // el match por clase. Puede incluir CUALQUIER archivo del contenido (de
+    // cualquier clase), porque el selector de la sesión lista todos. NULL =
+    // sin selección explícita → aplica el default (por clase o todos). Un
+    // array (incluso vacío) = exactamente esos paths.
     if (s.content_file_paths != null) {
       const allow = new Set(s.content_file_paths);
-      return base.filter((f) => allow.has(f.path));
+      return visible.filter((f) => allow.has(f.path));
     }
-    return base;
+    // Default: por clase (curso_completo) o todos (individual).
+    if (s.content_class_index == null) return visible;
+    const byClass = visible.filter(
+      (f) => classNumberFromFilename(f.name) === s.content_class_index,
+    );
+    return byClass.length > 0 ? byClass : visible;
   };
 
   /** Items "vinculados" a una sesión: due dentro de ±3 días de la fecha

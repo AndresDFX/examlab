@@ -2626,38 +2626,49 @@ function ContentAssignmentSelector({
     : [];
   const hasClasses = selected && availableClasses.length > 0;
 
-  // Archivos elegibles para el contenido + clase actual: sin los de uso
-  // docente y, en curso_completo, acotados a la CLASE seleccionada (misma
-  // lógica que filesForSession del tablero del estudiante).
+  // Archivos ELEGIBLES: TODOS los del contenido (sin los de uso docente),
+  // sin acotar por clase. Así el docente puede asignar CUALQUIER archivo del
+  // contenido subido a la sesión, no solo los que el "match automático" por
+  // clase sugeriría. La clase solo determina el DEFAULT (defaultPaths).
   const eligibleFiles = useMemo(() => {
     if (!selected) return [] as { name: string; path: string }[];
-    let files = selected.files.filter((f) => !isTeacherOnlyFile(f.name));
-    if (selected.classes.length > 0 && classIndex != null) {
-      const byClass = files.filter((f) => classNumberFromFilename(f.name) === classIndex);
-      if (byClass.length > 0) files = byClass;
-    }
-    return files;
-  }, [selected, classIndex]);
+    return selected.files.filter((f) => !isTeacherOnlyFile(f.name));
+  }, [selected]);
 
-  // Set de paths actualmente "incluidos": null = todos.
-  const includedSet = filePaths == null ? null : new Set(filePaths);
-  const isIncluded = (p: string) => includedSet == null || includedSet.has(p);
+  // Selección por DEFAULT (cuando filePaths==null): en curso_completo, los
+  // archivos de la CLASE elegida; si no, todos. Es solo el punto de partida
+  // — el docente puede destildar/marcar cualquier archivo a partir de acá.
+  const defaultPaths = useMemo(() => {
+    if (!selected) return new Set<string>();
+    if (selected.classes.length > 0 && classIndex != null) {
+      const byClass = eligibleFiles.filter(
+        (f) => classNumberFromFilename(f.name) === classIndex,
+      );
+      const base = byClass.length > 0 ? byClass : eligibleFiles;
+      return new Set(base.map((f) => f.path));
+    }
+    return new Set(eligibleFiles.map((f) => f.path));
+  }, [selected, classIndex, eligibleFiles]);
+
+  // Set efectivo de incluidos: explícito (filePaths) o el default.
+  const includedSet = filePaths == null ? defaultPaths : new Set(filePaths);
+  const isIncluded = (p: string) => includedSet.has(p);
   const includedCount = eligibleFiles.filter((f) => isIncluded(f.path)).length;
   const allIncluded = includedCount === eligibleFiles.length;
 
+  const setsEqual = (a: Set<string>, b: Set<string>) =>
+    a.size === b.size && [...a].every((x) => b.has(x));
+
   const toggleFile = (path: string) => {
-    // Partimos del set efectivo (todos si era null) y toggle el path.
-    const current = new Set(
-      includedSet == null ? eligibleFiles.map((f) => f.path) : Array.from(includedSet),
-    );
+    const current = new Set(includedSet);
     if (current.has(path)) current.delete(path);
     else current.add(path);
-    // Si quedaron TODOS los elegibles → null (= "todos", limpio).
-    const next =
-      current.size >= eligibleFiles.length &&
-      eligibleFiles.every((f) => current.has(f.path))
-        ? null
-        : eligibleFiles.filter((f) => current.has(f.path)).map((f) => f.path);
+    // Si la selección coincide EXACTO con el default → null (estado limpio,
+    // el tablero del estudiante aplica el default). Si no, guardamos el
+    // array explícito (puede incluir archivos de cualquier clase).
+    const next = setsEqual(current, defaultPaths)
+      ? null
+      : eligibleFiles.filter((f) => current.has(f.path)).map((f) => f.path);
     onChange(contentId, classIndex, next);
   };
 
