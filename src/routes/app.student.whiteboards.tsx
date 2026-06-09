@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Palette, BookOpen } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { useTranslation } from "react-i18next";
 
 export const Route = createFileRoute("/app/student/whiteboards")({
   component: StudentWhiteboards,
@@ -55,6 +56,7 @@ interface SharedWhiteboard {
 }
 
 function StudentWhiteboards() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [items, setItems] = useState<SharedWhiteboard[]>([]);
   const [courses, setCourses] = useState<Array<{ id: string; name: string }>>([]);
@@ -151,11 +153,11 @@ function StudentWhiteboards() {
       <div className="space-y-5">
         <PageHeader
           icon={<Palette className="h-6 w-6 text-violet-500" />}
-          title="Pizarras"
-          subtitle="Pizarras compartidas por tus docentes."
+          title={t("studentWhiteboards.title")}
+          subtitle={t("studentWhiteboards.subtitleStatic")}
         />
         <ErrorState
-          message="No pudimos cargar las pizarras"
+          message={t("studentWhiteboards.loadError")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -167,24 +169,24 @@ function StudentWhiteboards() {
     <div className="space-y-5">
       <PageHeader
         icon={<Palette className="h-6 w-6 text-violet-500" />}
-        title="Pizarras"
+        title={t("studentWhiteboards.title")}
         subtitle={
           items.length > 0
-            ? `${items.length} pizarra${items.length === 1 ? "" : "s"} compartida${items.length === 1 ? "" : "s"} por tus docentes`
-            : "Las pizarras que tus docentes compartan con tus cursos aparecerán acá."
+            ? t("studentWhiteboards.subtitle", { count: items.length })
+            : t("studentWhiteboards.subtitleStatic")
         }
       />
 
       {items.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <StatTile
-            label="Total"
+            label={t("studentWhiteboards.statTotal")}
             value={stats.total}
             color="text-violet-600 dark:text-violet-400"
             bg="bg-violet-500/10"
           />
           <StatTile
-            label="Cursos con pizarras"
+            label={t("studentWhiteboards.statCourses")}
             value={stats.courses}
             color="text-sky-600 dark:text-sky-400"
             bg="bg-sky-500/10"
@@ -199,7 +201,7 @@ function StudentWhiteboards() {
               <SearchInput
                 value={search}
                 onChange={setSearch}
-                placeholder="Buscar por nombre, descripción o curso…"
+                placeholder={t("studentWhiteboards.searchPlaceholder")}
               />
             </div>
             {courses.length > 1 && (
@@ -209,7 +211,7 @@ function StudentWhiteboards() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all" className="text-xs">
-                    Todos los cursos
+                    {t("studentWhiteboards.allCourses")}
                   </SelectItem>
                   {courses.map((c) => (
                     <SelectItem key={c.id} value={c.id} className="text-xs">
@@ -223,20 +225,20 @@ function StudentWhiteboards() {
 
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
-              <Spinner size="sm" /> Cargando…
+              <Spinner size="sm" /> {t("studentWhiteboards.loading")}
             </div>
           ) : filtered.length === 0 ? (
             <EmptyState
               icon={Palette}
               text={
                 search.trim() || courseFilter !== "all"
-                  ? "Sin coincidencias"
-                  : "Sin pizarras compartidas todavía"
+                  ? t("studentWhiteboards.emptyFiltered")
+                  : t("studentWhiteboards.emptyAll")
               }
               hint={
                 search.trim() || courseFilter !== "all"
-                  ? "Ajustá los filtros para ver más resultados."
-                  : "Cuando tus docentes compartan pizarras con tus cursos, aparecerán acá."
+                  ? t("studentWhiteboards.emptyFilteredHint")
+                  : t("studentWhiteboards.emptyAllHint")
               }
             />
           ) : (
@@ -276,13 +278,13 @@ function StudentWhiteboards() {
                       </Badge>
                     )}
                     <div className="mt-auto pt-2 text-[11px] text-muted-foreground tabular-nums flex items-center gap-1">
-                      <span>Última edición:</span>
+                      <span>{t("studentWhiteboards.lastEdited")}</span>
                       <DateCell value={w.updated_at} variant="datetime" />
                     </div>
                   </Link>
                 ))}
               </div>
-              <DataPagination state={pagination} entityNamePlural="pizarras" />
+              <DataPagination state={pagination} entityNamePlural={t("studentWhiteboards.paginationEntity")} />
             </>
           )}
         </CardContent>

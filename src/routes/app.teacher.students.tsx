@@ -24,6 +24,8 @@ import { toast } from "sonner";
 import { Eye, Users } from "lucide-react";
 import { startImpersonate } from "@/modules/admin/impersonation";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/teacher/students")({ component: TeacherStudents });
 
@@ -46,6 +48,7 @@ function TeacherStudents() {
 }
 
 function TeacherStudentsInner() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const confirm = useConfirm();
   const [students, setStudents] = useState<Student[]>([]);
@@ -163,12 +166,9 @@ function TeacherStudentsInner() {
 
   const handleImpersonate = async (s: Student) => {
     const ok = await confirm({
-      title: `¿Iniciar sesión como ${s.full_name}?`,
-      description:
-        "Vas a entrar a la plataforma con la cuenta de este usuario. Verás todo lo que él ve. " +
-        "Mientras estés impersonando, aparecerá un banner amarillo arriba con el botón 'Volver a mi cuenta'. " +
-        "La acción queda registrada en el log de auditoría.",
-      confirmLabel: "Iniciar como",
+      title: i18n.t("teacherStudents.impersonateConfirmTitle", { name: s.full_name }),
+      description: i18n.t("teacherStudents.impersonateConfirmDesc"),
+      confirmLabel: i18n.t("teacherStudents.impersonateConfirmLabel"),
       tone: "warning",
     });
     if (!ok) return;
@@ -176,7 +176,7 @@ function TeacherStudentsInner() {
     try {
       await startImpersonate(s.id);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error al iniciar la impersonación");
+      toast.error(e instanceof Error ? e.message : i18n.t("teacherStudents.impersonateError"));
       setImpersonating(null);
     }
   };
@@ -184,8 +184,8 @@ function TeacherStudentsInner() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Usuarios"
-        subtitle={loading ? undefined : `${students.length} usuario(s) en tus cursos`}
+        title={t("teacherStudents.title")}
+        subtitle={loading ? undefined : t("teacherStudents.subtitle", { count: students.length })}
         icon={<Users className="h-5 w-5 text-violet-500" />}
       />
 
@@ -195,16 +195,16 @@ function TeacherStudentsInner() {
           <SearchInput
             value={search}
             onChange={setSearch}
-            placeholder="Buscar por nombre o correo…"
+            placeholder={t("teacherStudents.searchPlaceholder")}
           />
         </div>
         {courses.length > 1 && (
           <Select value={courseFilter} onValueChange={setCourseFilter}>
             <SelectTrigger className="w-full sm:w-56">
-              <SelectValue placeholder="Todos los cursos" />
+              <SelectValue placeholder={t("teacherStudents.allCourses")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos los cursos</SelectItem>
+              <SelectItem value="all">{t("teacherStudents.allCourses")}</SelectItem>
               {courses.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
                   {c.name}
@@ -223,7 +223,7 @@ function TeacherStudentsInner() {
               <TableSkeleton cols={3} rows={6} />
             ) : loadError ? (
               <ErrorState
-                message="No pudimos cargar los usuarios"
+                message={t("teacherStudents.loadError")}
                 hint={loadError}
                 onRetry={() => setRetryNonce((n) => n + 1)}
               />
@@ -231,16 +231,16 @@ function TeacherStudentsInner() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="max-w-[260px]">Usuario</TableHead>
-                    <TableHead className="hidden sm:table-cell w-32">Código</TableHead>
-                    <TableHead className="hidden sm:table-cell max-w-[260px]">Correo</TableHead>
-                    <TableHead className="hidden md:table-cell">Cursos</TableHead>
+                    <TableHead className="max-w-[260px]">{t("teacherStudents.colName")}</TableHead>
+                    <TableHead className="hidden sm:table-cell w-32">{t("teacherStudents.colCode")}</TableHead>
+                    <TableHead className="hidden sm:table-cell max-w-[260px]">{t("teacherStudents.colEmail")}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t("teacherStudents.colCourses")}</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 ? (
-                    <TableEmpty colSpan={5} text="Sin usuarios" />
+                    <TableEmpty colSpan={5} text={t("teacherStudents.empty")} />
                   ) : (
                     filtered.map((s) => (
                       <TableRow key={s.id}>
@@ -291,9 +291,9 @@ function TeacherStudentsInner() {
                           <RowActionsMenu
                             actions={[
                               {
-                                label: "Iniciar como",
+                                label: t("teacherStudents.actionImpersonate"),
                                 icon: Eye,
-                                hint: `Acceder a la plataforma como ${s.full_name}`,
+                                hint: t("teacherStudents.impersonateHint", { name: s.full_name }),
                                 onClick: () => void handleImpersonate(s),
                                 disabled: impersonating === s.id,
                               },

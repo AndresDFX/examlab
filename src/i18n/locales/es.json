@@ -1874,6 +1874,43 @@
     "fraudBadgePlagiarism": "{{pairs}} pares · {{students}} estudiantes",
     "fraudEmpty": "Sin alertas de integridad. Ejecuta 'Detectar copias' por actividad para poblar pares."
   },
+  "studentWhiteboards": {
+    "title": "Pizarras",
+    "subtitleStatic": "Las pizarras que tus docentes compartan con tus cursos aparecerán acá.",
+    "subtitle_one": "{{count}} pizarra compartida por tus docentes",
+    "subtitle_other": "{{count}} pizarras compartidas por tus docentes",
+    "loadError": "No pudimos cargar las pizarras",
+    "statTotal": "Total",
+    "statCourses": "Cursos con pizarras",
+    "searchPlaceholder": "Buscar por nombre, descripción o curso…",
+    "allCourses": "Todos los cursos",
+    "loading": "Cargando…",
+    "emptyFiltered": "Sin coincidencias",
+    "emptyFilteredHint": "Ajustá los filtros para ver más resultados.",
+    "emptyAll": "Sin pizarras compartidas todavía",
+    "emptyAllHint": "Cuando tus docentes compartan pizarras con tus cursos, aparecerán acá.",
+    "lastEdited": "Última edición:",
+    "paginationEntity": "pizarras"
+  },
+  "teacherStudents": {
+    "title": "Usuarios",
+    "subtitle_one": "{{count}} usuario en tus cursos",
+    "subtitle_other": "{{count}} usuarios en tus cursos",
+    "searchPlaceholder": "Buscar por nombre o correo…",
+    "allCourses": "Todos los cursos",
+    "loadError": "No pudimos cargar los usuarios",
+    "colName": "Usuario",
+    "colCode": "Código",
+    "colEmail": "Correo",
+    "colCourses": "Cursos",
+    "empty": "Sin usuarios",
+    "actionImpersonate": "Iniciar como",
+    "impersonateHint": "Acceder a la plataforma como {{name}}",
+    "impersonateConfirmTitle": "¿Iniciar sesión como {{name}}?",
+    "impersonateConfirmDesc": "Vas a entrar a la plataforma con la cuenta de este usuario. Verás todo lo que él ve. Mientras estés impersonando, aparecerá un banner amarillo arriba con el botón 'Volver a mi cuenta'. La acción queda registrada en el log de auditoría.",
+    "impersonateConfirmLabel": "Iniciar como",
+    "impersonateError": "Error al iniciar la impersonación"
+  },
   "toast": {
     "modules_admin_AdminAcademicPeriodsPanel": {
       "codeRequired": "El código es obligatorio",

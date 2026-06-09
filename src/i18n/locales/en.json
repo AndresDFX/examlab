@@ -1874,6 +1874,43 @@
     "fraudBadgePlagiarism": "{{pairs}} pairs · {{students}} students",
     "fraudEmpty": "No integrity alerts. Run 'Detect copies' per activity to populate pairs."
   },
+  "studentWhiteboards": {
+    "title": "Whiteboards",
+    "subtitleStatic": "Whiteboards your teachers share with your courses will appear here.",
+    "subtitle_one": "{{count}} whiteboard shared by your teachers",
+    "subtitle_other": "{{count}} whiteboards shared by your teachers",
+    "loadError": "Could not load whiteboards",
+    "statTotal": "Total",
+    "statCourses": "Courses with whiteboards",
+    "searchPlaceholder": "Search by name, description or course…",
+    "allCourses": "All courses",
+    "loading": "Loading…",
+    "emptyFiltered": "No matches",
+    "emptyFilteredHint": "Adjust filters to see more results.",
+    "emptyAll": "No shared whiteboards yet",
+    "emptyAllHint": "When your teachers share whiteboards with your courses, they'll appear here.",
+    "lastEdited": "Last edited:",
+    "paginationEntity": "whiteboards"
+  },
+  "teacherStudents": {
+    "title": "Users",
+    "subtitle_one": "{{count}} user in your courses",
+    "subtitle_other": "{{count}} users in your courses",
+    "searchPlaceholder": "Search by name or email…",
+    "allCourses": "All courses",
+    "loadError": "Could not load users",
+    "colName": "User",
+    "colCode": "Code",
+    "colEmail": "Email",
+    "colCourses": "Courses",
+    "empty": "No users",
+    "actionImpersonate": "Log in as",
+    "impersonateHint": "Access the platform as {{name}}",
+    "impersonateConfirmTitle": "Log in as {{name}}?",
+    "impersonateConfirmDesc": "You will enter the platform with this user's account. You will see everything they see. While impersonating, a yellow banner will appear at the top with a 'Return to my account' button. The action is recorded in the audit log.",
+    "impersonateConfirmLabel": "Log in as",
+    "impersonateError": "Error starting impersonation"
+  },
   "toast": {
     "modules_admin_AdminAcademicPeriodsPanel": {
       "codeRequired": "Code is required",
