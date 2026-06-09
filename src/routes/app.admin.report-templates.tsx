@@ -7,12 +7,23 @@
  * /app/teacher/reports.
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import i18n from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { DialogDescription } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
@@ -21,6 +32,9 @@ import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
 import { ModuleGuard } from "@/shared/components/ModuleGuard";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { parseDocxToHtml, extractPlaceholders } from "@/modules/reports/docx-import";
+import { buildAiReportPrompt } from "@/modules/reports/template-engine";
+import { buildReportContext } from "@/modules/reports/report-context";
 import {
   Table,
   TableBody,
@@ -37,7 +51,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ClipboardList, Plus, Pencil, Trash2, Copy } from "lucide-react";
+import { ClipboardList, Plus, Pencil, Trash2, Copy, Upload, Sparkles } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
   TemplateEditor,
@@ -91,6 +105,18 @@ function Inner() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Cursos (para el contexto de la generación con IA). El admin/SA ve todos
+  // por RLS. Se usan SOLO como "curso de referencia" para que la IA conozca
+  // el shape de datos disponibles; la plantilla global NO queda atada al curso.
+  const [courses, setCourses] = useState<Array<{ id: string; name: string }>>([]);
+  // Cargar Word (.docx) → importa como plantilla global editable inline.
+  const docxInputRef = useRef<HTMLInputElement>(null);
+  // Generar con IA.
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiInstruction, setAiInstruction] = useState("");
+  const [aiCourseId, setAiCourseId] = useState<string>("");
+  const [aiBusy, setAiBusy] = useState(false);
+
   // SuperAdmin gestiona plantillas globales igual que Admin (módulo
   // compartido). Las plantillas viven a nivel plataforma, no tenant.
   const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
@@ -119,6 +145,132 @@ function Inner() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryNonce]);
+
+  // Cargar cursos para el "curso de referencia" de la IA (RLS acota al
+  // alcance del admin/SA).
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data } = await db
+        .from("courses")
+        .select("id, name")
+        .is("deleted_at", null)
+        .order("name");
+      if (!cancelled) setCourses((data ?? []) as Array<{ id: string; name: string }>);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ── Cargar Word (.docx) → plantilla global editable (HTML con formato) ──
+  const handleDocxFile = async (file: File) => {
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const html = parseDocxToHtml(bytes);
+      if (!html.trim()) {
+        toast.error(
+          i18n.t("toast.routes_app_admin_report_templates.docxEmpty", {
+            defaultValue: "El documento no contiene texto que importar.",
+          }),
+        );
+        return;
+      }
+      const baseName = file.name.replace(/\.docx$/i, "").trim() || "Documento importado";
+      const d: TemplateDraft = { ...emptyDraft(), name: baseName, body_html: html };
+      setEditing(null);
+      setDraft(d);
+      setOriginal(emptyDraft());
+      setDialogOpen(true);
+      const placeholders = extractPlaceholders(html);
+      toast.success(
+        placeholders.length > 0
+          ? i18n.t("toast.routes_app_admin_report_templates.docxImportedWithVars", {
+              defaultValue: "Word importado. Variables detectadas: {{vars}}",
+              vars: placeholders.join(", "),
+            })
+          : i18n.t("toast.routes_app_admin_report_templates.docxImported", {
+              defaultValue: "Word importado. Edítalo e inserta variables del panel derecho.",
+            }),
+      );
+    } catch (e) {
+      toast.error(friendlyError(e, "No se pudo importar el documento."));
+    }
+  };
+
+  // ── Generar con IA (inserta el resultado en el cuerpo del editor) ──
+  const handleAiGenerate = async () => {
+    if (!aiCourseId) {
+      toast.error(
+        i18n.t("toast.routes_app_admin_report_templates.aiSelectCourse", {
+          defaultValue: "Selecciona un curso de referencia para los datos.",
+        }),
+      );
+      return;
+    }
+    setAiBusy(true);
+    let system = "";
+    let userMsg = "";
+    try {
+      const ctx = await buildReportContext({ courseId: aiCourseId, studentId: undefined });
+      ({ system, user: userMsg } = buildAiReportPrompt({
+        draftText: draft.body_html,
+        instruction: aiInstruction,
+        ctx,
+      }));
+    } catch (e) {
+      setAiBusy(false);
+      toast.error(friendlyError(e, "No se pudo preparar la generación con IA."));
+      return;
+    }
+    try {
+      const { data, error } = await db.functions.invoke("ai-generate-report", {
+        body: { system, user: userMsg, courseId: aiCourseId },
+      });
+      const content = typeof data?.content === "string" ? data.content.trim() : "";
+      if (!error && content) {
+        setDraft((d) => ({ ...d, body_html: content }));
+        setAiOpen(false);
+        setAiBusy(false);
+        toast.success(
+          i18n.t("toast.routes_app_admin_report_templates.aiGenerated", {
+            defaultValue:
+              "Informe generado con IA e insertado en el editor. Revisa los {{...}} antes de guardar.",
+          }),
+        );
+        return;
+      }
+      if (error) console.warn("[admin-reports][ai-generate-report]", error);
+    } catch (e) {
+      console.warn("[admin-reports][ai-generate-report] invoke failed", e);
+    }
+    // Fallback: copiar el prompt al portapapeles.
+    const prompt = `### SYSTEM\n${system}\n\n### USER\n${userMsg}`;
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      copied = true;
+    } catch {
+      copied = false;
+    }
+    setAiOpen(false);
+    setAiBusy(false);
+    toast.warning(
+      copied
+        ? i18n.t("toast.routes_app_admin_report_templates.aiFallbackCopied", {
+            defaultValue:
+              "No se pudo generar con la IA de la plataforma. Copiamos el prompt al portapapeles — pégalo en tu IA y trae el resultado.",
+          })
+        : i18n.t("toast.routes_app_admin_report_templates.aiFallbackReady", {
+            defaultValue: "No se pudo generar con la IA. El prompt quedó en la consola.",
+          }),
+      { duration: 12000 },
+    );
+    if (!copied) {
+      // eslint-disable-next-line no-console
+      console.info("[admin-reports][ai-prompt]\n", prompt);
+    }
+  };
 
   const filtered = useMemo(() => {
     if (!search.trim()) return templates;
@@ -289,11 +441,30 @@ function Inner() {
         title="Informes"
         subtitle={loading ? undefined : `${templates.length} plantilla(s) global(es)`}
         actions={
-          <Button onClick={openNew}>
-            <Plus className="h-4 w-4 mr-1" />
-            Nueva plantilla
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => docxInputRef.current?.click()}>
+              <Upload className="h-4 w-4 mr-1" />
+              Cargar Word (.docx)
+            </Button>
+            <Button onClick={openNew}>
+              <Plus className="h-4 w-4 mr-1" />
+              Nueva plantilla
+            </Button>
+          </div>
         }
+      />
+
+      {/* Input oculto para cargar .docx (se dispara desde el botón). */}
+      <input
+        ref={docxInputRef}
+        type="file"
+        accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) void handleDocxFile(f);
+        }}
       />
 
       <SearchInput
@@ -386,12 +557,77 @@ function Inner() {
 
           <TemplateEditor value={draft} onChange={setDraft} />
 
+          <DialogFooter className="sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setAiInstruction("");
+                setAiCourseId(courses[0]?.id ?? "");
+                setAiOpen(true);
+              }}
+              disabled={saving}
+            >
+              <Sparkles className="h-4 w-4 mr-1 text-violet-500" />
+              Generar con IA
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => void handleClose()} disabled={saving}>
+                Cancelar
+              </Button>
+              <Button onClick={() => void handleSave()} disabled={saving}>
+                {saving ? "Guardando…" : editing ? "Guardar cambios" : "Crear plantilla"}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Generar con IA — usa un curso de referencia para darle a la
+          IA el shape de datos; la plantilla global no queda atada a él. */}
+      <Dialog open={aiOpen} onOpenChange={(o) => !aiBusy && setAiOpen(o)}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Generar con IA</DialogTitle>
+            <DialogDescription>
+              Describe qué quieres que la IA redacte. Usaremos los datos reales del curso elegido
+              para que conozca las variables disponibles y arme la plantilla con placeholders{" "}
+              {`{{...}}`} reutilizables.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label required>Curso de referencia</Label>
+              <Select value={aiCourseId} onValueChange={setAiCourseId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona un curso" />
+                </SelectTrigger>
+                <SelectContent>
+                  {courses.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>¿Qué quieres que genere?</Label>
+              <Textarea
+                value={aiInstruction}
+                onChange={(e) => setAiInstruction(e.target.value)}
+                placeholder="Ej: Redacta un informe de desempeño del curso usando notas y asistencia."
+                className="min-h-[120px]"
+              />
+            </div>
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => void handleClose()} disabled={saving}>
+            <Button variant="outline" onClick={() => setAiOpen(false)} disabled={aiBusy}>
               Cancelar
             </Button>
-            <Button onClick={() => void handleSave()} disabled={saving}>
-              {saving ? "Guardando…" : editing ? "Guardar cambios" : "Crear plantilla"}
+            <Button onClick={() => void handleAiGenerate()} disabled={aiBusy || !aiCourseId}>
+              {aiBusy ? <Spinner size="sm" className="mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
+              {aiBusy ? "Generando…" : "Generar con IA"}
             </Button>
           </DialogFooter>
         </DialogContent>
