@@ -8,7 +8,7 @@
  * conserva la sesión.
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card } from "@/components/ui/card";
@@ -20,11 +20,14 @@ import { PageHeader } from "@/components/ui/page-header";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { toast } from "sonner";
-import { Sparkles, Send, Trash2, Bot, User as UserIcon, AlertTriangle } from "lucide-react";
+import { Sparkles, Send, Trash2, Bot, User as UserIcon, AlertTriangle, FileText, X } from "lucide-react";
 import { ErrorState } from "@/components/ui/empty-state";
 import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
+import { findActiveTagQuery } from "@/modules/messaging/message-tags";
+import { isReferenceableFile } from "@/modules/contents/material-extract";
+import { cn } from "@/shared/lib/utils";
 import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/student/tutor/$courseId")({ component: TutorChat });
@@ -38,6 +41,13 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   created_at: string;
+}
+
+/** Un archivo de contenido del curso que el estudiante puede referenciar con #. */
+interface CourseFile {
+  contentId: string;
+  contentName: string;
+  fileName: string;
 }
 
 function TutorChat() {
@@ -54,6 +64,21 @@ function TutorChat() {
   const [sending, setSending] = useState(false);
   const [clearing, setClearing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // ── Referenciar archivos del curso con # (autocomplete estilo Slack) ──
+  const [courseFiles, setCourseFiles] = useState<CourseFile[]>([]);
+  const [referenced, setReferenced] = useState<CourseFile[]>([]);
+  const [tagQuery, setTagQuery] = useState<{ query: string; start: number } | null>(null);
+  const [tagIndex, setTagIndex] = useState(0);
+
+  const suggestions = useMemo(() => {
+    if (!tagQuery) return [];
+    const q = tagQuery.query.toLowerCase();
+    return courseFiles
+      .filter((f) => `${f.fileName} ${f.contentName}`.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [tagQuery, courseFiles]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -67,7 +92,7 @@ function TutorChat() {
       setLoading(true);
       setLoadError(null);
       try {
-        const [{ data: c, error: cErr }, { data: s }] = await Promise.all([
+        const [{ data: c, error: cErr }, { data: s }, { data: contents }] = await Promise.all([
           db.from("courses").select("id, name").eq("id", courseId).maybeSingle(),
           db
             .from("tutor_chat_sessions")
@@ -75,6 +100,15 @@ function TutorChat() {
             .eq("user_id", user.id)
             .eq("course_id", courseId)
             .maybeSingle(),
+          // Contenidos del curso para el picker de # (solo done, no papelera).
+          db
+            .from("generated_contents")
+            .select("id, display_name, topic, files")
+            .eq("course_id", courseId)
+            .eq("status", "done")
+            .is("deleted_at", null)
+            .order("updated_at", { ascending: false })
+            .limit(30),
         ]);
         if (cancelled) return;
         if (cErr) {
@@ -82,6 +116,22 @@ function TutorChat() {
           return;
         }
         setCourse(c as { id: string; name: string } | null);
+        // Aplanar los archivos referenciables (texto/código/notebook/office).
+        const files: CourseFile[] = [];
+        for (const row of (contents ?? []) as Array<{
+          id: string;
+          display_name: string | null;
+          topic: string | null;
+          files: Array<{ name?: string }> | null;
+        }>) {
+          const contentName = (row.display_name || row.topic || "Contenido").trim();
+          for (const f of Array.isArray(row.files) ? row.files : []) {
+            if (f?.name && isReferenceableFile(f.name)) {
+              files.push({ contentId: row.id, contentName, fileName: String(f.name) });
+            }
+          }
+        }
+        setCourseFiles(files);
         const sid = (s as { id: string } | null)?.id ?? null;
         setSessionId(sid);
         if (sid) {
@@ -151,6 +201,31 @@ function TutorChat() {
     toast.success(i18n.t("toast.routes_app_student_tutor_courseId.conversationCleared", { defaultValue: "Conversación limpiada" }));
   };
 
+  // ── Referenciar un archivo del curso: reemplaza el "#query" por
+  // "#<archivo> " y lo agrega a la lista de referenciados (chips). ──────────
+  const selectFile = (f: CourseFile) => {
+    if (!tagQuery) return;
+    const short = f.fileName.length > 32 ? f.fileName.slice(0, 32) + "…" : f.fileName;
+    const before = input.slice(0, tagQuery.start);
+    const after = input.slice(tagQuery.start + 1 + tagQuery.query.length);
+    const insert = `#${short} `;
+    const next = before + insert + after;
+    setInput(next);
+    setTagQuery(null);
+    setReferenced((prev) =>
+      prev.some((r) => r.contentId === f.contentId && r.fileName === f.fileName)
+        ? prev
+        : [...prev, f],
+    );
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      const pos = (before + insert).length;
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
   // ── Enviar mensaje ────────────────────────────────────────────────────
   const sendMessage = async () => {
     if (!user) return;
@@ -160,7 +235,9 @@ function TutorChat() {
     const sid = await ensureSession();
     if (!sid) return;
 
+    const refsForSend = referenced.map((r) => ({ contentId: r.contentId, name: r.fileName }));
     setInput("");
+    setTagQuery(null);
     setSending(true);
 
     const optimisticUserMsg: Message = {
@@ -174,7 +251,11 @@ function TutorChat() {
 
     try {
       const { data, error } = await supabase.functions.invoke("tutor-chat", {
-        body: { sessionId: sid, message: text },
+        body: {
+          sessionId: sid,
+          message: text,
+          ...(refsForSend.length > 0 ? { referencedFiles: refsForSend } : {}),
+        },
       });
       // Ver app.student.tutor.$courseId.tsx (sendMessage previo) y
       // shared/lib/edge-error.ts: invoke envuelve los non-2xx en
@@ -186,6 +267,8 @@ function TutorChat() {
       }
       if (data?.error) throw new Error(data.error);
       await loadMessages(sid);
+      // Las referencias aplican al mensaje enviado; se limpian para el próximo.
+      setReferenced([]);
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticUserMsg.id));
       toast.error(friendlyError(e, "Error consultando al tutor"));
@@ -253,24 +336,96 @@ function TutorChat() {
         </div>
 
         <div className="border-t p-3 space-y-2">
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="¿En qué te ayudo? Pregúntame sobre cualquier tema del curso…"
-            rows={3}
-            className="resize-none text-sm"
-            maxLength={4000}
-            disabled={sending || loading}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                if (!sending) void sendMessage();
-              }
-            }}
-          />
+          {referenced.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-[11px] text-muted-foreground mr-0.5">Material referenciado:</span>
+              {referenced.map((f, i) => (
+                <Badge key={`${f.contentId}-${f.fileName}-${i}`} variant="secondary" className="gap-1 text-[10px] max-w-[220px]">
+                  <FileText className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{f.fileName}</span>
+                  <button
+                    type="button"
+                    aria-label={`Quitar ${f.fileName}`}
+                    className="ml-0.5 rounded-sm hover:bg-foreground/10 p-0.5"
+                    onClick={() => setReferenced((prev) => prev.filter((_, j) => j !== i))}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          )}
+          <div className="relative">
+            {tagQuery && suggestions.length > 0 && (
+              <div className="absolute bottom-full mb-1 left-0 right-0 z-20 max-h-56 overflow-y-auto rounded-md border bg-popover shadow-md">
+                {suggestions.map((f, i) => (
+                  <button
+                    key={`${f.contentId}-${f.fileName}`}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      selectFile(f);
+                    }}
+                    className={cn(
+                      "w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-accent",
+                      i === tagIndex && "bg-accent",
+                    )}
+                  >
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-indigo-500" />
+                    <span className="truncate font-medium">{f.fileName}</span>
+                    <span className="truncate text-muted-foreground">· {f.contentName}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <Textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => {
+                const val = e.target.value;
+                setInput(val);
+                const caret = e.target.selectionStart ?? val.length;
+                setTagQuery(findActiveTagQuery(val, caret));
+                setTagIndex(0);
+              }}
+              placeholder="¿En qué te ayudo? Escribe # para referenciar material del curso…"
+              rows={3}
+              className="resize-none text-sm"
+              maxLength={4000}
+              disabled={sending || loading}
+              onKeyDown={(e) => {
+                if (tagQuery && suggestions.length > 0) {
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setTagIndex((i) => (i + 1) % suggestions.length);
+                    return;
+                  }
+                  if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setTagIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
+                    return;
+                  }
+                  if (e.key === "Enter" || e.key === "Tab") {
+                    e.preventDefault();
+                    selectFile(suggestions[tagIndex]);
+                    return;
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setTagQuery(null);
+                    return;
+                  }
+                }
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  if (!sending) void sendMessage();
+                }
+              }}
+            />
+          </div>
           <div className="flex items-center justify-end sm:justify-between gap-2">
             <span className="hidden sm:inline text-[11px] text-muted-foreground">
-              Enter para enviar · Shift+Enter para salto de línea
+              Enter para enviar · Shift+Enter salto de línea · <span className="font-medium">#</span> referencia material
             </span>
             <Button
               size="sm"

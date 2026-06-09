@@ -19,6 +19,13 @@
 import { adminClient as admin, corsHeaders, userClientFromRequest } from "../_shared/admin.ts";
 import { buildTutorSystemPrompt, truncateHistory, type ChatMessage } from "./tutor-prompt.ts";
 import { getActiveAiModel as resolveActiveModel } from "../_shared/ai-model.ts";
+import {
+  docxXmlToText,
+  isNotebook,
+  isOfficeDoc,
+  notebookToReadableText,
+  pptxSlideXmlToText,
+} from "./material-extract.ts";
 
 const MAX_HISTORY_MESSAGES = 30;
 const MAX_USER_MESSAGE_LENGTH = 4000;
@@ -56,41 +63,139 @@ Estos son extractos del texto real de esos contenidos (guías, presentaciones, l
 - Cierra la respuesta con UNA pregunta de seguimiento que invite al estudiante a verificar su comprensión o avanzar al siguiente paso.`;
 
 // ── Extracción de material del curso para el contexto del tutor ──
-// El contenido de los documentos vive inline en generated_contents.files[].body
-// (texto crudo que el módulo de contenidos guarda al generar/editar). Solo
-// extraemos los kinds legibles. Concatenamos por documento con un header de
-// título, con tope por-documento y tope global para no reventar el context
-// window. La función PURA equivalente del cliente vive en tutor-prompt.ts; acá
-// la inlineamos porque depende del shape de la fila de DB.
-const READABLE_FILE_KINDS = new Set(["md", "pptx-source", "txt"]);
+// El tutor debe poder citar el CONTENIDO real del material, no solo títulos.
+// Tres orígenes de texto por archivo:
+//   - body inline de texto/código (md/txt/.py/.java/.js…) → tal cual.
+//   - .ipynb (body JSON) → markdown + bloques de código (notebookToReadableText).
+//   - .docx/.pptx (binario, SIN body) → se baja de Storage, se descomprime
+//     (fflate) y se extrae el texto de su XML interno; el resultado se
+//     CACHEA de vuelta en files[].body para que la próxima vez no haya que
+//     volver a bajarlo (self-healing backfill del material ya subido).
+// Topes por-archivo y global para no reventar el context window. Los archivos
+// REFERENCIADOS por el estudiante (#) van primero (prioridad de budget).
 const MATERIAL_PER_DOC_CHARS = 6000;
-const MATERIAL_TOTAL_CHARS = 16000;
+const MATERIAL_TOTAL_CHARS = 22000;
+const MAX_STORAGE_EXTRACTIONS = 18; // cota de descargas por request (latencia)
+const CONTENTS_BUCKET = "generated-contents";
 
-function buildCourseMaterial(
-  rows: Array<{ topic: string; display_name: string; files: Array<{ name?: string; kind?: string; body?: string }> | null }>,
-): string {
-  let acc = "";
+type MaterialFile = { name?: string; path?: string; kind?: string; body?: string };
+type MaterialRow = { id: string; topic: string; display_name: string; files: MaterialFile[] | null };
+
+/** Descomprime un docx/pptx (ZIP) y extrae su texto interno. Best-effort. */
+async function extractOfficeText(buf: Uint8Array, ext: string): Promise<string> {
+  const fflate = await import("npm:fflate@0.8.2");
+  const files = await new Promise<Record<string, Uint8Array>>((resolve, reject) =>
+    fflate.unzip(buf, (err: Error | null, f: Record<string, Uint8Array>) =>
+      err ? reject(err) : resolve(f),
+    ),
+  );
+  const dec = new TextDecoder();
+  if (ext === "docx") {
+    const xml = files["word/document.xml"];
+    return xml ? docxXmlToText(dec.decode(xml)) : "";
+  }
+  // pptx: concatena todas las slides en orden.
+  const slideNames = Object.keys(files)
+    .filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))
+    .sort((a, b) => {
+      const na = parseInt(a.match(/slide(\d+)\.xml/)![1], 10);
+      const nb = parseInt(b.match(/slide(\d+)\.xml/)![1], 10);
+      return na - nb;
+    });
+  const parts = slideNames
+    .map((n, i) => {
+      const t = pptxSlideXmlToText(dec.decode(files[n]));
+      return t ? `(Diapositiva ${i + 1})\n${t}` : "";
+    })
+    .filter(Boolean);
+  return parts.join("\n\n");
+}
+
+/** Texto legible de UN archivo (inline o extraído). Devuelve `{text, extracted}`. */
+async function readFileText(
+  f: MaterialFile,
+): Promise<{ text: string; extracted: boolean }> {
+  const name = String(f.name ?? "");
+  if (typeof f.body === "string" && f.body.trim()) {
+    const text = isNotebook(name) ? notebookToReadableText(f.body) : f.body.trim();
+    return { text, extracted: false };
+  }
+  if (isOfficeDoc(name) && f.path) {
+    try {
+      const dl = await admin.storage.from(CONTENTS_BUCKET).download(f.path);
+      if (dl.data) {
+        const buf = new Uint8Array(await dl.data.arrayBuffer());
+        const ext = name.toLowerCase().endsWith(".pptx") ? "pptx" : "docx";
+        const text = await extractOfficeText(buf, ext);
+        return { text, extracted: text.length > 0 };
+      }
+    } catch {
+      /* best-effort: si falla la descarga/descompresión, el archivo se omite */
+    }
+  }
+  return { text: "", extracted: false };
+}
+
+async function buildCourseMaterial(
+  rows: MaterialRow[],
+  referencedKeys: Set<string>,
+): Promise<string> {
+  type Entry = { docTitle: string; fileName: string; text: string; priority: boolean };
+  const entries: Entry[] = [];
+  let extractions = 0;
+
   for (const row of rows) {
-    if (acc.length >= MATERIAL_TOTAL_CHARS) break;
     const files = Array.isArray(row.files) ? row.files : [];
     const docTitle = (row.display_name || row.topic || "(sin título)").trim();
+    let rowDirty = false;
     for (const f of files) {
-      if (acc.length >= MATERIAL_TOTAL_CHARS) break;
-      if (!f || typeof f.body !== "string") continue;
-      if (!READABLE_FILE_KINDS.has(String(f.kind))) continue;
-      const text = f.body.trim();
-      if (!text) continue;
-      const excerpt = text.length > MATERIAL_PER_DOC_CHARS
-        ? text.slice(0, MATERIAL_PER_DOC_CHARS).trimEnd() + " …"
-        : text;
-      const header = `\n\n### ${docTitle}${f.name ? ` — ${f.name}` : ""}\n`;
-      const block = header + excerpt;
-      if (acc.length + block.length > MATERIAL_TOTAL_CHARS) {
-        acc += block.slice(0, MATERIAL_TOTAL_CHARS - acc.length);
-        break;
+      if (!f || !f.name) continue;
+      const name = String(f.name);
+      const hasInline = typeof f.body === "string" && f.body.trim().length > 0;
+      const needsExtraction = !hasInline && isOfficeDoc(name) && !!f.path;
+      if (needsExtraction && extractions >= MAX_STORAGE_EXTRACTIONS) continue;
+      if (needsExtraction) extractions++;
+      const { text, extracted } = await readFileText(f);
+      if (extracted) {
+        // Cachear de vuelta el texto extraído para no re-bajarlo (cap por archivo).
+        f.body = text.slice(0, MATERIAL_PER_DOC_CHARS * 2);
+        rowDirty = true;
       }
-      acc += block;
+      if (!text.trim()) continue;
+      entries.push({
+        docTitle,
+        fileName: name,
+        text: text.trim(),
+        priority: referencedKeys.has(`${row.id}::${name}`),
+      });
     }
+    if (rowDirty) {
+      try {
+        await admin.from("generated_contents").update({ files }).eq("id", row.id);
+      } catch {
+        /* el cache-back es opcional; si falla, la próxima vez se re-extrae */
+      }
+    }
+  }
+
+  // Archivos referenciados por el estudiante primero (prioridad de budget).
+  entries.sort((a, b) => (a.priority === b.priority ? 0 : a.priority ? -1 : 1));
+
+  let acc = "";
+  for (const e of entries) {
+    if (acc.length >= MATERIAL_TOTAL_CHARS) break;
+    const excerpt =
+      e.text.length > MATERIAL_PER_DOC_CHARS
+        ? e.text.slice(0, MATERIAL_PER_DOC_CHARS).trimEnd() + " …"
+        : e.text;
+    const tag = e.priority ? " [referenciado por el estudiante]" : "";
+    const header = `\n\n### ${e.docTitle} — ${e.fileName}${tag}\n`;
+    const block = header + excerpt;
+    if (acc.length + block.length > MATERIAL_TOTAL_CHARS) {
+      acc += block.slice(0, MATERIAL_TOTAL_CHARS - acc.length);
+      break;
+    }
+    acc += block;
   }
   return acc.trim();
 }
@@ -244,7 +349,7 @@ Deno.serve(async (req) => {
     if (!u.user) throw new Error("No autenticado");
     const userId = u.user.id;
 
-    const { sessionId, message } = await req.json();
+    const { sessionId, message, referencedFiles } = await req.json();
     if (!sessionId || typeof sessionId !== "string") {
       return new Response(JSON.stringify({ error: "sessionId requerido" }), {
         status: 400,
@@ -295,27 +400,32 @@ Deno.serve(async (req) => {
 
     const { data: contents } = await admin
       .from("generated_contents")
-      .select("topic, display_name, files")
+      .select("id, topic, display_name, files")
       .eq("course_id", session.course_id)
       .eq("status", "done")
       .is("deleted_at", null)
       .order("updated_at", { ascending: false })
       .limit(30);
 
-    type ContentFile = { name?: string; path?: string; kind?: string; body?: string };
-    const contentRows = (contents ?? []) as Array<{
-      topic: string;
-      display_name: string;
-      files: ContentFile[] | null;
-    }>;
+    const contentRows = (contents ?? []) as MaterialRow[];
 
     const contentTopics = contentRows.map((c) => c.display_name || c.topic).filter(Boolean);
 
-    // Extraer el TEXTO real de los archivos para que el tutor pueda citar el
-    // contenido (definiciones, ejemplos, pasos), no solo los títulos. El
-    // contenido vive inline en `files[].body` (lo guarda el módulo de
-    // contenidos al generar/editar) — kinds legibles: md / pptx-source / txt.
-    const courseMaterial = buildCourseMaterial(contentRows);
+    // Archivos que el estudiante referenció con `#` en su mensaje. Llegan como
+    // [{ contentId, name }]; los priorizamos en el budget del material para
+    // que su contenido entre seguro al prompt.
+    const referencedKeys = new Set<string>(
+      Array.isArray(referencedFiles)
+        ? (referencedFiles as Array<{ contentId?: string; name?: string }>)
+            .filter((r) => r && typeof r.contentId === "string" && typeof r.name === "string")
+            .map((r) => `${r.contentId}::${r.name}`)
+        : [],
+    );
+
+    // Extraer el TEXTO real de los archivos (inline, notebooks, y docx/pptx
+    // desde Storage con cache-back) para que el tutor cite el contenido real,
+    // no solo los títulos.
+    const courseMaterial = await buildCourseMaterial(contentRows, referencedKeys);
 
     // Construir prompt
     const template = await resolveTutorTemplate(session.course_id);
@@ -325,6 +435,7 @@ Deno.serve(async (req) => {
       courseDescription: course?.description ?? null,
       contentTopics,
       courseMaterial,
+      maxMaterialChars: MATERIAL_TOTAL_CHARS,
     });
 
     // Truncar historial y agregar el nuevo turno
