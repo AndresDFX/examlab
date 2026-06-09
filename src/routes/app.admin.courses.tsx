@@ -64,9 +64,12 @@ import {
   Download,
   MessageSquareText,
   Award,
+  Video,
+  RefreshCw,
 } from "lucide-react";
 import { CourseCertificateSettingsDialog } from "@/modules/certificates/CourseCertificateSettingsDialog";
 import { SessionCodeSnippetsDialog } from "@/modules/sessions/SessionCodeSnippetsDialog";
+import { LinkCalendarEventsDialog } from "@/modules/calendar/LinkCalendarEventsDialog";
 import {
   Select,
   SelectContent,
@@ -2820,6 +2823,10 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
   const [draftMeetingUrl, setDraftMeetingUrl] = useState("");
   const [draftRecordingUrl, setDraftRecordingUrl] = useState("");
   const [draftNotesUrl, setDraftNotesUrl] = useState("");
+  // Dialog de vincular/resincronizar Google Calendar (grabaciones/notas).
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  // Bump para forzar recarga del tablero (ej. tras resincronizar calendario).
+  const [reloadNonce, setReloadNonce] = useState(0);
   // CSV import: bandera que muestra spinner mientras procesa, y un
   // contador de filas insertadas vs omitidas para el toast final.
   const [importing, setImporting] = useState(false);
@@ -2909,7 +2916,8 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
       setScheduled(items);
       setLoading(false);
     })();
-  }, [course]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [course, reloadNonce]);
 
   /** Items vinculados a una sesión: dentro de ±3 días de la fecha.
    *  Misma heurística que el tablero del estudiante. */
@@ -3241,6 +3249,22 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                   disabled={importing}
                 />
               </Label>
+              {/* Calendario: vincular sesiones con eventos de Google Calendar
+                  y RESINCRONIZAR grabaciones/notas a medida que avanzan las
+                  clases (Google adjunta el video tras grabar). */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCalendarOpen(true)}
+                title={t("course.boardCalendarTooltip", {
+                  defaultValue:
+                    "Vincular sesiones con Google Calendar y resincronizar grabaciones",
+                })}
+                className="h-8 text-xs"
+              >
+                <CalendarRange className="h-3.5 w-3.5 mr-1" />
+                {t("course.boardCalendar", { defaultValue: "Calendario" })}
+              </Button>
             </div>
           </div>
         </DialogHeader>
@@ -3444,6 +3468,37 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                             className="h-8 text-xs"
                           />
                         </div>
+                        {/* Grabación + notas: editables aquí (antes no estaban
+                            en el form de edición, así que el docente no podía
+                            ver/cambiar el link de la grabación de la sesión). */}
+                        <div className="space-y-1 flex-1 min-w-[160px] sm:min-w-48">
+                          <Label className="text-[11px]">
+                            {t("course.boardRecordingUrl", {
+                              defaultValue: "Enlace de grabación (opcional)",
+                            })}
+                          </Label>
+                          <Input
+                            type="url"
+                            value={draftRecordingUrl}
+                            onChange={(e) => setDraftRecordingUrl(e.target.value)}
+                            placeholder="https://… (grabación de la clase)"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1 flex-1 min-w-[160px] sm:min-w-48">
+                          <Label className="text-[11px]">
+                            {t("course.boardNotesUrl", {
+                              defaultValue: "Enlace de notas / minuta (opcional)",
+                            })}
+                          </Label>
+                          <Input
+                            type="url"
+                            value={draftNotesUrl}
+                            onChange={(e) => setDraftNotesUrl(e.target.value)}
+                            placeholder="https://… (notas de la reunión)"
+                            className="h-8 text-xs"
+                          />
+                        </div>
                         <Button
                           size="sm"
                           onClick={saveEdit}
@@ -3491,6 +3546,33 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                               >
                                 <Link2 className="h-3 w-3" />
                                 {t("course.boardJoinMeeting")}
+                              </a>
+                            )}
+                            {/* Grabación de la sesión: link visible (antes solo
+                                estaba en la BD; el docente no la veía en el
+                                tablero). Editable desde el lápiz. */}
+                            {s.recording_url && (
+                              <a
+                                href={s.recording_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] rounded-md border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-violet-700 dark:text-violet-300 hover:bg-violet-500/20"
+                                title={s.recording_url}
+                              >
+                                <Video className="h-3 w-3" />
+                                {t("course.boardRecording", { defaultValue: "Grabación" })}
+                              </a>
+                            )}
+                            {s.notes_url && (
+                              <a
+                                href={s.notes_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20"
+                                title={s.notes_url}
+                              >
+                                <FileText className="h-3 w-3" />
+                                {t("course.boardNotes", { defaultValue: "Notas" })}
                               </a>
                             )}
                             <Button
@@ -3592,6 +3674,14 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
         if (!o) setCodeSession(null);
       }}
     />
+    {course && (
+      <LinkCalendarEventsDialog
+        open={calendarOpen}
+        onOpenChange={setCalendarOpen}
+        courseId={course.id}
+        onLinked={() => setReloadNonce((n) => n + 1)}
+      />
+    )}
     </>
   );
 }

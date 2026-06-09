@@ -53,7 +53,7 @@ import {
 } from "@/components/ui/table";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TableEmpty } from "@/components/ui/empty-state";
-import { Search, Link2, Unlink, CheckCircle2, Video, FileText } from "lucide-react";
+import { Search, Link2, Unlink, CheckCircle2, Video, FileText, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
@@ -166,14 +166,14 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
     };
   }, [open, courseId]);
 
-  const loadEvents = async () => {
+  const loadEvents = async (silent = false): Promise<CalendarEvent[]> => {
     if (!fromDate || !toDate) {
       toast.error(
         i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.pickBothDates", {
           defaultValue: "Eligí ambas fechas",
         }),
       );
-      return;
+      return [];
     }
     if (fromDate > toDate) {
       toast.error(
@@ -181,7 +181,7 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
           defaultValue: "La fecha 'Desde' debe ser anterior a 'Hasta'",
         }),
       );
-      return;
+      return [];
     }
     setLoadingEvents(true);
     try {
@@ -212,27 +212,84 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
             }),
           );
         }
-        return;
+        return [];
       }
-      setEvents((d?.events ?? []) as CalendarEvent[]);
-      if ((d?.events ?? []).length === 0) {
-        toast.info(
-          i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.noEventsInRange", {
-            defaultValue: "No hay eventos en ese rango de fechas.",
-          }),
-        );
-      } else {
-        toast.success(
-          i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.eventsLoaded", {
-            defaultValue: "{{eventCount}} evento(s) cargados",
-            eventCount: d.events.length,
-          }),
-        );
+      const evs = (d?.events ?? []) as CalendarEvent[];
+      setEvents(evs);
+      if (!silent) {
+        if (evs.length === 0) {
+          toast.info(
+            i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.noEventsInRange", {
+              defaultValue: "No hay eventos en ese rango de fechas.",
+            }),
+          );
+        } else {
+          toast.success(
+            i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.eventsLoaded", {
+              defaultValue: "{{eventCount}} evento(s) cargados",
+              eventCount: evs.length,
+            }),
+          );
+        }
       }
+      return evs;
     } catch (e) {
       toast.error(friendlyError(e, "Error consultando Google Calendar"));
+      return [];
     } finally {
       setLoadingEvents(false);
+    }
+  };
+
+  /**
+   * Resincroniza grabaciones/notas: re-aplica los eventos YA vinculados de
+   * las sesiones del rango. El edge `link_events_to_sessions` re-consulta
+   * cada evento y actualiza `recording_url` / `notes_url` si ahora los tiene
+   * (Google Meet adjunta el video tras grabar). Útil cuando avanzan las
+   * sesiones y aparecen grabaciones nuevas — sin re-elegir cada evento a mano.
+   */
+  const resyncRecordings = async () => {
+    setApplying(true);
+    try {
+      const evs = events.length > 0 ? events : await loadEvents(true);
+      const loadedIds = new Set(evs.map((e) => e.id));
+      const links = sessions
+        .filter((s) => s.google_event_id && loadedIds.has(s.google_event_id))
+        .map((s) => ({ sessionId: s.id, eventId: s.google_event_id as string }));
+      if (links.length === 0) {
+        toast.info(
+          i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.noLinkedInRange", {
+            defaultValue:
+              "No hay sesiones vinculadas a eventos en este rango. Ajustá las fechas para cubrir las sesiones ya vinculadas y reintentá.",
+          }),
+        );
+        return;
+      }
+      const { data, error } = await supabase.functions.invoke("calendar", {
+        body: { action: "link_events_to_sessions", provider: "google", courseId, links },
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const d = data as any;
+      if (error || d?.ok === false) {
+        toast.error(
+          i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.resyncFailed", {
+            defaultValue: "No se pudo resincronizar: {{error}}",
+            error: d?.error ?? error?.message ?? "error",
+          }),
+        );
+        return;
+      }
+      toast.success(
+        i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.resynced", {
+          defaultValue: "Grabaciones y notas resincronizadas en {{count}} sesión(es) vinculada(s).",
+          count: d?.linked ?? links.length,
+        }),
+      );
+      onLinked?.();
+    } catch (e) {
+      toast.error(friendlyError(e, "Error resincronizando grabaciones"));
+    } finally {
+      setApplying(false);
     }
   };
 
@@ -505,17 +562,35 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={applying}>
-            Cancelar
-          </Button>
+        <DialogFooter className="gap-2 sm:justify-between">
+          {/* Resincronizar: re-jala grabaciones/notas de los eventos YA
+              vinculados (sin re-elegir cada uno). Útil cuando avanzan las
+              sesiones y Google adjunta los videos después. */}
           <Button
-            onClick={() => void applyChanges()}
-            disabled={applying || pendingChanges === 0}
+            variant="outline"
+            onClick={() => void resyncRecordings()}
+            disabled={applying || loadingEvents}
+            title="Actualiza las grabaciones/notas de las sesiones ya vinculadas en el rango"
           >
-            {applying ? <Spinner size="sm" className="mr-2" /> : null}
-            Aplicar {pendingChanges > 0 ? `${pendingChanges} cambio${pendingChanges === 1 ? "" : "s"}` : "cambios"}
+            {applying || loadingEvents ? (
+              <Spinner size="sm" className="mr-2" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-1" />
+            )}
+            Resincronizar grabaciones
           </Button>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={applying}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => void applyChanges()}
+              disabled={applying || pendingChanges === 0}
+            >
+              {applying ? <Spinner size="sm" className="mr-2" /> : null}
+              Aplicar {pendingChanges > 0 ? `${pendingChanges} cambio${pendingChanges === 1 ? "" : "s"}` : "cambios"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
