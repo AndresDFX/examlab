@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { logEvent } from "@/shared/lib/audit";
 import { Button } from "@/components/ui/button";
@@ -207,6 +208,7 @@ function UsageBar({
   state: "ok" | "warning" | "danger";
   thresholdPct: number;
 }) {
+  const { t } = useTranslation();
   const freeMB = Math.max(0, Math.round((totalMB - usedMB) * 10) / 10);
   const barColor =
     state === "danger" ? "bg-destructive" : state === "warning" ? "bg-amber-500" : "bg-emerald-500";
@@ -222,7 +224,7 @@ function UsageBar({
   return (
     <div className="space-y-1.5 pt-1">
       <div className="flex items-baseline justify-between gap-2 text-xs">
-        <span className={`font-medium ${labelColor}`}>{usedPct.toFixed(1)}% usado</span>
+        <span className={`font-medium ${labelColor}`}>{t("systemDiagnosticsPanel.usedPct", { pct: usedPct.toFixed(1) })}</span>
         <span className="text-[10px] text-muted-foreground tabular-nums">
           {usedMB.toFixed(1)} MB / {totalMB} MB
         </span>
@@ -231,10 +233,10 @@ function UsageBar({
         <div className={`h-full ${barColor} transition-all`} style={{ width: `${widthPct}%` }} />
       </div>
       <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-        <span>Libre: {freeMB} MB</span>
+        <span>{t("systemDiagnosticsPanel.freeLabel", { mb: freeMB })}</span>
         {state === "danger" && (
           <span className="text-destructive font-medium">
-            Bajo el {thresholdPct}% libre — se generará alerta
+            {t("systemDiagnosticsPanel.alertThresholdLabel", { pct: thresholdPct })}
           </span>
         )}
       </div>
@@ -294,23 +296,24 @@ function StatusCard({
 }
 
 function StatusBadge({ state }: { state: "idle" | "loading" | "ok" | "warning" | "error" }) {
+  const { t } = useTranslation();
   if (state === "loading") return <Spinner size="sm" />;
   if (state === "ok")
     return (
       <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
-        <CheckCircle2 className="h-4 w-4" /> OK
+        <CheckCircle2 className="h-4 w-4" /> {t("systemDiagnosticsPanel.badgeOk")}
       </span>
     );
   if (state === "warning")
     return (
       <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
-        <AlertTriangle className="h-4 w-4" /> Aviso
+        <AlertTriangle className="h-4 w-4" /> {t("systemDiagnosticsPanel.badgeWarning")}
       </span>
     );
   if (state === "error")
     return (
       <span className="flex items-center gap-1 text-xs text-destructive">
-        <XCircle className="h-4 w-4" /> Falla
+        <XCircle className="h-4 w-4" /> {t("systemDiagnosticsPanel.badgeError")}
       </span>
     );
   return <span className="text-xs text-muted-foreground">—</span>;
@@ -328,6 +331,7 @@ function MutedLine({ label, value }: { label: string; value: React.ReactNode }) 
 
 // ─── Componente principal ───────────────────────────────────────
 export function SystemDiagnosticsPanel() {
+  const { t } = useTranslation();
   const [hc, setHc] = useState<CheckResult<HealthCheckResponse>>({ state: "idle" });
   const [db, setDb] = useState<CheckResult<{ courses: number }>>({ state: "idle" });
   // Suscripciones web push del admin actual — para que el Card "Push" pueda
@@ -616,17 +620,16 @@ export function SystemDiagnosticsPanel() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          Estos chequeos consultan los servicios externos en vivo. Si todo aparece en verde, la
-          plataforma puede operar normalmente.
+          {t("systemDiagnosticsPanel.intro")}
         </p>
         <Button onClick={runAll} disabled={allLoading}>
           {allLoading ? (
             <>
-              <Spinner size="sm" /> Diagnosticando…
+              <Spinner size="sm" /> {t("systemDiagnosticsPanel.btnRefreshing")}
             </>
           ) : (
             <>
-              <RefreshCw className="h-4 w-4" /> Refrescar diagnóstico
+              <RefreshCw className="h-4 w-4" /> {t("systemDiagnosticsPanel.btnRefresh")}
             </>
           )}
         </Button>
@@ -635,20 +638,20 @@ export function SystemDiagnosticsPanel() {
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Edge function */}
         <StatusCard
-          title="Edge functions"
-          description="Llamada al endpoint health-check del Supabase configurado."
+          title={t("systemDiagnosticsPanel.cardEdgeFunctions")}
+          description={t("systemDiagnosticsPanel.cardEdgeFunctionsDesc")}
           icon={<Activity className="h-4 w-4 text-cyan-500" />}
           state={hc.state === "ok" ? "ok" : hc.state}
         >
           {hc.state === "idle" && (
-            <p className="text-muted-foreground">Click en "Refrescar" para iniciar.</p>
+            <p className="text-muted-foreground">{t("systemDiagnosticsPanel.clickRefreshToStart")}</p>
           )}
           {hc.state === "ok" && (
             <>
-              <MutedLine label="Latencia" value={`${hc.latencyMs} ms`} />
-              <MutedLine label="Deno" value={hcData?.runtime?.deno_version ?? "—"} />
-              <MutedLine label="Región" value={hcData?.runtime?.region ?? "—"} />
-              <MutedLine label="Timestamp" value={hcData?.timestamp ?? "—"} />
+              <MutedLine label={t("systemDiagnosticsPanel.labelLatency")} value={`${hc.latencyMs} ms`} />
+              <MutedLine label={t("systemDiagnosticsPanel.labelDeno")} value={hcData?.runtime?.deno_version ?? "—"} />
+              <MutedLine label={t("systemDiagnosticsPanel.labelRegion")} value={hcData?.runtime?.region ?? "—"} />
+              <MutedLine label={t("systemDiagnosticsPanel.labelTimestamp")} value={hcData?.timestamp ?? "—"} />
             </>
           )}
           {hc.state === "error" && <p className="text-xs text-destructive">{hc.message}</p>}
@@ -656,18 +659,18 @@ export function SystemDiagnosticsPanel() {
 
         {/* Database — latencia + tamaño + barra de uso vs cuota */}
         <StatusCard
-          title="Base de datos"
-          description="Tamaño + cuota configurada en system_settings."
+          title={t("systemDiagnosticsPanel.cardDatabase")}
+          description={t("systemDiagnosticsPanel.cardDatabaseDesc")}
           icon={<Database className="h-4 w-4 text-emerald-500" />}
           state={dbCardState}
         >
           {db.state === "idle" && (
-            <p className="text-muted-foreground">Click en "Refrescar" para iniciar.</p>
+            <p className="text-muted-foreground">{t("systemDiagnosticsPanel.clickRefreshToStart")}</p>
           )}
           {db.state === "ok" && (
             <>
-              <MutedLine label="Latencia" value={`${db.latencyMs} ms`} />
-              <MutedLine label="Cursos" value={db.data.courses} />
+              <MutedLine label={t("systemDiagnosticsPanel.labelLatency")} value={`${db.latencyMs} ms`} />
+              <MutedLine label={t("systemDiagnosticsPanel.labelCourses")} value={db.data.courses} />
             </>
           )}
           {db.state === "error" && <p className="text-xs text-destructive">{db.message}</p>}
@@ -685,33 +688,32 @@ export function SystemDiagnosticsPanel() {
 
         {/* Storage */}
         <StatusCard
-          title="Storage"
-          description="Buckets reportados por el edge function (con service_role)."
+          title={t("systemDiagnosticsPanel.cardStorage")}
+          description={t("systemDiagnosticsPanel.cardStorageDesc")}
           icon={<HardDrive className="h-4 w-4 text-fuchsia-500" />}
           state={storageState}
         >
           {!storage ? (
             <p className="text-muted-foreground">
               {hc.state === "ok"
-                ? "La edge function no devolvió info de Storage (versión vieja desplegada)."
-                : "Refresca el diagnóstico para ver el estado."}
+                ? t("systemDiagnosticsPanel.storageNoInfo")
+                : t("systemDiagnosticsPanel.refreshToSeeStatus")}
             </p>
           ) : storage.buckets.length === 0 ? (
             <p className="text-xs text-amber-600 dark:text-amber-400">
-              No hay buckets en el proyecto. Si esperabas verlos, revisa que el restore haya creado
-              workshop-files, project-files y generated-contents.
+              {t("systemDiagnosticsPanel.storageNoBuckets")}
             </p>
           ) : (
             <>
-              <MutedLine label="Buckets" value={storage.buckets.length} />
-              {storageUsage && <MutedLine label="Objetos" value={storageUsage.objects_count} />}
+              <MutedLine label={t("systemDiagnosticsPanel.labelBuckets")} value={storage.buckets.length} />
+              {storageUsage && <MutedLine label={t("systemDiagnosticsPanel.labelObjects")} value={storageUsage.objects_count} />}
               <div className="flex flex-wrap gap-1 pt-1">
                 {storage.buckets.map((b) => (
                   <Badge key={b.id} variant="outline" className="text-xs">
                     {b.id}
                     {b.public && (
                       <span className="ml-1 text-[10px] text-amber-600 dark:text-amber-400">
-                        público
+                        {t("systemDiagnosticsPanel.badgePublic")}
                       </span>
                     )}
                   </Badge>
@@ -738,42 +740,41 @@ export function SystemDiagnosticsPanel() {
 
         {/* AI provider */}
         <StatusCard
-          title="Provider de IA"
-          description="Configuración en ai_model_settings + presencia del secret correspondiente."
+          title={t("systemDiagnosticsPanel.cardAiProvider")}
+          description={t("systemDiagnosticsPanel.cardAiProviderDesc")}
           icon={<Bot className="h-4 w-4 text-violet-500" />}
           state={aiState}
         >
           {!ai ? (
             <p className="text-muted-foreground">
               {hc.state === "ok"
-                ? "La edge function no devolvió info de IA (versión vieja desplegada)."
-                : "Refresca el diagnóstico para ver el estado."}
+                ? t("systemDiagnosticsPanel.aiNoInfo")
+                : t("systemDiagnosticsPanel.refreshToSeeStatus")}
             </p>
           ) : !ai.active_provider ? (
             <p className="text-xs text-amber-600 dark:text-amber-400">
-              No hay provider activo en ai_model_settings.
+              {t("systemDiagnosticsPanel.aiNoProvider")}
             </p>
           ) : (
             <>
-              <MutedLine label="Provider" value={ai.active_provider} />
-              <MutedLine label="Modelo" value={ai.active_model ?? "—"} />
+              <MutedLine label={t("systemDiagnosticsPanel.labelProvider")} value={ai.active_provider} />
+              <MutedLine label={t("systemDiagnosticsPanel.labelModel")} value={ai.active_model ?? "—"} />
               <MutedLine
-                label="Secret"
+                label={t("systemDiagnosticsPanel.labelSecret")}
                 value={
                   <span>
                     {ai.required_secret}{" "}
                     {ai.required_secret_missing ? (
-                      <span className="text-destructive">(faltante)</span>
+                      <span className="text-destructive">{t("systemDiagnosticsPanel.statusMissing")}</span>
                     ) : (
-                      <span className="text-emerald-600 dark:text-emerald-400">(presente)</span>
+                      <span className="text-emerald-600 dark:text-emerald-400">{t("systemDiagnosticsPanel.statusPresentParens")}</span>
                     )}
                   </span>
                 }
               />
               {ai.required_secret_missing && (
                 <p className="pt-1 text-xs text-destructive">
-                  Falta el secret {ai.required_secret} en Edge Function Secrets. Las llamadas de IA
-                  van a fallar hasta que lo configures.
+                  {t("systemDiagnosticsPanel.aiSecretMissing", { secret: ai.required_secret })}
                 </p>
               )}
             </>
@@ -806,13 +807,13 @@ export function SystemDiagnosticsPanel() {
                   : "ok";
           return (
             <StatusCard
-              title="Web Push (PWA)"
-              description="Chain completo: push_config + secrets VAPID + suscripciones del admin actual."
+              title={t("systemDiagnosticsPanel.cardWebPush")}
+              description={t("systemDiagnosticsPanel.cardWebPushDesc")}
               icon={<Bell className="h-4 w-4 text-sky-500" />}
               state={pushState}
             >
               {!hcData ? (
-                <p className="text-muted-foreground">Refresca el diagnóstico para ver el estado.</p>
+                <p className="text-muted-foreground">{t("systemDiagnosticsPanel.refreshToSeeStatus")}</p>
               ) : (
                 <>
                   {/* push_config */}
@@ -821,27 +822,27 @@ export function SystemDiagnosticsPanel() {
                     {pushUrl ? (
                       <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                         <CheckCircle2 className="h-3 w-3" />
-                        configurado
+                        {t("systemDiagnosticsPanel.statusConfigured")}
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-destructive">
                         <XCircle className="h-3 w-3" />
-                        sin configurar
+                        {t("systemDiagnosticsPanel.statusNotConfigured")}
                       </span>
                     )}
                   </div>
                   {pushUrl && (
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">apunta al proyecto actual</span>
+                      <span className="text-muted-foreground">{t("systemDiagnosticsPanel.pushPointsToProject")}</span>
                       {pointsOk ? (
                         <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                           <CheckCircle2 className="h-3 w-3" />
-                          sí
+                          {t("systemDiagnosticsPanel.statusYes")}
                         </span>
                       ) : (
                         <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
                           <AlertTriangle className="h-3 w-3" />
-                          no
+                          {t("systemDiagnosticsPanel.statusNo")}
                         </span>
                       )}
                     </div>
@@ -856,12 +857,12 @@ export function SystemDiagnosticsPanel() {
                           {present ? (
                             <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                               <CheckCircle2 className="h-3 w-3" />
-                              presente
+                              {t("systemDiagnosticsPanel.secretPresent")}
                             </span>
                           ) : (
                             <span className="flex items-center gap-1 text-destructive">
                               <XCircle className="h-3 w-3" />
-                              ausente
+                              {t("systemDiagnosticsPanel.secretAbsent")}
                             </span>
                           )}
                         </div>
@@ -886,19 +887,19 @@ export function SystemDiagnosticsPanel() {
                     >
                       <TabsList className="h-8 grid w-full grid-cols-2">
                         <TabsTrigger value="mine" className="text-xs h-6">
-                          Míos ({pushSubs.length})
+                          {t("systemDiagnosticsPanel.pushTabMine", { count: pushSubs.length })}
                         </TabsTrigger>
                         <TabsTrigger value="all" className="text-xs h-6">
-                          Todos
-                          {allPushSubs.length > 0 ? ` (${allPushSubs.length})` : ""}
+                          {allPushSubs.length > 0
+                            ? t("systemDiagnosticsPanel.pushTabAllCount", { count: allPushSubs.length })
+                            : t("systemDiagnosticsPanel.pushTabAll")}
                         </TabsTrigger>
                       </TabsList>
 
                       <TabsContent value="mine" className="space-y-1 mt-2">
                         {pushSubs.length === 0 && (
                           <p className="text-xs text-amber-600 dark:text-amber-400">
-                            Sin suscripciones — abrí esta sesión en una PWA instalada (móvil o
-                            escritorio) y otorgá permisos de notificación.
+                            {t("systemDiagnosticsPanel.pushNoSubs")}
                           </p>
                         )}
                         {pushSubs.slice(0, 3).map((s) => (
@@ -909,7 +910,7 @@ export function SystemDiagnosticsPanel() {
                             <span className="truncate flex-1" title={s.user_agent ?? ""}>
                               {s.user_agent
                                 ? s.user_agent.slice(0, 60) + (s.user_agent.length > 60 ? "…" : "")
-                                : "device sin UA"}
+                                : t("systemDiagnosticsPanel.deviceNoUA")}
                             </span>
                             <span className="tabular-nums shrink-0">
                               {formatDateTime(s.updated_at)}
@@ -926,7 +927,7 @@ export function SystemDiagnosticsPanel() {
                       <TabsContent value="all" className="space-y-1 mt-2">
                         {loadingAllPushSubs ? (
                           <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
-                            <Spinner size="sm" /> Cargando dispositivos…
+                            <Spinner size="sm" /> {t("systemDiagnosticsPanel.loadingDevices")}
                           </div>
                         ) : allPushSubsError ? (
                           <div className="text-xs text-destructive">
@@ -937,12 +938,12 @@ export function SystemDiagnosticsPanel() {
                               className="ml-1 h-5 text-[10px]"
                               onClick={() => void loadAllPushSubs()}
                             >
-                              Reintentar
+                              {t("systemDiagnosticsPanel.btnRetry")}
                             </Button>
                           </div>
                         ) : allPushSubs.length === 0 ? (
                           <p className="text-xs text-muted-foreground">
-                            Sin dispositivos suscritos todavía.
+                            {t("systemDiagnosticsPanel.noDevicesYet")}
                           </p>
                         ) : (
                           <>
@@ -957,7 +958,7 @@ export function SystemDiagnosticsPanel() {
                                       className="font-medium truncate"
                                       title={s.user_email ?? s.user_id}
                                     >
-                                      {s.user_email ?? "(sin email)"}
+                                      {s.user_email ?? t("systemDiagnosticsPanel.noEmail")}
                                     </span>
                                     <span className="tabular-nums shrink-0 text-muted-foreground">
                                       {formatDateTime(s.updated_at)}
@@ -978,15 +979,13 @@ export function SystemDiagnosticsPanel() {
                                     {s.user_agent
                                       ? s.user_agent.slice(0, 80) +
                                         (s.user_agent.length > 80 ? "…" : "")
-                                      : "device sin UA"}
+                                      : t("systemDiagnosticsPanel.deviceNoUA")}
                                   </div>
                                 </div>
                               ))}
                             </div>
                             <p className="text-[10px] text-muted-foreground pt-1">
-                              {allPushSubs.length} dispositivo
-                              {allPushSubs.length === 1 ? "" : "s"} suscrito
-                              {allPushSubs.length === 1 ? "" : "s"} en total.
+                              {t("systemDiagnosticsPanel.deviceCount", { count: allPushSubs.length })}
                             </p>
                           </>
                         )}
@@ -1007,11 +1006,11 @@ export function SystemDiagnosticsPanel() {
                     ) : (
                       <Send className="h-3.5 w-3.5 mr-1" />
                     )}
-                    Enviar push de prueba a mí mismo
+                    {t("systemDiagnosticsPanel.btnSendTestPush")}
                   </Button>
                   {(!configOk || !allSecretsOk) && (
                     <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
-                      Configura push_config y los secrets antes de probar.
+                      {t("systemDiagnosticsPanel.pushConfigureFirst")}
                     </p>
                   )}
                 </>
@@ -1022,16 +1021,16 @@ export function SystemDiagnosticsPanel() {
 
         {/* Secrets de Edge Functions */}
         <StatusCard
-          title="Edge Function Secrets"
-          description="Presencia de cada secret crítico (NO se exponen los valores)."
+          title={t("systemDiagnosticsPanel.cardSecrets")}
+          description={t("systemDiagnosticsPanel.cardSecretsDesc")}
           icon={<KeyRound className="h-4 w-4 text-amber-500" />}
           state={secretsState}
         >
           {!hcData ? (
-            <p className="text-muted-foreground">Refresca el diagnóstico para ver el estado.</p>
+            <p className="text-muted-foreground">{t("systemDiagnosticsPanel.refreshToSeeStatus")}</p>
           ) : secrets.length === 0 ? (
             <p className="text-muted-foreground">
-              La edge function no devolvió info de secrets (versión vieja desplegada).
+              {t("systemDiagnosticsPanel.secretsNoInfo")}
             </p>
           ) : (
             <div className="space-y-1">
@@ -1041,12 +1040,12 @@ export function SystemDiagnosticsPanel() {
                   {s.present ? (
                     <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                       <CheckCircle2 className="h-3 w-3" />
-                      presente
+                      {t("systemDiagnosticsPanel.secretPresent")}
                     </span>
                   ) : (
                     <span className="flex items-center gap-1 text-muted-foreground">
                       <XCircle className="h-3 w-3" />
-                      ausente
+                      {t("systemDiagnosticsPanel.secretAbsent")}
                     </span>
                   )}
                 </div>
@@ -1057,27 +1056,27 @@ export function SystemDiagnosticsPanel() {
 
         {/* Extensiones de Postgres */}
         <StatusCard
-          title="Extensiones de DB"
-          description="Extensiones de Postgres instaladas en el proyecto."
+          title={t("systemDiagnosticsPanel.cardExtensions")}
+          description={t("systemDiagnosticsPanel.cardExtensionsDesc")}
           icon={<Puzzle className="h-4 w-4 text-teal-500" />}
           state={extensionsState}
         >
           {!extensions ? (
             <p className="text-muted-foreground">
               {hc.state === "ok"
-                ? "La edge function no devolvió info de extensiones (migración 20260523000004 no aplicada o RPC fallida)."
-                : "Refresca el diagnóstico para ver el estado."}
+                ? t("systemDiagnosticsPanel.extensionsNoInfo")
+                : t("systemDiagnosticsPanel.refreshToSeeStatus")}
             </p>
           ) : extensions.length === 0 ? (
             <p className="text-xs text-amber-600 dark:text-amber-400">
-              Sin extensiones instaladas — esto es muy raro.
+              {t("systemDiagnosticsPanel.extensionsNone")}
             </p>
           ) : (
             <>
-              <MutedLine label="Total" value={extensions.length} />
+              <MutedLine label={t("systemDiagnosticsPanel.extensionsTotal")} value={extensions.length} />
               {missingExtensions.length > 0 && (
                 <p className="pt-1 text-xs text-amber-600 dark:text-amber-400">
-                  Faltantes críticas:{" "}
+                  {t("systemDiagnosticsPanel.extensionsMissing")}{" "}
                   <span className="font-mono">{missingExtensions.join(", ")}</span>
                 </p>
               )}
@@ -1102,19 +1101,19 @@ export function SystemDiagnosticsPanel() {
 
         {/* Edge functions + última invocación */}
         <StatusCard
-          title="Edge functions registradas"
-          description="Última invocación detectada en audit_logs por función."
+          title={t("systemDiagnosticsPanel.cardEdgeFunctions")}
+          description={t("systemDiagnosticsPanel.cardEdgeFunctionsDesc")}
           icon={<Zap className="h-4 w-4 text-yellow-500" />}
           state={edgeFunctionsState}
         >
           {!edgeFunctions ? (
             <p className="text-muted-foreground">
               {hc.state === "ok"
-                ? "La edge function no devolvió info de funciones (migración 20260523000004 no aplicada)."
-                : "Refresca el diagnóstico para ver el estado."}
+                ? t("systemDiagnosticsPanel.edgeFunctionsNoInfo")
+                : t("systemDiagnosticsPanel.refreshToSeeStatus")}
             </p>
           ) : edgeFunctions.length === 0 ? (
-            <p className="text-muted-foreground">Sin funciones registradas.</p>
+            <p className="text-muted-foreground">{t("systemDiagnosticsPanel.edgeFunctionsNone")}</p>
           ) : (
             <div className="space-y-2">
               {edgeFunctions.map((fn) => {
@@ -1143,7 +1142,7 @@ export function SystemDiagnosticsPanel() {
                         {fn.last_invoked_at ? (
                           formatDateTime(fn.last_invoked_at)
                         ) : (
-                          <span className="italic">sin registros</span>
+                          <span className="italic">{t("systemDiagnosticsPanel.noLogs")}</span>
                         )}
                       </span>
                     </div>
@@ -1154,8 +1153,7 @@ export function SystemDiagnosticsPanel() {
                 );
               })}
               <p className="pt-1 text-[10px] text-muted-foreground">
-                "Sin registros" significa que la función existe pero aún no ha sido invocada (o no
-                logea a audit_logs todavía).
+                {t("systemDiagnosticsPanel.edgeFunctionsHint")}
               </p>
             </div>
           )}
@@ -1163,21 +1161,20 @@ export function SystemDiagnosticsPanel() {
 
         {/* Cron jobs (pg_cron) */}
         <StatusCard
-          title="Tareas programadas"
-          description="pg_cron — jobs activos + última ejecución."
+          title={t("systemDiagnosticsPanel.cardCron")}
+          description={t("systemDiagnosticsPanel.cardCronDesc")}
           icon={<Clock className="h-4 w-4 text-purple-500" />}
           state={cronJobsState}
         >
           {!cronJobs ? (
             <p className="text-muted-foreground">
               {hc.state === "ok"
-                ? "pg_cron no está instalado o la migración 20260523000007 no se aplicó."
-                : "Refresca el diagnóstico para ver el estado."}
+                ? t("systemDiagnosticsPanel.cronNoInfo")
+                : t("systemDiagnosticsPanel.refreshToSeeStatus")}
             </p>
           ) : cronJobs.length === 0 ? (
             <p className="text-xs text-amber-600 dark:text-amber-400">
-              Sin cron jobs registrados. Programa los recordatorios desde el SQL Editor (ver
-              migraciones 20260523000006 y 20260523000007).
+              {t("systemDiagnosticsPanel.cronNone")}
             </p>
           ) : (
             <div className="space-y-2">
@@ -1201,7 +1198,7 @@ export function SystemDiagnosticsPanel() {
                         </span>
                         {!j.active && (
                           <Badge variant="outline" className="text-[9px] py-0 h-3.5">
-                            inactivo
+                            {t("systemDiagnosticsPanel.cronInactive")}
                           </Badge>
                         )}
                       </div>
@@ -1210,7 +1207,7 @@ export function SystemDiagnosticsPanel() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-2 text-[10px]">
-                      <span className={statusColor}>{j.last_status ?? "sin ejecuciones aún"}</span>
+                      <span className={statusColor}>{j.last_status ?? t("systemDiagnosticsPanel.cronNoRuns")}</span>
                       <span className="text-muted-foreground tabular-nums shrink-0">
                         {j.last_run_at ? formatDateTime(j.last_run_at) : "—"}
                       </span>
@@ -1251,13 +1248,13 @@ export function SystemDiagnosticsPanel() {
                 : "warning";
           return (
             <StatusCard
-              title="Email (SMTP)"
-              description="Secrets del relay SMTP que send-email lee en runtime para enviar notificaciones por correo."
+              title={t("systemDiagnosticsPanel.cardSmtp")}
+              description={t("systemDiagnosticsPanel.cardSmtpDesc")}
               icon={<Mail className="h-4 w-4 text-rose-500" />}
               state={smtpState}
             >
               {!hcData ? (
-                <p className="text-muted-foreground">Refresca el diagnóstico para ver el estado.</p>
+                <p className="text-muted-foreground">{t("systemDiagnosticsPanel.refreshToSeeStatus")}</p>
               ) : (
                 <>
                   {smtpKeys.map((name) => {
@@ -1268,12 +1265,12 @@ export function SystemDiagnosticsPanel() {
                         {present ? (
                           <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                             <CheckCircle2 className="h-3 w-3" />
-                            presente
+                            {t("systemDiagnosticsPanel.secretPresent")}
                           </span>
                         ) : (
                           <span className="flex items-center gap-1 text-destructive">
                             <XCircle className="h-3 w-3" />
-                            ausente
+                            {t("systemDiagnosticsPanel.secretAbsent")}
                           </span>
                         )}
                       </div>
@@ -1281,14 +1278,12 @@ export function SystemDiagnosticsPanel() {
                   })}
                   {missing.length > 0 && (
                     <p className="pt-1 text-xs text-amber-600 dark:text-amber-400">
-                      Faltan {missing.length} secret(s): los correos transaccionales (welcome,
-                      reset password, notificaciones) NO se enviarán hasta configurarlos en
-                      Secretos infra.
+                      {t("systemDiagnosticsPanel.smtpMissing", { count: missing.length })}
                     </p>
                   )}
                   {smtpState === "ok" && (
                     <p className="pt-1 text-xs text-emerald-600 dark:text-emerald-400">
-                      Todos los secrets del SMTP están configurados.
+                      {t("systemDiagnosticsPanel.smtpAllOk")}
                     </p>
                   )}
                 </>

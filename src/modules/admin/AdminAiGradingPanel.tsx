@@ -269,11 +269,10 @@ export function AdminAiGradingPanel() {
 
   const revokeCode = async (row: OverrideCodeRow) => {
     const ok = await confirm({
-      title: `¿Revocar código ${row.code}?`,
-      description:
-        "Los docentes que YA hayan activado el código mantienen su ventana actual hasta que expire. Esta acción solo evita activaciones futuras.",
+      title: t("adminAiGradingPanel.revokeTitle", { code: row.code }),
+      description: t("adminAiGradingPanel.revokeDesc"),
       tone: "warning",
-      confirmLabel: "Revocar",
+      confirmLabel: t("adminAiGradingPanel.revokeConfirm"),
     });
     if (!ok) return;
     const { error } = await db
@@ -294,11 +293,10 @@ export function AdminAiGradingPanel() {
 
   const deleteCode = async (row: OverrideCodeRow) => {
     const ok = await confirm({
-      title: `¿Borrar código ${row.code}?`,
-      description:
-        "Esto elimina la fila y las activaciones asociadas. Esta acción no se puede deshacer.",
+      title: t("adminAiGradingPanel.deleteTitle", { code: row.code }),
+      description: t("adminAiGradingPanel.deleteDesc"),
       tone: "destructive",
-      confirmLabel: "Borrar",
+      confirmLabel: t("adminAiGradingPanel.deleteConfirm"),
     });
     if (!ok) return;
     const { error } = await db.from("ai_override_codes").delete().eq("id", row.id);
@@ -344,18 +342,16 @@ export function AdminAiGradingPanel() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Cpu className="h-4 w-4 text-primary" />
-            Modo de procesamiento IA
+            {t("adminAiGradingPanel.cardProcessingTitle")}
             <HelpHint>
-              `async` (default): las llamadas IA se encolan y el worker drena la cola en lote.
-              Reduce el costo en picos y respeta rate limits. `sync` (legacy): se invoca la IA al
-              instante en cada entrega/recalificación.
+              {t("adminAiGradingPanel.cardProcessingHint")}
             </HelpHint>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {loadingMode ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Spinner size="sm" /> Cargando…
+              <Spinner size="sm" /> {t("adminAiGradingPanel.loading")}
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
@@ -366,7 +362,7 @@ export function AdminAiGradingPanel() {
                 disabled={savingMode || mode === "async"}
               >
                 <Clock className="h-3.5 w-3.5 mr-1" />
-                Cola (batch async)
+                {t("adminAiGradingPanel.modeAsync")}
               </Button>
               <Button
                 size="sm"
@@ -375,16 +371,15 @@ export function AdminAiGradingPanel() {
                 disabled={savingMode || mode === "sync"}
               >
                 <Zap className="h-3.5 w-3.5 mr-1" />
-                Sincrónico (inmediato)
+                {t("adminAiGradingPanel.modeSync")}
               </Button>
               <Badge variant="outline" className="text-[10px] ml-auto">
-                Actual: {mode === "async" ? "cola" : "sync"}
+                {t("adminAiGradingPanel.current", { mode: mode === "async" ? t("adminAiGradingPanel.modeQueueShort") : "sync" })}
               </Badge>
             </div>
           )}
           <p className="text-[11px] text-muted-foreground">
-            Cambios aquí afectan futuras calificaciones. Los jobs ya encolados se procesan cuando
-            corra el worker; los ya sync no se ven afectados.
+            {t("adminAiGradingPanel.processingNote")}
           </p>
         </CardContent>
       </Card>
@@ -393,23 +388,23 @@ export function AdminAiGradingPanel() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Zap className="h-4 w-4 text-amber-500" />
-            Códigos override — IA inmediata
+            {t("adminAiGradingPanel.cardCodesTitle")}
             <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.overrideCodesPurpose") }} /></HelpHint>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
             <div>
-              <Label className="text-[11px]">Etiqueta (opcional)</Label>
+              <Label className="text-[11px]">{t("adminAiGradingPanel.labelField")}</Label>
               <Input
                 value={newLabel}
                 onChange={(e) => setNewLabel(e.target.value)}
-                placeholder="Ej. Cierre curso ALG-1"
+                placeholder={t("adminAiGradingPanel.labelPlaceholder")}
               />
             </div>
             <div>
               <Label className="text-[11px]">
-                Ventana (min)
+                {t("adminAiGradingPanel.windowField")}
                 <HelpHint>{t("help.windowDurationHelp")}</HelpHint>
               </Label>
               <Input
@@ -422,7 +417,7 @@ export function AdminAiGradingPanel() {
             </div>
             <div>
               <Label className="text-[11px]">
-                Máx. activaciones
+                {t("adminAiGradingPanel.maxActivationsField")}
                 <HelpHint>{t("help.maxActivationsHelp")}</HelpHint>
               </Label>
               <Input
@@ -434,7 +429,7 @@ export function AdminAiGradingPanel() {
             </div>
             <div>
               <Label className="text-[11px]">
-                Máx. mensajes
+                {t("adminAiGradingPanel.maxMessagesField")}
                 <HelpHint>{t("help.maxMessagesHelp")}</HelpHint>
               </Label>
               <Input
@@ -445,11 +440,11 @@ export function AdminAiGradingPanel() {
                 onChange={(e) =>
                   setNewMaxMessages(e.target.value === "" ? "" : Number(e.target.value))
                 }
-                placeholder="Sin tope"
+                placeholder={t("adminAiGradingPanel.noLimit")}
               />
             </div>
             <div>
-              <Label className="text-[11px]">Expira en (h, opcional)</Label>
+              <Label className="text-[11px]">{t("adminAiGradingPanel.expiresField")}</Label>
               <Input
                 type="number"
                 min={1}
@@ -457,30 +452,30 @@ export function AdminAiGradingPanel() {
                 onChange={(e) =>
                   setNewTtlHours(e.target.value === "" ? "" : Number(e.target.value))
                 }
-                placeholder="Sin expiración"
+                placeholder={t("adminAiGradingPanel.noExpiry")}
               />
             </div>
           </div>
           <Button size="sm" onClick={() => void createCode()} disabled={creating}>
             {creating ? <Spinner size="sm" className="mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
-            Generar código
+            {t("adminAiGradingPanel.btnGenerate")}
           </Button>
 
           {loadingCodes ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
-              <Spinner size="sm" /> Cargando códigos…
+              <Spinner size="sm" /> {t("adminAiGradingPanel.loadingCodes")}
             </div>
           ) : codesError ? (
             <ErrorState
-              message="No pudimos cargar los códigos"
+              message={t("adminAiGradingPanel.codesLoadError")}
               hint={codesError}
               onRetry={() => setRetryNonce((n) => n + 1)}
             />
           ) : codes.length === 0 ? (
             <TableEmpty
               icon={Zap}
-              title="Sin códigos creados"
-              description="Genera uno y dáselo al docente que necesita IA inmediata."
+              title={t("adminAiGradingPanel.emptyCodesTitle")}
+              description={t("adminAiGradingPanel.emptyCodesDesc")}
             />
           ) : (
             <>
@@ -492,8 +487,8 @@ export function AdminAiGradingPanel() {
                 count={sel.count}
                 onClear={sel.clear}
                 onDelete={() => setBulkDeleteOpen(true)}
-                entityNameSingular="código"
-                entityNamePlural="códigos"
+                entityNameSingular={t("adminAiGradingPanel.entitySingular")}
+                entityNamePlural={t("adminAiGradingPanel.entityPlural")}
               />
               <div className="overflow-x-auto">
                 <Table>
@@ -504,14 +499,14 @@ export function AdminAiGradingPanel() {
                       <TableHead className="w-10">
                         <MultiSelectHeaderCheckbox state={sel} />
                       </TableHead>
-                      <TableHead>Código</TableHead>
-                      <TableHead>Etiqueta</TableHead>
-                      <TableHead>Activaciones</TableHead>
-                      <TableHead>Ventana</TableHead>
-                      <TableHead>Mensajes</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>Creado</TableHead>
-                      <TableHead className="w-[120px]">Acciones</TableHead>
+                      <TableHead>{t("adminAiGradingPanel.colCode")}</TableHead>
+                      <TableHead>{t("adminAiGradingPanel.colLabel")}</TableHead>
+                      <TableHead>{t("adminAiGradingPanel.colActivations")}</TableHead>
+                      <TableHead>{t("adminAiGradingPanel.colWindow")}</TableHead>
+                      <TableHead>{t("adminAiGradingPanel.colMessages")}</TableHead>
+                      <TableHead>{t("adminAiGradingPanel.colStatus")}</TableHead>
+                      <TableHead>{t("adminAiGradingPanel.colCreated")}</TableHead>
+                      <TableHead className="w-[120px]">{t("adminAiGradingPanel.colActions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -520,12 +515,12 @@ export function AdminAiGradingPanel() {
                     const expired = c.expires_at ? new Date(c.expires_at) < new Date() : false;
                     const revoked = !!c.revoked_at;
                     const status = revoked
-                      ? { label: "Revocado", variant: "destructive" as const }
+                      ? { label: t("adminAiGradingPanel.statusRevoked"), variant: "destructive" as const }
                       : exhausted
-                        ? { label: "Agotado", variant: "secondary" as const }
+                        ? { label: t("adminAiGradingPanel.statusExhausted"), variant: "secondary" as const }
                         : expired
-                          ? { label: "Expirado", variant: "secondary" as const }
-                          : { label: "Activo", variant: "default" as const };
+                          ? { label: t("adminAiGradingPanel.statusExpired"), variant: "secondary" as const }
+                          : { label: t("adminAiGradingPanel.statusActive"), variant: "default" as const };
                     return (
                       <TableRow key={c.id}>
                         <TableCell>
@@ -541,7 +536,7 @@ export function AdminAiGradingPanel() {
                           {c.uses_count} / {c.max_uses}
                         </TableCell>
                         <TableCell className="text-xs tabular-nums">
-                          {c.window_minutes} min
+                          {t("adminAiGradingPanel.windowValue", { min: c.window_minutes })}
                         </TableCell>
                         <TableCell className="text-xs tabular-nums">
                           {(() => {
@@ -549,7 +544,7 @@ export function AdminAiGradingPanel() {
                             // consumido (sin denominador).
                             const consumed = consumedByCode[c.id] ?? 0;
                             if (c.max_messages_per_activation == null) {
-                              return `${consumed} / sin tope`;
+                              return `${consumed} / ${t("adminAiGradingPanel.noLimit")}`;
                             }
                             // Budget total = cap × max_uses. Refleja el
                             // "techo absoluto" si todas las activaciones
@@ -572,19 +567,19 @@ export function AdminAiGradingPanel() {
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <RowAction
-                              label="Copiar código"
+                              label={t("adminAiGradingPanel.actionCopy")}
                               icon={Copy}
                               onClick={() => void copyCode(c.code)}
                             />
                             {!revoked && (
                               <RowAction
-                                label="Revocar"
+                                label={t("adminAiGradingPanel.actionRevoke")}
                                 icon={Zap}
                                 onClick={() => void revokeCode(c)}
                               />
                             )}
                             <RowAction
-                              label="Eliminar"
+                              label={t("adminAiGradingPanel.actionDelete")}
                               icon={Trash2}
                               tone="destructive"
                               onClick={() => void deleteCode(c)}
@@ -616,9 +611,9 @@ export function AdminAiGradingPanel() {
             label: c ? `${c.code}${c.label ? ` (${c.label})` : ""}` : id,
           };
         })}
-        entityNameSingular="código"
-        entityNamePlural="códigos"
-        extraWarning="Las activaciones asociadas a estos códigos también se eliminarán. Los docentes que estén usándolos perderán acceso sync inmediato."
+        entityNameSingular={t("adminAiGradingPanel.entitySingular")}
+        entityNamePlural={t("adminAiGradingPanel.entityPlural")}
+        extraWarning={t("adminAiGradingPanel.bulkDeleteWarning")}
         onConfirm={async () => {
           await bulkDeleteSelected();
         }}

@@ -220,15 +220,16 @@ function targetRouteForJob(
  * "limpiar" la key sin migración.
  */
 export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-5">
       <PageHeader
         icon={<ListOrdered className="h-6 w-6 text-primary" />}
-        title="Cola"
+        title={t("aiCronPage.title")}
         subtitle={
           showInfraTab
-            ? "Cola de calificación con IA y tareas programadas de infraestructura. Gestiona, pausa o reagenda lo que corre en segundo plano."
-            : "Cola de calificación con IA. Aquí puedes ver, cancelar, reintentar o procesar jobs uno a uno."
+            ? t("aiCronPage.subtitleAdmin")
+            : t("aiCronPage.subtitleTeacher")
         }
       />
       {isAdmin ? (
@@ -241,7 +242,7 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
           <TabsList className="max-w-full overflow-x-auto">
             <TabsTrigger value="ia" className="gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
-              Jobs
+              {t("aiCronPage.tabJobs")}
             </TabsTrigger>
             {/* Historial — jobs cerrados (done / cancelled / rechazo
                 acusado). Componente read-only con filtros propios
@@ -249,7 +250,7 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
                 Admin ve el historial completo de su tenant. */}
             <TabsTrigger value="history" className="gap-1.5">
               <Archive className="h-3.5 w-3.5" />
-              Historial
+              {t("aiCronPage.tabHistory")}
             </TabsTrigger>
             {/* Configuración: sync/async + códigos override. Antes vivía
                 en Admin → Configuración → 'Cola IA'. Centralizada acá
@@ -257,13 +258,13 @@ export function AiCronPage({ isAdmin = false, showInfraTab = false }: Props) {
                 configuración) queda en un solo módulo. */}
             <TabsTrigger value="config" className="gap-1.5">
               <Sliders className="h-3.5 w-3.5" />
-              Configuración
+              {t("aiCronPage.tabConfig")}
             </TabsTrigger>
             {/* pg_cron solo SuperAdmin (infra cross-tenant). */}
             {showInfraTab && (
               <TabsTrigger value="supabase" className="gap-1.5">
                 <CalendarClock className="h-3.5 w-3.5" />
-                Tareas programadas
+                {t("aiCronPage.tabScheduled")}
               </TabsTrigger>
             )}
           </TabsList>
@@ -1018,7 +1019,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3" /> Pendientes
+              <Clock className="h-3 w-3" /> {t("aiCronPage.statPending")}
             </div>
             {/* Pendientes = pending + failed: un job fallado sigue SIN
                 calificar, así que desde la óptica del alumno la nota
@@ -1033,7 +1034,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground flex items-center gap-1">
-              <Cpu className="h-3 w-3" /> En proceso
+              <Cpu className="h-3 w-3" /> {t("aiCronPage.statProcessing")}
             </div>
             <div className="text-2xl font-semibold tabular-nums mt-1">{counts.processing}</div>
           </CardContent>
@@ -1041,7 +1042,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground flex items-center gap-1">
-              <AlertTriangle className="h-3 w-3" /> Fallados
+              <AlertTriangle className="h-3 w-3" /> {t("aiCronPage.statFailed")}
             </div>
             <div
               className={`text-2xl font-semibold tabular-nums mt-1 ${
@@ -1055,7 +1056,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground flex items-center gap-1">
-              <CheckCircle2 className="h-3 w-3 text-emerald-500" /> Completados
+              <CheckCircle2 className="h-3 w-3 text-emerald-500" /> {t("aiCronPage.statDone")}
             </div>
             {/* Contador agregado de jobs `done` — más útil que el
                 timestamp "último éxito" anterior: refleja volumen
@@ -1081,9 +1082,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         <div className="flex flex-wrap items-center gap-3 rounded-md border bg-amber-50/40 dark:bg-amber-500/5 border-amber-300/40 dark:border-amber-500/20 px-3 py-2">
           <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
           <p className="text-xs text-muted-foreground flex-1 min-w-[200px]">
-            Por defecto las calificaciones IA pasan por esta cola async. Si necesitas una nota IA{" "}
-            <strong>ahora</strong>, pídele al administrador un código y actívalo aquí — abre una
-            ventana sincrónica corta sin tocar la configuración global.
+            {t("aiCronPage.overrideBannerText")}
           </p>
           <Button
             size="sm"
@@ -1092,7 +1091,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
             onClick={() => setOverrideDialogOpen(true)}
           >
             <Sparkles className="h-3.5 w-3.5 mr-1" />
-            Activar IA
+            {t("aiCronPage.btnActivateAi")}
           </Button>
         </div>
       )}
@@ -1111,7 +1110,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         onDelete={() => setBulkOpen(true)}
         entityNameSingular="job"
         entityNamePlural="jobs"
-        actionLabel="Cancelar"
+        actionLabel={t("aiCronPage.actionCancel")}
         actionIcon={X}
       />
 
@@ -1122,7 +1121,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
             {/* Header checkbox — solo cuando hay al menos un job
                 cancelable visible. Toggle all/none de lo cancelable. */}
             {selectableJobs.length > 0 && <MultiSelectHeaderCheckbox state={multi} />}
-            <CardTitle className="text-base">Jobs en cola</CardTitle>
+            <CardTitle className="text-base">{t("aiCronPage.cardQueueTitle")}</CardTitle>
             <Badge variant="secondary" className="text-[10px]">
               {filteredCount}
             </Badge>
@@ -1158,13 +1157,13 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="active">Activos + rechazos abiertos</SelectItem>
-                <SelectItem value="pending">Solo pendientes</SelectItem>
-                <SelectItem value="processing">Solo en proceso</SelectItem>
-                <SelectItem value="failed">Solo fallados</SelectItem>
-                <SelectItem value="rejected">Solo rechazos abiertos</SelectItem>
-                <SelectItem value="done">Solo completados</SelectItem>
-                <SelectItem value="all">Todos (incluye cerrados)</SelectItem>
+                <SelectItem value="active">{t("aiCronPage.filterActive")}</SelectItem>
+                <SelectItem value="pending">{t("aiCronPage.filterPending")}</SelectItem>
+                <SelectItem value="processing">{t("aiCronPage.filterProcessing")}</SelectItem>
+                <SelectItem value="failed">{t("aiCronPage.filterFailed")}</SelectItem>
+                <SelectItem value="rejected">{t("aiCronPage.filterRejected")}</SelectItem>
+                <SelectItem value="done">{t("aiCronPage.filterDone")}</SelectItem>
+                <SelectItem value="all">{t("aiCronPage.filterAll")}</SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -1181,26 +1180,26 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">
-              <Spinner size="sm" /> Cargando…
+              <Spinner size="sm" /> {t("aiCronPage.loading")}
             </div>
           ) : loadError ? (
             <ErrorState
-              message="No pudimos cargar la cola de IA"
+              message={t("aiCronPage.loadError")}
               hint={loadError}
               onRetry={() => setRetryNonce((n) => n + 1)}
             />
           ) : jobs.length === 0 ? (
             <TableEmpty
               icon={ListOrdered}
-              title="No hay jobs"
+              title={t("aiCronPage.emptyTitle")}
               description={
                 statusFilter === "active"
-                  ? "No hay jobs activos en la cola. Cuando se encole una calificación con IA aparecerá aquí. Para jobs ya cerrados (completados / cancelados / rechazos acusados) revisa el tab Historial."
+                  ? t("aiCronPage.emptyActiveDesc")
                   : statusFilter === "all"
-                    ? "No hay jobs en la cola."
-                    : `No hay jobs con el estado "${
-                        STATUS_LABELS[statusFilter as Status] ?? statusFilter
-                      }".`
+                    ? t("aiCronPage.emptyAllDesc")
+                    : t("aiCronPage.emptyFilterDesc", {
+                        status: STATUS_LABELS[statusFilter as Status] ?? statusFilter,
+                      })
               }
             />
           ) : (
@@ -1245,7 +1244,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                         type="button"
                         onClick={() => setExpandedId(expanded ? null : j.id)}
                         className="flex items-center gap-2 flex-1 min-w-0 text-left"
-                        title={expanded ? "Ocultar detalle" : "Ver detalle"}
+                        title={expanded ? t("aiCronPage.hideDetail") : t("aiCronPage.viewDetail")}
                       >
                         {expanded ? (
                           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -1311,7 +1310,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                                 params: route.params as any,
                               })
                             }
-                            title="Abrir en monitor / módulo"
+                            title={t("aiCronPage.openInMonitor")}
                           >
                             <ExternalLink className="h-3.5 w-3.5" />
                           </Button>
@@ -1323,7 +1322,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                             className="h-7 w-7"
                             disabled={busy}
                             onClick={() => void retryJob(j.id)}
-                            title={isCancelled ? "Re-encolar" : "Reintentar"}
+                            title={isCancelled ? t("aiCronPage.requeue") : t("aiCronPage.retry")}
                           >
                             {isRetrying ? (
                               <Spinner size="sm" />
@@ -1339,7 +1338,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                             className="h-7 w-7"
                             disabled={busy}
                             onClick={() => void processOne(j.id)}
-                            title="Procesar este job ahora (bypass cron)"
+                            title={t("aiCronPage.processNow")}
                           >
                             {isProcessingNow ? (
                               <Spinner size="sm" />
@@ -1361,7 +1360,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                             className="h-7 w-7 text-orange-600 hover:text-orange-700 hover:bg-orange-500/10 dark:text-orange-400 dark:hover:text-orange-300"
                             disabled={busy}
                             onClick={() => openReject(j.id, label)}
-                            title="Rechazar con razón (notifica al docente)"
+                            title={t("aiCronPage.rejectWithReason")}
                           >
                             <Ban className="h-3.5 w-3.5" />
                           </Button>
@@ -1375,8 +1374,8 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                             onClick={() => void cancelJob(j.id, label)}
                             title={
                               isProcessing
-                                ? "Cancelar (la llamada IA ya está en vuelo; el resultado no se persistirá)"
-                                : "Cancelar"
+                                ? t("aiCronPage.cancelInFlight")
+                                : t("aiCronPage.actionCancel")
                             }
                           >
                             {isCancelling ? <Spinner size="sm" /> : <X className="h-3.5 w-3.5" />}
@@ -1394,7 +1393,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                             variant="ghost"
                             className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400 dark:hover:text-emerald-300"
                             onClick={() => void acknowledgeReject(j.id)}
-                            title="Cerrar conversación (acusar recibo del rechazo y mover al historial)"
+                            title={t("aiCronPage.closeConversation")}
                           >
                             <CheckCheck className="h-3.5 w-3.5" />
                           </Button>
@@ -1414,14 +1413,14 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                             <MessageSquareWarning className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
                             <div className="flex-1 min-w-0 space-y-1">
                               <p className="text-xs font-medium text-orange-700 dark:text-orange-400">
-                                El administrador rechazó este trabajo de IA
+                                {t("aiCronPage.rejectionTitle")}
                               </p>
                               <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">
-                                {j.rejection_reason ?? "Sin razón especificada."}
+                                {j.rejection_reason ?? t("aiCronPage.noReason")}
                               </p>
                               {j.rejected_at && (
                                 <p className="text-[10px] text-muted-foreground">
-                                  Rechazado el {formatDateTime(j.rejected_at)}
+                                  {t("aiCronPage.rejectedAt", { date: formatDateTime(j.rejected_at) })}
                                 </p>
                               )}
                             </div>
@@ -1433,7 +1432,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                             onClick={() => void acknowledgeReject(j.id)}
                           >
                             <CheckCheck className="h-3.5 w-3.5 mr-1" />
-                            Cerrar conversación
+                            {t("aiCronPage.closeConversation")}
                           </Button>
                         </div>
                       </div>
@@ -1441,25 +1440,25 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                     {expanded && (
                       <div className="px-10 pr-3 pb-3 text-xs space-y-1 bg-muted/20 border-t">
                         <DetailRow k="ID" v={j.id} mono />
-                        <DetailRow k="Tipo" v={kindLabel} />
-                        <DetailRow k="Estado" v={STATUS_LABELS[j.status]} />
-                        <DetailRow k="Tabla destino" v={j.target_table} mono />
-                        <DetailRow k="ID destino" v={j.target_row_id} mono />
-                        {j.courseName && <DetailRow k="Curso" v={j.courseName} />}
-                        {j.studentName && <DetailRow k="Estudiante" v={j.studentName} />}
-                        {j.examTitle && <DetailRow k="Examen" v={j.examTitle} />}
-                        {j.projectTitle && <DetailRow k="Proyecto" v={j.projectTitle} />}
-                        {j.workshopTitle && <DetailRow k="Taller" v={j.workshopTitle} />}
-                        <DetailRow k="Creado" v={formatDateTime(j.created_at)} />
+                        <DetailRow k={t("aiCronPage.detailType")} v={kindLabel} />
+                        <DetailRow k={t("aiCronPage.detailStatus")} v={STATUS_LABELS[j.status]} />
+                        <DetailRow k={t("aiCronPage.detailTable")} v={j.target_table} mono />
+                        <DetailRow k={t("aiCronPage.detailTargetId")} v={j.target_row_id} mono />
+                        {j.courseName && <DetailRow k={t("aiCronPage.detailCourse")} v={j.courseName} />}
+                        {j.studentName && <DetailRow k={t("aiCronPage.detailStudent")} v={j.studentName} />}
+                        {j.examTitle && <DetailRow k={t("aiCronPage.detailExam")} v={j.examTitle} />}
+                        {j.projectTitle && <DetailRow k={t("aiCronPage.detailProject")} v={j.projectTitle} />}
+                        {j.workshopTitle && <DetailRow k={t("aiCronPage.detailWorkshop")} v={j.workshopTitle} />}
+                        <DetailRow k={t("aiCronPage.detailCreated")} v={formatDateTime(j.created_at)} />
                         {j.completed_at && (
-                          <DetailRow k="Finalizado" v={formatDateTime(j.completed_at)} />
+                          <DetailRow k={t("aiCronPage.detailFinished")} v={formatDateTime(j.completed_at)} />
                         )}
                         {typeof j.attempts === "number" && (
-                          <DetailRow k="Intentos" v={String(j.attempts)} />
+                          <DetailRow k={t("aiCronPage.detailAttempts")} v={String(j.attempts)} />
                         )}
                         {j.last_error && (
                           <div className="pt-1">
-                            <div className="text-muted-foreground mb-0.5">Último error</div>
+                            <div className="text-muted-foreground mb-0.5">{t("aiCronPage.detailLastError")}</div>
                             <pre className="text-[11px] bg-destructive/10 text-destructive border border-destructive/30 rounded p-2 whitespace-pre-wrap break-all">
                               {j.last_error}
                             </pre>
@@ -1467,12 +1466,12 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                         )}
                         {isDone && (
                           <p className="pt-1 text-emerald-600 dark:text-emerald-400">
-                            Procesado exitosamente.
+                            {t("aiCronPage.processedOk")}
                           </p>
                         )}
                         {isCancelled && (
                           <p className="pt-1 text-muted-foreground">
-                            Cancelado manualmente — no se procesó.
+                            {t("aiCronPage.cancelledNote")}
                           </p>
                         )}
                         {isRejected && (
@@ -1480,7 +1479,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                             {j.rejection_reason && (
                               <div className="pt-1">
                                 <div className="text-muted-foreground mb-0.5">
-                                  Razón del rechazo
+                                  {t("aiCronPage.rejectionReason")}
                                 </div>
                                 <pre className="text-[11px] bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-500/30 rounded p-2 whitespace-pre-wrap break-words">
                                   {j.rejection_reason}
@@ -1488,16 +1487,15 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                               </div>
                             )}
                             {j.rejected_at && (
-                              <DetailRow k="Rechazado" v={formatDateTime(j.rejected_at)} />
+                              <DetailRow k={t("aiCronPage.detailRejected")} v={formatDateTime(j.rejected_at)} />
                             )}
                             {j.acknowledged_at ? (
                               <p className="pt-1 text-muted-foreground">
-                                Rechazo cerrado por el docente el{" "}
-                                {formatDateTime(j.acknowledged_at)}.
+                                {t("aiCronPage.rejectionClosedAt", { date: formatDateTime(j.acknowledged_at) })}
                               </p>
                             ) : (
                               <p className="pt-1 text-orange-600 dark:text-orange-400">
-                                Esperando que el docente cierre la conversación.
+                                {t("aiCronPage.rejectionWaiting")}
                               </p>
                             )}
                           </>
@@ -1513,11 +1511,10 @@ function AiQueuePanel({ isAdmin = false }: Props) {
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        Para procesar un job individual ahora usa el ícono{" "}
-        <Zap className="inline h-3 w-3 align-text-bottom" />, y para drenar toda la cola (Admin) usa
-        el botón "Procesar ahora" arriba a la derecha.
-        {!isAdmin &&
-          " Si necesitas IA sincrónica en un flujo del docente, pídele al administrador un código override."}
+        {t("aiCronPage.footerHint")}{" "}
+        <Zap className="inline h-3 w-3 align-text-bottom" />{", "}
+        {t("aiCronPage.footerHintAdmin")}
+        {!isAdmin && ` ${t("aiCronPage.footerHintTeacher")}`}
       </p>
 
       {/* Dialog de confirmación para bulk cancel. Reusa BulkDeleteDialog
@@ -1533,10 +1530,10 @@ function AiQueuePanel({ isAdmin = false }: Props) {
         items={selectedItems}
         entityNameSingular="job"
         entityNamePlural="jobs"
-        actionLabel="Cancelar"
+        actionLabel={t("aiCronPage.actionCancel")}
         actionIcon={X}
-        dismissLabel="Cerrar"
-        extraWarning="Se cancelarán los jobs seleccionados. Si alguno está en estado `procesando`, la llamada IA ya está en vuelo (su costo no se recupera) pero el resultado no se persistirá. Para los demás, la cancelación es limpia. Si una entrega necesita nota IA después, deberás encolarla manualmente."
+        dismissLabel={t("aiCronPage.btnClose")}
+        extraWarning={t("aiCronPage.bulkCancelWarning")}
         onConfirm={bulkCancel}
       />
 
@@ -1561,7 +1558,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Ban className="h-4 w-4 text-orange-500" />
-              Rechazar job con razón
+              {t("aiCronPage.rejectDialogTitle")}
             </DialogTitle>
             <DialogDescription>
               {rejectJobTarget?.label && (
@@ -1569,32 +1566,30 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                   {rejectJobTarget.label}
                 </span>
               )}
-              El docente que encoló el job recibirá una notificación con la razón. El job no se
-              eliminará hasta que el docente cierre la conversación desde su panel Cola. Esto sí
-              queda en el audit log.
+              {t("aiCronPage.rejectDialogDesc")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <Label htmlFor="reject-reason" required>
-              Razón del rechazo
+              {t("aiCronPage.rejectReasonLabel")}
             </Label>
             <Textarea
               id="reject-reason"
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="Ej. La entrega quedó fuera del scope del curso, no procede gastar cuota IA."
+              placeholder={t("aiCronPage.rejectReasonPlaceholder")}
               rows={4}
               disabled={rejecting}
               maxLength={500}
             />
             <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>Mínimo 5 caracteres. El docente verá este texto.</span>
+              <span>{t("aiCronPage.rejectMinChars")}</span>
               <span className="tabular-nums">{rejectReason.length}/500</span>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectJobTarget(null)} disabled={rejecting}>
-              Cancelar
+              {t("aiCronPage.actionCancel")}
             </Button>
             <Button
               variant="destructive"
@@ -1606,7 +1601,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
               ) : (
                 <Ban className="h-4 w-4 mr-1" />
               )}
-              Rechazar y notificar
+              {t("aiCronPage.btnRejectAndNotify")}
             </Button>
           </DialogFooter>
         </DialogContent>

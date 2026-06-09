@@ -80,6 +80,7 @@ import {
   ChevronRight,
   Copy,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import i18n from "@/i18n";
 import { formatDateTime } from "@/shared/lib/format";
@@ -184,6 +185,7 @@ function relativeAge(iso: string): string {
 }
 
 export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
+  const { t } = useTranslation();
   const confirm = useConfirm();
   const { roles } = useAuth();
   const activeRole = useActiveRole();
@@ -828,28 +830,28 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
     <div className="space-y-4">
       {draining && (
         <LoadingOverlay
-          title="Drenando cola IA…"
-          subtitle="Invocando los workers de calificación y generación. Puede tardar varios minutos según cuántos jobs estén pendientes. No cierres esta pestaña."
+          title={t("unifiedAiQueue.drainingTitle")}
+          subtitle={t("unifiedAiQueue.drainingSubtitle")}
         />
       )}
       {/* Stats 4-card — suman AMBAS colas. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard
           icon={Clock}
-          label="Pendientes"
+          label={t("unifiedAiQueue.statPending")}
           value={counts.pending + counts.failed}
           tone={counts.failed > 0 ? "warning" : "default"}
         />
-        <StatCard icon={Cpu} label="En proceso" value={counts.processing} />
+        <StatCard icon={Cpu} label={t("unifiedAiQueue.statProcessing")} value={counts.processing} />
         <StatCard
           icon={AlertTriangle}
-          label="Fallados"
+          label={t("unifiedAiQueue.statFailed")}
           value={counts.failed}
           tone={counts.failed > 0 ? "destructive" : "default"}
         />
         <StatCard
           icon={CheckCircle2}
-          label="Completados"
+          label={t("unifiedAiQueue.statDone")}
           value={counts.done}
           tone={counts.done > 0 ? "success" : "default"}
         />
@@ -860,9 +862,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         <div className="flex flex-wrap items-center gap-3 rounded-md border bg-amber-50/40 dark:bg-amber-500/5 border-amber-300/40 dark:border-amber-500/20 px-3 py-2">
           <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
           <p className="text-xs text-muted-foreground flex-1 min-w-[200px]">
-            Por defecto las acciones de IA (calificación y generación) pasan por esta cola async.
-            Si necesitás IA <strong>ahora</strong>, pedile al administrador un código y activalo
-            acá — abre una ventana sincrónica corta sin tocar la configuración global.
+            {t("unifiedAiQueue.overrideBannerText")}
           </p>
           <Button
             size="sm"
@@ -871,7 +871,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
             onClick={() => setOverrideOpen(true)}
           >
             <Sparkles className="h-3.5 w-3.5 mr-1" />
-            Activar IA
+            {t("unifiedAiQueue.btnActivateAi")}
           </Button>
         </div>
       )}
@@ -883,7 +883,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         onDelete={() => setBulkOpen(true)}
         entityNameSingular="job"
         entityNamePlural="jobs"
-        actionLabel="Cancelar"
+        actionLabel={t("unifiedAiQueue.actionCancel")}
         actionIcon={X}
       />
 
@@ -891,7 +891,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         <CardHeader className="pb-3 flex-row items-center justify-between gap-3 space-y-0 flex-wrap">
           <div className="flex items-center gap-2">
             {selectableJobs.length > 0 && <MultiSelectHeaderCheckbox state={multi} />}
-            <CardTitle className="text-base">Jobs en cola</CardTitle>
+            <CardTitle className="text-base">{t("unifiedAiQueue.cardTitle")}</CardTitle>
             <Badge variant="secondary" className="text-[10px]">
               {filteredJobs.length}
             </Badge>
@@ -900,10 +900,10 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
             {isSuperAdminCaller && tenants.length > 0 && (
               <Select value={tenantFilter} onValueChange={setTenantFilter}>
                 <SelectTrigger className="h-8 w-48 text-xs">
-                  <SelectValue placeholder="Institución" />
+                  <SelectValue placeholder={t("unifiedAiQueue.tenantPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas las instituciones</SelectItem>
+                  <SelectItem value="all">{t("unifiedAiQueue.allTenants")}</SelectItem>
                   {tenants.map((tn) => (
                     <SelectItem key={tn.id} value={tn.id}>
                       {tn.name}
@@ -920,9 +920,9 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los tipos</SelectItem>
-                <SelectItem value="grading">Calificación</SelectItem>
-                <SelectItem value="generation">Generación</SelectItem>
+                <SelectItem value="all">{t("unifiedAiQueue.filterAllTypes")}</SelectItem>
+                <SelectItem value="grading">{t("unifiedAiQueue.filterGrading")}</SelectItem>
+                <SelectItem value="generation">{t("unifiedAiQueue.filterGeneration")}</SelectItem>
               </SelectContent>
             </Select>
             <Select
@@ -933,13 +933,13 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="active">Activos + rechazos abiertos</SelectItem>
-                <SelectItem value="pending">Solo pendientes</SelectItem>
-                <SelectItem value="processing">Solo en proceso</SelectItem>
-                <SelectItem value="failed">Solo fallados</SelectItem>
-                <SelectItem value="done">Solo completados</SelectItem>
-                <SelectItem value="cancelled">Solo cancelados</SelectItem>
-                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="active">{t("unifiedAiQueue.filterActive")}</SelectItem>
+                <SelectItem value="pending">{t("unifiedAiQueue.filterPending")}</SelectItem>
+                <SelectItem value="processing">{t("unifiedAiQueue.filterProcessing")}</SelectItem>
+                <SelectItem value="failed">{t("unifiedAiQueue.filterFailed")}</SelectItem>
+                <SelectItem value="done">{t("unifiedAiQueue.filterDone")}</SelectItem>
+                <SelectItem value="cancelled">{t("unifiedAiQueue.filterCancelled")}</SelectItem>
+                <SelectItem value="all">{t("unifiedAiQueue.filterAll")}</SelectItem>
               </SelectContent>
             </Select>
             {isAdmin && (
@@ -956,7 +956,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                 ) : (
                   <Zap className="h-3.5 w-3.5 mr-1" />
                 )}
-                Procesar todos
+                {t("unifiedAiQueue.btnProcessAll")}
               </Button>
             )}
             <Button
@@ -973,22 +973,22 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">
-              <Spinner size="sm" /> Cargando…
+              <Spinner size="sm" /> {t("unifiedAiQueue.loading")}
             </div>
           ) : loadError ? (
             <ErrorState
-              message="No pudimos cargar la cola"
+              message={t("unifiedAiQueue.loadError")}
               hint={loadError}
               onRetry={() => setRetryNonce((n) => n + 1)}
             />
           ) : filteredJobs.length === 0 ? (
             <TableEmpty
               icon={Wand2}
-              title="Sin jobs"
+              title={t("unifiedAiQueue.emptyTitle")}
               description={
                 statusFilter === "active"
-                  ? "No hay jobs activos. Cuando se encole una calificación o generación con IA aparecerá acá."
-                  : "No hay jobs con ese filtro."
+                  ? t("unifiedAiQueue.emptyActiveDesc")
+                  : t("unifiedAiQueue.emptyFilterDesc")
               }
             />
           ) : (
@@ -1031,9 +1031,9 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                         type="button"
                         onClick={() => setExpandedId(expanded ? null : j.id)}
                         className="shrink-0 text-muted-foreground hover:text-foreground"
-                        title={expanded ? "Ocultar detalle" : "Ver detalle"}
+                        title={expanded ? t("unifiedAiQueue.hideDetail") : t("unifiedAiQueue.viewDetail")}
                         aria-expanded={expanded}
-                        aria-label={expanded ? "Ocultar detalle del job" : "Ver detalle del job"}
+                        aria-label={expanded ? t("unifiedAiQueue.hideDetailAria") : t("unifiedAiQueue.viewDetailAria")}
                       >
                         {expanded ? (
                           <ChevronDown className="h-3.5 w-3.5" />
@@ -1056,12 +1056,12 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                           {j.source === "grading" ? (
                             <>
                               <Scale className="h-3 w-3 mr-0.5" />
-                              Calificación
+                              {t("unifiedAiQueue.sourceGrading")}
                             </>
                           ) : (
                             <>
                               <Wand2 className="h-3 w-3 mr-0.5" />
-                              Generación
+                              {t("unifiedAiQueue.sourceGeneration")}
                             </>
                           )}
                         </Badge>
@@ -1108,7 +1108,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                             className="h-7 w-7"
                             disabled={busy}
                             onClick={() => void retryJob(j)}
-                            title={j.status === "cancelled" ? "Re-encolar" : "Reintentar"}
+                            title={j.status === "cancelled" ? t("unifiedAiQueue.requeue") : t("unifiedAiQueue.retry")}
                           >
                             {isRetrying ? (
                               <Spinner size="sm" />
@@ -1124,7 +1124,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                             className="h-7 w-7"
                             disabled={busy}
                             onClick={() => void processOne(j)}
-                            title="Procesar este job ahora (bypass cron)"
+                            title={t("unifiedAiQueue.processNow")}
                           >
                             {isProcessingNow ? (
                               <Spinner size="sm" />
@@ -1143,7 +1143,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                               className="h-7 w-7 text-orange-600 hover:text-orange-700 hover:bg-orange-500/10 dark:text-orange-400 dark:hover:text-orange-300"
                               disabled={busy}
                               onClick={() => openReject(j)}
-                              title="Rechazar con razón (notifica al docente)"
+                              title={t("unifiedAiQueue.rejectWithReason")}
                             >
                               <Ban className="h-3.5 w-3.5" />
                             </Button>
@@ -1159,8 +1159,8 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                             onClick={() => void cancelJob(j)}
                             title={
                               j.status === "processing"
-                                ? "Cancelar (la llamada IA ya está en vuelo)"
-                                : "Cancelar"
+                                ? t("unifiedAiQueue.cancelInFlight")
+                                : t("unifiedAiQueue.actionCancel")
                             }
                           >
                             {isCancelling ? <Spinner size="sm" /> : <X className="h-3.5 w-3.5" />}
@@ -1172,7 +1172,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                             variant="ghost"
                             className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400 dark:hover:text-emerald-300"
                             onClick={() => void acknowledgeReject(j)}
-                            title="Cerrar conversación (acusar recibo del rechazo)"
+                            title={t("unifiedAiQueue.closeConversation")}
                           >
                             <CheckCheck className="h-3.5 w-3.5" />
                           </Button>
@@ -1192,16 +1192,16 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                               <code className="font-mono text-[10px]">{j.id.slice(0, 8)}…</code>
                             </div>
                             <div>
-                              <span className="text-muted-foreground">Intentos:</span>{" "}
+                              <span className="text-muted-foreground">{t("unifiedAiQueue.detailAttempts")}:</span>{" "}
                               <span className="tabular-nums">{j.attempts}</span>
                             </div>
                             <div>
-                              <span className="text-muted-foreground">Creado:</span>{" "}
+                              <span className="text-muted-foreground">{t("unifiedAiQueue.detailCreated")}:</span>{" "}
                               <span className="tabular-nums">{formatDateTime(j.created_at)}</span>
                             </div>
                             {j.completed_at && (
                               <div>
-                                <span className="text-muted-foreground">Terminado:</span>{" "}
+                                <span className="text-muted-foreground">{t("unifiedAiQueue.detailFinished")}:</span>{" "}
                                 <span className="tabular-nums">
                                   {formatDateTime(j.completed_at)}
                                 </span>
@@ -1209,7 +1209,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                             )}
                             {j.source === "grading" && j.target_table && (
                               <div className="col-span-2">
-                                <span className="text-muted-foreground">Target:</span>{" "}
+                                <span className="text-muted-foreground">{t("unifiedAiQueue.detailTarget")}:</span>{" "}
                                 <code className="font-mono text-[10px]">
                                   {j.target_table}/{j.target_row_id?.slice(0, 8)}…
                                 </code>
@@ -1218,7 +1218,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                           </div>
                           {j.source === "generation" && j.body && (
                             <div>
-                              <div className="text-muted-foreground mb-0.5">Body del request:</div>
+                              <div className="text-muted-foreground mb-0.5">{t("unifiedAiQueue.detailBody")}:</div>
                               <pre className="font-mono text-[10px] whitespace-pre-wrap break-words max-h-40 overflow-y-auto rounded bg-background/60 p-2 border">
                                 {JSON.stringify(j.body, null, 2)}
                               </pre>
@@ -1230,7 +1230,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                             <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-destructive" />
                             <div className="flex-1 min-w-0">
                               <div className="text-[11px] font-medium text-destructive mb-0.5">
-                                Último error
+                                {t("unifiedAiQueue.detailLastError")}
                               </div>
                               <div className="text-[11px] text-destructive whitespace-pre-wrap break-words">
                                 {j.last_error}
@@ -1260,9 +1260,9 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                                   );
                               }}
                               className="shrink-0 text-[10px] text-destructive/80 hover:text-destructive flex items-center gap-0.5"
-                              title="Copiar error completo"
+                              title={t("unifiedAiQueue.copyError")}
                             >
-                              <Copy className="h-3 w-3" /> Copiar
+                              <Copy className="h-3 w-3" /> {t("unifiedAiQueue.btnCopy")}
                             </button>
                           </div>
                         )}
@@ -1278,7 +1278,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                           type="button"
                           onClick={() => setExpandedId(j.id)}
                           className="text-left w-full text-[11px] text-destructive/90 hover:text-destructive truncate flex items-center gap-1"
-                          title="Click para ver el error completo"
+                          title={t("unifiedAiQueue.clickToExpand")}
                         >
                           <AlertTriangle className="h-3 w-3 shrink-0" />
                           <span className="truncate">{j.last_error}</span>
@@ -1292,14 +1292,14 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                             <MessageSquareWarning className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
                             <div className="flex-1 min-w-0 space-y-1">
                               <p className="text-xs font-medium text-orange-700 dark:text-orange-400">
-                                El administrador rechazó este trabajo de IA
+                                {t("unifiedAiQueue.rejectionTitle")}
                               </p>
                               <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">
-                                {j.rejection_reason ?? "Sin razón especificada."}
+                                {j.rejection_reason ?? t("unifiedAiQueue.noReason")}
                               </p>
                               {j.rejected_at && (
                                 <p className="text-[10px] text-muted-foreground">
-                                  Rechazado el {formatDateTime(j.rejected_at)}
+                                  {t("unifiedAiQueue.rejectedAt", { date: formatDateTime(j.rejected_at) })}
                                 </p>
                               )}
                             </div>
@@ -1311,7 +1311,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                             onClick={() => void acknowledgeReject(j)}
                           >
                             <CheckCheck className="h-3.5 w-3.5 mr-1" />
-                            Cerrar conversación
+                            {t("unifiedAiQueue.closeConversation")}
                           </Button>
                         </div>
                       </div>
@@ -1330,10 +1330,10 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         items={selectedItems}
         entityNameSingular="job"
         entityNamePlural="jobs"
-        actionLabel="Cancelar"
+        actionLabel={t("unifiedAiQueue.actionCancel")}
         actionIcon={X}
-        dismissLabel="Volver"
-        extraWarning="Los jobs seleccionados se marcarán como cancelados. Si están en proceso, la llamada IA ya está en vuelo (no se recupera el costo) pero el resultado no se persistirá."
+        dismissLabel={t("unifiedAiQueue.btnBack")}
+        extraWarning={t("unifiedAiQueue.bulkCancelWarning")}
         onConfirm={bulkCancel}
       />
 
@@ -1344,33 +1344,32 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       <Dialog open={!!rejectTarget} onOpenChange={(o) => !o && setRejectTarget(null)}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-base">Rechazar job de IA</DialogTitle>
+            <DialogTitle className="text-base">{t("unifiedAiQueue.rejectDialogTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              El docente recibirá una notificación con tu razón. El job quedará visible en su cola
-              hasta que cierre la conversación.
+              {t("unifiedAiQueue.rejectDialogDesc")}
             </p>
             <div className="space-y-1.5">
               <Label htmlFor="reject-reason" required>
-                Razón
+                {t("unifiedAiQueue.rejectReasonLabel")}
               </Label>
               <Textarea
                 id="reject-reason"
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 rows={4}
-                placeholder="Ej: la rúbrica del taller está incompleta — completala antes de re-encolar."
+                placeholder={t("unifiedAiQueue.rejectReasonPlaceholder")}
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setRejectTarget(null)}>
-              Cancelar
+              {t("unifiedAiQueue.actionCancel")}
             </Button>
             <Button onClick={() => void confirmReject()} disabled={rejecting}>
               {rejecting && <Spinner size="sm" className="mr-2" />}
-              Rechazar
+              {t("unifiedAiQueue.btnReject")}
             </Button>
           </DialogFooter>
         </DialogContent>

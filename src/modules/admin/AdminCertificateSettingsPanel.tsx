@@ -216,7 +216,7 @@ export function AdminCertificateSettingsPanel() {
   if (loadError) {
     return (
       <ErrorState
-        message="No pudimos cargar la configuración de certificados"
+        message={t("adminCertificateSettings.loadError")}
         hint={loadError}
         onRetry={() => setRetryNonce((n) => n + 1)}
       />
@@ -227,7 +227,7 @@ export function AdminCertificateSettingsPanel() {
     return (
       <Card>
         <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-          <Spinner size="sm" /> Cargando configuración…
+          <Spinner size="sm" /> {t("adminCertificateSettings.loading")}
         </CardContent>
       </Card>
     );
@@ -248,8 +248,7 @@ export function AdminCertificateSettingsPanel() {
             </HelpHint>
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Cambios aquí afectan certificados que se emitan a partir de ahora. Los certificados ya
-            emitidos preservan los datos con los que fueron creados.
+            {t("adminCertificateSettings.subtitle")}
           </p>
           {/* Banner explicando la jerarquía de resolución de cada campo
               al emitir un certificado. Antes el panel decía "global de
@@ -277,19 +276,19 @@ export function AdminCertificateSettingsPanel() {
         <CardContent className="space-y-4">
           {/* Institución */}
           <div className="space-y-3">
-            <h3 className="text-sm font-medium">Institución</h3>
+            <h3 className="text-sm font-medium">{t("adminCertificateSettings.sectionInstitution")}</h3>
             <div>
-              <Label>Nombre institucional</Label>
+              <Label>{t("adminCertificateSettings.labelInstitutionName")}</Label>
               <Input
                 value={draft.institution_name ?? ""}
                 onChange={(e) => setDraft({ ...draft, institution_name: e.target.value })}
-                placeholder="Ej: Universidad X"
+                placeholder={t("adminCertificateSettings.placeholderInstitutionName")}
               />
             </div>
             <div>
               <Label>
                 <ImageIcon className="h-3.5 w-3.5 inline mr-1" />
-                Logo institucional
+                {t("adminCertificateSettings.labelLogo")}
               </Label>
               {/* Upload + URL como alternativas. La URL se llena
                   automáticamente cuando subís un archivo; el input
@@ -318,7 +317,7 @@ export function AdminCertificateSettingsPanel() {
                   ) : (
                     <Upload className="h-3.5 w-3.5 mr-1" />
                   )}
-                  Subir imagen
+                  {t("adminCertificateSettings.btnUpload")}
                 </Button>
                 {draft.institution_logo_url && (
                   <Button
@@ -328,14 +327,14 @@ export function AdminCertificateSettingsPanel() {
                     className="text-destructive hover:text-destructive"
                     onClick={() => setDraft({ ...draft, institution_logo_url: "" })}
                   >
-                    Quitar
+                    {t("adminCertificateSettings.btnRemove")}
                   </Button>
                 )}
               </div>
               <Input
                 value={draft.institution_logo_url ?? ""}
                 onChange={(e) => setDraft({ ...draft, institution_logo_url: e.target.value })}
-                placeholder="…o pegá una URL pública: https://…/logo.png"
+                placeholder={t("adminCertificateSettings.placeholderLogoUrl")}
                 className="mt-2"
               />
               {draft.institution_logo_url && (
@@ -351,8 +350,7 @@ export function AdminCertificateSettingsPanel() {
                 </div>
               )}
               <p className="text-[11px] text-muted-foreground mt-1">
-                PNG/SVG/JPG/WebP, hasta 2 MB. Resolución mínima 192×192, fondo transparente
-                preferido.
+                {t("adminCertificateSettings.logoHint")}
               </p>
             </div>
           </div>
@@ -361,28 +359,28 @@ export function AdminCertificateSettingsPanel() {
           <div className="space-y-3 pt-2 border-t">
             <h3 className="text-sm font-medium flex items-center gap-1.5">
               <FileSignature className="h-3.5 w-3.5" />
-              Firma del certificado
+              {t("adminCertificateSettings.sectionSignature")}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label>Nombre de quien firma</Label>
+                <Label>{t("adminCertificateSettings.labelSignatureName")}</Label>
                 <Input
                   value={draft.signature_name ?? ""}
                   onChange={(e) => setDraft({ ...draft, signature_name: e.target.value })}
-                  placeholder="Ej: Juan Pérez"
+                  placeholder={t("adminCertificateSettings.placeholderSignatureName")}
                 />
               </div>
               <div>
-                <Label>Cargo</Label>
+                <Label>{t("adminCertificateSettings.labelSignatureTitle")}</Label>
                 <Input
                   value={draft.signature_title ?? ""}
                   onChange={(e) => setDraft({ ...draft, signature_title: e.target.value })}
-                  placeholder="Ej: Decano de Ingeniería"
+                  placeholder={t("adminCertificateSettings.placeholderSignatureTitle")}
                 />
               </div>
             </div>
             <div>
-              <Label>Imagen de la firma (opcional)</Label>
+              <Label>{t("adminCertificateSettings.labelSignatureImage")}</Label>
               <div className="flex flex-wrap items-center gap-2 mt-1">
                 <input
                   ref={signatureFileRef}
@@ -406,7 +404,7 @@ export function AdminCertificateSettingsPanel() {
                   ) : (
                     <Upload className="h-3.5 w-3.5 mr-1" />
                   )}
-                  Subir imagen
+                  {t("adminCertificateSettings.btnUpload")}
                 </Button>
                 {draft.signature_image_url && (
                   <Button
@@ -416,14 +414,14 @@ export function AdminCertificateSettingsPanel() {
                     className="text-destructive hover:text-destructive"
                     onClick={() => setDraft({ ...draft, signature_image_url: "" })}
                   >
-                    Quitar
+                    {t("adminCertificateSettings.btnRemove")}
                   </Button>
                 )}
               </div>
               <Input
                 value={draft.signature_image_url ?? ""}
                 onChange={(e) => setDraft({ ...draft, signature_image_url: e.target.value })}
-                placeholder="…o pegá una URL pública: https://…/signature.png"
+                placeholder={t("adminCertificateSettings.placeholderSignatureUrl")}
                 className="mt-2"
               />
               {draft.signature_image_url && (
@@ -439,33 +437,32 @@ export function AdminCertificateSettingsPanel() {
                 </div>
               )}
               <p className="text-[11px] text-muted-foreground mt-1">
-                PNG con fondo transparente recomendado. Si está vacío, solo aparece la línea +
-                nombre.
+                {t("adminCertificateSettings.signatureHint")}
               </p>
             </div>
           </div>
 
           {/* Mensaje + footer */}
           <div className="space-y-3 pt-2 border-t">
-            <h3 className="text-sm font-medium">Texto del certificado</h3>
+            <h3 className="text-sm font-medium">{t("adminCertificateSettings.sectionText")}</h3>
             <div>
               <Label>
-                Mensaje principal{" "}
+                {t("adminCertificateSettings.labelMessage")}{" "}
                 <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.certMessagePlaceholdersHint") }} /></HelpHint>
               </Label>
               <Textarea
                 value={draft.certificate_message ?? ""}
                 onChange={(e) => setDraft({ ...draft, certificate_message: e.target.value })}
                 rows={4}
-                placeholder="Por la presente certificamos que {student} ha aprobado el curso {course} con una nota final de {grade}/{scale_max}."
+                placeholder={t("adminCertificateSettings.placeholderMessage")}
               />
             </div>
             <div>
-              <Label>Pie de página (opcional)</Label>
+              <Label>{t("adminCertificateSettings.labelFooter")}</Label>
               <Input
                 value={draft.footer_text ?? ""}
                 onChange={(e) => setDraft({ ...draft, footer_text: e.target.value })}
-                placeholder="Ej: Verifica la autenticidad escaneando el QR o visitando examlab.io/verify"
+                placeholder={t("adminCertificateSettings.placeholderFooter")}
               />
             </div>
           </div>
@@ -473,20 +470,19 @@ export function AdminCertificateSettingsPanel() {
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Los valores en blanco caen al default del PDF. Si configuras solo algunos campos, los
-              demás conservan el comportamiento original.
+              {t("adminCertificateSettings.alertNote")}
             </AlertDescription>
           </Alert>
 
           <div className="flex flex-wrap gap-2 justify-end pt-1">
             {dirty && (
               <Button variant="ghost" size="sm" onClick={() => setDraft(row)} disabled={saving}>
-                Cancelar
+                {t("adminCertificateSettings.btnCancel")}
               </Button>
             )}
             <Button size="sm" onClick={() => void save()} disabled={saving || !dirty}>
               {saving ? <Spinner size="sm" className="mr-1" /> : <Save className="h-4 w-4 mr-1" />}
-              Guardar configuración
+              {t("adminCertificateSettings.btnSave")}
             </Button>
           </div>
         </CardContent>
