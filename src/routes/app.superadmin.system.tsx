@@ -14,6 +14,7 @@
  * /app/admin/settings.
  */
 import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/ui/page-header";
@@ -30,6 +31,7 @@ export const Route = createFileRoute("/app/superadmin/system")({
 });
 
 function SuperAdminSystem() {
+  const { t } = useTranslation();
   const { roles, loading } = useAuth();
   if (loading) return <SectionLoader text="Cargando…" />;
   if (!roles.includes("SuperAdmin")) return <Navigate to="/app" />;
@@ -38,31 +40,31 @@ function SuperAdminSystem() {
     <div className="space-y-5">
       <PageHeader
         icon={<ShieldEllipsis className="h-6 w-6 text-rose-500" />}
-        title="Sistema"
-        subtitle="Infraestructura de plataforma — exclusivo SuperAdmin."
+        title={t("superadminSystem.title")}
+        subtitle={t("superadminSystem.subtitle")}
       />
 
       <Tabs defaultValue="platform">
         <TabsList className="flex flex-wrap h-auto justify-start gap-1">
           <TabsTrigger value="platform" className="gap-1.5">
             <Settings2 className="h-3.5 w-3.5" />
-            Plataforma
+            {t("superadminSystem.tabPlatform")}
           </TabsTrigger>
           <TabsTrigger value="emails" className="gap-1.5">
             <Mail className="h-3.5 w-3.5" />
-            Correos
+            {t("superadminSystem.tabEmails")}
           </TabsTrigger>
           <TabsTrigger value="backups" className="gap-1.5">
             <Database className="h-3.5 w-3.5" />
-            Backups
+            {t("superadminSystem.tabBackups")}
           </TabsTrigger>
           <TabsTrigger value="system" className="gap-1.5">
             <Wrench className="h-3.5 w-3.5" />
-            Diagnósticos
+            {t("superadminSystem.tabSystem")}
           </TabsTrigger>
           <TabsTrigger value="secrets" className="gap-1.5">
             <KeyRound className="h-3.5 w-3.5" />
-            Secretos infra
+            {t("superadminSystem.tabSecrets")}
           </TabsTrigger>
         </TabsList>
         <TabsContent value="platform" className="space-y-4 mt-4">

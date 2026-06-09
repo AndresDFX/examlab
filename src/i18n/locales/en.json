@@ -2867,6 +2867,32 @@
       "descReadOnly": "Read-only view — this file type cannot be run here.",
       "outputEmpty": "(no output)"
     },
+    "adminAiConfig": {
+      "needsAdmin": "You need the Admin role.",
+      "title": "Prompts",
+      "subtitleSuperAdmin": "Configure the platform default prompts (each institution can override them).",
+      "subtitleAdmin": "Configure the model and global prompts used by AI grading.",
+      "tabPrompts": "Prompts",
+      "tabModel": "Model"
+    },
+    "superadminSystem": {
+      "title": "System",
+      "subtitle": "Platform infrastructure — SuperAdmin only.",
+      "tabPlatform": "Platform",
+      "tabEmails": "Emails",
+      "tabBackups": "Backups",
+      "tabSystem": "Diagnostics",
+      "tabSecrets": "Infra secrets"
+    },
+    "tutorIndex": {
+      "title": "AI Tutor",
+      "subtitle": "Choose a course to start (or continue) a conversation with the AI tutor.",
+      "loading": "Loading courses…",
+      "loadError": "Could not load your courses",
+      "emptyTitle": "You are not enrolled in any course",
+      "emptyDescription": "The AI tutor is trained with each course's context. Once enrolled, you'll be able to start a conversation here.",
+      "loadErrorFallback": "Could not load your courses."
+    },
     "routes_app_forum_courseId_forumId_threadId": {
       "replyMarkedOfficial": "Reply marked as official",
       "replyOfficialRemoved": "Official mark removed",

@@ -9,6 +9,7 @@
  * URLs y el routeTree generado.
  */
 import { createFileRoute } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { readTenantOverride } from "@/modules/tenants/use-tenant";
@@ -21,6 +22,7 @@ import { AdminModelPanel } from "@/modules/admin/AdminModelPanel";
 export const Route = createFileRoute("/app/admin/ai-prompts")({ component: AdminAIConfig });
 
 function AdminAIConfig() {
+  const { t } = useTranslation();
   const { roles, loading: authLoading } = useAuth();
   const activeRole = useActiveRole();
   const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
@@ -34,17 +36,17 @@ function AdminAIConfig() {
     roles.includes("SuperAdmin") && activeRole === "SuperAdmin" && readTenantOverride() === null;
 
   if (authLoading) return null;
-  if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
+  if (!isAdmin) return <p className="text-muted-foreground">{t("adminAiConfig.needsAdmin")}</p>;
 
   return (
     <div className="space-y-5">
       <PageHeader
         icon={<FileText className="h-6 w-6 text-indigo-500" />}
-        title="Prompts"
+        title={t("adminAiConfig.title")}
         subtitle={
           isSuperAdminCrossTenant
-            ? "Configurá los prompts default de la plataforma (cada institución puede sobrescribirlos)."
-            : "Configura el modelo y los prompts globales que usa la calificación con IA."
+            ? t("adminAiConfig.subtitleSuperAdmin")
+            : t("adminAiConfig.subtitleAdmin")
         }
       />
 
@@ -52,7 +54,7 @@ function AdminAIConfig() {
         <TabsList>
           <TabsTrigger value="prompts" className="gap-1.5">
             <FileText className="h-3.5 w-3.5" />
-            Prompts
+            {t("adminAiConfig.tabPrompts")}
           </TabsTrigger>
           {/* Modelo IA: SuperAdmin (cross-tenant) ahora edita el
               "platform default" (mig 20260719000000); Admin sigue
@@ -62,7 +64,7 @@ function AdminAIConfig() {
               si la dejó configurada acá. */}
           <TabsTrigger value="model" className="gap-1.5">
             <Cpu className="h-3.5 w-3.5" />
-            Modelo
+            {t("adminAiConfig.tabModel")}
           </TabsTrigger>
         </TabsList>
         <TabsContent value="prompts" className="space-y-4 mt-4">

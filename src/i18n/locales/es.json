@@ -2867,6 +2867,32 @@
       "descReadOnly": "Vista de solo lectura — este tipo de archivo no se puede ejecutar aquí.",
       "outputEmpty": "(sin salida)"
     },
+    "adminAiConfig": {
+      "needsAdmin": "Necesitas rol Admin.",
+      "title": "Prompts",
+      "subtitleSuperAdmin": "Configurá los prompts default de la plataforma (cada institución puede sobrescribirlos).",
+      "subtitleAdmin": "Configura el modelo y los prompts globales que usa la calificación con IA.",
+      "tabPrompts": "Prompts",
+      "tabModel": "Modelo"
+    },
+    "superadminSystem": {
+      "title": "Sistema",
+      "subtitle": "Infraestructura de plataforma — exclusivo SuperAdmin.",
+      "tabPlatform": "Plataforma",
+      "tabEmails": "Correos",
+      "tabBackups": "Backups",
+      "tabSystem": "Diagnósticos",
+      "tabSecrets": "Secretos infra"
+    },
+    "tutorIndex": {
+      "title": "Tutor IA",
+      "subtitle": "Elige un curso para iniciar (o continuar) una conversación con el tutor IA.",
+      "loading": "Cargando cursos…",
+      "loadError": "No pudimos cargar tus cursos",
+      "emptyTitle": "No estás matriculado en ningún curso",
+      "emptyDescription": "El tutor IA se entrena con el contexto de cada curso. Cuando te matriculen, podrás iniciar una conversación aquí.",
+      "loadErrorFallback": "No pudimos cargar tus cursos."
+    },
     "routes_app_forum_courseId_forumId_threadId": {
       "replyMarkedOfficial": "Respuesta destacada como oficial",
       "replyOfficialRemoved": "Marca de oficial removida",

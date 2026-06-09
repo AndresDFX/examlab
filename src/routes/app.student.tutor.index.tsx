@@ -11,6 +11,7 @@
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,6 +34,7 @@ interface CourseRow {
 }
 
 function TutorIndex() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,7 +53,7 @@ function TutorIndex() {
         .eq("user_id", user.id);
       if (cancelled) return;
       if (error) {
-        setLoadError(friendlyError(error, "No pudimos cargar tus cursos."));
+        setLoadError(friendlyError(error, t("tutorIndex.loadErrorFallback")));
         setLoading(false);
         return;
       }
@@ -70,26 +72,26 @@ function TutorIndex() {
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
       <PageHeader
-        title="Tutor IA"
-        subtitle="Elige un curso para iniciar (o continuar) una conversación con el tutor IA."
+        title={t("tutorIndex.title")}
+        subtitle={t("tutorIndex.subtitle")}
         icon={<Sparkles className="h-6 w-6 text-indigo-500" />}
       />
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">
-          <Spinner size="sm" /> Cargando cursos…
+          <Spinner size="sm" /> {t("tutorIndex.loading")}
         </div>
       ) : loadError ? (
         <ErrorState
-          message="No pudimos cargar tus cursos"
+          message={t("tutorIndex.loadError")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
       ) : courses.length === 0 ? (
         <TableEmpty
           icon={BookOpen}
-          title="No estás matriculado en ningún curso"
-          description="El tutor IA se entrena con el contexto de cada curso. Cuando te matriculen, podrás iniciar una conversación aquí."
+          title={t("tutorIndex.emptyTitle")}
+          description={t("tutorIndex.emptyDescription")}
         />
       ) : (
         <div className="space-y-2">
