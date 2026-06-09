@@ -151,7 +151,7 @@ export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
                   <div key={idx} className="rounded-md border overflow-hidden">
                     <div className="flex items-center gap-1.5 px-2 py-1 bg-muted/40 border-b">
                       <Badge variant="secondary" className="text-[9px]">
-                        código
+                        {t("notebookRunner.cellCode")}
                       </Badge>
                     </div>
                     <pre className="text-[12px] font-mono p-2 overflow-x-auto whitespace-pre">
@@ -164,7 +164,7 @@ export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
 
             {output !== undefined && (
               <div className="border-t pt-2">
-                <div className="text-[11px] font-medium text-muted-foreground mb-1">Salida</div>
+                <div className="text-[11px] font-medium text-muted-foreground mb-1">{t("notebookRunner.outputTitle")}</div>
                 <pre className="text-[12px] font-mono bg-foreground/[0.04] rounded-md p-2 max-h-48 overflow-auto whitespace-pre-wrap break-words">
                   {output}
                 </pre>
@@ -174,7 +174,7 @@ export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
         ) : (
           <div className="flex flex-col items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
             <AlertTriangle className="h-8 w-8 text-amber-500 opacity-70" />
-            <p>No se pudo leer el notebook.</p>
+            <p>{t("notebookRunner.parseError")}</p>
           </div>
         )}
       </DialogContent>

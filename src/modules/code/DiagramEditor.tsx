@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/shared/lib/utils";
 import { Eye, Code, RotateCcw, ZoomIn, ZoomOut, AlertTriangle } from "lucide-react";
 
-const TEMPLATES: Record<string, { label: string; code: string }> = {
+const TEMPLATES: Record<string, { labelKey: string; code: string }> = {
   classDiagram: {
-    label: "Clases",
+    labelKey: "diagramEditor.tmplClasses",
     code: `classDiagram
     class Animal {
         +String nombre
@@ -24,7 +25,7 @@ const TEMPLATES: Record<string, { label: string; code: string }> = {
     Animal <|-- Gato`,
   },
   sequenceDiagram: {
-    label: "Secuencia",
+    labelKey: "diagramEditor.tmplSequence",
     code: `sequenceDiagram
     participant C as Cliente
     participant S as Servidor
@@ -35,7 +36,7 @@ const TEMPLATES: Record<string, { label: string; code: string }> = {
     S-->>C: Respuesta JSON`,
   },
   erDiagram: {
-    label: "Entidad-Relación",
+    labelKey: "diagramEditor.tmplER",
     code: `erDiagram
     ESTUDIANTE ||--o{ MATRICULA : tiene
     CURSO ||--o{ MATRICULA : contiene
@@ -52,7 +53,7 @@ const TEMPLATES: Record<string, { label: string; code: string }> = {
     }`,
   },
   flowchart: {
-    label: "Flujo",
+    labelKey: "diagramEditor.tmplFlow",
     code: `flowchart TD
     A[Inicio] --> B{¿Condición?}
     B -->|Sí| C[Proceso A]
@@ -62,7 +63,7 @@ const TEMPLATES: Record<string, { label: string; code: string }> = {
     E --> F[Fin]`,
   },
   stateDiagram: {
-    label: "Estados",
+    labelKey: "diagramEditor.tmplState",
     code: `stateDiagram-v2
     [*] --> Inactivo
     Inactivo --> Activo : iniciar()
@@ -73,7 +74,7 @@ const TEMPLATES: Record<string, { label: string; code: string }> = {
     Finalizado --> [*]`,
   },
   activityDiagram: {
-    label: "Actividad",
+    labelKey: "diagramEditor.tmplActivity",
     code: `flowchart TD
     A([Inicio]) --> B[Recibir solicitud]
     B --> C{¿Válida?}
@@ -114,6 +115,7 @@ function cleanupMermaidArtifacts(): void {
 }
 
 export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEditorProps) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<"edit" | "preview">("edit");
   const [svgHtml, setSvgHtml] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -151,7 +153,7 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
         /aria-roledescription="error"/i.test(svg) ||
         svg.includes("mermaid version");
       if (looksLikeError) {
-        setError("Sintaxis Mermaid inválida");
+        setError(t("diagramEditor.errorSyntax"));
         setSvgHtml("");
         cleanupMermaidArtifacts();
         return;
@@ -161,7 +163,7 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
       // Generate a new ID for next render (mermaid reuses IDs)
       idRef.current = `mermaid-${Math.random().toString(36).slice(2, 9)}`;
     } catch (e: any) {
-      setError(e.message ?? "Error de sintaxis en el diagrama");
+      setError(e.message ?? t("diagramEditor.errorGeneric"));
       // Limpieza adicional: cuando mermaid throws, también deja restos
       // en el body. Sin esto, el alumno ve el error pegado al margen
       // inferior de la pantalla aún en otras rutas.
@@ -192,8 +194,8 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
       {/* Template buttons */}
       {!readOnly && (
         <div className="flex flex-wrap gap-1.5">
-          <span className="text-xs text-muted-foreground self-center mr-1">Plantillas UML:</span>
-          {Object.entries(TEMPLATES).map(([key, { label }]) => (
+          <span className="text-xs text-muted-foreground self-center mr-1">{t("diagramEditor.templatesLabel")}</span>
+          {Object.entries(TEMPLATES).map(([key, { labelKey }]) => (
             <Button
               key={key}
               type="button"
@@ -202,7 +204,7 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
               className="h-6 text-[11px] px-2"
               onClick={() => applyTemplate(key)}
             >
-              {label}
+              {t(labelKey)}
             </Button>
           ))}
         </div>
@@ -212,10 +214,10 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
       <Tabs value={tab} onValueChange={(v) => setTab(v as "edit" | "preview")}>
         <TabsList className="h-8">
           <TabsTrigger value="edit" className="text-xs gap-1 h-7" disabled={readOnly}>
-            <Code className="h-3 w-3" /> Código
+            <Code className="h-3 w-3" /> {t("diagramEditor.tabCode")}
           </TabsTrigger>
           <TabsTrigger value="preview" className="text-xs gap-1 h-7">
-            <Eye className="h-3 w-3" /> Vista previa
+            <Eye className="h-3 w-3" /> {t("diagramEditor.tabPreview")}
           </TabsTrigger>
         </TabsList>
 
@@ -246,19 +248,18 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
               "focus:outline-none focus:ring-2 focus:ring-ring",
               readOnly && "opacity-70 cursor-not-allowed",
             )}
-            placeholder="Escribe tu diagrama Mermaid aquí..."
+            placeholder={t("diagramEditor.placeholder")}
           />
           <p className="text-[10px] text-muted-foreground mt-1">
-            Usa sintaxis{" "}
+            {t("diagramEditor.hint")}{" "}
             <a
               href="https://mermaid.js.org/syntax/classDiagram.html"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline"
             >
-              Mermaid
-            </a>{" "}
-            para crear diagramas UML. Cambia a "Vista previa" para ver el resultado.
+              mermaid.js.org
+            </a>
           </p>
         </TabsContent>
 
@@ -325,8 +326,8 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
             ) : (
               <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
                 {value.trim()
-                  ? "Renderizando..."
-                  : "Escribe código Mermaid y cambia a vista previa"}
+                  ? t("diagramEditor.rendering")
+                  : t("diagramEditor.emptyHint")}
               </div>
             )}
           </div>

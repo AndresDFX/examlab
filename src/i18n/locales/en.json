@@ -2751,6 +2751,42 @@
       "bodyRequired": "Add a description for your question",
       "questionPublished": "Question published"
     },
+    "diagramEditor": {
+      "templatesLabel": "UML Templates:",
+      "tmplClasses": "Classes",
+      "tmplSequence": "Sequence",
+      "tmplER": "Entity-Relationship",
+      "tmplFlow": "Flowchart",
+      "tmplState": "State",
+      "tmplActivity": "Activity",
+      "tabCode": "Code",
+      "tabPreview": "Preview",
+      "placeholder": "Write your Mermaid diagram here...",
+      "hint": "Use Mermaid syntax to create UML diagrams. Switch to «Preview» to see the result.",
+      "errorSyntax": "Invalid Mermaid syntax",
+      "errorGeneric": "Syntax error in diagram",
+      "rendering": "Rendering...",
+      "emptyHint": "Write Mermaid code and switch to preview"
+    },
+    "textPageEditor": {
+      "btnFullscreen": "Fullscreen",
+      "btnExitFullscreen": "Exit fullscreen",
+      "btnSplitView": "Editor + Preview (side by side)",
+      "btnSplit": "Split",
+      "tbH1": "Heading 1",
+      "tbH2": "Heading 2",
+      "tbBold": "Bold (Ctrl+B)",
+      "tbItalic": "Italic (Ctrl+I)",
+      "tbList": "List",
+      "tbOrderedList": "Numbered list",
+      "tbBlockquote": "Blockquote",
+      "tbCodeInline": "Inline code",
+      "tbCodeBlock": "Code block",
+      "tbLink": "Link",
+      "tabEditor": "Editor",
+      "tabPreview": "Preview",
+      "placeholder": "Write your content here. Supports **markdown**: # headings, lists, code, quotes…"
+    },
     "codeEditor": {
       "runButton": "Run",
       "cancelButton": "Cancel",
@@ -2819,7 +2855,10 @@
       "descUnreadable": "Could not read the notebook — it may be corrupted or too large. Download it to open in Jupyter.",
       "btnRunAll": "Run all code",
       "noCellsHint": "This notebook has no code cells.",
-      "outputEmpty": "(no output)"
+      "outputEmpty": "(no output)",
+      "cellCode": "code",
+      "outputTitle": "Output",
+      "parseError": "Could not read the notebook."
     },
     "codeFileRunner": {
       "errorEmpty": "The file is empty.",

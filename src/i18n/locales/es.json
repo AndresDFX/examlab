@@ -2751,6 +2751,42 @@
       "bodyRequired": "Escribe el cuerpo de la pregunta",
       "questionPublished": "Pregunta publicada"
     },
+    "diagramEditor": {
+      "templatesLabel": "Plantillas UML:",
+      "tmplClasses": "Clases",
+      "tmplSequence": "Secuencia",
+      "tmplER": "Entidad-Relación",
+      "tmplFlow": "Flujo",
+      "tmplState": "Estados",
+      "tmplActivity": "Actividad",
+      "tabCode": "Código",
+      "tabPreview": "Vista previa",
+      "placeholder": "Escribe tu diagrama Mermaid aquí...",
+      "hint": "Usa sintaxis Mermaid para crear diagramas UML. Cambia a «Vista previa» para ver el resultado.",
+      "errorSyntax": "Sintaxis Mermaid inválida",
+      "errorGeneric": "Error de sintaxis en el diagrama",
+      "rendering": "Renderizando...",
+      "emptyHint": "Escribe código Mermaid y cambia a vista previa"
+    },
+    "textPageEditor": {
+      "btnFullscreen": "Pantalla completa",
+      "btnExitFullscreen": "Salir de pantalla completa",
+      "btnSplitView": "Editor + Vista previa (lado a lado)",
+      "btnSplit": "Dividido",
+      "tbH1": "Encabezado 1",
+      "tbH2": "Encabezado 2",
+      "tbBold": "Negrita (Ctrl+B)",
+      "tbItalic": "Cursiva (Ctrl+I)",
+      "tbList": "Lista",
+      "tbOrderedList": "Lista numerada",
+      "tbBlockquote": "Cita",
+      "tbCodeInline": "Código inline",
+      "tbCodeBlock": "Bloque de código",
+      "tbLink": "Enlace",
+      "tabEditor": "Editor",
+      "tabPreview": "Vista previa",
+      "placeholder": "Escribe acá tu contenido. Soporta **markdown**: # encabezados, listas, código, citas…"
+    },
     "codeEditor": {
       "runButton": "Ejecutar",
       "cancelButton": "Cancelar",
@@ -2819,7 +2855,10 @@
       "descUnreadable": "No se pudo leer el notebook — puede estar dañado o ser muy grande. Descárgalo para abrirlo en Jupyter.",
       "btnRunAll": "Ejecutar todo el código",
       "noCellsHint": "Este notebook no tiene celdas de código.",
-      "outputEmpty": "(sin salida)"
+      "outputEmpty": "(sin salida)",
+      "cellCode": "código",
+      "outputTitle": "Salida",
+      "parseError": "No se pudo leer el notebook."
     },
     "codeFileRunner": {
       "errorEmpty": "El archivo está vacío.",

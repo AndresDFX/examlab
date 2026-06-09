@@ -30,6 +30,7 @@
  * cumple la necesidad de "como un editor".
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownViewer } from "@/shared/components/MarkdownViewer";
@@ -129,6 +130,7 @@ export function TextPageEditor({ text, onPersist, readOnly, className }: Props) 
   // re-monta este componente con un nuevo key), el initialValue se
   // re-aplica via initialTextRef.
   const initialTextRef = useRef(text);
+  const { t } = useTranslation();
   const [value, setValue] = useState(text);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -270,8 +272,8 @@ export function TextPageEditor({ text, onPersist, readOnly, className }: Props) 
         <button
           type="button"
           onClick={toggleFullscreen}
-          aria-label={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
-          title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+          aria-label={isFullscreen ? t("textPageEditor.btnExitFullscreen") : t("textPageEditor.btnFullscreen")}
+          title={isFullscreen ? t("textPageEditor.btnExitFullscreen") : t("textPageEditor.btnFullscreen")}
           className="absolute bottom-2 right-2 z-10 rounded-md border border-border bg-background/90 backdrop-blur-sm p-1.5 text-muted-foreground hover:text-foreground hover:bg-background transition-colors shadow-sm"
         >
           {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
@@ -288,32 +290,32 @@ export function TextPageEditor({ text, onPersist, readOnly, className }: Props) 
       {/* Toolbar: botones de markdown + selector de vista. flex-wrap
           para mobile (toolbar reflowing en lugar de overflow horizontal). */}
       <div className="flex items-center gap-1 border-b border-border bg-muted/30 px-2 py-1.5 flex-wrap shrink-0">
-        <ToolbarButton label="Encabezado 1" icon={Heading1} onClick={handleH1} />
-        <ToolbarButton label="Encabezado 2" icon={Heading2} onClick={handleH2} />
+        <ToolbarButton label={t("textPageEditor.tbH1")} icon={Heading1} onClick={handleH1} />
+        <ToolbarButton label={t("textPageEditor.tbH2")} icon={Heading2} onClick={handleH2} />
         <ToolbarDivider />
-        <ToolbarButton label="Negrita (Ctrl+B)" icon={Bold} onClick={handleBold} />
-        <ToolbarButton label="Cursiva (Ctrl+I)" icon={Italic} onClick={handleItalic} />
+        <ToolbarButton label={t("textPageEditor.tbBold")} icon={Bold} onClick={handleBold} />
+        <ToolbarButton label={t("textPageEditor.tbItalic")} icon={Italic} onClick={handleItalic} />
         <ToolbarDivider />
-        <ToolbarButton label="Lista" icon={List} onClick={handleUnorderedList} />
-        <ToolbarButton label="Lista numerada" icon={ListOrdered} onClick={handleOrderedList} />
-        <ToolbarButton label="Cita" icon={Quote} onClick={handleQuote} />
+        <ToolbarButton label={t("textPageEditor.tbList")} icon={List} onClick={handleUnorderedList} />
+        <ToolbarButton label={t("textPageEditor.tbOrderedList")} icon={ListOrdered} onClick={handleOrderedList} />
+        <ToolbarButton label={t("textPageEditor.tbBlockquote")} icon={Quote} onClick={handleQuote} />
         <ToolbarDivider />
-        <ToolbarButton label="Código inline" icon={Code} onClick={handleCode} />
-        <ToolbarButton label="Bloque de código" icon={Code2} onClick={handleCodeBlock} />
-        <ToolbarButton label="Enlace" icon={Link2} onClick={handleLink} />
+        <ToolbarButton label={t("textPageEditor.tbCodeInline")} icon={Code} onClick={handleCode} />
+        <ToolbarButton label={t("textPageEditor.tbCodeBlock")} icon={Code2} onClick={handleCodeBlock} />
+        <ToolbarButton label={t("textPageEditor.tbLink")} icon={Link2} onClick={handleLink} />
         <div className="ml-auto flex items-center gap-1">
           {/* Selector de vista. En desktop el default es split (50/50);
               el usuario puede cambiar a solo-editor o solo-preview.
               En mobile el split no cabe — collapse a "editor" o
               "preview" via los mismos botones. */}
           <ToolbarButton
-            label="Editor"
+            label={t("textPageEditor.tabEditor")}
             icon={Pencil}
             onClick={() => setView("editor")}
             active={view === "editor"}
           />
           <ToolbarButton
-            label="Vista previa"
+            label={t("textPageEditor.tabPreview")}
             icon={Eye}
             onClick={() => setView("preview")}
             active={view === "preview"}
@@ -324,9 +326,9 @@ export function TextPageEditor({ text, onPersist, readOnly, className }: Props) 
             size="sm"
             onClick={() => setView("split")}
             className="h-7 text-xs hidden md:inline-flex"
-            title="Editor + Vista previa (lado a lado)"
+            title={t("textPageEditor.btnSplitView")}
           >
-            Dividido
+            {t("textPageEditor.btnSplit")}
           </Button>
         </div>
       </div>
@@ -353,7 +355,7 @@ export function TextPageEditor({ text, onPersist, readOnly, className }: Props) 
               ref={textareaRef}
               value={value}
               onChange={handleChange}
-              placeholder="Escribe acá tu contenido. Soporta **markdown**: # encabezados, listas, código, citas…"
+              placeholder={t("textPageEditor.placeholder")}
               className={cn(
                 "flex-1 min-h-0 resize-none font-mono text-sm leading-relaxed rounded-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0",
                 "p-4",
