@@ -491,7 +491,7 @@ export function AdminAiGradingPanel() {
                 entityNamePlural={t("adminAiGradingPanel.entityPlural")}
               />
               <div className="overflow-x-auto">
-                <Table>
+                <Table fixed resizable>
                   <TableHeader>
                     <TableRow>
                       {/* Header checkbox "select all / none / indeterminate".
@@ -499,13 +499,13 @@ export function AdminAiGradingPanel() {
                       <TableHead className="w-10">
                         <MultiSelectHeaderCheckbox state={sel} />
                       </TableHead>
-                      <TableHead>{t("adminAiGradingPanel.colCode")}</TableHead>
+                      <TableHead className="w-32">{t("adminAiGradingPanel.colCode")}</TableHead>
                       <TableHead>{t("adminAiGradingPanel.colLabel")}</TableHead>
-                      <TableHead>{t("adminAiGradingPanel.colActivations")}</TableHead>
-                      <TableHead>{t("adminAiGradingPanel.colWindow")}</TableHead>
-                      <TableHead>{t("adminAiGradingPanel.colMessages")}</TableHead>
-                      <TableHead>{t("adminAiGradingPanel.colStatus")}</TableHead>
-                      <TableHead>{t("adminAiGradingPanel.colCreated")}</TableHead>
+                      <TableHead className="w-24">{t("adminAiGradingPanel.colActivations")}</TableHead>
+                      <TableHead className="w-24">{t("adminAiGradingPanel.colWindow")}</TableHead>
+                      <TableHead className="w-28">{t("adminAiGradingPanel.colMessages")}</TableHead>
+                      <TableHead className="w-24">{t("adminAiGradingPanel.colStatus")}</TableHead>
+                      <TableHead className="w-44">{t("adminAiGradingPanel.colCreated")}</TableHead>
                       <TableHead className="w-[120px]">{t("adminAiGradingPanel.colActions")}</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -531,7 +531,7 @@ export function AdminAiGradingPanel() {
                             {c.code}
                           </code>
                         </TableCell>
-                        <TableCell className="text-xs">{c.label ?? "—"}</TableCell>
+                        <TableCell className="text-xs" truncate title={c.label ?? undefined}>{c.label ?? "—"}</TableCell>
                         <TableCell className="text-xs tabular-nums">
                           {c.uses_count} / {c.max_uses}
                         </TableCell>

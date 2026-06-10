@@ -846,13 +846,13 @@ function Inner() {
                 onRetry={() => setRetryNonce((n) => n + 1)}
               />
             ) : (
-              <Table>
+              <Table fixed resizable>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead className="hidden sm:table-cell">Origen</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead className="hidden md:table-cell">Descripción</TableHead>
+                    <TableHead className="min-w-[180px]">Nombre</TableHead>
+                    <TableHead className="hidden sm:table-cell w-40">Origen</TableHead>
+                    <TableHead className="w-28">Tipo</TableHead>
+                    <TableHead className="hidden md:table-cell w-[280px]">Descripción</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
@@ -868,7 +868,11 @@ function Inner() {
                       const origin = originOf(t);
                       return (
                         <TableRow key={t.id}>
-                          <TableCell className="font-medium">{t.name}</TableCell>
+                          <TableCell className="font-medium">
+                            <div className="truncate" title={t.name}>
+                              {t.name}
+                            </div>
+                          </TableCell>
                           <TableCell className="hidden sm:table-cell">
                             {originBadge(
                               origin,
@@ -881,7 +885,9 @@ function Inner() {
                             </Badge>
                           </TableCell>
                           <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                            {t.description ?? "—"}
+                            <div className="truncate" title={t.description ?? undefined}>
+                              {t.description ?? "—"}
+                            </div>
                           </TableCell>
                           <TableCell className="text-right">
                             <RowActionsMenu

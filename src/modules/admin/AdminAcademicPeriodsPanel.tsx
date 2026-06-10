@@ -304,7 +304,7 @@ export function AdminAcademicPeriodsPanel() {
           />
         ) : (
           <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-            <Table>
+            <Table fixed resizable>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-28">{t("academic.periods.colCode")}</TableHead>
@@ -328,7 +328,7 @@ export function AdminAcademicPeriodsPanel() {
                     return (
                       <TableRow key={r.id}>
                         <TableCell className="font-medium tabular-nums">{r.code}</TableCell>
-                        <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                        <TableCell className="hidden md:table-cell text-sm text-muted-foreground" truncate title={r.name ?? undefined}>
                           {r.name ?? "—"}
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">

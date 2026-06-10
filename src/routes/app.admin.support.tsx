@@ -480,15 +480,23 @@ function AdminSupportPage() {
               }
             />
           ) : (
-            <Table>
+            <Table fixed resizable>
               <TableHeader>
                 <TableRow>
                   <TableHead>{t("adminSupport.colSubject")}</TableHead>
-                  <TableHead className="hidden sm:table-cell">{t("adminSupport.colCategory")}</TableHead>
-                  <TableHead className="hidden sm:table-cell">{t("adminSupport.colPriority")}</TableHead>
-                  <TableHead>{t("adminSupport.colStatus")}</TableHead>
-                  <TableHead className="hidden md:table-cell">{t("adminSupport.colCreated")}</TableHead>
-                  <TableHead className="hidden lg:table-cell">{t("adminSupport.colResolved")}</TableHead>
+                  <TableHead className="hidden sm:table-cell w-28">
+                    {t("adminSupport.colCategory")}
+                  </TableHead>
+                  <TableHead className="hidden sm:table-cell w-24">
+                    {t("adminSupport.colPriority")}
+                  </TableHead>
+                  <TableHead className="w-32">{t("adminSupport.colStatus")}</TableHead>
+                  <TableHead className="hidden md:table-cell w-40">
+                    {t("adminSupport.colCreated")}
+                  </TableHead>
+                  <TableHead className="hidden lg:table-cell w-40">
+                    {t("adminSupport.colResolved")}
+                  </TableHead>
                   <TableHead className="w-12 text-right">{t("adminSupport.colActions")}</TableHead>
                 </TableRow>
               </TableHeader>

@@ -241,7 +241,7 @@ export function AdminAcademicProgramsPanel() {
           />
         ) : (
           <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-            <Table>
+            <Table fixed resizable>
               <TableHeader>
                 <TableRow>
                   <TableHead className="max-w-[260px]">{t("academic.programs.colName")}</TableHead>
@@ -269,7 +269,7 @@ export function AdminAcademicProgramsPanel() {
                       <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
                         {r.code ?? "—"}
                       </TableCell>
-                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground" truncate title={r.faculty ?? undefined}>
                         {r.faculty ?? "—"}
                       </TableCell>
                       <TableCell>

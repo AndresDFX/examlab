@@ -485,13 +485,17 @@ function Inner() {
                 onRetry={() => setRetryNonce((n) => n + 1)}
               />
             ) : (
-              <Table>
+              <Table fixed resizable>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{t("adminReportTemplates.colName")}</TableHead>
-                    <TableHead className="hidden md:table-cell">{t("adminReportTemplates.colDescription")}</TableHead>
-                    <TableHead>{t("adminReportTemplates.colType")}</TableHead>
-                    <TableHead className="hidden sm:table-cell">{t("adminReportTemplates.colPage")}</TableHead>
+                    <TableHead className="w-56">{t("adminReportTemplates.colName")}</TableHead>
+                    <TableHead className="hidden md:table-cell">
+                      {t("adminReportTemplates.colDescription")}
+                    </TableHead>
+                    <TableHead className="w-28">{t("adminReportTemplates.colType")}</TableHead>
+                    <TableHead className="hidden sm:table-cell w-36">
+                      {t("adminReportTemplates.colPage")}
+                    </TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
@@ -505,9 +509,15 @@ function Inner() {
                   ) : (
                     filtered.map((tmpl) => (
                       <TableRow key={tmpl.id}>
-                        <TableCell className="font-medium">{tmpl.name}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="truncate" title={tmpl.name}>
+                            {tmpl.name}
+                          </div>
+                        </TableCell>
                         <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                          {tmpl.description ?? "—"}
+                          <div className="truncate" title={tmpl.description ?? undefined}>
+                            {tmpl.description ?? "—"}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">

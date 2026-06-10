@@ -1322,9 +1322,16 @@ function TeacherContents() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {it.course_id
-                        ? (courseNameById.get(it.course_id) ?? "—")
-                        : t("contents.noCourse")}
+                      {(() => {
+                        const courseLabel = it.course_id
+                          ? (courseNameById.get(it.course_id) ?? "—")
+                          : t("contents.noCourse");
+                        return (
+                          <div className="truncate" title={courseLabel}>
+                            {courseLabel}
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <Badge variant={statusVariant(it.status)} className="text-[11px]">

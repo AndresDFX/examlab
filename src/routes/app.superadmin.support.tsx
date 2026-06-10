@@ -335,16 +335,26 @@ function SuperAdminSupportPage() {
               description={t("superadminSupport.emptyDesc")}
             />
           ) : (
-            <Table>
+            <Table fixed resizable>
               <TableHeader>
                 <TableRow>
                   <TableHead>{t("superadminSupport.colSubject")}</TableHead>
-                  <TableHead className="hidden sm:table-cell">{t("superadminSupport.colAdminInstitution")}</TableHead>
-                  <TableHead className="hidden sm:table-cell">{t("superadminSupport.colCategory")}</TableHead>
-                  <TableHead className="hidden md:table-cell">{t("superadminSupport.colPriority")}</TableHead>
-                  <TableHead>{t("superadminSupport.colStatus")}</TableHead>
-                  <TableHead className="hidden lg:table-cell">{t("superadminSupport.colAssigned")}</TableHead>
-                  <TableHead className="hidden md:table-cell">{t("superadminSupport.colCreated")}</TableHead>
+                  <TableHead className="hidden sm:table-cell w-48">
+                    {t("superadminSupport.colAdminInstitution")}
+                  </TableHead>
+                  <TableHead className="hidden sm:table-cell w-28">
+                    {t("superadminSupport.colCategory")}
+                  </TableHead>
+                  <TableHead className="hidden md:table-cell w-24">
+                    {t("superadminSupport.colPriority")}
+                  </TableHead>
+                  <TableHead className="w-32">{t("superadminSupport.colStatus")}</TableHead>
+                  <TableHead className="hidden lg:table-cell w-36">
+                    {t("superadminSupport.colAssigned")}
+                  </TableHead>
+                  <TableHead className="hidden md:table-cell w-40">
+                    {t("superadminSupport.colCreated")}
+                  </TableHead>
                   <TableHead className="w-12 text-right">{t("superadminSupport.colActions")}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -380,7 +390,9 @@ function SuperAdminSupportPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                      {t.assignee_name ?? "—"}
+                      <div className="truncate" title={t.assignee_name ?? undefined}>
+                        {t.assignee_name ?? "—"}
+                      </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       <DateCell value={t.created_at} variant="datetime" />

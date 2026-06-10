@@ -560,17 +560,17 @@ function AdminStatistics() {
               <CardDescription>Click en un curso para ver su dashboard completo.</CardDescription>
             </CardHeader>
             <CardContent className="p-0 overflow-x-auto">
-              <Table>
+              <Table fixed resizable>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Curso</TableHead>
-                    <TableHead className="hidden sm:table-cell">Periodo</TableHead>
-                    <TableHead className="text-right">Estudiantes</TableHead>
-                    <TableHead className="text-right">Actividades</TableHead>
-                    <TableHead className="text-right">% Aprobación</TableHead>
-                    <TableHead className="text-right hidden md:table-cell">Asistencia</TableHead>
-                    <TableHead className="text-right hidden md:table-cell">Alertas IA</TableHead>
-                    <TableHead className="text-right hidden lg:table-cell">Pares copia</TableHead>
+                    <TableHead className="hidden sm:table-cell w-32">Periodo</TableHead>
+                    <TableHead className="text-right w-28">Estudiantes</TableHead>
+                    <TableHead className="text-right w-28">Actividades</TableHead>
+                    <TableHead className="text-right w-32">% Aprobación</TableHead>
+                    <TableHead className="text-right hidden md:table-cell w-28">Asistencia</TableHead>
+                    <TableHead className="text-right hidden md:table-cell w-28">Alertas IA</TableHead>
+                    <TableHead className="text-right hidden lg:table-cell w-28">Pares copia</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -590,7 +590,11 @@ function AdminStatistics() {
                       className="cursor-pointer hover:bg-muted/40"
                       onClick={() => setDrillCourseId(s.course.id)}
                     >
-                      <TableCell className="font-medium">{s.course.name}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="truncate" title={s.course.name}>
+                          {s.course.name}
+                        </div>
+                      </TableCell>
                       <TableCell className="hidden sm:table-cell">
                         {s.course.period ? (
                           <Badge variant="outline" className="text-xs">

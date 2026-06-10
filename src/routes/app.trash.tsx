@@ -287,7 +287,10 @@ function TrashPage() {
   const handleHardDelete = async (item: TrashItem) => {
     const ok = await confirm({
       title: t("trash.confirmHardDeleteTitle"),
-      description: t("trash.confirmHardDeleteDesc", { name: item.name, type: TRASH_TABLE_LABEL[item.table] }),
+      description: t("trash.confirmHardDeleteDesc", {
+        name: item.name,
+        type: TRASH_TABLE_LABEL[item.table],
+      }),
       confirmLabel: t("trash.confirmHardDeleteLabel"),
       tone: "destructive",
     });
@@ -527,7 +530,9 @@ function TrashPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{t("trash.filterAll", { count: countByTable.all })}</SelectItem>
+              <SelectItem value="all">
+                {t("trash.filterAll", { count: countByTable.all })}
+              </SelectItem>
               {TABLES.map((t) => (
                 <SelectItem key={t} value={t} disabled={countByTable[t] === 0}>
                   {TRASH_TABLE_LABEL[t]} ({countByTable[t] ?? 0})
@@ -595,28 +600,36 @@ function TrashPage() {
 
       <Card>
         <CardContent className="p-0 overflow-x-auto">
-          <Table>
+          <Table fixed resizable>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">
                   <MultiSelectHeaderCheckbox state={sel} />
                 </TableHead>
-                <SortableHead sortKey="name" sort={sort}>
+                <SortableHead sortKey="name" sort={sort} className="min-w-40">
                   {t("trash.colName")}
                 </SortableHead>
-                <SortableHead sortKey="type" sort={sort} className="hidden sm:table-cell">
+                <SortableHead sortKey="type" sort={sort} className="hidden sm:table-cell w-32">
                   {t("trash.colType")}
                 </SortableHead>
-                <SortableHead sortKey="deleted_by" sort={sort} className="hidden md:table-cell">
+                <SortableHead
+                  sortKey="deleted_by"
+                  sort={sort}
+                  className="hidden md:table-cell w-40"
+                >
                   {t("trash.colDeletedBy")}
                 </SortableHead>
-                <SortableHead sortKey="deleted_at" sort={sort} className="hidden sm:table-cell">
+                <SortableHead
+                  sortKey="deleted_at"
+                  sort={sort}
+                  className="hidden sm:table-cell w-44"
+                >
                   {t("trash.colDeletedAt")}
                 </SortableHead>
-                <SortableHead sortKey="purges_in" sort={sort} className="hidden sm:table-cell">
+                <SortableHead sortKey="purges_in" sort={sort} className="hidden sm:table-cell w-32">
                   {t("trash.colPurgesIn")}
                 </SortableHead>
-                <TableHead className="text-right">{t("trash.colActions")}</TableHead>
+                <TableHead className="text-right w-20">{t("trash.colActions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -624,9 +637,7 @@ function TrashPage() {
                 <TableEmpty
                   colSpan={7}
                   text={
-                    search || filterTable !== "all"
-                      ? t("trash.emptyFiltered")
-                      : t("trash.emptyAll")
+                    search || filterTable !== "all" ? t("trash.emptyFiltered") : t("trash.emptyAll")
                   }
                 />
               ) : (
@@ -643,7 +654,7 @@ function TrashPage() {
                         <MultiSelectCheckbox id={selectId} state={sel} />
                       </TableCell>
                       <TableCell className="font-medium">
-                        <div className="truncate max-w-[260px]" title={item.name}>
+                        <div className="truncate" title={item.name}>
                           {item.name}
                         </div>
                         {/* Repetir tipo en mobile (la columna está hidden). */}
@@ -659,7 +670,9 @@ function TrashPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                        {item.deleted_by_name ?? "—"}
+                        <div className="truncate" title={item.deleted_by_name ?? "—"}>
+                          {item.deleted_by_name ?? "—"}
+                        </div>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell">
                         <DateCell value={item.deleted_at} variant="datetime" />
@@ -676,7 +689,9 @@ function TrashPage() {
                           title={`Se purgará automáticamente cuando pasen ${RETENTION_DAYS} días desde la eliminación.`}
                         >
                           <Clock className="h-3 w-3" />
-                          {days <= 0 ? t("trash.purgeToday") : t("trash.purgeDays", { count: days })}
+                          {days <= 0
+                            ? t("trash.purgeToday")
+                            : t("trash.purgeDays", { count: days })}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">

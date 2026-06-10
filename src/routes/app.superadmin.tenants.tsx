@@ -716,13 +716,25 @@ function SuperAdminTenantsPage() {
               }
             />
           ) : (
-            <Table>
+            <Table fixed resizable>
               <TableHeader>
                 <TableRow>
-                  <SortableHead sortKey="name" sort={sort}>{tl("superadminTenants.colName")}</SortableHead>
-                  <SortableHead sortKey="slug" sort={sort}>{tl("superadminTenants.colSlug")}</SortableHead>
-                  <SortableHead sortKey="email_domain" sort={sort} className="hidden sm:table-cell">{tl("superadminTenants.colEmailDomain")}</SortableHead>
-                  <SortableHead sortKey="status" sort={sort}>{tl("superadminTenants.colStatus")}</SortableHead>
+                  <SortableHead sortKey="name" sort={sort}>
+                    {tl("superadminTenants.colName")}
+                  </SortableHead>
+                  <SortableHead sortKey="slug" sort={sort} className="w-44">
+                    {tl("superadminTenants.colSlug")}
+                  </SortableHead>
+                  <SortableHead
+                    sortKey="email_domain"
+                    sort={sort}
+                    className="hidden sm:table-cell w-48"
+                  >
+                    {tl("superadminTenants.colEmailDomain")}
+                  </SortableHead>
+                  <SortableHead sortKey="status" sort={sort} className="w-28">
+                    {tl("superadminTenants.colStatus")}
+                  </SortableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -730,23 +742,27 @@ function SuperAdminTenantsPage() {
                 {pagination.paginatedItems.map((t) => (
                   <TableRow key={t.id}>
                     <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
                         {t.logo_url && (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={t.logo_url}
                             alt={t.name}
-                            className="h-6 w-6 rounded object-cover"
+                            className="h-6 w-6 rounded object-cover shrink-0"
                           />
                         )}
-                        {t.name}
+                        <span className="truncate" title={t.name}>
+                          {t.name}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell>
                       <code className="text-xs bg-muted px-1.5 py-0.5 rounded">/t/{t.slug}</code>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
-                      {t.email_domain ?? "—"}
+                      <div className="truncate" title={t.email_domain ?? undefined}>
+                        {t.email_domain ?? "—"}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {t.is_active ? (

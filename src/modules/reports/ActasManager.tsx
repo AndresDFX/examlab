@@ -255,7 +255,7 @@ export function ActasManager({ onPrintActa }: Props) {
           />
         ) : (
           <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-            <Table>
+            <Table fixed resizable>
               <TableHeader>
                 <TableRow>
                   <TableHead className="max-w-[260px]">Curso</TableHead>
@@ -290,7 +290,7 @@ export function ActasManager({ onPrintActa }: Props) {
                           {a.periodo_codigo ?? "—"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground truncate">
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground" truncate title={a.docente_nombre}>
                         {a.docente_nombre}
                       </TableCell>
                       <TableCell className="text-center tabular-nums">

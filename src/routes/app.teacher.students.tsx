@@ -228,13 +228,13 @@ function TeacherStudentsInner() {
                 onRetry={() => setRetryNonce((n) => n + 1)}
               />
             ) : (
-              <Table>
+              <Table fixed resizable>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="max-w-[260px]">{t("teacherStudents.colName")}</TableHead>
+                    <TableHead className="min-w-[180px]">{t("teacherStudents.colName")}</TableHead>
                     <TableHead className="hidden sm:table-cell w-32">{t("teacherStudents.colCode")}</TableHead>
-                    <TableHead className="hidden sm:table-cell max-w-[260px]">{t("teacherStudents.colEmail")}</TableHead>
-                    <TableHead className="hidden md:table-cell">{t("teacherStudents.colCourses")}</TableHead>
+                    <TableHead className="hidden sm:table-cell w-[260px]">{t("teacherStudents.colEmail")}</TableHead>
+                    <TableHead className="hidden md:table-cell w-[240px]">{t("teacherStudents.colCourses")}</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
@@ -256,8 +256,10 @@ function TeacherStudentsInner() {
                         <TableCell className="hidden sm:table-cell text-xs text-muted-foreground tabular-nums">
                           {s.codigo ?? "—"}
                         </TableCell>
-                        <TableCell className="hidden sm:table-cell text-sm text-muted-foreground truncate">
-                          {s.institutional_email}
+                        <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
+                          <div className="truncate" title={s.institutional_email}>
+                            {s.institutional_email}
+                          </div>
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                           {s.courses.length === 0 ? (

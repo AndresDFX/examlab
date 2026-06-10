@@ -820,7 +820,14 @@ function TeacherExams() {
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs hidden md:table-cell">
-                    {cuts.find((c) => c.id === e.cut_id)?.name ?? "—"}
+                    {(() => {
+                      const cutName = cuts.find((c) => c.id === e.cut_id)?.name ?? "—";
+                      return (
+                        <div className="truncate" title={cutName}>
+                          {cutName}
+                        </div>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell className="text-sm tabular-nums text-right hidden md:table-cell">
                     {e.cut_id != null && e.weight != null

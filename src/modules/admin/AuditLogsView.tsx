@@ -781,7 +781,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                           </TableCell>
 
                           {/* Acción */}
-                          <TableCell className="text-sm">
+                          <TableCell className="text-sm" truncate title={actionLabel(log.action)}>
                             {actionLabel(log.action)}
                           </TableCell>
 

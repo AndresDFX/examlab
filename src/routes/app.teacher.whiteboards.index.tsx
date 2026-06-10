@@ -603,7 +603,9 @@ function TeacherWhiteboards() {
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm hidden sm:table-cell">
-                        {courseName}
+                        <div className="truncate" title={courseName}>
+                          {courseName}
+                        </div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         <Badge variant={w.is_shared_with_course ? "default" : "secondary"}>

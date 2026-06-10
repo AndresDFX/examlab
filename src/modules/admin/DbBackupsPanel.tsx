@@ -425,16 +425,16 @@ export function DbBackupsPanel() {
           {loading ? (
             <TableSkeleton cols={6} rows={4} />
           ) : (
-            <Table>
+            <Table fixed resizable>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Fecha</TableHead>
+                  <TableHead className="w-44">Fecha</TableHead>
                   <TableHead>Etiqueta</TableHead>
-                  <TableHead className="hidden sm:table-cell">Origen</TableHead>
-                  <TableHead className="hidden md:table-cell text-right">Tablas</TableHead>
-                  <TableHead className="hidden md:table-cell text-right">Filas</TableHead>
-                  <TableHead className="text-right">Tamaño</TableHead>
-                  <TableHead>Estado</TableHead>
+                  <TableHead className="hidden sm:table-cell w-24">Origen</TableHead>
+                  <TableHead className="hidden md:table-cell text-right w-20">Tablas</TableHead>
+                  <TableHead className="hidden md:table-cell text-right w-24">Filas</TableHead>
+                  <TableHead className="text-right w-24">Tamaño</TableHead>
+                  <TableHead className="w-28">Estado</TableHead>
                   <TableHead className="text-right w-32">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -452,7 +452,7 @@ export function DbBackupsPanel() {
                       <TableCell className="text-xs tabular-nums whitespace-nowrap">
                         {formatDateTime(b.created_at)}
                       </TableCell>
-                      <TableCell className="text-xs">
+                      <TableCell className="text-xs" truncate title={b.label || undefined}>
                         {b.label || <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="hidden sm:table-cell">

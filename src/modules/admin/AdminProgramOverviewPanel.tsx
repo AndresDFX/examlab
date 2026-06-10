@@ -307,7 +307,7 @@ export function AdminProgramOverviewPanel() {
             </div>
 
             <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-              <Table>
+              <Table fixed resizable>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="max-w-[260px]">Programa / Nivel</TableHead>
@@ -344,12 +344,12 @@ export function AdminProgramOverviewPanel() {
                               )}
                             </div>
                             {p.code && (
-                              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                              <div className="text-[10px] text-muted-foreground font-mono mt-0.5 truncate" title={p.code}>
                                 {p.code}
                               </div>
                             )}
                           </TableCell>
-                          <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                          <TableCell className="hidden md:table-cell text-sm text-muted-foreground" truncate title={p.faculty ?? undefined}>
                             {p.faculty ?? "—"}
                           </TableCell>
                           <TableCell className="text-center tabular-nums">

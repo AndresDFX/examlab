@@ -598,8 +598,7 @@ function VideoLibrary() {
       if (stErr) {
         toast.warning(
           i18n.t("toast.routes_app_videos.videoDeletedOrphanFile", {
-            defaultValue:
-              "Video eliminado, pero quedó el archivo huérfano en Storage ({{error}})",
+            defaultValue: "Video eliminado, pero quedó el archivo huérfano en Storage ({{error}})",
             error: stErr.message,
           }),
         );
@@ -648,7 +647,11 @@ function VideoLibrary() {
           value={videoStats.total}
           tone={videoStats.total > 0 ? "success" : "default"}
         />
-        <StatCard icon={LinkIcon} label={t("videosPage.statInProgress")} value={videoStats.inCourse} />
+        <StatCard
+          icon={LinkIcon}
+          label={t("videosPage.statInProgress")}
+          value={videoStats.inCourse}
+        />
         <StatCard icon={Globe} label={t("videosPage.statGlobal")} value={videoStats.global} />
       </div>
 
@@ -728,9 +731,7 @@ function VideoLibrary() {
                           colSpan={5}
                           text={noMatch ? t("videosPage.noResults") : t("videosPage.emptyTitle")}
                           hint={
-                            noMatch
-                              ? t("common.tryClearFilter")
-                              : t("videosPage.emptySubtitle")
+                            noMatch ? t("common.tryClearFilter") : t("videosPage.emptySubtitle")
                           }
                           action={
                             noMatch ? undefined : (
@@ -805,7 +806,12 @@ function VideoLibrary() {
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                           {v.course_id ? (
-                            <span className="text-xs">{courseNameById[v.course_id] ?? "—"}</span>
+                            <div
+                              className="text-xs truncate"
+                              title={courseNameById[v.course_id] ?? "—"}
+                            >
+                              {courseNameById[v.course_id] ?? "—"}
+                            </div>
                           ) : (
                             <Badge variant="outline" className="text-[10px]">
                               Global
@@ -845,7 +851,9 @@ function VideoLibrary() {
       <Dialog open={dialogOpen} onOpenChange={(o) => !saving && setDialogOpen(o)}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editing ? t("videosPage.actionEdit") : t("videosPage.newVideo")}</DialogTitle>
+            <DialogTitle>
+              {editing ? t("videosPage.actionEdit") : t("videosPage.newVideo")}
+            </DialogTitle>
           </DialogHeader>
 
           <Tabs

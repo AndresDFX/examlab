@@ -1488,7 +1488,14 @@ function AdminUsers() {
                       </TableCell>
                       {showTenantUI && (
                         <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                          {tenants.find((t) => t.id === r.tenant_id)?.name ?? "—"}
+                          {(() => {
+                            const tn = tenants.find((t) => t.id === r.tenant_id)?.name ?? "—";
+                            return (
+                              <div className="truncate" title={tn}>
+                                {tn}
+                              </div>
+                            );
+                          })()}
                         </TableCell>
                       )}
                       <TableCell className="hidden xl:table-cell text-xs">
