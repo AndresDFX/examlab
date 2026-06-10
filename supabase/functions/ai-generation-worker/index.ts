@@ -49,17 +49,31 @@ interface QueueRow {
   attempts: number;
 }
 
-/** Lee `ai_model_settings.processing_mode` para decidir si drenar.
- *  Si la lectura falla, asumimos async (conservador — no drenar). */
-async function getCurrentMode(): Promise<"sync" | "async"> {
+/** Resuelve el `processing_mode` POR TENANT. `ai_model_settings` es
+ *  per-tenant (una fila is_active por tenant, + opcionalmente una fila
+ *  global con tenant_id NULL como default de plataforma). Antes esto leía
+ *  UN modo global con `.maybeSingle()`, que en multi-tenant (varias filas
+ *  is_active=true) devolvía null → fallback async → el cron NO drenaba
+ *  NUNCA, dejando colgados los jobs de tenants configurados en 'sync'.
+ *  Devuelve un mapa tenant_id→modo + el default global. */
+async function loadModeResolver(): Promise<{
+  byTenant: Map<string, "sync" | "async">;
+  defaultMode: "sync" | "async";
+}> {
   // deno-lint-ignore no-explicit-any
   const { data } = await (adminClient as any)
     .from("ai_model_settings")
-    .select("processing_mode")
-    .eq("is_active", true)
-    .maybeSingle();
-  const mode = (data as { processing_mode?: string } | null)?.processing_mode;
-  return mode === "sync" ? "sync" : "async";
+    .select("tenant_id, processing_mode")
+    .eq("is_active", true);
+  const byTenant = new Map<string, "sync" | "async">();
+  // Conservador: sin fila global explícita, el default es async (no drenar).
+  let defaultMode: "sync" | "async" = "async";
+  for (const r of (data ?? []) as { tenant_id: string | null; processing_mode?: string }[]) {
+    const m = r.processing_mode === "sync" ? "sync" : "async";
+    if (r.tenant_id) byTenant.set(r.tenant_id, m);
+    else defaultMode = m;
+  }
+  return { byTenant, defaultMode };
 }
 
 /** Procesa un job de tipo `content_generation`.
@@ -315,23 +329,10 @@ Deno.serve(async (req) => {
   // deno-lint-ignore no-explicit-any
   const db = adminClient as any;
 
-  // Modo: si `async` y NO viene jobId específico, no drenamos.
-  // Si viene jobId, asumimos que el caller (UI con código activo, o
-  // el Admin) sabe lo que hace y procesamos igual.
-  if (!body.jobId) {
-    const mode = await getCurrentMode();
-    if (mode === "async") {
-      return jsonResponse({
-        processed: 0,
-        succeeded: 0,
-        failed: 0,
-        skipped: "async_mode_no_jobid",
-      });
-    }
-  }
-
-  // Cargamos jobs a procesar. Si jobId está, solo ese. Sino, hasta 10
-  // pending ordenados por created_at (FIFO).
+  // Cargamos jobs candidatos. Si jobId está, solo ese; sino hasta 50
+  // pending FIFO (margen para que los jobs de tenants en 'sync' no queden
+  // "atrás" de muchos jobs de tenants 'async' — esos nunca se auto-drenan,
+  // así que sin margen podrían acaparar la ventana y starvar a los sync).
   let q = db
     .from("ai_generation_queue")
     .select(
@@ -339,12 +340,40 @@ Deno.serve(async (req) => {
     )
     .eq("status", "pending")
     .order("created_at", { ascending: true })
-    .limit(body.jobId ? 1 : 10);
+    .limit(body.jobId ? 1 : 50);
   if (body.jobId) q = q.eq("id", body.jobId);
   const { data: rows, error: loadErr } = await q;
   if (loadErr) return jsonError(loadErr.message, 500);
 
-  const jobs = (rows ?? []) as QueueRow[];
+  let jobs = (rows ?? []) as QueueRow[];
+
+  // Filtro de modo POR TENANT (drain mode). Solo auto-drenamos jobs de
+  // tenants en 'sync'; los de tenants 'async' se quedan pending — su dueño
+  // los procesa con código de "IA inmediata" o "Procesar ahora" (que pasan
+  // jobId y saltan este filtro). El modo de cada job se resuelve por el
+  // tenant de su creador (created_by → profiles.tenant_id). created_by
+  // apunta a auth.users, así que no se puede embeber profiles: 2ª query.
+  if (!body.jobId && jobs.length > 0) {
+    const resolver = await loadModeResolver();
+    const creatorIds = [...new Set(jobs.map((j) => j.created_by).filter(Boolean))];
+    const tenantByUser = new Map<string, string | null>();
+    if (creatorIds.length > 0) {
+      const { data: profs } = await db.from("profiles").select("id, tenant_id").in("id", creatorIds);
+      for (const p of (profs ?? []) as { id: string; tenant_id: string | null }[]) {
+        tenantByUser.set(p.id, p.tenant_id ?? null);
+      }
+    }
+    const modeOf = (job: QueueRow): "sync" | "async" => {
+      const t = tenantByUser.get(job.created_by) ?? null;
+      if (t && resolver.byTenant.has(t)) return resolver.byTenant.get(t)!;
+      return resolver.defaultMode;
+    };
+    jobs = jobs.filter((j) => modeOf(j) === "sync").slice(0, 10);
+    if (jobs.length === 0) {
+      return jsonResponse({ processed: 0, succeeded: 0, failed: 0, skipped: "no_sync_tenant_jobs" });
+    }
+  }
+
   if (jobs.length === 0) {
     return jsonResponse({ processed: 0, succeeded: 0, failed: 0 });
   }
