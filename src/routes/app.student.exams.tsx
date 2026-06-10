@@ -405,7 +405,7 @@ function StudentExams() {
               <DatePicker value={dateTo} onChange={setDateTo} placeholder="Hasta…" />
             </div>
             <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
-              <SelectTrigger className="w-full sm:w-48">
+              <SelectTrigger className="w-full sm:w-60">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

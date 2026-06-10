@@ -494,7 +494,7 @@ function StudentProjectDetail() {
                         <div className="rounded-md border bg-muted/30 p-3 space-y-2">
                           {ans?.code_paths && ans.code_paths.length > 0
                             ? ans.code_paths.map((p) => (
-                                <div key={p} className="flex items-center gap-3">
+                                <div key={p} className="flex items-center gap-3 min-w-0">
                                   <FileArchive className="h-5 w-5 text-primary shrink-0" />
                                   <p className="text-[12px] truncate flex-1">
                                     {p.split("/").pop()}

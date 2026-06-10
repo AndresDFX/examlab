@@ -1635,7 +1635,7 @@ function CreatePollDialog({
                 {courses.map((c) => (
                   <label
                     key={c.id}
-                    className="flex items-center gap-2 px-3 py-2 hover:bg-muted/40 cursor-pointer text-sm"
+                    className="flex items-center gap-2 px-3 py-2 hover:bg-muted/40 cursor-pointer text-sm min-w-0"
                   >
                     <Checkbox
                       checked={courseIds.includes(c.id)}

@@ -2566,7 +2566,7 @@ function TeacherProjects() {
                         {video.library_id ? (
                           <div className="rounded-md border bg-muted/40 px-2.5 py-1.5 text-[11px] text-muted-foreground">
                             URL gestionada desde el módulo Videos —{" "}
-                            <span className="font-mono truncate inline-block max-w-[280px] align-bottom">
+                            <span className="font-mono truncate inline-block max-w-[400px] align-bottom">
                               {video.url || "(cargando…)"}
                             </span>
                           </div>
@@ -3245,7 +3245,7 @@ function TeacherProjects() {
                                         </div>
                                         {a?.code_paths && a.code_paths.length > 0
                                           ? a.code_paths.map((p) => (
-                                              <div key={p} className="flex items-center gap-2">
+                                              <div key={p} className="flex items-center gap-2 min-w-0">
                                                 <FileArchive className="h-3.5 w-3.5 text-primary shrink-0" />
                                                 <span className="text-[11px] font-mono truncate flex-1">
                                                   {p.split("/").pop()}
@@ -3278,7 +3278,7 @@ function TeacherProjects() {
                                               </div>
                                             ))
                                           : a?.zip_path && (
-                                              <div className="flex items-center gap-2">
+                                              <div className="flex items-center gap-2 min-w-0">
                                                 <FileArchive className="h-3.5 w-3.5 text-primary shrink-0" />
                                                 <span className="text-[11px] font-mono truncate flex-1">
                                                   {a.zip_path.split("/").pop()} (ZIP legacy)

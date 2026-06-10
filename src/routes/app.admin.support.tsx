@@ -656,7 +656,7 @@ function AdminSupportPage() {
                   {newAttachments.map((file, idx) => (
                     <div
                       key={`${file.name}-${idx}`}
-                      className="flex items-center gap-2 text-xs"
+                      className="flex items-center gap-2 text-xs min-w-0"
                     >
                       <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
                       <span className="truncate flex-1" title={file.name}>

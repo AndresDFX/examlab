@@ -1596,7 +1596,7 @@ function MessagesPage() {
                             isSelected && "bg-primary/10",
                           )}
                         >
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2 mb-1 min-w-0">
                             {/* Checkbox: en modo selección reemplaza el ícono
                                 de rol; sino aparece en hover para iniciar
                                 selección. */}
@@ -2305,7 +2305,7 @@ function MessagesPage() {
                       {pendingFiles.map((f, idx) => (
                         <li
                           key={`${f.name}-${idx}`}
-                          className="flex items-center gap-2 rounded border bg-muted/30 px-2 py-1 text-[11px]"
+                          className="flex items-center gap-2 rounded border bg-muted/30 px-2 py-1 text-[11px] min-w-0"
                         >
                           <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
                           <span className="truncate flex-1" title={f.name}>
@@ -2468,7 +2468,7 @@ function MessagesPage() {
                   {broadcastCourses.map((c) => (
                     <label
                       key={c.id}
-                      className="flex items-center gap-2 px-3 py-2 hover:bg-muted/40 cursor-pointer text-sm"
+                      className="flex items-center gap-2 px-3 py-2 hover:bg-muted/40 cursor-pointer text-sm min-w-0"
                     >
                       <Checkbox
                         checked={broadcastCourseIds.includes(c.id)}

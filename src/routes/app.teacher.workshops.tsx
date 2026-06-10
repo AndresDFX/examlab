@@ -3579,7 +3579,7 @@ function TeacherWorkshops() {
                                 : ""
                             }
                           >
-                            <TableCell className="max-w-[260px]">
+                            <TableCell className="max-w-[260px] min-w-0">
                               <div className="font-medium text-sm truncate">
                                 {sub.profile?.full_name ?? "—"}
                               </div>
@@ -3818,10 +3818,10 @@ function TeacherWorkshops() {
                                   ),
                                 );
                             }}
-                            className="flex items-center gap-1.5 text-sm text-primary hover:underline"
+                            className="flex items-center gap-1.5 text-sm text-primary hover:underline min-w-0"
                           >
                             <FileIcon className="h-3.5 w-3.5" />
-                            <span className="truncate max-w-[200px]">
+                            <span className="truncate max-w-[200px] min-w-0">
                               {sub.file_url.split("/").pop()}
                             </span>
                             <Download className="h-3 w-3 shrink-0" />
