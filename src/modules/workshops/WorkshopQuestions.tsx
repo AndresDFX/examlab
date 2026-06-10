@@ -38,7 +38,9 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
-import { CodeEditor, getStarterCode } from "@/modules/code/CodeEditor";
+import { CodeEditor, getStarterCode, type CodeLanguage } from "@/modules/code/CodeEditor";
+import { CodeRunnerPicker, type CodeRunnerProvider } from "@/modules/code/CodeRunnerPicker";
+import { runJavaInBrowser, CANCELLED_SENTINEL } from "@/modules/code/run-java";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER, JAVAFX_STARTER } from "@/modules/code/JavaGuiRunner";
 import { PythonGuiRunner, PYTHON_GUI_STARTER } from "@/modules/code/PythonGuiRunner";
@@ -1047,6 +1049,40 @@ export function StudentWorkshopTaker({
   // "reload" the modal while the student is mid-submission.
   const loadedForRef = useRef<string | null>(null);
 
+  // Ejecución de código en vivo para preguntas tipo `codigo` (paridad con
+  // el exam taker). El estudiante corre el código contra el runner remoto
+  // (edge `execute-code`) o CheerpJ para Java. Estado por pregunta.
+  const [codeOutputs, setCodeOutputs] = useState<Record<string, string>>({});
+  const [runningCode, setRunningCode] = useState<Record<string, boolean>>({});
+  const [runnerOverride, setRunnerOverride] = useState<Record<string, string>>({});
+  // Provider efectivo: en un ref para leerlo síncrono dentro de runCode sin
+  // re-render; en state para que el picker muestre la etiqueta "(default)".
+  const codeExecProviderRef = useRef<string>("onlinecompiler");
+  const [defaultCodeProvider, setDefaultCodeProvider] = useState<string>("onlinecompiler");
+  // AbortController por pregunta — cancelRun libera la UI sin esperar al
+  // worker remoto (que sigue corriendo server-side).
+  const runAbortersRef = useRef<Record<string, AbortController>>({});
+  // ID de la submission actual (solo metadata de audit para execute-code).
+  // null si el alumno nunca entregó — el edge lo ignora si falta.
+  const submissionIdRef = useRef<string | null>(null);
+
+  // Carga el provider global de ejecución de código (lo configura el Admin).
+  // Fire-and-forget igual que el exam taker: solo setea state simple.
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("code_execution_settings")
+      .select("provider")
+      .eq("is_active", true)
+      .maybeSingle()
+      .then(({ data }: { data: { provider: string } | null }) => {
+        if (data?.provider) {
+          codeExecProviderRef.current = data.provider;
+          setDefaultCodeProvider(data.provider);
+        }
+      });
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     // Gate: solo cargar una vez por (workshopId + userId). Esto evita que
@@ -1112,6 +1148,8 @@ export function StudentWorkshopTaker({
           (subRowHydrate.status === "calificado" || subRowHydrate.final_grade != null),
       );
       if (sub?.id) {
+        // Metadata de audit para execute-code (no FK; el edge la ignora si falta).
+        submissionIdRef.current = sub.id;
         // Hidratar el set de videos ya vistos desde
         // `workshop_submission_video_views`. Si la submission no existe
         // todavía (primer abrir del taller), el set queda vacío y el
@@ -1163,6 +1201,141 @@ export function StudentWorkshopTaker({
 
   const updateAnswer = (qid: string, value: any) => {
     setAnswers((prev) => ({ ...prev, [qid]: value }));
+  };
+
+  /** Cancela un run en curso para `questionId`. No mata el worker remoto
+   *  (CheerpJ no expone API; el edge ya está corriendo server-side), pero
+   *  libera el botón "Ejecutar" para que el estudiante pueda cambiar de
+   *  compilador y reintentar sin esperar. */
+  const cancelRun = (questionId: string) => {
+    const controller = runAbortersRef.current[questionId];
+    if (!controller) return;
+    controller.abort();
+    delete runAbortersRef.current[questionId];
+    setRunningCode((prev) => ({ ...prev, [questionId]: false }));
+    toast.info("Ejecución cancelada. Puedes cambiar de compilador y reintentar.");
+  };
+
+  const runCode = async (questionId: string, language: CodeLanguage) => {
+    const code = typeof answers[questionId] === "string" ? (answers[questionId] as string) : "";
+    if (!code.trim()) {
+      toast.error("Escribe código antes de ejecutar");
+      return;
+    }
+    // Provider efectivo = override del estudiante para esta pregunta, o el
+    // default global. `cheerp` solo aplica a Java (corre client-side via
+    // WebAssembly); para otros lenguajes con `cheerp` caemos al edge.
+    const overrideForQuestion = runnerOverride[questionId];
+    const provider = overrideForQuestion ?? codeExecProviderRef.current;
+
+    // Cancela cualquier run previo de esta misma pregunta (defensive — el
+    // doble click ya lo previene `disabled={isRunning}`, pero el cleanup es barato).
+    runAbortersRef.current[questionId]?.abort();
+    const controller = new AbortController();
+    runAbortersRef.current[questionId] = controller;
+    const { signal } = controller;
+
+    setRunningCode((prev) => ({ ...prev, [questionId]: true }));
+    // Limpia el output ANTES de ejecutar para que no se vea el resultado
+    // del run anterior mientras espera el nuevo.
+    setCodeOutputs((prev) => ({ ...prev, [questionId]: "" }));
+    try {
+      let stdout = "";
+      let stderr = "";
+
+      if (provider === "cheerp" && language === "java") {
+        // CheerpJ: ejecuta Java directamente en el navegador (sin API externa ni cuota).
+        const result = await runJavaInBrowser(code, signal);
+        stdout = result.stdout;
+        stderr = result.stderr;
+      } else {
+        // Carrera entre el invoke y un promise que rechaza al abortar. El
+        // invoke sigue server-side hasta que el provider responda, pero la
+        // UI ya quedó libre. Trade-off aceptable.
+        const cancelPromise = new Promise<never>((_, reject) => {
+          if (signal.aborted) {
+            reject(new Error(CANCELLED_SENTINEL));
+            return;
+          }
+          signal.addEventListener("abort", () => reject(new Error(CANCELLED_SENTINEL)), {
+            once: true,
+          });
+        });
+        const invokePromise = supabase.functions.invoke("execute-code", {
+          body: {
+            sourceCode: code,
+            language,
+            questionId,
+            submissionId: submissionIdRef.current,
+            // Solo mandamos `provider` cuando el estudiante eligió un
+            // override. Sin override, el edge usa el default del admin.
+            ...(overrideForQuestion ? { provider: overrideForQuestion } : {}),
+          },
+        });
+        const { data, error } = await (Promise.race([invokePromise, cancelPromise]) as Promise<
+          Awaited<typeof invokePromise>
+        >);
+        if (error) {
+          // Extraemos el mensaje REAL del response body, no el genérico
+          // "Edge Function returned a non-2xx status code".
+          const real = await extractEdgeError(error, data);
+          throw new Error(real || "Error ejecutando código");
+        }
+        stdout = data?.stdout ?? "";
+        stderr = data?.stderr ?? "";
+      }
+
+      // Defense-in-depth: si el provider devolvió el mensaje opaco genérico
+      // sin detalle útil, lo reemplazamos por una pista accionable (el edge
+      // ya lo hace server-side; lo duplicamos por si no está redesplegado).
+      const opaqueRe = /^\s*(internal\s+)?error:\s*code execution failed\.?\s*$/i;
+      if (opaqueRe.test(stdout)) stdout = "";
+      if (opaqueRe.test(stderr)) stderr = "";
+      if (!stdout.trim() && !stderr.trim()) {
+        stderr =
+          "El compilador remoto no devolvió detalle del error. Suele indicar un error " +
+          "de compilación (falta `;`, llaves desbalanceadas, import erróneo, nombre " +
+          "de clase incorrecto). Revisa tu código línea por línea y vuelve a intentar.";
+      }
+
+      // Combinar stdout + stderr en el orden natural de terminal.
+      const parts: string[] = [];
+      if (stdout.trimEnd()) parts.push(stdout.trimEnd());
+      if (stderr.trimEnd()) parts.push(stderr.trimEnd());
+      const output = parts.join("\n") || "(sin salida)";
+      setCodeOutputs((prev) => ({ ...prev, [questionId]: output }));
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error ejecutando";
+      // Cancelación por el usuario: NO mostramos error ni loggeamos. La UI
+      // ya quedó libre por cancelRun; aquí solo silenciamos el catch.
+      if (msg === CANCELLED_SENTINEL) {
+        return;
+      }
+      setCodeOutputs((prev) => ({ ...prev, [questionId]: `Error: ${msg}` }));
+      void logEvent({
+        action: "code_execution_error",
+        category: "workshop",
+        severity: "error",
+        entityType: "submission",
+        entityId: submissionIdRef.current ?? undefined,
+        metadata: {
+          workshopId,
+          questionId,
+          language,
+          provider,
+          default_provider: codeExecProviderRef.current,
+          provider_overridden: !!overrideForQuestion,
+          error: msg,
+        },
+      });
+    } finally {
+      // Solo limpiamos el aborter si sigue siendo el nuestro (cancelRun ya
+      // lo borró, u otro run en paralelo sobrescribió el slot).
+      if (runAbortersRef.current[questionId] === controller) {
+        delete runAbortersRef.current[questionId];
+      }
+      setRunningCode((prev) => ({ ...prev, [questionId]: false }));
+    }
   };
 
   /**
@@ -2141,16 +2314,42 @@ export function StudentWorkshopTaker({
                 })()}
               </div>
             )}
-            {q.type === "codigo" && (
-              <CodeEditor
-                value={answers[q.id] ?? q.starter_code ?? getStarterCode(q.language)}
-                onChange={(v) => updateAnswer(q.id, v ?? "")}
-                language={(q.language as any) ?? "java"}
-                showLanguageSelector={false}
-                showRunButton={false}
-                height="280px"
-              />
-            )}
+            {q.type === "codigo" &&
+              (() => {
+                const lang = (q.language ?? "java") as CodeLanguage;
+                return (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-end">
+                      <CodeRunnerPicker
+                        language={lang}
+                        defaultProvider={defaultCodeProvider}
+                        value={runnerOverride[q.id] as CodeRunnerProvider | undefined}
+                        disabled={runningCode[q.id] ?? false}
+                        onChange={(next) =>
+                          setRunnerOverride((prev) => {
+                            const copy = { ...prev };
+                            if (next === undefined) delete copy[q.id];
+                            else copy[q.id] = next;
+                            return copy;
+                          })
+                        }
+                      />
+                    </div>
+                    <CodeEditor
+                      value={answers[q.id] ?? q.starter_code ?? getStarterCode(lang)}
+                      onChange={(v) => updateAnswer(q.id, v ?? "")}
+                      language={lang}
+                      onRun={() => runCode(q.id, lang)}
+                      onCancel={() => cancelRun(q.id)}
+                      output={codeOutputs[q.id]}
+                      isRunning={runningCode[q.id] ?? false}
+                      showLanguageSelector={false}
+                      showRunButton={true}
+                      height="280px"
+                    />
+                  </div>
+                );
+              })()}
             {q.type === "diagrama" && (
               <DiagramEditor value={answers[q.id] ?? ""} onChange={(v) => updateAnswer(q.id, v)} />
             )}

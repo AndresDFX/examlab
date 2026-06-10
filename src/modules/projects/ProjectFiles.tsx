@@ -46,7 +46,9 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
-import { CodeEditor } from "@/modules/code/CodeEditor";
+import { CodeEditor, getStarterCode, type CodeLanguage } from "@/modules/code/CodeEditor";
+import { CodeRunnerPicker, type CodeRunnerProvider } from "@/modules/code/CodeRunnerPicker";
+import { runJavaInBrowser, CANCELLED_SENTINEL } from "@/modules/code/run-java";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER, JAVAFX_STARTER } from "@/modules/code/JavaGuiRunner";
 import { PythonGuiRunner, PYTHON_GUI_STARTER } from "@/modules/code/PythonGuiRunner";
@@ -1211,6 +1213,20 @@ export function StudentProjectTaker({
   const [lastSubmissionGraded, setLastSubmissionGraded] = useState<boolean>(false);
   const loadedForRef = useRef<string | null>(null);
 
+  // --- Ejecución de código en vivo para preguntas `codigo` ---
+  // Espejo de la maquinaria del exam taker: output + flag de ejecución +
+  // override de runner por pregunta, más el default global del admin.
+  const [codeOutputs, setCodeOutputs] = useState<Record<string, string>>({});
+  const [runningCode, setRunningCode] = useState<Record<string, boolean>>({});
+  const [runnerOverride, setRunnerOverride] = useState<Record<string, string>>({});
+  const codeExecProviderRef = useRef<string>("onlinecompiler");
+  const [defaultCodeProvider, setDefaultCodeProvider] = useState<string>("onlinecompiler");
+  // Cancela un run sin esperar al worker remoto: solo libera la UI.
+  const runAbortersRef = useRef<Record<string, AbortController>>({});
+  // ID de la submission actual — metadata de audit del execute-code. NULL
+  // si el alumno aún no entregó (se omite del body en ese caso).
+  const submissionIdRef = useRef<string | null>(null);
+
   // ¿La entrega tiene archivos de código (codigo_zip)? Si no, el gate
   // de video no aplica para esta pantalla — los proyectos sin componente
   // de código no necesitan el video.
@@ -1222,6 +1238,22 @@ export function StudentProjectTaker({
   // el alumno está corrigiendo su intento — NO bloqueamos. El cap real
   // se aplica vía `nextAttemptCount > max` dentro del submit().
   const attemptsExhausted = attemptCount >= effectiveMaxAttempts && lastSubmissionGraded;
+
+  // Carga el proveedor de ejecución de código una vez al montar (fire-and-forget).
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("code_execution_settings")
+      .select("provider")
+      .eq("is_active", true)
+      .maybeSingle()
+      .then(({ data }: { data: { provider: string } | null }) => {
+        if (data?.provider) {
+          codeExecProviderRef.current = data.provider;
+          setDefaultCodeProvider(data.provider);
+        }
+      });
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -1296,6 +1328,8 @@ export function StudentProjectTaker({
       setLastSubmissionGraded(
         subRow != null && (subRow.status === "calificado" || subRow.final_grade != null),
       );
+      // Metadata de audit para execute-code. NULL si nunca entregó.
+      submissionIdRef.current = subRow?.id ?? null;
       // Hidratar el set de videos ya vistos desde
       // `project_submission_video_views`. Si la submission no existe
       // todavía (primer abrir del proyecto), el set queda vacío y el
@@ -1347,6 +1381,152 @@ export function StudentProjectTaker({
 
   const updateAnswer = (qid: string, value: any) => {
     setAnswers((prev) => ({ ...prev, [qid]: value }));
+  };
+
+  /** Cancela un run en curso para `questionId`. No mata el worker remoto
+   *  (CheerpJ no expone API; el edge function ya está corriendo
+   *  server-side), pero libera el botón "Ejecutar" para que el estudiante
+   *  pueda cambiar de compilador y reintentar sin esperar. */
+  const cancelRun = (questionId: string) => {
+    const controller = runAbortersRef.current[questionId];
+    if (!controller) return;
+    controller.abort();
+    delete runAbortersRef.current[questionId];
+    setRunningCode((prev) => ({ ...prev, [questionId]: false }));
+    toast.info("Ejecución cancelada. Puedes cambiar de compilador y reintentar.");
+  };
+
+  const runCode = async (questionId: string, language: CodeLanguage) => {
+    const code = typeof answers[questionId] === "string" ? (answers[questionId] as string) : "";
+    if (!code.trim()) {
+      toast.error("Escribe código antes de ejecutar");
+      return;
+    }
+    // Provider efectivo = override del estudiante para esta pregunta, o
+    // el default global. `cheerp` solo aplica si el lenguaje es Java
+    // (corre client-side via WebAssembly). Para otros lenguajes con
+    // `cheerp` seleccionado caemos al edge function, que internamente
+    // usará onlinecompiler.
+    const overrideForQuestion = runnerOverride[questionId];
+    const provider = overrideForQuestion ?? codeExecProviderRef.current;
+
+    // Cancela cualquier run previo de esta misma pregunta (defensive —
+    // `disabled={isRunning}` previene el doble click, pero el cleanup es
+    // barato).
+    runAbortersRef.current[questionId]?.abort();
+    const controller = new AbortController();
+    runAbortersRef.current[questionId] = controller;
+    const { signal } = controller;
+
+    setRunningCode((prev) => ({ ...prev, [questionId]: true }));
+    // Limpia el output ANTES de ejecutar para que el alumno no vea el
+    // resultado del run anterior mientras espera el nuevo.
+    setCodeOutputs((prev) => ({ ...prev, [questionId]: "" }));
+    try {
+      let stdout = "";
+      let stderr = "";
+
+      if (provider === "cheerp" && language === "java") {
+        // CheerpJ: ejecuta Java directamente en el navegador (sin API externa ni cuota).
+        const result = await runJavaInBrowser(code, signal);
+        stdout = result.stdout;
+        stderr = result.stderr;
+      } else {
+        // Para edge functions corremos una carrera entre el invoke y
+        // un promise que rechaza cuando el signal aborta. El invoke
+        // sigue ejecutando server-side hasta que el provider responda,
+        // pero la UI ya quedó libre. Aceptable trade-off.
+        const cancelPromise = new Promise<never>((_, reject) => {
+          if (signal.aborted) {
+            reject(new Error(CANCELLED_SENTINEL));
+            return;
+          }
+          signal.addEventListener("abort", () => reject(new Error(CANCELLED_SENTINEL)), {
+            once: true,
+          });
+        });
+        const invokePromise = supabase.functions.invoke("execute-code", {
+          body: {
+            sourceCode: code,
+            language,
+            questionId,
+            // submissionId es solo metadata de audit (opcional). Solo se
+            // incluye si ya hay submission cargada.
+            ...(submissionIdRef.current ? { submissionId: submissionIdRef.current } : {}),
+            // Solo mandamos `provider` cuando el estudiante eligió un
+            // override. Sin override, el edge function usa el default
+            // del admin (mismo comportamiento que antes).
+            ...(overrideForQuestion ? { provider: overrideForQuestion } : {}),
+          },
+        });
+        const { data, error } = await (Promise.race([invokePromise, cancelPromise]) as Promise<
+          Awaited<typeof invokePromise>
+        >);
+        if (error) {
+          // Extraemos el mensaje REAL del response body (que tiene
+          // `{ error: "detalle..." }`), no el genérico
+          // "Edge Function returned a non-2xx status code".
+          const real = await extractEdgeError(error, data);
+          throw new Error(real || "Error ejecutando código");
+        }
+        stdout = data?.stdout ?? "";
+        stderr = data?.stderr ?? "";
+      }
+
+      // Defense-in-depth: si el provider remoto devolvió el mensaje
+      // opaco genérico ("Internal error: code execution failed") sin
+      // ningún detalle útil, lo reemplazamos por una pista accionable.
+      const opaqueRe = /^\s*(internal\s+)?error:\s*code execution failed\.?\s*$/i;
+      const stdoutOpaque = opaqueRe.test(stdout);
+      const stderrOpaque = opaqueRe.test(stderr);
+      if (stdoutOpaque) stdout = "";
+      if (stderrOpaque) stderr = "";
+      if (!stdout.trim() && !stderr.trim()) {
+        stderr =
+          "El compilador remoto no devolvió detalle del error. Suele indicar un error " +
+          "de compilación (falta `;`, llaves desbalanceadas, import erróneo, nombre " +
+          "de clase incorrecto). Revisa tu código línea por línea y vuelve a intentar.";
+      }
+
+      // Combinar stdout + stderr en el orden natural de terminal.
+      const parts: string[] = [];
+      if (stdout.trimEnd()) parts.push(stdout.trimEnd());
+      if (stderr.trimEnd()) parts.push(stderr.trimEnd());
+      const output = parts.join("\n") || "(sin salida)";
+      setCodeOutputs((prev) => ({ ...prev, [questionId]: output }));
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error ejecutando";
+      // Cancelación por el usuario: NO mostramos error ni loggeamos. La
+      // UI ya quedó libre por cancelRun; aquí solo silenciamos el catch.
+      if (msg === CANCELLED_SENTINEL) {
+        return;
+      }
+      setCodeOutputs((prev) => ({ ...prev, [questionId]: `Error: ${msg}` }));
+      void logEvent({
+        action: "code_execution_error",
+        category: "project",
+        severity: "error",
+        entityType: "submission",
+        entityId: submissionIdRef.current ?? undefined,
+        entityName: projectTitle,
+        metadata: {
+          projectId,
+          questionId,
+          language,
+          provider,
+          default_provider: codeExecProviderRef.current,
+          provider_overridden: !!overrideForQuestion,
+          error: msg,
+        },
+      });
+    } finally {
+      // Solo limpiamos el aborter si sigue siendo el nuestro (cancelRun
+      // ya lo borró, u otro run en paralelo lo sobrescribió).
+      if (runAbortersRef.current[questionId] === controller) {
+        delete runAbortersRef.current[questionId];
+      }
+      setRunningCode((prev) => ({ ...prev, [questionId]: false }));
+    }
   };
 
   /**
@@ -2455,16 +2635,42 @@ export function StudentProjectTaker({
                 })()}
               </div>
             )}
-            {q.type === "codigo" && (
-              <CodeEditor
-                value={answers[q.id] ?? q.starter_code ?? ""}
-                onChange={(v) => updateAnswer(q.id, v ?? "")}
-                language={(q.language as any) ?? "java"}
-                showLanguageSelector={false}
-                showRunButton={false}
-                height="280px"
-              />
-            )}
+            {q.type === "codigo" &&
+              (() => {
+                const lang = (q.language ?? "java") as CodeLanguage;
+                return (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-end">
+                      <CodeRunnerPicker
+                        language={lang}
+                        defaultProvider={defaultCodeProvider}
+                        value={runnerOverride[q.id] as CodeRunnerProvider | undefined}
+                        disabled={runningCode[q.id] ?? false}
+                        onChange={(next) =>
+                          setRunnerOverride((prev) => {
+                            const copy = { ...prev };
+                            if (next === undefined) delete copy[q.id];
+                            else copy[q.id] = next;
+                            return copy;
+                          })
+                        }
+                      />
+                    </div>
+                    <CodeEditor
+                      value={answers[q.id] ?? q.starter_code ?? getStarterCode(lang)}
+                      onChange={(v) => updateAnswer(q.id, v ?? "")}
+                      language={lang}
+                      onRun={() => runCode(q.id, lang)}
+                      onCancel={() => cancelRun(q.id)}
+                      output={codeOutputs[q.id]}
+                      isRunning={runningCode[q.id] ?? false}
+                      showLanguageSelector={false}
+                      showRunButton={true}
+                      height="280px"
+                    />
+                  </div>
+                );
+              })()}
             {q.type === "diagrama" && (
               <DiagramEditor value={answers[q.id] ?? ""} onChange={(v) => updateAnswer(q.id, v)} />
             )}
