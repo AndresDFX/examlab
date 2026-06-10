@@ -191,7 +191,7 @@ export const ADMIN_TOUR: TourStep[] = [
   {
     element: '[data-tour-module="videos"]',
     route: "/app/videos",
-    title: "Biblioteca de videos",
+    title: "Videos",
     description:
       "Un solo lugar para todos los <strong>videos del curso</strong> (YouTube, Vimeo, MP4 subidos). Los docentes los enlazan a sus talleres y proyectos. Una vez subido, se reutiliza en cuantos cursos quieras.",
     side: "right",
@@ -816,9 +816,9 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-module="polls"]',
     route: "/app/teacher/polls",
     escapeBefore: true,
-    title: "Encuestas",
+    title: "Encuestas y Kahoot",
     description:
-      "Encuestas rápidas para los alumnos. Sirven para <strong>votar en vivo en clase</strong> (opción única o múltiple) o para <strong>coordinar fechas tipo Doodle</strong> (cada slot tiene cupo). Desde el menú de cada fila podés <strong>duplicarla</strong> (copia la estructura sin las respuestas), <strong>compartir un enlace único</strong> para enviarla por otro medio, y en <em>Ver resultados</em> ver <strong>qué eligió cada alumno</strong> por opción (y borrar su respuesta para liberar el cupo).",
+      "Cuatro tipos en un solo lugar: <strong>opción única</strong> o <strong>múltiple</strong> para votar en clase, <strong>cupo (Doodle)</strong> para coordinar fechas, y <strong>Kahoot</strong> — un quiz en vivo gamificado. Desde el menú de cada fila podés <strong>duplicarla</strong>, <strong>compartir un enlace único</strong> y en <em>Ver resultados</em> ver <strong>qué eligió cada alumno</strong>. Tip: clic en el encabezado de una columna ordena el grid.",
     side: "right",
   },
   // ─── Demo INTERACTIVA del modal "Nueva encuesta" ────────────────────
@@ -851,9 +851,26 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="poll-field-type"]',
     title: "Tipo de encuesta",
     description:
-      "<strong>Opción única</strong> (una respuesta), <strong>múltiple</strong> (marca varias) o <strong>cupo (Doodle)</strong> — cada opción tiene cupo limitado. Doodle es ideal para repartir slots de sustentación.",
+      "<strong>Opción única</strong> (una respuesta), <strong>múltiple</strong> (varias), <strong>cupo (Doodle)</strong> — cada opción tiene cupo limitado, ideal para repartir slots de sustentación — y <strong>Kahoot</strong>, un quiz en vivo gamificado (más abajo te muestro cómo funciona).",
     side: "left",
     align: "start",
+  },
+  // ─── Kahoot: crear quiz + hostear en vivo ───────────────────────────
+  // El flujo Kahoot vive en la MISMA pantalla de Encuestas: se crea un
+  // poll tipo "kahoot", sus preguntas se editan en un editor aparte
+  // (manual o con IA), y se hostea en vivo desde el menú de la fila. Esas
+  // acciones del menú NO tienen anchors dedicados, así que el paso se
+  // ancla al botón "Nueva encuesta" (selector único, no colisiona con el
+  // clickBefore del demo) y explica el flujo completo con <ol>.
+  {
+    element: '[data-tour-id="create-poll"]',
+    route: "/app/teacher/polls",
+    escapeBefore: true,
+    title: "Kahoot: quiz en vivo",
+    description:
+      "<p>Un Kahoot es un juego de preguntas en tiempo real:</p><ol><li>Creá una encuesta tipo <em>Kahoot</em>.</li><li>En su menú, abrí <em>Preguntas</em> y armá el cuestionario — a mano o <strong>con IA</strong> (única o varias respuestas correctas).</li><li>Click <em>Hospedar en vivo</em>: se genera un <strong>PIN</strong> + <strong>QR</strong> que proyectás.</li><li>Los alumnos entran con el PIN/QR y esperan en la sala.</li><li>Avanzás pregunta por pregunta viendo el puntaje acumulado.</li></ol>",
+    side: "bottom",
+    align: "end",
   },
 
   // ─── Calendario ─────────────────────────────────────────────────────
@@ -892,7 +909,7 @@ export const TEACHER_TOUR: TourStep[] = [
   {
     element: '[data-tour-module="videos"]',
     route: "/app/videos",
-    title: "Biblioteca de videos",
+    title: "Videos",
     description:
       "Tu <strong>biblioteca de videos</strong> (YouTube, Vimeo, MP4 propios). Los enlazás en talleres y proyectos como recurso obligatorio o de apoyo. Subís uno y lo reutilizás en todos los cursos donde lo necesites.",
     side: "right",
@@ -1091,9 +1108,9 @@ export const STUDENT_TOUR: TourStep[] = [
   {
     element: '[data-tour-module="polls"]',
     route: "/app/student/polls",
-    title: "Encuestas",
+    title: "Encuestas y Kahoot",
     description:
-      "Encuestas del docente: opción única, múltiple o por cupo (estilo Doodle para elegir fecha de sustentación). Tu voto queda registrado y, si el docente lo permite, podés <strong>cambiarlo</strong> o <strong>quitar tu respuesta</strong> sin tener que elegir otra opción. El docente puede enviarte un <strong>enlace directo</strong> a una encuesta puntual.",
+      "Votás encuestas del docente (única, múltiple o por cupo tipo Doodle). Si lo permite, podés <strong>cambiar</strong> o <strong>quitar</strong> tu respuesta.<br><strong>Para unirte a un Kahoot en vivo:</strong><ol><li>Cuando el docente lo inicie, aparece arriba una tarjeta de juego.</li><li>Escaneá el <strong>QR</strong> o tipeá el <strong>PIN</strong> que él proyecta.</li><li>Esperá en la <em>sala</em> a que arranque.</li><li>Respondé cada pregunta a tiempo — ganás puntos por acertar rápido.</li></ol>",
     side: "right",
   },
 
