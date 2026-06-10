@@ -25,10 +25,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/ui/page-header";
 import { Spinner } from "@/components/ui/spinner";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
-import { RowAction } from "@/components/ui/row-action";
+import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DateCell } from "@/components/ui/date-cell";
 import { SearchInput } from "@/components/ui/search-input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  SortableHead,
+} from "@/components/ui/table";
 import { usePagination } from "@/hooks/use-pagination";
+import { useTableSort } from "@/hooks/use-table-sort";
 import { DataPagination } from "@/components/ui/data-pagination";
 import {
   Dialog,
@@ -41,11 +52,7 @@ import {
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
-import {
-  filterWhiteboards,
-  sortWhiteboards,
-  type WhiteboardSort,
-} from "@/modules/whiteboard/whiteboards-filter";
+import { filterWhiteboards } from "@/modules/whiteboard/whiteboards-filter";
 import {
   Select,
   SelectContent,
@@ -53,13 +60,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Palette, Globe, Lock, BookOpen, Copy } from "lucide-react";
+import { Plus, Trash2, Palette, Globe, Lock, BookOpen, Copy, Eye } from "lucide-react";
 import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDialog";
 import { StatCard } from "@/components/ui/stat-card";
 import { HelpHint } from "@/components/ui/help-hint";
 import { formatDate } from "@/shared/lib/format";
 import {
   useMultiSelect,
+  MultiSelectHeaderCheckbox,
   MultiSelectCheckbox,
   MultiSelectToolbar,
   BulkDeleteDialog,
@@ -101,18 +109,6 @@ function TeacherWhiteboards() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [search, setSearch] = useState("");
-  // Sort persistido en localStorage para que el docente vuelva al mismo
-  // orden entre sesiones. Default "updated_desc" — la pizarra que tocó
-  // más recientemente es la que típicamente quiere reabrir.
-  const [sort, setSort] = useState<WhiteboardSort>(() => {
-    if (typeof window === "undefined") return "updated_desc";
-    const stored = window.localStorage.getItem("examlab_whiteboards_sort");
-    return (stored as WhiteboardSort) || "updated_desc";
-  });
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem("examlab_whiteboards_sort", sort);
-  }, [sort]);
   // Create dialog state.
   const [createOpen, setCreateOpen] = useState(false);
   const [draftName, setDraftName] = useState("");
@@ -212,13 +208,21 @@ function TeacherWhiteboards() {
     void load();
   }, [load, retryNonce]);
 
-  // Filter + sort extraídos a `whiteboards-filter.ts` para testear sin
-  // React. Encadenados — sort se aplica DESPUÉS del filter (sino los
-  // items ocultos por search seguirían ocupando memoria comparable).
-  const filteredAndSorted = useMemo(
-    () => sortWhiteboards(filterWhiteboards(items, search), sort),
-    [items, search, sort],
-  );
+  // Filtro por nombre/descripción extraído a `whiteboards-filter.ts` (puro,
+  // testeable sin React). El orden por columna lo maneja `useTableSort`
+  // sobre la lista ya filtrada (flujo: filtrar → ORDENAR → paginar). El
+  // accessor de curso resuelve el nombre desde `draftCourses` (cargado al
+  // abrir el dialog de creación); si todavía está vacío, ordena por "".
+  const sort = useTableSort(filterWhiteboards(items, search), {
+    columns: {
+      name: (w) => w.name,
+      course: (w) => draftCourses.find((c) => c.id === w.course_id)?.name ?? "",
+      shared: (w) => w.is_shared_with_course,
+      updated_at: (w) => w.updated_at,
+    },
+    defaultSort: { key: "updated_at", dir: "desc" },
+    storageKey: "examlab_sort:teacher_whiteboards",
+  });
 
   // Stats compactas arriba del listado — mismo patrón que proyectos /
   // talleres / exámenes (4 tiles de cuenta por estado). Para pizarras
@@ -239,22 +243,19 @@ function TeacherWhiteboards() {
     return { total: items.length, shared, priv, inCourse };
   }, [items]);
 
-  // Grid de cards — defaults consistentes con otras vistas de cards del
-  // estudiante (cursos, exámenes, talleres): 12 / 6-12-24-48. Las cards
-  // son más altas que filas de tabla, por eso el page size baja desde
-  // 25 (default de grids) a 12.
-  const pagination = usePagination(filteredAndSorted, {
-    defaultPageSize: 12,
-    pageSizes: [6, 12, 24, 48],
+  // Paginación client-side — default de grids de listado (25 / 10-25-50-100),
+  // igual que Exámenes/Talleres/Proyectos ahora que es tabla y no cards.
+  const pagination = usePagination(sort.sorted, {
+    defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_whiteboards",
-    resetKey: `${search}|${sort}`,
+    resetKey: `${search}|${sort.resetKey}`,
   });
 
   // Multi-selección + bulk delete — mismo patrón que cursos, usuarios,
-  // exámenes, talleres y proyectos. Opera sobre `filteredAndSorted`
+  // exámenes, talleres y proyectos. Opera sobre `sort.sorted`
   // (no sobre `paginatedItems`) para que "seleccionar todos" abarque
   // todas las páginas del filtro activo.
-  const sel = useMultiSelect(filteredAndSorted);
+  const sel = useMultiSelect(sort.sorted);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   // Pizarra a duplicar — abre el DuplicateOptionsDialog parametrizable.
   const [duplicateFor, setDuplicateFor] = useState<Whiteboard | null>(null);
@@ -372,8 +373,8 @@ function TeacherWhiteboards() {
       );
       setItems((prev) => prev.filter((p) => p.id !== w.id));
     } catch (e) {
-      // Caller: `() => void deleteWhiteboard(w)` desde RowAction.onClick.
-      // Mismo riesgo que createWhiteboard — envolvemos para capturar
+      // Caller: `() => void deleteWhiteboard(w)` desde el RowActionsMenu de
+      // la fila. Mismo riesgo que createWhiteboard — envolvemos para capturar
       // rejections del network/RLS y mostrar toast amigable.
       toast.error(friendlyError(e, "No se pudo eliminar la pizarra"));
     }
@@ -494,39 +495,12 @@ function TeacherWhiteboards() {
         <StatCard icon={BookOpen} label="En curso" value={whiteboardStats.inCourse} />
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-        <div className="flex-1 min-w-0">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder="Buscar por nombre o descripción…"
-          />
-        </div>
-        {/* Sort persistido en localStorage. En mobile cae debajo del
-            search; en sm+ va a la derecha. Mismo patrón que
-            /app/student/courses. */}
-        <Select value={sort} onValueChange={(v) => setSort(v as WhiteboardSort)}>
-          <SelectTrigger className="h-9 w-full sm:w-56 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="updated_desc" className="text-xs">
-              Última edición (más reciente)
-            </SelectItem>
-            <SelectItem value="updated_asc" className="text-xs">
-              Última edición (más antigua)
-            </SelectItem>
-            <SelectItem value="created_desc" className="text-xs">
-              Creación (más reciente)
-            </SelectItem>
-            <SelectItem value="name_asc" className="text-xs">
-              Nombre (A → Z)
-            </SelectItem>
-            <SelectItem value="name_desc" className="text-xs">
-              Nombre (Z → A)
-            </SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="flex-1 min-w-0">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Buscar por nombre o descripción…"
+        />
       </div>
 
       {/* Toolbar de bulk delete — solo se renderiza cuando hay items
@@ -541,117 +515,129 @@ function TeacherWhiteboards() {
       />
 
       <Card>
-        <CardContent className="p-4 space-y-3">
+        <CardContent className="p-0 overflow-x-auto">
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
               <Spinner size="sm" /> Cargando…
             </div>
-          ) : filteredAndSorted.length === 0 ? (
-            <TableEmpty
-              icon={Palette}
-              title="No tienes pizarras todavía"
-              description={
-                search.trim()
-                  ? "Ningún resultado coincide con tu búsqueda."
-                  : "Crea tu primera pizarra para escribir, dibujar y explicar conceptos a tu manera."
-              }
-              action={
-                !search.trim() ? (
-                  <Button size="sm" onClick={() => setCreateOpen(true)}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Crear pizarra
-                  </Button>
-                ) : undefined
-              }
-            />
           ) : (
-            // Grid de cards (no Table) — consistente con los otros
-            // listados visuales del producto (cursos, exámenes, talleres
-            // del estudiante). 1 col mobile → 2 sm → 3 lg.
-            //
-            // Cada card es: link al editor (Link wrapper) + descripción +
-            // metadata abajo + ícono delete arriba a la derecha. El
-            // delete tiene `stopPropagation` para que clickearlo no
-            // dispare la navegación del Link.
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {pagination.paginatedItems.map((w) => {
-                const isSelected = sel.isSelected(w.id);
-                return (
-                  // Wrapper `div` (no Link) — necesario para que el
-                  // checkbox quede CLICKABLE sin disparar la navegación.
-                  // El navigate ocurre via onClick del Link interno que
-                  // ocupa la mayor parte del card.
-                  <div
-                    key={w.id}
-                    className={`group relative rounded-lg border bg-card transition-colors p-4 flex flex-col gap-2 min-h-[8rem] ${
-                      isSelected
-                        ? "border-primary ring-2 ring-primary/30"
-                        : "hover:bg-muted/40 hover:border-primary/40"
-                    }`}
+            // Grid estándar de tabla — mismo patrón que Exámenes / Talleres /
+            // Proyectos (Table fixed resizable + SortableHead + RowActionsMenu).
+            <Table fixed resizable>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">
+                    <MultiSelectHeaderCheckbox state={sel} />
+                  </TableHead>
+                  <SortableHead sortKey="name" sort={sort}>
+                    Nombre
+                  </SortableHead>
+                  <SortableHead sortKey="course" sort={sort} className="hidden sm:table-cell w-40">
+                    Curso
+                  </SortableHead>
+                  <SortableHead sortKey="shared" sort={sort} className="hidden md:table-cell w-28">
+                    Visibilidad
+                  </SortableHead>
+                  <SortableHead
+                    sortKey="updated_at"
+                    sort={sort}
+                    className="hidden lg:table-cell w-40"
                   >
-                    {/* Checkbox de multi-select arriba a la izquierda.
-                        Z-index para flotar sobre el Link transparente. */}
-                    <div className="absolute top-3 left-3 z-10">
-                      <MultiSelectCheckbox id={w.id} state={sel} />
-                    </div>
-                    {/* Link transparente que cubre el card (excepto
-                        áreas interactivas con z-10 encima) para mantener
-                        UX de "click en el card abre el editor". */}
-                    <Link
-                      to="/app/teacher/whiteboards/$id"
-                      params={{ id: w.id }}
-                      className="absolute inset-0 rounded-lg z-0"
-                      aria-label={`Abrir pizarra ${w.name}`}
-                    />
-                    <div className="flex items-start justify-between gap-2 relative z-10 pointer-events-none">
-                      <div className="flex items-center gap-2 min-w-0 flex-1 pl-7">
-                        <Palette className="h-4 w-4 text-violet-500 shrink-0" />
-                        <h3
-                          className="font-semibold text-base leading-tight truncate"
-                          title={w.name}
-                        >
-                          {w.name}
-                        </h3>
-                      </div>
-                      {/* Delete por card. pointer-events-auto para que
-                          reciba el click (el padre del flex lo ignora
-                          para que el Link de abajo capture el click en
-                          el área vacía). */}
-                      <span className="shrink-0 -mt-2 -mr-2 pointer-events-auto flex items-center">
-                        <RowAction
-                          label="Duplicar"
-                          icon={Copy}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setDuplicateFor(w);
-                          }}
+                    Actualizada
+                  </SortableHead>
+                  <TableHead className="text-right w-16">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sort.sorted.length === 0 ? (
+                  <TableEmpty
+                    colSpan={6}
+                    icon={Palette}
+                    text={
+                      search.trim()
+                        ? "Ningún resultado coincide con tu búsqueda."
+                        : "No tienes pizarras todavía."
+                    }
+                    hint={
+                      search.trim()
+                        ? "Limpia el buscador para ver todas tus pizarras."
+                        : "Crea tu primera pizarra para escribir, dibujar y explicar conceptos a tu manera."
+                    }
+                    action={
+                      !search.trim() ? (
+                        <Button size="sm" onClick={() => setCreateOpen(true)}>
+                          <Plus className="h-4 w-4 mr-1" />
+                          Crear pizarra
+                        </Button>
+                      ) : undefined
+                    }
+                  />
+                ) : null}
+                {pagination.paginatedItems.map((w) => {
+                  const courseName = w.course_id
+                    ? (draftCourses.find((c) => c.id === w.course_id)?.name ?? "—")
+                    : "—";
+                  return (
+                    <TableRow
+                      key={w.id}
+                      data-state={sel.isSelected(w.id) ? "selected" : undefined}
+                    >
+                      <TableCell className="w-10">
+                        <MultiSelectCheckbox id={w.id} state={sel} />
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <Link
+                            to="/app/teacher/whiteboards/$id"
+                            params={{ id: w.id }}
+                            className="font-medium hover:underline truncate"
+                            title={w.name}
+                          >
+                            {w.name}
+                          </Link>
+                          {w.description && (
+                            <span className="text-xs text-muted-foreground truncate">
+                              {w.description}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm hidden sm:table-cell">
+                        {courseName}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <Badge variant={w.is_shared_with_course ? "default" : "secondary"}>
+                          {w.is_shared_with_course ? "Compartida" : "Privada"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <DateCell value={w.updated_at} variant="datetime" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <RowActionsMenu
+                          actions={[
+                            {
+                              label: "Abrir",
+                              icon: Eye,
+                              to: "/app/teacher/whiteboards/$id",
+                              params: { id: w.id },
+                            },
+                            { label: "Duplicar", icon: Copy, onClick: () => setDuplicateFor(w) },
+                            {
+                              label: "Eliminar",
+                              icon: Trash2,
+                              tone: "destructive",
+                              separatorBefore: true,
+                              onClick: () => void deleteWhiteboard(w),
+                            },
+                          ]}
                         />
-                        <RowAction
-                          label="Eliminar"
-                          icon={Trash2}
-                          tone="destructive"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            void deleteWhiteboard(w);
-                          }}
-                        />
-                      </span>
-                    </div>
-                    {w.description && (
-                      <p className="text-xs text-muted-foreground line-clamp-2 relative z-10 pointer-events-none pl-7">
-                        {w.description}
-                      </p>
-                    )}
-                    <div className="mt-auto pt-2 text-[11px] text-muted-foreground tabular-nums flex items-center gap-1 relative z-10 pointer-events-none pl-7">
-                      <span>Última edición:</span>
-                      <DateCell value={w.updated_at} variant="datetime" />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
           <DataPagination state={pagination} entityNamePlural="pizarras" />
         </CardContent>
@@ -776,7 +762,7 @@ function TeacherWhiteboards() {
       <BulkDeleteDialog
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}
-        items={filteredAndSorted
+        items={sort.sorted
           .filter((w) => sel.isSelected(w.id))
           .map((w) => ({ id: w.id, label: w.name }))}
         entityNameSingular="pizarra"
