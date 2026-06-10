@@ -86,6 +86,29 @@ const PAGE_SELECT_COLS = "id, whiteboard_id, position, name, page_type, scene_js
 
 const EMPTY_SCENE: WhiteboardScene = { elements: [], appState: {} };
 
+// Persistencia de la hoja activa por pizarra. WHY: el componente se desmonta
+// al salir de la pizarra; al volver, activePageId arranca en null y load()
+// caía siempre a rows[0] ("hoja inicial"). Guardamos el id de la última hoja
+// vista en localStorage (namespaceado por whiteboardId) para restaurarla.
+const ACTIVE_PAGE_KEY = (whiteboardId: string) => `examlab_wb_active_page:${whiteboardId}`;
+
+function readStoredActivePage(whiteboardId: string): string | null {
+  try {
+    return localStorage.getItem(ACTIVE_PAGE_KEY(whiteboardId));
+  } catch {
+    return null; // SSR / storage deshabilitado (incógnito/cuota)
+  }
+}
+
+function writeStoredActivePage(whiteboardId: string, pageId: string | null) {
+  try {
+    if (pageId) localStorage.setItem(ACTIVE_PAGE_KEY(whiteboardId), pageId);
+    else localStorage.removeItem(ACTIVE_PAGE_KEY(whiteboardId));
+  } catch {
+    /* no-op */
+  }
+}
+
 export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props) {
   const confirm = useConfirm();
   const [pages, setPages] = useState<WhiteboardPage[]>([]);
@@ -135,7 +158,18 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
         rows = [created as WhiteboardPage];
       }
       setPages(rows);
-      setActivePageId((curr) => curr ?? rows[0]?.id ?? null);
+      setActivePageId((curr) => {
+        // 1) si ya hay una hoja activa válida en memoria (re-load por
+        //    retryNonce o cambio de readOnly, sin desmontaje), respetarla.
+        if (curr && rows.some((r) => r.id === curr)) return curr;
+        // 2) restaurar la hoja persistida si todavía existe en las filas
+        //    cargadas. Leer localStorage acá es seguro: load() corre dentro
+        //    de un effect (post-mount), NO en render → no hay hydration mismatch.
+        const stored = readStoredActivePage(whiteboardId);
+        if (stored && rows.some((r) => r.id === stored)) return stored;
+        // 3) fallback a la primera hoja (comportamiento previo).
+        return rows[0]?.id ?? null;
+      });
     } catch (e) {
       setLoadError(friendlyError(e, "No pudimos cargar las hojas de la pizarra."));
     } finally {
@@ -335,6 +369,15 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
       inline: "nearest",
     });
   }, [activePageId]);
+
+  // Persistir la hoja activa para restaurarla al reentrar a la pizarra.
+  // WHY effect (no inline en cada setter): cubre TODOS los cambios de
+  // activePageId (tab click, dropdown, addPage, deletePage) sin tocarlos uno
+  // a uno. deletePage queda cubierto: tras borrar reasigna a remaining[0] →
+  // este effect reescribe la clave con la hoja válida (o la limpia si null).
+  useEffect(() => {
+    writeStoredActivePage(whiteboardId, activePageId);
+  }, [activePageId, whiteboardId]);
 
   const scrollBy = (delta: number) => {
     const el = scrollRef.current;
