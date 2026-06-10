@@ -109,6 +109,14 @@ export function useNotifications(userId: string | undefined, viewerRole?: string
       const isMessageKind = n.kind === "info" && n.link?.startsWith("/app/messages") === true;
       const shouldToast =
         !isInitialLoad &&
+        // Nunca re-toastear una notificación YA LEÍDA. El gate por
+        // TOASTED_NOTIFICATION_IDS + lastSeenIdRef es memoria de sesión y
+        // se pierde al remontar el hook / cambiar de rol (viewerRole
+        // recrea load y puede re-evaluar un top distinto) / entre
+        // instancias — sin este check, un refetch podía volver a mostrar el
+        // toast de algo que el usuario ya leyó o marcó como leído. `read`
+        // es la fuente de verdad persistida en DB.
+        !n.read &&
         !isMessageKind &&
         !TOASTED_NOTIFICATION_IDS.has(n.id) &&
         typeof document !== "undefined" &&
@@ -187,6 +195,7 @@ export function useNotifications(userId: string | undefined, viewerRole?: string
           const n = payload.new as Notification | undefined;
           if (
             n &&
+            !n.read &&
             typeof document !== "undefined" &&
             document.visibilityState === "hidden" &&
             typeof navigator !== "undefined" &&
