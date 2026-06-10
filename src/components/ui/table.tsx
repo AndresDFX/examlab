@@ -1,6 +1,8 @@
 import * as React from "react";
+import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 
 import { cn } from "@/shared/lib/utils";
+import type { TableSortState } from "@/hooks/use-table-sort";
 
 // El wrapper se queda con el scroll horizontal para que las tablas
 // anchas no rompan el layout en mobile. `-webkit-overflow-scrolling`
@@ -383,6 +385,64 @@ const TableHead = React.forwardRef<HTMLTableCellElement, TableHeadProps>(
 );
 TableHead.displayName = "TableHead";
 
+/**
+ * Encabezado de columna ORDENABLE. Render un `<TableHead>` con un botón
+ * que alterna el orden de esa columna (asc → desc → asc) al clic, con un
+ * indicador chevron (arriba=asc, abajo=desc, doble-chevron tenue=inactiva).
+ *
+ * Convención del design system: en los grids de listado, las columnas con
+ * un valor comparable (texto, número, fecha, conteo) usan `<SortableHead>`
+ * en vez de `<TableHead>`. Las columnas no ordenables (acciones, selección,
+ * badges sin orden natural) se quedan como `<TableHead>`.
+ *
+ *   const sort = useTableSort(filtered, { columns: {...}, storageKey });
+ *   ...
+ *   <SortableHead sortKey="name" sort={sort}>Nombre</SortableHead>
+ *
+ * Coexiste con `<Table resizable>`: el handle de resize queda como sibling
+ * y su `stopPropagation` en pointerdown evita disparar el orden al
+ * arrastrar el borde. El `sortKey` debe existir como clave en el mapa
+ * `columns` del hook; si no, el clic no ordena (no-op silencioso).
+ */
+interface SortableHeadProps extends React.ThHTMLAttributes<HTMLTableCellElement> {
+  sortKey: string;
+  sort: TableSortState;
+  children: React.ReactNode;
+}
+
+const SortableHead = React.forwardRef<HTMLTableCellElement, SortableHeadProps>(
+  ({ sortKey, sort, children, className, ...props }, ref) => {
+    const active = sort.sortKey === sortKey;
+    const Icon = active ? (sort.sortDir === "asc" ? ChevronUp : ChevronDown) : ChevronsUpDown;
+    return (
+      <TableHead
+        ref={ref}
+        // p-0: el padding/altura los aporta el botón interno para que toda
+        // la celda sea clickeable. cn() + tailwind-merge dejan que p-0 gane
+        // sobre el px-3/md:px-2 del TableHead base.
+        className={cn("p-0", className)}
+        aria-sort={active ? (sort.sortDir === "asc" ? "ascending" : "descending") : "none"}
+        {...props}
+      >
+        <button
+          type="button"
+          onClick={() => sort.toggleSort(sortKey)}
+          className={cn(
+            "flex w-full items-center gap-1 h-11 md:h-10 px-3 md:px-2 text-left font-medium select-none",
+            "transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+            active ? "text-foreground" : "text-muted-foreground",
+          )}
+          title="Ordenar por esta columna"
+        >
+          <span className="truncate">{children}</span>
+          <Icon className={cn("h-3.5 w-3.5 shrink-0", active ? "opacity-100" : "opacity-40")} />
+        </button>
+      </TableHead>
+    );
+  },
+);
+SortableHead.displayName = "SortableHead";
+
 interface TableCellProps extends React.TdHTMLAttributes<HTMLTableCellElement> {
   /** Envuelve el contenido en un div con `truncate` automáticamente.
    *  El tooltip nativo (atributo `title`) se hereda del cell si lo das
@@ -482,6 +542,7 @@ export {
   TableBody,
   TableFooter,
   TableHead,
+  SortableHead,
   TableRow,
   TableCell,
   TableCaption,

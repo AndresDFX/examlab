@@ -32,6 +32,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  SortableHead,
 } from "@/components/ui/table";
 import {
   Select,
@@ -100,6 +101,7 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { buildPptxBlob, type PptxBrand } from "@/modules/contents/contents-pptx";
 import { parseDurationInput } from "@/modules/contents/upload-external-helpers";
 import { usePagination } from "@/hooks/use-pagination";
+import { useTableSort } from "@/hooks/use-table-sort";
 import { DataPagination } from "@/components/ui/data-pagination";
 
 export const Route = createFileRoute("/app/teacher/contents")({ component: TeacherContents });
@@ -265,10 +267,28 @@ function TeacherContents() {
       );
     });
   }, [items, courses, search, courseFilter]);
-  const pagination = usePagination(filteredItems, {
+  // Orden por columna (asc/desc clicando el encabezado). Va ENTRE el
+  // filtro y la paginación: filtrar → ORDENAR → paginar. Accessors
+  // robustos a null (el hook manda los vacíos al final). El nombre de
+  // curso se resuelve por lookup (mismo que la celda) para que el orden
+  // de la columna "Curso" sea alfabético por nombre visible, no por id.
+  const sort = useTableSort(filteredItems, {
+    columns: {
+      name: (it) => it.display_name ?? it.topic,
+      mode: (it) => it.mode,
+      course: (it) =>
+        it.course_id ? (courses.find((c) => c.id === it.course_id)?.name ?? "") : "",
+      status: (it) => it.status,
+      files: (it) => it.files?.length ?? 0,
+      created_at: (it) => it.created_at,
+    },
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:teacher_contents",
+  });
+  const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_contents",
-    resetKey: `${search}|${courseFilter ?? ""}|${tenantFilter}`,
+    resetKey: `${search}|${courseFilter ?? ""}|${tenantFilter}|${sort.resetKey}`,
   });
 
   // Stats compactas arriba del listado — mismo patrón que proyectos /
@@ -1130,12 +1150,24 @@ function TeacherContents() {
             <Table fixed resizable>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="max-w-[320px]">{t("contents.topicColumn")}</TableHead>
-                  <TableHead className="w-32">{t("contents.modeColumn")}</TableHead>
-                  <TableHead className="w-32">{t("common.course")}</TableHead>
-                  <TableHead className="w-24">{t("common.status")}</TableHead>
-                  <TableHead className="w-20">{t("contents.filesColumn")}</TableHead>
-                  <TableHead className="w-32">{t("contents.createdColumn")}</TableHead>
+                  <SortableHead sortKey="name" sort={sort} className="max-w-[320px]">
+                    {t("contents.topicColumn")}
+                  </SortableHead>
+                  <SortableHead sortKey="mode" sort={sort} className="w-32">
+                    {t("contents.modeColumn")}
+                  </SortableHead>
+                  <SortableHead sortKey="course" sort={sort} className="w-32">
+                    {t("common.course")}
+                  </SortableHead>
+                  <SortableHead sortKey="status" sort={sort} className="w-24">
+                    {t("common.status")}
+                  </SortableHead>
+                  <SortableHead sortKey="files" sort={sort} className="w-20">
+                    {t("contents.filesColumn")}
+                  </SortableHead>
+                  <SortableHead sortKey="created_at" sort={sort} className="w-32">
+                    {t("contents.createdColumn")}
+                  </SortableHead>
                   <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>

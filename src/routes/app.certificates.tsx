@@ -31,6 +31,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  SortableHead,
 } from "@/components/ui/table";
 import { DateCell } from "@/components/ui/date-cell";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
@@ -46,6 +47,7 @@ import { Award, Download, Copy, ExternalLink } from "lucide-react";
 import { downloadCertificate, buildVerifyUrl } from "@/modules/certificates/certificate-pdf";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { usePagination } from "@/hooks/use-pagination";
+import { useTableSort } from "@/hooks/use-table-sort";
 import { DataPagination } from "@/components/ui/data-pagination";
 import i18n from "@/i18n";
 
@@ -198,10 +200,21 @@ function CertificatesAdmin() {
       return true;
     });
   }, [items, filterCourseId, search, showRevoked]);
-  const pagination = usePagination(filtered, {
+  const sort = useTableSort(filtered, {
+    columns: {
+      student: (c) => c.student_full_name,
+      course: (c) => c.course_name,
+      grade: (c) => Number(c.final_grade),
+      issued_at: (c) => c.issued_at,
+      short_code: (c) => c.short_code,
+    },
+    defaultSort: { key: "issued_at", dir: "desc" },
+    storageKey: "examlab_sort:certificates",
+  });
+  const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:certificates",
-    resetKey: `${search}|${filterCourseId}|${showRevoked}|${tenantFilter}`,
+    resetKey: `${search}|${filterCourseId}|${showRevoked}|${tenantFilter}|${sort.resetKey}`,
   });
 
   const handleDownload = async (cert: CertificateRow) => {
@@ -359,11 +372,29 @@ function CertificatesAdmin() {
             <Table fixed resizable>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-40">Estudiante</TableHead>
-                  <TableHead className="hidden md:table-cell w-56">Curso</TableHead>
-                  <TableHead className="text-right hidden sm:table-cell w-24">Nota</TableHead>
-                  <TableHead className="hidden sm:table-cell w-28">Emitido</TableHead>
-                  <TableHead className="hidden lg:table-cell w-32">Código</TableHead>
+                  <SortableHead sortKey="student" sort={sort} className="min-w-40">
+                    Estudiante
+                  </SortableHead>
+                  <SortableHead sortKey="course" sort={sort} className="hidden md:table-cell w-56">
+                    Curso
+                  </SortableHead>
+                  <SortableHead
+                    sortKey="grade"
+                    sort={sort}
+                    className="text-right hidden sm:table-cell w-24"
+                  >
+                    Nota
+                  </SortableHead>
+                  <SortableHead sortKey="issued_at" sort={sort} className="hidden sm:table-cell w-28">
+                    Emitido
+                  </SortableHead>
+                  <SortableHead
+                    sortKey="short_code"
+                    sort={sort}
+                    className="hidden lg:table-cell w-32"
+                  >
+                    Código
+                  </SortableHead>
                   <TableHead className="text-right w-12">Acciones</TableHead>
                 </TableRow>
               </TableHeader>

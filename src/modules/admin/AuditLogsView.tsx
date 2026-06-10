@@ -27,6 +27,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  SortableHead,
 } from "@/components/ui/table";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
@@ -34,6 +35,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Spinner } from "@/components/ui/spinner";
 import { DateCell } from "@/components/ui/date-cell";
 import { usePagination } from "@/hooks/use-pagination";
+import { useTableSort } from "@/hooks/use-table-sort";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { useTranslation } from "react-i18next";
 import {
@@ -408,15 +410,35 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
     );
   }, [logs, search]);
 
-  // Paginación client-side sobre la lista ya filtrada por search. Los
-  // demás filtros (category/severity/etc.) son server-side y resetean
+  // ── Orden por columna (client-side, entre filtro y paginación) ───────────
+  // Los accessors devuelven el MISMO valor visible en cada columna para que
+  // el orden alfabético/cronológico coincida con lo que el usuario lee
+  // (acción/categoría/nivel se ordenan por su label traducido).
+  const sort = useTableSort(filtered, {
+    columns: {
+      created_at: (l) => l.created_at,
+      actor: (l) => l.actor_email,
+      action: (l) => actionLabel(l.action),
+      category: (l) =>
+        CATEGORY_CONFIG[l.category] ? t(`audit.categories.${l.category}`) : l.category,
+      entity: (l) => l.entity_name,
+      course: (l) => l.course_name,
+      severity: (l) =>
+        SEVERITY_CONFIG[l.severity] ? t(`audit.severities.${l.severity}`) : l.severity,
+    },
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:audit_logs",
+  });
+
+  // Paginación client-side sobre la lista ya filtrada por search y ordenada.
+  // Los demás filtros (category/severity/etc.) son server-side y resetean
   // el offset en `load(reset=true)`; aquí solo necesitamos resetear a
-  // página 1 cuando cambia el search (que filtra in-memory) o cuando
-  // cambia el set base de logs (length).
-  const pagination = usePagination(filtered, {
+  // página 1 cuando cambia el search (que filtra in-memory), el set base de
+  // logs (length) o el orden activo.
+  const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:audit_logs",
-    resetKey: `${search}|${logs.length}`,
+    resetKey: `${search}|${logs.length}|${sort.resetKey}`,
   });
 
   // ── Filtros activos ───────────────────────────────────────────────────────
@@ -685,15 +707,29 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
               <Table resizable>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-36">{t("common.date")}</TableHead>
-                    <TableHead className="w-48">{t("common.actor")}</TableHead>
-                    <TableHead>{t("common.action")}</TableHead>
-                    <TableHead className="w-32">{t("common.category")}</TableHead>
-                    <TableHead className="w-40">{t("common.entity")}</TableHead>
+                    <SortableHead sortKey="created_at" sort={sort} className="w-36">
+                      {t("common.date")}
+                    </SortableHead>
+                    <SortableHead sortKey="actor" sort={sort} className="w-48">
+                      {t("common.actor")}
+                    </SortableHead>
+                    <SortableHead sortKey="action" sort={sort}>
+                      {t("common.action")}
+                    </SortableHead>
+                    <SortableHead sortKey="category" sort={sort} className="w-32">
+                      {t("common.category")}
+                    </SortableHead>
+                    <SortableHead sortKey="entity" sort={sort} className="w-40">
+                      {t("common.entity")}
+                    </SortableHead>
                     {mode === "admin" && (
-                      <TableHead className="w-40">{t("common.course")}</TableHead>
+                      <SortableHead sortKey="course" sort={sort} className="w-40">
+                        {t("common.course")}
+                      </SortableHead>
                     )}
-                    <TableHead className="w-28">{t("common.level")}</TableHead>
+                    <SortableHead sortKey="severity" sort={sort} className="w-28">
+                      {t("common.level")}
+                    </SortableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>

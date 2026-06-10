@@ -47,6 +47,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  SortableHead,
 } from "@/components/ui/table";
 import {
   Select,
@@ -66,6 +67,7 @@ import {
   type TrashTable,
 } from "@/modules/trash/soft-delete";
 import { usePagination } from "@/hooks/use-pagination";
+import { useTableSort } from "@/hooks/use-table-sort";
 import { DataPagination } from "@/components/ui/data-pagination";
 import {
   useMultiSelect,
@@ -216,27 +218,6 @@ function TrashPage() {
     return counts;
   }, [items]);
 
-  // Multi-select sobre `filtered` (NO `paginated`) — CLAUDE.md regla:
-  // "Seleccionar todos" debe abarcar todas las páginas del filtro activo,
-  // no solo la página visible. La fila se identifica por `table:id`
-  // (compuesto) porque dos tablas pueden tener UUIDs colisionando en
-  // teoría — más defensivo que solo `id`.
-  const filteredAsSelectable = useMemo(
-    () => filtered.map((i) => ({ id: `${i.table}:${i.id}` })),
-    [filtered],
-  );
-  const sel = useMultiSelect(filteredAsSelectable);
-
-  // Paginación client-side. Reset a página 1 cuando cambia el filtro
-  // por tipo o el search — sin esto el usuario filtra y queda en una
-  // página vacía. Page size más alto que el default 25 porque la
-  // papelera tiende a tener muchos items pequeños.
-  const pagination = usePagination(filtered, {
-    defaultPageSize: 25,
-    storageKey: "examlab_pag:trash",
-    resetKey: `${filterTable}|${search}`,
-  });
-
   /** Días restantes hasta la purga. Si negativo, el cron del próximo
    *  tick lo borrará. */
   const daysUntilPurge = (deletedAt: string): number => {
@@ -245,6 +226,42 @@ function TrashPage() {
     const days = Math.ceil((purgeAt - Date.now()) / 86_400_000);
     return days;
   };
+
+  // Orden por columna — flujo filtrar → ORDENAR → paginar. El "tipo" y
+  // "purga en" ordenan por valores derivados (label de la entidad y días
+  // restantes); el resto son campos directos.
+  const sort = useTableSort(filtered, {
+    columns: {
+      name: (i) => i.name,
+      type: (i) => TRASH_TABLE_LABEL[i.table],
+      deleted_by: (i) => i.deleted_by_name,
+      deleted_at: (i) => i.deleted_at,
+      purges_in: (i) => daysUntilPurge(i.deleted_at),
+    },
+    defaultSort: { key: "deleted_at", dir: "desc" },
+    storageKey: "examlab_sort:trash",
+  });
+
+  // Multi-select sobre `sort.sorted` (NO `paginated`) — CLAUDE.md regla:
+  // "Seleccionar todos" debe abarcar todas las páginas del filtro activo,
+  // no solo la página visible. La fila se identifica por `table:id`
+  // (compuesto) porque dos tablas pueden tener UUIDs colisionando en
+  // teoría — más defensivo que solo `id`.
+  const filteredAsSelectable = useMemo(
+    () => sort.sorted.map((i) => ({ id: `${i.table}:${i.id}` })),
+    [sort.sorted],
+  );
+  const sel = useMultiSelect(filteredAsSelectable);
+
+  // Paginación client-side. Reset a página 1 cuando cambia el filtro
+  // por tipo, el search o el orden — sin esto el usuario filtra y queda
+  // en una página vacía. Page size más alto que el default 25 porque la
+  // papelera tiende a tener muchos items pequeños.
+  const pagination = usePagination(sort.sorted, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:trash",
+    resetKey: `${filterTable}|${search}|${sort.resetKey}`,
+  });
 
   const handleRestore = async (item: TrashItem) => {
     setBusy(item.id);
@@ -584,11 +601,21 @@ function TrashPage() {
                 <TableHead className="w-10">
                   <MultiSelectHeaderCheckbox state={sel} />
                 </TableHead>
-                <TableHead>{t("trash.colName")}</TableHead>
-                <TableHead className="hidden sm:table-cell">{t("trash.colType")}</TableHead>
-                <TableHead className="hidden md:table-cell">{t("trash.colDeletedBy")}</TableHead>
-                <TableHead className="hidden sm:table-cell">{t("trash.colDeletedAt")}</TableHead>
-                <TableHead className="hidden sm:table-cell">{t("trash.colPurgesIn")}</TableHead>
+                <SortableHead sortKey="name" sort={sort}>
+                  {t("trash.colName")}
+                </SortableHead>
+                <SortableHead sortKey="type" sort={sort} className="hidden sm:table-cell">
+                  {t("trash.colType")}
+                </SortableHead>
+                <SortableHead sortKey="deleted_by" sort={sort} className="hidden md:table-cell">
+                  {t("trash.colDeletedBy")}
+                </SortableHead>
+                <SortableHead sortKey="deleted_at" sort={sort} className="hidden sm:table-cell">
+                  {t("trash.colDeletedAt")}
+                </SortableHead>
+                <SortableHead sortKey="purges_in" sort={sort} className="hidden sm:table-cell">
+                  {t("trash.colPurgesIn")}
+                </SortableHead>
                 <TableHead className="text-right">{t("trash.colActions")}</TableHead>
               </TableRow>
             </TableHeader>

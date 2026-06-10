@@ -27,6 +27,7 @@ import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { SectionLoader } from "@/components/ui/loaders";
 import { usePagination } from "@/hooks/use-pagination";
+import { useTableSort } from "@/hooks/use-table-sort";
 import { DataPagination } from "@/components/ui/data-pagination";
 import {
   Table,
@@ -35,6 +36,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  SortableHead,
 } from "@/components/ui/table";
 import {
   Dialog,
@@ -154,11 +156,24 @@ function SuperAdminTenantsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, isSuper]);
 
-  // Paginación client-side sobre el listado completo de tenants.
-  const pagination = usePagination(tenants, {
+  // Orden por columna (click en el encabezado alterna asc/desc). Va ENTRE
+  // el listado y la paginación: cargar → ordenar → paginar.
+  const sort = useTableSort(tenants, {
+    columns: {
+      name: (r) => r.name,
+      slug: (r) => r.slug,
+      email_domain: (r) => r.email_domain,
+      status: (r) => r.is_active,
+    },
+    defaultSort: { key: "name", dir: "asc" },
+    storageKey: "examlab_sort:superadmin_tenants",
+  });
+
+  // Paginación client-side sobre el listado completo de tenants (ordenado).
+  const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:superadmin_tenants",
-    resetKey: "",
+    resetKey: sort.resetKey,
   });
 
   // Gate de rol — los no-SuperAdmin redirigen al dashboard.
@@ -704,10 +719,10 @@ function SuperAdminTenantsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{tl("superadminTenants.colName")}</TableHead>
-                  <TableHead>{tl("superadminTenants.colSlug")}</TableHead>
-                  <TableHead className="hidden sm:table-cell">{tl("superadminTenants.colEmailDomain")}</TableHead>
-                  <TableHead>{tl("superadminTenants.colStatus")}</TableHead>
+                  <SortableHead sortKey="name" sort={sort}>{tl("superadminTenants.colName")}</SortableHead>
+                  <SortableHead sortKey="slug" sort={sort}>{tl("superadminTenants.colSlug")}</SortableHead>
+                  <SortableHead sortKey="email_domain" sort={sort} className="hidden sm:table-cell">{tl("superadminTenants.colEmailDomain")}</SortableHead>
+                  <SortableHead sortKey="status" sort={sort}>{tl("superadminTenants.colStatus")}</SortableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>

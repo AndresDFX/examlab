@@ -39,9 +39,11 @@ import {
   TableBody,
   TableCell,
   TableHead,
+  SortableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useTableSort } from "@/hooks/use-table-sort";
 import {
   Select,
   SelectContent,
@@ -268,17 +270,34 @@ function VideoLibrary() {
       }),
     [rows, filterCourseId, search],
   );
-  const pagination = usePagination(visible, {
-    defaultPageSize: 25,
-    storageKey: "examlab_pag:videos",
-    resetKey: `${search}|${filterCourseId ?? ""}|${tenantFilter}`,
-  });
-
   const courseNameById = useMemo(() => {
     const m: Record<string, string> = {};
     for (const c of courses) m[c.id] = c.name;
     return m;
   }, [courses]);
+
+  // Orden por columna (click en el encabezado alterna asc/desc). Va ENTRE
+  // el array filtrado y la paginación: filtrar → ordenar → paginar.
+  const sort = useTableSort(visible, {
+    columns: {
+      title: (r) => r.title,
+      // El tipo se muestra como "MP4" para `direct`; ordenamos por ese
+      // mismo label para que el orden visible coincida con la columna.
+      provider: (r) => (r.provider === "direct" ? "MP4" : r.provider),
+      // Curso global (course_id NULL) se ordena por el label "Global"
+      // que muestra la celda; los atados a curso por su nombre.
+      course: (r) => (r.course_id ? (courseNameById[r.course_id] ?? "") : "Global"),
+      created_at: (r) => r.created_at,
+    },
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:videos",
+  });
+
+  const pagination = usePagination(sort.sorted, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:videos",
+    resetKey: `${search}|${filterCourseId ?? ""}|${tenantFilter}|${sort.resetKey}`,
+  });
 
   const openNew = () => {
     setEditing(null);
@@ -680,10 +699,22 @@ function VideoLibrary() {
             <Table resizable>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="max-w-[320px]">{t("videosPage.colTitle")}</TableHead>
-                  <TableHead className="w-24">{t("videosPage.colType")}</TableHead>
-                  <TableHead className="w-40 hidden md:table-cell">{t("videosPage.colCourse")}</TableHead>
-                  <TableHead className="w-32 hidden lg:table-cell">{t("videosPage.colAdded")}</TableHead>
+                  <SortableHead sortKey="title" sort={sort} className="max-w-[320px]">
+                    {t("videosPage.colTitle")}
+                  </SortableHead>
+                  <SortableHead sortKey="provider" sort={sort} className="w-24">
+                    {t("videosPage.colType")}
+                  </SortableHead>
+                  <SortableHead sortKey="course" sort={sort} className="w-40 hidden md:table-cell">
+                    {t("videosPage.colCourse")}
+                  </SortableHead>
+                  <SortableHead
+                    sortKey="created_at"
+                    sort={sort}
+                    className="w-32 hidden lg:table-cell"
+                  >
+                    {t("videosPage.colAdded")}
+                  </SortableHead>
                   <TableHead className="w-16 text-right">{t("videosPage.colActions")}</TableHead>
                 </TableRow>
               </TableHeader>

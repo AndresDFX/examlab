@@ -39,6 +39,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  SortableHead,
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import {
@@ -59,6 +60,7 @@ import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { DateCell } from "@/components/ui/date-cell";
 import { usePagination } from "@/hooks/use-pagination";
+import { useTableSort } from "@/hooks/use-table-sort";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { formatDateTime, formatDuration, formatPercent } from "@/shared/lib/format";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
@@ -150,17 +152,44 @@ function TeacherExams() {
     return { draft, published, closed, external };
   }, [exams]);
 
-  const sel = useMultiSelect(filteredExams);
+  // Orden por columna (flujo: filtrar → ORDENAR → paginar). Los accessors
+  // replican los lookups derivados del render (nombre de curso/corte por id,
+  // fin = inicio + duración acotado por end_time) para que el orden coincida
+  // con lo que ve el docente. Vacíos van al final automáticamente.
+  const sort = useTableSort(filteredExams, {
+    columns: {
+      title: (e) => e.title,
+      course: (e) => e.course?.name ?? courses.find((c) => c.id === e.course_id)?.name ?? "",
+      cut: (e) => cuts.find((c) => c.id === e.cut_id)?.name ?? "",
+      weight: (e) => (e.cut_id != null && e.weight != null ? Number(e.weight) : null),
+      start_time: (e) => e.start_time,
+      end_time: (e) => {
+        const start = new Date(e.start_time).getTime();
+        const limit = Number(e.time_limit_minutes ?? 0) * 60_000;
+        const fromLimit = start + limit;
+        const explicit = (e as any).end_time ? new Date((e as any).end_time).getTime() : null;
+        return new Date(explicit ? Math.min(explicit, fromLimit) : fromLimit);
+      },
+      duration: (e) => Number(e.time_limit_minutes ?? 0),
+      kind: (e) => ((e as any).is_external ? "externo" : "en linea"),
+      status: (e) => ((e as any).status ?? "published") as string,
+      navigation: (e) => e.navigation_type,
+    },
+    defaultSort: { key: "start_time", dir: "desc" },
+    storageKey: "examlab_sort:teacher_exams",
+  });
 
-  // Paginación client-side sobre la lista filtrada. El multi-select
-  // sigue trabajando sobre `filteredExams` (todas las páginas) para
+  const sel = useMultiSelect(sort.sorted);
+
+  // Paginación client-side sobre la lista filtrada+ordenada. El multi-select
+  // sigue trabajando sobre `sort.sorted` (todas las páginas) para
   // que "seleccionar todos" abarque las coincidencias del filtro y no
   // solo la página visible. resetKey vuelve a la página 1 al cambiar
-  // search/curso/corte.
-  const pagination = usePagination(filteredExams, {
+  // search/curso/corte/orden.
+  const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_exams",
-    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}`,
+    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}|${sort.resetKey}`,
   });
 
   const handleBulkDelete = async (ids: string[]) => {
@@ -687,26 +716,40 @@ function TeacherExams() {
                 <TableHead className="w-10">
                   <MultiSelectHeaderCheckbox state={sel} />
                 </TableHead>
-                <TableHead className="w-48 max-w-[320px]">{t("exam.columns.title")}</TableHead>
-                <TableHead className="hidden md:table-cell w-32">
+                <SortableHead sortKey="title" sort={sort} className="w-48 max-w-[320px]">
+                  {t("exam.columns.title")}
+                </SortableHead>
+                <SortableHead sortKey="course" sort={sort} className="hidden md:table-cell w-32">
                   {t("exam.columns.course")}
-                </TableHead>
-                <TableHead className="hidden md:table-cell w-24">{t("exam.columns.cut")}</TableHead>
-                <TableHead className="text-right hidden md:table-cell w-16">Peso</TableHead>
-                <TableHead className="hidden sm:table-cell w-28">
+                </SortableHead>
+                <SortableHead sortKey="cut" sort={sort} className="hidden md:table-cell w-24">
+                  {t("exam.columns.cut")}
+                </SortableHead>
+                <SortableHead
+                  sortKey="weight"
+                  sort={sort}
+                  className="text-right hidden md:table-cell w-16"
+                >
+                  Peso
+                </SortableHead>
+                <SortableHead sortKey="start_time" sort={sort} className="hidden sm:table-cell w-28">
                   {t("exam.columns.start")}
-                </TableHead>
-                <TableHead className="hidden sm:table-cell w-28">{t("exam.columns.end")}</TableHead>
-                <TableHead className="hidden lg:table-cell w-24">
+                </SortableHead>
+                <SortableHead sortKey="end_time" sort={sort} className="hidden sm:table-cell w-28">
+                  {t("exam.columns.end")}
+                </SortableHead>
+                <SortableHead sortKey="duration" sort={sort} className="hidden lg:table-cell w-24">
                   {t("exam.columns.duration")}
-                </TableHead>
-                <TableHead className="hidden md:table-cell w-24">
+                </SortableHead>
+                <SortableHead sortKey="kind" sort={sort} className="hidden md:table-cell w-24">
                   {t("exam.columns.type")}
-                </TableHead>
-                <TableHead className="w-24">Estado</TableHead>
-                <TableHead className="hidden lg:table-cell w-28">
+                </SortableHead>
+                <SortableHead sortKey="status" sort={sort} className="w-24">
+                  Estado
+                </SortableHead>
+                <SortableHead sortKey="navigation" sort={sort} className="hidden lg:table-cell w-28">
                   {t("exam.columns.navigation")}
-                </TableHead>
+                </SortableHead>
                 <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>

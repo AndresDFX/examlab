@@ -44,9 +44,11 @@ import {
   TableBody,
   TableCell,
   TableHead,
+  SortableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useTableSort } from "@/hooks/use-table-sort";
 import {
   Select,
   SelectContent,
@@ -222,10 +224,34 @@ export function ErrorsPanel({ embedded = false }: Props) {
 
   const groups = useMemo<ErrorEventGroup<ErrorEvent>[]>(() => groupEvents(events), [events]);
 
-  const pagination = usePagination(groups, {
+  // Orden por columna entre el agrupamiento y la paginación. Cada fila del
+  // grid es un GRUPO (no un evento), así que los accessors leen del grupo.
+  const sort = useTableSort(groups, {
+    columns: {
+      action: (g) => g.action,
+      category: (g) => g.category,
+      // Institución: mismo valor derivado que pinta la celda (nombre único,
+      // "N instituciones" o "— sistema —") para que el orden coincida con
+      // lo que el SuperAdmin ve en la columna.
+      institution: (g) => {
+        const names = Array.from(
+          new Set(g.events.map((e) => e.tenant_name).filter((n): n is string => Boolean(n))),
+        );
+        if (names.length === 0) return "— sistema —";
+        if (names.length === 1) return names[0];
+        return `${names.length} instituciones`;
+      },
+      count: (g) => g.count,
+      status: (g) => aggregateGroupStatus(g.statusCounts),
+    },
+    defaultSort: { key: "count", dir: "desc" },
+    storageKey: "examlab_sort:admin_errors",
+  });
+
+  const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:admin_errors",
-    resetKey: `${statusFilter}|${tenantFilter}`,
+    resetKey: `${statusFilter}|${tenantFilter}|${sort.resetKey}`,
   });
 
   const total = useMemo(
@@ -432,13 +458,27 @@ export function ErrorsPanel({ embedded = false }: Props) {
                     <MultiSelectHeaderCheckbox state={sel} />
                   </TableHead>
                   <TableHead className="w-8" />
-                  <TableHead className="min-w-36 sm:min-w-48">Error</TableHead>
-                  <TableHead className="hidden md:table-cell w-28">Categoría</TableHead>
+                  <SortableHead sortKey="action" sort={sort} className="min-w-36 sm:min-w-48">
+                    Error
+                  </SortableHead>
+                  <SortableHead sortKey="category" sort={sort} className="hidden md:table-cell w-28">
+                    Categoría
+                  </SortableHead>
                   {isSuperAdmin && (
-                    <TableHead className="hidden lg:table-cell w-40">Institución</TableHead>
+                    <SortableHead
+                      sortKey="institution"
+                      sort={sort}
+                      className="hidden lg:table-cell w-40"
+                    >
+                      Institución
+                    </SortableHead>
                   )}
-                  <TableHead className="w-24">Eventos</TableHead>
-                  <TableHead className="w-28">Estado</TableHead>
+                  <SortableHead sortKey="count" sort={sort} className="w-24">
+                    Eventos
+                  </SortableHead>
+                  <SortableHead sortKey="status" sort={sort} className="w-28">
+                    Estado
+                  </SortableHead>
                   <TableHead className="w-12 text-right" />
                 </TableRow>
               </TableHeader>

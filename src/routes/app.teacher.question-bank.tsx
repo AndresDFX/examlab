@@ -32,6 +32,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  SortableHead,
 } from "@/components/ui/table";
 import {
   Select,
@@ -55,6 +56,7 @@ import { friendlyError } from "@/shared/lib/db-errors";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { toCSV } from "@/shared/lib/csv";
 import { usePagination } from "@/hooks/use-pagination";
+import { useTableSort } from "@/hooks/use-table-sort";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
@@ -237,10 +239,24 @@ function QuestionBankPage() {
       return true;
     });
   }, [rows, search, filterType, filterDifficulty]);
-  const pagination = usePagination(filtered, {
+
+  const sort = useTableSort(filtered, {
+    columns: {
+      content: (r) => r.content,
+      type: (r) => TYPE_LABEL[r.type],
+      topic: (r) => r.topic,
+      difficulty: (r) => r.difficulty,
+      suggested_points: (r) => r.suggested_points,
+      times_used: (r) => r.times_used,
+    },
+    defaultSort: { key: "content", dir: "asc" },
+    storageKey: "examlab_sort:teacher_question_bank",
+  });
+
+  const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_question_bank",
-    resetKey: `${search}|${filterType}|${filterDifficulty}|${courseId}`,
+    resetKey: `${search}|${filterType}|${filterDifficulty}|${courseId}|${sort.resetKey}`,
   });
 
   // Export del banco filtrado. No soportamos import porque las preguntas
@@ -543,13 +559,37 @@ function QuestionBankPage() {
             <Table resizable>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Pregunta</TableHead>
-                  <TableHead className="hidden md:table-cell">Tipo</TableHead>
-                  <TableHead className="hidden md:table-cell">Tema</TableHead>
+                  <SortableHead sortKey="content" sort={sort}>
+                    Pregunta
+                  </SortableHead>
+                  <SortableHead sortKey="type" sort={sort} className="hidden md:table-cell">
+                    Tipo
+                  </SortableHead>
+                  <SortableHead sortKey="topic" sort={sort} className="hidden md:table-cell">
+                    Tema
+                  </SortableHead>
                   <TableHead className="hidden lg:table-cell">Tags</TableHead>
-                  <TableHead className="hidden sm:table-cell text-center">Dif.</TableHead>
-                  <TableHead className="hidden sm:table-cell text-center">Pts</TableHead>
-                  <TableHead className="hidden lg:table-cell text-center">Usos</TableHead>
+                  <SortableHead
+                    sortKey="difficulty"
+                    sort={sort}
+                    className="hidden sm:table-cell text-center"
+                  >
+                    Dif.
+                  </SortableHead>
+                  <SortableHead
+                    sortKey="suggested_points"
+                    sort={sort}
+                    className="hidden sm:table-cell text-center"
+                  >
+                    Pts
+                  </SortableHead>
+                  <SortableHead
+                    sortKey="times_used"
+                    sort={sort}
+                    className="hidden lg:table-cell text-center"
+                  >
+                    Usos
+                  </SortableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>

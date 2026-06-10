@@ -39,7 +39,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  SortableHead,
 } from "@/components/ui/table";
+import { useTableSort } from "@/hooks/use-table-sort";
 import { toast } from "sonner";
 import {
   Plus,
@@ -266,7 +268,29 @@ export function AdminCourses() {
     }
     return result;
   }, [courses, search, subjectFilter, programFilterUi, subjectFilterUi]);
-  const sel = useMultiSelect(filteredCourses);
+
+  // Orden por columna (asc/desc clicando el encabezado). Va ENTRE el
+  // filtro y la paginación: filtrar → ORDENAR → paginar. Las columnas con
+  // orden natural: nombre, período (texto), escala (max), fechas
+  // inicio/fin, actividad (suma de items). Los conteos de actividad salen
+  // del mapa courseStats — replicamos el lookup en los accessors.
+  const sort = useTableSort(filteredCourses, {
+    columns: {
+      name: (c) => c.name,
+      period: (c) => c.period,
+      scale: (c) => c.grade_scale_max,
+      start_date: (c) => c.start_date,
+      end_date: (c) => c.end_date,
+      activity: (c) => {
+        const s = courseStats.get(c.id);
+        return s ? s.exams + s.workshops + s.projects : null;
+      },
+    },
+    defaultSort: { key: "name", dir: "asc" },
+    storageKey: "examlab_sort:admin_courses",
+  });
+
+  const sel = useMultiSelect(sort.sorted);
 
   // Stats compactas arriba del listado — mismo patrón que el resto de
   // listados (proyectos / talleres / etc). Para cursos los estados
@@ -301,10 +325,10 @@ export function AdminCourses() {
   // grandes. resetKey incluye los filtros activos para que al filtrar
   // el usuario vuelva a página 1 (no se quede en una página fuera de
   // rango con grid vacío).
-  const pagination = usePagination(filteredCourses, {
+  const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:admin_courses",
-    resetKey: `${search}|${subjectFilter ?? ""}|${programFilterUi}|${subjectFilterUi}|${tenantFilter}`,
+    resetKey: `${search}|${subjectFilter ?? ""}|${programFilterUi}|${subjectFilterUi}|${tenantFilter}|${sort.resetKey}`,
   });
 
   // Export del listado filtrado. No soportamos import porque cada curso
@@ -1596,17 +1620,29 @@ export function AdminCourses() {
                 <TableHead className="w-10">
                   <MultiSelectHeaderCheckbox state={sel} />
                 </TableHead>
-                <TableHead className="max-w-[320px]">{t("common.name")}</TableHead>
-                <TableHead className="hidden sm:table-cell w-32">{t("common.period")}</TableHead>
-                <TableHead className="hidden sm:table-cell w-24">{t("common.scale")}</TableHead>
-                <TableHead className="hidden md:table-cell w-28">{t("common.start")}</TableHead>
-                <TableHead className="hidden md:table-cell w-28">{t("common.end")}</TableHead>
-                <TableHead
+                <SortableHead sortKey="name" sort={sort} className="max-w-[320px]">
+                  {t("common.name")}
+                </SortableHead>
+                <SortableHead sortKey="period" sort={sort} className="hidden sm:table-cell w-32">
+                  {t("common.period")}
+                </SortableHead>
+                <SortableHead sortKey="scale" sort={sort} className="hidden sm:table-cell w-24">
+                  {t("common.scale")}
+                </SortableHead>
+                <SortableHead sortKey="start_date" sort={sort} className="hidden md:table-cell w-28">
+                  {t("common.start")}
+                </SortableHead>
+                <SortableHead sortKey="end_date" sort={sort} className="hidden md:table-cell w-28">
+                  {t("common.end")}
+                </SortableHead>
+                <SortableHead
+                  sortKey="activity"
+                  sort={sort}
                   className="hidden lg:table-cell w-44"
                   title="Estudiantes / Docentes / Items"
                 >
                   Actividad
-                </TableHead>
+                </SortableHead>
                 <TableHead className="text-right w-28">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>

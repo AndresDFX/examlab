@@ -40,9 +40,11 @@ import {
   TableBody,
   TableCell,
   TableHead,
+  SortableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useTableSort } from "@/hooks/use-table-sort";
 import { toast } from "sonner";
 import {
   Plus,
@@ -271,22 +273,38 @@ function AdminUsers() {
     }
     return out;
   }, [rows, search, roleFilter]);
-  // El multi-select trabaja sobre la lista filtrada COMPLETA (todas las
-  // páginas), no sobre la página actual — "seleccionar todos" cuando
+  // Orden por columna (click en el encabezado alterna asc/desc). Va ENTRE
+  // el filtro y la paginación: filtrar → ordenar → paginar.
+  const sort = useTableSort(filteredRows, {
+    columns: {
+      full_name: (r) => r.full_name,
+      institutional_email: (r) => r.institutional_email,
+      personal_email: (r) => r.personal_email,
+      roles: (r) => r.roles.join(", "),
+      institution: (r) => tenants.find((t) => t.id === r.tenant_id)?.name ?? "",
+      created_at: (r) => r.created_at,
+      last_sign_in_at: (r) => r.last_sign_in_at,
+    },
+    defaultSort: { key: "full_name", dir: "asc" },
+    storageKey: "examlab_sort:admin_users",
+  });
+
+  // El multi-select trabaja sobre la lista filtrada+ordenada COMPLETA (todas
+  // las páginas), no sobre la página actual — "seleccionar todos" cuando
   // hay un filtro activo significa "todos los que cumplen el filtro",
   // no "los visibles en la página 3". Para bulk delete de muchos
   // usuarios filtrados, lo intuitivo es no tener que paginar.
-  const sel = useMultiSelect(filteredRows);
+  const sel = useMultiSelect(sort.sorted);
 
   // Paginación client-side. La RLS ya acota a lo que el caller puede
   // ver; partir en páginas evita renderizar 500 filas en tenants
   // grandes. resetKey incluye search + roleFilter + tenantFilter para
   // que al filtrar el usuario vuelva a página 1 (no se quede en la
   // página 7 con grid vacío).
-  const pagination = usePagination(filteredRows, {
+  const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:admin_users",
-    resetKey: `${search}|${roleFilter}|${tenantFilter}`,
+    resetKey: `${search}|${roleFilter}|${tenantFilter}|${sort.resetKey}`,
   });
 
   // Stats 4-card sobre los usuarios visibles al caller. Se calcula
@@ -849,7 +867,13 @@ function AdminUsers() {
               {
                 full_name: editing.full_name,
                 institutional_email: editing.institutional_email,
-                personal_email: editing.personal_email ?? "",
+                // `|| null` (no `?? ""`): un personal_email vacío debe llegar
+                // como NULL, no como "". El índice parcial de profiles
+                // (personal_email IS NOT NULL) indexa el "" y el 2º usuario
+                // sin personal choca → 500 "Database error creating new user".
+                // El trigger handle_new_user también normaliza (NULLIF), esto
+                // es defensa-en-profundidad del lado cliente.
+                personal_email: editing.personal_email || null,
                 password,
                 roles: editing.roles.join("|"),
                 // Pasamos explícitamente true/false para que el edge no
@@ -1319,26 +1343,56 @@ function AdminUsers() {
                     <TableHead className="w-10">
                       <MultiSelectHeaderCheckbox state={sel} />
                     </TableHead>
-                    <TableHead className="max-w-[260px]">{t("users.fullName")}</TableHead>
-                    <TableHead className="hidden sm:table-cell max-w-[260px]">
+                    <SortableHead sortKey="full_name" sort={sort} className="max-w-[260px]">
+                      {t("users.fullName")}
+                    </SortableHead>
+                    <SortableHead
+                      sortKey="institutional_email"
+                      sort={sort}
+                      className="hidden sm:table-cell max-w-[260px]"
+                    >
                       {t("users.institutionalEmail")}
-                    </TableHead>
-                    <TableHead className="hidden md:table-cell">
+                    </SortableHead>
+                    <SortableHead
+                      sortKey="personal_email"
+                      sort={sort}
+                      className="hidden md:table-cell"
+                    >
                       {t("users.personalEmail")}
-                    </TableHead>
-                    <TableHead className="hidden xs:table-cell w-40">{t("common.roles")}</TableHead>
+                    </SortableHead>
+                    <SortableHead sortKey="roles" sort={sort} className="hidden xs:table-cell w-40">
+                      {t("common.roles")}
+                    </SortableHead>
                     {/* Columna Institución solo visible al SuperAdmin.
                         Para el Admin normal es siempre su tenant
                         (redundante). */}
                     {showTenantUI && (
-                      <TableHead className="hidden lg:table-cell w-40">{t("adminUsers.colInstitution")}</TableHead>
+                      <SortableHead
+                        sortKey="institution"
+                        sort={sort}
+                        className="hidden lg:table-cell w-40"
+                      >
+                        {t("adminUsers.colInstitution")}
+                      </SortableHead>
                     )}
                     {/* Fecha de creación + último acceso. Ocultas hasta xl
                         porque la tabla ya carga muchas columnas; en mobile
                         no aportan vs nombre/email. Sin íconos para no
                         recargar la cabecera. */}
-                    <TableHead className="hidden xl:table-cell w-28">{t("adminUsers.colCreated")}</TableHead>
-                    <TableHead className="hidden xl:table-cell w-32">{t("adminUsers.colLastAccess")}</TableHead>
+                    <SortableHead
+                      sortKey="created_at"
+                      sort={sort}
+                      className="hidden xl:table-cell w-28"
+                    >
+                      {t("adminUsers.colCreated")}
+                    </SortableHead>
+                    <SortableHead
+                      sortKey="last_sign_in_at"
+                      sort={sort}
+                      className="hidden xl:table-cell w-32"
+                    >
+                      {t("adminUsers.colLastAccess")}
+                    </SortableHead>
                     <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>

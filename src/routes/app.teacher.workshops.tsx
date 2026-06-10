@@ -31,6 +31,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  SortableHead,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -44,6 +45,7 @@ import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { DateCell } from "@/components/ui/date-cell";
 import { usePagination } from "@/hooks/use-pagination";
+import { useTableSort } from "@/hooks/use-table-sort";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
 import { WorkshopGroupsEditor } from "@/modules/workshops/WorkshopGroupsEditor";
@@ -308,17 +310,41 @@ function TeacherWorkshops() {
     return { draft, published, closed, external };
   }, [workshops]);
 
-  const sel = useMultiSelect(filteredWorkshops);
+  // Orden por columna (entre filtrar y paginar). Los accessors de las
+  // columnas derivadas (curso, corte) replican el lookup que usa el
+  // render del cell; los vacíos (sin corte/peso) van al final.
+  const sort = useTableSort(filteredWorkshops, {
+    columns: {
+      title: (w) => w.title,
+      course: (w) => {
+        const wcIds = workshopCourses.get(w.id);
+        const cid = wcIds && wcIds.length > 0 ? wcIds[0] : w.course_id;
+        return courses.find((c) => c.id === cid)?.name ?? null;
+      },
+      cut: (w) => cuts.find((c) => c.id === (w as any).cut_id)?.name ?? null,
+      weight: (w) =>
+        (w as any).cut_id != null && (w as any).weight != null
+          ? Number((w as any).weight)
+          : null,
+      start_date: (w) => w.start_date,
+      due_date: (w) => w.due_date,
+      status: (w) => w.status,
+    },
+    defaultSort: { key: "due_date", dir: "desc" },
+    storageKey: "examlab_sort:teacher_workshops",
+  });
 
-  // Paginación client-side sobre la lista filtrada. El multi-select
-  // sigue trabajando sobre `filteredWorkshops` (todas las páginas) para
-  // que "seleccionar todos" abarque coincidencias del filtro, no solo
-  // los visibles. resetKey vuelve a la página 1 cuando cambian los
-  // filtros activos.
-  const pagination = usePagination(filteredWorkshops, {
+  const sel = useMultiSelect(sort.sorted);
+
+  // Paginación client-side sobre la lista filtrada+ordenada. El
+  // multi-select sigue trabajando sobre `sort.sorted` (todas las páginas)
+  // para que "seleccionar todos" abarque coincidencias del filtro, no
+  // solo los visibles. resetKey vuelve a la página 1 cuando cambian los
+  // filtros activos o el orden.
+  const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_workshops",
-    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}`,
+    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}|${sort.resetKey}`,
   });
 
   const handleBulkDelete = async (ids: string[]) => {
@@ -2536,15 +2562,31 @@ function TeacherWorkshops() {
                 <TableHead className="w-10">
                   <MultiSelectHeaderCheckbox state={sel} />
                 </TableHead>
-                <TableHead className="max-w-[320px]">{t("common.title")}</TableHead>
-                <TableHead className="hidden sm:table-cell w-32">{t("common.course")}</TableHead>
-                <TableHead className="hidden md:table-cell w-24">{t("exam.columns.cut")}</TableHead>
-                <TableHead className="hidden lg:table-cell text-right w-16">
+                <SortableHead sortKey="title" sort={sort} className="max-w-[320px]">
+                  {t("common.title")}
+                </SortableHead>
+                <SortableHead sortKey="course" sort={sort} className="hidden sm:table-cell w-32">
+                  {t("common.course")}
+                </SortableHead>
+                <SortableHead sortKey="cut" sort={sort} className="hidden md:table-cell w-24">
+                  {t("exam.columns.cut")}
+                </SortableHead>
+                <SortableHead
+                  sortKey="weight"
+                  sort={sort}
+                  className="hidden lg:table-cell text-right w-16"
+                >
                   {t("common.weight")}
-                </TableHead>
-                <TableHead className="hidden md:table-cell w-28">{t("common.start")}</TableHead>
-                <TableHead className="hidden sm:table-cell w-28">{t("common.end")}</TableHead>
-                <TableHead className="w-24">{t("common.status")}</TableHead>
+                </SortableHead>
+                <SortableHead sortKey="start_date" sort={sort} className="hidden md:table-cell w-28">
+                  {t("common.start")}
+                </SortableHead>
+                <SortableHead sortKey="due_date" sort={sort} className="hidden sm:table-cell w-28">
+                  {t("common.end")}
+                </SortableHead>
+                <SortableHead sortKey="status" sort={sort} className="w-24">
+                  {t("common.status")}
+                </SortableHead>
                 <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
