@@ -26,7 +26,7 @@ interface ActiveGame {
   id: string;
   pin: string;
   status: string;
-  poll: { title: string } | null;
+  poll: { title: string; deleted_at: string | null } | null;
 }
 
 export function KahootJoinCard({ nonce }: { nonce?: number }) {
@@ -42,11 +42,17 @@ export function KahootJoinCard({ nonce }: { nonce?: number }) {
       // RLS recorta a juegos de cursos donde el alumno es miembro.
       const { data } = await db
         .from("kahoot_games")
-        .select("id, pin, status, poll:polls(title)")
+        .select("id, pin, status, poll:polls(title, deleted_at)")
         .neq("status", "ended")
         .order("created_at", { ascending: false });
       if (cancelled) return;
-      setGames((data ?? []) as ActiveGame[]);
+      // Excluir juegos cuya encuesta Kahoot está en la PAPELERA
+      // (polls.deleted_at != null) o ya no existe. Un poll soft-deleted NO
+      // debe ser visualizable en ningún flujo — y este embed no lo filtra a
+      // nivel SQL, así que lo saltamos en JS (patrón de embeds + deleted_at
+      // del proyecto). Sin esto, el docente borra un Kahoot pero sus juegos
+      // seguían apareciendo en "Kahoot en vivo" del alumno.
+      setGames(((data ?? []) as ActiveGame[]).filter((g) => g.poll && !g.poll.deleted_at));
     })();
     return () => {
       cancelled = true;
