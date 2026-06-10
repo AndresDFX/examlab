@@ -9,8 +9,8 @@
  * El alumno SOLO LEE — la RLS de `whiteboards` filtra a las compartidas
  * de sus cursos; INSERT/UPDATE/DELETE quedan bloqueados.
  *
- * Card → link a `/app/student/whiteboards/$id` (futuro — por ahora link
- * al editor del docente con readOnly forzado via component prop).
+ * Card → link a `/app/student/whiteboards/$id` (visor de solo lectura
+ * del estudiante; embebe MultiPageWhiteboard con readOnly).
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -37,7 +37,7 @@ import { Palette, BookOpen } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useTranslation } from "react-i18next";
 
-export const Route = createFileRoute("/app/student/whiteboards")({
+export const Route = createFileRoute("/app/student/whiteboards/")({
   component: StudentWhiteboards,
 });
 
@@ -250,7 +250,7 @@ function StudentWhiteboards() {
                 {pagination.paginatedItems.map((w) => (
                   <Link
                     key={w.id}
-                    to="/app/teacher/whiteboards/$id"
+                    to="/app/student/whiteboards/$id"
                     params={{ id: w.id }}
                     className="group rounded-lg border bg-card hover:bg-muted/40 hover:border-primary/40 transition-colors p-4 flex flex-col gap-2 min-h-[8rem]"
                   >

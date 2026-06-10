@@ -2153,7 +2153,8 @@
     "emptyAll": "No shared whiteboards yet",
     "emptyAllHint": "When your teachers share whiteboards with your courses, they'll appear here.",
     "lastEdited": "Last edited:",
-    "paginationEntity": "whiteboards"
+    "paginationEntity": "whiteboards",
+    "viewerSubtitle": "Read-only view — shared by your teacher."
   },
   "teacherStudents": {
     "title": "Users",

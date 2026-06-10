@@ -2153,7 +2153,8 @@
     "emptyAll": "Sin pizarras compartidas todavía",
     "emptyAllHint": "Cuando tus docentes compartan pizarras con tus cursos, aparecerán acá.",
     "lastEdited": "Última edición:",
-    "paginationEntity": "pizarras"
+    "paginationEntity": "pizarras",
+    "viewerSubtitle": "Vista de solo lectura — compartida por tu docente."
   },
   "teacherStudents": {
     "title": "Usuarios",
