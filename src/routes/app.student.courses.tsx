@@ -54,7 +54,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { MarkdownViewer } from "@/shared/components/MarkdownViewer";
-import { MeetingLink } from "@/shared/components/MeetingLink";
+import { MeetingLink, ResourceLink } from "@/shared/components/MeetingLink";
 import { classNumberFromFilename, isTeacherOnlyFile } from "@/modules/contents/contents-extract";
 import { buildPptxBlob, type PptxBrand } from "@/modules/contents/contents-pptx";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -843,28 +843,20 @@ function SessionGroup({
                     {(s.recording_url || s.notes_url) && (
                       <div className="flex flex-wrap items-center gap-1.5 mt-1">
                         {s.recording_url && (
-                          <a
-                            href={s.recording_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-xs rounded-md border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300 hover:bg-rose-500/20 px-2 py-1 transition-colors"
-                            title={s.recording_url}
-                          >
-                            <Video className="h-3.5 w-3.5 shrink-0" />
-                            {t("courseBoard.viewRecording")}
-                          </a>
+                          <ResourceLink
+                            url={s.recording_url}
+                            label={t("courseBoard.viewRecording")}
+                            icon={Video}
+                            tone="rose"
+                          />
                         )}
                         {s.notes_url && (
-                          <a
-                            href={s.notes_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-xs rounded-md border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 px-2 py-1 transition-colors"
-                            title={s.notes_url}
-                          >
-                            <FileText className="h-3.5 w-3.5 shrink-0" />
-                            {t("courseBoard.viewNotes")}
-                          </a>
+                          <ResourceLink
+                            url={s.notes_url}
+                            label={t("courseBoard.viewNotes")}
+                            icon={FileText}
+                            tone="amber"
+                          />
                         )}
                       </div>
                     )}

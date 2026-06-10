@@ -1393,13 +1393,21 @@ export function StudentProjectTaker({
     controller.abort();
     delete runAbortersRef.current[questionId];
     setRunningCode((prev) => ({ ...prev, [questionId]: false }));
-    toast.info("Ejecución cancelada. Puedes cambiar de compilador y reintentar.");
+    toast.info(
+      i18n.t("toast.routes_app_student_take_examId.executionCancelled", {
+        defaultValue: "Ejecución cancelada. Puedes cambiar de compilador y reintentar.",
+      }),
+    );
   };
 
   const runCode = async (questionId: string, language: CodeLanguage) => {
     const code = typeof answers[questionId] === "string" ? (answers[questionId] as string) : "";
     if (!code.trim()) {
-      toast.error("Escribe código antes de ejecutar");
+      toast.error(
+        i18n.t("toast.routes_app_student_take_examId.writeCodeBeforeRunning", {
+          defaultValue: "Escribe código antes de ejecutar",
+        }),
+      );
       return;
     }
     // Provider efectivo = override del estudiante para esta pregunta, o

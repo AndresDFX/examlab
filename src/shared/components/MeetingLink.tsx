@@ -12,8 +12,20 @@
  * Es reconocible a primera vista sin ser una reproducción literal.
  */
 import { Video } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 type Provider = "meet" | "teams" | "zoom" | "other";
+
+/** Tonos de marca para chips de recurso de sesión que NO son reuniones
+ *  (grabación, notas). Reusan el mismo estilo de chip de `MeetingLink`
+ *  para que los tres recursos de una sesión se vean consistentes. */
+type ResourceTone = "rose" | "amber";
+
+const RESOURCE_TONE_CLS: Record<ResourceTone, string> = {
+  rose: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300 hover:bg-rose-500/20",
+  amber:
+    "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20",
+};
 
 function detectProvider(url: string): Provider {
   try {
@@ -114,6 +126,33 @@ export function MeetingLink({ url, label, className }: MeetingLinkProps) {
     >
       <ProviderLogo provider={provider} />
       {text}
+    </a>
+  );
+}
+
+interface ResourceLinkProps {
+  url: string;
+  label: string;
+  icon: LucideIcon;
+  tone: ResourceTone;
+  className?: string;
+}
+
+/** ResourceLink — chip clickeable para un recurso externo de una sesión
+ *  (grabación, notas, etc.) que NO es una reunión. Comparte la cáscara
+ *  de estilo de `MeetingLink` para que los chips de una sesión se vean
+ *  consistentes; el `tone` y el `icon` los elige el caller. */
+export function ResourceLink({ url, label, icon: Icon, tone, className }: ResourceLinkProps) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`inline-flex items-center gap-1.5 text-xs rounded-md border px-2 py-1 transition-colors ${RESOURCE_TONE_CLS[tone]} ${className ?? ""}`}
+      title={url}
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0" />
+      {label}
     </a>
   );
 }
