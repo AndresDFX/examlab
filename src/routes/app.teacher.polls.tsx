@@ -161,12 +161,13 @@ interface KahootSrcQuestion {
   options?: Array<{ label: string; is_correct: boolean; position: number }>;
 }
 
-const POLL_TYPE_LABELS: Record<PollType, string> = {
-  single: "Opción única",
-  multiple: "Múltiple",
-  slot: "Cupo por opción",
-  kahoot: "Kahoot (quiz en vivo)",
-};
+const pollTypeLabel = (type: PollType): string =>
+  ({
+    single: i18n.t("teacherPolls.typeSingle"),
+    multiple: i18n.t("teacherPolls.typeMultiple"),
+    slot: i18n.t("teacherPolls.typeSlot"),
+    kahoot: i18n.t("teacherPolls.typeKahoot"),
+  })[type];
 
 const POLL_TYPE_ICONS: Record<PollType, typeof ListChecks> = {
   single: ListChecks,
@@ -175,11 +176,12 @@ const POLL_TYPE_ICONS: Record<PollType, typeof ListChecks> = {
   kahoot: Gamepad2,
 };
 
-const VIS_LABELS: Record<ResultsVis, string> = {
-  always: "Visible al alumno siempre",
-  after_close: "Visible al alumno tras cerrar",
-  never: "Solo el docente ve resultados",
-};
+const visLabel = (vis: ResultsVis): string =>
+  ({
+    always: i18n.t("teacherPolls.visAlways"),
+    after_close: i18n.t("teacherPolls.visAfterClose"),
+    never: i18n.t("teacherPolls.visNever"),
+  })[vis];
 
 function pollIsOpen(p: Poll): boolean {
   if (p.closed_manually) return false;
@@ -266,7 +268,7 @@ function TeacherPolls() {
         const { data: courseRows, error: courseErr } = await courseQuery;
         if (cancelled) return;
         if (courseErr) {
-          setLoadError(friendlyError(courseErr, "No pudimos cargar los cursos."));
+          setLoadError(friendlyError(courseErr, t("teacherPolls.errLoadCourses")));
           setLoading(false);
           return;
         }
@@ -291,7 +293,7 @@ function TeacherPolls() {
           .eq("user_id", user.id);
         if (cancelled) return;
         if (courseErr) {
-          setLoadError(friendlyError(courseErr, "No pudimos cargar tus cursos."));
+          setLoadError(friendlyError(courseErr, t("teacherPolls.errLoadYourCourses")));
           setLoading(false);
           return;
         }
@@ -342,7 +344,7 @@ function TeacherPolls() {
         .order("created_at", { ascending: false });
       if (cancelled) return;
       if (pollErr) {
-        setLoadError(friendlyError(pollErr, "No pudimos cargar las encuestas."));
+        setLoadError(friendlyError(pollErr, t("teacherPolls.errLoadPolls")));
         setLoading(false);
         return;
       }
@@ -404,7 +406,7 @@ function TeacherPolls() {
     columns: {
       title: (p) => p.title,
       course: (p) => p.course_name ?? p.linked_courses?.[0]?.name ?? "",
-      type: (p) => POLL_TYPE_LABELS[p.poll_type] ?? p.poll_type,
+      type: (p) => pollTypeLabel(p.poll_type) ?? p.poll_type,
       window: (p) => p.opens_at,
       responses: (p) => p.total_responses ?? 0,
       status: (p) => (pollIsOpen(p) ? "abierta" : "cerrada"),
@@ -442,10 +444,9 @@ function TeacherPolls() {
     const willClose = !p.closed_manually;
     if (willClose) {
       const ok = await confirm({
-        title: `Cerrar "${p.title}"`,
-        description:
-          "Los alumnos no podrán seguir votando. Podés reabrirla después si te equivocaste.",
-        confirmLabel: "Cerrar",
+        title: t("teacherPolls.confirmCloseTitle", { title: p.title }),
+        description: t("teacherPolls.confirmCloseDescription"),
+        confirmLabel: t("teacherPolls.confirmCloseLabel"),
         tone: "warning",
       });
       if (!ok) return;
@@ -467,9 +468,9 @@ function TeacherPolls() {
 
   const removePoll = async (p: Poll) => {
     const ok = await confirm({
-      title: `Eliminar "${p.title}"`,
-      description: "Se borra la encuesta y todas sus respuestas. Esta acción no se puede deshacer.",
-      confirmLabel: "Eliminar",
+      title: t("teacherPolls.confirmDeleteTitle", { title: p.title }),
+      description: t("teacherPolls.confirmDeleteDescription"),
+      confirmLabel: t("teacherPolls.confirmDeleteLabel"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -515,7 +516,7 @@ function TeacherPolls() {
         .select("id")
         .single();
       if (pErr || !newPoll) {
-        toast.error(friendlyError(pErr, "No se pudo duplicar la encuesta"));
+        toast.error(friendlyError(pErr, t("teacherPolls.errDuplicatePoll")));
         return;
       }
       // El trigger AFTER INSERT en polls ya creó el row ancla en
@@ -534,7 +535,7 @@ function TeacherPolls() {
           );
         if (jErr) {
           await db.from("polls").delete().eq("id", newPoll.id);
-          toast.error(friendlyError(jErr, "No se pudieron asociar los cursos a la copia"));
+          toast.error(friendlyError(jErr, t("teacherPolls.errLinkCoursesToCopy")));
           return;
         }
       }
@@ -553,7 +554,7 @@ function TeacherPolls() {
           const { error: oErr } = await db.from("poll_options").insert(optsPayload);
           if (oErr) {
             await db.from("polls").delete().eq("id", newPoll.id);
-            toast.error(friendlyError(oErr, "No se pudieron copiar las opciones"));
+            toast.error(friendlyError(oErr, t("teacherPolls.errCopyOptions")));
             return;
           }
         }
@@ -574,7 +575,7 @@ function TeacherPolls() {
           .order("position");
         if (qLoadErr) {
           await db.from("polls").delete().eq("id", newPoll.id);
-          toast.error(friendlyError(qLoadErr, "No se pudieron leer las preguntas del Kahoot"));
+          toast.error(friendlyError(qLoadErr, t("teacherPolls.errReadKahootQuestions")));
           return;
         }
         for (const q of (srcQs ?? []) as KahootSrcQuestion[]) {
@@ -592,7 +593,7 @@ function TeacherPolls() {
             .single();
           if (qInsErr || !newQ) {
             await db.from("polls").delete().eq("id", newPoll.id);
-            toast.error(friendlyError(qInsErr, "No se pudieron copiar las preguntas del Kahoot"));
+            toast.error(friendlyError(qInsErr, t("teacherPolls.errCopyKahootQuestions")));
             return;
           }
           const optRows = (q.options ?? []).map((o) => ({
@@ -605,7 +606,7 @@ function TeacherPolls() {
             const { error: oInsErr } = await db.from("kahoot_question_options").insert(optRows);
             if (oInsErr) {
               await db.from("polls").delete().eq("id", newPoll.id);
-              toast.error(friendlyError(oInsErr, "No se pudieron copiar las opciones del Kahoot"));
+              toast.error(friendlyError(oInsErr, t("teacherPolls.errCopyKahootOptions")));
               return;
             }
           }
@@ -656,8 +657,8 @@ function TeacherPolls() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Encuestas"
-        subtitle="Lanzá preguntas a tus alumnos: en vivo durante una sesión, o asíncronas tipo Doodle (cupo por opción)."
+        title={t("teacherPolls.pageTitle")}
+        subtitle={t("teacherPolls.pageSubtitle")}
         icon={<ListChecks className="h-6 w-6 text-sky-500" />}
         actions={
           <div className="flex items-center gap-2">
@@ -668,7 +669,7 @@ function TeacherPolls() {
               disabled={loading}
             >
               <RefreshCw className="h-4 w-4 mr-1" />
-              Actualizar
+              {t("teacherPolls.refresh")}
             </Button>
             <Button
               size="sm"
@@ -677,7 +678,7 @@ function TeacherPolls() {
               data-tour-id="create-poll"
             >
               <Plus className="h-4 w-4 mr-1" />
-              Nueva encuesta
+              {t("teacherPolls.newPoll")}
             </Button>
           </div>
         }
@@ -693,18 +694,18 @@ function TeacherPolls() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard
           icon={Pencil}
-          label="Borradores"
+          label={t("teacherPolls.statDrafts")}
           value={pollStats.draft}
           tone={pollStats.draft > 0 ? "warning" : "default"}
         />
         <StatCard
           icon={Radio}
-          label="Activas"
+          label={t("teacherPolls.statActive")}
           value={pollStats.active}
           tone={pollStats.active > 0 ? "success" : "default"}
         />
-        <StatCard icon={Lock} label="Cerradas" value={pollStats.closed} />
-        <StatCard icon={CalendarRange} label="Doodle (slots)" value={pollStats.slot} />
+        <StatCard icon={Lock} label={t("teacherPolls.statClosed")} value={pollStats.closed} />
+        <StatCard icon={CalendarRange} label={t("teacherPolls.statDoodle")} value={pollStats.slot} />
       </div>
 
       {(courses.length > 1 || (isSuperAdminCaller && tenants.length > 0)) && (
@@ -712,10 +713,10 @@ function TeacherPolls() {
           {courses.length > 1 && (
             <Select value={courseFilter} onValueChange={setCourseFilter}>
               <SelectTrigger className="w-full sm:w-64 h-9 text-xs">
-                <SelectValue placeholder="Filtrar por curso" />
+                <SelectValue placeholder={t("teacherPolls.filterByCourse")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los cursos</SelectItem>
+                <SelectItem value="all">{t("teacherPolls.allCourses")}</SelectItem>
                 {courses.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.name}
@@ -732,10 +733,10 @@ function TeacherPolls() {
           {isSuperAdminCaller && tenants.length > 0 && (
             <Select value={tenantFilter} onValueChange={setTenantFilter}>
               <SelectTrigger className="w-full sm:w-56 h-9 text-xs">
-                <SelectValue placeholder="Institución" />
+                <SelectValue placeholder={t("teacherPolls.institution")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas las instituciones</SelectItem>
+                <SelectItem value="all">{t("teacherPolls.allInstitutions")}</SelectItem>
                 {tenants.map((tn) => (
                   <SelectItem key={tn.id} value={tn.id}>
                     {tn.name}
@@ -749,11 +750,11 @@ function TeacherPolls() {
 
       {loading ? (
         <div className="p-4 sm:p-8 flex items-center justify-center text-sm text-muted-foreground">
-          <Spinner size="sm" className="mr-2" /> Cargando…
+          <Spinner size="sm" className="mr-2" /> {t("common.loading")}
         </div>
       ) : loadError ? (
         <ErrorState
-          message="No pudimos cargar las encuestas"
+          message={t("teacherPolls.loadErrorTitle")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -764,24 +765,24 @@ function TeacherPolls() {
               <TableHeader>
                 <TableRow>
                   <SortableHead sortKey="title" sort={sort} className="min-w-36 sm:min-w-48">
-                    Encuesta
+                    {t("teacherPolls.colPoll")}
                   </SortableHead>
                   <SortableHead sortKey="course" sort={sort} className="hidden md:table-cell w-40">
-                    Curso
+                    {t("teacherPolls.colCourse")}
                   </SortableHead>
                   <SortableHead sortKey="type" sort={sort} className="w-32">
-                    Tipo
+                    {t("teacherPolls.colType")}
                   </SortableHead>
                   <SortableHead sortKey="window" sort={sort} className="hidden lg:table-cell w-36">
-                    Ventana
+                    {t("teacherPolls.colWindow")}
                   </SortableHead>
                   <SortableHead sortKey="responses" sort={sort} className="w-24 text-right">
-                    Respuestas
+                    {t("teacherPolls.colResponses")}
                   </SortableHead>
                   <SortableHead sortKey="status" sort={sort} className="w-28">
-                    Estado
+                    {t("teacherPolls.colStatus")}
                   </SortableHead>
-                  <TableHead className="w-32 text-right">Acciones</TableHead>
+                  <TableHead className="w-32 text-right">{t("teacherPolls.colActions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -789,11 +790,11 @@ function TeacherPolls() {
                   <TableEmpty
                     colSpan={7}
                     icon={ListChecks}
-                    title="Sin encuestas"
+                    title={t("teacherPolls.emptyTitle")}
                     description={
                       courses.length === 0
-                        ? "No dictás ningún curso todavía. Hablá con el admin para que te asigne uno."
-                        : "Creá la primera encuesta con el botón de arriba."
+                        ? t("teacherPolls.emptyNoCourses")
+                        : t("teacherPolls.emptyCreateFirst")
                     }
                   />
                 ) : (
@@ -829,7 +830,7 @@ function TeacherPolls() {
                               <div className="truncate" title={names}>
                                 {lc[0].name}{" "}
                                 <span className="text-[10px] text-muted-foreground/80">
-                                  +{lc.length - 1} más
+                                  {t("teacherPolls.plusMore", { count: lc.length - 1 })}
                                 </span>
                               </div>
                             );
@@ -839,11 +840,11 @@ function TeacherPolls() {
                           <div className="flex flex-wrap items-center gap-1">
                             <Badge variant="outline" className="text-[10px]">
                               <Icon className="h-3 w-3 mr-1" />
-                              {POLL_TYPE_LABELS[p.poll_type]}
+                              {pollTypeLabel(p.poll_type)}
                             </Badge>
                             {!p.is_published && (
                               <Badge variant="secondary" className="text-[10px]">
-                                Borrador
+                                {t("teacherPolls.badgeDraft")}
                               </Badge>
                             )}
                           </div>
@@ -862,7 +863,7 @@ function TeacherPolls() {
                         </TableCell>
                         <TableCell>
                           <Badge variant={open ? "default" : "secondary"} className="text-[10px]">
-                            {open ? "Abierta" : "Cerrada"}
+                            {open ? t("teacherPolls.statusOpen") : t("teacherPolls.statusClosed")}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
@@ -882,9 +883,9 @@ function TeacherPolls() {
                                       disabled: hosting === p.id,
                                       onClick: () => void hostKahoot(p),
                                     },
-                                    { label: "Editar", icon: Pencil, onClick: () => setEditPoll(p) },
+                                    { label: t("common.edit"), icon: Pencil, onClick: () => setEditPoll(p) },
                                     {
-                                      label: "Eliminar",
+                                      label: t("common.delete"),
                                       icon: Trash2,
                                       tone: "destructive",
                                       separatorBefore: true,
@@ -892,21 +893,21 @@ function TeacherPolls() {
                                     },
                                   ]
                                 : [
-                                    { label: "Ver resultados", icon: Eye, onClick: () => setViewPoll(p) },
+                                    { label: t("teacherPolls.actionViewResults"), icon: Eye, onClick: () => setViewPoll(p) },
                                     {
-                                      label: "Compartir enlace",
+                                      label: t("teacherPolls.actionShareLink"),
                                       icon: Link2,
                                       onClick: () => void sharePoll(p),
                                     },
-                                    { label: "Editar", icon: Pencil, onClick: () => setEditPoll(p) },
-                                    { label: "Duplicar", icon: Copy, onClick: () => setDuplicateFor(p) },
+                                    { label: t("common.edit"), icon: Pencil, onClick: () => setEditPoll(p) },
+                                    { label: t("common.duplicate"), icon: Copy, onClick: () => setDuplicateFor(p) },
                                     {
-                                      label: p.closed_manually ? "Reabrir" : "Cerrar",
+                                      label: p.closed_manually ? t("teacherPolls.actionReopen") : t("teacherPolls.actionClose"),
                                       icon: p.closed_manually ? Unlock : Lock,
                                       onClick: () => void toggleClose(p),
                                     },
                                     {
-                                      label: "Eliminar",
+                                      label: t("common.delete"),
                                       icon: Trash2,
                                       tone: "destructive",
                                       separatorBefore: true,
@@ -948,11 +949,12 @@ function TeacherPolls() {
       <DuplicateOptionsDialog
         open={duplicateFor !== null}
         onOpenChange={(open) => !open && setDuplicateFor(null)}
-        title="Duplicar encuesta"
+        title={t("teacherPolls.duplicateDialogTitle")}
         description={
           <>
-            Se crea una copia como <strong>borrador</strong>, SIN respuestas y sin la ventana de
-            cierre ni el vínculo a la sesión del original. Elige qué información interna copiar.
+            {t("teacherPolls.duplicateDialogDescriptionBefore")}{" "}
+            <strong>{t("teacherPolls.duplicateDialogDescriptionDraft")}</strong>
+            {t("teacherPolls.duplicateDialogDescriptionAfter")}
           </>
         }
         options={
@@ -962,37 +964,40 @@ function TeacherPolls() {
                   // Kahoot guarda sus preguntas en kahoot_questions, no en
                   // poll_options — por eso el toggle es "preguntas", no "opciones".
                   param: "copyKahootQuestions",
-                  label: "Copiar preguntas del Kahoot",
-                  hint: "Clona todas las preguntas con sus opciones y respuestas correctas. Si lo desmarcas, la copia nace sin preguntas (las defines antes de publicar).",
+                  label: t("teacherPolls.dupCopyKahootQuestionsLabel"),
+                  hint: t("teacherPolls.dupCopyKahootQuestionsHint"),
                 },
                 {
                   param: "copyCourses",
-                  label: `Copiar cursos asociados${
+                  label:
                     (duplicateFor?.linked_courses?.length ?? 0) > 1
-                      ? ` (${duplicateFor?.linked_courses?.length})`
-                      : ""
-                  }`,
-                  hint: "Mantiene los mismos cursos. Si lo desmarcas, la copia queda solo en el curso ancla del original.",
+                      ? t("teacherPolls.dupCopyCoursesLabelCount", {
+                          count: duplicateFor?.linked_courses?.length,
+                        })
+                      : t("teacherPolls.dupCopyCoursesLabel"),
+                  hint: t("teacherPolls.dupCopyCoursesHint"),
                 },
               ]
             : [
                 {
                   param: "copyOptions",
-                  label: `Copiar opciones y cupos${
+                  label:
                     (duplicateFor?.options?.length ?? 0) > 0
-                      ? ` (${duplicateFor?.options?.length})`
-                      : ""
-                  }`,
-                  hint: "Clona las opciones con su cupo. Si lo desmarcas, la copia queda sin opciones (las defines antes de publicar).",
+                      ? t("teacherPolls.dupCopyOptionsLabelCount", {
+                          count: duplicateFor?.options?.length,
+                        })
+                      : t("teacherPolls.dupCopyOptionsLabel"),
+                  hint: t("teacherPolls.dupCopyOptionsHint"),
                 },
                 {
                   param: "copyCourses",
-                  label: `Copiar cursos asociados${
+                  label:
                     (duplicateFor?.linked_courses?.length ?? 0) > 1
-                      ? ` (${duplicateFor?.linked_courses?.length})`
-                      : ""
-                  }`,
-                  hint: "Mantiene los mismos cursos. Si lo desmarcas, la copia queda solo en el curso ancla del original.",
+                      ? t("teacherPolls.dupCopyCoursesLabelCount", {
+                          count: duplicateFor?.linked_courses?.length,
+                        })
+                      : t("teacherPolls.dupCopyCoursesLabel"),
+                  hint: t("teacherPolls.dupCopyCoursesHint"),
                 },
               ]
         }
@@ -1555,7 +1560,7 @@ function CreatePollDialog({
           })
           .eq("id", editingPoll.id);
         if (updErr) {
-          toast.error(friendlyError(updErr, "No se pudo actualizar la encuesta"));
+          toast.error(friendlyError(updErr, t("teacherPolls.errUpdatePoll")));
           return;
         }
         // 2) Sync de poll_courses: insert nuevos, delete los que ya no
@@ -1570,7 +1575,7 @@ function CreatePollDialog({
             { onConflict: "poll_id,course_id", ignoreDuplicates: true },
           );
           if (addErr) {
-            toast.error(friendlyError(addErr, "No se pudieron agregar cursos"));
+            toast.error(friendlyError(addErr, t("teacherPolls.errAddCourses")));
             return;
           }
         }
@@ -1581,7 +1586,7 @@ function CreatePollDialog({
             .eq("poll_id", editingPoll.id)
             .in("course_id", toRemove);
           if (delErr) {
-            toast.error(friendlyError(delErr, "No se pudieron quitar cursos"));
+            toast.error(friendlyError(delErr, t("teacherPolls.errRemoveCourses")));
             return;
           }
         }
@@ -1596,7 +1601,7 @@ function CreatePollDialog({
             .delete()
             .eq("poll_id", editingPoll.id);
           if (delOptErr) {
-            toast.error(friendlyError(delOptErr, "No se pudieron actualizar las opciones"));
+            toast.error(friendlyError(delOptErr, t("teacherPolls.errUpdateOptions")));
             return;
           }
           const optsPayload = validOpts.map((o, i) => ({
@@ -1609,7 +1614,7 @@ function CreatePollDialog({
           if (optsPayload.length > 0) {
             const { error: insOptErr } = await db.from("poll_options").insert(optsPayload);
             if (insOptErr) {
-              toast.error(friendlyError(insOptErr, "No se pudieron actualizar las opciones"));
+              toast.error(friendlyError(insOptErr, t("teacherPolls.errUpdateOptions")));
               return;
             }
           }
@@ -1645,7 +1650,7 @@ function CreatePollDialog({
         .select("id")
         .single();
       if (pollErr || !pollRow) {
-        toast.error(friendlyError(pollErr, "No se pudo crear la encuesta"));
+        toast.error(friendlyError(pollErr, t("teacherPolls.errCreatePoll")));
         return;
       }
       // Junction multi-curso: insertamos UN row por cada curso. El
@@ -1661,7 +1666,7 @@ function CreatePollDialog({
         .upsert(junctionPayload, { onConflict: "poll_id,course_id", ignoreDuplicates: true });
       if (jErr) {
         await db.from("polls").delete().eq("id", pollRow.id);
-        toast.error(friendlyError(jErr, "No se pudieron asociar los cursos"));
+        toast.error(friendlyError(jErr, t("teacherPolls.errLinkCourses")));
         return;
       }
       // Kahoot no usa poll_options (sus preguntas van en kahoot_questions,
@@ -1678,7 +1683,7 @@ function CreatePollDialog({
           // Rollback manual: la cascada de poll_courses se dispara por FK
           // ON DELETE CASCADE al borrar el poll.
           await db.from("polls").delete().eq("id", pollRow.id);
-          toast.error(friendlyError(optsErr, "No se pudieron crear las opciones"));
+          toast.error(friendlyError(optsErr, t("teacherPolls.errCreateOptions")));
           return;
         }
       }
@@ -1703,24 +1708,24 @@ function CreatePollDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg" data-tour-id="dialog-poll">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Editar encuesta" : "Nueva encuesta"}</DialogTitle>
+          <DialogTitle>{isEdit ? t("teacherPolls.editPoll") : t("teacherPolls.newPoll")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div data-tour-id="poll-field-title">
-            <Label required>Título</Label>
+            <Label required>{t("teacherPolls.fieldTitle")}</Label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ej: ¿Quedó claro el concepto?"
+              placeholder={t("teacherPolls.fieldTitlePlaceholder")}
             />
           </div>
           <div>
-            <Label>Descripción (opcional)</Label>
+            <Label>{t("teacherPolls.fieldDescription")}</Label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              placeholder="Contexto extra para los alumnos"
+              placeholder={t("teacherPolls.fieldDescriptionPlaceholder")}
             />
           </div>
           {/* Multi-curso: una encuesta puede aplicar a N cursos a la vez.
@@ -1730,7 +1735,7 @@ function CreatePollDialog({
           <div data-tour-id="poll-field-courses">
             <div className="flex items-center justify-between mb-1">
               <Label required>
-                Cursos{" "}
+                {t("teacherPolls.fieldCourses")}{" "}
                 <HelpHint side="right">{t("help.pollMulticourseHint")}</HelpHint>
               </Label>
               {courses.length > 1 && (
@@ -1743,12 +1748,14 @@ function CreatePollDialog({
                     )
                   }
                 >
-                  {courseIds.length === courses.length ? "Limpiar" : "Seleccionar todos"}
+                  {courseIds.length === courses.length
+                    ? t("teacherPolls.clear")
+                    : t("teacherPolls.selectAll")}
                 </button>
               )}
             </div>
             {courses.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No dictás ningún curso.</p>
+              <p className="text-xs text-muted-foreground">{t("teacherPolls.noCoursesTaught")}</p>
             ) : (
               <div className="max-h-32 overflow-y-auto rounded-md border divide-y">
                 {courses.map((c) => (
@@ -1771,8 +1778,7 @@ function CreatePollDialog({
             )}
             {courseIds.length > 1 && (
               <p className="text-[11px] text-muted-foreground mt-1">
-                {courseIds.length} cursos seleccionados — un alumno matriculado en varios cuenta
-                como uno solo.
+                {t("teacherPolls.coursesSelected", { count: courseIds.length })}
               </p>
             )}
           </div>
@@ -1783,7 +1789,7 @@ function CreatePollDialog({
               del curso. */}
           <div>
             <Label className="flex items-center gap-1.5">
-              Asociar a sesión (opcional)
+              {t("teacherPolls.fieldAssociateSession")}
               <HelpHint side="right">{t("help.pollSessionAssociationHint")}</HelpHint>
             </Label>
             <Select
@@ -1792,10 +1798,10 @@ function CreatePollDialog({
               disabled={!anchorCourseIdLoaded}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Sin asociar (suelta del curso)" />
+                <SelectValue placeholder={t("teacherPolls.sessionNone")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">Sin asociar (suelta del curso)</SelectItem>
+                <SelectItem value="__none__">{t("teacherPolls.sessionNone")}</SelectItem>
                 {availableSessions.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     {formatSessionLabel(s.session_date, s.title)}
@@ -1805,28 +1811,26 @@ function CreatePollDialog({
             </Select>
             {anchorCourseIdLoaded && availableSessions.length === 0 && (
               <p className="text-[11px] text-muted-foreground mt-1">
-                Este curso no tiene sesiones registradas todavía.
+                {t("teacherPolls.noSessionsRegistered")}
               </p>
             )}
           </div>
           <div data-tour-id="poll-field-type">
             <Label required>
-              Tipo{" "}
+              {t("teacherPolls.fieldType")}{" "}
               <HelpHint side="right">
                 <div className="space-y-2 text-xs">
                   <p>
-                    <strong>Opción única:</strong> el alumno elige <em>una sola</em> opción. Útil
-                    para comprensión rápida o satisfacción (ej. ¿quedó claro el tema?).
+                    <strong>{t("teacherPolls.typeSingle")}:</strong>{" "}
+                    {t("teacherPolls.typeHintSingle")}
                   </p>
                   <p>
-                    <strong>Múltiple:</strong> el alumno puede marcar <em>varias</em> opciones a la
-                    vez. Útil cuando varias respuestas son válidas (ej. ¿qué temas te interesan?).
+                    <strong>{t("teacherPolls.typeMultiple")}:</strong>{" "}
+                    {t("teacherPolls.typeHintMultiple")}
                   </p>
                   <p>
-                    <strong>Cupo por opción (Doodle):</strong> cada opción tiene un cupo limitado y
-                    se cierra cuando se llena. Ideal para repartir slots — por ejemplo, fechas u
-                    horarios de sustentación de proyecto: cada fecha es una opción con cupo de N
-                    estudiantes y los alumnos eligen su turno preferido.
+                    <strong>{t("teacherPolls.typeSlotDoodle")}:</strong>{" "}
+                    {t("teacherPolls.typeHintSlot")}
                   </p>
                 </div>
               </HelpHint>
@@ -1852,33 +1856,33 @@ function CreatePollDialog({
               <SelectContent>
                 <SelectItem value="single">
                   <div className="flex flex-col gap-0.5">
-                    <span>Opción única</span>
+                    <span>{t("teacherPolls.typeSingle")}</span>
                     <span className="text-[11px] text-muted-foreground">
-                      El alumno elige una sola opción
+                      {t("teacherPolls.typeOptionSingleDesc")}
                     </span>
                   </div>
                 </SelectItem>
                 <SelectItem value="multiple">
                   <div className="flex flex-col gap-0.5">
-                    <span>Múltiple</span>
+                    <span>{t("teacherPolls.typeMultiple")}</span>
                     <span className="text-[11px] text-muted-foreground">
-                      El alumno puede marcar varias opciones
+                      {t("teacherPolls.typeOptionMultipleDesc")}
                     </span>
                   </div>
                 </SelectItem>
                 <SelectItem value="slot">
                   <div className="flex flex-col gap-0.5">
-                    <span>Cupo por opción (Doodle)</span>
+                    <span>{t("teacherPolls.typeSlotDoodle")}</span>
                     <span className="text-[11px] text-muted-foreground">
-                      Cada opción tiene un cupo limitado — ej. fechas de sustentación
+                      {t("teacherPolls.typeOptionSlotDesc")}
                     </span>
                   </div>
                 </SelectItem>
                 <SelectItem value="kahoot">
                   <div className="flex flex-col gap-0.5">
-                    <span>Kahoot (quiz en vivo)</span>
+                    <span>{t("teacherPolls.typeKahoot")}</span>
                     <span className="text-[11px] text-muted-foreground">
-                      Quiz gamificado en vivo: preguntas con temporizador, puntos por velocidad y podio
+                      {t("teacherPolls.typeOptionKahootDesc")}
                     </span>
                   </div>
                 </SelectItem>
@@ -1888,30 +1892,30 @@ function CreatePollDialog({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label>
-                Cierra el (opcional){" "}
+                {t("teacherPolls.fieldClosesAt")}{" "}
                 <HelpHint side="right">{t("help.pollCloseDatetimeHint")}</HelpHint>
               </Label>
               <DateTimePicker value={closesAt} onChange={setClosesAt} />
               <p className="text-[11px] text-muted-foreground mt-1">
-                Vacío = abierta hasta que la cierres manualmente.
+                {t("teacherPolls.closesAtEmptyHint")}
               </p>
             </div>
             <div>
               <Label>
-                Resultados para alumnos{" "}
+                {t("teacherPolls.fieldResultsForStudents")}{" "}
                 <HelpHint side="left">
                   <div className="space-y-2 text-xs">
                     <p>
-                      <strong>Visible siempre:</strong> el alumno ve resultados parciales en cuanto
-                      vota. Útil en clase para visualizar consensos al instante.
+                      <strong>{t("teacherPolls.visHintAlwaysTitle")}:</strong>{" "}
+                      {t("teacherPolls.visHintAlwaysBody")}
                     </p>
                     <p>
-                      <strong>Visible tras cerrar:</strong> los resultados aparecen solo cuando
-                      cierras la encuesta. Evita el sesgo de "todos votan lo que ya va ganando".
+                      <strong>{t("teacherPolls.visHintAfterCloseTitle")}:</strong>{" "}
+                      {t("teacherPolls.visHintAfterCloseBody")}
                     </p>
                     <p>
-                      <strong>Solo el docente:</strong> los alumnos nunca ven los resultados; solo
-                      tú. Útil para feedback honesto o evaluación entre pares.
+                      <strong>{t("teacherPolls.visHintNeverTitle")}:</strong>{" "}
+                      {t("teacherPolls.visHintNeverBody")}
                     </p>
                   </div>
                 </HelpHint>
@@ -1923,25 +1927,25 @@ function CreatePollDialog({
                 <SelectContent>
                   <SelectItem value="always">
                     <div className="flex flex-col gap-0.5">
-                      <span>{VIS_LABELS.always}</span>
+                      <span>{visLabel("always")}</span>
                       <span className="text-[11px] text-muted-foreground">
-                        Ve resultados parciales mientras vota
+                        {t("teacherPolls.visDescAlways")}
                       </span>
                     </div>
                   </SelectItem>
                   <SelectItem value="after_close">
                     <div className="flex flex-col gap-0.5">
-                      <span>{VIS_LABELS.after_close}</span>
+                      <span>{visLabel("after_close")}</span>
                       <span className="text-[11px] text-muted-foreground">
-                        Solo cuando termines la encuesta
+                        {t("teacherPolls.visDescAfterClose")}
                       </span>
                     </div>
                   </SelectItem>
                   <SelectItem value="never">
                     <div className="flex flex-col gap-0.5">
-                      <span>{VIS_LABELS.never}</span>
+                      <span>{visLabel("never")}</span>
                       <span className="text-[11px] text-muted-foreground">
-                        El alumno nunca los ve
+                        {t("teacherPolls.visDescNever")}
                       </span>
                     </div>
                   </SelectItem>
@@ -1957,13 +1961,13 @@ function CreatePollDialog({
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1">
-                  <span className="text-sm font-medium">Permitir cambiar la respuesta</span>
+                  <span className="text-sm font-medium">{t("teacherPolls.allowChangeTitle")}</span>
                   <HelpHint>{t("help.pollAllowChangeResponseHint")}</HelpHint>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   {allowChange
-                    ? "Los alumnos pueden cambiar su voto antes del cierre."
-                    : "Bloqueado: el primer voto queda definitivo."}
+                    ? t("teacherPolls.allowChangeOn")
+                    : t("teacherPolls.allowChangeOff")}
                 </p>
               </div>
               <Switch checked={allowChange} onCheckedChange={setAllowChange} />
@@ -1972,13 +1976,13 @@ function CreatePollDialog({
             <div className="flex items-start justify-between gap-3 pt-1 border-t">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1">
-                  <span className="text-sm font-medium">Cerrar al responder todos</span>
+                  <span className="text-sm font-medium">{t("teacherPolls.autoCloseTitle")}</span>
                   <HelpHint>{t("help.pollAutoCloseAllRespondedHint")}</HelpHint>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   {autoCloseAll
-                    ? "Se cerrará sola cuando todos los matriculados hayan votado."
-                    : "Solo se cierra por fecha o manualmente."}
+                    ? t("teacherPolls.autoCloseOn")
+                    : t("teacherPolls.autoCloseOff")}
                 </p>
               </div>
               <Switch checked={autoCloseAll} onCheckedChange={setAutoCloseAll} />
@@ -1992,15 +1996,14 @@ function CreatePollDialog({
               SÍ son toggles booleanos. */}
           <div>
             <Label>
-              Estado{" "}
+              {t("teacherPolls.fieldStatus")}{" "}
               <HelpHint>
-                <strong>Borrador</strong>: solo tú la ves, los alumnos no la encuentran ni reciben
-                notificación. Útil para preparar opciones antes de exponerla.
+                <strong>{t("teacherPolls.statusDraftLabel")}</strong>
+                {t("teacherPolls.statusDraftHint")}
                 <br />
                 <br />
-                <strong>Publicada</strong>: los alumnos del curso (o cursos linkeados) la ven y
-                pueden votar. Al publicarla se dispara una notificación in-app + correo a cada
-                matriculado (según los toggles del admin de correos).
+                <strong>{t("teacherPolls.statusPublishedLabel")}</strong>
+                {t("teacherPolls.statusPublishedHint")}
               </HelpHint>
             </Label>
             <Select
@@ -2013,17 +2016,17 @@ function CreatePollDialog({
               <SelectContent>
                 <SelectItem value="draft">
                   <div className="flex flex-col gap-0.5">
-                    <span>Borrador</span>
+                    <span>{t("teacherPolls.statusOptionDraft")}</span>
                     <span className="text-[11px] text-muted-foreground">
-                      Oculto para los alumnos
+                      {t("teacherPolls.statusOptionDraftDesc")}
                     </span>
                   </div>
                 </SelectItem>
                 <SelectItem value="published">
                   <div className="flex flex-col gap-0.5">
-                    <span>Publicado</span>
+                    <span>{t("teacherPolls.statusOptionPublished")}</span>
                     <span className="text-[11px] text-muted-foreground">
-                      Los alumnos lo ven y reciben notificación
+                      {t("teacherPolls.statusOptionPublishedDesc")}
                     </span>
                   </div>
                 </SelectItem>
@@ -2044,32 +2047,29 @@ function CreatePollDialog({
           {type !== "kahoot" && (
           <div>
             <Label required>
-              Opciones{" "}
+              {t("teacherPolls.fieldOptions")}{" "}
               <HelpHint side="right">
                 <div className="space-y-1 text-xs">
-                  <p>
-                    Las respuestas que verán los alumnos. Mínimo 2; agrega tantas como necesites.
-                  </p>
+                  <p>{t("teacherPolls.optionsHintGeneral")}</p>
                   {type === "slot" && (
                     <>
                       <p>
-                        <strong>Cupo:</strong> número máximo de alumnos que pueden elegir esa
-                        opción. Por ejemplo, si cada opción es una fecha de sustentación y solo
-                        caben 5 estudiantes por día, pon <code>5</code> en cada cupo.
+                        <strong>{t("teacherPolls.optionsHintCupoLabel")}</strong>{" "}
+                        {t("teacherPolls.optionsHintCupoBody")}
                       </p>
                       <p>
-                        <strong>Modo Doodle:</strong> cada opción se cierra cuando se llena su cupo.
-                        Útil para repartir slots como fechas de sustentación o turnos de
-                        laboratorio.
+                        <strong>{t("teacherPolls.optionsHintDoodleLabel")}</strong>{" "}
+                        {t("teacherPolls.optionsHintDoodleBody")}
                         {enrolledCount != null && enrolledCount > 0 && (
                           <>
                             {" "}
-                            Tu{courseIds.length > 1 ? "s curso(s) tienen" : " curso tiene"}{" "}
-                            <strong>
-                              {enrolledCount} alumno{enrolledCount === 1 ? "" : "s"}
-                            </strong>{" "}
-                            en total, y el cupo por opción decide cuántos alumnos pueden elegir esa
-                            misma opción.
+                            {courseIds.length > 1
+                              ? t("teacherPolls.optionsHintEnrolledMultiCourse", {
+                                  count: enrolledCount,
+                                })
+                              : t("teacherPolls.optionsHintEnrolledSingleCourse", {
+                                  count: enrolledCount,
+                                })}
                           </>
                         )}
                       </p>
@@ -2080,8 +2080,7 @@ function CreatePollDialog({
             </Label>
             {optionsLocked && (
               <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1.5 mt-1 mb-2">
-                Esta encuesta ya tiene votos: las opciones quedan en solo lectura para no romper las
-                respuestas emitidas. Para reemplazarlas, eliminá esta encuesta y creá una nueva.
+                {t("teacherPolls.optionsLockedNote")}
               </p>
             )}
             {type === "slot" && !optionsLocked && (
@@ -2093,25 +2092,17 @@ function CreatePollDialog({
                     DateTimePickers que cruzaban días continuos). */}
                 <div className="rounded-md border bg-muted/20 p-3 space-y-3 mb-3">
                   <div className="flex items-center gap-1">
-                    <span className="text-xs font-medium">Generar slots de tiempo</span>
-                    <HelpHint>
-                      Agregá <strong>todas</strong> las fechas disponibles + ventana horaria +
-                      periodicidad y luego generá. Para cada fecha se generan los slots de la
-                      ventana. Ej. fechas <code>10 jun</code> y <code>11 jun</code>, ventana{" "}
-                      <code>9:00–10:00</code>, cada <code>15 min</code> → 8 slots (4 por fecha). Al
-                      generar, esas fechas se convierten en slots y <strong>se quitan de la lista
-                      </strong> para que no se generen duplicadas. ¿Faltó alguna? Agregala y volvé a
-                      generar — solo se generan las fechas pendientes.
-                    </HelpHint>
+                    <span className="text-xs font-medium">{t("teacherPolls.generateSlotsTitle")}</span>
+                    <HelpHint>{t("teacherPolls.generateSlotsHint")}</HelpHint>
                   </div>
 
                   {/* Lista de fechas elegidas + DatePicker para agregar */}
                   <div>
-                    <Label className="text-[11px]">Fechas disponibles</Label>
+                    <Label className="text-[11px]">{t("teacherPolls.availableDates")}</Label>
                     <div className="flex flex-wrap gap-1.5 mt-1.5 mb-2">
                       {slotDates.length === 0 ? (
                         <span className="text-[11px] text-muted-foreground italic">
-                          Sin fechas todavía — agregá al menos una abajo.
+                          {t("teacherPolls.noDatesYet")}
                         </span>
                       ) : (
                         slotDates.map((d) => (
@@ -2125,7 +2116,7 @@ function CreatePollDialog({
                               type="button"
                               onClick={() => removeSlotDate(d)}
                               className="hover:text-destructive transition-colors rounded p-0.5"
-                              aria-label={`Quitar ${d}`}
+                              aria-label={t("teacherPolls.removeDateAria", { date: d })}
                             >
                               <X className="h-3 w-3" />
                             </button>
@@ -2138,7 +2129,7 @@ function CreatePollDialog({
                         <DatePicker
                           value={slotDraftDate}
                           onChange={setSlotDraftDate}
-                          placeholder="Selecciona una fecha"
+                          placeholder={t("teacherPolls.selectDatePlaceholder")}
                           className="h-8 text-xs w-full"
                         />
                       </div>
@@ -2151,7 +2142,7 @@ function CreatePollDialog({
                         className="h-8 text-xs"
                       >
                         <Plus className="h-3.5 w-3.5 mr-1" />
-                        Agregar fecha
+                        {t("teacherPolls.addDate")}
                       </Button>
                     </div>
                   </div>
@@ -2159,7 +2150,7 @@ function CreatePollDialog({
                   {/* Ventana horaria del día (aplica a cada fecha) */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
-                      <Label className="text-[11px]">Hora inicio</Label>
+                      <Label className="text-[11px]">{t("teacherPolls.startTime")}</Label>
                       <Input
                         type="time"
                         value={slotTimeStart}
@@ -2168,7 +2159,7 @@ function CreatePollDialog({
                       />
                     </div>
                     <div>
-                      <Label className="text-[11px]">Hora fin</Label>
+                      <Label className="text-[11px]">{t("teacherPolls.endTime")}</Label>
                       <Input
                         type="time"
                         value={slotTimeEnd}
@@ -2180,7 +2171,7 @@ function CreatePollDialog({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
-                      <Label className="text-[11px]">Cada (min)</Label>
+                      <Label className="text-[11px]">{t("teacherPolls.everyMinutes")}</Label>
                       <Input
                         type="number"
                         min={1}
@@ -2191,7 +2182,7 @@ function CreatePollDialog({
                     </div>
                     <div>
                       <div className="flex items-center justify-between gap-1 mb-0.5">
-                        <Label className="text-[11px]">Cupo por slot</Label>
+                        <Label className="text-[11px]">{t("teacherPolls.cupoPerSlot")}</Label>
                         {/* Badge auto/manual. En modo auto el cupo se
                             recalcula con cada cambio de fechas/horas/step
                             usando ceil(matriculados / total_slots). Pasa
@@ -2199,14 +2190,14 @@ function CreatePollDialog({
                             el botón "Auto" abajo del input revierte. */}
                         {cupoManual ? (
                           <Badge variant="outline" className="text-[9px] h-4 px-1">
-                            Manual
+                            {t("teacherPolls.badgeManual")}
                           </Badge>
                         ) : (
                           <Badge
                             variant="secondary"
                             className="text-[9px] h-4 px-1 bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border-sky-300/50"
                           >
-                            Auto
+                            {t("teacherPolls.badgeAuto")}
                           </Badge>
                         )}
                       </div>
@@ -2228,7 +2219,7 @@ function CreatePollDialog({
                           className="text-[10px] text-primary hover:underline mt-0.5"
                           onClick={() => setCupoManual(false)}
                         >
-                          ← Volver a auto
+                          {t("teacherPolls.backToAuto")}
                         </button>
                       )}
                     </div>
@@ -2251,14 +2242,14 @@ function CreatePollDialog({
                     >
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <span className="font-medium">
-                          {slotSummary.days} fecha{slotSummary.days === 1 ? "" : "s"} ×{" "}
-                          {slotSummary.slotsPerDay} slot
-                          {slotSummary.slotsPerDay === 1 ? "" : "s"}/día ={" "}
-                          <span className="tabular-nums">{slotSummary.totalSlots}</span> slot
-                          {slotSummary.totalSlots === 1 ? "" : "s"}
+                          {t("teacherPolls.slotSummaryDates", { count: slotSummary.days })} ×{" "}
+                          {t("teacherPolls.slotSummaryPerDay", { count: slotSummary.slotsPerDay })}{" "}
+                          ={" "}
+                          <span className="tabular-nums">{slotSummary.totalSlots}</span>{" "}
+                          {t("teacherPolls.slotSummaryTotalUnit", { count: slotSummary.totalSlots })}
                         </span>
                         <span className="tabular-nums">
-                          Capacidad total:{" "}
+                          {t("teacherPolls.totalCapacity")}{" "}
                           <strong>
                             {slotSummary.totalCapacity}
                             {enrolledCount != null && enrolledCount > 0 && <> / {enrolledCount}</>}
@@ -2267,9 +2258,9 @@ function CreatePollDialog({
                       </div>
                       {!slotSummary.enough && enrolledCount != null && enrolledCount > 0 && (
                         <p className="text-[10px] opacity-90">
-                          Faltan {enrolledCount - slotSummary.totalCapacity} cupos para que todos
-                          los alumnos quepan. Subí el cupo por slot, agregá más fechas o ampliá la
-                          ventana horaria.
+                          {t("teacherPolls.capacityShortfall", {
+                            count: enrolledCount - slotSummary.totalCapacity,
+                          })}
                         </p>
                       )}
                     </div>
@@ -2286,12 +2277,11 @@ function CreatePollDialog({
                     >
                       <CalendarRange className="h-3.5 w-3.5 mr-1" />
                       {slotDates.length > 0
-                        ? `Generar slots de ${slotDates.length} fecha${slotDates.length === 1 ? "" : "s"}`
-                        : "Generar slots"}
+                        ? t("teacherPolls.generateSlotsFromDates", { count: slotDates.length })
+                        : t("teacherPolls.generateSlots")}
                     </Button>
                     <p className="text-[10px] text-muted-foreground">
-                      Generá cuando tengas <strong>todas</strong> las fechas: se convierten en slots
-                      y se quitan de la lista de arriba, así no se duplican.
+                      {t("teacherPolls.generateSlotsFooterHint")}
                     </p>
                   </div>
 
@@ -2299,13 +2289,13 @@ function CreatePollDialog({
                       faltó en la generación masiva. Compone el label con el
                       mismo formato que los generados. */}
                   <div className="border-t pt-3 space-y-1.5">
-                    <Label className="text-[11px]">Agregar un slot puntual</Label>
+                    <Label className="text-[11px]">{t("teacherPolls.addSingleSlot")}</Label>
                     <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
                       <div className="flex-1 min-w-0">
                         <DatePicker
                           value={manualSlotDate}
                           onChange={setManualSlotDate}
-                          placeholder="Fecha"
+                          placeholder={t("teacherPolls.datePlaceholder")}
                           className="h-8 text-xs w-full"
                         />
                       </div>
@@ -2314,7 +2304,7 @@ function CreatePollDialog({
                         value={manualSlotTime}
                         onChange={(e) => setManualSlotTime(e.target.value)}
                         className="h-8 text-xs w-28"
-                        aria-label="Hora del slot"
+                        aria-label={t("teacherPolls.slotTimeAria")}
                       />
                       <Input
                         type="number"
@@ -2322,8 +2312,8 @@ function CreatePollDialog({
                         value={manualSlotCupo}
                         onChange={(e) => setManualSlotCupo(e.target.value)}
                         className="h-8 text-xs w-20"
-                        title="Cupo del slot"
-                        aria-label="Cupo del slot"
+                        title={t("teacherPolls.slotCupoAria")}
+                        aria-label={t("teacherPolls.slotCupoAria")}
                       />
                       <Button
                         type="button"
@@ -2334,7 +2324,7 @@ function CreatePollDialog({
                         className="h-8 text-xs"
                       >
                         <Plus className="h-3.5 w-3.5 mr-1" />
-                        Agregar slot
+                        {t("teacherPolls.addSlot")}
                       </Button>
                     </div>
                   </div>
@@ -2350,11 +2340,11 @@ function CreatePollDialog({
                     placeholder={
                       type === "slot"
                         ? idx === 0
-                          ? "Ej: Lun 10 jun, 9:00 AM"
+                          ? t("teacherPolls.slotPlaceholderExample1")
                           : idx === 1
-                            ? "Ej: Lun 10 jun, 10:00 AM"
-                            : `Opción ${idx + 1}`
-                        : `Opción ${idx + 1}`
+                            ? t("teacherPolls.slotPlaceholderExample2")
+                            : t("teacherPolls.optionPlaceholder", { number: idx + 1 })
+                        : t("teacherPolls.optionPlaceholder", { number: idx + 1 })
                     }
                     className="flex-1"
                     disabled={optionsLocked}
@@ -2365,15 +2355,15 @@ function CreatePollDialog({
                       min={1}
                       value={o.max_responses}
                       onChange={(e) => updateOption(idx, { max_responses: e.target.value })}
-                      placeholder="Cupo"
+                      placeholder={t("teacherPolls.cupoPlaceholder")}
                       className="w-20"
-                      title="Máximo de alumnos que pueden elegir esta opción"
+                      title={t("teacherPolls.cupoOptionTitle")}
                       disabled={optionsLocked}
                     />
                   )}
                   {!optionsLocked && options.length > 2 && (
                     <RowAction
-                      label="Quitar opción"
+                      label={t("teacherPolls.removeOption")}
                       icon={Trash2}
                       tone="destructive"
                       onClick={() => removeOption(idx)}
@@ -2387,7 +2377,7 @@ function CreatePollDialog({
               {!optionsLocked && type !== "slot" && (
                 <Button variant="outline" size="sm" onClick={addOption}>
                   <Plus className="h-3.5 w-3.5 mr-1" />
-                  Agregar opción
+                  {t("teacherPolls.addOption")}
                 </Button>
               )}
             </div>
@@ -2396,11 +2386,11 @@ function CreatePollDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancelar
+            {t("common.cancel")}
           </Button>
           <Button onClick={() => void save()} disabled={saving}>
             {saving && <Spinner size="sm" className="mr-1" />}
-            {isEdit ? "Guardar cambios" : "Crear encuesta"}
+            {isEdit ? t("teacherPolls.saveChanges") : t("teacherPolls.createPoll")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -2417,6 +2407,7 @@ function ResultsDialog({
   poll: Poll | null;
   onOpenChange: (v: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const confirm = useConfirm();
   // El dialog mantiene SU PROPIA copia de las opciones y respondents,
   // refetcheada por realtime — no depende de que el padre re-renderice
@@ -2439,10 +2430,10 @@ function ResultsDialog({
     if (!poll || clearing.has(userId)) return;
     const label = fullName ?? userId.slice(0, 8);
     const ok = await confirm({
-      title: "¿Borrar la respuesta?",
-      description: `Vas a borrar las respuestas de "${label}" en esta encuesta. El alumno podrá volver a votar cuando entre. El cupo de la opción que había elegido se libera. Esta acción no se puede deshacer.`,
+      title: t("teacherPolls.confirmClearVoteTitle"),
+      description: t("teacherPolls.confirmClearVoteDescription", { label }),
       tone: "destructive",
-      confirmLabel: "Borrar respuesta",
+      confirmLabel: t("teacherPolls.confirmClearVoteLabel"),
     });
     if (!ok) return;
     setClearing((prev) => new Set(prev).add(userId));
@@ -2453,7 +2444,7 @@ function ResultsDialog({
         _user_id: userId,
       });
       if (error) {
-        toast.error(friendlyError(error, "No se pudo borrar la respuesta"));
+        toast.error(friendlyError(error, t("teacherPolls.errClearResponse")));
         return;
       }
       toast.success(
@@ -2547,13 +2538,13 @@ function ResultsDialog({
               className="text-[9px] gap-1 text-emerald-600 dark:text-emerald-400"
             >
               <Radio className="h-2.5 w-2.5 animate-pulse" />
-              EN VIVO
+              {t("teacherPolls.liveBadge")}
             </Badge>
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            {total} respuesta{total === 1 ? "" : "s"} · {POLL_TYPE_LABELS[poll.poll_type]}
+            {t("teacherPolls.responsesCount", { count: total })} · {pollTypeLabel(poll.poll_type)}
           </p>
           <div className="space-y-2">
             {options.map((o) => {
@@ -2579,7 +2570,7 @@ function ResultsDialog({
                       {o.responses_count}
                       {o.max_responses != null && ` / ${o.max_responses}`}
                       {showPct && ` · ${pct}%`}
-                      {slotFull && " · lleno"}
+                      {slotFull && ` · ${t("teacherPolls.slotFull")}`}
                     </span>
                   </div>
                   <div className="h-1.5 bg-muted rounded overflow-hidden">
@@ -2615,8 +2606,8 @@ function ResultsDialog({
                               className="h-4 w-4 shrink-0 text-muted-foreground hover:text-destructive"
                               disabled={isClearing}
                               onClick={() => void clearVoteFor(v.user_id, v.full_name)}
-                              title="Borrar la respuesta de este alumno (libera su cupo)"
-                              aria-label={`Borrar respuesta de ${display}`}
+                              title={t("teacherPolls.clearVoteTitle")}
+                              aria-label={t("teacherPolls.clearVoteAria", { name: display })}
                             >
                               {isClearing ? (
                                 <Spinner size="xs" />
@@ -2635,13 +2626,13 @@ function ResultsDialog({
           </div>
           {loading && (
             <div className="text-xs text-muted-foreground flex items-center gap-2">
-              <Spinner size="sm" /> Cargando respuestas…
+              <Spinner size="sm" /> {t("teacherPolls.loadingResponses")}
             </div>
           )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cerrar
+            {t("common.close")}
           </Button>
         </DialogFooter>
       </DialogContent>

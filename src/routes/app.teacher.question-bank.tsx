@@ -117,16 +117,21 @@ interface Course {
   name: string;
 }
 
-const TYPE_LABEL: Record<QuestionType, string> = {
-  cerrada: "Selección única",
-  cerrada_multi: "Opción múltiple",
-  codigo: "Código",
-  codigo_zip: "Código ZIP (proyectos)",
-  abierta: "Abierta",
-  diagrama: "Diagrama",
-  java_gui: "Java GUI",
-  python_gui: "Python GUI (tkinter)",
+// Mapa de tipo → clave i18n. Resolvemos el label vía i18n.t() en cada uso
+// (no un Record literal a nivel módulo) para que el cambio de idioma en
+// runtime se refleje sin recargar.
+const TYPE_LABEL_KEY: Record<QuestionType, string> = {
+  cerrada: "questionBank.type.cerrada",
+  cerrada_multi: "questionBank.type.cerradaMulti",
+  codigo: "questionBank.type.codigo",
+  codigo_zip: "questionBank.type.codigoZip",
+  abierta: "questionBank.type.abierta",
+  diagrama: "questionBank.type.diagrama",
+  java_gui: "questionBank.type.javaGui",
+  python_gui: "questionBank.type.pythonGui",
 };
+
+const typeLabel = (type: QuestionType): string => i18n.t(TYPE_LABEL_KEY[type]);
 
 function QuestionBankPage() {
   const { t } = useTranslation();
@@ -239,7 +244,7 @@ function QuestionBankPage() {
       .eq("course_id", courseId)
       .order("created_at", { ascending: false });
     if (error) {
-      setLoadError(friendlyError(error, "No pudimos cargar el banco de preguntas."));
+      setLoadError(friendlyError(error, t("questionBank.loadError")));
       setLoading(false);
       return;
     }
@@ -273,7 +278,7 @@ function QuestionBankPage() {
   const sort = useTableSort(filtered, {
     columns: {
       content: (r) => r.content,
-      type: (r) => TYPE_LABEL[r.type],
+      type: (r) => typeLabel(r.type),
       topic: (r) => r.topic,
       difficulty: (r) => r.difficulty,
       suggested_points: (r) => r.suggested_points,
@@ -429,10 +434,9 @@ function QuestionBankPage() {
 
   const remove = async (r: BankRow) => {
     const ok = await confirm({
-      title: "¿Eliminar pregunta del banco?",
-      description:
-        "Las copias ya insertadas en exámenes/talleres/proyectos NO se borran. Esta acción no se puede deshacer.",
-      confirmLabel: "Eliminar",
+      title: t("questionBank.deleteConfirmTitle"),
+      description: t("questionBank.deleteConfirmDescription"),
+      confirmLabel: t("common.delete"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -489,7 +493,7 @@ function QuestionBankPage() {
         },
       ]);
       if (enqErr) {
-        toast.error(friendlyError(enqErr, "No se pudo encolar la generación"));
+        toast.error(friendlyError(enqErr, t("questionBank.aiEnqueueError")));
         return;
       }
       toast.success(
@@ -536,7 +540,7 @@ function QuestionBankPage() {
   };
 
   if (!isAdmin && !isDocente && !isSuperAdmin) {
-    return <p className="text-muted-foreground p-6">Solo docentes y admins.</p>;
+    return <p className="text-muted-foreground p-6">{t("questionBank.staffOnly")}</p>;
   }
 
   if (moduleAvailable === false) {
@@ -545,9 +549,9 @@ function QuestionBankPage() {
         <Card>
           <CardContent className="p-4 sm:p-8 text-center space-y-2">
             <Library className="h-10 w-10 text-muted-foreground mx-auto" />
-            <h2 className="text-base font-semibold">Banco de preguntas deshabilitado</h2>
+            <h2 className="text-base font-semibold">{t("questionBank.disabledTitle")}</h2>
             <p className="text-sm text-muted-foreground">
-              El administrador desactivó este módulo. Contacta al admin si necesitas usarlo.
+              {t("questionBank.disabledDescription")}
             </p>
           </CardContent>
         </Card>
@@ -559,8 +563,8 @@ function QuestionBankPage() {
     <div className="container mx-auto space-y-5 p-4 sm:p-6">
       <PageHeader
         icon={<Library className="h-6 w-6" />}
-        title="Banco de preguntas"
-        subtitle="Preguntas reutilizables compartidas entre los docentes del curso. Importa selecciones al crear exámenes, talleres o proyectos."
+        title={t("questionBank.pageTitle")}
+        subtitle={t("questionBank.pageSubtitle")}
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
             <ImportExportMenu
@@ -576,7 +580,7 @@ function QuestionBankPage() {
               data-tour-id="bank-ai-generate"
             >
               <Sparkles className="h-4 w-4 mr-1" />
-              Generar con IA
+              {t("questionBank.generateWithAi")}
             </Button>
             <Button
               size="sm"
@@ -585,7 +589,7 @@ function QuestionBankPage() {
               data-tour-id="create-question"
             >
               <Plus className="h-4 w-4 mr-1" />
-              Nueva pregunta
+              {t("questionBank.newQuestion")}
             </Button>
           </div>
         }
@@ -596,14 +600,14 @@ function QuestionBankPage() {
         <CardContent className="p-4 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
-              <Label className="text-xs">Curso</Label>
+              <Label className="text-xs">{t("questionBank.courseLabel")}</Label>
               <Select value={courseId} onValueChange={setCourseId} disabled={courses.length === 0}>
                 <SelectTrigger>
                   <SelectValue
                     placeholder={
                       courses.length === 0
-                        ? "No tenés cursos asignados"
-                        : "Selecciona un curso"
+                        ? t("questionBank.noCoursesAssigned")
+                        : t("questionBank.selectCoursePlaceholder")
                     }
                   />
                 </SelectTrigger>
@@ -623,50 +627,50 @@ function QuestionBankPage() {
                 // POR CURSO (RLS lo enforza), así que sin curso no
                 // hay forma de crear.
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  Pedile al Admin del tenant que te asigne a un curso para empezar.
+                  {t("questionBank.noCoursesHint")}
                 </p>
               )}
             </div>
             <div>
-              <Label className="text-xs">Tipo</Label>
+              <Label className="text-xs">{t("questionBank.typeLabel")}</Label>
               <Select value={filterType} onValueChange={setFilterType}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos los tipos</SelectItem>
-                  {Object.entries(TYPE_LABEL).map(([k, v]) => (
+                  <SelectItem value="all">{t("questionBank.allTypes")}</SelectItem>
+                  {(Object.keys(TYPE_LABEL_KEY) as QuestionType[]).map((k) => (
                     <SelectItem key={k} value={k}>
-                      {v}
+                      {typeLabel(k)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Dificultad</Label>
+              <Label className="text-xs">{t("questionBank.difficultyLabel")}</Label>
               <Select value={filterDifficulty} onValueChange={setFilterDifficulty}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  <SelectItem value="1">1 — muy fácil</SelectItem>
-                  <SelectItem value="2">2 — fácil</SelectItem>
-                  <SelectItem value="3">3 — media</SelectItem>
-                  <SelectItem value="4">4 — difícil</SelectItem>
-                  <SelectItem value="5">5 — muy difícil</SelectItem>
+                  <SelectItem value="all">{t("questionBank.difficultyAll")}</SelectItem>
+                  <SelectItem value="1">{t("questionBank.difficulty1")}</SelectItem>
+                  <SelectItem value="2">{t("questionBank.difficulty2")}</SelectItem>
+                  <SelectItem value="3">{t("questionBank.difficulty3")}</SelectItem>
+                  <SelectItem value="4">{t("questionBank.difficulty4")}</SelectItem>
+                  <SelectItem value="5">{t("questionBank.difficulty5")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Buscar</Label>
+              <Label className="text-xs">{t("questionBank.searchLabel")}</Label>
               <div className="relative">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Enunciado, tema o tag…"
+                  placeholder={t("questionBank.searchPlaceholder")}
                   className="pl-7"
                 />
               </div>
@@ -680,11 +684,11 @@ function QuestionBankPage() {
         <CardContent className="p-0 overflow-x-auto">
           {loading ? (
             <div className="p-4 sm:p-8 text-center text-muted-foreground">
-              <Spinner size="md" /> Cargando…
+              <Spinner size="md" /> {t("common.loading")}
             </div>
           ) : loadError ? (
             <ErrorState
-              message="No pudimos cargar el banco"
+              message={t("questionBank.loadErrorTitle")}
               hint={loadError}
               onRetry={() => void load()}
             />
@@ -693,56 +697,60 @@ function QuestionBankPage() {
               <TableHeader>
                 <TableRow>
                   <SortableHead sortKey="content" sort={sort}>
-                    Pregunta
+                    {t("questionBank.colQuestion")}
                   </SortableHead>
                   <SortableHead sortKey="type" sort={sort} className="hidden md:table-cell">
-                    Tipo
+                    {t("questionBank.colType")}
                   </SortableHead>
                   <SortableHead sortKey="topic" sort={sort} className="hidden md:table-cell">
-                    Tema
+                    {t("questionBank.colTopic")}
                   </SortableHead>
-                  <TableHead className="hidden lg:table-cell">Tags</TableHead>
+                  <TableHead className="hidden lg:table-cell">{t("questionBank.colTags")}</TableHead>
                   <SortableHead
                     sortKey="difficulty"
                     sort={sort}
                     className="hidden sm:table-cell text-center"
                   >
-                    Dif.
+                    {t("questionBank.colDifficulty")}
                   </SortableHead>
                   <SortableHead
                     sortKey="suggested_points"
                     sort={sort}
                     className="hidden sm:table-cell text-center"
                   >
-                    Pts
+                    {t("questionBank.colPoints")}
                   </SortableHead>
                   <SortableHead
                     sortKey="times_used"
                     sort={sort}
                     className="hidden lg:table-cell text-center"
                   >
-                    Usos
+                    {t("questionBank.colUses")}
                   </SortableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
+                  <TableHead className="text-right">{t("questionBank.colActions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 ? (
                   <TableEmpty
                     colSpan={8}
-                    text={!courseId ? "Elegí un curso" : "Sin preguntas"}
+                    text={
+                      !courseId
+                        ? t("questionBank.emptyNoCourseText")
+                        : t("questionBank.emptyNoQuestionsText")
+                    }
                     hint={
                       !courseId
-                        ? "Seleccioná un curso arriba para ver o crear preguntas del banco."
+                        ? t("questionBank.emptyNoCourseHint")
                         : rows.length === 0
-                          ? "Aún no tienes preguntas en el banco de este curso."
-                          : "Ninguna pregunta coincide con los filtros."
+                          ? t("questionBank.emptyNoQuestionsHint")
+                          : t("questionBank.emptyNoMatchHint")
                     }
                     action={
                       courseId && rows.length === 0 ? (
                         <Button size="sm" onClick={openCreate}>
                           <Plus className="h-4 w-4 mr-1" />
-                          Crear la primera
+                          {t("questionBank.createFirst")}
                         </Button>
                       ) : undefined
                     }
@@ -756,7 +764,7 @@ function QuestionBankPage() {
                       <TableCell className="hidden md:table-cell">
                         <div className="flex flex-wrap items-center gap-1">
                           <Badge variant="secondary" className="text-[10px] whitespace-nowrap">
-                            {TYPE_LABEL[r.type]}
+                            {typeLabel(r.type)}
                           </Badge>
                           {r.shared_org && (
                             <Badge
@@ -764,7 +772,7 @@ function QuestionBankPage() {
                               className="text-[10px] whitespace-nowrap gap-0.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
                             >
                               <Globe className="h-2.5 w-2.5" />
-                              Compartida
+                              {t("questionBank.sharedBadge")}
                             </Badge>
                           )}
                         </div>
@@ -797,10 +805,10 @@ function QuestionBankPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <RowAction label="Editar" icon={Pencil} onClick={() => openEdit(r)} />
-                          <RowAction label="Duplicar" icon={Copy} onClick={() => duplicate(r)} />
+                          <RowAction label={t("common.edit")} icon={Pencil} onClick={() => openEdit(r)} />
+                          <RowAction label={t("common.duplicate")} icon={Copy} onClick={() => duplicate(r)} />
                           <RowAction
-                            label="Eliminar"
+                            label={t("common.delete")}
                             icon={Trash2}
                             tone="destructive"
                             onClick={() => void remove(r)}
@@ -813,7 +821,7 @@ function QuestionBankPage() {
               </TableBody>
             </Table>
           )}
-          <DataPagination state={pagination} entityNamePlural="preguntas" />
+          <DataPagination state={pagination} entityNamePlural={t("questionBank.entityNamePlural")} />
         </CardContent>
       </Card>
 
@@ -825,17 +833,19 @@ function QuestionBankPage() {
         >
           <DialogHeader>
             <DialogTitle>
-              {editing ? "Editar pregunta del banco" : "Nueva pregunta para el banco"}
+              {editing
+                ? t("questionBank.dialogEditTitle")
+                : t("questionBank.dialogCreateTitle")}
             </DialogTitle>
             <DialogDescription>
-              Visible para todos los docentes asignados a este curso.
+              {t("questionBank.dialogDescription")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div data-tour-id="question-field-type">
-                <Label required>Tipo</Label>
+                <Label required>{t("questionBank.typeLabel")}</Label>
                 <Select
                   value={draft.type ?? "abierta"}
                   onValueChange={(v) => setDraft({ ...draft, type: v as QuestionType })}
@@ -844,16 +854,16 @@ function QuestionBankPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(TYPE_LABEL).map(([k, v]) => (
+                    {(Object.keys(TYPE_LABEL_KEY) as QuestionType[]).map((k) => (
                       <SelectItem key={k} value={k}>
-                        {v}
+                        {typeLabel(k)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Puntos sugeridos</Label>
+                <Label>{t("questionBank.suggestedPointsLabel")}</Label>
                 <Input
                   type="number"
                   min={0}
@@ -867,19 +877,19 @@ function QuestionBankPage() {
             </div>
 
             <div data-tour-id="question-field-content">
-              <Label required>Enunciado</Label>
+              <Label required>{t("questionBank.statementLabel")}</Label>
               <Textarea
                 value={draft.content ?? ""}
                 onChange={(e) => setDraft({ ...draft, content: e.target.value })}
                 rows={4}
-                placeholder="Escribe la pregunta…"
+                placeholder={t("questionBank.statementPlaceholder")}
               />
             </div>
 
             {draft.type !== "cerrada" && draft.type !== "cerrada_multi" && (
               <div data-tour-id="question-field-rubric">
                 <Label>
-                  Rúbrica esperada{" "}
+                  {t("questionBank.expectedRubricLabel")}{" "}
                   <HelpHint>{t("help.rubricHelpCriteria")}</HelpHint>
                 </Label>
                 <Textarea
@@ -895,7 +905,7 @@ function QuestionBankPage() {
               draft.type === "python_gui") && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Label>Lenguaje</Label>
+                  <Label>{t("questionBank.languageLabel")}</Label>
                   <Select
                     value={draft.language ?? "java"}
                     onValueChange={(v) => setDraft({ ...draft, language: v })}
@@ -919,15 +929,15 @@ function QuestionBankPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label>Tema</Label>
+                <Label>{t("questionBank.topicLabel")}</Label>
                 <Input
                   value={draft.topic ?? ""}
                   onChange={(e) => setDraft({ ...draft, topic: e.target.value })}
-                  placeholder="Ej: Recursividad, Polimorfismo, Joins SQL…"
+                  placeholder={t("questionBank.topicPlaceholder")}
                 />
               </div>
               <div>
-                <Label>Dificultad (1-5)</Label>
+                <Label>{t("questionBank.difficultyRangeLabel")}</Label>
                 <Select
                   value={String(draft.difficulty ?? "")}
                   onValueChange={(v) =>
@@ -935,21 +945,21 @@ function QuestionBankPage() {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Sin definir" />
+                    <SelectValue placeholder={t("questionBank.difficultyUndefined")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">1 — muy fácil</SelectItem>
-                    <SelectItem value="2">2 — fácil</SelectItem>
-                    <SelectItem value="3">3 — media</SelectItem>
-                    <SelectItem value="4">4 — difícil</SelectItem>
-                    <SelectItem value="5">5 — muy difícil</SelectItem>
+                    <SelectItem value="1">{t("questionBank.difficulty1")}</SelectItem>
+                    <SelectItem value="2">{t("questionBank.difficulty2")}</SelectItem>
+                    <SelectItem value="3">{t("questionBank.difficulty3")}</SelectItem>
+                    <SelectItem value="4">{t("questionBank.difficulty4")}</SelectItem>
+                    <SelectItem value="5">{t("questionBank.difficulty5")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <div>
-              <Label>Tags</Label>
+              <Label>{t("questionBank.tagsLabel")}</Label>
               <div className="flex flex-wrap gap-1 mb-2">
                 {(draft.tags ?? []).map((t) => (
                   <Badge key={t} variant="secondary" className="text-[11px] gap-1">
@@ -968,7 +978,7 @@ function QuestionBankPage() {
                 <Input
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
-                  placeholder="Nuevo tag…"
+                  placeholder={t("questionBank.newTagPlaceholder")}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -977,7 +987,7 @@ function QuestionBankPage() {
                   }}
                 />
                 <Button type="button" variant="outline" onClick={addTag}>
-                  Añadir
+                  {t("questionBank.addTag")}
                 </Button>
               </div>
             </div>
@@ -989,15 +999,11 @@ function QuestionBankPage() {
               <div className="space-y-0.5">
                 <Label className="flex items-center gap-1.5">
                   <Globe className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                  Compartir con la organización
-                  <HelpHint>
-                    Cualquier docente de tu institución podrá ver e importar esta pregunta a
-                    sus exámenes, talleres, proyectos o Kahoot. Solo tú (o un administrador)
-                    puedes editarla o eliminarla.
-                  </HelpHint>
+                  {t("questionBank.shareOrgLabel")}
+                  <HelpHint>{t("questionBank.shareOrgHelp")}</HelpHint>
                 </Label>
                 <p className="text-[11px] text-muted-foreground">
-                  Compartir = lectura/importación a nivel institución. Editar = solo el dueño.
+                  {t("questionBank.shareOrgHint")}
                 </p>
               </div>
               <Switch
@@ -1009,11 +1015,11 @@ function QuestionBankPage() {
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>
-              Cancelar
+              {t("common.cancel")}
             </Button>
             <Button onClick={() => void save()} disabled={saving}>
               {saving ? <Spinner size="sm" className="mr-1" /> : <Save className="h-4 w-4 mr-1" />}
-              {editing ? "Guardar cambios" : "Agregar al banco"}
+              {editing ? t("questionBank.saveChanges") : t("questionBank.addToBank")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1025,19 +1031,17 @@ function QuestionBankPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-violet-500" />
-              Generar preguntas con IA
+              {t("questionBank.aiDialogTitle")}
             </DialogTitle>
             <DialogDescription>
-              Las preguntas se agregan al banco del curso seleccionado. Luego puedes editarlas,
-              compartirlas con la organización o importarlas a exámenes, talleres, proyectos o
-              Kahoot.
+              {t("questionBank.aiDialogDescription")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label required>Tipo de pregunta</Label>
+                <Label required>{t("questionBank.aiTypeLabel")}</Label>
                 <Select
                   value={aiType}
                   onValueChange={(v) => setAiType(v as QuestionType)}
@@ -1046,19 +1050,19 @@ function QuestionBankPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(TYPE_LABEL)
+                    {(Object.keys(TYPE_LABEL_KEY) as QuestionType[])
                       // codigo_zip es exclusivo de proyectos; no se genera al banco.
-                      .filter(([k]) => k !== "codigo_zip")
-                      .map(([k, v]) => (
+                      .filter((k) => k !== "codigo_zip")
+                      .map((k) => (
                         <SelectItem key={k} value={k}>
-                          {v}
+                          {typeLabel(k)}
                         </SelectItem>
                       ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Cantidad</Label>
+                <Label>{t("questionBank.aiCountLabel")}</Label>
                 <Input
                   type="number"
                   min={1}
@@ -1071,19 +1075,19 @@ function QuestionBankPage() {
               </div>
             </div>
             <div>
-              <Label required>Temas</Label>
+              <Label required>{t("questionBank.aiTopicsLabel")}</Label>
               <Textarea
                 value={aiTopics}
                 onChange={(e) => setAiTopics(e.target.value)}
                 rows={3}
-                placeholder="Ej: Recursividad, complejidad algorítmica, estructuras de datos…"
+                placeholder={t("questionBank.aiTopicsPlaceholder")}
               />
             </div>
           </div>
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => setAiOpen(false)} disabled={aiLoading}>
-              Cancelar
+              {t("common.cancel")}
             </Button>
             <Button onClick={() => void generateWithAI()} disabled={aiLoading || !aiTopics.trim()}>
               {aiLoading ? (
@@ -1091,7 +1095,7 @@ function QuestionBankPage() {
               ) : (
                 <Sparkles className="h-4 w-4 mr-1" />
               )}
-              Generar
+              {t("questionBank.aiGenerateButton")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -79,7 +79,7 @@ import { toCSV } from "@/shared/lib/csv";
 import { formatDateShort, formatSessionLabel } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
-import { useTranslation } from "react-i18next";
+import { useTranslation, Trans } from "react-i18next";
 import i18n from "@/i18n";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -185,12 +185,18 @@ type Record_ = {
 const STATUS_OPTIONS = [
   {
     value: "presente",
-    short: "P",
-    label: "Presente",
+    short: i18n.t("teacherAttendance.statusPresentShort"),
+    label: i18n.t("teacherAttendance.statusPresent"),
     icon: CheckCircle2,
     color: "text-success",
   },
-  { value: "ausente", short: "A", label: "Ausente", icon: X, color: "text-destructive" },
+  {
+    value: "ausente",
+    short: i18n.t("teacherAttendance.statusAbsentShort"),
+    label: i18n.t("teacherAttendance.statusAbsent"),
+    icon: X,
+    color: "text-destructive",
+  },
 ];
 
 function TeacherAttendance() {
@@ -289,7 +295,7 @@ function TeacherAttendance() {
       .order("name")
       .then(({ data, error }) => {
         if (error) {
-          setLoadError(friendlyError(error, "No pudimos cargar los cursos."));
+          setLoadError(friendlyError(error, t("teacherAttendance.loadCoursesErrorHint")));
           return;
         }
         setLoadError(null);
@@ -504,7 +510,7 @@ function TeacherAttendance() {
       const payload: Record<string, unknown> = {
         course_id: courseId,
         session_date: s.session_date,
-        title: `${s.title ?? "Clase"} (copia)`,
+        title: `${s.title ?? t("teacherAttendance.defaultSessionTitle")} ${t("teacherAttendance.copySuffix")}`,
         created_by: user.id,
         cut_id: s.cut_id ?? null,
         start_time: s.start_time ?? null,
@@ -525,7 +531,7 @@ function TeacherAttendance() {
         .select("id")
         .single();
       if (error || !created) {
-        toast.error(friendlyError(error, "No se pudo duplicar la sesión"));
+        toast.error(friendlyError(error, t("teacherAttendance.duplicateFailed")));
         return;
       }
       // Snippets: clonamos title/language/source_code/position. NO copiamos
@@ -551,12 +557,12 @@ function TeacherAttendance() {
           if (snErr) {
             // No abortamos: la sesión ya se creó; avisamos que faltaron snippets.
             toast.warning(
-              friendlyError(snErr, "La sesión se duplicó, pero no se copiaron los snippets."),
+              friendlyError(snErr, t("teacherAttendance.duplicateSnippetsFailed")),
             );
           }
         }
       }
-      toast.success("Sesión duplicada. Ajusta la fecha desde el engranaje si corresponde.");
+      toast.success(t("teacherAttendance.sessionDuplicated"));
       loadCourse();
     } catch (e) {
       toast.error(friendlyError(e));
@@ -782,10 +788,10 @@ function TeacherAttendance() {
   // src/modules/sessions/csv.ts) — acá solo añadimos el contexto
   // (course_id, created_by) y disparamos el insert + reload.
   const importSessions = async (rows: Record<string, string>[]) => {
-    if (!courseId || !user) throw new Error("Selecciona un curso");
+    if (!courseId || !user) throw new Error(t("teacherAttendance.selectCourse"));
     const cutByName = new Map(cuts.map((c) => [c.name.trim().toLowerCase(), c.id]));
     const { rows: parsed, unmatchedCuts } = parseSessionsCsv(rows, cutByName);
-    if (!parsed.length) throw new Error("El archivo no contiene filas válidas.");
+    if (!parsed.length) throw new Error(t("teacherAttendance.noValidRows"));
     const payload = parsed.map((p) => ({
       course_id: courseId,
       created_by: user.id,
@@ -801,13 +807,16 @@ function TeacherAttendance() {
     const { error } = await (supabase as any).from("attendance_sessions").insert(payload);
     if (error) throw new Error(error.message);
     await loadCourse();
-    const suffix = unmatchedCuts > 0 ? ` · ${unmatchedCuts} sin corte (nombre no coincide)` : "";
-    return `${payload.length} clase(s) importada(s) correctamente${suffix}`;
+    const suffix =
+      unmatchedCuts > 0
+        ? t("teacherAttendance.importSessionsUnmatchedSuffix", { count: unmatchedCuts })
+        : "";
+    return t("teacherAttendance.importSessionsResult", { count: payload.length }) + suffix;
   };
 
   // Importar registros de asistencia desde CSV
   const importAttendance = async (rows: Record<string, string>[]) => {
-    if (!courseId) throw new Error("Selecciona un curso");
+    if (!courseId) throw new Error(t("teacherAttendance.selectCourse"));
     const sessionByDate = new Map(sessions.map((s) => [s.session_date, s.id]));
     const studentByEmail = new Map(
       students.map((s) => [s.institutional_email.toLowerCase(), s.id]),
@@ -844,7 +853,7 @@ function TeacherAttendance() {
       }
     }
     await loadCourse();
-    return `${inserted} insertados · ${updated} actualizados · ${skipped} omitidos`;
+    return t("teacherAttendance.importAttendanceResult", { inserted, updated, skipped });
   };
 
   // ── Check-in self-service ──────────────────────────────────────────
@@ -880,7 +889,7 @@ function TeacherAttendance() {
         closes_at?: string;
       };
       if (!result?.ok || !result.seed || !result.closes_at || !result.rotation_seconds) {
-        toast.error(result?.error ?? "No se pudo iniciar el check-in");
+        toast.error(result?.error ?? t("teacherAttendance.checkInStartFailed"));
         return;
       }
       setProjector({
@@ -913,12 +922,17 @@ function TeacherAttendance() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       void (supabase as any).rpc("notify_course_students", {
         _course_id: checkInConfigSession.course_id,
-        _title: "Check-in de asistencia abierto",
+        _title: t("teacherAttendance.checkInNotifyTitle"),
         _body:
-          `El docente abrió el check-in de asistencia para la clase del ` +
-          `${checkInConfigSession.session_date}` +
-          (checkInConfigSession.title ? ` ("${checkInConfigSession.title}")` : "") +
-          `. Tienes ${checkInDuration} minuto(s) para marcarte presente.`,
+          t("teacherAttendance.checkInNotifyBodyStart", {
+            date: checkInConfigSession.session_date,
+          }) +
+          (checkInConfigSession.title
+            ? t("teacherAttendance.checkInNotifyBodyTitle", {
+                title: checkInConfigSession.title,
+              })
+            : "") +
+          t("teacherAttendance.checkInNotifyBodyEnd", { count: checkInDuration }),
         _kind: "exam",
         _link: "/app/student/attendance",
       });
@@ -1037,7 +1051,7 @@ function TeacherAttendance() {
       );
       loadCourse();
     } else {
-      toast.error(result?.error ?? "No se pudo marcar pendientes");
+      toast.error(result?.error ?? t("teacherAttendance.markPendingFailed"));
     }
   };
 
@@ -1045,7 +1059,9 @@ function TeacherAttendance() {
   const deleteSession = async (id: string) => {
     const sess = sessions.find((s) => s.id === id);
     const recordsForSession = records.filter((r) => r.session_id === id).length;
-    const dateLabel = sess ? formatSessionLabel(sess.session_date, sess.title) : "esta sesión";
+    const dateLabel = sess
+      ? formatSessionLabel(sess.session_date, sess.title)
+      : t("teacherAttendance.thisSession");
     const ok = await confirm({
       title: t("attendance.deleteSessionTitle"),
       description: t("attendance.deleteSessionBody", {
@@ -1111,14 +1127,18 @@ function TeacherAttendance() {
   }, [students, studentSearch]);
 
   if (authLoading) return null;
-  if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
+  if (!isTeacher)
+    return <p className="text-muted-foreground">{t("teacherAttendance.needsTeacherRole")}</p>;
 
   if (loadError) {
     return (
       <div className="space-y-5">
-        <PageHeader icon={<CalendarCheck className="h-6 w-6" />} title="Asistencia" />
+        <PageHeader
+          icon={<CalendarCheck className="h-6 w-6" />}
+          title={t("teacherAttendance.pageTitle")}
+        />
         <ErrorState
-          message="No pudimos cargar tus cursos"
+          message={t("teacherAttendance.loadCoursesError")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -1130,13 +1150,16 @@ function TeacherAttendance() {
     <div className="space-y-5">
       <PageHeader
         icon={<CalendarCheck className="h-6 w-6" />}
-        title="Asistencia"
-        subtitle={`${sessions.length} sesiones · ${students.length} estudiantes`}
+        title={t("teacherAttendance.pageTitle")}
+        subtitle={t("teacherAttendance.subtitle", {
+          sessions: sessions.length,
+          students: students.length,
+        })}
         actions={
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
             <Select value={courseId} onValueChange={setCourseId}>
               <SelectTrigger className="w-full sm:w-56">
-                <SelectValue placeholder="Curso" />
+                <SelectValue placeholder={t("teacherAttendance.coursePlaceholder")} />
               </SelectTrigger>
               <SelectContent>
                 {courses.map((c) => (
@@ -1148,16 +1171,16 @@ function TeacherAttendance() {
               </SelectContent>
             </Select>
             <ImportExportMenu
-              label="Clases"
-              resourceName="clases"
+              label={t("teacherAttendance.classesLabel")}
+              resourceName={t("teacherAttendance.classesResourceName")}
               templateCsv={SESSIONS_TEMPLATE}
               onImport={importSessions}
               onExport={buildSessionsCsv}
               disabled={!courseId}
             />
             <ImportExportMenu
-              label="Asistencia"
-              resourceName="asistencia"
+              label={t("teacherAttendance.attendanceLabel")}
+              resourceName={t("teacherAttendance.attendanceResourceName")}
               templateCsv={ATTENDANCE_TEMPLATE}
               onImport={importAttendance}
               onExport={buildAttendanceCsv}
@@ -1169,7 +1192,7 @@ function TeacherAttendance() {
               data-tour-id="create-session"
             >
               <Plus className="h-4 w-4 mr-1" />
-              Nueva sesión
+              {t("teacherAttendance.newSession")}
             </Button>
             {/* Programar varias sesiones a partir de fecha inicio + días
               de la semana. Mismo dialog que vive en el módulo de
@@ -1181,10 +1204,10 @@ function TeacherAttendance() {
               variant="outline"
               onClick={() => setGenerateSessionsOpen(true)}
               disabled={!courseId}
-              title="Programar varias sesiones del curso a partir de fecha + días de semana"
+              title={t("teacherAttendance.scheduleSessionsTitle")}
             >
               <CalendarPlus className="h-4 w-4 mr-1" />
-              Programar sesiones
+              {t("teacherAttendance.scheduleSessions")}
             </Button>
           </div>
         }
@@ -1193,7 +1216,9 @@ function TeacherAttendance() {
       {/* Legend (above the grid) */}
       <Card className="bg-muted/30 border-dashed">
         <CardContent className="p-3 flex flex-wrap items-center gap-4 text-xs">
-          <span className="font-medium text-muted-foreground">Leyenda:</span>
+          <span className="font-medium text-muted-foreground">
+            {t("teacherAttendance.legend")}
+          </span>
           {STATUS_OPTIONS.map((opt) => {
             const Icon = opt.icon;
             return (
@@ -1210,7 +1235,7 @@ function TeacherAttendance() {
               </div>
             );
           })}
-          <span className="text-muted-foreground">— = sin registro</span>
+          <span className="text-muted-foreground">{t("teacherAttendance.legendNoRecord")}</span>
         </CardContent>
       </Card>
 
@@ -1220,7 +1245,7 @@ function TeacherAttendance() {
         <SearchInput
           value={studentSearch}
           onChange={setStudentSearch}
-          placeholder="Buscar estudiante por nombre o correo…"
+          placeholder={t("teacherAttendance.searchStudentPlaceholder")}
         />
       )}
 
@@ -1241,10 +1266,10 @@ function TeacherAttendance() {
                       }`}
                     >
                       <span className={g.cut ? "" : "text-muted-foreground italic"}>
-                        {g.cut ? g.cut.name : "Sin corte"}
+                        {g.cut ? g.cut.name : t("teacherAttendance.noCut")}
                       </span>
                       <span className="ml-2 text-[10px] font-normal text-muted-foreground">
-                        {g.sessions.length} sesión{g.sessions.length === 1 ? "" : "es"}
+                        {t("teacherAttendance.sessionCount", { count: g.sessions.length })}
                       </span>
                     </TableHead>
                   ))}
@@ -1253,7 +1278,7 @@ function TeacherAttendance() {
               )}
               <TableRow>
                 <TableHead className="sticky left-0 z-10 bg-card min-w-36 sm:min-w-48">
-                  Estudiante
+                  {t("teacherAttendance.studentColumn")}
                 </TableHead>
                 {sessions.map((sess) => {
                   // Labels compactos para el resumen de "corte · contenido"
@@ -1261,14 +1286,14 @@ function TeacherAttendance() {
                   // selects en cada columna del grid (antes ~6 filas de
                   // alto; ahora ~4). La edición vive en el Popover.
                   const cutLabel = sess.cut_id
-                    ? (cuts.find((c) => c.id === sess.cut_id)?.name ?? "Corte")
+                    ? (cuts.find((c) => c.id === sess.cut_id)?.name ?? t("teacherAttendance.cutFallback"))
                     : null;
                   const contentLabel = (() => {
                     if (!sess.content_id) return null;
                     const c = availableContents.find((x) => x.id === sess.content_id);
-                    if (!c) return "Contenido";
+                    if (!c) return t("teacherAttendance.contentFallback");
                     return sess.content_class_index && sess.content_class_index > 0
-                      ? `${c.topic} · Clase ${sess.content_class_index}`
+                      ? `${c.topic} · ${t("teacherAttendance.classN", { n: sess.content_class_index })}`
                       : c.topic;
                   })();
                   return (
@@ -1290,8 +1315,8 @@ function TeacherAttendance() {
                             }
                             title={
                               sess.check_in_open
-                                ? "Check-in activo — abrir proyección"
-                                : "Iniciar check-in con QR"
+                                ? t("teacherAttendance.checkInActiveOpenProjector")
+                                : t("teacherAttendance.startCheckInQr")
                             }
                           >
                             <QrCode className="h-4 w-4" aria-hidden />
@@ -1305,14 +1330,14 @@ function TeacherAttendance() {
                                 variant="outline"
                                 size="icon"
                                 className="h-8 w-8 shrink-0"
-                                title="Configurar corte y contenido de la sesión"
+                                title={t("teacherAttendance.configureCutContentTitle")}
                               >
                                 <Settings2 className="h-4 w-4 text-muted-foreground" aria-hidden />
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-72 p-3 space-y-3" align="end">
                               <div className="text-xs font-medium">
-                                Sesión{" "}
+                                {t("teacherAttendance.sessionLabel")}{" "}
                                 <span className="tabular-nums text-muted-foreground">
                                   {formatDateShort(sess.session_date + "T12:00:00")}
                                 </span>
@@ -1320,7 +1345,7 @@ function TeacherAttendance() {
                               <div className="space-y-1.5">
                                 <Label className="text-[11px] flex items-center gap-1">
                                   <Scissors className="h-3 w-3" />
-                                  Corte
+                                  {t("teacherAttendance.cutLabel")}
                                 </Label>
                                 <Select
                                   value={sess.cut_id ?? "__none"}
@@ -1329,10 +1354,12 @@ function TeacherAttendance() {
                                   }
                                 >
                                   <SelectTrigger className="h-8 text-xs">
-                                    <SelectValue placeholder="Sin corte" />
+                                    <SelectValue placeholder={t("teacherAttendance.noCut")} />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="__none">Sin corte</SelectItem>
+                                    <SelectItem value="__none">
+                                      {t("teacherAttendance.noCut")}
+                                    </SelectItem>
                                     {cuts.map((c) => (
                                       <SelectItem key={c.id} value={c.id}>
                                         {c.name}
@@ -1344,7 +1371,7 @@ function TeacherAttendance() {
                               <div className="space-y-1.5">
                                 <Label className="text-[11px] flex items-center gap-1">
                                   <PresentationIcon className="h-3 w-3" />
-                                  Contenido
+                                  {t("teacherAttendance.contentLabel")}
                                 </Label>
                                 <ContentPicker
                                   value={
@@ -1371,7 +1398,7 @@ function TeacherAttendance() {
                                 variant="outline"
                                 size="icon"
                                 className="h-8 w-8 shrink-0"
-                                title="Más acciones de la sesión"
+                                title={t("teacherAttendance.moreActionsTitle")}
                               >
                                 <MoreVertical className="h-4 w-4" aria-hidden />
                               </Button>
@@ -1379,11 +1406,11 @@ function TeacherAttendance() {
                             <DropdownMenuContent align="end" className="w-56">
                               <DropdownMenuItem onSelect={() => markAllPresent(sess.id)}>
                                 <CheckCircle2 className="h-4 w-4 mr-2 text-success" />
-                                Marcar todos presentes
+                                {t("teacherAttendance.markAllPresent")}
                               </DropdownMenuItem>
                               <DropdownMenuItem onSelect={() => clearSessionAttendance(sess.id)}>
                                 <Eraser className="h-4 w-4 mr-2 text-muted-foreground" />
-                                Reiniciar asistencia
+                                {t("teacherAttendance.resetAttendance")}
                               </DropdownMenuItem>
                               <DropdownMenuItem onSelect={() => openRecordingEdit(sess)}>
                                 <PlayCircle className="h-4 w-4 mr-2 text-primary" />
@@ -1404,7 +1431,7 @@ function TeacherAttendance() {
                                   de la clase. */}
                               <DropdownMenuItem onSelect={() => setPollLaunchSession(sess)}>
                                 <Zap className="h-4 w-4 mr-2 text-sky-500" />
-                                Lanzar encuesta
+                                {t("teacherAttendance.launchPoll")}
                               </DropdownMenuItem>
                               {/* Pizarra de la sesión — abre el editor
                                   Excalidraw embebido. Persiste en
@@ -1413,14 +1440,14 @@ function TeacherAttendance() {
                                   y su contenido reaparece. */}
                               <DropdownMenuItem onSelect={() => setWhiteboardSession(sess)}>
                                 <Palette className="h-4 w-4 mr-2 text-violet-500" />
-                                Pizarra
+                                {t("teacherAttendance.whiteboard")}
                               </DropdownMenuItem>
                               {/* Duplicar la sesión: crea una copia (misma fecha,
                                   el docente la reubica) con opción de copiar el
                                   contenido asignado, la pizarra y los snippets. */}
                               <DropdownMenuItem onSelect={() => setDuplicateSessionFor(sess)}>
                                 <Copy className="h-4 w-4 mr-2 text-muted-foreground" />
-                                Duplicar sesión
+                                {t("teacherAttendance.duplicateSession")}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
@@ -1428,14 +1455,14 @@ function TeacherAttendance() {
                                 className="text-destructive focus:text-destructive"
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
-                                Eliminar sesión
+                                {t("teacherAttendance.deleteSession")}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
                         {sess.check_in_open && (
                           <Badge variant="default" className="text-[9px] py-0 px-1 self-center">
-                            Check-in activo
+                            {t("teacherAttendance.checkInActive")}
                           </Badge>
                         )}
                         <div className="flex flex-col items-center gap-0.5 border-t border-border/70 pt-1.5">
@@ -1458,19 +1485,23 @@ function TeacherAttendance() {
                               <Badge
                                 variant="outline"
                                 className="text-[9px] py-0 px-1 max-w-[5.5rem] truncate font-normal"
-                                title={`Corte: ${cutLabel}`}
+                                title={t("teacherAttendance.cutTooltip", { cut: cutLabel })}
                               >
                                 <Scissors className="h-2.5 w-2.5 mr-0.5 shrink-0" />
                                 {cutLabel}
                               </Badge>
                             ) : (
-                              <span className="text-[9px] text-muted-foreground/50">sin corte</span>
+                              <span className="text-[9px] text-muted-foreground/50">
+                                {t("teacherAttendance.noCutShort")}
+                              </span>
                             )}
                             {contentLabel && (
                               <Badge
                                 variant="outline"
                                 className="text-[9px] py-0 px-1 max-w-[5.5rem] truncate font-normal"
-                                title={`Contenido: ${contentLabel}`}
+                                title={t("teacherAttendance.contentTooltip", {
+                                  content: contentLabel,
+                                })}
                               >
                                 <PresentationIcon className="h-2.5 w-2.5 mr-0.5 shrink-0" />
                                 {contentLabel}
@@ -1482,7 +1513,9 @@ function TeacherAttendance() {
                     </TableHead>
                   );
                 })}
-                <TableHead className="text-center min-w-16">%</TableHead>
+                <TableHead className="text-center min-w-16">
+                  {t("teacherAttendance.percentColumn")}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1493,8 +1526,8 @@ function TeacherAttendance() {
                     className="text-center text-muted-foreground py-8"
                   >
                     {studentSearch.trim() && students.length > 0
-                      ? "Sin coincidencias. Ajusta el buscador."
-                      : "No hay estudiantes matriculados."}
+                      ? t("teacherAttendance.noMatches")
+                      : t("teacherAttendance.noStudentsEnrolled")}
                   </TableCell>
                 </TableRow>
               )}
@@ -1567,11 +1600,11 @@ function TeacherAttendance() {
       <Dialog open={newSessionOpen} onOpenChange={setNewSessionOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm" data-tour-id="dialog-session">
           <DialogHeader>
-            <DialogTitle>Nueva sesión de asistencia</DialogTitle>
+            <DialogTitle>{t("teacherAttendance.newSessionDialogTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div data-tour-id="session-field-date">
-              <Label required>Fecha</Label>
+              <Label required>{t("teacherAttendance.dateLabel")}</Label>
               <DatePicker value={newDate} onChange={setNewDate} />
             </div>
             {/* Hora inicio + fin — el docente piensa en "9:00-10:30",
@@ -1582,7 +1615,7 @@ function TeacherAttendance() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" data-tour-id="session-field-time">
               <div>
                 <Label>
-                  Hora inicio{" "}
+                  {t("teacherAttendance.startTimeLabel")}{" "}
                   <HelpHint>{t("help.startTimeTimezoneHint")}</HelpHint>
                 </Label>
                 <Input
@@ -1592,7 +1625,7 @@ function TeacherAttendance() {
                 />
               </div>
               <div>
-                <Label>Hora fin</Label>
+                <Label>{t("teacherAttendance.endTimeLabel")}</Label>
                 <Input
                   type="time"
                   value={newEndTime}
@@ -1601,16 +1634,16 @@ function TeacherAttendance() {
               </div>
             </div>
             <div data-tour-id="session-field-title">
-              <Label>Título (opcional)</Label>
+              <Label>{t("teacherAttendance.titleOptionalLabel")}</Label>
               <Input
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="Ej: Clase 5, Laboratorio 2"
+                placeholder={t("teacherAttendance.titlePlaceholder")}
               />
             </div>
             <div data-tour-id="session-field-cut">
               <Label>
-                Corte{" "}
+                {t("teacherAttendance.cutLabel")}{" "}
                 <HelpHint>{t("help.cutSelectionHelp")}</HelpHint>
               </Label>
               <Select
@@ -1618,10 +1651,10 @@ function TeacherAttendance() {
                 onValueChange={(v) => setNewCutId(v === "__none" ? "" : v)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Sin corte" />
+                  <SelectValue placeholder={t("teacherAttendance.noCut")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none">Sin corte</SelectItem>
+                  <SelectItem value="__none">{t("teacherAttendance.noCut")}</SelectItem>
                   {cuts.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name}
@@ -1631,29 +1664,31 @@ function TeacherAttendance() {
               </Select>
               {cuts.length === 0 && (
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  Este curso aún no tiene cortes definidos.
+                  {t("teacherAttendance.noCutsDefined")}
                 </p>
               )}
             </div>
             <div className="border-t pt-3 space-y-2">
               <Label>
-                Grabación de la clase (opcional){" "}
+                {t("teacherAttendance.recordingOptionalLabel")}{" "}
                 <HelpHint>{t("help.recordingOptionsHelp")}</HelpHint>
               </Label>
               <Input
                 value={newRecordingUrl}
                 onChange={(e) => setNewRecordingUrl(e.target.value)}
-                placeholder="https://meet.google.com/… ó https://teams.microsoft.com/…"
+                placeholder={t("teacherAttendance.recordingUrlPlaceholder")}
               />
               <Select
                 value={newRecordingVideoId || "__none"}
                 onValueChange={(v) => setNewRecordingVideoId(v === "__none" ? "" : v)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Video de biblioteca (opc.)" />
+                  <SelectValue placeholder={t("teacherAttendance.libraryVideoPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none">Sin video de biblioteca</SelectItem>
+                  <SelectItem value="__none">
+                    {t("teacherAttendance.noLibraryVideo")}
+                  </SelectItem>
                   {sessionVideos.map((v) => (
                     <SelectItem key={v.id} value={v.id}>
                       {v.title}
@@ -1677,15 +1712,15 @@ function TeacherAttendance() {
               <Input
                 value={newNotesUrl}
                 onChange={(e) => setNewNotesUrl(e.target.value)}
-                placeholder="https://docs.google.com/… ó https://notion.so/…"
+                placeholder={t("teacherAttendance.notesUrlPlaceholder")}
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewSessionOpen(false)}>
-              Cancelar
+              {t("common.cancel")}
             </Button>
-            <Button onClick={createSession}>Crear</Button>
+            <Button onClick={createSession}>{t("teacherAttendance.create")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1705,7 +1740,7 @@ function TeacherAttendance() {
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Enlace externo (Meet/Teams/Zoom/Loom…)</Label>
+              <Label>{t("teacherAttendance.externalLinkLabel")}</Label>
               <Input
                 value={recordingEditUrl}
                 onChange={(e) => setRecordingEditUrl(e.target.value)}
@@ -1713,16 +1748,18 @@ function TeacherAttendance() {
               />
             </div>
             <div>
-              <Label>Video de la biblioteca</Label>
+              <Label>{t("teacherAttendance.libraryVideoLabel")}</Label>
               <Select
                 value={recordingEditVideoId || "__none"}
                 onValueChange={(v) => setRecordingEditVideoId(v === "__none" ? "" : v)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Sin video de biblioteca" />
+                  <SelectValue placeholder={t("teacherAttendance.noLibraryVideo")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none">Sin video de biblioteca</SelectItem>
+                  <SelectItem value="__none">
+                    {t("teacherAttendance.noLibraryVideo")}
+                  </SelectItem>
                   {sessionVideos.map((v) => (
                     <SelectItem key={v.id} value={v.id}>
                       {v.title}
@@ -1731,7 +1768,7 @@ function TeacherAttendance() {
                 </SelectContent>
               </Select>
               <p className="text-[11px] text-muted-foreground mt-1">
-                Sube el video desde el módulo "Videos" y aparecerá en esta lista.
+                {t("teacherAttendance.uploadVideoHint")}
               </p>
             </div>
             <div className="border-t pt-3">
@@ -1749,15 +1786,15 @@ function TeacherAttendance() {
               <Input
                 value={notesEditUrl}
                 onChange={(e) => setNotesEditUrl(e.target.value)}
-                placeholder="https://docs.google.com/… ó https://notion.so/…"
+                placeholder={t("teacherAttendance.notesUrlPlaceholder")}
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRecordingEditSession(null)}>
-              Cancelar
+              {t("common.cancel")}
             </Button>
-            <Button onClick={saveRecordingEdit}>Guardar</Button>
+            <Button onClick={saveRecordingEdit}>{t("common.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1769,16 +1806,15 @@ function TeacherAttendance() {
       >
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Iniciar check-in con QR</DialogTitle>
+            <DialogTitle>{t("teacherAttendance.startCheckInQr")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Los estudiantes escanearán el QR (o escribirán el código) para marcarse presentes
-              desde su app, sin que tengas que llamar a cada uno.
+              {t("teacherAttendance.checkInConfigDescription")}
             </p>
             <div>
               <Label>
-                Duración de la ventana (minutos){" "}
+                {t("teacherAttendance.windowDurationLabel")}{" "}
                 <HelpHint>{t("help.checkinDurationHelp")}</HelpHint>
               </Label>
               <Input
@@ -1795,7 +1831,7 @@ function TeacherAttendance() {
             </div>
             <div>
               <Label>
-                Rotación del código (segundos){" "}
+                {t("teacherAttendance.codeRotationLabel")}{" "}
                 <HelpHint>{t("help.checkinRotationHelp")}</HelpHint>
               </Label>
               <Input
@@ -1817,7 +1853,7 @@ function TeacherAttendance() {
               onClick={() => setCheckInConfigSession(null)}
               disabled={startingCheckIn}
             >
-              Cancelar
+              {t("common.cancel")}
             </Button>
             <Button onClick={startCheckIn} disabled={startingCheckIn}>
               {startingCheckIn ? (
@@ -1825,7 +1861,7 @@ function TeacherAttendance() {
               ) : (
                 <QrCode className="h-4 w-4 mr-1" />
               )}
-              Iniciar
+              {t("teacherAttendance.start")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1860,7 +1896,7 @@ function TeacherAttendance() {
         attendanceSessionId={pollLaunchSession?.id ?? null}
         sessionLabel={
           pollLaunchSession
-            ? `${pollLaunchSession.title ?? "Clase"} · ${formatDateShort(pollLaunchSession.session_date)}`
+            ? `${pollLaunchSession.title ?? t("teacherAttendance.defaultSessionTitle")} · ${formatDateShort(pollLaunchSession.session_date)}`
             : undefined
         }
         onCreated={() => setPollLaunchSession(null)}
@@ -1871,7 +1907,7 @@ function TeacherAttendance() {
         sessionId={whiteboardSession?.id ?? null}
         sessionLabel={
           whiteboardSession
-            ? `${whiteboardSession.title ?? "Clase"} · ${formatDateShort(whiteboardSession.session_date)}`
+            ? `${whiteboardSession.title ?? t("teacherAttendance.defaultSessionTitle")} · ${formatDateShort(whiteboardSession.session_date)}`
             : undefined
         }
         onOpenChange={(open) => !open && setWhiteboardSession(null)}
@@ -1881,28 +1917,28 @@ function TeacherAttendance() {
       <DuplicateOptionsDialog
         open={duplicateSessionFor !== null}
         onOpenChange={(open) => !open && setDuplicateSessionFor(null)}
-        title="Duplicar sesión"
+        title={t("teacherAttendance.duplicateSession")}
         description={
-          <>
-            Se crea una copia en la <strong>misma fecha</strong> (ajústala luego con el engranaje),
-            SIN asistencia registrada ni grabación. Elige qué información interna copiar.
-          </>
+          <Trans
+            i18nKey="teacherAttendance.duplicateDialogDescription"
+            components={{ strong: <strong /> }}
+          />
         }
         options={[
           {
             param: "copyContent",
-            label: "Copiar contenido asignado",
-            hint: "Mantiene el material de clase vinculado a la sesión.",
+            label: t("teacherAttendance.duplicateCopyContent"),
+            hint: t("teacherAttendance.duplicateCopyContentHint"),
           },
           {
             param: "copyWhiteboard",
-            label: "Copiar pizarra",
-            hint: "Clona el lienzo de la pizarra y si está compartida con los estudiantes.",
+            label: t("teacherAttendance.duplicateCopyWhiteboard"),
+            hint: t("teacherAttendance.duplicateCopyWhiteboardHint"),
           },
           {
             param: "copySnippets",
-            label: "Copiar snippets de código",
-            hint: "Clona los snippets preparados (sin la salida de su última ejecución).",
+            label: t("teacherAttendance.duplicateCopySnippets"),
+            hint: t("teacherAttendance.duplicateCopySnippetsHint"),
           },
         ]}
         onConfirm={async (flags) => {
@@ -1936,6 +1972,7 @@ interface ContentPickerProps {
 }
 
 function ContentPicker({ value, contents, onChange }: ContentPickerProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   // Construimos la lista plana de opciones — material_individual usa
@@ -1955,11 +1992,12 @@ function ContentPicker({ value, contents, onChange }: ContentPickerProps) {
   for (const c of contents) {
     if (c.classes.length > 0) {
       for (const n of c.classes) {
+        const classLabel = t("teacherAttendance.classN", { n });
         options.push({
           value: `${c.id}:${n}`,
-          primary: `${c.display_name} · Clase ${n}`,
+          primary: `${c.display_name} · ${classLabel}`,
           secondary: c.topic,
-          searchKey: `${c.display_name} ${c.topic} clase ${n}`,
+          searchKey: `${c.display_name} ${c.topic} ${classLabel}`,
         });
       }
     } else {
@@ -1973,7 +2011,8 @@ function ContentPicker({ value, contents, onChange }: ContentPickerProps) {
   }
 
   const selected = options.find((o) => o.value === value);
-  const triggerLabel = value === "__none" || !selected ? "Sin contenido" : selected.primary;
+  const triggerLabel =
+    value === "__none" || !selected ? t("teacherAttendance.noContent") : selected.primary;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -2001,9 +2040,12 @@ function ContentPicker({ value, contents, onChange }: ContentPickerProps) {
             return item.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
           }}
         >
-          <CommandInput placeholder="Buscar por nombre o tema…" className="h-8 text-xs" />
+          <CommandInput
+            placeholder={t("teacherAttendance.contentPickerSearchPlaceholder")}
+            className="h-8 text-xs"
+          />
           <CommandList>
-            <CommandEmpty>Sin resultados.</CommandEmpty>
+            <CommandEmpty>{t("teacherAttendance.noResults")}</CommandEmpty>
             <CommandGroup>
               <CommandItem
                 value="sin contenido __none"
@@ -2018,7 +2060,9 @@ function ContentPicker({ value, contents, onChange }: ContentPickerProps) {
                     value === "__none" ? "opacity-100" : "opacity-0",
                   )}
                 />
-                <span className="text-muted-foreground italic">Sin contenido</span>
+                <span className="text-muted-foreground italic">
+                  {t("teacherAttendance.noContent")}
+                </span>
               </CommandItem>
               {options.map((o) => (
                 <CommandItem
