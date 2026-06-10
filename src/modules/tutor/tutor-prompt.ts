@@ -9,6 +9,8 @@
  *   {{course_name}}            — nombre del curso
  *   {{course_description}}     — descripción
  *   {{course_content_topics}}  — lista de temas (uno por línea, con guión)
+ *   {{course_content_material}} — extractos del TEXTO real del material
+ *   {{current_datetime}}       — fecha/hora actual (conciencia temporal)
  */
 
 export interface TutorPromptInput {
@@ -29,6 +31,14 @@ export interface TutorPromptInput {
   courseMaterial?: string | null;
   /** Máximo de caracteres para el bloque de material (truncado seguro). */
   maxMaterialChars?: number;
+  /**
+   * Fecha/hora actual ya formateada (es-CO / America/Bogota). El edge la
+   * calcula con `Intl.DateTimeFormat` y la pasa acá para dar CONCIENCIA
+   * TEMPORAL al tutor (responder "cuándo es el examen", "cuántos días
+   * faltan", etc.). Pure function: NO usamos `new Date()` aquí — el caller
+   * inyecta el valor para que sea testeable y determinístico.
+   */
+  currentDatetime?: string | null;
 }
 
 const DEFAULT_MAX_TOPICS_CHARS = 4000;
@@ -67,6 +77,7 @@ export function buildTutorSystemPrompt(input: TutorPromptInput): string {
     course_description: safeText(input.courseDescription, "(El docente no proporcionó descripción del curso.)"),
     course_content_topics: topicsValue,
     course_content_material: materialBlock || "(El docente no ha cargado material con texto legible aún.)",
+    current_datetime: safeText(input.currentDatetime, "(fecha no disponible)"),
   };
 
   return input.template.replace(/\{\{(\w+)\}\}/g, (_, key) => {

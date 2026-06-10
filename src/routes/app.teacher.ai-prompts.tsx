@@ -44,17 +44,19 @@ type UseCase =
   | "plagiarism_detection"
   | "ai_content_detection"
   | "project_description"
-  | "project_questions";
+  | "project_questions"
+  | "tutor_chat";
 
 /** Categorización por módulo (idéntica a AdminPromptsPanel). Solo
  * agrupa visualmente los use_cases en el Select de filtro. */
-type PromptModule = "exams" | "workshops" | "projects" | "fraud";
+type PromptModule = "exams" | "workshops" | "projects" | "fraud" | "tutor";
 
 const MODULE_LABELS: Record<PromptModule, string> = {
   exams: "Exámenes",
   workshops: "Talleres",
   projects: "Proyectos",
   fraud: "Detección de fraude",
+  tutor: "Tutor IA",
 };
 
 type UseCaseDef = {
@@ -128,6 +130,13 @@ const USE_CASES: UseCaseDef[] = [
     label: "Preguntas del proyecto (auto-generadas desde la descripción)",
     description:
       "A partir de la descripción del proyecto, genera el set de preguntas/entregables. Restricción dura: SIEMPRE 1 pregunta tipo 'codigo_zip' + entre 2 y 5 preguntas adicionales (abierta/diagrama/cerrada) para evaluar análisis y diseño por separado.",
+  },
+  {
+    key: "tutor_chat",
+    module: "tutor",
+    label: "Tutor IA del curso (conversacional)",
+    description:
+      "System prompt del Tutor IA. Soporta {{course_name}}, {{course_description}}, {{course_content_topics}}, {{course_content_material}} y {{current_datetime}} (fecha/hora actual) para responder anclado al contenido y a las fechas del curso. El override de este curso pisa al global del tenant.",
   },
 ];
 
@@ -433,7 +442,7 @@ function TeacherAIPrompts() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los módulos</SelectItem>
-                {(["exams", "workshops", "projects", "fraud"] as const).map((m) => (
+                {(["exams", "workshops", "projects", "fraud", "tutor"] as const).map((m) => (
                   <SelectItem key={m} value={m}>
                     {MODULE_LABELS[m]}
                   </SelectItem>

@@ -10,6 +10,8 @@ export interface TutorPromptInput {
   /** Texto crudo del material del curso (md/pptx-source/txt) — ver src/. */
   courseMaterial?: string | null;
   maxMaterialChars?: number;
+  /** Fecha/hora actual ya formateada (es-CO / America/Bogota) — ver src/. */
+  currentDatetime?: string | null;
 }
 
 const DEFAULT_MAX_TOPICS_CHARS = 4000;
@@ -40,6 +42,7 @@ export function buildTutorSystemPrompt(input: TutorPromptInput): string {
     course_content_topics: topicsValue,
     course_content_material:
       materialBlock || "(El docente no ha cargado material con texto legible aún.)",
+    current_datetime: safeText(input.currentDatetime, "(fecha no disponible)"),
   };
 
   return input.template.replace(/\{\{(\w+)\}\}/g, (_, key) => {

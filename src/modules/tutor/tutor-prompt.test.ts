@@ -147,6 +147,60 @@ describe("buildTutorSystemPrompt", () => {
       expect(out.length).toBeLessThan(700);
     });
   });
+
+  describe("current_datetime (conciencia temporal)", () => {
+    it("sustituye {{current_datetime}} con la fecha/hora provista", () => {
+      const out = buildTutorSystemPrompt({
+        template: "Hoy es {{current_datetime}}.",
+        courseName: "X",
+        contentTopics: [],
+        currentDatetime: "lunes, 9 de junio de 2026, 14:30",
+      });
+      expect(out).toBe("Hoy es lunes, 9 de junio de 2026, 14:30.");
+    });
+
+    it("fallback amigable cuando currentDatetime es null", () => {
+      const out = buildTutorSystemPrompt({
+        template: "{{current_datetime}}",
+        courseName: "X",
+        contentTopics: [],
+        currentDatetime: null,
+      });
+      expect(out).toBe("(fecha no disponible)");
+    });
+
+    it("fallback amigable cuando currentDatetime es undefined (no se provee)", () => {
+      const out = buildTutorSystemPrompt({
+        template: "{{current_datetime}}",
+        courseName: "X",
+        contentTopics: [],
+      });
+      expect(out).toBe("(fecha no disponible)");
+    });
+
+    it("fallback amigable cuando currentDatetime es cadena vacía / whitespace", () => {
+      const out = buildTutorSystemPrompt({
+        template: "{{current_datetime}}",
+        courseName: "X",
+        contentTopics: [],
+        currentDatetime: "   ",
+      });
+      expect(out).toBe("(fecha no disponible)");
+    });
+
+    it("convive con los demás placeholders en un template completo", () => {
+      const out = buildTutorSystemPrompt({
+        template:
+          'Tutor de "{{course_name}}". Momento: {{current_datetime}}. Temas:\n{{course_content_topics}}',
+        courseName: "Algoritmos",
+        contentTopics: ["Recursividad"],
+        currentDatetime: "martes, 10 de junio de 2026, 09:00",
+      });
+      expect(out).toContain('Tutor de "Algoritmos"');
+      expect(out).toContain("Momento: martes, 10 de junio de 2026, 09:00.");
+      expect(out).toContain("- Recursividad");
+    });
+  });
 });
 
 describe("truncateHistory", () => {
