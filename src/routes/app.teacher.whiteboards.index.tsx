@@ -317,7 +317,14 @@ function TeacherWhiteboards() {
       // course_id y attendance_session_id solo se mandan si el usuario
       // los seleccionó. Mandar `null` también funcionaría pero
       // omitirlos hace explícito en el payload qué se está creando.
-      if (draftCourseId !== "none") payload.course_id = draftCourseId;
+      if (draftCourseId !== "none") {
+        payload.course_id = draftCourseId;
+        // Por defecto, una pizarra asociada a un curso se COMPARTE con los
+        // estudiantes (la ven en /app/student/whiteboards). El docente puede
+        // dejar de compartirla luego desde el editor (toggle "Compartir con
+        // alumnos"). Sin curso no aplica (is_shared_with_course queda false).
+        payload.is_shared_with_course = true;
+      }
       if (draftSessionId !== "none") payload.attendance_session_id = draftSessionId;
       const { data, error } = await db.from("whiteboards").insert(payload).select("id").single();
       if (error || !data) {
@@ -705,6 +712,12 @@ function TeacherWhiteboards() {
                   ))}
                 </SelectContent>
               </Select>
+              {draftCourseId !== "none" && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Se compartirá con los estudiantes del curso por defecto. Podés dejar de
+                  compartirla luego desde el editor.
+                </p>
+              )}
             </div>
             {/* El selector de sesión solo se muestra cuando hay un curso
                 seleccionado Y el curso tiene sesiones registradas. Si el
