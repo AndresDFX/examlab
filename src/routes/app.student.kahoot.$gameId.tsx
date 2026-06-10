@@ -32,7 +32,10 @@ function KahootPlayer() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { state, loading, error, reload } = useKahootGame(gameId);
-  const [submitting, setSubmitting] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  // Opciones marcadas por el alumno. Single: se setea [id] al tocar y se envía
+  // al instante. Multiple: se togglean varias y se envían con "Confirmar".
+  const [selected, setSelected] = useState<string[]>([]);
   const [nowMs, setNowMs] = useState(0);
 
   useEffect(() => {
@@ -41,17 +44,23 @@ function KahootPlayer() {
     return () => clearInterval(id);
   }, []);
 
-  const submit = async (optionId: string) => {
-    setSubmitting(optionId);
+  // Reset de la selección cuando cambia la pregunta activa.
+  useEffect(() => {
+    setSelected([]);
+  }, [state?.question?.id]);
+
+  const submit = async (optionIds: string[]) => {
+    if (optionIds.length === 0 || submitting) return;
+    setSubmitting(true);
     try {
-      const { error: e } = await db.rpc("kahoot_submit_answer", { _game_id: gameId, _option_id: optionId });
+      const { error: e } = await db.rpc("kahoot_submit_answer", { _game_id: gameId, _option_ids: optionIds });
       if (e) {
         toast.error(friendlyError(e));
         return;
       }
       await reload();
     } finally {
-      setSubmitting(null);
+      setSubmitting(false);
     }
   };
 
@@ -120,27 +129,60 @@ function KahootPlayer() {
               </CardContent>
             </Card>
           ) : me ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {question.options.map((o) => {
-                const shape = KAHOOT_SHAPES[o.position] ?? KAHOOT_SHAPES[0];
-                return (
-                  <button
-                    key={o.id}
-                    type="button"
-                    disabled={!!submitting}
-                    onClick={() => void submit(o.id)}
-                    className={`flex items-center gap-3 rounded-xl ${shape.bg} text-white px-4 py-6 text-lg font-semibold shadow active:scale-[0.98] transition-transform disabled:opacity-60`}
-                  >
-                    {submitting === o.id ? (
-                      <Spinner size="sm" className="text-white" />
-                    ) : (
-                      <KahootShapeIcon icon={shape.icon} className="h-7 w-7 shrink-0" />
-                    )}
-                    <span className="flex-1 text-left">{o.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <>
+              {question.multi_select && (
+                <p className="text-center text-xs font-medium text-muted-foreground">
+                  {t("kahoot.multiSelectHint")}
+                </p>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {question.options.map((o) => {
+                  const shape = KAHOOT_SHAPES[o.position] ?? KAHOOT_SHAPES[0];
+                  const isSel = selected.includes(o.id);
+                  const onPick = () => {
+                    if (submitting) return;
+                    if (question.multi_select) {
+                      setSelected((s) => (s.includes(o.id) ? s.filter((x) => x !== o.id) : [...s, o.id]));
+                    } else {
+                      // Single: marcar + enviar al instante (Kahoot clásico).
+                      setSelected([o.id]);
+                      void submit([o.id]);
+                    }
+                  };
+                  return (
+                    <button
+                      key={o.id}
+                      type="button"
+                      disabled={submitting}
+                      onClick={onPick}
+                      className={`flex items-center gap-3 rounded-xl ${shape.bg} text-white px-4 py-6 text-lg font-semibold shadow active:scale-[0.98] transition-transform disabled:opacity-60 ${
+                        isSel ? "ring-4 ring-white/80" : ""
+                      }`}
+                    >
+                      {submitting && isSel && !question.multi_select ? (
+                        <Spinner size="sm" className="text-white" />
+                      ) : question.multi_select && isSel ? (
+                        <CheckCircle2 className="h-7 w-7 shrink-0" />
+                      ) : (
+                        <KahootShapeIcon icon={shape.icon} className="h-7 w-7 shrink-0" />
+                      )}
+                      <span className="flex-1 text-left">{o.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {question.multi_select && (
+                <Button
+                  size="lg"
+                  className="w-full"
+                  disabled={submitting || selected.length === 0}
+                  onClick={() => void submit(selected)}
+                >
+                  {submitting ? <Spinner size="sm" className="mr-2" /> : null}
+                  {t("kahoot.confirmAnswer")}
+                </Button>
+              )}
+            </>
           ) : (
             <Card>
               <CardContent className="p-8 text-center text-sm text-muted-foreground">

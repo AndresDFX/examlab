@@ -52,6 +52,9 @@ export interface KahootStateQuestion {
   image_url: string | null;
   time_limit_seconds: number;
   points: number;
+  /** true = el alumno puede marcar VARIAS opciones (acierta si marca el set
+   *  correcto exacto). false = una sola opción. */
+  multi_select: boolean;
   options: KahootStateOption[];
 }
 
@@ -69,6 +72,8 @@ export interface KahootStateMe {
   rank: number;
   answered: boolean;
   my_option_id: string | null;
+  /** Set de opciones que el alumno marcó (multiple). null si no respondió. */
+  my_option_ids: string[] | null;
   my_is_correct: boolean | null;
   my_points: number;
 }

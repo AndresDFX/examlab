@@ -13,7 +13,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -119,9 +118,10 @@ export function KahootJoinCard({
             >
               <div className="min-w-0">
                 <p className="font-medium truncate">{g.poll?.title ?? t("kahoot.liveGame")}</p>
-                <Badge variant="secondary" className="text-[10px] tabular-nums mt-0.5">
-                  PIN {g.pin}
-                </Badge>
+                {/* El PIN NO se muestra al estudiante: solo es visible en la
+                    pantalla del docente. El alumno se une con este botón,
+                    escaneando el QR, o tecleando abajo el PIN que el docente
+                    proyecta. */}
               </div>
               <Button size="sm" disabled={joining} onClick={() => void join(g.pin)}>
                 {joining ? <Spinner size="sm" className="mr-1" /> : <ArrowRight className="h-4 w-4 mr-1" />}

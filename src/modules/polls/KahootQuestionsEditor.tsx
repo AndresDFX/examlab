@@ -60,6 +60,9 @@ interface EditQuestion {
   text: string;
   time_limit_seconds: number;
   points: number;
+  /** false = una sola correcta; true = varias correctas (el alumno debe
+   *  marcar el set exacto). */
+  multi_select: boolean;
   options: EditOption[];
 }
 
@@ -68,6 +71,7 @@ function blankQuestion(): EditQuestion {
     text: "",
     time_limit_seconds: 20,
     points: 1000,
+    multi_select: false,
     options: [
       { label: "", is_correct: true },
       { label: "", is_correct: false },
@@ -98,7 +102,7 @@ export function KahootQuestionsEditor({
       setRemovedIds([]);
       const { data: qs } = await db
         .from("kahoot_questions")
-        .select("id, text, time_limit_seconds, points, position")
+        .select("id, text, time_limit_seconds, points, multi_select, position")
         .eq("poll_id", poll.id)
         .order("position");
       const qrows = (qs ?? []) as Array<{
@@ -106,6 +110,7 @@ export function KahootQuestionsEditor({
         text: string;
         time_limit_seconds: number;
         points: number;
+        multi_select: boolean;
       }>;
       let optsByQ: Record<string, EditOption[]> = {};
       if (qrows.length > 0) {
@@ -133,6 +138,7 @@ export function KahootQuestionsEditor({
           text: q.text,
           time_limit_seconds: q.time_limit_seconds,
           points: q.points,
+          multi_select: !!q.multi_select,
           options: optsByQ[q.id] ?? [{ label: "", is_correct: true }, { label: "", is_correct: false }],
         })),
       );
@@ -153,11 +159,34 @@ export function KahootQuestionsEditor({
       ),
     );
 
-  const setCorrect = (qi: number, oi: number) =>
+  // Marcar correcta: en single es exclusivo (una sola); en multiple togglea
+  // (varias permitidas).
+  const toggleCorrect = (qi: number, oi: number) =>
     setQuestions((qs) =>
-      qs.map((q, i) =>
-        i === qi ? { ...q, options: q.options.map((o, j) => ({ ...o, is_correct: j === oi })) } : q,
-      ),
+      qs.map((q, i) => {
+        if (i !== qi) return q;
+        if (q.multi_select) {
+          return {
+            ...q,
+            options: q.options.map((o, j) => (j === oi ? { ...o, is_correct: !o.is_correct } : o)),
+          };
+        }
+        return { ...q, options: q.options.map((o, j) => ({ ...o, is_correct: j === oi })) };
+      }),
+    );
+
+  // Cambiar modo single/multiple. Al volver a single, colapsamos a UNA correcta
+  // (la primera marcada, o la primera opción) para no quedar con un estado
+  // inválido para single.
+  const setMultiSelect = (qi: number, multi: boolean) =>
+    setQuestions((qs) =>
+      qs.map((q, i) => {
+        if (i !== qi) return q;
+        if (multi) return { ...q, multi_select: true };
+        const firstCorrect = q.options.findIndex((o) => o.is_correct);
+        const keep = firstCorrect >= 0 ? firstCorrect : 0;
+        return { ...q, multi_select: false, options: q.options.map((o, j) => ({ ...o, is_correct: j === keep })) };
+      }),
     );
 
   const addOption = (qi: number) =>
@@ -172,8 +201,10 @@ export function KahootQuestionsEditor({
       qs.map((q, i) => {
         if (i !== qi || q.options.length <= 2) return q;
         const next = q.options.filter((_, j) => j !== oi);
-        // Si quitamos la correcta, marcamos la primera como correcta.
-        if (!next.some((o) => o.is_correct)) next[0].is_correct = true;
+        // En single: si quitamos la única correcta, marcamos la primera. En
+        // multiple puede quedar 0 correctas momentáneamente (la validación al
+        // guardar exige ≥1).
+        if (!q.multi_select && !next.some((o) => o.is_correct)) next[0].is_correct = true;
         return { ...q, options: next };
       }),
     );
@@ -235,6 +266,7 @@ export function KahootQuestionsEditor({
               text: q.text.trim(),
               time_limit_seconds: q.time_limit_seconds,
               points: q.points,
+              multi_select: q.multi_select,
               position: i,
             })
             .eq("id", questionId);
@@ -251,6 +283,7 @@ export function KahootQuestionsEditor({
               text: q.text.trim(),
               time_limit_seconds: q.time_limit_seconds,
               points: q.points,
+              multi_select: q.multi_select,
               position: i,
             })
             .select("id")
@@ -358,10 +391,27 @@ export function KahootQuestionsEditor({
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs">{t("kahoot.answerMode")}</Label>
+                    <Select
+                      value={q.multi_select ? "multiple" : "single"}
+                      onValueChange={(v) => setMultiSelect(qi, v === "multiple")}
+                    >
+                      <SelectTrigger className="h-8 w-36">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="single">{t("kahoot.singleAnswer")}</SelectItem>
+                        <SelectItem value="multiple">{t("kahoot.multiAnswer")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div className="space-y-2 pl-6">
-                  <p className="text-[11px] text-muted-foreground">{t("kahoot.markCorrectHint")}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {q.multi_select ? t("kahoot.markCorrectHintMulti") : t("kahoot.markCorrectHint")}
+                  </p>
                   {q.options.map((o, oi) => {
                     const shape = KAHOOT_SHAPES[oi] ?? KAHOOT_SHAPES[0];
                     return (
@@ -381,7 +431,7 @@ export function KahootQuestionsEditor({
                           variant={o.is_correct ? "default" : "outline"}
                           size="sm"
                           className={o.is_correct ? "bg-emerald-600 hover:bg-emerald-700" : ""}
-                          onClick={() => setCorrect(qi, oi)}
+                          onClick={() => toggleCorrect(qi, oi)}
                           title={t("kahoot.markCorrect")}
                         >
                           <Check className="h-4 w-4" />
