@@ -1137,14 +1137,23 @@ function CreatePollDialog({
       const allEmpty = prev.every((o) => !o.label.trim());
       return allEmpty ? generated : [...prev, ...generated];
     });
+    const generatedDates = slotDates.length;
     toast.success(
       i18n.t("toast.routes_app_teacher_polls.slotsGenerated", {
-        defaultValue: "{{count}} slot(s) generados en {{dates}} fecha{{plural}}",
+        defaultValue:
+          "{{count}} slot(s) generados de {{dates}} fecha{{plural}}. Esas fechas se quitaron de la lista — agregá más y volvé a generar si necesitás.",
         count: generated.length,
-        dates: slotDates.length,
-        plural: slotDates.length === 1 ? "" : "s",
+        dates: generatedDates,
+        plural: generatedDates === 1 ? "" : "s",
       }),
     );
+    // CONSUMIMOS las fechas ya generadas: las quitamos de "Fechas
+    // disponibles" para que NO se puedan volver a generar (evita slots/
+    // fechas duplicados). El flujo queda: agregar fechas → generar (se
+    // convierten en slots y desaparecen de la lista) → agregar más →
+    // generar de nuevo. El botón "Generar slots" queda deshabilitado
+    // hasta que haya fechas nuevas pendientes.
+    setSlotDates([]);
   };
 
   // Carga sesiones del curso ancla (el primer course del set). Se
@@ -1967,11 +1976,13 @@ function CreatePollDialog({
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-medium">Generar slots de tiempo</span>
                     <HelpHint>
-                      Agregá las fechas disponibles + ventana horaria + periodicidad. Para cada
-                      fecha se generan los slots de la ventana. Ej. fechas <code>10 jun</code> y{" "}
-                      <code>11 jun</code>, ventana <code>9:00–10:00</code>, cada <code>15 min</code>{" "}
-                      → 8 slots (4 por fecha). Si ya escribiste opciones a mano, las nuevas se
-                      añaden al final.
+                      Agregá <strong>todas</strong> las fechas disponibles + ventana horaria +
+                      periodicidad y luego generá. Para cada fecha se generan los slots de la
+                      ventana. Ej. fechas <code>10 jun</code> y <code>11 jun</code>, ventana{" "}
+                      <code>9:00–10:00</code>, cada <code>15 min</code> → 8 slots (4 por fecha). Al
+                      generar, esas fechas se convierten en slots y <strong>se quitan de la lista
+                      </strong> para que no se generen duplicadas. ¿Faltó alguna? Agregala y volvé a
+                      generar — solo se generan las fechas pendientes.
                     </HelpHint>
                   </div>
 
@@ -2145,17 +2156,25 @@ function CreatePollDialog({
                     </div>
                   )}
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={generateSlots}
-                    disabled={slotDates.length === 0}
-                    className="w-full sm:w-auto"
-                  >
-                    <CalendarRange className="h-3.5 w-3.5 mr-1" />
-                    Generar slots
-                  </Button>
+                  <div className="space-y-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={generateSlots}
+                      disabled={slotDates.length === 0}
+                      className="w-full sm:w-auto"
+                    >
+                      <CalendarRange className="h-3.5 w-3.5 mr-1" />
+                      {slotDates.length > 0
+                        ? `Generar slots de ${slotDates.length} fecha${slotDates.length === 1 ? "" : "s"}`
+                        : "Generar slots"}
+                    </Button>
+                    <p className="text-[10px] text-muted-foreground">
+                      Generá cuando tengas <strong>todas</strong> las fechas: se convierten en slots
+                      y se quitan de la lista de arriba, así no se duplican.
+                    </p>
+                  </div>
 
                   {/* Agregar UN slot a mano (fecha + hora) — para el que
                       faltó en la generación masiva. Compone el label con el
