@@ -1166,6 +1166,8 @@
     "attendanceLate": "Late",
     "attendanceJustified": "Justified",
     "joinMeeting": "Join meeting",
+    "viewRecording": "View recording",
+    "viewNotes": "View notes",
     "subscribeCalendar": "Subscribe to my calendar",
     "updateCalendar": "Update in my calendar",
     "subscribeFallbackLink": "Manual URL",

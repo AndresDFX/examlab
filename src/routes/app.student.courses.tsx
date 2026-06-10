@@ -29,6 +29,7 @@ import {
   MessageSquareText,
   Play,
   NotebookPen,
+  Video,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
@@ -95,6 +96,11 @@ type SessionRow = {
   /** Subconjunto de paths a mostrar (NULL = todos los de la clase/contenido). */
   content_file_paths: string[] | null;
   meeting_url: string | null;
+  /** Grabación + notas/minuta de la sesión. Se llenan al sincronizar con
+   *  Google Calendar (LinkCalendarEventsDialog) o a mano por el docente.
+   *  El tablero del estudiante debe mostrarlos para sesiones pasadas. */
+  recording_url: string | null;
+  notes_url: string | null;
 };
 
 type ContentFileEntry = {
@@ -380,7 +386,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       const { data: ses } = await db
         .from("attendance_sessions")
         .select(
-          "id, course_id, session_date, title, content_id, content_class_index, content_file_paths, meeting_url",
+          "id, course_id, session_date, title, content_id, content_class_index, content_file_paths, meeting_url, recording_url, notes_url",
         )
         .eq("course_id", course.id)
         .is("deleted_at", null)
@@ -830,6 +836,37 @@ function SessionGroup({
                     )}
                     {s.meeting_url && (
                       <MeetingLink url={s.meeting_url} label={t("courseBoard.joinMeeting")} />
+                    )}
+                    {/* Grabación + notas (sincronizadas de Calendar o
+                        cargadas por el docente). Aparecen sobre todo en
+                        sesiones pasadas, donde ya existe la grabación. */}
+                    {(s.recording_url || s.notes_url) && (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        {s.recording_url && (
+                          <a
+                            href={s.recording_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs rounded-md border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300 hover:bg-rose-500/20 px-2 py-1 transition-colors"
+                            title={s.recording_url}
+                          >
+                            <Video className="h-3.5 w-3.5 shrink-0" />
+                            {t("courseBoard.viewRecording")}
+                          </a>
+                        )}
+                        {s.notes_url && (
+                          <a
+                            href={s.notes_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs rounded-md border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 px-2 py-1 transition-colors"
+                            title={s.notes_url}
+                          >
+                            <FileText className="h-3.5 w-3.5 shrink-0" />
+                            {t("courseBoard.viewNotes")}
+                          </a>
+                        )}
+                      </div>
                     )}
                   </div>
                   <AttendanceBadge status={att} />
