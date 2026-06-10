@@ -39,6 +39,7 @@ import { EditProfileDialog } from "@/modules/auth/EditProfileDialog";
 import { ForceChangePasswordDialog } from "@/modules/auth/ForceChangePasswordDialog";
 import { studentAccessLevel } from "@/modules/auth/access-control";
 import { captureReturnTo } from "@/shared/lib/return-to";
+import { saveLastRoute } from "@/shared/lib/last-route";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { checkAccess, homeForRole } from "@/shared/lib/rbac";
 import { sortRolesByDisplay } from "@/shared/lib/role-order";
@@ -604,6 +605,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   // looking at an open menu after tapping a link.
   useEffect(() => {
     setMobileMenuOpen(false);
+    // Recordar la última ruta interna para restaurarla al reabrir la app
+    // (ver consumeBootLastRoute en app.index / auth). "Déjame donde estaba".
+    saveLastRoute(location.pathname);
   }, [location.pathname]);
 
   // Toggle global del Banco de preguntas (app_settings.question_bank_enabled).

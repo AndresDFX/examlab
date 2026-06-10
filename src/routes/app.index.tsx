@@ -6,6 +6,7 @@ import { useActiveRole } from "@/hooks/use-active-role";
 import { useNotifications } from "@/hooks/use-notifications";
 import { formatDate, formatDateTime } from "@/shared/lib/format";
 import { sessionIsUpcoming } from "@/shared/lib/session-time";
+import { consumeBootLastRoute } from "@/shared/lib/last-route";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -71,6 +72,17 @@ function Dashboard() {
   const isTeacher = activeRole === "Docente";
   const isStudent = activeRole === "Estudiante";
   const isSuperAdmin = activeRole === "SuperAdmin";
+
+  // "Déjame donde estaba": si la app abrió en el dashboard pero hay una última
+  // ruta guardada (reopen de PWA / post-login / recarga en /app), saltamos a
+  // ella UNA sola vez por carga (consumeBootLastRoute es one-shot + gateado a
+  // boot en /app, así que el botón Inicio NO la dispara). window.location
+  // porque la ruta puede tener segmentos dinámicos que navigate({to}) tipado
+  // no resuelve desde un string concreto.
+  useEffect(() => {
+    const last = consumeBootLastRoute();
+    if (last) window.location.replace(last);
+  }, []);
 
   useEffect(() => {
     if (unreadCount > 0) {
