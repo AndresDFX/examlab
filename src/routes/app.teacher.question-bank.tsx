@@ -474,6 +474,9 @@ function QuestionBankPage() {
             count,
             examId: courseId,
             targetTable: "question_bank",
+            // El worker invoca el edge con service_role (sin user JWT); el
+            // edge usa este created_by como actor para question_bank.created_by.
+            created_by: user.id,
           },
         },
       ]);

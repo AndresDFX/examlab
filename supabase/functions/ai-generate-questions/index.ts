@@ -900,23 +900,26 @@ Idioma de salida obligatorio: ${langName}.`;
     const args = toolCall ? JSON.parse(toolCall.function.arguments) : { questions: [] };
     const questions = args.questions || [];
 
-    // Insert into DB using service role (auth checked via JWT below).
-    // `userClientFromRequest` arma el cliente con anon key + JWT del
-    // header — antes esto se replicaba inline con un createClient sin
-    // importar. Si no viene Authorization header, retorna null → 401.
+    // Insert into DB using service role. La auth ya se validó al inicio del
+    // handler (isServiceRoleCaller || user JWT válido). Acá resolvemos el
+    // ACTOR real:
+    //   - frontend (user JWT): u.user.id.
+    //   - worker drenando la cola (Bearer = service_role_key): NO trae user
+    //     JWT (getUser → null), así que el actor viene en body.created_by
+    //     (lo setea quien encola). Sin este fallback el path async devolvía
+    //     401 antes de insertar — la generación encolada nunca corría.
     const userClient = userClientFromRequest(req);
-    if (!userClient) {
+    const { data: u } = userClient
+      ? await userClient.auth.getUser()
+      : { data: { user: null } };
+    if (!isServiceRoleCaller && !u?.user) {
       return new Response(JSON.stringify({ error: "No autenticado" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const { data: u } = await userClient.auth.getUser();
-    if (!u.user)
-      return new Response(JSON.stringify({ error: "No autenticado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const actorId: string | null =
+      u?.user?.id ?? (body as { created_by?: string }).created_by ?? null;
 
     // Reusamos el singleton — antes era otro `createClient` inline.
     const admin = adminClient;
@@ -987,7 +990,7 @@ Idioma de salida obligatorio: ${langName}.`;
       const isCodeType = type === "codigo" || type === "java_gui" || type === "python_gui";
       const toInsert = questions.map((q: any) => ({
         course_id: targetId,
-        created_by: u.user!.id,
+        created_by: actorId,
         type,
         content: q.content,
         options: q.options ?? null,
