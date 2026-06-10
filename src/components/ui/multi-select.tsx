@@ -175,6 +175,16 @@ export function MultiSelectCheckbox({
 
 // ───────────────────────── Toolbar ─────────────────────────
 
+/** Acción bulk adicional (no destructiva) en la toolbar — ej. "Cambiar
+ *  contraseña". Se renderiza ANTES del botón destructivo de delete. */
+export interface MultiSelectExtraAction {
+  key?: string;
+  label: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  onClick: () => void;
+  variant?: React.ComponentProps<typeof Button>["variant"];
+}
+
 export function MultiSelectToolbar({
   count,
   onClear,
@@ -183,10 +193,16 @@ export function MultiSelectToolbar({
   entityNamePlural,
   actionLabel = "Eliminar",
   actionIcon: ActionIcon = Trash2,
+  extraActions,
+  clearLabel = "Limpiar selección",
+  selectedLabel,
 }: {
   count: number;
   onClear: () => void;
-  onDelete: () => void;
+  /** Acción destructiva (bulk delete). Opcional: si se omite, no se
+   *  renderiza el botón rojo — útil cuando la toolbar solo tiene acciones
+   *  no destructivas (ej. cambio masivo de contraseña). */
+  onDelete?: () => void;
   entityNameSingular: string;
   entityNamePlural: string;
   /** Texto del botón principal. Default "Eliminar" para el caso clásico
@@ -196,6 +212,13 @@ export function MultiSelectToolbar({
   /** Icono del botón principal. Default Trash2. Pasar otro
    *  (ej. X) cuando el bulk no es delete. */
   actionIcon?: React.ComponentType<{ className?: string }>;
+  /** Acciones bulk adicionales (no destructivas), antes del delete. */
+  extraActions?: MultiSelectExtraAction[];
+  /** Texto del botón "Limpiar selección" (i18n). */
+  clearLabel?: string;
+  /** Texto " seleccionado(s)" tras el conteo (i18n). Si se pasa, reemplaza
+   *  el sufijo por defecto. */
+  selectedLabel?: string;
 }) {
   if (count === 0) return null;
   const label = count === 1 ? `1 ${entityNameSingular}` : `${count} ${entityNamePlural}`;
@@ -203,17 +226,35 @@ export function MultiSelectToolbar({
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2">
       <div className="flex items-center gap-2 text-sm">
         <span className="font-medium">{label}</span>
-        <span className="text-muted-foreground">seleccionado{count === 1 ? "" : "s"}</span>
+        <span className="text-muted-foreground">
+          {selectedLabel ?? `seleccionado${count === 1 ? "" : "s"}`}
+        </span>
       </div>
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         <Button variant="ghost" size="sm" onClick={onClear}>
           <X className="h-3.5 w-3.5 mr-1" />
-          Limpiar selección
+          {clearLabel}
         </Button>
-        <Button variant="destructive" size="sm" onClick={onDelete}>
-          <ActionIcon className="h-3.5 w-3.5 mr-1" />
-          {actionLabel}
-        </Button>
+        {extraActions?.map((a, i) => {
+          const Icon = a.icon;
+          return (
+            <Button
+              key={a.key ?? i}
+              variant={a.variant ?? "outline"}
+              size="sm"
+              onClick={a.onClick}
+            >
+              {Icon ? <Icon className="h-3.5 w-3.5 mr-1" /> : null}
+              {a.label}
+            </Button>
+          );
+        })}
+        {onDelete && (
+          <Button variant="destructive" size="sm" onClick={onDelete}>
+            <ActionIcon className="h-3.5 w-3.5 mr-1" />
+            {actionLabel}
+          </Button>
+        )}
       </div>
     </div>
   );

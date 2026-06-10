@@ -78,6 +78,7 @@ import {
   MultiSelectToolbar,
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
+import { BulkPasswordDialog } from "@/shared/components/BulkPasswordDialog";
 
 export const Route = createFileRoute("/app/admin/users")({ component: AdminUsers });
 
@@ -186,6 +187,7 @@ function AdminUsers() {
   const [importing, setImporting] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkPasswordOpen, setBulkPasswordOpen] = useState(false);
   const [search, setSearch] = useState("");
   // Programas activos para el dropdown de identidad estudiantil.
   // Se cargan en `load` junto con los perfiles.
@@ -1358,6 +1360,21 @@ function AdminUsers() {
         onDelete={() => setBulkDeleteOpen(true)}
         entityNameSingular={t("adminUsers.bulkDeleteEntity")}
         entityNamePlural={t("adminUsers.bulkDeleteEntityPlural")}
+        extraActions={[
+          {
+            key: "bulk-password",
+            label: t("adminUsers.bulkPasswordAction", { defaultValue: "Cambiar contraseña" }),
+            icon: KeyRound,
+            onClick: () => setBulkPasswordOpen(true),
+          },
+        ]}
+      />
+
+      <BulkPasswordDialog
+        open={bulkPasswordOpen}
+        onOpenChange={setBulkPasswordOpen}
+        userIds={[...sel.selectedIds]}
+        onDone={sel.clear}
       />
 
       <Card>

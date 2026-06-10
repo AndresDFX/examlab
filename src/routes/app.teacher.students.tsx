@@ -21,9 +21,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Eye, Users } from "lucide-react";
+import { Eye, Users, KeyRound } from "lucide-react";
 import { startImpersonate } from "@/modules/admin/impersonation";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import {
+  useMultiSelect,
+  MultiSelectHeaderCheckbox,
+  MultiSelectCheckbox,
+  MultiSelectToolbar,
+} from "@/components/ui/multi-select";
+import { BulkPasswordDialog } from "@/shared/components/BulkPasswordDialog";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 
@@ -59,6 +66,7 @@ function TeacherStudentsInner() {
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string>("all");
   const [impersonating, setImpersonating] = useState<string | null>(null);
+  const [bulkPasswordOpen, setBulkPasswordOpen] = useState(false);
 
   const load = async () => {
     if (!user) return;
@@ -164,6 +172,10 @@ function TeacherStudentsInner() {
     return result;
   }, [students, search, courseFilter, courses]);
 
+  // Multi-selección para acciones en bloque (cambio masivo de contraseña).
+  // Opera sobre la lista filtrada visible.
+  const sel = useMultiSelect(filtered);
+
   const handleImpersonate = async (s: Student) => {
     const ok = await confirm({
       title: i18n.t("teacherStudents.impersonateConfirmTitle", { name: s.full_name }),
@@ -215,6 +227,29 @@ function TeacherStudentsInner() {
         )}
       </div>
 
+      <MultiSelectToolbar
+        count={sel.count}
+        onClear={sel.clear}
+        entityNameSingular={t("teacherStudents.bulkEntity", { defaultValue: "estudiante" })}
+        entityNamePlural={t("teacherStudents.bulkEntityPlural", { defaultValue: "estudiantes" })}
+        clearLabel={t("common.clearSelection", { defaultValue: "Limpiar selección" })}
+        extraActions={[
+          {
+            key: "bulk-password",
+            label: t("teacherStudents.bulkPasswordAction", { defaultValue: "Cambiar contraseña" }),
+            icon: KeyRound,
+            onClick: () => setBulkPasswordOpen(true),
+          },
+        ]}
+      />
+
+      <BulkPasswordDialog
+        open={bulkPasswordOpen}
+        onOpenChange={setBulkPasswordOpen}
+        userIds={[...sel.selectedIds]}
+        onDone={sel.clear}
+      />
+
       <Card>
         <CardContent className="p-4 space-y-3">
           {/* Tabla */}
@@ -231,6 +266,9 @@ function TeacherStudentsInner() {
               <Table fixed resizable>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <MultiSelectHeaderCheckbox state={sel} />
+                    </TableHead>
                     <TableHead className="min-w-[180px]">{t("teacherStudents.colName")}</TableHead>
                     <TableHead className="hidden sm:table-cell w-32">{t("teacherStudents.colCode")}</TableHead>
                     <TableHead className="hidden sm:table-cell w-[260px]">{t("teacherStudents.colEmail")}</TableHead>
@@ -240,10 +278,13 @@ function TeacherStudentsInner() {
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 ? (
-                    <TableEmpty colSpan={5} text={t("teacherStudents.empty")} />
+                    <TableEmpty colSpan={6} text={t("teacherStudents.empty")} />
                   ) : (
                     filtered.map((s) => (
-                      <TableRow key={s.id}>
+                      <TableRow key={s.id} data-state={sel.isSelected(s.id) ? "selected" : undefined}>
+                        <TableCell className="w-10">
+                          <MultiSelectCheckbox id={s.id} state={sel} />
+                        </TableCell>
                         <TableCell>
                           <div className="font-medium truncate" title={s.full_name}>
                             {s.full_name}
