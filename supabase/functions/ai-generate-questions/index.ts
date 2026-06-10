@@ -667,6 +667,16 @@ Idioma obligatorio: ${pfLangName}.`,
     // kahoot_questions + kahoot_question_options (2 tablas, distinto del flujo
     // genérico de 1 tabla). `examId` se reutiliza como poll_id.
     const isKahoot = targetTable === "kahoot_questions";
+    // Guard: un targetTable DESCONOCIDO NO debe caer al insert por defecto en
+    // `questions` (insertaría un type inválido — ej. 'kahoot' — y violaría
+    // questions_type_check). Falla fuerte y claro.
+    const KNOWN_TARGETS = ["questions", "workshop_questions", "project_files", "kahoot_questions"];
+    if (targetTable && !KNOWN_TARGETS.includes(targetTable)) {
+      return new Response(JSON.stringify({ error: `targetTable desconocido: ${targetTable}` }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const targetId = examId;
     // Solo aplica para proyectos: descripción global del proyecto que
     // sirve como contexto al modelo. El cliente la trae de
