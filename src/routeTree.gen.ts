@@ -72,6 +72,7 @@ import { Route as AppTeacherExamsIndexRouteImport } from './routes/app.teacher.e
 import { Route as AppStudentTutorIndexRouteImport } from './routes/app.student.tutor.index'
 import { Route as AppTeacherWhiteboardsIdRouteImport } from './routes/app.teacher.whiteboards.$id'
 import { Route as AppTeacherMonitorExamIdRouteImport } from './routes/app.teacher.monitor.$examId'
+import { Route as AppTeacherKahootGameIdRouteImport } from './routes/app.teacher.kahoot.$gameId'
 import { Route as AppTeacherGradingCourseIdRouteImport } from './routes/app.teacher.grading.$courseId'
 import { Route as AppTeacherExamsExamIdRouteImport } from './routes/app.teacher.exams.$examId'
 import { Route as AppStudentWorkshopWorkshopIdRouteImport } from './routes/app.student.workshop.$workshopId'
@@ -79,6 +80,7 @@ import { Route as AppStudentTutorCourseIdRouteImport } from './routes/app.studen
 import { Route as AppStudentTakeExamIdRouteImport } from './routes/app.student.take.$examId'
 import { Route as AppStudentReviewExamIdRouteImport } from './routes/app.student.review.$examId'
 import { Route as AppStudentProjectProjectIdRouteImport } from './routes/app.student.project.$projectId'
+import { Route as AppStudentKahootGameIdRouteImport } from './routes/app.student.kahoot.$gameId'
 import { Route as AppForumCourseIdForumIdRouteImport } from './routes/app.forum.$courseId.$forumId'
 import { Route as AppForumCourseIdForumIdThreadIdRouteImport } from './routes/app.forum.$courseId.$forumId.$threadId'
 
@@ -398,6 +400,11 @@ const AppTeacherMonitorExamIdRoute = AppTeacherMonitorExamIdRouteImport.update({
   path: '/teacher/monitor/$examId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTeacherKahootGameIdRoute = AppTeacherKahootGameIdRouteImport.update({
+  id: '/teacher/kahoot/$gameId',
+  path: '/teacher/kahoot/$gameId',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTeacherGradingCourseIdRoute =
   AppTeacherGradingCourseIdRouteImport.update({
     id: '/teacher/grading/$courseId',
@@ -436,6 +443,11 @@ const AppStudentProjectProjectIdRoute =
     path: '/student/project/$projectId',
     getParentRoute: () => AppRoute,
   } as any)
+const AppStudentKahootGameIdRoute = AppStudentKahootGameIdRouteImport.update({
+  id: '/student/kahoot/$gameId',
+  path: '/student/kahoot/$gameId',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppForumCourseIdForumIdRoute = AppForumCourseIdForumIdRouteImport.update({
   id: '/$forumId',
   path: '/$forumId',
@@ -508,6 +520,7 @@ export interface FileRoutesByFullPath {
   '/app/teacher/students': typeof AppTeacherStudentsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
+  '/app/student/kahoot/$gameId': typeof AppStudentKahootGameIdRoute
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
   '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
@@ -515,6 +528,7 @@ export interface FileRoutesByFullPath {
   '/app/student/workshop/$workshopId': typeof AppStudentWorkshopWorkshopIdRoute
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
+  '/app/teacher/kahoot/$gameId': typeof AppTeacherKahootGameIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
   '/app/teacher/whiteboards/$id': typeof AppTeacherWhiteboardsIdRoute
   '/app/student/tutor/': typeof AppStudentTutorIndexRoute
@@ -580,6 +594,7 @@ export interface FileRoutesByTo {
   '/app/teacher/students': typeof AppTeacherStudentsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
+  '/app/student/kahoot/$gameId': typeof AppStudentKahootGameIdRoute
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
   '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
@@ -587,6 +602,7 @@ export interface FileRoutesByTo {
   '/app/student/workshop/$workshopId': typeof AppStudentWorkshopWorkshopIdRoute
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
+  '/app/teacher/kahoot/$gameId': typeof AppTeacherKahootGameIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
   '/app/teacher/whiteboards/$id': typeof AppTeacherWhiteboardsIdRoute
   '/app/student/tutor': typeof AppStudentTutorIndexRoute
@@ -655,6 +671,7 @@ export interface FileRoutesById {
   '/app/teacher/students': typeof AppTeacherStudentsRoute
   '/app/teacher/workshops': typeof AppTeacherWorkshopsRoute
   '/app/forum/$courseId/$forumId': typeof AppForumCourseIdForumIdRouteWithChildren
+  '/app/student/kahoot/$gameId': typeof AppStudentKahootGameIdRoute
   '/app/student/project/$projectId': typeof AppStudentProjectProjectIdRoute
   '/app/student/review/$examId': typeof AppStudentReviewExamIdRoute
   '/app/student/take/$examId': typeof AppStudentTakeExamIdRoute
@@ -662,6 +679,7 @@ export interface FileRoutesById {
   '/app/student/workshop/$workshopId': typeof AppStudentWorkshopWorkshopIdRoute
   '/app/teacher/exams/$examId': typeof AppTeacherExamsExamIdRoute
   '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
+  '/app/teacher/kahoot/$gameId': typeof AppTeacherKahootGameIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
   '/app/teacher/whiteboards/$id': typeof AppTeacherWhiteboardsIdRoute
   '/app/student/tutor/': typeof AppStudentTutorIndexRoute
@@ -731,6 +749,7 @@ export interface FileRouteTypes {
     | '/app/teacher/students'
     | '/app/teacher/workshops'
     | '/app/forum/$courseId/$forumId'
+    | '/app/student/kahoot/$gameId'
     | '/app/student/project/$projectId'
     | '/app/student/review/$examId'
     | '/app/student/take/$examId'
@@ -738,6 +757,7 @@ export interface FileRouteTypes {
     | '/app/student/workshop/$workshopId'
     | '/app/teacher/exams/$examId'
     | '/app/teacher/grading/$courseId'
+    | '/app/teacher/kahoot/$gameId'
     | '/app/teacher/monitor/$examId'
     | '/app/teacher/whiteboards/$id'
     | '/app/student/tutor/'
@@ -803,6 +823,7 @@ export interface FileRouteTypes {
     | '/app/teacher/students'
     | '/app/teacher/workshops'
     | '/app/forum/$courseId/$forumId'
+    | '/app/student/kahoot/$gameId'
     | '/app/student/project/$projectId'
     | '/app/student/review/$examId'
     | '/app/student/take/$examId'
@@ -810,6 +831,7 @@ export interface FileRouteTypes {
     | '/app/student/workshop/$workshopId'
     | '/app/teacher/exams/$examId'
     | '/app/teacher/grading/$courseId'
+    | '/app/teacher/kahoot/$gameId'
     | '/app/teacher/monitor/$examId'
     | '/app/teacher/whiteboards/$id'
     | '/app/student/tutor'
@@ -877,6 +899,7 @@ export interface FileRouteTypes {
     | '/app/teacher/students'
     | '/app/teacher/workshops'
     | '/app/forum/$courseId/$forumId'
+    | '/app/student/kahoot/$gameId'
     | '/app/student/project/$projectId'
     | '/app/student/review/$examId'
     | '/app/student/take/$examId'
@@ -884,6 +907,7 @@ export interface FileRouteTypes {
     | '/app/student/workshop/$workshopId'
     | '/app/teacher/exams/$examId'
     | '/app/teacher/grading/$courseId'
+    | '/app/teacher/kahoot/$gameId'
     | '/app/teacher/monitor/$examId'
     | '/app/teacher/whiteboards/$id'
     | '/app/student/tutor/'
@@ -1342,6 +1366,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTeacherMonitorExamIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/teacher/kahoot/$gameId': {
+      id: '/app/teacher/kahoot/$gameId'
+      path: '/teacher/kahoot/$gameId'
+      fullPath: '/app/teacher/kahoot/$gameId'
+      preLoaderRoute: typeof AppTeacherKahootGameIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/teacher/grading/$courseId': {
       id: '/app/teacher/grading/$courseId'
       path: '/teacher/grading/$courseId'
@@ -1389,6 +1420,13 @@ declare module '@tanstack/react-router' {
       path: '/student/project/$projectId'
       fullPath: '/app/student/project/$projectId'
       preLoaderRoute: typeof AppStudentProjectProjectIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/student/kahoot/$gameId': {
+      id: '/app/student/kahoot/$gameId'
+      path: '/student/kahoot/$gameId'
+      fullPath: '/app/student/kahoot/$gameId'
+      preLoaderRoute: typeof AppStudentKahootGameIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/forum/$courseId/$forumId': {
@@ -1483,6 +1521,7 @@ interface AppRouteChildren {
   AppTeacherStatisticsRoute: typeof AppTeacherStatisticsRoute
   AppTeacherStudentsRoute: typeof AppTeacherStudentsRoute
   AppTeacherWorkshopsRoute: typeof AppTeacherWorkshopsRoute
+  AppStudentKahootGameIdRoute: typeof AppStudentKahootGameIdRoute
   AppStudentProjectProjectIdRoute: typeof AppStudentProjectProjectIdRoute
   AppStudentReviewExamIdRoute: typeof AppStudentReviewExamIdRoute
   AppStudentTakeExamIdRoute: typeof AppStudentTakeExamIdRoute
@@ -1490,6 +1529,7 @@ interface AppRouteChildren {
   AppStudentWorkshopWorkshopIdRoute: typeof AppStudentWorkshopWorkshopIdRoute
   AppTeacherExamsExamIdRoute: typeof AppTeacherExamsExamIdRoute
   AppTeacherGradingCourseIdRoute: typeof AppTeacherGradingCourseIdRoute
+  AppTeacherKahootGameIdRoute: typeof AppTeacherKahootGameIdRoute
   AppTeacherMonitorExamIdRoute: typeof AppTeacherMonitorExamIdRoute
   AppTeacherWhiteboardsIdRoute: typeof AppTeacherWhiteboardsIdRoute
   AppStudentTutorIndexRoute: typeof AppStudentTutorIndexRoute
@@ -1547,6 +1587,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppTeacherStatisticsRoute: AppTeacherStatisticsRoute,
   AppTeacherStudentsRoute: AppTeacherStudentsRoute,
   AppTeacherWorkshopsRoute: AppTeacherWorkshopsRoute,
+  AppStudentKahootGameIdRoute: AppStudentKahootGameIdRoute,
   AppStudentProjectProjectIdRoute: AppStudentProjectProjectIdRoute,
   AppStudentReviewExamIdRoute: AppStudentReviewExamIdRoute,
   AppStudentTakeExamIdRoute: AppStudentTakeExamIdRoute,
@@ -1554,6 +1595,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppStudentWorkshopWorkshopIdRoute: AppStudentWorkshopWorkshopIdRoute,
   AppTeacherExamsExamIdRoute: AppTeacherExamsExamIdRoute,
   AppTeacherGradingCourseIdRoute: AppTeacherGradingCourseIdRoute,
+  AppTeacherKahootGameIdRoute: AppTeacherKahootGameIdRoute,
   AppTeacherMonitorExamIdRoute: AppTeacherMonitorExamIdRoute,
   AppTeacherWhiteboardsIdRoute: AppTeacherWhiteboardsIdRoute,
   AppStudentTutorIndexRoute: AppStudentTutorIndexRoute,

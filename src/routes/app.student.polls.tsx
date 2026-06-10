@@ -30,6 +30,7 @@ import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SearchInput } from "@/components/ui/search-input";
+import { KahootJoinCard } from "@/modules/polls/KahootJoinCard";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
@@ -359,6 +360,10 @@ function StudentPolls() {
           </Button>
         }
       />
+
+      {/* Kahoot en vivo: se auto-muestra solo si hay un juego activo en
+          alguno de los cursos del alumno. */}
+      <KahootJoinCard nonce={retryNonce} />
 
       {loading ? (
         <div className="p-4 sm:p-8 flex items-center justify-center text-sm text-muted-foreground">

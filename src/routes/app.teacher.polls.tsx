@@ -18,7 +18,7 @@
  * para "¿qué fecha eligió cada alumno?"); el alumno solo ve la suya y,
  * si la encuesta lo permite, los conteos agregados de cada opción.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -83,8 +83,11 @@ import {
   X,
   Copy,
   Link2,
+  Gamepad2,
+  Play,
 } from "lucide-react";
 import { usePollRealtime } from "@/modules/polls/use-poll-realtime";
+import { KahootQuestionsEditor } from "@/modules/polls/KahootQuestionsEditor";
 import { optionFillPercent } from "@/modules/polls/poll-results";
 import { cn } from "@/shared/lib/utils";
 import { softDelete } from "@/modules/trash/soft-delete";
@@ -96,7 +99,7 @@ export const Route = createFileRoute("/app/teacher/polls")({ component: TeacherP
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-type PollType = "single" | "multiple" | "slot";
+type PollType = "single" | "multiple" | "slot" | "kahoot";
 type ResultsVis = "always" | "after_close" | "never";
 
 interface Poll {
@@ -148,12 +151,14 @@ const POLL_TYPE_LABELS: Record<PollType, string> = {
   single: "Opción única",
   multiple: "Múltiple",
   slot: "Cupo por opción",
+  kahoot: "Kahoot (quiz en vivo)",
 };
 
 const POLL_TYPE_ICONS: Record<PollType, typeof ListChecks> = {
   single: ListChecks,
   multiple: CheckSquare,
   slot: CalendarRange,
+  kahoot: Gamepad2,
 };
 
 const VIS_LABELS: Record<ResultsVis, string> = {
@@ -205,6 +210,25 @@ function TeacherPolls() {
   const [viewPoll, setViewPoll] = useState<Poll | null>(null);
   // Encuesta a duplicar — abre el DuplicatePollDialog parametrizable.
   const [duplicateFor, setDuplicateFor] = useState<Poll | null>(null);
+  // Kahoot: encuesta cuyas preguntas se están editando (abre el editor).
+  const [questionsFor, setQuestionsFor] = useState<Poll | null>(null);
+  const [hosting, setHosting] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  // Crea un juego en vivo para el Kahoot y navega a la vista host.
+  const hostKahoot = async (p: Poll) => {
+    setHosting(p.id);
+    try {
+      const { data, error } = await db.rpc("kahoot_create_game", { _poll_id: p.id });
+      if (error || !data?.id) {
+        toast.error(friendlyError(error, i18n.t("kahoot.hostError", { defaultValue: "No se pudo iniciar el juego" })));
+        return;
+      }
+      navigate({ to: "/app/teacher/kahoot/$gameId", params: { gameId: data.id } });
+    } finally {
+      setHosting(null);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -748,28 +772,53 @@ function TeacherPolls() {
                         </TableCell>
                         <TableCell className="text-right">
                           <RowActionsMenu
-                            actions={[
-                              { label: "Ver resultados", icon: Eye, onClick: () => setViewPoll(p) },
-                              {
-                                label: "Compartir enlace",
-                                icon: Link2,
-                                onClick: () => void sharePoll(p),
-                              },
-                              { label: "Editar", icon: Pencil, onClick: () => setEditPoll(p) },
-                              { label: "Duplicar", icon: Copy, onClick: () => setDuplicateFor(p) },
-                              {
-                                label: p.closed_manually ? "Reabrir" : "Cerrar",
-                                icon: p.closed_manually ? Unlock : Lock,
-                                onClick: () => void toggleClose(p),
-                              },
-                              {
-                                label: "Eliminar",
-                                icon: Trash2,
-                                tone: "destructive",
-                                separatorBefore: true,
-                                onClick: () => void removePoll(p),
-                              },
-                            ]}
+                            actions={
+                              p.poll_type === "kahoot"
+                                ? [
+                                    {
+                                      label: i18n.t("kahoot.menuQuestions", { defaultValue: "Preguntas" }),
+                                      icon: ListChecks,
+                                      onClick: () => setQuestionsFor(p),
+                                    },
+                                    {
+                                      label: i18n.t("kahoot.menuHost", { defaultValue: "Hospedar en vivo" }),
+                                      icon: Play,
+                                      iconColor: "#26890c",
+                                      disabled: hosting === p.id,
+                                      onClick: () => void hostKahoot(p),
+                                    },
+                                    { label: "Editar", icon: Pencil, onClick: () => setEditPoll(p) },
+                                    {
+                                      label: "Eliminar",
+                                      icon: Trash2,
+                                      tone: "destructive",
+                                      separatorBefore: true,
+                                      onClick: () => void removePoll(p),
+                                    },
+                                  ]
+                                : [
+                                    { label: "Ver resultados", icon: Eye, onClick: () => setViewPoll(p) },
+                                    {
+                                      label: "Compartir enlace",
+                                      icon: Link2,
+                                      onClick: () => void sharePoll(p),
+                                    },
+                                    { label: "Editar", icon: Pencil, onClick: () => setEditPoll(p) },
+                                    { label: "Duplicar", icon: Copy, onClick: () => setDuplicateFor(p) },
+                                    {
+                                      label: p.closed_manually ? "Reabrir" : "Cerrar",
+                                      icon: p.closed_manually ? Unlock : Lock,
+                                      onClick: () => void toggleClose(p),
+                                    },
+                                    {
+                                      label: "Eliminar",
+                                      icon: Trash2,
+                                      tone: "destructive",
+                                      separatorBefore: true,
+                                      onClick: () => void removePoll(p),
+                                    },
+                                  ]
+                            }
                           />
                         </TableCell>
                       </TableRow>
@@ -836,6 +885,10 @@ function TeacherPolls() {
               copyCourses: flags.copyCourses !== false,
             });
         }}
+      />
+      <KahootQuestionsEditor
+        poll={questionsFor ? { id: questionsFor.id, title: questionsFor.title } : null}
+        onOpenChange={(open) => !open && setQuestionsFor(null)}
       />
     </div>
   );
@@ -1292,8 +1345,10 @@ function CreatePollDialog({
     let effectiveOptions = options;
     // Validamos/generamos opciones salvo que estén bloqueadas por votos ya
     // emitidos (optionsLocked). En edit SIN votos el docente puede editar
-    // las opciones/slots libremente.
-    if (!optionsLocked) {
+    // las opciones/slots libremente. El tipo 'kahoot' NO usa poll_options
+    // (sus preguntas viven en kahoot_questions, editadas aparte) → se salta
+    // toda la validación/manejo de opciones.
+    if (!optionsLocked && type !== "kahoot") {
       if (
         type === "slot" &&
         !options.some((o) => o.label.trim()) &&
@@ -1481,19 +1536,23 @@ function CreatePollDialog({
         toast.error(friendlyError(jErr, "No se pudieron asociar los cursos"));
         return;
       }
-      const optionsPayload = validOptions.map((o, idx) => ({
-        poll_id: pollRow.id,
-        label: o.label.trim(),
-        position: idx,
-        max_responses: type === "slot" ? Number(o.max_responses) : null,
-      }));
-      const { error: optsErr } = await db.from("poll_options").insert(optionsPayload);
-      if (optsErr) {
-        // Rollback manual: la cascada de poll_courses se dispara por FK
-        // ON DELETE CASCADE al borrar el poll.
-        await db.from("polls").delete().eq("id", pollRow.id);
-        toast.error(friendlyError(optsErr, "No se pudieron crear las opciones"));
-        return;
+      // Kahoot no usa poll_options (sus preguntas van en kahoot_questions,
+      // que el docente agrega con el editor "Preguntas" tras crear).
+      if (type !== "kahoot") {
+        const optionsPayload = validOptions.map((o, idx) => ({
+          poll_id: pollRow.id,
+          label: o.label.trim(),
+          position: idx,
+          max_responses: type === "slot" ? Number(o.max_responses) : null,
+        }));
+        const { error: optsErr } = await db.from("poll_options").insert(optionsPayload);
+        if (optsErr) {
+          // Rollback manual: la cascada de poll_courses se dispara por FK
+          // ON DELETE CASCADE al borrar el poll.
+          await db.from("polls").delete().eq("id", pollRow.id);
+          toast.error(friendlyError(optsErr, "No se pudieron crear las opciones"));
+          return;
+        }
       }
       toast.success(
         courseIds.length === 1
@@ -1687,6 +1746,14 @@ function CreatePollDialog({
                     </span>
                   </div>
                 </SelectItem>
+                <SelectItem value="kahoot">
+                  <div className="flex flex-col gap-0.5">
+                    <span>Kahoot (quiz en vivo)</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      Quiz gamificado en vivo: preguntas con temporizador, puntos por velocidad y podio
+                    </span>
+                  </div>
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1836,6 +1903,17 @@ function CreatePollDialog({
             </Select>
           </div>
 
+          {type === "kahoot" && (
+            <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm space-y-1">
+              <p className="font-medium flex items-center gap-1.5">
+                <Gamepad2 className="h-4 w-4 text-primary" />
+                {t("kahoot.createInfoTitle")}
+              </p>
+              <p className="text-muted-foreground text-xs">{t("kahoot.createInfoBody")}</p>
+            </div>
+          )}
+
+          {type !== "kahoot" && (
           <div>
             <Label required>
               Opciones{" "}
@@ -2176,6 +2254,7 @@ function CreatePollDialog({
               )}
             </div>
           </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
@@ -2344,7 +2423,9 @@ function ResultsDialog({
               // LLENADO DEL CUPO de la opción; en single/multiple, la cuota
               // sobre el total. Lógica pura testeada en poll-results.test.ts.
               const { pct, full: slotFull, showPct } = optionFillPercent({
-                pollType: poll.poll_type,
+                // ResultsDialog no se abre para 'kahoot' (sin acción "Ver
+                // resultados"); narrow al tipo que entiende optionFillPercent.
+                pollType: poll.poll_type === "slot" ? "slot" : "single",
                 responsesCount: o.responses_count,
                 maxResponses: o.max_responses,
                 totalResponses: total,

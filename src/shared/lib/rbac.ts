@@ -54,6 +54,7 @@ export const ROUTE_RULES: RouteRule[] = [
   { prefix: "/app/teacher/grading", roles: ["Docente", "SuperAdmin"] },
   { prefix: "/app/teacher/attendance", roles: ["Docente", "SuperAdmin"] },
   { prefix: "/app/teacher/calendar", roles: ["Docente", "SuperAdmin"] },
+  { prefix: "/app/teacher/kahoot", roles: ["Docente", "SuperAdmin"] },
   { prefix: "/app/teacher", roles: ["Docente"] },
   { prefix: "/app/student", roles: ["Estudiante"] },
   // Rutas comunes que NO deben ser accesibles por Estudiante (el alumno
