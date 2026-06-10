@@ -39,6 +39,8 @@ import {
 } from "@/modules/code/CodeFileRunnerDialog";
 import { NotebookRunnerDialog } from "@/modules/code/NotebookRunnerDialog";
 import { isNotebookFile } from "@/modules/code/notebook";
+import { MediaViewerDialog } from "@/modules/contents/MediaViewerDialog";
+import { isViewableMedia, isImageFile } from "@/modules/contents/media-files";
 import { formatDateOnly, formatWeekdayName } from "@/shared/lib/format";
 import { Spinner } from "@/components/ui/spinner";
 import { SectionLoader } from "@/components/ui/loaders";
@@ -377,6 +379,9 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
   const [runCodeFile, setRunCodeFile] = useState<ContentFileEntry | null>(null);
   // Notebook (.ipynb) seleccionado para ver celdas + ejecutar.
   const [notebookFile, setNotebookFile] = useState<ContentFileEntry | null>(null);
+  // Media (imagen / PDF) seleccionada para VER inline. El alumno solo ve
+  // (canEdit=false); editar es exclusivo del docente dueño del contenido.
+  const [mediaFile, setMediaFile] = useState<ContentFileEntry | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -674,6 +679,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
               onPreview={setPreviewFile}
               onRunCode={setRunCodeFile}
               onOpenNotebook={setNotebookFile}
+              onViewMedia={setMediaFile}
               downloadingPath={downloadingPath}
             />
           )}
@@ -689,6 +695,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
               onPreview={setPreviewFile}
               onRunCode={setRunCodeFile}
               onOpenNotebook={setNotebookFile}
+              onViewMedia={setMediaFile}
               downloadingPath={downloadingPath}
             />
           )}
@@ -710,6 +717,14 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       <NotebookRunnerDialog
         file={notebookFile}
         onOpenChange={(o) => !o && setNotebookFile(null)}
+      />
+
+      {/* Visor inline de imágenes / PDF subidos en Contenidos y asignados a
+          la sesión. El alumno SOLO ve (canEdit por defecto false). */}
+      <MediaViewerDialog
+        file={mediaFile}
+        contentId={null}
+        onClose={() => setMediaFile(null)}
       />
 
       {/* Preview inline de archivos .md/.txt — usa el body que viaja en
@@ -775,6 +790,7 @@ function SessionGroup({
   onPreview,
   onRunCode,
   onOpenNotebook,
+  onViewMedia,
   downloadingPath,
 }: {
   title: string;
@@ -787,6 +803,7 @@ function SessionGroup({
   onPreview: (file: ContentFileEntry) => void;
   onRunCode: (file: ContentFileEntry) => void;
   onOpenNotebook: (file: ContentFileEntry) => void;
+  onViewMedia: (file: ContentFileEntry) => void;
   downloadingPath: string | null;
 }) {
   const { t } = useTranslation();
@@ -874,6 +891,9 @@ function SessionGroup({
                       const canRunCode = !!codeLanguageForFile(f.name) && !!f.body;
                       // Notebook .ipynb con su JSON inline → ver celdas + ejecutar.
                       const canOpenNotebook = isNotebookFile(f.name) && !!f.body;
+                      // Imagen / PDF → se ven inline en el visor (antes solo
+                      // se descargaban). Detección por extensión del nombre.
+                      const canViewMedia = isViewableMedia(f.name);
                       const TypeIcon = iconForFile(f);
                       const label = humanLabelForFile(f);
                       if (canOpenNotebook) {
@@ -956,6 +976,35 @@ function SessionGroup({
                               className="flex items-center justify-center w-8 h-8 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
                               title={`${label} — ${t("contents.downloadHint")}`}
                               aria-label={`${label} — ${t("contents.downloadHint")}`}
+                            >
+                              {busy ? <Spinner size="xs" /> : <Download className="h-3.5 w-3.5" />}
+                            </button>
+                          </div>
+                        );
+                      }
+                      if (canViewMedia) {
+                        return (
+                          <div
+                            key={f.path}
+                            className="inline-flex rounded-md border overflow-hidden"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => onViewMedia(f)}
+                              className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
+                              title={`${f.name} — ${isImageFile(f.name) ? "Ver imagen" : "Ver PDF"}`}
+                              aria-label={`${f.name} — ${isImageFile(f.name) ? "Ver imagen" : "Ver PDF"}`}
+                            >
+                              <TypeIcon className="h-3.5 w-3.5 text-violet-500" />
+                              <span className="truncate max-w-[120px]">{f.name}</span>
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => onDownload(f, content?.topic ?? s.title ?? "Material")}
+                              className="flex items-center justify-center w-8 h-8 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
+                              title={`${f.name} — ${t("contents.downloadHint")}`}
+                              aria-label={`${f.name} — ${t("contents.downloadHint")}`}
                             >
                               {busy ? <Spinner size="xs" /> : <Download className="h-3.5 w-3.5" />}
                             </button>

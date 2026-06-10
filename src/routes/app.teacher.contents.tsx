@@ -83,6 +83,14 @@ import { EditExternalContentDialog } from "@/modules/contents/EditExternalConten
 import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDialog";
 import { MarkdownEditorDialog } from "@/modules/contents/MarkdownEditorDialog";
 import { PptxViewerDialog } from "@/modules/contents/PptxViewerDialog";
+import { MediaViewerDialog } from "@/modules/contents/MediaViewerDialog";
+import { ImageEditorDialog } from "@/modules/contents/ImageEditorDialog";
+import {
+  isImageFile,
+  isPdfFile,
+  isEditableImageFile,
+  isViewableMedia,
+} from "@/modules/contents/media-files";
 import { RegenerateContentDialog } from "@/modules/contents/RegenerateContentDialog";
 import { ContentPromptsOverridesDialog } from "@/modules/contents/ContentPromptsOverridesDialog";
 import { GenerateSessionsDialog } from "@/modules/contents/GenerateSessionsDialog";
@@ -3230,6 +3238,10 @@ function FilesByClassDialog({
   // Archivo .pptx-source seleccionado para visualizar/editar slide-by-slide.
   // Separado del preview .md porque usa otro componente (PptxViewerDialog).
   const [pptxPreviewFile, setPptxPreviewFile] = useState<FileEntry | null>(null);
+  // Archivo de media (imagen / PDF) seleccionado para VER inline en el visor.
+  const [mediaFile, setMediaFile] = useState<FileEntry | null>(null);
+  // Imagen raster seleccionada para EDITAR (canvas: anotar/rotar/voltear).
+  const [imageEditFile, setImageEditFile] = useState<FileEntry | null>(null);
   // Modo inicial al abrir cualquiera de los dos viewers — "edit" cuando
   // el docente pulsa el lápiz directamente desde la chip; "view" cuando
   // pulsa el icono de tipo (entra a vista previa con botón Editar).
@@ -3291,6 +3303,10 @@ function FilesByClassDialog({
     const isMdLike = f.kind === "md" || f.kind === "txt";
     const isPptx = f.kind === "pptx-source";
     const canPreview = (isMdLike || isPptx) && !!f.body;
+    // Media (imagen / PDF): ahora se VEN inline en el visor (antes solo
+    // descarga). Las imágenes raster además se EDITAN (anotar/rotar).
+    const isMedia = isViewableMedia(f.name);
+    const isEditableImg = isEditableImageFile(f.name);
     const TypeIcon = iconForFile(f);
     const label = humanLabelForFile(f);
     const effectiveBody = bodyOverrides[f.path] ?? f.body;
@@ -3302,10 +3318,16 @@ function FilesByClassDialog({
       else setPreviewFile(fileWithBody);
     };
 
-    // Click directo en el icono del tipo: vista previa si es previewable;
-    // descarga directa si no. Es la acción más usada.
-    const primaryAction = canPreview ? () => openViewer("view") : () => onDownload(fileWithBody);
-    const primaryHint = canPreview ? t("contents.previewHint") : t("contents.downloadHint");
+    // Acción primaria del icono: preview md/pptx, o ver media inline, o
+    // descargar si nada de lo anterior aplica.
+    const primaryAction = canPreview
+      ? () => openViewer("view")
+      : isMedia
+        ? () => setMediaFile(f)
+        : () => onDownload(fileWithBody);
+    const primaryHint = canPreview || isMedia ? t("contents.previewHint") : t("contents.downloadHint");
+    // Mostramos los botones extra (editar/descargar) también para media.
+    const showExtra = canPreview || isMedia;
 
     return (
       <div key={f.path} className="inline-flex rounded-md border overflow-hidden">
@@ -3319,10 +3341,10 @@ function FilesByClassDialog({
         >
           {busy ? <Spinner size="xs" /> : <TypeIcon className="h-3 w-3" />}
         </button>
-        {canPreview && (
+        {(canPreview || isEditableImg) && (
           <button
             type="button"
-            onClick={() => openViewer("edit")}
+            onClick={() => (isEditableImg ? setImageEditFile(f) : openViewer("edit"))}
             className="flex items-center justify-center w-6 h-6 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
             title={`${label} — ${t("contents.editOnline")}`}
             aria-label={`${label} — ${t("contents.editOnline")}`}
@@ -3330,7 +3352,7 @@ function FilesByClassDialog({
             <Pencil className="h-3 w-3" />
           </button>
         )}
-        {canPreview && (
+        {showExtra && (
           <button
             type="button"
             disabled={busy}
@@ -3366,6 +3388,8 @@ function FilesByClassDialog({
     const isMdLike = f.kind === "md" || f.kind === "txt";
     const isPptx = f.kind === "pptx-source";
     const canPreview = (isMdLike || isPptx) && !!f.body;
+    const isMedia = isViewableMedia(f.name);
+    const isEditableImg = isEditableImageFile(f.name);
     const TypeIcon = iconForFile(f);
     const label = humanLabelForFile(f);
     const effectiveBody = bodyOverrides[f.path] ?? f.body;
@@ -3377,8 +3401,13 @@ function FilesByClassDialog({
       else setPreviewFile(fileWithBody);
     };
 
-    const primaryAction = canPreview ? () => openViewer("view") : () => onDownload(fileWithBody);
-    const primaryHint = canPreview ? t("contents.previewHint") : t("contents.downloadHint");
+    const primaryAction = canPreview
+      ? () => openViewer("view")
+      : isMedia
+        ? () => setMediaFile(f)
+        : () => onDownload(fileWithBody);
+    const primaryHint = canPreview || isMedia ? t("contents.previewHint") : t("contents.downloadHint");
+    const showExtra = canPreview || isMedia;
 
     return (
       <div
@@ -3395,10 +3424,10 @@ function FilesByClassDialog({
           {busy ? <Spinner size="xs" /> : <TypeIcon className="h-3.5 w-3.5 shrink-0" />}
           <span className="truncate">{label}</span>
         </button>
-        {canPreview && (
+        {(canPreview || isEditableImg) && (
           <button
             type="button"
-            onClick={() => openViewer("edit")}
+            onClick={() => (isEditableImg ? setImageEditFile(f) : openViewer("edit"))}
             className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
             title={t("contents.editOnline")}
             aria-label={t("contents.editOnline")}
@@ -3406,7 +3435,7 @@ function FilesByClassDialog({
             <Pencil className="h-3 w-3" />
           </button>
         )}
-        {canPreview && (
+        {showExtra && (
           <button
             type="button"
             disabled={busy}
@@ -3703,6 +3732,30 @@ function FilesByClassDialog({
           if (pptxPreviewFile)
             setBodyOverrides((prev) => ({ ...prev, [pptxPreviewFile.path]: newBody }));
         }}
+      />
+
+      {/* Visor inline de media (imagen / PDF). El docente puede además
+          reemplazar el archivo con una nueva versión (upsert) o saltar al
+          editor de imagen desde acá. */}
+      <MediaViewerDialog
+        file={mediaFile}
+        contentId={content.id}
+        canEdit
+        onClose={() => setMediaFile(null)}
+        onEditImage={(f) => {
+          setMediaFile(null);
+          setImageEditFile(f as FileEntry);
+        }}
+      />
+
+      {/* Editor de imagen sobre canvas: anotar/rotar/voltear → guardar nueva
+          versión (upsert al mismo path). El editor se cierra solo al guardar;
+          la metadata de files[] no cambia (mismo path), así que no hace falta
+          recargar el gestor — el próximo preview baja los bytes frescos. */}
+      <ImageEditorDialog
+        file={imageEditFile}
+        contentId={content.id}
+        onClose={() => setImageEditFile(null)}
       />
     </>
   );
