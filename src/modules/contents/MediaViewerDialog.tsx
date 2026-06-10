@@ -28,6 +28,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Download, Pencil, Upload, ZoomIn, ZoomOut, FileText, ImageIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
   isImageFile,
@@ -69,6 +70,7 @@ export function MediaViewerDialog({
   onEditImage,
   onReplaced,
 }: Props) {
+  const { t } = useTranslation();
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,7 +101,7 @@ export function MediaViewerDialog({
       const { data, error: dlErr } = await supabase.storage.from(BUCKET).download(file.path);
       if (cancelled) return;
       if (dlErr || !data) {
-        setError(friendlyError(dlErr, "No se pudo cargar el archivo."));
+        setError(friendlyError(dlErr, t("mediaViewer.loadError")));
         setLoading(false);
         return;
       }
@@ -121,7 +123,7 @@ export function MediaViewerDialog({
     if (!file) return;
     const { data, error: dlErr } = await supabase.storage.from(BUCKET).download(file.path);
     if (dlErr || !data) {
-      toast.error(friendlyError(dlErr, "No se pudo descargar."));
+      toast.error(friendlyError(dlErr, t("mediaViewer.downloadError")));
       return;
     }
     const obj = URL.createObjectURL(data);
@@ -144,11 +146,7 @@ export function MediaViewerDialog({
     // dejar bytes que no matchean el nombre/extensión del archivo lógico.
     const sameClass = isPdf ? isPdfFile(picked.name) : isImg ? isImageFile(picked.name) : false;
     if (!sameClass) {
-      toast.error(
-        isPdf
-          ? "El reemplazo debe ser un PDF."
-          : "El reemplazo debe ser una imagen del mismo tipo.",
-      );
+      toast.error(isPdf ? t("mediaViewer.replaceMustPdf") : t("mediaViewer.replaceMustImage"));
       return;
     }
     setReplacing(true);
@@ -174,7 +172,7 @@ export function MediaViewerDialog({
         .eq("id", contentId);
       if (updErr) throw new Error(updErr.message);
 
-      toast.success("Nueva versión guardada.");
+      toast.success(t("mediaViewer.replaced"));
       // Recargar el preview con los bytes nuevos.
       const { data: fresh } = await supabase.storage.from(BUCKET).download(file.path);
       if (fresh) {
@@ -200,7 +198,7 @@ export function MediaViewerDialog({
             ) : (
               <ImageIcon className="h-4 w-4 text-violet-500" />
             )}
-            {isPdf ? "Documento PDF" : "Imagen"}
+            {isPdf ? t("mediaViewer.titlePdf") : t("mediaViewer.titleImage")}
           </DialogTitle>
           <DialogDescription className="text-[11px] font-mono truncate">
             {file?.name}
@@ -213,7 +211,7 @@ export function MediaViewerDialog({
           ) : error ? (
             <p className="text-sm text-destructive p-4 text-center">{error}</p>
           ) : !url ? (
-            <p className="text-xs text-muted-foreground p-4">Sin vista previa.</p>
+            <p className="text-xs text-muted-foreground p-4">{t("mediaViewer.noPreview")}</p>
           ) : isPdf ? (
             <iframe src={url} title={file?.name ?? "PDF"} className="w-full h-[70vh] border-0" />
           ) : (
@@ -234,8 +232,8 @@ export function MediaViewerDialog({
                 variant="outline"
                 className="h-8 w-8"
                 onClick={() => setZoom((z) => Math.max(0.25, +(z - 0.25).toFixed(2)))}
-                aria-label="Alejar"
-                title="Alejar"
+                aria-label={t("mediaViewer.zoomOut")}
+                title={t("mediaViewer.zoomOut")}
               >
                 <ZoomOut className="h-4 w-4" />
               </Button>
@@ -247,8 +245,8 @@ export function MediaViewerDialog({
                 variant="outline"
                 className="h-8 w-8"
                 onClick={() => setZoom((z) => Math.min(5, +(z + 0.25).toFixed(2)))}
-                aria-label="Acercar"
-                title="Acercar"
+                aria-label={t("mediaViewer.zoomIn")}
+                title={t("mediaViewer.zoomIn")}
               >
                 <ZoomIn className="h-4 w-4" />
               </Button>
@@ -263,7 +261,7 @@ export function MediaViewerDialog({
               disabled={replacing}
             >
               <Pencil className="h-3.5 w-3.5 mr-1" />
-              Editar imagen
+              {t("mediaViewer.editImage")}
             </Button>
           )}
 
@@ -282,14 +280,14 @@ export function MediaViewerDialog({
                 ) : (
                   <Upload className="h-3.5 w-3.5 mr-1" />
                 )}
-                Reemplazar (nueva versión)
+                {t("mediaViewer.replace")}
               </Button>
             </>
           )}
 
           <Button size="sm" onClick={handleDownload} disabled={replacing}>
             <Download className="h-3.5 w-3.5 mr-1" />
-            Descargar
+            {t("mediaViewer.download")}
           </Button>
         </DialogFooter>
       </DialogContent>

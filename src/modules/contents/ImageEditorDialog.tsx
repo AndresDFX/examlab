@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { canvasExportMimeForName, mediaMimeForName } from "@/modules/contents/media-files";
 import { cn } from "@/shared/lib/utils";
@@ -69,6 +70,7 @@ interface Props {
 }
 
 export function ImageEditorDialog({ file, contentId, onClose, onSaved }: Props) {
+  const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const undoRef = useRef<Snapshot[]>([]);
   const drawingRef = useRef(false);
@@ -111,7 +113,7 @@ export function ImageEditorDialog({ file, contentId, onClose, onSaved }: Props) 
     setDirty(false);
     const { data, error: dlErr } = await supabase.storage.from(BUCKET).download(file.path);
     if (dlErr || !data) {
-      setError(friendlyError(dlErr, "No se pudo cargar la imagen."));
+      setError(friendlyError(dlErr, t("imageEditor.loadError")));
       setLoading(false);
       return;
     }
@@ -124,11 +126,11 @@ export function ImageEditorDialog({ file, contentId, onClose, onSaved }: Props) 
     };
     img.onerror = () => {
       URL.revokeObjectURL(objUrl);
-      setError("La imagen no se pudo decodificar.");
+      setError(t("imageEditor.decodeError"));
       setLoading(false);
     };
     img.src = objUrl;
-  }, [file, drawImageToCanvas]);
+  }, [file, drawImageToCanvas, t]);
 
   useEffect(() => {
     if (file) void loadOriginal();
@@ -251,7 +253,7 @@ export function ImageEditorDialog({ file, contentId, onClose, onSaved }: Props) 
       const blob: Blob | null = await new Promise((resolve) =>
         canvas.toBlob((b) => resolve(b), mime, mime === "image/jpeg" ? 0.92 : undefined),
       );
-      if (!blob) throw new Error("No se pudo exportar la imagen.");
+      if (!blob) throw new Error(t("imageEditor.exportError"));
 
       // 1) Storage: upsert en el MISMO path → nueva versión.
       const { error: upErr } = await supabase.storage
@@ -273,7 +275,7 @@ export function ImageEditorDialog({ file, contentId, onClose, onSaved }: Props) 
         .eq("id", contentId);
       if (updErr) throw new Error(updErr.message);
 
-      toast.success("Nueva versión de la imagen guardada.");
+      toast.success(t("imageEditor.saved"));
       setDirty(false);
       onSaved?.();
       onClose();
@@ -290,7 +292,7 @@ export function ImageEditorDialog({ file, contentId, onClose, onSaved }: Props) 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
             <Pencil className="h-4 w-4 text-violet-500" />
-            Editar imagen
+            {t("imageEditor.title")}
           </DialogTitle>
           <DialogDescription className="text-[11px] font-mono truncate">
             {file?.name}
@@ -310,13 +312,13 @@ export function ImageEditorDialog({ file, contentId, onClose, onSaved }: Props) 
                   color === c ? "border-foreground scale-110" : "border-transparent",
                 )}
                 style={{ backgroundColor: c }}
-                aria-label={`Color ${c}`}
-                title={`Color ${c}`}
+                aria-label={t("imageEditor.colorAria", { color: c })}
+                title={t("imageEditor.colorAria", { color: c })}
               />
             ))}
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px] text-muted-foreground">Grosor</span>
+            <span className="text-[11px] text-muted-foreground">{t("imageEditor.thickness")}</span>
             <input
               type="range"
               min={1}
@@ -324,27 +326,27 @@ export function ImageEditorDialog({ file, contentId, onClose, onSaved }: Props) 
               value={penSize}
               onChange={(e) => setPenSize(Number(e.target.value))}
               className="w-24 accent-violet-500"
-              aria-label="Grosor del lápiz"
+              aria-label={t("imageEditor.penThickness")}
             />
             <span className="text-[11px] tabular-nums w-6">{penSize}</span>
           </div>
           <div className="flex items-center gap-1 ml-auto">
-            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => transform("rot-left")} title="Rotar a la izquierda" aria-label="Rotar a la izquierda">
+            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => transform("rot-left")} title={t("imageEditor.rotateLeft")} aria-label={t("imageEditor.rotateLeft")}>
               <RotateCcw className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => transform("rot-right")} title="Rotar a la derecha" aria-label="Rotar a la derecha">
+            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => transform("rot-right")} title={t("imageEditor.rotateRight")} aria-label={t("imageEditor.rotateRight")}>
               <RotateCw className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => transform("flip-h")} title="Voltear horizontal" aria-label="Voltear horizontal">
+            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => transform("flip-h")} title={t("imageEditor.flipH")} aria-label={t("imageEditor.flipH")}>
               <FlipHorizontal className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => transform("flip-v")} title="Voltear vertical" aria-label="Voltear vertical">
+            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => transform("flip-v")} title={t("imageEditor.flipV")} aria-label={t("imageEditor.flipV")}>
               <FlipVertical className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="outline" className="h-8 w-8" onClick={undo} disabled={!canUndo} title="Deshacer" aria-label="Deshacer">
+            <Button size="icon" variant="outline" className="h-8 w-8" onClick={undo} disabled={!canUndo} title={t("imageEditor.undo")} aria-label={t("imageEditor.undo")}>
               <Undo2 className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => void loadOriginal()} disabled={loading} title="Restablecer al original" aria-label="Restablecer al original">
+            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => void loadOriginal()} disabled={loading} title={t("imageEditor.reset")} aria-label={t("imageEditor.reset")}>
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
@@ -370,11 +372,11 @@ export function ImageEditorDialog({ file, contentId, onClose, onSaved }: Props) 
 
         <DialogFooter className="flex flex-wrap gap-2">
           <Button variant="ghost" size="sm" onClick={onClose} disabled={saving} className="mr-auto">
-            Cancelar
+            {t("common.cancel")}
           </Button>
           <Button size="sm" onClick={handleSave} disabled={saving || loading || !dirty}>
             {saving ? <Spinner size="sm" className="mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
-            Guardar nueva versión
+            {t("imageEditor.saveVersion")}
           </Button>
         </DialogFooter>
       </DialogContent>

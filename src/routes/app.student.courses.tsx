@@ -992,8 +992,8 @@ function SessionGroup({
                               type="button"
                               onClick={() => onViewMedia(f)}
                               className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
-                              title={`${f.name} — ${isImageFile(f.name) ? "Ver imagen" : "Ver PDF"}`}
-                              aria-label={`${f.name} — ${isImageFile(f.name) ? "Ver imagen" : "Ver PDF"}`}
+                              title={`${f.name} — ${isImageFile(f.name) ? t("mediaViewer.viewImage") : t("mediaViewer.viewPdf")}`}
+                              aria-label={`${f.name} — ${isImageFile(f.name) ? t("mediaViewer.viewImage") : t("mediaViewer.viewPdf")}`}
                             >
                               <TypeIcon className="h-3.5 w-3.5 text-violet-500" />
                               <span className="truncate max-w-[120px]">{f.name}</span>
