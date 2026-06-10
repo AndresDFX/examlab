@@ -197,6 +197,13 @@ function StudentPolls() {
           )
           .in("id", pollIds)
           .is("deleted_at", null)
+          // Excluir los Kahoot (poll_type='kahoot', mig 20260921000000): son
+          // quizzes en vivo que el alumno juega vía <KahootJoinCard> + la ruta
+          // del juego, NO encuestas votables como card. Sin este filtro un
+          // poll Kahoot se renderizaba como <PollCard> y TYPE_ICONS['kahoot']
+          // quedaba undefined → React #130 ("Element type is invalid") que
+          // tumbaba TODA la pantalla de encuestas del estudiante.
+          .neq("poll_type", "kahoot")
           .order("created_at", { ascending: false }),
         db.from("poll_responses").select("poll_id, option_id").eq("user_id", user.id),
       ]);
@@ -473,7 +480,10 @@ function PollCard({
     }
   }, [highlight]);
   const open = pollIsOpen(poll);
-  const Icon = TYPE_ICONS[poll.poll_type];
+  // Fallback defensivo: si llegara un poll_type fuera del set conocido
+  // (ej. un tipo nuevo agregado al enum antes de mapear su ícono acá), NO
+  // dejamos que `<Icon/>` reciba undefined y tumbe la página con React #130.
+  const Icon = TYPE_ICONS[poll.poll_type] ?? ListChecks;
   const showResults = showResultsToStudent(poll);
   const totalVotes = showResults ? poll.options.reduce((acc, o) => acc + o.responses_count, 0) : 0;
   // Suscripción realtime: solo activa cuando la encuesta está abierta
