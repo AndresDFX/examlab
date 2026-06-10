@@ -1171,6 +1171,15 @@ function TeacherContents() {
                 {pagination.paginatedItems.map((it) => (
                   <TableRow key={it.id}>
                     <TableCell className="max-w-xs">
+                      {/* Altura de fila UNIFORME: el contenido del Tema
+                          (nombre + dropdown de estado + subtítulo + badges
+                          derivados) varía en número de líneas según el
+                          contenido, lo que hacía filas de distinto alto. Lo
+                          encerramos en un contenedor de alto FIJO (h-16) con
+                          overflow-hidden + centrado vertical para que TODAS
+                          las filas midan igual sin importar cuánta info tenga
+                          cada fila. */}
+                      <div className="flex flex-col justify-center gap-0.5 h-16 overflow-hidden min-w-0">
                       {/* display_name como identificador humano principal.
                           topic queda como subtítulo en gris para conservar
                           el contexto del prompt cuando dos contenidos tienen
@@ -1227,7 +1236,7 @@ function TeacherContents() {
                         const total = d.sessions + d.exams + d.workshops + d.projects;
                         if (total === 0) return null;
                         return (
-                          <div className="flex flex-wrap gap-1 mt-1">
+                          <div className="flex gap-1 overflow-hidden">
                             {d.sessions > 0 && (
                               <Badge
                                 variant="outline"
@@ -1271,6 +1280,7 @@ function TeacherContents() {
                           </div>
                         );
                       })()}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-[11px]">
