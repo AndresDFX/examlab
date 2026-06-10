@@ -245,6 +245,26 @@ function AdminStatistics() {
     };
   }, [isAdmin, retryNonce, isSuperAdminCaller, tenantFilter]);
 
+  // Cascada Programa → Asignatura: las opciones de asignatura se derivan
+  // del programa elegido (subject.program_id === programFilter). Con
+  // "Todos los programas" se muestran todas (incluidas las sin programa);
+  // al elegir un programa concreto, SOLO las de ese programa (las de
+  // program_id NULL quedan fuera — no pertenecen al programa elegido).
+  const visibleSubjects = useMemo(() => {
+    if (programFilter === "all") return subjects;
+    return subjects.filter((s) => s.program_id === programFilter);
+  }, [subjects, programFilter]);
+
+  // Reset del hijo cuando cambia el padre: si la asignatura seleccionada
+  // ya no pertenece al programa elegido, volvemos a "Todas" para no quedar
+  // con una selección inválida/invisible (el AND la dejaría sin resultados).
+  useEffect(() => {
+    if (subjectFilter === "all") return;
+    if (!visibleSubjects.some((s) => s.id === subjectFilter)) {
+      setSubjectFilter("all");
+    }
+  }, [visibleSubjects, subjectFilter]);
+
   // Drill-down: carga el dataset completo del curso seleccionado.
   // Guard `cancelled` + .catch evitan que cambios rápidos de curso
   // sobreescriban el dataset o dejen el PageLoader colgado.
@@ -473,9 +493,9 @@ function AdminStatistics() {
                 </Select>
               </div>
               {/* Asignatura: acota a un curso o set de cursos atado a una
-                  asignatura específica del plan. La lista se filtra por
-                  programa cuando hay uno elegido (subjects sin programa
-                  fijo siempre aparecen — fallback). */}
+                  asignatura específica del plan. La lista se deriva del
+                  programa elegido (cascada Programa → Asignatura) en
+                  `visibleSubjects`; con "Todos" se muestran todas. */}
               {subjects.length > 0 && (
                 <div className="flex-1 space-y-1">
                   <label className="text-xs text-muted-foreground">Asignatura</label>
@@ -485,19 +505,12 @@ function AdminStatistics() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todas las asignaturas</SelectItem>
-                      {subjects
-                        .filter(
-                          (s) =>
-                            programFilter === "all" ||
-                            !s.program_id ||
-                            s.program_id === programFilter,
-                        )
-                        .map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name}
-                            {s.code ? ` (${s.code})` : ""}
-                          </SelectItem>
-                        ))}
+                      {visibleSubjects.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                          {s.code ? ` (${s.code})` : ""}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

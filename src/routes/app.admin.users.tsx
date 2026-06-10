@@ -202,7 +202,13 @@ function AdminUsers() {
   // SuperAdmin: filtrados al tenant elegido en el form (editing.tenant_id),
   // o todos cross-tenant si todavía no eligió.
   const [enrollCourses, setEnrollCourses] = useState<
-    Array<{ id: string; name: string; period: string | null; tenant_id: string | null }>
+    Array<{
+      id: string;
+      name: string;
+      period: string | null;
+      tenant_id: string | null;
+      program_id: string | null;
+    }>
   >([]);
   // Curso seleccionado en el dialog para inscribir al estudiante recién
   // creado. NULL = sin inscripción automática (el admin lo matricula
@@ -649,7 +655,7 @@ function AdminUsers() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let q = (supabase as any)
         .from("courses")
-        .select("id, name, period, tenant_id")
+        .select("id, name, period, tenant_id, program_id")
         .order("created_at", { ascending: false });
       // Para SuperAdmin: si eligió tenant en el form, acotamos. Para
       // Admin: RLS ya filtra a su tenant.
@@ -666,6 +672,7 @@ function AdminUsers() {
           name: string;
           period: string | null;
           tenant_id: string | null;
+          program_id: string | null;
         }>,
       );
     })();
@@ -677,6 +684,31 @@ function AdminUsers() {
     // que el admin tipea en el form.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialogOpen, editing?.id, editing?.roles, editing?.tenant_id, isSuperAdminCaller]);
+
+  // Cascada Programa → Curso de inscripción (FK courses.program_id →
+  // academic_programs). Cuando el admin elige un Programa en la identidad
+  // estudiantil, el Select de "inscribir a curso" solo debe ofrecer cursos
+  // de ESE programa. Sin programa elegido ("__none__"), mostramos todos
+  // (incluyendo los sin programa). No filtramos por asignatura porque acá
+  // no hay Select de asignatura — solo programa.
+  const programaSeleccionado = editing?.programa_id ?? null;
+  const filteredEnrollCourses = useMemo(
+    () =>
+      programaSeleccionado
+        ? enrollCourses.filter((c) => c.program_id === programaSeleccionado)
+        : enrollCourses,
+    [enrollCourses, programaSeleccionado],
+  );
+
+  // Reset del hijo: si el curso elegido deja de pertenecer al programa
+  // seleccionado (el admin cambió el programa después de elegir curso),
+  // limpiamos la selección para no quedar con un curso invisible/ inválido.
+  useEffect(() => {
+    if (!enrollCourseId) return;
+    if (!filteredEnrollCourses.some((c) => c.id === enrollCourseId)) {
+      setEnrollCourseId(null);
+    }
+  }, [filteredEnrollCourses, enrollCourseId]);
 
   /** Validación proactiva de unicidad — antes de mandar el form al
    *  backend. Llama al RPC `check_email_taken` (case-insensitive,
@@ -1840,7 +1872,7 @@ function AdminUsers() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="__none__">{t("adminUsers.fieldEnrollCourseNone")}</SelectItem>
-                            {enrollCourses.map((c) => (
+                            {filteredEnrollCourses.map((c) => (
                               <SelectItem key={c.id} value={c.id}>
                                 {c.name}
                                 {c.period ? ` · ${c.period}` : ""}
@@ -1851,7 +1883,7 @@ function AdminUsers() {
                         <p className="text-[11px] text-muted-foreground mt-1">
                           {isSuperAdminCaller && !editing.tenant_id
                             ? t("adminUsers.enrollHintChooseTenant")
-                            : enrollCourses.length === 0
+                            : filteredEnrollCourses.length === 0
                               ? t("adminUsers.enrollHintNoCourses")
                               : t("adminUsers.enrollHintAfterSave")}
                         </p>
