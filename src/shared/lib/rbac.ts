@@ -45,7 +45,11 @@ export const ROUTE_RULES: RouteRule[] = [
   // de cada tabla filtra qué ve el SA cross-tenant; acá solo abrimos el
   // path. `/teacher/monitor` y `/teacher/grading` son subrutas de exams
   // y gradebook respectivamente — acompañan al padre.
-  { prefix: "/app/teacher/question-bank", roles: ["Docente", "SuperAdmin"] },
+  // Banco de preguntas: Docente + Admin + SuperAdmin (homologado con
+  // /app/teacher/contents). La página tiene branch `isAdminLike` y la RLS de
+  // question_bank admite Admin; sin Admin acá el guard lo mandaba a
+  // /app/unauthorized pese a estar el código preparado para él.
+  { prefix: "/app/teacher/question-bank", roles: ["Docente", "Admin", "SuperAdmin"] },
   { prefix: "/app/teacher/exams", roles: ["Docente", "SuperAdmin"] },
   { prefix: "/app/teacher/monitor", roles: ["Docente", "SuperAdmin"] },
   { prefix: "/app/teacher/workshops", roles: ["Docente", "SuperAdmin"] },

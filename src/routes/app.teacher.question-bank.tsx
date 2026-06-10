@@ -187,13 +187,21 @@ function QuestionBankPage() {
 
   const isAdmin = roles.includes("Admin");
   const isDocente = roles.includes("Docente");
+  const isSuperAdmin = roles.includes("SuperAdmin");
+  // Admin y SuperAdmin ven TODOS los cursos visibles (la RLS de `courses`
+  // ya los acota: Admin a su tenant, SuperAdmin cross-tenant / al tenant del
+  // override). El Docente solo los suyos vía course_teachers. Antes esto
+  // gateaba solo por `isAdmin` → un SuperAdmin PURO (sin rol Admin) caía al
+  // branch de course_teachers y veía 0 cursos, dejando el banco inservible
+  // pese a estar en su nav.
+  const isAdminLike = isAdmin || isSuperAdmin;
 
   // Cargar cursos del docente
   useEffect(() => {
     if (!user) return;
     (async () => {
       let query;
-      if (isAdmin) {
+      if (isAdminLike) {
         query = db.from("courses").select("id, name").order("name");
       } else {
         query = db
@@ -527,7 +535,7 @@ function QuestionBankPage() {
     }
   };
 
-  if (!isAdmin && !isDocente) {
+  if (!isAdmin && !isDocente && !isSuperAdmin) {
     return <p className="text-muted-foreground p-6">Solo docentes y admins.</p>;
   }
 

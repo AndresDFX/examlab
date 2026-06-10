@@ -163,12 +163,14 @@ const NAV: NavItem[] = [
     to: "/app/teacher/question-bank",
     labelKey: "nav.questionBank",
     icon: Library,
-    // SuperAdmin agregado para que pueda inspeccionar bancos de preguntas
-    // cross-tenant (las RLS de question_bank ya recortan apropiadamente
-    // — el SA ve todos, pero el banco es del docente original). Sin
-    // SuperAdmin acá, el toggle SuperAdmin del panel "Módulos" no podía
+    // Docente + Admin + SuperAdmin (homologado con Contenidos, el módulo
+    // pedagógico hermano). La página YA está codificada para Admin (branch
+    // `isAdminLike` que trae todos los cursos del tenant) y la RLS de
+    // `question_bank` lo permite (`has_role('Admin')`); faltaba exponerlo en
+    // el nav y abrir el path en rbac. SuperAdmin: inspección cross-tenant
+    // (RLS recorta). Sin estos roles, el toggle del panel "Módulos" no podía
     // efectuar nada porque el nav filter descartaba el ítem antes.
-    roles: ["Docente", "SuperAdmin"],
+    roles: ["Docente", "Admin", "SuperAdmin"],
   },
   // Exámenes
   {
