@@ -42,9 +42,11 @@ import {
   TableBody,
   TableCell,
   TableHead,
+  SortableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useTableSort } from "@/hooks/use-table-sort";
 import {
   Dialog,
   DialogContent,
@@ -385,6 +387,19 @@ function TeacherPolls() {
     );
   }, [polls, courseFilter]);
 
+  // Orden por columna (asc/desc al clic en el encabezado), persistido.
+  const sort = useTableSort(filteredPolls, {
+    columns: {
+      title: (p) => p.title,
+      course: (p) => p.course_name ?? p.linked_courses?.[0]?.name ?? "",
+      type: (p) => POLL_TYPE_LABELS[p.poll_type] ?? p.poll_type,
+      window: (p) => p.opens_at,
+      responses: (p) => p.total_responses ?? 0,
+      status: (p) => (pollIsOpen(p) ? "abierta" : "cerrada"),
+    },
+    storageKey: "examlab_sort:teacher_polls",
+  });
+
   // Stats compactas — mismo patrón que proyectos / talleres / exámenes.
   // Estados conceptuales de una encuesta:
   //   - Borradores: is_published=false (solo el docente la ve)
@@ -677,20 +692,32 @@ function TeacherPolls() {
       ) : (
         <Card>
           <CardContent className="p-0 overflow-x-auto">
-            <Table>
+            <Table fixed resizable>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-36 sm:min-w-48">Encuesta</TableHead>
-                  <TableHead className="hidden md:table-cell w-40">Curso</TableHead>
-                  <TableHead className="w-32">Tipo</TableHead>
-                  <TableHead className="hidden lg:table-cell w-36">Ventana</TableHead>
-                  <TableHead className="w-24 text-right">Respuestas</TableHead>
-                  <TableHead className="w-28">Estado</TableHead>
+                  <SortableHead sortKey="title" sort={sort} className="min-w-36 sm:min-w-48">
+                    Encuesta
+                  </SortableHead>
+                  <SortableHead sortKey="course" sort={sort} className="hidden md:table-cell w-40">
+                    Curso
+                  </SortableHead>
+                  <SortableHead sortKey="type" sort={sort} className="w-32">
+                    Tipo
+                  </SortableHead>
+                  <SortableHead sortKey="window" sort={sort} className="hidden lg:table-cell w-36">
+                    Ventana
+                  </SortableHead>
+                  <SortableHead sortKey="responses" sort={sort} className="w-24 text-right">
+                    Respuestas
+                  </SortableHead>
+                  <SortableHead sortKey="status" sort={sort} className="w-28">
+                    Estado
+                  </SortableHead>
                   <TableHead className="w-32 text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredPolls.length === 0 ? (
+                {sort.sorted.length === 0 ? (
                   <TableEmpty
                     colSpan={7}
                     icon={ListChecks}
@@ -702,7 +729,7 @@ function TeacherPolls() {
                     }
                   />
                 ) : (
-                  filteredPolls.map((p) => {
+                  sort.sorted.map((p) => {
                     const open = pollIsOpen(p);
                     const Icon = POLL_TYPE_ICONS[p.poll_type];
                     return (
