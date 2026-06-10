@@ -48,7 +48,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { CalendarRange, Plus, Pencil, Trash2, Lock, Unlock } from "lucide-react";
+import { CalendarRange, Plus, Pencil, Trash2, Lock, Unlock, Copy } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { logEvent } from "@/shared/lib/audit";
@@ -140,6 +140,23 @@ export function AdminAcademicPeriodsPanel() {
       start_date: r.start_date ?? "",
       end_date: r.end_date ?? "",
       status: r.status,
+    });
+    setOpen(true);
+  };
+
+  /** Duplicar: pre-llena el form de creación con el periodo origen. Útil para
+   *  armar el siguiente periodo a partir del actual (mismas fechas relativas /
+   *  estructura) y ajustar antes de guardar. El `code` (único) se sufija con
+   *  " (copia)" para no chocar; el estado vuelve a "planificado" (un periodo
+   *  nuevo no nace activo ni cerrado). */
+  const duplicate = (r: AcademicPeriod) => {
+    setDraft({
+      id: null,
+      code: `${r.code} (copia)`,
+      name: r.name ?? "",
+      start_date: r.start_date ?? "",
+      end_date: r.end_date ?? "",
+      status: "planificado",
     });
     setOpen(true);
   };
@@ -346,6 +363,7 @@ export function AdminAcademicPeriodsPanel() {
                           <RowActionsMenu
                             actions={[
                               { label: t("academic.periods.actionEdit"), icon: Pencil, onClick: () => openEdit(r) },
+                              { label: t("common.duplicate"), icon: Copy, onClick: () => duplicate(r) },
                               {
                                 label: r.status === "cerrado" ? t("academic.periods.actionReopen") : t("academic.periods.actionClose"),
                                 icon: r.status === "cerrado" ? Unlock : Lock,

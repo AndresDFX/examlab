@@ -46,7 +46,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { BookOpen, Plus, Pencil, Trash2, BookOpenCheck, FilePlus2 } from "lucide-react";
+import { BookOpen, Plus, Pencil, Trash2, BookOpenCheck, FilePlus2, Copy } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { logEvent } from "@/shared/lib/audit";
@@ -217,6 +217,36 @@ export function AdminAcademicSubjectsPanel() {
     setDraft({
       id: r.id,
       name: r.name,
+      code: r.code ?? "",
+      program_id: r.program_id,
+      semestre: r.semestre,
+      credits: r.credits,
+      description: r.description ?? "",
+      active: r.active,
+      objetivos: r.objetivos ?? "",
+      contenidos: r.contenidos ?? "",
+      bibliografia: r.bibliografia ?? "",
+      intensidad_horaria: r.intensidad_horaria,
+      exam_weight: Number(ev.exam_weight ?? 0),
+      workshop_weight: Number(ev.workshop_weight ?? 0),
+      project_weight: Number(ev.project_weight ?? 0),
+      attendance_weight: Number(ev.attendance_weight ?? 0),
+    });
+    setOpen(true);
+  };
+
+  /** Duplicar: pre-llena el form de creación con TODO el sílabo de la
+   *  asignatura origen (objetivos, contenidos, bibliografía, intensidad y
+   *  pesos de evaluación). Es el caso de mayor valor: reusar un programa
+   *  analítico completo para una variante (ej. la misma materia en otra
+   *  carrera/jornada) ajustando solo lo que cambie. id=null + nombre sufijado
+   *  para no chocar con un índice único; NO se copian los cursos instanciados
+   *  (course_count) — esos se crean aparte desde /app/admin/courses. */
+  const duplicate = (r: Subject) => {
+    const ev = r.sistema_evaluacion ?? {};
+    setDraft({
+      id: null,
+      name: `${r.name} (copia)`,
       code: r.code ?? "",
       program_id: r.program_id,
       semestre: r.semestre,
@@ -438,6 +468,7 @@ export function AdminAcademicSubjectsPanel() {
                         <RowActionsMenu
                           actions={[
                             { label: t("academic.subjects.actionEdit"), icon: Pencil, onClick: () => openEdit(r) },
+                            { label: t("common.duplicate"), icon: Copy, onClick: () => duplicate(r) },
                             {
                               label: t("academic.subjects.actionCreateCourse"),
                               icon: FilePlus2,

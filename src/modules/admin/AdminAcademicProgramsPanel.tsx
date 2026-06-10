@@ -37,7 +37,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { GraduationCap, Plus, Pencil, Trash2 } from "lucide-react";
+import { GraduationCap, Plus, Pencil, Trash2, Copy } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { logEvent } from "@/shared/lib/audit";
@@ -115,6 +115,23 @@ export function AdminAcademicProgramsPanel() {
     setDraft({
       id: r.id,
       name: r.name,
+      code: r.code ?? "",
+      faculty: r.faculty ?? "",
+      active: r.active,
+    });
+    setOpen(true);
+  };
+
+  /** Duplicar: pre-llena el form de creación (id=null) con los datos de la
+   *  carrera origen. Una carrera es atómica (nombre/código/facultad), así que
+   *  "qué copiar" es el propio formulario — el admin ajusta el nombre (se le
+   *  sufija " (copia)" para no chocar con un índice único) antes de guardar.
+   *  No se insertan asignaturas: pertenecen a la carrera por FK y duplicarlas
+   *  en bloque es un caso aparte. */
+  const duplicate = (r: AcademicProgram) => {
+    setDraft({
+      id: null,
+      name: `${r.name} (copia)`,
       code: r.code ?? "",
       faculty: r.faculty ?? "",
       active: r.active,
@@ -290,6 +307,7 @@ export function AdminAcademicProgramsPanel() {
                         <RowActionsMenu
                           actions={[
                             { label: t("academic.programs.actionEdit"), icon: Pencil, onClick: () => openEdit(r) },
+                            { label: t("common.duplicate"), icon: Copy, onClick: () => duplicate(r) },
                             {
                               label: t("academic.programs.actionDelete"),
                               icon: Trash2,

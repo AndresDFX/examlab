@@ -233,6 +233,36 @@ function SuperAdminTenantsPage() {
     setDialogOpen(true);
   };
 
+  /** Duplicar institución: abre el form de CREACIÓN (editing=null) pre-llenado
+   *  con el BRANDING (colores) y las CUOTAS del tenant origen, como plantilla
+   *  para montar una institución nueva con el mismo look & feel y los mismos
+   *  topes. Los campos de IDENTIDAD única quedan en blanco —slug, nombre, logo
+   *  y dominio de correo— para que el SuperAdmin los complete (el slug/nombre
+   *  son únicos; el logo vive en el folder del tenant origen y no se reusa).
+   *  No se crea nada hasta guardar: la institución nueva pasa por el flujo
+   *  normal con su trigger de provisión de defaults. */
+  const duplicate = (t: Tenant) => {
+    setEditing(null);
+    clearPendingLogo();
+    setForm({
+      slug: "",
+      name: "",
+      logo_url: "",
+      logo_path: "",
+      primary_color: t.primary_color ?? "",
+      secondary_color: t.secondary_color ?? "",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      text_color: ((t as any).text_color as string | null) ?? "",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      icon_color: ((t as any).icon_color as string | null) ?? "",
+      email_domain: "",
+      max_admins: t.max_admins == null ? "" : String(t.max_admins),
+      max_teachers: t.max_teachers == null ? "" : String(t.max_teachers),
+      max_students: t.max_students == null ? "" : String(t.max_students),
+    });
+    setDialogOpen(true);
+  };
+
   /**
    * SuperAdmin sube el logo de CUALQUIER institución. La RLS del bucket
    * permite a SuperAdmin escribir en `<tenant_id>/...` independiente del
@@ -805,6 +835,17 @@ function SuperAdminTenantsPage() {
                             icon: Pencil,
                             onClick: () => openEdit(t),
                             separatorBefore: true,
+                          },
+                          {
+                            label: tl("superadminTenants.actionDuplicate", {
+                              defaultValue: "Duplicar institución",
+                            }),
+                            icon: Copy,
+                            onClick: () => duplicate(t),
+                            hint: tl("superadminTenants.actionDuplicateHint", {
+                              defaultValue:
+                                "Crea una institución nueva con el mismo branding y cuotas (defines slug, nombre y logo).",
+                            }),
                           },
                           {
                             label: t.is_active ? tl("superadminTenants.actionPause") : tl("superadminTenants.actionReactivate"),

@@ -3944,6 +3944,8 @@
     "actionViewAs": "Ver como esta institución",
     "actionViewAsHint": "Solo cambia branding visual, mantiene tu sesión",
     "actionEdit": "Editar",
+    "actionDuplicate": "Duplicar institución",
+    "actionDuplicateHint": "Crea una institución nueva con el mismo branding y cuotas (defines slug, nombre y logo).",
     "actionPause": "Pausar",
     "actionReactivate": "Reactivar",
     "actionDelete": "Eliminar institución",

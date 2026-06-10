@@ -149,6 +149,18 @@ interface PollOption {
   responses_count: number;
 }
 
+/** Forma mínima de una pregunta Kahoot del poll origen al duplicar
+ *  (kahoot_questions + sus kahoot_question_options embebidas). */
+interface KahootSrcQuestion {
+  id: string;
+  text: string;
+  time_limit_seconds: number;
+  points: number;
+  multi_select: boolean;
+  position: number;
+  options?: Array<{ label: string; is_correct: boolean; position: number }>;
+}
+
 const POLL_TYPE_LABELS: Record<PollType, string> = {
   single: "Opción única",
   multiple: "Múltiple",
@@ -479,7 +491,10 @@ function TeacherPolls() {
    *  borrador (is_published=false); no hereda la ventana de cierre ni el
    *  vínculo a la sesión original. Parametrizable vía `opts` desde el
    *  DuplicatePollDialog (qué info interna copiar). */
-  const duplicatePoll = async (p: Poll, opts: { copyOptions: boolean; copyCourses: boolean }) => {
+  const duplicatePoll = async (
+    p: Poll,
+    opts: { copyOptions: boolean; copyCourses: boolean; copyKahootQuestions: boolean },
+  ) => {
     if (!user) return;
     try {
       const { data: newPoll, error: pErr } = await db
@@ -540,6 +555,59 @@ function TeacherPolls() {
             await db.from("polls").delete().eq("id", newPoll.id);
             toast.error(friendlyError(oErr, "No se pudieron copiar las opciones"));
             return;
+          }
+        }
+      }
+      // Kahoot: las preguntas NO viven en poll_options sino en kahoot_questions
+      // (+ kahoot_question_options). Sin copiarlas, una copia de Kahoot nacía
+      // VACÍA (bug). Clonamos pregunta por pregunta preservando posición,
+      // tiempo, puntos, multi_select y las opciones con su is_correct. Si algo
+      // falla a mitad, borramos el poll nuevo (cascade limpia las preguntas ya
+      // insertadas) para no dejar una copia a medias.
+      if (p.poll_type === "kahoot" && opts.copyKahootQuestions) {
+        const { data: srcQs, error: qLoadErr } = await db
+          .from("kahoot_questions")
+          .select(
+            "id, text, time_limit_seconds, points, multi_select, position, options:kahoot_question_options(label, is_correct, position)",
+          )
+          .eq("poll_id", p.id)
+          .order("position");
+        if (qLoadErr) {
+          await db.from("polls").delete().eq("id", newPoll.id);
+          toast.error(friendlyError(qLoadErr, "No se pudieron leer las preguntas del Kahoot"));
+          return;
+        }
+        for (const q of (srcQs ?? []) as KahootSrcQuestion[]) {
+          const { data: newQ, error: qInsErr } = await db
+            .from("kahoot_questions")
+            .insert({
+              poll_id: newPoll.id,
+              text: q.text,
+              time_limit_seconds: q.time_limit_seconds,
+              points: q.points,
+              multi_select: q.multi_select,
+              position: q.position,
+            })
+            .select("id")
+            .single();
+          if (qInsErr || !newQ) {
+            await db.from("polls").delete().eq("id", newPoll.id);
+            toast.error(friendlyError(qInsErr, "No se pudieron copiar las preguntas del Kahoot"));
+            return;
+          }
+          const optRows = (q.options ?? []).map((o) => ({
+            question_id: newQ.id,
+            label: o.label,
+            is_correct: o.is_correct,
+            position: o.position,
+          }));
+          if (optRows.length > 0) {
+            const { error: oInsErr } = await db.from("kahoot_question_options").insert(optRows);
+            if (oInsErr) {
+              await db.from("polls").delete().eq("id", newPoll.id);
+              toast.error(friendlyError(oInsErr, "No se pudieron copiar las opciones del Kahoot"));
+              return;
+            }
           }
         }
       }
@@ -887,29 +955,53 @@ function TeacherPolls() {
             cierre ni el vínculo a la sesión del original. Elige qué información interna copiar.
           </>
         }
-        options={[
-          {
-            param: "copyOptions",
-            label: `Copiar opciones y cupos${
-              (duplicateFor?.options?.length ?? 0) > 0 ? ` (${duplicateFor?.options?.length})` : ""
-            }`,
-            hint: "Clona las opciones con su cupo. Si lo desmarcas, la copia queda sin opciones (las defines antes de publicar).",
-          },
-          {
-            param: "copyCourses",
-            label: `Copiar cursos asociados${
-              (duplicateFor?.linked_courses?.length ?? 0) > 1
-                ? ` (${duplicateFor?.linked_courses?.length})`
-                : ""
-            }`,
-            hint: "Mantiene los mismos cursos. Si lo desmarcas, la copia queda solo en el curso ancla del original.",
-          },
-        ]}
+        options={
+          duplicateFor?.poll_type === "kahoot"
+            ? [
+                {
+                  // Kahoot guarda sus preguntas en kahoot_questions, no en
+                  // poll_options — por eso el toggle es "preguntas", no "opciones".
+                  param: "copyKahootQuestions",
+                  label: "Copiar preguntas del Kahoot",
+                  hint: "Clona todas las preguntas con sus opciones y respuestas correctas. Si lo desmarcas, la copia nace sin preguntas (las defines antes de publicar).",
+                },
+                {
+                  param: "copyCourses",
+                  label: `Copiar cursos asociados${
+                    (duplicateFor?.linked_courses?.length ?? 0) > 1
+                      ? ` (${duplicateFor?.linked_courses?.length})`
+                      : ""
+                  }`,
+                  hint: "Mantiene los mismos cursos. Si lo desmarcas, la copia queda solo en el curso ancla del original.",
+                },
+              ]
+            : [
+                {
+                  param: "copyOptions",
+                  label: `Copiar opciones y cupos${
+                    (duplicateFor?.options?.length ?? 0) > 0
+                      ? ` (${duplicateFor?.options?.length})`
+                      : ""
+                  }`,
+                  hint: "Clona las opciones con su cupo. Si lo desmarcas, la copia queda sin opciones (las defines antes de publicar).",
+                },
+                {
+                  param: "copyCourses",
+                  label: `Copiar cursos asociados${
+                    (duplicateFor?.linked_courses?.length ?? 0) > 1
+                      ? ` (${duplicateFor?.linked_courses?.length})`
+                      : ""
+                  }`,
+                  hint: "Mantiene los mismos cursos. Si lo desmarcas, la copia queda solo en el curso ancla del original.",
+                },
+              ]
+        }
         onConfirm={async (flags) => {
           if (duplicateFor)
             await duplicatePoll(duplicateFor, {
               copyOptions: flags.copyOptions !== false,
               copyCourses: flags.copyCourses !== false,
+              copyKahootQuestions: flags.copyKahootQuestions !== false,
             });
         }}
       />

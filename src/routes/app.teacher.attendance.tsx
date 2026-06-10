@@ -73,6 +73,7 @@ import {
   PlayCircle,
   Zap,
   Palette,
+  Copy,
 } from "lucide-react";
 import { toCSV } from "@/shared/lib/csv";
 import { formatDateShort, formatSessionLabel } from "@/shared/lib/format";
@@ -93,6 +94,7 @@ import {
 import { GenerateSessionsDialog } from "@/modules/contents/GenerateSessionsDialog";
 import { LaunchPollDialog } from "@/modules/polls/LaunchPollDialog";
 import { SessionWhiteboardDialog } from "@/modules/whiteboard/SessionWhiteboardDialog";
+import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDialog";
 // Helpers PUROS de CSV de sesiones — extraídos para testear sin montar
 // el componente (ver src/modules/sessions/csv.test.ts). El template, el
 // builder de filas y el parser viven ahí; acá solo los componemos con
@@ -257,6 +259,9 @@ function TeacherAttendance() {
   // columna `whiteboard_scene JSONB` (mig 20260603060000). Reabrir
   // recupera el contenido. Solo el docente de la sesión la edita.
   const [whiteboardSession, setWhiteboardSession] = useState<Session | null>(null);
+  // Sesión seleccionada para DUPLICAR. Abre un dialog con opciones de qué
+  // info interna copiar (contenido asignado, pizarra, snippets de código).
+  const [duplicateSessionFor, setDuplicateSessionFor] = useState<Session | null>(null);
   /** Abre el dialog "Programar sesiones del curso". Se usa SIN contenido
    *  pre-asociado — el dialog calcula N sesiones a partir de fecha
    *  inicio + días de la semana, las crea con `course_id = courseId` y
@@ -464,6 +469,98 @@ function TeacherAttendance() {
     setNewRecordingVideoId("");
     setNewNotesUrl("");
     loadCourse();
+  };
+
+  /** Duplicar una sesión. Crea una sesión NUEVA en la misma fecha (el docente
+   *  reubica la fecha después con el engranaje) copiando metadata estructural
+   *  (título + "(copia)", corte, hora, duración, sala). El docente elige qué
+   *  información INTERNA se copia:
+   *   - copyContent: el material asignado (content_id + content_class_index).
+   *   - copyWhiteboard: el lienzo de la pizarra (whiteboard_scene) y si está
+   *     compartida con los estudiantes (whiteboard_shared).
+   *   - copySnippets: los snippets de código preparados (session_code_snippets),
+   *     SIN su caché de última ejecución (la copia nace sin correr).
+   *  NUNCA se copian: asistencia registrada, grabación/notas, ni el estado de
+   *  check-in — son propios de la sesión que ya ocurrió. */
+  const duplicateSession = async (
+    s: Session,
+    opts: { copyContent: boolean; copyWhiteboard: boolean; copySnippets: boolean },
+  ) => {
+    if (!user || !courseId) return;
+    try {
+      // El whiteboard_scene/shared NO está en el type Session (se cargan con
+      // select("*"), pero los leemos puntualmente para no depender del payload).
+      let whiteboardScene: unknown = null;
+      let whiteboardShared = false;
+      if (opts.copyWhiteboard) {
+        const { data: wb } = await (supabase as any)
+          .from("attendance_sessions")
+          .select("whiteboard_scene, whiteboard_shared")
+          .eq("id", s.id)
+          .maybeSingle();
+        whiteboardScene = wb?.whiteboard_scene ?? null;
+        whiteboardShared = wb?.whiteboard_shared ?? false;
+      }
+      const payload: Record<string, unknown> = {
+        course_id: courseId,
+        session_date: s.session_date,
+        title: `${s.title ?? "Clase"} (copia)`,
+        created_by: user.id,
+        cut_id: s.cut_id ?? null,
+        start_time: s.start_time ?? null,
+        duration_minutes: s.duration_minutes ?? null,
+        meeting_url: s.meeting_url ?? null,
+      };
+      if (opts.copyContent) {
+        payload.content_id = s.content_id ?? null;
+        payload.content_class_index = s.content_class_index ?? null;
+      }
+      if (opts.copyWhiteboard) {
+        payload.whiteboard_scene = whiteboardScene;
+        payload.whiteboard_shared = whiteboardShared;
+      }
+      const { data: created, error } = await (supabase as any)
+        .from("attendance_sessions")
+        .insert(payload)
+        .select("id")
+        .single();
+      if (error || !created) {
+        toast.error(friendlyError(error, "No se pudo duplicar la sesión"));
+        return;
+      }
+      // Snippets: clonamos title/language/source_code/position. NO copiamos
+      // last_stdout/last_stderr/last_exit_code/last_executed_at (caché de
+      // ejecución del original — la copia arranca sin correr).
+      if (opts.copySnippets) {
+        const { data: snips } = await (supabase as any)
+          .from("session_code_snippets")
+          .select("position, title, language, source_code")
+          .eq("session_id", s.id)
+          .order("position");
+        if (snips && snips.length > 0) {
+          const rows = (snips as Array<Record<string, unknown>>).map((sn) => ({
+            session_id: created.id,
+            position: sn.position,
+            title: sn.title,
+            language: sn.language,
+            source_code: sn.source_code,
+          }));
+          const { error: snErr } = await (supabase as any)
+            .from("session_code_snippets")
+            .insert(rows);
+          if (snErr) {
+            // No abortamos: la sesión ya se creó; avisamos que faltaron snippets.
+            toast.warning(
+              friendlyError(snErr, "La sesión se duplicó, pero no se copiaron los snippets."),
+            );
+          }
+        }
+      }
+      toast.success("Sesión duplicada. Ajusta la fecha desde el engranaje si corresponde.");
+      loadCourse();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    }
   };
 
   // Persiste recording_url / recording_video_id en sesiones existentes
@@ -1318,6 +1415,13 @@ function TeacherAttendance() {
                                 <Palette className="h-4 w-4 mr-2 text-violet-500" />
                                 Pizarra
                               </DropdownMenuItem>
+                              {/* Duplicar la sesión: crea una copia (misma fecha,
+                                  el docente la reubica) con opción de copiar el
+                                  contenido asignado, la pizarra y los snippets. */}
+                              <DropdownMenuItem onSelect={() => setDuplicateSessionFor(sess)}>
+                                <Copy className="h-4 w-4 mr-2 text-muted-foreground" />
+                                Duplicar sesión
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 onSelect={() => deleteSession(sess.id)}
@@ -1771,6 +1875,44 @@ function TeacherAttendance() {
             : undefined
         }
         onOpenChange={(open) => !open && setWhiteboardSession(null)}
+      />
+      {/* Duplicar sesión — elige qué info interna copiar. La copia nace en la
+          misma fecha (el docente la reubica) sin asistencia ni grabación. */}
+      <DuplicateOptionsDialog
+        open={duplicateSessionFor !== null}
+        onOpenChange={(open) => !open && setDuplicateSessionFor(null)}
+        title="Duplicar sesión"
+        description={
+          <>
+            Se crea una copia en la <strong>misma fecha</strong> (ajústala luego con el engranaje),
+            SIN asistencia registrada ni grabación. Elige qué información interna copiar.
+          </>
+        }
+        options={[
+          {
+            param: "copyContent",
+            label: "Copiar contenido asignado",
+            hint: "Mantiene el material de clase vinculado a la sesión.",
+          },
+          {
+            param: "copyWhiteboard",
+            label: "Copiar pizarra",
+            hint: "Clona el lienzo de la pizarra y si está compartida con los estudiantes.",
+          },
+          {
+            param: "copySnippets",
+            label: "Copiar snippets de código",
+            hint: "Clona los snippets preparados (sin la salida de su última ejecución).",
+          },
+        ]}
+        onConfirm={async (flags) => {
+          if (duplicateSessionFor)
+            await duplicateSession(duplicateSessionFor, {
+              copyContent: flags.copyContent !== false,
+              copyWhiteboard: flags.copyWhiteboard !== false,
+              copySnippets: flags.copySnippets !== false,
+            });
+        }}
       />
     </div>
   );
