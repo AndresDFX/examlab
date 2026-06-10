@@ -663,6 +663,10 @@ Idioma obligatorio: ${pfLangName}.`,
     // targetTable: "questions" (default) | "workshop_questions" | "project_files"
     const isWorkshop = targetTable === "workshop_questions";
     const isProject = targetTable === "project_files";
+    // Kahoot: el quiz vive en `polls` (poll_type='kahoot'); las preguntas en
+    // kahoot_questions + kahoot_question_options (2 tablas, distinto del flujo
+    // genérico de 1 tabla). `examId` se reutiliza como poll_id.
+    const isKahoot = targetTable === "kahoot_questions";
     const targetId = examId;
     // Solo aplica para proyectos: descripción global del proyecto que
     // sirve como contexto al modelo. El cliente la trae de
@@ -716,6 +720,14 @@ Idioma obligatorio: ${pfLangName}.`,
           .maybeSingle();
         const lng = (pRow as any)?.course?.language;
         if (lng === "en" || lng === "es") courseLanguage = lng;
+      } else if (isKahoot) {
+        const { data: pollRow } = await admin0
+          .from("polls")
+          .select("course:courses(language)")
+          .eq("id", targetId)
+          .maybeSingle();
+        const lng = (pollRow as any)?.course?.language;
+        if (lng === "en" || lng === "es") courseLanguage = lng;
       } else {
         const { data: examRow } = await admin0
           .from("exams")
@@ -728,7 +740,10 @@ Idioma obligatorio: ${pfLangName}.`,
     }
     const langName = courseLanguage === "en" ? "inglés (English)" : "español";
 
-    const systemPrompt = `Eres un asistente experto en evaluación académica. Generas preguntas de examen claras, sin ambigüedad. Para cada pregunta incluyes una rúbrica de evaluación (qué debe contener una respuesta correcta).
+    const systemPrompt = isKahoot
+      ? `Eres un diseñador de cuestionarios interactivos tipo Kahoot. Generas preguntas dinámicas, claras y sin ambigüedad para un quiz EN VIVO. Cada pregunta tiene entre 2 y 4 opciones CORTAS (deben caber en un botón). Una pregunta puede tener UNA sola respuesta correcta o VARIAS: pon multi_select=true SOLO cuando hay más de una opción correcta, e incluí en correct_indices TODOS los índices correctos (0-based). Cuando es de una sola respuesta, correct_indices tiene exactamente un índice y multi_select=false. Evita preguntas triviales o capciosas; varía la dificultad.
+REGLA DE IDIOMA: Responde siempre en ${langName}. Todos los enunciados y opciones en ${langName}.`
+      : `Eres un asistente experto en evaluación académica. Generas preguntas de examen claras, sin ambigüedad. Para cada pregunta incluyes una rúbrica de evaluación (qué debe contener una respuesta correcta).
 REGLA DE IDIOMA: Responde siempre en el idioma configurado para este curso: ${langName}. Todos los enunciados, opciones y rúbricas deben estar en ${langName}.`;
 
     // Para proyectos: prepende la descripción del proyecto al user
@@ -738,14 +753,48 @@ REGLA DE IDIOMA: Responde siempre en el idioma configurado para este curso: ${la
       ? `Contexto global del proyecto (úsalo para que las preguntas generadas tengan sentido dentro de este proyecto, no como temas aislados):\n${projectDescription}\n\n`
       : "";
 
-    const userPrompt = `${projectCtx}Genera ${count} preguntas de tipo "${type}" sobre los siguientes temas: ${topics}.
+    const userPrompt = isKahoot
+      ? `Genera ${count} preguntas para un quiz Kahoot sobre los siguientes temas: ${topics}. Cada pregunta: enunciado breve + entre 2 y 4 opciones cortas. Si una pregunta tiene naturalmente más de una respuesta correcta, márcala como múltiple (multi_select=true) e incluí TODOS los índices correctos; si no, una sola correcta (multi_select=false). Idioma de salida obligatorio: ${langName}.`
+      : `${projectCtx}Genera ${count} preguntas de tipo "${type}" sobre los siguientes temas: ${topics}.
 ${type === "cerrada" ? "Cada pregunta debe tener 4 opciones (A, B, C, D) con UNA correcta." : ""}
 ${type === "codigo" ? `Las preguntas deben pedir escribir código en el lenguaje ${codeLanguage}. Indica claramente en el enunciado que la solución debe implementarse en ${codeLanguage}.` : ""}
 ${type === "codigo_zip" ? `Cada pregunta describe un componente o módulo a implementar. El estudiante entregará UN ARCHIVO .ZIP con todo su código fuente del proyecto (varios archivos), y la IA evaluará ese ZIP contra esta rúbrica. Lenguaje principal sugerido: ${codeLanguage}. Indica en el enunciado el alcance esperado y los archivos/clases que deben formar parte del entregable.` : ""}
 La rúbrica debe describir los criterios para considerar correcta la respuesta.
 Idioma de salida obligatorio: ${langName}.`;
 
-    const tools = [
+    const kahootTool = {
+      type: "function",
+      function: {
+        name: "create_kahoot_questions",
+        description: "Devuelve preguntas de quiz Kahoot (opciones cortas, 1+ correctas)",
+        parameters: {
+          type: "object",
+          properties: {
+            questions: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  text: { type: "string" },
+                  options: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 4 },
+                  correct_indices: {
+                    type: "array",
+                    items: { type: "integer", minimum: 0, maximum: 3 },
+                    minItems: 1,
+                  },
+                  multi_select: { type: "boolean" },
+                },
+                required: ["text", "options", "correct_indices", "multi_select"],
+              },
+            },
+          },
+          required: ["questions"],
+        },
+      },
+    };
+    const tools = isKahoot
+      ? [kahootTool]
+      : [
       {
         type: "function",
         function: {
@@ -794,7 +843,10 @@ Idioma de salida obligatorio: ${langName}.`;
         { role: "user", content: userPrompt },
       ],
       tools,
-      tool_choice: { type: "function", function: { name: "create_questions" } },
+      tool_choice: {
+        type: "function",
+        function: { name: isKahoot ? "create_kahoot_questions" : "create_questions" },
+      },
     });
 
     if (aiRes.status === 429)
@@ -838,6 +890,66 @@ Idioma de salida obligatorio: ${langName}.`;
 
     // Reusamos el singleton — antes era otro `createClient` inline.
     const admin = adminClient;
+
+    // ── Kahoot: inserción a DOS tablas (kahoot_questions + _options) ──
+    // El modelo devuelve {text, options[], correct_indices[], multi_select}.
+    // single → forzamos exactamente 1 correcta; multiple → el set marcado.
+    if (isKahoot) {
+      const { data: existingK } = await admin
+        .from("kahoot_questions")
+        .select("position")
+        .eq("poll_id", targetId)
+        .order("position", { ascending: false })
+        .limit(1);
+      let kpos = (existingK?.[0]?.position ?? -1) as number;
+      const insertedK: { id: string }[] = [];
+      for (const q of questions as any[]) {
+        const opts: string[] = Array.isArray(q.options) ? q.options.slice(0, 4) : [];
+        if (!q.text || opts.length < 2) continue;
+        const correct: number[] = Array.isArray(q.correct_indices)
+          ? q.correct_indices.filter((n: unknown) => Number.isInteger(n))
+          : [];
+        const multi = !!q.multi_select && correct.length > 1;
+        // single → una sola correcta (la primera marcada, o la opción 0).
+        const correctSet = new Set<number>(multi ? correct : [correct[0] ?? 0]);
+        const { data: qRow, error: qErr } = await admin
+          .from("kahoot_questions")
+          .insert({
+            poll_id: targetId,
+            text: String(q.text).slice(0, 500),
+            time_limit_seconds: 20,
+            points: 1000,
+            multi_select: multi,
+            position: ++kpos,
+          })
+          .select("id")
+          .single();
+        if (qErr || !qRow) {
+          console.error("[ai-generate-questions] kahoot question insert", qErr);
+          continue;
+        }
+        const optRows = opts.map((label, idx) => ({
+          question_id: qRow.id,
+          label: String(label).slice(0, 200),
+          is_correct: correctSet.has(idx),
+          position: idx,
+        }));
+        // Defensa: garantizar ≥1 correcta si el modelo no marcó ninguna válida.
+        if (!optRows.some((o) => o.is_correct)) optRows[0].is_correct = true;
+        const { error: oErr } = await admin.from("kahoot_question_options").insert(optRows);
+        if (oErr) {
+          console.error("[ai-generate-questions] kahoot options insert", oErr);
+          // Limpiar la pregunta huérfana sin opciones.
+          await admin.from("kahoot_questions").delete().eq("id", qRow.id);
+          continue;
+        }
+        insertedK.push({ id: qRow.id });
+      }
+      return new Response(JSON.stringify({ ok: true, inserted: insertedK }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const tableName = isProject ? "project_files" : isWorkshop ? "workshop_questions" : "questions";
     const fkColumn = isProject ? "project_id" : isWorkshop ? "workshop_id" : "exam_id";
 

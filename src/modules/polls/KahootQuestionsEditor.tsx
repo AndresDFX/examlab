@@ -37,10 +37,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Check, Gamepad2 } from "lucide-react";
+import { Plus, Trash2, Check, Gamepad2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import { KAHOOT_SHAPES } from "@/modules/polls/kahoot";
 import { KahootShapeIcon } from "@/modules/polls/KahootShapeIcon";
 
@@ -93,6 +94,13 @@ export function KahootQuestionsEditor({
   const [saving, setSaving] = useState(false);
   const [questions, setQuestions] = useState<EditQuestion[]>([]);
   const [removedIds, setRemovedIds] = useState<string[]>([]);
+  const aiGate = useAiAuthorizationGate();
+  const [aiTopics, setAiTopics] = useState("");
+  const [aiCount, setAiCount] = useState(5);
+  const [aiLoading, setAiLoading] = useState(false);
+  // Bump para re-cargar las preguntas desde DB tras generar con IA (la IA
+  // inserta directo en DB, así que recargamos para verlas).
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
     if (!poll) return;
@@ -147,7 +155,7 @@ export function KahootQuestionsEditor({
     return () => {
       cancelled = true;
     };
-  }, [poll]);
+  }, [poll, reloadNonce]);
 
   const updateQuestion = (qi: number, patch: Partial<EditQuestion>) =>
     setQuestions((qs) => qs.map((q, i) => (i === qi ? { ...q, ...patch } : q)));
@@ -235,6 +243,83 @@ export function KahootQuestionsEditor({
         return t("kahoot.errorQuestionCorrect", { n: i + 1 });
     }
     return null;
+  };
+
+  const generateWithAI = async () => {
+    if (!poll) return;
+    if (!aiTopics.trim()) {
+      toast.error(t("kahoot.aiNeedTopics"));
+      return;
+    }
+    const count = Math.max(1, Math.min(20, Math.round(aiCount) || 5));
+    // Mismo gate que talleres/parciales: sync inline, código de IA inmediata,
+    // o encolar en ai_generation_queue (allowQueue).
+    const decision = await aiGate.ensureAuthorized({ allowQueue: true });
+    if (decision === "cancel") return;
+    if (decision === "proceed-async") {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) {
+        toast.error(t("kahoot.notAuthenticated"));
+        return;
+      }
+      const { data: pollRow } = await db
+        .from("polls")
+        .select("course_id")
+        .eq("id", poll.id)
+        .maybeSingle();
+      const { error: enqErr } = await db.from("ai_generation_queue").insert([
+        {
+          kind: "kahoot_questions",
+          invoke_target: "ai-generate-questions",
+          source_table: "polls",
+          source_id: poll.id,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          course_id: (pollRow as any)?.course_id ?? null,
+          created_by: user.user.id,
+          body: {
+            topics: aiTopics,
+            type: "kahoot",
+            count,
+            examId: poll.id,
+            targetTable: "kahoot_questions",
+          },
+        },
+      ]);
+      if (enqErr) {
+        toast.error(friendlyError(enqErr, "No se pudo encolar la generación"));
+        return;
+      }
+      toast.success(t("kahoot.aiQueued"));
+      setAiTopics("");
+      return;
+    }
+    setAiLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
+        body: {
+          topics: aiTopics,
+          type: "kahoot",
+          count,
+          examId: poll.id,
+          targetTable: "kahoot_questions",
+        },
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const edgeErr = error ?? (data as any)?.error;
+      if (edgeErr) {
+        toast.error(friendlyError(edgeErr));
+        return;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const n = (data as any)?.inserted?.length ?? 0;
+      toast.success(t("kahoot.aiGenerated", { n }));
+      setAiTopics("");
+      // La IA insertó en DB → recargamos para ver las preguntas nuevas.
+      // (OJO: descarta cambios manuales SIN guardar — genera primero, edita después.)
+      setReloadNonce((x) => x + 1);
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const save = async () => {
@@ -330,6 +415,47 @@ export function KahootQuestionsEditor({
           <SectionLoader text={t("kahoot.loadingQuestions")} />
         ) : (
           <div className="space-y-4">
+            {/* Generar preguntas con IA. El docente puede ajustar después
+                única/múltiple por pregunta con el selector de modo. */}
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Wand2 className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">{t("kahoot.aiGenerate")}</span>
+              </div>
+              <Textarea
+                value={aiTopics}
+                onChange={(e) => setAiTopics(e.target.value)}
+                placeholder={t("kahoot.aiTopicsPlaceholder")}
+                rows={2}
+                disabled={aiLoading}
+              />
+              <div className="flex items-center gap-2">
+                <Label className="text-xs">{t("kahoot.aiCount")}</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={aiCount}
+                  onChange={(e) => setAiCount(Number(e.target.value))}
+                  className="h-8 w-20"
+                  disabled={aiLoading}
+                />
+                <Button
+                  size="sm"
+                  className="ml-auto"
+                  disabled={aiLoading || !aiTopics.trim()}
+                  onClick={() => void generateWithAI()}
+                >
+                  {aiLoading ? (
+                    <Spinner size="sm" className="mr-1" />
+                  ) : (
+                    <Wand2 className="h-4 w-4 mr-1" />
+                  )}
+                  {t("kahoot.aiGenerateBtn")}
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">{t("kahoot.aiHint")}</p>
+            </div>
             {questions.length === 0 && (
               <EmptyState icon={Gamepad2} text={t("kahoot.noQuestions")} />
             )}
@@ -473,6 +599,9 @@ export function KahootQuestionsEditor({
             {t("kahoot.saveQuestions")}
           </Button>
         </DialogFooter>
+        {/* Gate de autorización IA (sync / código inmediato / cola). Se porta
+            a body; solo aparece si el tenant está en modo async sin código. */}
+        <aiGate.GateDialog />
       </DialogContent>
     </Dialog>
   );
