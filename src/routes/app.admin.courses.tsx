@@ -61,7 +61,6 @@ import {
   Hammer,
   FolderKanban,
   Link2,
-  Code2,
   Upload,
   Download,
   MessageSquareText,
@@ -70,7 +69,6 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { CourseCertificateSettingsDialog } from "@/modules/certificates/CourseCertificateSettingsDialog";
-import { SessionCodeSnippetsDialog } from "@/modules/sessions/SessionCodeSnippetsDialog";
 import { LinkCalendarEventsDialog } from "@/modules/calendar/LinkCalendarEventsDialog";
 import {
   Select,
@@ -2820,7 +2818,6 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
   const { user } = useAuth();
   const confirm = useConfirm();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
-  const [codeSession, setCodeSession] = useState<SessionRow | null>(null);
   const [contents, setContents] = useState<AvailableContent[]>([]);
   const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -3611,17 +3608,6 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                                 {t("course.boardNotes", { defaultValue: "Notas" })}
                               </a>
                             )}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-6 gap-1 px-2 text-[11px]"
-                              onClick={() => setCodeSession(s)}
-                            >
-                              <Code2 className="h-3 w-3" />
-                              {i18n.t("course.boardSessionCode", {
-                                defaultValue: "Código",
-                              })}
-                            </Button>
                           </div>
                         </div>
                         {/* Asignación de contenido en 2 pasos: primero
@@ -3699,17 +3685,6 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
         </DialogFooter>
       </DialogContent>
     </Dialog>
-    <SessionCodeSnippetsDialog
-      sessionId={codeSession?.id ?? null}
-      sessionLabel={
-        codeSession
-          ? `${codeSession.title ?? "Clase"} · ${codeSession.session_date}`
-          : undefined
-      }
-      onOpenChange={(o) => {
-        if (!o) setCodeSession(null);
-      }}
-    />
     {course && (
       <LinkCalendarEventsDialog
         open={calendarOpen}
