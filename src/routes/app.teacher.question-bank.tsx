@@ -551,13 +551,14 @@ function QuestionBankPage() {
         title="Banco de preguntas"
         subtitle="Preguntas reutilizables compartidas entre los docentes del curso. Importa selecciones al crear exámenes, talleres o proyectos."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <ImportExportMenu
               resourceName="banco-preguntas"
               onExport={exportBankCsv}
               disabled={!courseId}
             />
             <Button
+              size="sm"
               variant="outline"
               onClick={() => setAiOpen(true)}
               disabled={!courseId}
@@ -566,7 +567,12 @@ function QuestionBankPage() {
               <Sparkles className="h-4 w-4 mr-1" />
               Generar con IA
             </Button>
-            <Button onClick={openCreate} disabled={!courseId} data-tour-id="create-question">
+            <Button
+              size="sm"
+              onClick={openCreate}
+              disabled={!courseId}
+              data-tour-id="create-question"
+            >
               <Plus className="h-4 w-4 mr-1" />
               Nueva pregunta
             </Button>
