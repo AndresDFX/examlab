@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { useNotifications } from "@/hooks/use-notifications";
 import { formatDate, formatDateTime } from "@/shared/lib/format";
+import { sessionIsUpcoming } from "@/shared/lib/session-time";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -582,16 +583,21 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       // a sus cursos.
       const { data: sess } = await (supabase as any)
         .from("attendance_sessions")
-        .select("id, title, session_date, start_time, course_id, course:courses(name)")
+        .select("id, title, session_date, start_time, duration_minutes, course_id, course:courses(name)")
         .gte("session_date", todayStr)
         .is("deleted_at", null)
         .order("session_date", { ascending: true })
         .order("start_time", { ascending: true, nullsFirst: false })
-        // Limit subido de 5 a 8 para que las cards (que ahora se expanden
-        // verticalmente cuando no hay notificaciones) muestren más datos
-        // útiles. El scroll interno del CardContent maneja la altura.
-        .limit(8);
-      setUpcomingSessions(sess ?? []);
+        // Traemos un margen amplio (no 8) porque el corte fino "ya terminó
+        // hoy" se hace en JS abajo: session_date es DATE, así que el filtro
+        // server-side no puede descartar por hora. Sin margen, podríamos
+        // quedarnos cortos tras descartar las pasadas de hoy.
+        .limit(40);
+      // "Próximas" = fecha+HORA actual, no solo fecha: descartamos las
+      // sesiones de HOY cuyo fin (session_date + start_time + duración) ya
+      // pasó, y recién entonces tomamos las 8 primeras.
+      const nowMs = Date.now();
+      setUpcomingSessions(((sess ?? []) as any[]).filter((s) => sessionIsUpcoming(s, nowMs)).slice(0, 8));
 
       // Próximos exámenes: solo published (consistente con workshops/
       // projects). Los borradores no aparecen en el widget — el docente
@@ -995,16 +1001,20 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       const { data: sess } = enrolledCourseIds.length
         ? await dbAny
             .from("attendance_sessions")
-            .select("id, title, session_date, start_time, course_id, course:courses(name)")
+            .select("id, title, session_date, start_time, duration_minutes, course_id, course:courses(name)")
             .gte("session_date", todayStr)
             .in("course_id", enrolledCourseIds)
             .is("deleted_at", null)
             .order("session_date", { ascending: true })
             .order("start_time", { ascending: true, nullsFirst: false })
-            .limit(8)
+            // Margen amplio: el corte fino "ya terminó hoy" se hace en JS.
+            .limit(40)
         : { data: [] as any[] };
       if (cancelled) return;
-      setUpcomingSessions(sess ?? []);
+      // "Próximas" = fecha+HORA: descartar las de HOY ya terminadas y luego
+      // tomar 8. Misma lógica que el dashboard docente (helper compartido).
+      const nowMs = Date.now();
+      setUpcomingSessions(((sess ?? []) as any[]).filter((s) => sessionIsUpcoming(s, nowMs)).slice(0, 8));
     })();
     return () => {
       cancelled = true;
