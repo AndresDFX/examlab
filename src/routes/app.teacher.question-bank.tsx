@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { RowAction } from "@/components/ui/row-action";
@@ -51,8 +52,20 @@ import {
 } from "@/components/ui/dialog";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { toast } from "sonner";
-import { Library, Plus, Search, Pencil, Trash2, X as XIcon, Save, Copy } from "lucide-react";
+import {
+  Library,
+  Plus,
+  Search,
+  Pencil,
+  Trash2,
+  X as XIcon,
+  Save,
+  Copy,
+  Sparkles,
+  Globe,
+} from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { toCSV } from "@/shared/lib/csv";
 import { usePagination } from "@/hooks/use-pagination";
@@ -93,6 +106,7 @@ interface BankRow {
   topic: string | null;
   difficulty: number | null;
   tags: string[];
+  shared_org: boolean;
   times_used: number;
   last_used_at: string | null;
   created_at: string;
@@ -118,6 +132,7 @@ function QuestionBankPage() {
   const { t } = useTranslation();
   const { user, roles } = useAuth();
   const confirm = useConfirm();
+  const aiGate = useAiAuthorizationGate();
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState<string>("");
@@ -162,6 +177,13 @@ function QuestionBankPage() {
   });
   const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Generación con IA (mismo gate que talleres/exámenes/Kahoot).
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiType, setAiType] = useState<QuestionType>("cerrada");
+  const [aiTopics, setAiTopics] = useState("");
+  const [aiCount, setAiCount] = useState(5);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const isAdmin = roles.includes("Admin");
   const isDocente = roles.includes("Docente");
@@ -312,6 +334,7 @@ function QuestionBankPage() {
       topic: r.topic,
       difficulty: r.difficulty,
       tags: r.tags ? [...r.tags] : [],
+      shared_org: r.shared_org,
     });
     setTagInput("");
     setDialogOpen(true);
@@ -362,6 +385,7 @@ function QuestionBankPage() {
         topic: draft.topic ?? null,
         difficulty: draft.difficulty ?? null,
         tags: draft.tags ?? [],
+        shared_org: draft.shared_org ?? false,
       };
       if (editing) {
         const { error } = await db.from("question_bank").update(payload).eq("id", editing.id);
@@ -417,6 +441,89 @@ function QuestionBankPage() {
     setRows((prev) => prev.filter((x) => x.id !== r.id));
   };
 
+  /** Generar preguntas con IA directamente al banco del curso seleccionado.
+   *  Mismo gate (sync / código inmediato / encolar) que talleres/exámenes/
+   *  Kahoot. El edge `ai-generate-questions` con targetTable="question_bank"
+   *  inserta filas nuevas en question_bank con course_id = curso actual. */
+  const generateWithAI = async () => {
+    if (!user || !courseId) return;
+    if (!aiTopics.trim()) {
+      toast.error(
+        i18n.t("toast.routes_app_teacher_question_bank.aiNeedTopics", {
+          defaultValue: "Escribe los temas para generar",
+        }),
+      );
+      return;
+    }
+    const count = Math.max(1, Math.min(20, Math.round(aiCount) || 5));
+    const decision = await aiGate.ensureAuthorized({ allowQueue: true });
+    if (decision === "cancel") return;
+
+    if (decision === "proceed-async") {
+      const { error: enqErr } = await db.from("ai_generation_queue").insert([
+        {
+          kind: "question_bank",
+          invoke_target: "ai-generate-questions",
+          source_table: "courses",
+          source_id: courseId,
+          course_id: courseId,
+          created_by: user.id,
+          body: {
+            topics: aiTopics,
+            type: aiType,
+            count,
+            examId: courseId,
+            targetTable: "question_bank",
+          },
+        },
+      ]);
+      if (enqErr) {
+        toast.error(friendlyError(enqErr, "No se pudo encolar la generación"));
+        return;
+      }
+      toast.success(
+        i18n.t("toast.routes_app_teacher_question_bank.aiQueued", {
+          defaultValue: "Generación encolada. Aparecerá en el banco al procesarse.",
+        }),
+      );
+      setAiOpen(false);
+      setAiTopics("");
+      return;
+    }
+
+    setAiLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
+        body: {
+          topics: aiTopics,
+          type: aiType,
+          count,
+          examId: courseId,
+          targetTable: "question_bank",
+        },
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const edgeErr = error ?? (data as any)?.error;
+      if (edgeErr) {
+        toast.error(friendlyError(edgeErr));
+        return;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const n = (data as any)?.inserted?.length ?? 0;
+      toast.success(
+        i18n.t("toast.routes_app_teacher_question_bank.aiGenerated", {
+          defaultValue: "{{n}} pregunta(s) generada(s) y agregada(s) al banco",
+          n,
+        }),
+      );
+      setAiOpen(false);
+      setAiTopics("");
+      await load();
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   if (!isAdmin && !isDocente) {
     return <p className="text-muted-foreground p-6">Solo docentes y admins.</p>;
   }
@@ -450,6 +557,15 @@ function QuestionBankPage() {
               onExport={exportBankCsv}
               disabled={!courseId}
             />
+            <Button
+              variant="outline"
+              onClick={() => setAiOpen(true)}
+              disabled={!courseId}
+              data-tour-id="bank-ai-generate"
+            >
+              <Sparkles className="h-4 w-4 mr-1" />
+              Generar con IA
+            </Button>
             <Button onClick={openCreate} disabled={!courseId} data-tour-id="create-question">
               <Plus className="h-4 w-4 mr-1" />
               Nueva pregunta
@@ -621,9 +737,20 @@ function QuestionBankPage() {
                         <div className="line-clamp-2 text-sm">{r.content}</div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
-                        <Badge variant="secondary" className="text-[10px] whitespace-nowrap">
-                          {TYPE_LABEL[r.type]}
-                        </Badge>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <Badge variant="secondary" className="text-[10px] whitespace-nowrap">
+                            {TYPE_LABEL[r.type]}
+                          </Badge>
+                          {r.shared_org && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] whitespace-nowrap gap-0.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                            >
+                              <Globe className="h-2.5 w-2.5" />
+                              Compartida
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
                         {r.topic || "—"}
@@ -837,6 +964,30 @@ function QuestionBankPage() {
                 </Button>
               </div>
             </div>
+
+            {/* Compartir con la organización: cualquier docente del tenant podrá
+                VER e IMPORTAR esta pregunta (a sus exámenes/talleres/proyectos/
+                Kahoot). La edición/borrado sigue siendo solo tuya o del Admin. */}
+            <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+              <div className="space-y-0.5">
+                <Label className="flex items-center gap-1.5">
+                  <Globe className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                  Compartir con la organización
+                  <HelpHint>
+                    Cualquier docente de tu institución podrá ver e importar esta pregunta a
+                    sus exámenes, talleres, proyectos o Kahoot. Solo tú (o un administrador)
+                    puedes editarla o eliminarla.
+                  </HelpHint>
+                </Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Compartir = lectura/importación a nivel institución. Editar = solo el dueño.
+                </p>
+              </div>
+              <Switch
+                checked={draft.shared_org ?? false}
+                onCheckedChange={(v) => setDraft({ ...draft, shared_org: v })}
+              />
+            </div>
           </div>
 
           <DialogFooter>
@@ -850,6 +1001,86 @@ function QuestionBankPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog: generar preguntas con IA al banco */}
+      <Dialog open={aiOpen} onOpenChange={setAiOpen}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-violet-500" />
+              Generar preguntas con IA
+            </DialogTitle>
+            <DialogDescription>
+              Las preguntas se agregan al banco del curso seleccionado. Luego puedes editarlas,
+              compartirlas con la organización o importarlas a exámenes, talleres, proyectos o
+              Kahoot.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label required>Tipo de pregunta</Label>
+                <Select
+                  value={aiType}
+                  onValueChange={(v) => setAiType(v as QuestionType)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(TYPE_LABEL)
+                      // codigo_zip es exclusivo de proyectos; no se genera al banco.
+                      .filter(([k]) => k !== "codigo_zip")
+                      .map(([k, v]) => (
+                        <SelectItem key={k} value={k}>
+                          {v}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Cantidad</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={aiCount}
+                  onChange={(e) =>
+                    setAiCount(Math.max(1, Math.min(20, Number(e.target.value) || 5)))
+                  }
+                />
+              </div>
+            </div>
+            <div>
+              <Label required>Temas</Label>
+              <Textarea
+                value={aiTopics}
+                onChange={(e) => setAiTopics(e.target.value)}
+                rows={3}
+                placeholder="Ej: Recursividad, complejidad algorítmica, estructuras de datos…"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAiOpen(false)} disabled={aiLoading}>
+              Cancelar
+            </Button>
+            <Button onClick={() => void generateWithAI()} disabled={aiLoading || !aiTopics.trim()}>
+              {aiLoading ? (
+                <Spinner size="sm" className="mr-1" />
+              ) : (
+                <Sparkles className="h-4 w-4 mr-1" />
+              )}
+              Generar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <aiGate.GateDialog />
     </div>
   );
 }

@@ -667,10 +667,21 @@ Idioma obligatorio: ${pfLangName}.`,
     // kahoot_questions + kahoot_question_options (2 tablas, distinto del flujo
     // genérico de 1 tabla). `examId` se reutiliza como poll_id.
     const isKahoot = targetTable === "kahoot_questions";
+    // Banco de preguntas: inserta en question_bank (1 tabla, columnas propias:
+    // suggested_points, sin position/exam_id). `examId` se reutiliza como
+    // course_id (el banco vive por curso). Usa el MISMO prompt/tool genérico
+    // (no el de Kahoot), ya que el banco soporta todos los tipos.
+    const isBank = targetTable === "question_bank";
     // Guard: un targetTable DESCONOCIDO NO debe caer al insert por defecto en
     // `questions` (insertaría un type inválido — ej. 'kahoot' — y violaría
     // questions_type_check). Falla fuerte y claro.
-    const KNOWN_TARGETS = ["questions", "workshop_questions", "project_files", "kahoot_questions"];
+    const KNOWN_TARGETS = [
+      "questions",
+      "workshop_questions",
+      "project_files",
+      "kahoot_questions",
+      "question_bank",
+    ];
     if (targetTable && !KNOWN_TARGETS.includes(targetTable)) {
       return new Response(JSON.stringify({ error: `targetTable desconocido: ${targetTable}` }), {
         status: 400,
@@ -737,6 +748,15 @@ Idioma obligatorio: ${pfLangName}.`,
           .eq("id", targetId)
           .maybeSingle();
         const lng = (pollRow as any)?.course?.language;
+        if (lng === "en" || lng === "es") courseLanguage = lng;
+      } else if (isBank) {
+        // targetId ES el course_id en el banco.
+        const { data: courseRow } = await admin0
+          .from("courses")
+          .select("language")
+          .eq("id", targetId)
+          .maybeSingle();
+        const lng = (courseRow as any)?.language;
         if (lng === "en" || lng === "es") courseLanguage = lng;
       } else {
         const { data: examRow } = await admin0
@@ -956,6 +976,37 @@ Idioma de salida obligatorio: ${langName}.`;
         insertedK.push({ id: qRow.id });
       }
       return new Response(JSON.stringify({ ok: true, inserted: insertedK }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Banco de preguntas: inserta en question_bank (course_id = targetId) ──
+    // Usa el prompt/tool genérico (no el de Kahoot). Columnas propias del
+    // banco: suggested_points (no `points`), sin position/exam_id.
+    if (isBank) {
+      const isCodeType = type === "codigo" || type === "java_gui" || type === "python_gui";
+      const toInsert = questions.map((q: any) => ({
+        course_id: targetId,
+        created_by: u.user!.id,
+        type,
+        content: q.content,
+        options: q.options ?? null,
+        expected_rubric: q.expected_rubric ?? null,
+        language: isCodeType ? codeLanguage : null,
+        suggested_points: 1,
+      }));
+      const { data: insertedB, error: bErr } = await admin
+        .from("question_bank")
+        .insert(toInsert)
+        .select("id");
+      if (bErr) {
+        console.error("[ai-generate-questions] question_bank insert", bErr);
+        return new Response(
+          JSON.stringify({ error: bErr.message ?? "Error al insertar en el banco" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(JSON.stringify({ ok: true, inserted: insertedB }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

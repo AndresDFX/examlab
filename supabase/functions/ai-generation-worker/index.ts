@@ -17,8 +17,9 @@
  *  - Para `kind='content_generation'`: crea la fila en
  *    `generated_contents` desde el body, luego invoca
  *    `generate-contents` con el id resultante.
- *  - Para `workshop_questions`/`exam_questions`/`project_files`:
- *    invoca `ai-generate-questions` con el body verbatim.
+ *  - Para `workshop_questions`/`exam_questions`/`project_files`/
+ *    `kahoot_questions`/`question_bank`: invoca `ai-generate-questions`
+ *    con el body verbatim (el `targetTable` del body decide la tabla).
  *  - Al éxito: status=done, inserted_count poblado.
  *  - Al fallo: status=failed, last_error.
  *
@@ -308,7 +309,12 @@ async function processOne(job: QueueRow): Promise<{
   if (
     job.kind === "workshop_questions" ||
     job.kind === "exam_questions" ||
-    job.kind === "project_files"
+    job.kind === "project_files" ||
+    // Kahoot y banco de preguntas comparten el mismo edge (ai-generate-questions);
+    // el targetTable del body decide la tabla destino. Sin estos casos, una
+    // generación encolada (processing_mode=async) fallaba con "Kind no soportado".
+    job.kind === "kahoot_questions" ||
+    job.kind === "question_bank"
   ) {
     return processQuestionGeneration(job);
   }

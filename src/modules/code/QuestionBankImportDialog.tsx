@@ -58,6 +58,7 @@ type QuestionType =
 
 interface BankRow {
   id: string;
+  course_id: string;
   type: QuestionType;
   content: string;
   expected_rubric: string | null;
@@ -66,6 +67,7 @@ interface BankRow {
   topic: string | null;
   difficulty: number | null;
   tags: string[];
+  shared_org: boolean;
   times_used: number;
 }
 
@@ -151,12 +153,15 @@ export function QuestionBankImportDialog({
     setSelectedIds(new Set());
     setPointsOverride({});
     (async () => {
+      // Preguntas del banco del curso + las COMPARTIDAS con la organización
+      // (shared_org=true). La RLS ya acota las compartidas al tenant del
+      // lector, así que el `.or` no expone preguntas de otra institución.
       const { data, error } = await db
         .from("question_bank")
         .select(
-          "id, type, content, expected_rubric, language, suggested_points, topic, difficulty, tags, times_used",
+          "id, course_id, type, content, expected_rubric, language, suggested_points, topic, difficulty, tags, shared_org, times_used",
         )
-        .eq("course_id", courseId)
+        .or(`course_id.eq.${courseId},shared_org.eq.true`)
         .in("type", acceptedTypes)
         .order("created_at", { ascending: false });
       if (error) {
@@ -362,6 +367,15 @@ export function QuestionBankImportDialog({
                         <Badge variant="secondary" className="text-[10px]">
                           {TYPE_LABEL[r.type]}
                         </Badge>
+                        {r.shared_org && r.course_id !== courseId && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] gap-0.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                          >
+                            <Library className="h-2.5 w-2.5" />
+                            Compartida
+                          </Badge>
+                        )}
                         {r.topic && (
                           <Badge variant="outline" className="text-[10px]">
                             {r.topic}
