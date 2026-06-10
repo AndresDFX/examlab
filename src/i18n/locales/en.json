@@ -4324,6 +4324,8 @@
     "optionPlaceholder": "Option {{n}}",
     "markCorrect": "Mark as correct",
     "aiGenerate": "Generate questions with AI",
+    "importFromBank": "Import from bank",
+    "bankNeedsCourse": "Link this Kahoot to a course to import from its bank.",
     "aiGenerateBtn": "Generate",
     "aiTopicsPlaceholder": "Topics or content to generate the questions from…",
     "aiCount": "Count",

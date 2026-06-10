@@ -80,8 +80,11 @@ const TYPE_LABEL: Record<QuestionType, string> = {
   python_gui: "Python GUI (tkinter)",
 };
 
-// Tipos que cada destino acepta. codigo_zip solo va a proyectos.
-const ACCEPTED_BY_TARGET: Record<"exam" | "workshop" | "project", QuestionType[]> = {
+type ImportTarget = "exam" | "workshop" | "project" | "kahoot";
+
+// Tipos que cada destino acepta. codigo_zip solo va a proyectos; Kahoot solo
+// opción múltiple (cerrada / cerrada_multi).
+const ACCEPTED_BY_TARGET: Record<ImportTarget, QuestionType[]> = {
   exam: ["cerrada", "cerrada_multi", "codigo", "abierta", "diagrama", "java_gui", "python_gui"],
   workshop: ["cerrada", "cerrada_multi", "codigo", "abierta", "diagrama", "java_gui", "python_gui"],
   project: [
@@ -94,25 +97,28 @@ const ACCEPTED_BY_TARGET: Record<"exam" | "workshop" | "project", QuestionType[]
     "java_gui",
     "python_gui",
   ],
+  kahoot: ["cerrada", "cerrada_multi"],
 };
 
-const RPC_BY_TARGET: Record<"exam" | "workshop" | "project", string> = {
+const RPC_BY_TARGET: Record<ImportTarget, string> = {
   exam: "add_questions_from_bank_to_exam",
   workshop: "add_questions_from_bank_to_workshop",
   project: "add_questions_from_bank_to_project",
+  kahoot: "add_questions_from_bank_to_kahoot",
 };
 
-const PARAM_BY_TARGET: Record<"exam" | "workshop" | "project", string> = {
+const PARAM_BY_TARGET: Record<ImportTarget, string> = {
   exam: "_exam_id",
   workshop: "_workshop_id",
   project: "_project_id",
+  kahoot: "_poll_id",
 };
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   courseId: string | null;
-  target: "exam" | "workshop" | "project";
+  target: ImportTarget;
   targetId: string;
   onImported?: (count: number) => void;
 }
@@ -252,8 +258,14 @@ export function QuestionBankImportDialog({
           </DialogTitle>
           <DialogDescription>
             Selecciona preguntas del banco del curso. Se clonarán al{" "}
-            {target === "exam" ? "examen" : target === "workshop" ? "taller" : "proyecto"}; los
-            cambios futuros en el banco no afectarán las copias.
+            {target === "exam"
+              ? "examen"
+              : target === "workshop"
+                ? "taller"
+                : target === "kahoot"
+                  ? "Kahoot"
+                  : "proyecto"}
+            ; los cambios futuros en el banco no afectarán las copias.
           </DialogDescription>
         </DialogHeader>
 

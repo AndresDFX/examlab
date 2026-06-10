@@ -37,11 +37,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Check, Gamepad2, Wand2 } from "lucide-react";
+import { Plus, Trash2, Check, Gamepad2, Wand2, Library } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
+import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
 import { KAHOOT_SHAPES } from "@/modules/polls/kahoot";
 import { KahootShapeIcon } from "@/modules/polls/KahootShapeIcon";
 
@@ -101,6 +102,22 @@ export function KahootQuestionsEditor({
   // Bump para re-cargar las preguntas desde DB tras generar con IA (la IA
   // inserta directo en DB, así que recargamos para verlas).
   const [reloadNonce, setReloadNonce] = useState(0);
+  // Importar del banco de preguntas (mismo dialog que exámenes/talleres/
+  // proyectos). Necesita el course_id del poll para listar su banco.
+  const [bankDialogOpen, setBankDialogOpen] = useState(false);
+  const [bankCourseId, setBankCourseId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!poll) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await db.from("polls").select("course_id").eq("id", poll.id).maybeSingle();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (!cancelled) setBankCourseId((data as any)?.course_id ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [poll]);
 
   useEffect(() => {
     if (!poll) return;
@@ -583,10 +600,22 @@ export function KahootQuestionsEditor({
               </div>
             ))}
 
-            <Button variant="outline" onClick={addQuestion} className="w-full">
-              <Plus className="h-4 w-4 mr-1.5" />
-              {t("kahoot.addQuestion")}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={addQuestion} className="flex-1">
+                <Plus className="h-4 w-4 mr-1.5" />
+                {t("kahoot.addQuestion")}
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                disabled={!bankCourseId}
+                onClick={() => setBankDialogOpen(true)}
+                title={!bankCourseId ? t("kahoot.bankNeedsCourse") : undefined}
+              >
+                <Library className="h-4 w-4 mr-1.5" />
+                {t("kahoot.importFromBank")}
+              </Button>
+            </div>
           </div>
         )}
 
@@ -602,6 +631,16 @@ export function KahootQuestionsEditor({
         {/* Gate de autorización IA (sync / código inmediato / cola). Se porta
             a body; solo aparece si el tenant está en modo async sin código. */}
         <aiGate.GateDialog />
+        {/* Importar preguntas del banco del curso (solo cerrada/cerrada_multi
+            para Kahoot). Mismo dialog que exámenes/talleres/proyectos. */}
+        <QuestionBankImportDialog
+          open={bankDialogOpen}
+          onOpenChange={setBankDialogOpen}
+          courseId={bankCourseId}
+          target="kahoot"
+          targetId={poll?.id ?? ""}
+          onImported={() => setReloadNonce((x) => x + 1)}
+        />
       </DialogContent>
     </Dialog>
   );
