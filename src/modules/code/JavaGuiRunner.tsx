@@ -687,7 +687,7 @@ export function JavaGuiRunner({
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-[95vw] w-[95vw] sm:max-w-[95vw] h-[92vh] flex flex-col p-4 gap-3">
+        <DialogContent className="max-w-[95vw] w-[95vw] sm:max-w-[95vw] h-[92dvh] flex flex-col p-4 gap-3">
           <DialogHeader className="space-y-1">
             <DialogTitle className="flex items-center gap-2 text-base">
               {mode === "aws_screenshot" ? (

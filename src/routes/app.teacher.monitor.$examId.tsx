@@ -2628,7 +2628,11 @@ function ExamMonitor() {
           // (las cards de pregunta + grading inputs + AI/copia colapsados
           // necesitan más ancho del que daba 3xl). En modo comparación
           // expandimos a 7xl para acomodar dos columnas cómodamente.
-          className={comparisonForCopy ? "max-w-7xl" : "max-w-5xl"}
+          className={
+            comparisonForCopy
+              ? "max-w-[calc(100vw-2rem)] sm:max-w-7xl"
+              : "max-w-[calc(100vw-2rem)] sm:max-w-5xl"
+          }
         >
           <DialogHeader>
             <DialogTitle>Respuestas de {viewingSub?.profile?.full_name ?? "—"}</DialogTitle>
@@ -2640,7 +2644,7 @@ function ExamMonitor() {
           </DialogHeader>
 
           {viewingSub && (
-            // Layout único: flex row con altura fija (h-[65vh]) +
+            // Layout único: flex row con altura fija (h-[65dvh]) +
             // overflow-hidden — esto ata la ScrollArea a una altura
             // concreta para que muestre scrollbar interno cuando el
             // contenido (advertencias + por-pregunta) excede la
@@ -2652,7 +2656,7 @@ function ExamMonitor() {
             // wrapper sin comparación, pero eso dejaba a ScrollArea
             // sin un padre con altura concreta y radix no pintaba la
             // barra. Mismo layout en ambos casos resuelve el problema.
-            <div className="flex gap-3 h-[65vh] overflow-hidden">
+            <div className="flex gap-3 h-[65dvh] overflow-hidden">
               {/* Antes: <ScrollArea> de radix. Su Viewport interno
                   envuelve los hijos en un `display: table` con
                   `min-width: 100%`, lo que hace que un Monaco Editor
@@ -3841,7 +3845,7 @@ function ExamMonitor() {
             mientras corre + "Aprobar todas" en modo sync). La X de la
             esquina duplicaba el control y confundía con "Cancelar". */}
         <DialogContent
-          className="max-w-4xl max-h-[88dvh] overflow-hidden flex flex-col"
+          className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[88dvh] overflow-hidden flex flex-col"
           hideCloseButton
         >
           <DialogHeader>
@@ -4194,7 +4198,7 @@ function ExamMonitor() {
             // header y el footer quedan pinned.
             <div className="space-y-4 flex-1 overflow-y-auto -mx-6 px-6 pb-2">
               {/* Resumen OLD vs NEW */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-lg border bg-muted/30 p-3">
                   <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
                     Nota actual

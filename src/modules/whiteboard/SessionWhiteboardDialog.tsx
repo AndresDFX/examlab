@@ -176,10 +176,10 @@ export function SessionWhiteboardDialog({
   return (
     <Dialog open={Boolean(sessionId)} onOpenChange={onOpenChange}>
       {/* max-w[calc(100vw-2rem)] sm:max-w-6xl para usar todo el ancho
-          razonable en desktop. h-[90vh] para que la pizarra tenga
+          razonable en desktop. h-[90dvh] para que la pizarra tenga
           espacio vertical útil — Excalidraw rinde mal en alturas
           pequeñas (toolbar arriba + canvas abajo). */}
-      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-6xl h-[90vh] flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-6xl h-[90dvh] flex flex-col p-0 gap-0">
         <DialogHeader className="p-3 border-b">
           <DialogTitle className="flex items-center gap-2 text-base flex-wrap">
             <Palette className="h-5 w-5 text-violet-500" />

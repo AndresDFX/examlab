@@ -44,6 +44,7 @@ import {
 import { toast } from "sonner";
 import i18n from "@/i18n";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { formatTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { Code2, Plus, Trash2, Copy, Check, X } from "lucide-react";
 
@@ -813,7 +814,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                   exit {output.exitCode}
                   {!readOnly && snippet.last_executed_at && (
                     <span className="ml-2">
-                      • Último run: {new Date(snippet.last_executed_at).toLocaleTimeString()}
+                      • Último run: {formatTime(snippet.last_executed_at)}
                     </span>
                   )}
                 </div>

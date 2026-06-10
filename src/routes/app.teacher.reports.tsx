@@ -1182,7 +1182,7 @@ function Inner() {
                 ref={iframeRef}
                 title="Vista previa del informe"
                 srcDoc={genHtml}
-                className="w-full h-[60vh]"
+                className="w-full h-[60dvh]"
               />
             </div>
           )}

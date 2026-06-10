@@ -112,9 +112,9 @@ export function SessionCodeSnippetsDialog({
 
   return (
     <Dialog open={Boolean(sessionId)} onOpenChange={onOpenChange}>
-      {/* max-w-4xl para que el editor de código quepa cómodo. h-[85vh]
+      {/* max-w-4xl para que el editor de código quepa cómodo. h-[85dvh]
           con flex-col para que los snippets sean scrolleables internamente. */}
-      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl h-[85vh] flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl h-[85dvh] flex flex-col p-0 gap-0">
         <DialogHeader className="p-3 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2 text-base flex-wrap">
             <Code2 className="h-5 w-5 text-indigo-500" />

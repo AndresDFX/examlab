@@ -1822,7 +1822,7 @@ export function AdminCourses() {
       {/* ── Create/Edit Dialog ── */}
       <Dialog open={open} onOpenChange={courseDirty.guardOpenChange(setOpen)}>
         <DialogContent
-          className="max-w-3xl max-h-[90dvh] overflow-y-auto"
+          className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh] overflow-y-auto"
           data-tour-id="dialog-course"
         >
           <DialogHeader>
@@ -2104,7 +2104,7 @@ export function AdminCourses() {
                     a error. Si no hay cortes, aplican al curso completo. */}
                 {editingCuts.length === 0 ? (
                   <>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                       <div>
                         <Label className="text-xs">Peso exámenes (%)</Label>
                         <DecimalInput

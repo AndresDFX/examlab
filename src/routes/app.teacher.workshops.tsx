@@ -2768,7 +2768,7 @@ function TeacherWorkshops() {
       {/* Create/Edit Dialog */}
       <Dialog open={open} onOpenChange={workshopDirty.guardOpenChange(setOpen)}>
         <DialogContent
-          className="max-w-lg max-h-[90dvh] overflow-y-auto"
+          className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto"
           data-tour-id="dialog-workshop"
         >
           <DialogHeader>

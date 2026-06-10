@@ -2038,7 +2038,7 @@ function CreatePollDialog({
                   </div>
 
                   {/* Ventana horaria del día (aplica a cada fecha) */}
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
                       <Label className="text-[11px]">Hora inicio</Label>
                       <Input
@@ -2059,7 +2059,7 @@ function CreatePollDialog({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
                       <Label className="text-[11px]">Cada (min)</Label>
                       <Input
