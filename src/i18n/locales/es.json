@@ -100,7 +100,7 @@
     "projects": "Proyectos",
     "aiPrompts": "Prompts",
     "aiCron": "Cola",
-    "questionBank": "Banco preguntas",
+    "questionBank": "Banco de preguntas",
     "contents": "Contenidos",
     "statistics": "Estadísticas",
     "auditLogs": "Auditoría",
@@ -1725,7 +1725,7 @@
     "responseCleared": "Quitaste tu respuesta"
   },
   "videosPage": {
-    "title": "Biblioteca de videos",
+    "title": "Videos",
     "subtitle": "Videos reutilizables que puedes adjuntar a cualquier examen, taller o proyecto.",
     "newVideo": "Nuevo video",
     "uploadVideo": "Subir archivo",

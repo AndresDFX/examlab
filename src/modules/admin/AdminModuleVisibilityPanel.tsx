@@ -138,10 +138,7 @@ const MODULES: Array<{
   // Mismo nombre que el sidebar (`nav.studentCertificates: "Certificaciones"`).
   { key: "certificates", label: "Certificaciones" },
   { key: "tutor", label: "Tutor IA" },
-  // Sidebar usa "Banco preguntas" (sin "de") para que entre completo en
-  // el ancho del nav. Mantenemos esa forma para que el admin vea lo
-  // mismo en ambos lados.
-  { key: "question_bank", label: "Banco preguntas" },
+  { key: "question_bank", label: "Banco de preguntas" },
   // Sidebar dice solo "Prompts" — eliminamos el sufijo "IA".
   { key: "ai_prompts", label: "Prompts" },
   { key: "ai_cron", label: "Cola" },

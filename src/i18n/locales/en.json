@@ -1725,7 +1725,7 @@
     "responseCleared": "Your response was removed"
   },
   "videosPage": {
-    "title": "Video Library",
+    "title": "Videos",
     "subtitle": "Reusable videos you can attach to any exam, workshop or project.",
     "newVideo": "New video",
     "uploadVideo": "Upload file",
