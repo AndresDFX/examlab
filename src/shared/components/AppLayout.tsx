@@ -38,6 +38,7 @@ import { ChangePasswordDialog } from "@/modules/auth/ChangePasswordDialog";
 import { EditProfileDialog } from "@/modules/auth/EditProfileDialog";
 import { ForceChangePasswordDialog } from "@/modules/auth/ForceChangePasswordDialog";
 import { studentAccessLevel } from "@/modules/auth/access-control";
+import { captureReturnTo } from "@/shared/lib/return-to";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { checkAccess, homeForRole } from "@/shared/lib/rbac";
 import { sortRolesByDisplay } from "@/shared/lib/role-order";
@@ -652,6 +653,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       // aquí, el reload aterrizaba en /auth y el caller tenía que
       // re-loguearse (loop observado tras `auth.verifyOtp`).
       if (sessionStorage.getItem(IMPERSONATION_TRANSITION_FLAG) === "1") return;
+      // Recordar el deep-link protegido para volver tras el login (ej. el QR
+      // de Kahoot → /app/student/polls?kahootPin=…, o el de asistencia). Sin
+      // esto el login siempre cae a /app y se pierde el param del deep-link.
+      captureReturnTo();
       navigate({ to: "/auth" });
     }
   }, [loading, user, navigate, isTakingExam]);

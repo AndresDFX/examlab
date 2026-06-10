@@ -16,7 +16,7 @@
  *   - 'after_close' → solo si la encuesta ya cerró.
  *   - 'never'       → nunca al alumno.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -52,8 +52,12 @@ export const Route = createFileRoute("/app/student/polls")({
   // Deep-link: el docente comparte `/app/student/polls?poll=<id>` para que
   // el alumno aterrice y se le resalte/scrollee esa encuesta. La RLS sigue
   // aplicando — el param solo enfoca, no expone nada.
-  validateSearch: (search: Record<string, unknown>): { poll?: string } => ({
+  // `kahootPin`: deep-link del QR de un Kahoot en vivo. Al aterrizar (logueado;
+  // si no, el login con returnTo lo trae acá), se auto-une por PIN y redirige
+  // al juego. La seguridad la enforza el RPC kahoot_join_game (matrícula).
+  validateSearch: (search: Record<string, unknown>): { poll?: string; kahootPin?: string } => ({
     poll: typeof search.poll === "string" ? search.poll : undefined,
+    kahootPin: typeof search.kahootPin === "string" ? search.kahootPin : undefined,
   }),
 });
 
@@ -126,7 +130,23 @@ function StudentPolls() {
   const { t } = useTranslation();
   const { user } = useAuth();
   // Deep-link `?poll=<id>` compartido por el docente — resaltamos esa card.
-  const { poll: deepLinkId } = Route.useSearch();
+  const { poll: deepLinkId, kahootPin } = Route.useSearch();
+  const navigate = useNavigate();
+  // Capturamos el PIN del QR UNA vez (al montar): lo pasamos a KahootJoinCard
+  // para auto-unirse, y limpiamos el param de la URL para que un refresh /
+  // back no re-dispare el join. El valor viene del router (determinista en
+  // SSR+cliente), así que es seguro leerlo en el initializer.
+  const [autoKahootPin] = useState<string | null>(kahootPin ?? null);
+  useEffect(() => {
+    if (kahootPin) {
+      navigate({
+        to: "/app/student/polls",
+        search: deepLinkId ? { poll: deepLinkId } : {},
+        replace: true,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [polls, setPolls] = useState<Poll[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -370,7 +390,7 @@ function StudentPolls() {
 
       {/* Kahoot en vivo: se auto-muestra solo si hay un juego activo en
           alguno de los cursos del alumno. */}
-      <KahootJoinCard nonce={retryNonce} />
+      <KahootJoinCard nonce={retryNonce} autoPin={autoKahootPin} />
 
       {loading ? (
         <div className="p-4 sm:p-8 flex items-center justify-center text-sm text-muted-foreground">

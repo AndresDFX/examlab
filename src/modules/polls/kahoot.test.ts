@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { kahootPoints, secondsLeft, KAHOOT_SHAPES } from "./kahoot";
+import { kahootPoints, secondsLeft, KAHOOT_SHAPES, buildKahootJoinUrl } from "./kahoot";
 
 describe("kahootPoints", () => {
   it("incorrect answer is always 0", () => {
@@ -75,5 +75,19 @@ describe("KAHOOT_SHAPES", () => {
       expect(s.bg).toMatch(/^bg-\[#/);
       expect(["triangle", "diamond", "circle", "square"]).toContain(s.icon);
     }
+  });
+});
+
+describe("buildKahootJoinUrl", () => {
+  it("apunta a /app/student/polls con el PIN en kahootPin", () => {
+    expect(buildKahootJoinUrl("https://examlab.lovable.app", "842803")).toBe(
+      "https://examlab.lovable.app/app/student/polls?kahootPin=842803",
+    );
+  });
+
+  it("respeta el origin pasado (no hardcodea host)", () => {
+    expect(buildKahootJoinUrl("http://localhost:5173", "000111")).toBe(
+      "http://localhost:5173/app/student/polls?kahootPin=000111",
+    );
   });
 });

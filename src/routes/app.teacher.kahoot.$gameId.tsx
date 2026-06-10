@@ -21,8 +21,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useKahootGame } from "@/modules/polls/use-kahoot-game";
-import { KAHOOT_SHAPES, secondsLeft } from "@/modules/polls/kahoot";
+import { KAHOOT_SHAPES, secondsLeft, buildKahootJoinUrl } from "@/modules/polls/kahoot";
 import { KahootShapeIcon } from "@/modules/polls/KahootShapeIcon";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Play,
   Lock,
@@ -57,6 +58,11 @@ function KahootHost() {
     const id = setInterval(() => setNowMs(Date.now()), 250);
     return () => clearInterval(id);
   }, []);
+
+  // Origin para el QR de unión. Se lee POST-mount (no en render) para no
+  // romper la hidratación SSR (regla del proyecto: nunca window.* en render).
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
 
   useEffect(() => {
     const onFs = () => setIsFs(!!document.fullscreenElement);
@@ -145,11 +151,26 @@ function KahootHost() {
         {game.status === "lobby" && (
           <div className="text-center space-y-6 w-full max-w-3xl">
             <p className="text-muted-foreground">{t("kahoot.lobbyJoinHint")}</p>
-            <div className="rounded-2xl border-2 border-primary/30 bg-card py-8 px-6">
-              <p className="text-sm uppercase tracking-widest text-muted-foreground">{t("kahoot.pinLabel")}</p>
-              <p className="text-6xl sm:text-7xl font-black tracking-[0.2em] tabular-nums text-primary mt-2">
-                {game.pin}
-              </p>
+            <div className="rounded-2xl border-2 border-primary/30 bg-card py-8 px-6 flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-10">
+              <div>
+                <p className="text-sm uppercase tracking-widest text-muted-foreground">{t("kahoot.pinLabel")}</p>
+                <p className="text-6xl sm:text-7xl font-black tracking-[0.2em] tabular-nums text-primary mt-2">
+                  {game.pin}
+                </p>
+              </div>
+              {/* QR para unirse escaneando: deep-link a
+                  /app/student/polls?kahootPin=… → el alumno escanea, hace login
+                  si hace falta (returnTo lo trae de vuelta) y la página
+                  auto-une por PIN. `origin` se setea post-mount (SSR-safe).
+                  Fondo blanco fijo para que el QR contraste en cualquier tema. */}
+              {origin && (
+                <div className="flex flex-col items-center gap-1.5">
+                  <div className="rounded-lg bg-white p-3">
+                    <QRCodeSVG value={buildKahootJoinUrl(origin, game.pin)} size={148} />
+                  </div>
+                  <span className="text-[11px] text-muted-foreground">{t("kahoot.scanToJoin")}</span>
+                </div>
+              )}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 min-h-12">
               {players.length === 0 ? (

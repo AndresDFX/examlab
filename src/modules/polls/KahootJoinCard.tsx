@@ -6,7 +6,7 @@
  *   2. PIN manual: ingresa el PIN que muestra el docente en la pantalla.
  * Al unirse llama `kahoot_join_game` y navega a la vista de jugador.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,7 +29,15 @@ interface ActiveGame {
   poll: { title: string; deleted_at: string | null } | null;
 }
 
-export function KahootJoinCard({ nonce }: { nonce?: number }) {
+export function KahootJoinCard({
+  nonce,
+  autoPin,
+}: {
+  nonce?: number;
+  /** PIN recibido por deep-link (QR del docente). Si llega, se auto-une una
+   *  sola vez al montar y navega al juego. */
+  autoPin?: string | null;
+}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [games, setGames] = useState<ActiveGame[]>([]);
@@ -77,6 +85,20 @@ export function KahootJoinCard({ nonce }: { nonce?: number }) {
       setJoining(false);
     }
   };
+
+  // Auto-join cuando llega un PIN por deep-link (QR del docente). Una sola vez
+  // por montaje (ref): join() navega al juego en éxito, o muestra toast en
+  // error (PIN inválido, no matriculado, o Kahoot en papelera — todo validado
+  // server-side por kahoot_join_game). No depende de la lista `games`, así que
+  // funciona aunque la tarjeta no se llegue a renderizar.
+  const autoJoinedRef = useRef(false);
+  useEffect(() => {
+    if (autoPin && !autoJoinedRef.current) {
+      autoJoinedRef.current = true;
+      void join(autoPin);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPin]);
 
   // Solo mostramos la tarjeta si hay juegos activos (no saturar la vista
   // cuando no hay nada en vivo). El PIN manual aparece dentro.

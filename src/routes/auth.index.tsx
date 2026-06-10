@@ -30,6 +30,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { getTenantSlugFromUrl } from "@/modules/tenants/url";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { requestBrowserSaveCredential } from "@/shared/lib/credential-store";
+import { consumeReturnTo } from "@/shared/lib/return-to";
 
 export const Route = createFileRoute("/auth/")({
   head: () => ({
@@ -203,10 +204,11 @@ function AuthPage() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
-        // Sesión ya activa → al app. No tocamos localStorage del
-        // override aquí (el usuario podría tener uno legítimo de
-        // antes; si es regular, `useTenant` lo ignora).
-        window.location.href = "/app";
+        // Sesión ya activa → al app (o al deep-link recordado, ej. QR de
+        // Kahoot). No tocamos localStorage del override aquí (el usuario
+        // podría tener uno legítimo de antes; si es regular, `useTenant` lo
+        // ignora).
+        window.location.href = consumeReturnTo() ?? "/app";
       }
     });
   }, []);
@@ -397,7 +399,10 @@ function AuthPage() {
       // por sí solo no lo hace en este flujo SPA). Awaiteado para que la
       // burbuja quede encolada; el redirect siguiente la muestra.
       await requestBrowserSaveCredential(email, password);
-      window.location.href = "/app";
+      // Volver al deep-link protegido si el usuario llegó por uno (ej. QR de
+      // Kahoot / asistencia); si no, a /app. consumeReturnTo valida que sea
+      // una ruta interna (anti open-redirect).
+      window.location.href = consumeReturnTo() ?? "/app";
     } catch (err) {
       console.error("[auth] post-login validation failed", err);
       await supabase.auth.signOut();
