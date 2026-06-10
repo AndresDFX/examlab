@@ -1343,7 +1343,8 @@
       "fin_curso": "Fin de curso",
       "inicio_curso": "Inicio de curso",
       "proyecto": "Proyecto",
-      "taller": "Taller"
+      "taller": "Taller",
+      "cierre": "Cierre de corte"
     },
     "legend": {
       "empty": "Sin eventos en este mes.",

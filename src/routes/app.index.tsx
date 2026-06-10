@@ -687,9 +687,23 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           eran 4; talleres y proyectos activos se ven en sus módulos
           dedicados — el dashboard prioriza lo time-critical (clases +
           exámenes). */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 min-h-0">
+      {/* Calendario (izq) + agenda de 2 cards (der) — MISMO layout que el
+          dashboard del estudiante. El calendario muestra los eventos de
+          TODOS los cursos que dicta el docente + los cierres de corte
+          (mode="teacher"). */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
+        <div className="min-h-0 flex">
+          <StudentEventsCalendar
+            userId={userId}
+            mode="teacher"
+            className="h-full w-full flex flex-col min-h-0"
+          />
+        </div>
+
+        {/* Próximas clases + Próximos exámenes apilados a la derecha. */}
+        <div className="flex flex-col gap-4 min-h-0">
         {/* Próximas clases */}
-        <Card className="flex flex-col min-h-0">
+        <Card className="flex flex-col min-h-0 lg:flex-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <CalendarClock className="h-4 w-4 text-cyan-500 dark:text-cyan-300" />{" "}
@@ -728,7 +742,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         </Card>
 
         {/* Próximos exámenes */}
-        <Card className="flex flex-col min-h-0">
+        <Card className="flex flex-col min-h-0 lg:flex-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Calendar className="h-4 w-4 text-violet-500 dark:text-violet-400" />{" "}
@@ -765,6 +779,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
             </Link>
           </CardContent>
         </Card>
+        </div>
       </div>
 
       <OpenFeedbackModal open={openFeedbackModalOpen} onOpenChange={setOpenFeedbackModalOpen} />

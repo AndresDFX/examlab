@@ -1343,7 +1343,8 @@
       "fin_curso": "Course end",
       "inicio_curso": "Course start",
       "proyecto": "Project",
-      "taller": "Workshop"
+      "taller": "Workshop",
+      "cierre": "Cut closing"
     },
     "legend": {
       "empty": "No events this month.",

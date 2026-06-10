@@ -44,6 +44,7 @@ import {
   CalendarCheck,
   Flag,
   CheckCircle2,
+  Lock,
 } from "lucide-react";
 import { formatDate } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
@@ -51,7 +52,14 @@ import { cn } from "@/shared/lib/utils";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-type EventKind = "inicio_curso" | "fin_curso" | "clase" | "examen" | "taller" | "proyecto";
+type EventKind =
+  | "inicio_curso"
+  | "fin_curso"
+  | "clase"
+  | "examen"
+  | "taller"
+  | "proyecto"
+  | "cierre";
 
 interface CalendarEvent {
   id: string;
@@ -108,6 +116,14 @@ const KIND_META_STATIC: Record<
     icon: FolderKanban,
     defaultLabel: "Proyecto",
   },
+  // Cierre de corte (grade_cuts.end_date) — solo en modo docente. Color
+  // rojo intenso + candado: marca el límite de cierre del corte.
+  cierre: {
+    dotClass: "bg-red-600",
+    legendClass: "text-red-700 dark:text-red-400",
+    icon: Lock,
+    defaultLabel: "Cierre de corte",
+  },
 };
 
 const MONTH_NAMES_FALLBACK_ES = [
@@ -158,11 +174,17 @@ function dateToLocalKey(d: Date): string {
 export function StudentEventsCalendar({
   userId,
   className,
+  mode = "student",
 }: {
   userId: string | undefined;
   /** Permite que el dashboard estire el calendario para que llene su
    *  columna (h-full flex flex-col) y se alinee con la agenda al lado. */
   className?: string;
+  /** "student" (default): eventos de los cursos en que el usuario está
+   *  matriculado, vía sus asignaciones. "teacher": eventos de TODOS los
+   *  cursos que el docente dicta (course_teachers), por curso, + los
+   *  cierres de corte (grade_cuts.end_date). Mismo UI/calendario. */
+  mode?: "student" | "teacher";
 }) {
   const { t } = useTranslation();
   // Labels traducidos derivados de la metadata estática + i18n.
@@ -212,12 +234,17 @@ export function StudentEventsCalendar({
     setLoading(true);
     void (async () => {
       try {
-        // 1) Cursos donde estoy matriculado — base de todo lo demás.
-        const { data: enr } = await db
-          .from("course_enrollments")
-          .select("course_id")
-          .eq("user_id", userId);
-        const courseIds = ((enr ?? []) as Array<{ course_id: string }>).map((r) => r.course_id);
+        const isTeacher = mode === "teacher";
+        const role = isTeacher ? "teacher" : "student";
+
+        // 1) Cursos base: docente → los que dicta (course_teachers);
+        //    estudiante → en los que está matriculado (course_enrollments).
+        const { data: courseLink } = isTeacher
+          ? await db.from("course_teachers").select("course_id").eq("user_id", userId)
+          : await db.from("course_enrollments").select("course_id").eq("user_id", userId);
+        const courseIds = ((courseLink ?? []) as Array<{ course_id: string }>).map(
+          (r) => r.course_id,
+        );
         if (courseIds.length === 0) {
           if (!cancelled) {
             setEvents([]);
@@ -226,45 +253,85 @@ export function StudentEventsCalendar({
           return;
         }
 
-        // 2) Datos en paralelo. Cada query escupe su propio set de eventos
-        //    con el tipo correspondiente; al final se concatenan.
-        const [coursesRes, sessionsRes, examAsgRes, workshopAsgRes, projectAsgRes, projectCoursesRes] =
-          await Promise.all([
-            db
-              .from("courses")
-              .select("id, name, start_date, end_date")
-              .in("id", courseIds)
-              .is("deleted_at", null),
-            db
-              .from("attendance_sessions")
-              .select("id, title, session_date, course:courses(id, name)")
-              .in("course_id", courseIds)
-              .is("deleted_at", null),
-            db
-              .from("exam_assignments")
-              .select(
-                "exam:exams(id, title, start_time, status, deleted_at, course:courses(name))",
-              )
-              .eq("user_id", userId),
-            db
-              .from("workshop_assignments")
-              .select(
-                "workshop:workshops(id, title, due_date, status, deleted_at, course:courses(name))",
-              )
-              .eq("user_id", userId),
-            db
-              .from("project_assignments")
-              .select(
-                "project:projects(id, title, due_date, status, deleted_at, course:courses(name))",
-              )
-              .eq("user_id", userId),
-            db
-              .from("project_courses")
-              .select(
-                "project:projects(id, title, due_date, status, deleted_at, course:courses(name))",
-              )
-              .in("course_id", courseIds),
-          ]);
+        // 2) Datos en paralelo. En modo docente los exámenes/talleres se
+        //    traen POR CURSO (el docente ve TODO lo de sus cursos, no
+        //    "asignaciones"); en modo estudiante, por asignación al usuario.
+        //    Proyectos: project_courses sirve a ambos (+ project_assignments
+        //    solo para el alumno). Sesiones: por curso en ambos. Los cierres
+        //    (grade_cuts.end_date) solo aplican al docente.
+        const [
+          coursesRes,
+          sessionsRes,
+          examItemsRes,
+          workshopItemsRes,
+          projectCoursesRes,
+          projectAsgRes,
+          cutsRes,
+        ] = await Promise.all([
+          db
+            .from("courses")
+            .select("id, name, start_date, end_date")
+            .in("id", courseIds)
+            .is("deleted_at", null),
+          db
+            .from("attendance_sessions")
+            .select("id, title, session_date, course:courses(id, name)")
+            .in("course_id", courseIds)
+            .is("deleted_at", null),
+          isTeacher
+            ? db
+                .from("exams")
+                .select("id, title, start_time, status, deleted_at, course:courses(name)")
+                .in("course_id", courseIds)
+            : db
+                .from("exam_assignments")
+                .select(
+                  "exam:exams(id, title, start_time, status, deleted_at, course:courses(name))",
+                )
+                .eq("user_id", userId),
+          isTeacher
+            ? db
+                .from("workshops")
+                .select("id, title, due_date, status, deleted_at, course:courses(name)")
+                .in("course_id", courseIds)
+            : db
+                .from("workshop_assignments")
+                .select(
+                  "workshop:workshops(id, title, due_date, status, deleted_at, course:courses(name))",
+                )
+                .eq("user_id", userId),
+          db
+            .from("project_courses")
+            .select(
+              "project:projects(id, title, due_date, status, deleted_at, course:courses(name))",
+            )
+            .in("course_id", courseIds),
+          isTeacher
+            ? Promise.resolve({ data: [] as unknown[] })
+            : db
+                .from("project_assignments")
+                .select(
+                  "project:projects(id, title, due_date, status, deleted_at, course:courses(name))",
+                )
+                .eq("user_id", userId),
+          isTeacher
+            ? db
+                .from("grade_cuts")
+                .select("id, name, end_date, course:courses(name)")
+                .in("course_id", courseIds)
+            : Promise.resolve({ data: [] as unknown[] }),
+        ]);
+
+        // Normalización exámenes/talleres: docente trae la fila directa;
+        // alumno trae un wrapper { exam } / { workshop } de la asignación.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const examItems: any[] = isTeacher
+          ? ((examItemsRes.data ?? []) as any[])
+          : ((examItemsRes.data ?? []) as any[]).map((a) => a.exam);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const workshopItems: any[] = isTeacher
+          ? ((workshopItemsRes.data ?? []) as any[])
+          : ((workshopItemsRes.data ?? []) as any[]).map((a) => a.workshop);
 
         const all: CalendarEvent[] = [];
 
@@ -310,62 +377,57 @@ export function StudentEventsCalendar({
             kind: "clase",
             title: s.title ?? "Clase",
             course_name: s.course?.name ?? null,
-            href: null,
+            href: isTeacher ? "/app/teacher/attendance" : null,
           });
         }
 
         // Exámenes. Filtramos a published; un examen draft/closed no es
-        // accionable y descoloca al alumno verlo en su calendario.
-        for (const a of (examAsgRes.data ?? []) as Array<{
-          exam: {
-            id: string;
-            title: string;
-            start_time: string;
-            status: string | null;
-            deleted_at: string | null;
-            course: { name: string } | null;
-          } | null;
-        }>) {
-          if (!a.exam) continue;
-          if (a.exam.deleted_at) continue; // en papelera → no se muestra
-          if ((a.exam.status ?? "published") !== "published") continue;
-          const date = isoToLocalDateKey(a.exam.start_time);
+        // accionable y descoloca verlo en el calendario.
+        for (const ex of examItems as Array<{
+          id: string;
+          title: string;
+          start_time: string;
+          status: string | null;
+          deleted_at: string | null;
+          course: { name: string } | null;
+        } | null>) {
+          if (!ex) continue;
+          if (ex.deleted_at) continue; // en papelera → no se muestra
+          if ((ex.status ?? "published") !== "published") continue;
+          const date = isoToLocalDateKey(ex.start_time);
           if (!date) continue;
           all.push({
-            id: `exam-${a.exam.id}`,
+            id: `exam-${ex.id}`,
             date,
             kind: "examen",
-            title: a.exam.title,
-            course_name: a.exam.course?.name ?? null,
-            href: `/app/student/exams`,
+            title: ex.title,
+            course_name: ex.course?.name ?? null,
+            href: `/app/${role}/exams`,
           });
         }
 
-        // Talleres — la "fecha del calendario" es el due_date (cuándo
-        // vence). El alumno se preocupa del vencimiento, no de start_date.
-        for (const a of (workshopAsgRes.data ?? []) as Array<{
-          workshop: {
-            id: string;
-            title: string;
-            due_date: string | null;
-            status: string | null;
-            deleted_at: string | null;
-            course: { name: string } | null;
-          } | null;
-        }>) {
-          if (!a.workshop) continue;
-          if (a.workshop.deleted_at) continue; // en papelera → no se muestra
-          if (a.workshop.status !== "published") continue;
-          if (!a.workshop.due_date) continue;
-          const date = isoToLocalDateKey(a.workshop.due_date);
+        // Talleres — la "fecha del calendario" es el due_date (vencimiento).
+        for (const w of workshopItems as Array<{
+          id: string;
+          title: string;
+          due_date: string | null;
+          status: string | null;
+          deleted_at: string | null;
+          course: { name: string } | null;
+        } | null>) {
+          if (!w) continue;
+          if (w.deleted_at) continue; // en papelera → no se muestra
+          if (w.status !== "published") continue;
+          if (!w.due_date) continue;
+          const date = isoToLocalDateKey(w.due_date);
           if (!date) continue;
           all.push({
-            id: `workshop-${a.workshop.id}`,
+            id: `workshop-${w.id}`,
             date,
             kind: "taller",
-            title: a.workshop.title,
-            course_name: a.workshop.course?.name ?? null,
-            href: `/app/student/workshops`,
+            title: w.title,
+            course_name: w.course?.name ?? null,
+            href: `/app/${role}/workshops`,
           });
         }
 
@@ -395,7 +457,7 @@ export function StudentEventsCalendar({
             kind: "proyecto",
             title: p.title,
             course_name: p.course?.name ?? null,
-            href: `/app/student/projects`,
+            href: `/app/${role}/projects`,
           });
         };
         for (const a of (projectAsgRes.data ?? []) as Array<{
@@ -423,6 +485,25 @@ export function StudentEventsCalendar({
           collectProject(a.project);
         }
 
+        // Cierres de corte (solo docente): la fecha del calendario es el
+        // end_date del corte (cuándo cierra la calificación de ese corte).
+        for (const cut of (cutsRes.data ?? []) as Array<{
+          id: string;
+          name: string;
+          end_date: string | null;
+          course: { name: string } | null;
+        }>) {
+          if (!cut.end_date) continue;
+          all.push({
+            id: `cut-${cut.id}`,
+            date: cut.end_date.slice(0, 10),
+            kind: "cierre",
+            title: cut.name,
+            course_name: cut.course?.name ?? null,
+            href: "/app/teacher/gradebook",
+          });
+        }
+
         if (!cancelled) setEvents(all);
       } finally {
         if (!cancelled) setLoading(false);
@@ -431,7 +512,7 @@ export function StudentEventsCalendar({
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, mode]);
 
   // Agrupa por date string para lookup O(1) al renderizar cada celda.
   const byDate = useMemo(() => {
