@@ -10,12 +10,15 @@ describe("getStarterCode", () => {
     expect(out).toContain("System.out.println");
   });
 
-  it("Python retorna un print mínimo", () => {
-    expect(getStarterCode("python")).toBe(`print("Holi")`);
+  it("Python retorna un starter con el idiom profesional main() + guard", () => {
+    const out = getStarterCode("python");
+    expect(out).toContain("def main():");
+    expect(out).toContain('if __name__ == "__main__":');
+    expect(out).toContain("print(");
   });
 
   it("JavaScript retorna un console.log mínimo", () => {
-    expect(getStarterCode("javascript")).toBe(`console.log("Holi");`);
+    expect(getStarterCode("javascript")).toBe(`console.log("¡Hola, mundo!");`);
   });
 
   it("lenguaje desconocido (string libre) retorna vacío", () => {
@@ -39,7 +42,7 @@ describe("getStarterCode", () => {
     // sin tocarlo, debe imprimir algo y terminar limpio. No verificamos la
     // ejecución real (eso es integration test); solo que el código tiene
     // forma correcta del lenguaje.
-    expect(getStarterCode("python")).toMatch(/^print\(/);
+    expect(getStarterCode("python")).toContain("print(");
     expect(getStarterCode("javascript")).toMatch(/console\.log\(/);
   });
 });

@@ -28,13 +28,22 @@ export type CodeLanguage = "java" | "python" | "javascript";
  */
 export const JAVA_STARTER = `public class Main {
     public static void main(String[] args) {
-        System.out.println("Holi");
+        System.out.println("¡Hola, mundo!");
     }
 }`;
 
-const PYTHON_STARTER = `print("Holi")`;
+// El idiom `if __name__ == "__main__":` con una función `main()` es el punto
+// de entrada canónico/profesional de un programa Python — mismo espíritu que
+// la clase Main + main de Java. Arranca al estudiante desde una estructura
+// real (funciones + guard de ejecución), no desde un print suelto.
+const PYTHON_STARTER = `def main():
+    print("¡Hola, mundo!")
 
-const JAVASCRIPT_STARTER = `console.log("Holi");`;
+
+if __name__ == "__main__":
+    main()`;
+
+const JAVASCRIPT_STARTER = `console.log("¡Hola, mundo!");`;
 
 /**
  * Devuelve el starter code por defecto para un lenguaje. Lo usan los
@@ -98,17 +107,17 @@ const LANGUAGE_CONFIG: Record<
   java: {
     label: "Java",
     monacoLang: "java",
-    defaultCode: `public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}`,
+    defaultCode: JAVA_STARTER,
   },
   python: {
     label: "Python",
     monacoLang: "python",
-    defaultCode: `print("Hello, World!")`,
+    defaultCode: PYTHON_STARTER,
   },
   javascript: {
     label: "JavaScript",
     monacoLang: "javascript",
-    defaultCode: `console.log("Hello, World!");`,
+    defaultCode: JAVASCRIPT_STARTER,
   },
 };
 
