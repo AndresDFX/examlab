@@ -100,13 +100,19 @@ export function KahootJoinCard({
     const clean = byPin.trim();
     if (!/^[0-9]{6}$/.test(clean)) {
       toast.error(t("kahoot.invalidPin"));
+      setPin("");
       return;
     }
     setJoining(true);
     try {
       const { data, error } = await db.rpc("kahoot_join_game", { _pin: clean, _nickname: null });
       if (error || !data?.game_id) {
+        // PIN incorrecto / no matriculado / tenant inválido / sala no
+        // disponible → limpieza de estado: borrar el input, avisar y NO
+        // navegar al módulo de juego (acceso bloqueado). El backend
+        // (kahoot_join_game) devuelve el error específico ya en español.
         toast.error(friendlyError(error, t("kahoot.joinError")));
+        setPin("");
         return;
       }
       navigate({ to: "/app/student/kahoot/$gameId", params: { gameId: data.game_id } });
