@@ -87,6 +87,8 @@ import {
   Link2,
   Gamepad2,
   Play,
+  ArrowRightLeft,
+  Shuffle,
 } from "lucide-react";
 import { usePollRealtime } from "@/modules/polls/use-poll-realtime";
 import { KahootQuestionsEditor } from "@/modules/polls/KahootQuestionsEditor";
@@ -2430,6 +2432,68 @@ function ResultsDialog({
   // evitar dobles clicks. Si el docente clickea borrar dos veces sobre
   // el mismo alumno, el segundo click no hace nada.
   const [clearing, setClearing] = useState<Set<string>>(new Set());
+  // user_ids en proceso de MOVE (reasignación de cupo) — spinner + anti doble.
+  const [moving, setMoving] = useState<Set<string>>(new Set());
+  // Asignación masiva de estudiantes restantes en curso.
+  const [assigning, setAssigning] = useState(false);
+
+  /** Mueve a un alumno a OTRO cupo (slot). El backend hace el claim atómico
+   *  del cupo destino; si se llenó en el instante, rechaza con "El cupo ya ha
+   *  sido ocupado por otra respuesta" y refetcheamos para revertir la UI. */
+  const moveVoteTo = async (userId: string, toOptionId: string) => {
+    if (!poll || moving.has(userId)) return;
+    setMoving((prev) => new Set(prev).add(userId));
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).rpc("teacher_reassign_poll_response", {
+        _poll_id: poll.id,
+        _user_id: userId,
+        _to_option_id: toOptionId,
+      });
+      if (error) {
+        toast.error(friendlyError(error, t("teacherPolls.errMoveVote")));
+        // Revertir: re-sincronizar desde la BD (la UI es realtime-driven, no
+        // optimista, pero forzamos por si el toast llegó antes del evento).
+        void refetch();
+        return;
+      }
+      toast.success(t("teacherPolls.moveVoteOk"));
+      void refetch();
+    } finally {
+      setMoving((prev) => {
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
+    }
+  };
+
+  /** Asigna automáticamente a los matriculados que NO han respondido a los
+   *  cupos que queden libres (claim atómico por cupo, sin sobrecupo). */
+  const assignRemaining = async () => {
+    if (!poll || assigning) return;
+    const ok = await confirm({
+      title: t("teacherPolls.assignRemainingTitle"),
+      description: t("teacherPolls.assignRemainingDesc"),
+      confirmLabel: t("teacherPolls.assignRemainingConfirm"),
+    });
+    if (!ok) return;
+    setAssigning(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("teacher_assign_remaining_to_slots", {
+        _poll_id: poll.id,
+      });
+      if (error) {
+        toast.error(friendlyError(error, t("teacherPolls.errAssignRemaining")));
+        return;
+      }
+      toast.success(t("teacherPolls.assignRemainingResult", { count: Number(data) || 0 }));
+      void refetch();
+    } finally {
+      setAssigning(false);
+    }
+  };
 
   /** Borra TODAS las respuestas de un alumno en esta encuesta. Útil
    *  cuando el alumno eligió una fecha y necesita re-elegir después,
@@ -2535,6 +2599,11 @@ function ResultsDialog({
   // no llegó (primer render), fallback a las del prop.
   const options = liveOptions.length > 0 ? liveOptions : (poll.options ?? []);
   const total = options.reduce((acc, o) => acc + o.responses_count, 0);
+  // Gestión de cupos (mover / asignar restantes) solo tiene sentido en slot
+  // y con la encuesta ABIERTA. El backend también lo bloquea (poll_is_open).
+  const isSlot = poll.poll_type === "slot";
+  const pollOpen = pollIsOpen(poll);
+  const slotMgmt = isSlot && pollOpen;
   return (
     <Dialog open={Boolean(poll)} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
@@ -2599,6 +2668,17 @@ function ResultsDialog({
                       {voters.map((v) => {
                         const display = v.full_name ?? v.user_id.slice(0, 8);
                         const isClearing = clearing.has(v.user_id);
+                        const isMoving = moving.has(v.user_id);
+                        // Cupos DESTINO con espacio (≠ al actual). Solo en slot
+                        // abierto. El backend re-valida el cupo atómicamente.
+                        const freeSlots = slotMgmt
+                          ? options.filter(
+                              (x) =>
+                                x.id !== o.id &&
+                                x.max_responses != null &&
+                                x.responses_count < x.max_responses,
+                            )
+                          : [];
                         return (
                           <span
                             key={v.user_id}
@@ -2607,22 +2687,49 @@ function ResultsDialog({
                             <span className="truncate max-w-[140px]" title={display}>
                               {display}
                             </span>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-4 w-4 shrink-0 text-muted-foreground hover:text-destructive"
-                              disabled={isClearing}
-                              onClick={() => void clearVoteFor(v.user_id, v.full_name)}
-                              title={t("teacherPolls.clearVoteTitle")}
-                              aria-label={t("teacherPolls.clearVoteAria", { name: display })}
-                            >
-                              {isClearing ? (
+                            {slotMgmt ? (
+                              isMoving ? (
                                 <Spinner size="xs" />
                               ) : (
-                                <Trash2 className="h-2.5 w-2.5" />
-                              )}
-                            </Button>
+                                <RowActionsMenu
+                                  className="h-5 w-5 shrink-0"
+                                  label={t("teacherPolls.manageVoteAria", { name: display })}
+                                  actions={[
+                                    ...freeSlots.map((fs) => ({
+                                      label: t("teacherPolls.moveVoteTo", { slot: fs.label }),
+                                      icon: ArrowRightLeft,
+                                      disabled: isClearing,
+                                      onClick: () => void moveVoteTo(v.user_id, fs.id),
+                                    })),
+                                    {
+                                      label: t("teacherPolls.clearVoteMenu"),
+                                      icon: Trash2,
+                                      tone: "destructive" as const,
+                                      separatorBefore: freeSlots.length > 0,
+                                      disabled: isClearing,
+                                      onClick: () => void clearVoteFor(v.user_id, v.full_name),
+                                    },
+                                  ]}
+                                />
+                              )
+                            ) : (
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                className="h-4 w-4 shrink-0 text-muted-foreground hover:text-destructive"
+                                disabled={isClearing}
+                                onClick={() => void clearVoteFor(v.user_id, v.full_name)}
+                                title={t("teacherPolls.clearVoteTitle")}
+                                aria-label={t("teacherPolls.clearVoteAria", { name: display })}
+                              >
+                                {isClearing ? (
+                                  <Spinner size="xs" />
+                                ) : (
+                                  <Trash2 className="h-2.5 w-2.5" />
+                                )}
+                              </Button>
+                            )}
                           </span>
                         );
                       })}
@@ -2638,7 +2745,25 @@ function ResultsDialog({
             </div>
           )}
         </div>
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:gap-2">
+          {/* Asignación masiva: reparte los matriculados que NO respondieron a
+              los cupos libres (claim atómico por cupo, sin sobrecupo). Solo en
+              slot abierto. */}
+          {slotMgmt && (
+            <Button
+              variant="secondary"
+              onClick={() => void assignRemaining()}
+              disabled={assigning}
+              className="mr-auto"
+            >
+              {assigning ? (
+                <Spinner size="sm" className="mr-1" />
+              ) : (
+                <Shuffle className="h-4 w-4 mr-1" />
+              )}
+              {t("teacherPolls.assignRemaining")}
+            </Button>
+          )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.close")}
           </Button>

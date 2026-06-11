@@ -4664,7 +4664,18 @@
     "loadingResponses": "Loading responses…",
     "confirmClearVoteTitle": "Delete the response?",
     "confirmClearVoteDescription": "You're about to delete the responses from \"{{label}}\" in this poll. The student can vote again when they enter. The quota of the option they had chosen is freed. This action cannot be undone.",
-    "confirmClearVoteLabel": "Delete response"
+    "confirmClearVoteLabel": "Delete response",
+    "manageVoteAria": "Manage {{name}}'s slot",
+    "moveVoteTo": "Move to: {{slot}}",
+    "moveVoteOk": "Student moved to another slot.",
+    "errMoveVote": "Couldn't move the student to that slot.",
+    "clearVoteMenu": "Free slot",
+    "assignRemaining": "Assign remaining students",
+    "assignRemainingTitle": "Assign the remaining students?",
+    "assignRemainingDesc": "Enrolled students who have NOT responded yet will be auto-distributed into the free slots (without exceeding each slot's capacity). Those who already responded are left untouched.",
+    "assignRemainingConfirm": "Assign",
+    "assignRemainingResult": "{{count}} student(s) assigned to free slots.",
+    "errAssignRemaining": "Couldn't assign the remaining students."
   },
   "teacherAttendance": {
     "statusPresentShort": "P",

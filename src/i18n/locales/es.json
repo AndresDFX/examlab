@@ -4664,7 +4664,18 @@
     "loadingResponses": "Cargando respuestas…",
     "confirmClearVoteTitle": "¿Borrar la respuesta?",
     "confirmClearVoteDescription": "Vas a borrar las respuestas de \"{{label}}\" en esta encuesta. El alumno podrá volver a votar cuando entre. El cupo de la opción que había elegido se libera. Esta acción no se puede deshacer.",
-    "confirmClearVoteLabel": "Borrar respuesta"
+    "confirmClearVoteLabel": "Borrar respuesta",
+    "manageVoteAria": "Gestionar el cupo de {{name}}",
+    "moveVoteTo": "Mover a: {{slot}}",
+    "moveVoteOk": "Estudiante movido de cupo.",
+    "errMoveVote": "No se pudo mover al estudiante de cupo.",
+    "clearVoteMenu": "Liberar cupo",
+    "assignRemaining": "Asignar estudiantes restantes",
+    "assignRemainingTitle": "¿Asignar a los estudiantes restantes?",
+    "assignRemainingDesc": "Los estudiantes matriculados que aún NO han respondido se repartirán automáticamente en los cupos que queden libres (sin exceder la capacidad de cada uno). Quienes ya respondieron no se tocan.",
+    "assignRemainingConfirm": "Asignar",
+    "assignRemainingResult": "{{count}} estudiante(s) asignado(s) a cupos libres.",
+    "errAssignRemaining": "No se pudo asignar a los estudiantes restantes."
   },
   "teacherAttendance": {
     "statusPresentShort": "P",
