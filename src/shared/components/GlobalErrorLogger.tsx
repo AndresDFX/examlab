@@ -76,12 +76,16 @@ export function GlobalErrorLogger() {
     //    el último gana sin romper la sesión.
     // 4. Script error: cross-origin script sin info útil (CORS hide).
     //    No podemos diagnosticarlo desde acá.
+    // 5. "Script .../sw.js load failed": el navegador no pudo descargar el
+    //    service worker (red intermitente o deploy en curso reemplazando el
+    //    bundle). El SW previo sigue válido; no rompe la app. PWA lifecycle.
     const isBrowserNoise = (msg: string): boolean => {
       if (!msg) return false;
       return (
         msg.includes("Failed to update a ServiceWorker") ||
         msg.includes("newestWorker is null") ||
-        msg.includes("Lock") && msg.includes("was released because another request stole") ||
+        (msg.includes("Lock") && msg.includes("was released because another request stole")) ||
+        (msg.includes("sw.js") && msg.includes("load failed")) ||
         msg === "Script error." ||
         msg === "Script error"
       );

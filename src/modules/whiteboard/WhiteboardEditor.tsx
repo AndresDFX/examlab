@@ -180,25 +180,60 @@ export function WhiteboardEditor({
   // fullscreenchange handler para sincronizar el state).
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // ¿El navegador soporta la Fullscreen API sobre elementos? iOS Safari en
+  // iPhone NO la expone (solo en <video>), y algunos WebViews tampoco — ahí
+  // `el.requestFullscreen` es `undefined` y llamarla CRASHEA (TypeError
+  // reportado en /app/student/whiteboards). Detectamos soporte (estándar o
+  // webkit) y, si no lo hay, ocultamos el botón y el toggle es no-op.
+  const fullscreenSupported =
+    typeof document !== "undefined" &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (((document as any).fullscreenEnabled ?? false) ||
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ((document as any).webkitFullscreenEnabled ?? false));
+
   const toggleFullscreen = useCallback(() => {
-    const el = containerRef.current;
+    const el = containerRef.current as
+      | (HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void })
+      | null;
     if (!el) return;
-    if (!document.fullscreenElement) {
-      void el.requestFullscreen().catch((err) => {
-        console.warn("[WhiteboardEditor] requestFullscreen failed", err);
-      });
-    } else {
-      void document.exitFullscreen().catch(() => {});
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const doc = document as any;
+    const fsEl = doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
+    try {
+      if (!fsEl) {
+        const req = el.requestFullscreen ?? el.webkitRequestFullscreen;
+        if (typeof req === "function") {
+          void Promise.resolve(req.call(el)).catch((err: unknown) => {
+            console.warn("[WhiteboardEditor] requestFullscreen failed", err);
+          });
+        } else {
+          console.warn("[WhiteboardEditor] Fullscreen API no disponible en este navegador");
+        }
+      } else {
+        const exit = doc.exitFullscreen ?? doc.webkitExitFullscreen;
+        if (typeof exit === "function") void Promise.resolve(exit.call(doc)).catch(() => {});
+      }
+    } catch (err) {
+      console.warn("[WhiteboardEditor] fullscreen toggle error", err);
     }
   }, []);
   // Sincronizar state con el evento del navegador — el usuario puede
   // salir del fullscreen con Esc (no podemos interceptar Esc directo)
   // o desde el menú del browser. Sin este listener, el botón
-  // "Minimize" mostraría el ícono incorrecto post-Esc.
+  // "Minimize" mostraría el ícono incorrecto post-Esc. Escuchamos también
+  // el evento webkit-prefijado (Safari).
   useEffect(() => {
-    const handler = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = () =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setIsFullscreen(Boolean((document as any).fullscreenElement ?? (document as any).webkitFullscreenElement));
     document.addEventListener("fullscreenchange", handler);
-    return () => document.removeEventListener("fullscreenchange", handler);
+    document.addEventListener("webkitfullscreenchange", handler);
+    return () => {
+      document.removeEventListener("fullscreenchange", handler);
+      document.removeEventListener("webkitfullscreenchange", handler);
+    };
   }, []);
   // Si el dynamic import de Excalidraw falla (chunk corrupto, red caída
   // a media descarga del chunk grande, etc.), mostramos un ErrorState
@@ -560,15 +595,17 @@ export function WhiteboardEditor({
           Z-index alto para flotar sobre el canvas. El icono cambia
           según el estado actual (escapamos con Esc → fullscreenchange
           listener actualiza isFullscreen). */}
-      <button
-        type="button"
-        onClick={toggleFullscreen}
-        aria-label={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
-        title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
-        className="absolute bottom-2 right-2 z-10 rounded-md border border-border bg-background/90 backdrop-blur-sm p-1.5 text-muted-foreground hover:text-foreground hover:bg-background transition-colors shadow-sm"
-      >
-        {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-      </button>
+      {fullscreenSupported && (
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          aria-label={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+          title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+          className="absolute bottom-2 right-2 z-10 rounded-md border border-border bg-background/90 backdrop-blur-sm p-1.5 text-muted-foreground hover:text-foreground hover:bg-background transition-colors shadow-sm"
+        >
+          {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </button>
+      )}
     </div>
   );
 }

@@ -1948,6 +1948,11 @@ export function StudentWorkshopTaker({
       // Reutilizamos la detección hecha arriba para que el comportamiento
       // sea consistente entre `codigo_zip` (loop) y `batchItems` (Fase 2).
       const useAsyncAi = useAsyncAiEarly;
+      // Si la IA SÍNCRONA falla (ej. 503 "modelo saturado"), NO le mostramos
+      // el error al alumno por pregunta: caemos a la cola (pendiente + job) y
+      // tratamos la entrega como async. El worker reintenta (auto-retry
+      // transitorio) y al terminar el trigger recalcula la nota.
+      let fellBackToQueue = false;
 
       // ── Fase 2: UNA llamada batch para todas las abiertas (SOLO sync) ──
       if (batchItems.length > 0 && !useAsyncAi) {
@@ -1963,43 +1968,59 @@ export function StudentWorkshopTaker({
           },
         );
         const batchFailed = !!(bErr || bData?.error);
-        const batchResults =
-          !batchFailed && bData?.results && typeof bData.results === "object"
-            ? (bData.results as Record<
-                string,
-                { score: number; feedback: string; ai_likelihood?: number; ai_reasons?: string }
-              >)
-            : {};
-        const errMsg = batchFailed
-          ? `Error IA: ${bErr?.message ?? bData?.error ?? "Desconocido"}`
-          : null;
-
-        for (const it of batchItems) {
-          const r = batchResults[it.qid];
-          const payload = payloadsByQid[it.qid];
-          if (r) {
-            const earned = Math.max(0, Math.min(it.maxPoints, Number(r.score) || 0));
-            payload.ai_grade = earned;
-            payload.ai_feedback = r.feedback || "Sin retroalimentación";
-            totalEarned += earned;
-            breakdown.push({
-              qid: it.qid,
-              type: it.type,
-              points: it.maxPoints,
-              earned,
-              feedback: payload.ai_feedback,
-            });
-          } else {
-            // Falló el batch o el modelo omitió esta pregunta.
-            payload.ai_grade = 0;
-            payload.ai_feedback = errMsg ?? "El modelo no incluyó esta pregunta en su respuesta.";
+        if (batchFailed) {
+          // Fallback a la cola: pre-marcar TODAS las abiertas como pendientes
+          // (sin nota, sin mostrar el error de IA). Abajo `gradeAsync` encola
+          // el job `workshop_full` y deja la entrega en 'entregado'.
+          fellBackToQueue = true;
+          for (const it of batchItems) {
+            const payload = payloadsByQid[it.qid];
+            payload.ai_grade = null;
+            payload.ai_feedback = PENDING_AI_FEEDBACK;
             breakdown.push({
               qid: it.qid,
               type: it.type,
               points: it.maxPoints,
               earned: 0,
-              feedback: payload.ai_feedback,
+              feedback: PENDING_AI_FEEDBACK,
             });
+          }
+        } else {
+          const batchResults =
+            bData?.results && typeof bData.results === "object"
+              ? (bData.results as Record<
+                  string,
+                  { score: number; feedback: string; ai_likelihood?: number; ai_reasons?: string }
+                >)
+              : {};
+          for (const it of batchItems) {
+            const r = batchResults[it.qid];
+            const payload = payloadsByQid[it.qid];
+            if (r) {
+              const earned = Math.max(0, Math.min(it.maxPoints, Number(r.score) || 0));
+              payload.ai_grade = earned;
+              payload.ai_feedback = r.feedback || "Sin retroalimentación";
+              totalEarned += earned;
+              breakdown.push({
+                qid: it.qid,
+                type: it.type,
+                points: it.maxPoints,
+                earned,
+                feedback: payload.ai_feedback,
+              });
+            } else {
+              // El batch respondió OK pero el modelo OMITIÓ esta pregunta.
+              // No es un fallo de IA — queda en 0 con nota aclaratoria.
+              payload.ai_grade = 0;
+              payload.ai_feedback = "El modelo no incluyó esta pregunta en su respuesta.";
+              breakdown.push({
+                qid: it.qid,
+                type: it.type,
+                points: it.maxPoints,
+                earned: 0,
+                feedback: payload.ai_feedback,
+              });
+            }
           }
         }
       } else if (batchItems.length > 0 && useAsyncAi) {
@@ -2019,6 +2040,11 @@ export function StudentWorkshopTaker({
           });
         }
       }
+
+      // El modo "async efectivo" cubre tanto async configurado como el
+      // fallback cuando el batch sync falló: en ambos encolamos + dejamos la
+      // entrega pendiente.
+      const gradeAsync = useAsyncAi || fellBackToQueue;
 
       // ── Persistencia: upsert por qid ──
       for (const qid of Object.keys(payloadsByQid)) {
@@ -2044,7 +2070,7 @@ export function StudentWorkshopTaker({
       // pregunta. El worker no escribe nada (persistedInternally=true);
       // el target sirve para que el panel Cola resuelva el taller y el
       // estudiante en su enrichment.
-      if (useAsyncAi && batchItems.length > 0) {
+      if (gradeAsync && batchItems.length > 0) {
         // Fetch el course_id del workshop para el RLS del docente
         // (mismo motivo que en examen + proyecto).
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2083,7 +2109,7 @@ export function StudentWorkshopTaker({
       }
 
       // ── Encolado IA de `codigo_zip` (async) ──
-      if (useAsyncAi && pendingZipEnqueues.length > 0) {
+      if (gradeAsync && pendingZipEnqueues.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const dbForCourse2 = supabase as any;
         const { data: wsRow2 } = await dbForCourse2
@@ -2117,7 +2143,7 @@ export function StudentWorkshopTaker({
         }
       }
 
-      if (useAsyncAi && (batchItems.length > 0 || pendingZipEnqueues.length > 0)) {
+      if (gradeAsync && (batchItems.length > 0 || pendingZipEnqueues.length > 0)) {
         // En async dejamos la submission como `entregado` (no
         // `calificado`) porque la nota real todavía no se calculó.
         // ai_grade queda null y ai_feedback con el placeholder.
