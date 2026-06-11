@@ -961,7 +961,7 @@ Idioma de salida obligatorio: ${langName}.`;
           .insert({
             poll_id: targetId,
             text: String(q.text).slice(0, 500),
-            time_limit_seconds: 20,
+            time_limit_seconds: 10,
             points: 1000,
             multi_select: multi,
             position: ++kpos,

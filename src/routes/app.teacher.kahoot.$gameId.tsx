@@ -127,7 +127,14 @@ function KahootHost() {
       autoLockedRef.current !== state.game.question_started_at
     ) {
       autoLockedRef.current = state.game.question_started_at;
-      void advance("lock");
+      // INVARIANTE CROSS-FILE: esperar la VENTANA DE GRACIA del servidor
+      // (v_grace_ms=2000ms en kahoot_submit_answer, mig 20260936000000) antes de
+      // pasar a 'reveal', para que los auto-envíos del alumno en left===0 entren
+      // mientras el status sigue 'question'. El cierre REAL es server-side por
+      // tiempo; este delay solo sincroniza el reveal visual del host. El lock
+      // MANUAL (botón) sigue cerrando al instante a propósito.
+      const id = setTimeout(() => void advance("lock"), 2200);
+      return () => clearTimeout(id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [left, state?.game.status]);

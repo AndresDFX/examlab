@@ -71,7 +71,7 @@ interface EditQuestion {
 function blankQuestion(): EditQuestion {
   return {
     text: "",
-    time_limit_seconds: 20,
+    time_limit_seconds: 10,
     points: 1000,
     multi_select: false,
     options: [

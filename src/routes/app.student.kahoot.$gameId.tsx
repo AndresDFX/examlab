@@ -6,7 +6,7 @@
  * correcta antes del reveal (la RLS + el RPC lo garantizan).
  */
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,10 @@ function KahootPlayer() {
   // al instante. Multiple: se togglean varias y se envían con "Confirmar".
   const [selected, setSelected] = useState<string[]>([]);
   const [nowMs, setNowMs] = useState(0);
+  // Id de la pregunta para la que YA disparamos un submit (auto por timeout o
+  // tap single). Evita el doble-disparo del auto-envío. Se limpia al cambiar
+  // de pregunta.
+  const autoSentRef = useRef<string | null>(null);
 
   useEffect(() => {
     setNowMs(Date.now());
@@ -47,10 +51,13 @@ function KahootPlayer() {
   // Reset de la selección cuando cambia la pregunta activa.
   useEffect(() => {
     setSelected([]);
+    autoSentRef.current = null;
   }, [state?.question?.id]);
 
-  const submit = async (optionIds: string[]) => {
-    if (optionIds.length === 0 || submitting) return;
+  const submit = async (optionIds: string[], allowEmpty = false) => {
+    // allowEmpty=true SOLO desde el auto-envío por timeout (participación en
+    // blanco). En interacción normal seguimos exigiendo ≥1 opción.
+    if ((optionIds.length === 0 && !allowEmpty) || submitting) return;
     setSubmitting(true);
     try {
       const { error: e } = await db.rpc("kahoot_submit_answer", { _game_id: gameId, _option_ids: optionIds });
@@ -63,6 +70,23 @@ function KahootPlayer() {
       setSubmitting(false);
     }
   };
+
+  // Auto-envío al agotarse el tiempo (una vez por pregunta). Single ya auto-
+  // envía al tocar; acá cubrimos multiple-sin-confirmar y "no tocó nada"
+  // (envío en blanco → participación). El cierre REAL lo valida el servidor con
+  // su ventana de gracia; este disparo es UX, no autoridad.
+  useEffect(() => {
+    if (!state) return;
+    const { game, question, me } = state;
+    if (game.status !== "question" || !question || !me || me.answered) return;
+    if (submitting) return;
+    const lft = secondsLeft(game.question_started_at, question.time_limit_seconds, nowMs);
+    if (lft === null || lft > 0) return;
+    if (autoSentRef.current === question.id) return;
+    autoSentRef.current = question.id;
+    void submit(selected, /* allowEmpty */ true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, nowMs, selected, submitting]);
 
   if (loading) return <PageLoader />;
   if (error || !state) {
@@ -136,11 +160,20 @@ function KahootPlayer() {
             </div>
           </div>
 
-          {me?.answered ? (
+          {me?.answered || (left !== null && left <= 0) ? (
+            // Bloqueo visual inmediato: apenas el cronómetro llega a 0 (o el
+            // server confirma me.answered) deshabilitamos la grilla y mostramos
+            // espera, sin aguardar el round-trip del auto-envío.
             <Card>
               <CardContent className="p-8 text-center space-y-2">
-                <CheckCircle2 className="h-10 w-10 mx-auto text-emerald-500" />
-                <p className="font-semibold">{t("kahoot.answerSent")}</p>
+                {me?.answered ? (
+                  <CheckCircle2 className="h-10 w-10 mx-auto text-emerald-500" />
+                ) : (
+                  <Hourglass className="h-10 w-10 mx-auto text-amber-500" />
+                )}
+                <p className="font-semibold">
+                  {me?.answered ? t("kahoot.answerSent") : t("kahoot.timeUpTitle")}
+                </p>
                 <p className="text-sm text-muted-foreground">{t("kahoot.waitOthers")}</p>
               </CardContent>
             </Card>
@@ -161,6 +194,9 @@ function KahootPlayer() {
                       setSelected((s) => (s.includes(o.id) ? s.filter((x) => x !== o.id) : [...s, o.id]));
                     } else {
                       // Single: marcar + enviar al instante (Kahoot clásico).
+                      // Marcamos el ref para que el effect de timeout no
+                      // re-dispare un envío en blanco si el tap está en vuelo.
+                      autoSentRef.current = question.id;
                       setSelected([o.id]);
                       void submit([o.id]);
                     }

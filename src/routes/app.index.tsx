@@ -43,7 +43,16 @@ import {
   Users as UsersIcon,
   BookOpen,
   ShieldCheck,
+  Trophy,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useKahootCourseLeaderboard } from "@/modules/polls/use-kahoot-course-leaderboard";
 
 /** Formato relativo simple ("ahora", "5m", "2h", "1d"). Duplicado del
  *  helper en AiGradingQueueWidget para no acoplar 2 rutas sobre un
@@ -819,9 +828,9 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   const [pendingWorkshops, setPendingWorkshops] = useState<any[]>([]);
   const [pendingProjects, setPendingProjects] = useState<any[]>([]);
-  /** Próximas sesiones de asistencia en cursos donde estoy matriculado,
-   *  con session_date >= hoy. Mirror del bloque del docente. */
-  const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
+  /** Cursos matriculados (id + nombre) para el ranking Kahoot acumulado que
+   *  reemplaza las cards de "Próximas clases" / "Próximos exámenes". */
+  const [enrolledCourses, setEnrolledCourses] = useState<{ id: string; name: string }[]>([]);
   /** Modal "Conversaciones pendientes" — abre OpenFeedbackModal con
    *  filterMode='studentNeedsResponse'. */
   const [pendingResponseModalOpen, setPendingResponseModalOpen] = useState(false);
@@ -838,11 +847,6 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
     // dashboards Admin/Teacher arriba).
     let cancelled = false;
     (async () => {
-      // Fecha de hoy en formato YYYY-MM-DD (zona local) para comparar
-      // con `attendance_sessions.session_date` que es columna DATE sin TZ.
-      const today = new Date();
-      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-
       // Assigned exams — solo published. Draft (sin publicar) y closed
       // (cerrado manualmente por el docente) no aparecen en el dashboard
       // del estudiante. Mismo criterio que workshops/projects.
@@ -937,9 +941,13 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       const dbAny = supabase as any;
       const { data: enr } = await dbAny
         .from("course_enrollments")
-        .select("course_id")
+        .select("course_id, course:courses(id, name)")
         .eq("user_id", userId);
       const enrolledCourseIds = ((enr ?? []) as { course_id: string }[]).map((r) => r.course_id);
+      const enrolledCoursesList = ((enr ?? []) as any[])
+        .map((r) => r.course)
+        .filter((c: any) => c && c.id && c.name) as { id: string; name: string }[];
+      if (!cancelled) setEnrolledCourses(enrolledCoursesList);
 
       // Pending projects (vía cursos matriculados + asignaciones explícitas)
       const { data: linked } = enrolledCourseIds.length
@@ -1022,26 +1030,9 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       }
       if (cancelled) return;
       setCounts({ pendingMyResponse });
-
-      // Próximas clases — top 8 sesiones >= hoy en mis cursos, ordenadas
-      // por fecha y hora. Si no estoy matriculado en nada queda vacío.
-      const { data: sess } = enrolledCourseIds.length
-        ? await dbAny
-            .from("attendance_sessions")
-            .select("id, title, session_date, start_time, duration_minutes, course_id, course:courses(name)")
-            .gte("session_date", todayStr)
-            .in("course_id", enrolledCourseIds)
-            .is("deleted_at", null)
-            .order("session_date", { ascending: true })
-            .order("start_time", { ascending: true, nullsFirst: false })
-            // Margen amplio: el corte fino "ya terminó hoy" se hace en JS.
-            .limit(40)
-        : { data: [] as any[] };
-      if (cancelled) return;
-      // "Próximas" = fecha+HORA: descartar las de HOY ya terminadas y luego
-      // tomar 8. Misma lógica que el dashboard docente (helper compartido).
-      const nowMs = Date.now();
-      setUpcomingSessions(((sess ?? []) as any[]).filter((s) => sessionIsUpcoming(s, nowMs)).slice(0, 8));
+      // (Las "Próximas clases" del estudiante se removieron del dashboard: la
+      // columna derecha ahora muestra el ranking acumulado de Kahoot por curso,
+      // que se carga en el componente StudentKahootRanking vía RPC + realtime.)
     })();
     return () => {
       cancelled = true;
@@ -1105,105 +1096,14 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           <StudentEventsCalendar userId={userId} className="h-full w-full flex flex-col min-h-0" />
         </div>
 
-        {/* Próximas clases + Próximos exámenes apilados a la derecha.
-            Cada card scrollea su lista internamente (flex-1 + min-h-0). */}
+        {/* Ranking ACUMULADO de Kahoot por curso (reemplaza Próximas clases /
+            Próximos exámenes, manteniendo el layout de 2 cards apiladas a la
+            derecha del calendario). El alumno elige entre sus cursos y ve en
+            vivo quién va punteando (1º-4º). */}
         <div className="flex flex-col gap-4 min-h-0">
-          {/* Próximas clases */}
-          <Card className="flex flex-col min-h-0 lg:flex-1">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <CalendarClock className="h-4 w-4 text-cyan-500 dark:text-cyan-300" />{" "}
-              {t("dashboard.upcomingClasses", { defaultValue: "Próximas clases" })}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
-            <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
-              {upcomingSessions.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
-                  {t("dashboard.noUpcomingClasses", {
-                    defaultValue: "No tienes sesiones próximas programadas.",
-                  })}
-                </p>
-              ) : (
-                upcomingSessions.map((s: any) => {
-                  const dateLabel = formatDate(s.session_date);
-                  const timeLabel = s.start_time ? ` · ${s.start_time.slice(0, 5)}` : "";
-                  return (
-                    <EventRow
-                      key={s.id}
-                      title={s.title ?? t("dashboard.untitledSession", { defaultValue: "Clase" })}
-                      subtitle={s.course?.name}
-                      date={`${dateLabel}${timeLabel}`}
-                    />
-                  );
-                })
-              )}
-            </div>
-            <Link to="/app/student/attendance" className="block">
-              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                {t("common.seeAll")} <ArrowRight className="h-3 w-3 ml-1" />
-              </Button>
-            </Link>
-          </CardContent>
-          </Card>
+          <StudentKahootRanking courses={enrolledCourses} userId={userId} slot={0} />
 
-          {/* Próximos exámenes */}
-          <Card className="flex flex-col min-h-0 lg:flex-1">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-violet-500 dark:text-violet-400" />{" "}
-              {t("dashboard.upcomingExams")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
-            <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
-              {upcomingExams.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
-                  {t("dashboard.noStudentUpcomingExams")}
-                </p>
-              ) : (
-                upcomingExams.map((e: any) => {
-                  const isOpen =
-                    new Date() >= new Date(e.start_time) && new Date() <= new Date(e.end_time);
-                  return (
-                    <Link
-                      key={e.id}
-                      to="/app/student/take/$examId"
-                      params={{ examId: e.id }}
-                      className="block"
-                    >
-                      <div className="flex items-start gap-2 p-2.5 rounded-md border hover:border-primary/40 transition-colors cursor-pointer">
-                        <div className="mt-0.5">
-                          {isOpen ? (
-                            <Play className="h-3.5 w-3.5 text-success" />
-                          ) : (
-                            <Clock className="h-3.5 w-3.5 text-muted-foreground/50" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{e.title}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {e.course?.name} · {e.time_limit_minutes} {t("common.min")}
-                          </div>
-                        </div>
-                        {isOpen && (
-                          <Badge className="bg-success text-success-foreground text-[10px] shrink-0">
-                            {t("dashboard.start")}
-                          </Badge>
-                        )}
-                      </div>
-                    </Link>
-                  );
-                })
-              )}
-            </div>
-            <Link to="/app/student/exams" className="block">
-              <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                {t("common.seeAll")} <ArrowRight className="h-3 w-3 ml-1" />
-              </Button>
-            </Link>
-          </CardContent>
-          </Card>
+          <StudentKahootRanking courses={enrolledCourses} userId={userId} slot={1} />
         </div>
       </div>
 
@@ -1269,6 +1169,106 @@ function Stat({
             >
               <Icon className="h-4.5 w-4.5" />
             </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * StudentKahootRanking — card del dashboard del estudiante con el ranking
+ * ACUMULADO de Kahoot por curso (en vivo). Reemplaza las cards de "Próximas
+ * clases" / "Próximos exámenes" manteniendo el layout (2 cards apiladas). El
+ * alumno elige entre sus cursos matriculados; `slot` define el curso default
+ * (0 → primero, 1 → segundo si hay). Tenant-safe vía kahoot_course_leaderboard.
+ */
+function StudentKahootRanking({
+  courses,
+  userId,
+  slot,
+}: {
+  courses: { id: string; name: string }[];
+  userId: string | undefined;
+  slot: number;
+}) {
+  const { t } = useTranslation();
+  const [courseId, setCourseId] = useState<string | null>(null);
+  useEffect(() => {
+    if (courses.length === 0) {
+      setCourseId(null);
+      return;
+    }
+    setCourseId((prev) => prev ?? courses[Math.min(slot, courses.length - 1)]?.id ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courses]);
+  const { rows, loading } = useKahootCourseLeaderboard(courseId, 4);
+  const medal = ["text-amber-500", "text-slate-400", "text-orange-500"];
+
+  return (
+    <Card className="flex flex-col min-h-0 lg:flex-1">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Trophy className="h-4 w-4 text-amber-500" />
+          {t("dashboard.kahootRanking", { defaultValue: "Ranking Kahoot" })}
+        </CardTitle>
+        {courses.length > 0 && (
+          <Select value={courseId ?? undefined} onValueChange={setCourseId}>
+            <SelectTrigger className="h-8 text-xs mt-1">
+              <SelectValue placeholder={t("dashboard.kahootSelectCourse", { defaultValue: "Elige un curso" })} />
+            </SelectTrigger>
+            <SelectContent>
+              {courses.map((c) => (
+                <SelectItem key={c.id} value={c.id} className="text-xs">
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </CardHeader>
+      <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
+        <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
+          {courses.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">
+              {t("dashboard.kahootNoCourses", { defaultValue: "No estás matriculado en cursos." })}
+            </p>
+          ) : loading ? (
+            <p className="text-sm text-muted-foreground py-2">{t("common.loading")}</p>
+          ) : rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">
+              {t("dashboard.kahootNoGames", {
+                defaultValue: "Aún no hay puntajes de Kahoot en este curso.",
+              })}
+            </p>
+          ) : (
+            rows.map((r) => {
+              const isMe = r.user_id === userId;
+              return (
+                <div
+                  key={r.user_id}
+                  className={`flex items-center gap-3 p-2.5 rounded-md border ${isMe ? "border-primary/50 bg-primary/5" : ""}`}
+                >
+                  <span
+                    className={`w-7 text-center font-black tabular-nums ${medal[r.rank - 1] ?? "text-muted-foreground"}`}
+                  >
+                    {r.rank}º
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">
+                      {r.full_name}
+                      {isMe && (
+                        <span className="ml-1 text-xs text-primary">({t("common.you", { defaultValue: "Tú" })})</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground tabular-nums">
+                      {r.games_played} {t("dashboard.kahootGames", { defaultValue: "juegos" })}
+                    </div>
+                  </div>
+                  <span className="font-bold tabular-nums">{r.total_score}</span>
+                </div>
+              );
+            })
           )}
         </div>
       </CardContent>

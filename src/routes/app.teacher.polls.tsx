@@ -886,6 +886,11 @@ function TeacherPolls() {
                                       onClick: () => void hostKahoot(p),
                                     },
                                     { label: t("common.edit"), icon: Pencil, onClick: () => setEditPoll(p) },
+                                    // Re-jugar un Kahoot terminado = Duplicar
+                                    // (copia preguntas, nace borrador). El
+                                    // DuplicateOptionsDialog ramifica en kahoot
+                                    // con copyKahootQuestions.
+                                    { label: t("common.duplicate"), icon: Copy, onClick: () => setDuplicateFor(p) },
                                     {
                                       label: t("common.delete"),
                                       icon: Trash2,
