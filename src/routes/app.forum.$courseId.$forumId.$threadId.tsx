@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { isForumOpen } from "@/modules/forum/forum-state";
 import { ErrorState } from "@/components/ui/empty-state";
 import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
@@ -93,6 +94,13 @@ function ThreadDetail() {
   const [thread, setThread] = useState<Thread | null>(null);
   const [replies, setReplies] = useState<Reply[]>([]);
   const [myUpvotes, setMyUpvotes] = useState<Set<string>>(new Set());
+  // ¿El foro PADRE está abierto? El composer "Responder" se gatea con esto
+  // (además de thread.is_locked) para que un estudiante NO vea el formulario
+  // habilitado en un foro cerrado — la RLS `forum_replies_insert` lo
+  // rechazaría. Default true para no parpadear un banner "cerrado" mientras
+  // carga (el composer solo se renderiza una vez que `thread` está cargado,
+  // y el foro se trae en el mismo Promise.all → resuelven juntos).
+  const [forumOpen, setForumOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -113,6 +121,7 @@ function ThreadDetail() {
       { data: t, error: tErr },
       { data: r, error: rErr },
       { data: u },
+      { data: f },
     ] = await Promise.all([
       db
         .from("forum_threads")
@@ -136,6 +145,12 @@ function ThreadDetail() {
             .select("target_id, target_type")
             .eq("user_id", user.id)
         : Promise.resolve({ data: [] }),
+      // Estado de apertura del foro PADRE — para gatear el composer.
+      db
+        .from("forums")
+        .select("opens_at, closes_at, manually_closed_at")
+        .eq("id", forumId)
+        .maybeSingle(),
     ]);
     if (tErr || rErr) {
       setLoadError(friendlyError(tErr ?? rErr, "No pudimos cargar este hilo."));
@@ -146,8 +161,9 @@ function ThreadDetail() {
     setReplies((r ?? []) as Reply[]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setMyUpvotes(new Set(((u ?? []) as any[]).map((row) => row.target_id)));
+    setForumOpen(f ? isForumOpen(f) : true);
     setLoading(false);
-  }, [threadId, user]);
+  }, [threadId, forumId, user]);
 
   useEffect(() => {
     void load();
@@ -642,8 +658,25 @@ function ThreadDetail() {
         })}
       </div>
 
-      {/* Nueva respuesta */}
-      {!thread.is_locked ? (
+      {/* Nueva respuesta. Gateada por: (1) hilo no cerrado, (2) foro PADRE
+          abierto — salvo staff, que puede responder en foro cerrado (la RLS
+          se lo permite). Sin el gate de foro, un estudiante veía el composer
+          habilitado en un foro cerrado y la RLS rechazaba el INSERT. */}
+      {thread.is_locked ? (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="p-4 text-sm text-center text-amber-700 dark:text-amber-300">
+            <Lock className="h-4 w-4 inline mr-1" />
+            {t("forumThread.lockedBanner")}
+          </CardContent>
+        </Card>
+      ) : !forumOpen && !isStaff ? (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="p-4 text-sm text-center text-amber-700 dark:text-amber-300">
+            <Lock className="h-4 w-4 inline mr-1" />
+            {t("forumThread.forumClosedBanner")}
+          </CardContent>
+        </Card>
+      ) : (
         <Card>
           <CardContent className="p-4 space-y-2">
             <h3 className="text-sm font-semibold">{t("forumThread.replySection")}</h3>
@@ -661,13 +694,6 @@ function ThreadDetail() {
                 {t("forumThread.replySubmit")}
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="border-amber-500/40 bg-amber-500/5">
-          <CardContent className="p-4 text-sm text-center text-amber-700 dark:text-amber-300">
-            <Lock className="h-4 w-4 inline mr-1" />
-            {t("forumThread.lockedBanner")}
           </CardContent>
         </Card>
       )}

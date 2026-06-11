@@ -55,6 +55,9 @@ type ExamLoaded = {
   id: string;
   title: string;
   description: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  status: string | null;
   course: { name: string; grade_scale_min: number; grade_scale_max: number } | null;
 };
 
@@ -155,7 +158,7 @@ function StudentExamReview() {
           supabase
             .from("exams")
             .select(
-              "id, title, description, course:courses(name, grade_scale_min, grade_scale_max)",
+              "id, title, description, start_time, end_time, status, course:courses(name, grade_scale_min, grade_scale_max)",
             )
             .eq("id", examId)
             .is("deleted_at", null)
@@ -325,15 +328,29 @@ function StudentExamReview() {
   }
 
   if (!isFinalStatus(submission.status)) {
+    // El CTA "Ir al examen" solo tiene sentido si el examen sigue accesible:
+    // publicado y dentro de su ventana. Si ya cerró (fuera de plazo o el
+    // docente lo cerró), la ruta de toma rebota con toast + redirect — así que
+    // mostrar el botón sería un CTA "muerto". En ese caso mostramos el aviso
+    // de ventana cerrada en su lugar (paralelo al gating de talleres/proyectos).
+    const nowMs = Date.now();
+    const examReachable =
+      (exam.status ?? "published") === "published" &&
+      (!exam.start_time || new Date(exam.start_time).getTime() <= nowMs) &&
+      (!exam.end_time || new Date(exam.end_time).getTime() > nowMs);
     return (
       <div className="space-y-4">
         <BackHeader title={exam.title} courseName={exam.course?.name} />
         <Card>
           <CardContent className="p-6 space-y-3">
             <p className="text-sm text-muted-foreground">{t("exam.review.pendingFinish")}</p>
-            <Link to="/app/student/take/$examId" params={{ examId }}>
-              <Button size="sm">{t("exam.review.goToExam")}</Button>
-            </Link>
+            {examReachable ? (
+              <Link to="/app/student/take/$examId" params={{ examId }}>
+                <Button size="sm">{t("exam.review.goToExam")}</Button>
+              </Link>
+            ) : (
+              <p className="text-xs text-destructive">{t("exam.windowClosedHelp")}</p>
+            )}
           </CardContent>
         </Card>
       </div>

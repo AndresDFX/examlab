@@ -58,6 +58,7 @@ import {
 } from "lucide-react";
 import { formatDateTime, formatDate } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { isForumOpen } from "@/modules/forum/forum-state";
 import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
 
@@ -100,22 +101,8 @@ interface Thread {
 
 type SortMode = "recent" | "top" | "unanswered";
 
-/**
- * INVARIANTE: la lógica debe coincidir con la función SQL
- * `public.is_forum_open(_forum_id)` definida en la migración
- * 20260603105000. La RLS server-side usa la SQL para decidir si un
- * estudiante puede postear; este helper hace lo mismo en cliente
- * para reflejar el estado en UI sin un round-trip. Si cambias una,
- * actualiza la otra (un INSERT que pasa por cliente puede ser
- * rechazado por RLS si divergen).
- */
-function isForumOpen(f: Forum): boolean {
-  if (f.manually_closed_at) return false;
-  const now = Date.now();
-  if (f.opens_at && new Date(f.opens_at).getTime() > now) return false;
-  if (f.closes_at && new Date(f.closes_at).getTime() <= now) return false;
-  return true;
-}
+// `isForumOpen` vive en [src/modules/forum/forum-state.ts] (compartido con el
+// detalle de hilo); mantiene el invariante con la SQL `is_forum_open`.
 
 function ForumThreads() {
   const { courseId, forumId } = Route.useParams();

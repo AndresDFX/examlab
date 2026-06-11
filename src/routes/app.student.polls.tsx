@@ -600,7 +600,15 @@ function PollCard({
                 type="button"
                 variant={myVote ? "default" : "outline"}
                 className="w-full justify-start h-auto py-2"
-                disabled={!open || voting || fullSlot}
+                // Si la encuesta NO permite cambiar el voto y el alumno YA
+                // votó, deshabilitamos las opciones NO elegidas (re-votar está
+                // prohibido — el guard de castVote y la RPC lo rechazan). La
+                // opción ya elegida (myVote) queda habilitada como indicador
+                // visual de la selección. Paralelo al gating de intentos en
+                // talleres/proyectos: no mostrar un CTA que la acción prohíbe.
+                disabled={
+                  !open || voting || fullSlot || (!poll.allow_change_response && hasVoted && !myVote)
+                }
                 onClick={() => onVote(poll, o.id)}
               >
                 <div className="flex-1 min-w-0 text-left">

@@ -1623,6 +1623,7 @@
     "replyPlaceholder": "Escribe tu respuesta. Soporta Markdown.",
     "replySubmit": "Publicar respuesta",
     "lockedBanner": "Este hilo está cerrado. No se pueden agregar más respuestas.",
+    "forumClosedBanner": "Este foro está cerrado. No se pueden agregar más respuestas por ahora.",
     "voteTitle": "Votar",
     "unvoteTitle": "Quitar voto",
     "confirmLockTitle": "¿Cerrar este hilo?",

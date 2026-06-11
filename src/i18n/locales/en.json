@@ -1623,6 +1623,7 @@
     "replyPlaceholder": "Write your reply. Supports Markdown.",
     "replySubmit": "Post reply",
     "lockedBanner": "This thread is closed. No more replies can be added.",
+    "forumClosedBanner": "This forum is closed. No more replies can be added for now.",
     "voteTitle": "Vote",
     "unvoteTitle": "Remove vote",
     "confirmLockTitle": "Close this thread?",
