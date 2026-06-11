@@ -1889,6 +1889,12 @@ function CreatePollDialog({
               </SelectContent>
             </Select>
           </div>
+          {/* closesAt / visibilidad de resultados / switches de voto NO aplican
+              a Kahoot (sesión en vivo con su propio leaderboard y una respuesta
+              por pregunta). Render condicional estricto para no mostrar campos
+              irrelevantes al flujo de Kahoot. */}
+          {type !== "kahoot" && (
+          <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label>
@@ -1988,6 +1994,8 @@ function CreatePollDialog({
               <Switch checked={autoCloseAll} onCheckedChange={setAutoCloseAll} />
             </div>
           </div>
+          </>
+          )}
 
           {/* Estado de publicación — control estándar Select para
               alinearse con workshops/exams/projects (que ya usan

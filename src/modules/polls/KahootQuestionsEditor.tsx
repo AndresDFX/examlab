@@ -93,6 +93,10 @@ export function KahootQuestionsEditor({
   const open = poll !== null;
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  // ¿Hay un juego EN VIVO de este Kahoot? Si sí, el editor es de solo lectura:
+  // el trigger DB tg_kahoot_block_edit_when_live rechaza las escrituras, y acá
+  // lo reflejamos deshabilitando guardar/agregar + un banner.
+  const [liveLocked, setLiveLocked] = useState(false);
   const [questions, setQuestions] = useState<EditQuestion[]>([]);
   const [removedIds, setRemovedIds] = useState<string[]>([]);
   const aiGate = useAiAuthorizationGate();
@@ -113,6 +117,14 @@ export function KahootQuestionsEditor({
       const { data } = await db.from("polls").select("course_id").eq("id", poll.id).maybeSingle();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (!cancelled) setBankCourseId((data as any)?.course_id ?? null);
+      // ¿Juego en vivo? (question/reveal/leaderboard/podium). Si sí → solo lectura.
+      const { data: live } = await db
+        .from("kahoot_games")
+        .select("id")
+        .eq("poll_id", poll.id)
+        .in("status", ["question", "reveal", "leaderboard", "podium"])
+        .limit(1);
+      if (!cancelled) setLiveLocked(Array.isArray(live) && live.length > 0);
     })();
     return () => {
       cancelled = true;
@@ -428,6 +440,12 @@ export function KahootQuestionsEditor({
           </DialogDescription>
         </DialogHeader>
 
+        {liveLocked && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+            {t("kahoot.editLockedLive")}
+          </div>
+        )}
+
         {loading ? (
           <SectionLoader text={t("kahoot.loadingQuestions")} />
         ) : (
@@ -601,7 +619,7 @@ export function KahootQuestionsEditor({
             ))}
 
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={addQuestion} className="flex-1">
+              <Button variant="outline" onClick={addQuestion} className="flex-1" disabled={liveLocked}>
                 <Plus className="h-4 w-4 mr-1.5" />
                 {t("kahoot.addQuestion")}
               </Button>
@@ -623,7 +641,7 @@ export function KahootQuestionsEditor({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             {t("kahoot.cancel")}
           </Button>
-          <Button onClick={() => void save()} disabled={saving || loading}>
+          <Button onClick={() => void save()} disabled={saving || loading || liveLocked}>
             {saving && <Spinner size="sm" className="mr-1" />}
             {t("kahoot.saveQuestions")}
           </Button>

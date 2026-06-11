@@ -4391,7 +4391,13 @@
     "liveGame": "Live game",
     "join": "Join",
     "pinPlaceholder": "PIN",
-    "joinByPin": "Join with PIN"
+    "joinByPin": "Join with PIN",
+    "reconnect": "Reconnect",
+    "reconnectHint": "You're already in this game — rejoin without a PIN.",
+    "enterPinHint": "Enter the PIN shown by your teacher to join a new game.",
+    "hostAwayTitle": "Waiting for the teacher…",
+    "hostAwayBody": "The teacher stepped away for a moment. Don't worry: you're still in the game and it will resume when they return.",
+    "editLockedLive": "This Kahoot has a live game. You can't edit the questions until the session ends."
   },
   "questionBank": {
     "type": {

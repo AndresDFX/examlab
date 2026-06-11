@@ -6,7 +6,7 @@
  * correcta antes del reveal (la RLS + el RPC lo garantizan).
  */
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -78,6 +78,10 @@ function KahootPlayer() {
     question && game.status === "question"
       ? secondsLeft(game.question_started_at, question.time_limit_seconds, nowMs)
       : null;
+  // Docente ausente (heartbeat stale) y el juego no terminó → "Esperando al
+  // docente…" en vez de la fase activa. NO lo sacamos de la sesión: cuando el
+  // docente vuelve, host_present pasa a true y se reanuda la fase normal.
+  const hostAway = !game.host_present && game.status !== "ended" && game.status !== "podium";
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/40 flex flex-col items-center justify-center p-4 gap-5">
@@ -98,8 +102,20 @@ function KahootPlayer() {
         )}
       </div>
 
+      {/* ── ESPERANDO AL DOCENTE (host ausente) ── */}
+      {hostAway && (
+        <Card className="w-full max-w-md">
+          <CardContent className="p-8 text-center space-y-3">
+            <Hourglass className="h-10 w-10 mx-auto text-amber-500 animate-pulse" />
+            <h1 className="text-xl font-bold">{t("kahoot.hostAwayTitle")}</h1>
+            <p className="text-muted-foreground text-sm">{t("kahoot.hostAwayBody")}</p>
+            {me && <Badge className="text-base py-1 px-4">{me.nickname}</Badge>}
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── LOBBY ── */}
-      {game.status === "lobby" && (
+      {!hostAway && game.status === "lobby" && (
         <Card className="w-full max-w-md">
           <CardContent className="p-8 text-center space-y-3">
             <Hourglass className="h-10 w-10 mx-auto text-primary animate-pulse" />
@@ -111,7 +127,7 @@ function KahootPlayer() {
       )}
 
       {/* ── PREGUNTA ── */}
-      {game.status === "question" && question && (
+      {!hostAway && game.status === "question" && question && (
         <div className="w-full max-w-xl space-y-4">
           <div className="text-center space-y-2">
             <h1 className="text-xl sm:text-2xl font-bold">{question.text}</h1>
@@ -194,7 +210,7 @@ function KahootPlayer() {
       )}
 
       {/* ── REVEAL (resultado de mi respuesta) ── */}
-      {game.status === "reveal" && me && (
+      {!hostAway && game.status === "reveal" && me && (
         <Card className="w-full max-w-md">
           <CardContent className="p-8 text-center space-y-3">
             {me.my_is_correct === true ? (
@@ -229,7 +245,7 @@ function KahootPlayer() {
       )}
 
       {/* ── LEADERBOARD ── */}
-      {game.status === "leaderboard" && me && (
+      {!hostAway && game.status === "leaderboard" && me && (
         <Card className="w-full max-w-md">
           <CardContent className="p-8 text-center space-y-3">
             <Trophy className="h-12 w-12 mx-auto text-amber-500" />

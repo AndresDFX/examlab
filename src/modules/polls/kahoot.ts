@@ -81,12 +81,17 @@ export interface KahootStateMe {
 export interface KahootState {
   game: {
     id: string;
-    pin: string;
+    /** El PIN es del DOCENTE: el RPC kahoot_get_state solo lo devuelve al
+     *  host. Para los alumnos llega null (lo teclean o escanean el QR). */
+    pin: string | null;
     status: KahootStatus;
     current_index: number;
     total_questions: number;
     question_started_at: string | null;
     question_locked: boolean;
+    /** ¿El docente está presente? false = heartbeat stale (>25s). La vista
+     *  del alumno muestra "Esperando al docente…" sin sacarlo de la sesión. */
+    host_present: boolean;
   };
   is_host: boolean;
   question: KahootStateQuestion | null;

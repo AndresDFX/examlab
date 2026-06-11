@@ -59,6 +59,27 @@ function KahootHost() {
     return () => clearInterval(id);
   }, []);
 
+  // Heartbeat de presencia del host: mientras esta vista esté montada, el
+  // docente "late" cada 8s (kahoot_host_heartbeat). Si cierra la pestaña o se
+  // va, deja de latir y a los ~25s la sala se marca SIN docente
+  // (kahoot_get_state.host_present=false): los alumnos ven "Esperando al
+  // docente…" y kahoot_join_game rechaza nuevos ingresos a la sala huérfana.
+  useEffect(() => {
+    if (!gameId) return;
+    let cancelled = false;
+    const beat = () => {
+      void db.rpc("kahoot_host_heartbeat", { _game_id: gameId });
+    };
+    beat();
+    const id = setInterval(() => {
+      if (!cancelled) beat();
+    }, 8000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [gameId]);
+
   // Origin para el QR de unión. Se lee POST-mount (no en render) para no
   // romper la hidratación SSR (regla del proyecto: nunca window.* en render).
   const [origin, setOrigin] = useState("");
@@ -163,7 +184,7 @@ function KahootHost() {
                   si hace falta (returnTo lo trae de vuelta) y la página
                   auto-une por PIN. `origin` se setea post-mount (SSR-safe).
                   Fondo blanco fijo para que el QR contraste en cualquier tema. */}
-              {origin && (
+              {origin && game.pin && (
                 <div className="flex flex-col items-center gap-1.5">
                   <div className="rounded-lg bg-white p-3">
                     <QRCodeSVG value={buildKahootJoinUrl(origin, game.pin)} size={148} />
