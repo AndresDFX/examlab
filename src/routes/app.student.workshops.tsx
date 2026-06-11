@@ -40,7 +40,11 @@ import {
   ListChecks,
   Trash2,
   Hammer,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
+import { useMaximized } from "@/hooks/use-maximized";
+import { cn } from "@/shared/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { Send } from "lucide-react";
@@ -156,6 +160,9 @@ function StudentWorkshops() {
   >("due_asc");
   const [questionsOpen, setQuestionsOpen] = useState(false);
   const [questionsWs, setQuestionsWs] = useState<WorkshopRow | null>(null);
+  // Preferencia "tamaño completo" del modal de resolución (compartida con el
+  // examen via la misma clave de localStorage).
+  const [maximized, toggleMaximized] = useMaximized("examlab_assessment_maximized");
   // Estado de error explícito: si la query principal falla, mostramos
   // ErrorState con botón "Reintentar" en vez de una grilla vacía.
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -728,9 +735,36 @@ function StudentWorkshops() {
           if (!open && user) void reload(user.id);
         }}
       >
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh] overflow-y-auto">
+        <DialogContent
+          className={cn(
+            "overflow-y-auto",
+            maximized
+              ? "max-w-[calc(100vw-1rem)] sm:max-w-[96vw] w-[96vw] h-[94dvh] max-h-[94dvh]"
+              : "max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh]",
+          )}
+        >
           <DialogHeader>
-            <DialogTitle>{questionsWs?.workshop.title}</DialogTitle>
+            {/* Toggle "tamaño completo": el alumno puede expandir el modal
+                para tener más espacio al resolver. Persistido. El botón va
+                con margen derecho para no chocar con la X de cierre. */}
+            <div className="flex items-center justify-between gap-2 pr-7">
+              <DialogTitle className="truncate">{questionsWs?.workshop.title}</DialogTitle>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                onClick={toggleMaximized}
+                title={maximized ? "Restaurar tamaño" : "Tamaño completo"}
+                aria-label={maximized ? "Restaurar tamaño" : "Tamaño completo"}
+              >
+                {maximized ? (
+                  <Minimize2 className="h-4 w-4" />
+                ) : (
+                  <Maximize2 className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
           </DialogHeader>
           {questionsWs && (
             <StudentWorkshopTaker

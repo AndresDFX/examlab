@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useRealtimeTimer } from "@/hooks/use-realtime-timer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useMaximized } from "@/hooks/use-maximized";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -20,6 +21,7 @@ import {
   AlertTriangle,
   Clock,
   Maximize2,
+  Minimize2,
   Send,
   Pause,
   WifiOff,
@@ -205,6 +207,10 @@ function TakeExam() {
   }>({ open: false, unansweredIndices: [] });
   const [notesOpen, setNotesOpen] = useState(true);
   const [blockedBySession, setBlockedBySession] = useState(false);
+  // Preferencia "tamaño completo" del área de resolución (compartida con el
+  // taller via la misma clave). Ensancha el contenedor de max-w-3xl a todo el
+  // ancho disponible para tener más espacio (ej. preguntas de código).
+  const [maximized, toggleMaximized] = useMaximized("examlab_assessment_maximized");
   /** Número del intento actual (1-based) y total. Null cuando max_attempts=1. */
   const [attemptInfo, setAttemptInfo] = useState<{ current: number; total: number } | null>(null);
   const [manualLeaveOpen, setManualLeaveOpen] = useState(false);
@@ -1748,7 +1754,9 @@ function TakeExam() {
   const visible = [questions[currentIdx]].filter(Boolean);
 
   return (
-    <div className="max-w-3xl mx-auto py-4 sm:py-6 select-none">
+    <div
+      className={`${maximized ? "max-w-none" : "max-w-3xl"} mx-auto py-4 sm:py-6 select-none`}
+    >
       {fsExited && started && (
         <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur flex items-center justify-center p-6">
           <div className="max-w-md w-full rounded-lg border bg-card p-6 space-y-4 text-center">
@@ -1827,6 +1835,19 @@ function TakeExam() {
             <Clock className="h-3 w-3 mr-0.5 sm:mr-1" />
             {formattedTime}
           </Badge>
+          {/* Tamaño completo: ensancha el área de resolución. Útil para
+              preguntas de código/diagrama donde el max-w-3xl queda chico. */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            onClick={toggleMaximized}
+            title={maximized ? "Restaurar tamaño" : "Tamaño completo"}
+            aria-label={maximized ? "Restaurar tamaño" : "Tamaño completo"}
+          >
+            {maximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
         </div>
       </div>
 
