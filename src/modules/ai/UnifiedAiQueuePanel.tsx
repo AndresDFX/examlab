@@ -134,6 +134,16 @@ interface UnifiedJob {
    *  body (el target_table + target_row_id ya describe la entrada). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   body?: Record<string, any> | null;
+  /** "Enviado por": dueño de la entrega para grading (el estudiante
+   *  resuelto vía target_table → user_id → profiles). Para generación
+   *  representa al solicitante (== quien encoló). Resuelto en load(). */
+  submitterName?: string | null;
+  submitterEmail?: string | null;
+  /** "Encolado por": created_by resuelto a nombre + email. Quien disparó
+   *  el job (docente, estudiante o sistema). Puede diferir del submitter
+   *  en grading (ej. docente recalifica la entrega de un alumno). */
+  enqueuedByName?: string | null;
+  enqueuedByEmail?: string | null;
 }
 
 interface Props {
@@ -334,8 +344,16 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       const submissionIds = gradingRaw
         .filter((j) => j.target_table === "submissions")
         .map((j) => j.target_row_id);
+      const wSubIds = gradingRaw
+        .filter((j) => j.target_table === "workshop_submissions")
+        .map((j) => j.target_row_id);
+      // project_submission_files: el owner es indirecto (file → submission
+      // → user_id). Primero resolvemos el submission_id de cada file.
+      const pFileIds = gradingRaw
+        .filter((j) => j.target_table === "project_submission_files")
+        .map((j) => j.target_row_id);
 
-      const [coursesL, wL, eL, pL, pSubL, submissionsL] = await Promise.all([
+      const [coursesL, wL, eL, pL, pSubL, submissionsL, wSubL, pFileL] = await Promise.all([
         allCourseIds.length > 0
           ? db.from("courses").select("id, name").in("id", allCourseIds)
           : Promise.resolve({ data: [] }),
@@ -348,11 +366,22 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         pIds.length > 0
           ? db.from("projects").select("id, title").in("id", pIds)
           : Promise.resolve({ data: [] }),
+        // pedimos user_id además del project_id → dueño de la entrega.
         pSubIds.length > 0
-          ? db.from("project_submissions").select("id, project_id").in("id", pSubIds)
+          ? db.from("project_submissions").select("id, project_id, user_id").in("id", pSubIds)
           : Promise.resolve({ data: [] }),
+        // pedimos user_id además del exam_id → dueño de la entrega.
         submissionIds.length > 0
-          ? db.from("submissions").select("id, exam_id").in("id", submissionIds)
+          ? db.from("submissions").select("id, exam_id, user_id").in("id", submissionIds)
+          : Promise.resolve({ data: [] }),
+        // workshop_submissions: necesitamos user_id (el título ya lo
+        // resolvemos directo desde target_row_id en wIds, esto es solo
+        // para el dueño).
+        wSubIds.length > 0
+          ? db.from("workshop_submissions").select("id, user_id").in("id", wSubIds)
+          : Promise.resolve({ data: [] }),
+        pFileIds.length > 0
+          ? db.from("project_submission_files").select("id, submission_id").in("id", pFileIds)
           : Promise.resolve({ data: [] }),
       ]);
 
@@ -369,27 +398,97 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
 
       // Resolver projects de submissions del grading (project_submissions → project_id).
       const pSubToProj = new Map<string, string>();
-      for (const r of (pSubL.data ?? []) as Array<{ id: string; project_id: string }>)
+      // Dueño de cada entrega — mapeamos target_row_id → user_id según la
+      // tabla destino. Se usa para resolver "Enviado por" (el estudiante).
+      const ownerByTargetRow = new Map<string, string>();
+      for (const r of (pSubL.data ?? []) as Array<{
+        id: string;
+        project_id: string;
+        user_id: string | null;
+      }>) {
         pSubToProj.set(r.id, r.project_id);
+        if (r.user_id) ownerByTargetRow.set(r.id, r.user_id);
+      }
       // Resolver exams de submissions del grading.
       const subToExam = new Map<string, string>();
-      for (const r of (submissionsL.data ?? []) as Array<{ id: string; exam_id: string }>)
+      for (const r of (submissionsL.data ?? []) as Array<{
+        id: string;
+        exam_id: string;
+        user_id: string | null;
+      }>) {
         subToExam.set(r.id, r.exam_id);
+        if (r.user_id) ownerByTargetRow.set(r.id, r.user_id);
+      }
+      for (const r of (wSubL.data ?? []) as Array<{ id: string; user_id: string | null }>) {
+        if (r.user_id) ownerByTargetRow.set(r.id, r.user_id);
+      }
+      // project_submission_files → submission_id; resolveremos el user_id
+      // del owner en el segundo paso (junto a projects/exams).
+      const pFileToSub = new Map<string, string>();
+      for (const r of (pFileL.data ?? []) as Array<{ id: string; submission_id: string }>)
+        pFileToSub.set(r.id, r.submission_id);
+
       // Fetch projects + exams referenciados por grading (segundo paso de lookup).
       const projIds = Array.from(new Set(pSubToProj.values()));
       const examIds = Array.from(new Set(subToExam.values()));
-      const [projL, examL] = await Promise.all([
+      // Las submissions de los project_submission_files que aún no
+      // resolvimos su owner (no estaban en pSubIds).
+      const pFileSubIds = Array.from(new Set(pFileToSub.values())).filter(
+        (id) => !ownerByTargetRow.has(id),
+      );
+      const [projL, examL, pFileSubL] = await Promise.all([
         projIds.length > 0
           ? db.from("projects").select("id, title").in("id", projIds)
           : Promise.resolve({ data: [] }),
         examIds.length > 0
           ? db.from("exams").select("id, title").in("id", examIds)
           : Promise.resolve({ data: [] }),
+        pFileSubIds.length > 0
+          ? db.from("project_submissions").select("id, user_id").in("id", pFileSubIds)
+          : Promise.resolve({ data: [] }),
       ]);
       for (const r of (projL.data ?? []) as Array<{ id: string; title: string }>)
         titleById.set(r.id, r.title);
       for (const r of (examL.data ?? []) as Array<{ id: string; title: string }>)
         titleById.set(r.id, r.title);
+      // owner por submission_id de los project_submission_files.
+      const ownerBySubId = new Map<string, string>();
+      for (const r of (pFileSubL.data ?? []) as Array<{ id: string; user_id: string | null }>) {
+        if (r.user_id) ownerBySubId.set(r.id, r.user_id);
+      }
+
+      // ─── Resolución de nombres (created_by + dueños de entregas) ──────
+      // Juntamos TODOS los user_ids en un solo Set y hacemos UN lookup a
+      // profiles. NO embebemos (*.user_id → auth.users no es embebible;
+      // profiles.id == ese id, así que .in("id", ...) funciona).
+      const ownerIds = new Set<string>();
+      for (const uid of ownerByTargetRow.values()) ownerIds.add(uid);
+      for (const uid of ownerBySubId.values()) ownerIds.add(uid);
+      const allProfileIds = Array.from(
+        new Set<string>([
+          ...[...gradingRaw, ...genRaw]
+            .map((r) => r.created_by)
+            .filter((c): c is string => !!c),
+          ...ownerIds,
+        ]),
+      );
+      const profilesL =
+        allProfileIds.length > 0
+          ? await db
+              .from("profiles")
+              .select("id, full_name, institutional_email")
+              .in("id", allProfileIds)
+          : { data: [] };
+      const profileNameById = new Map<string, string>();
+      const profileEmailById = new Map<string, string>();
+      for (const p of (profilesL.data ?? []) as Array<{
+        id: string;
+        full_name: string | null;
+        institutional_email: string | null;
+      }>) {
+        if (p.full_name) profileNameById.set(p.id, p.full_name);
+        if (p.institutional_email) profileEmailById.set(p.id, p.institutional_email);
+      }
 
       // Normalización a UnifiedJob.
       const unified: UnifiedJob[] = [
@@ -409,6 +508,22 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
             const t = projId ? titleById.get(projId) : undefined;
             if (t) label = t;
           }
+          // Dueño de la entrega (estudiante) según la tabla destino.
+          let ownerId = ownerByTargetRow.get(r.target_row_id);
+          if (!ownerId && r.target_table === "project_submission_files") {
+            const subId = pFileToSub.get(r.target_row_id);
+            if (subId) ownerId = ownerBySubId.get(subId);
+          }
+          const submitterName = ownerId ? (profileNameById.get(ownerId) ?? null) : null;
+          const submitterEmail = ownerId ? (profileEmailById.get(ownerId) ?? null) : null;
+          const courseLabel = r.course_id ? (courseName.get(r.course_id) ?? null) : null;
+          // Mostramos el estudiante junto al curso en el subtítulo (visible
+          // sin expandir). Formato: "Curso · 👤 Estudiante".
+          const subtitle = submitterName
+            ? courseLabel
+              ? `${courseLabel} · ${submitterName}`
+              : submitterName
+            : courseLabel;
           return {
             id: r.id,
             source: "grading" as const,
@@ -421,13 +536,17 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
             course_id: r.course_id,
             created_by: r.created_by,
             label,
-            subtitle: r.course_id ? (courseName.get(r.course_id) ?? null) : null,
+            subtitle,
             rejection_reason: r.rejection_reason,
             rejected_by: r.rejected_by,
             rejected_at: r.rejected_at,
             acknowledged_at: r.acknowledged_at,
             target_table: r.target_table,
             target_row_id: r.target_row_id,
+            submitterName,
+            submitterEmail,
+            enqueuedByName: r.created_by ? (profileNameById.get(r.created_by) ?? null) : null,
+            enqueuedByEmail: r.created_by ? (profileEmailById.get(r.created_by) ?? null) : null,
           };
         }),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -435,6 +554,18 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
           let label = GENERATION_KIND_LABELS[r.kind] ?? r.kind;
           const sourceTitle = titleById.get(r.source_id);
           if (sourceTitle) label = sourceTitle;
+          // En generación, "Enviado por" == el solicitante (created_by);
+          // no hay "dueño de entrega" distinto.
+          const requesterName = r.created_by ? (profileNameById.get(r.created_by) ?? null) : null;
+          const requesterEmail = r.created_by
+            ? (profileEmailById.get(r.created_by) ?? null)
+            : null;
+          const courseLabel = r.course_id ? (courseName.get(r.course_id) ?? null) : null;
+          const subtitle = requesterName
+            ? courseLabel
+              ? `${courseLabel} · ${requesterName}`
+              : requesterName
+            : courseLabel;
           return {
             id: r.id,
             source: "generation" as const,
@@ -447,8 +578,12 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
             course_id: r.course_id,
             created_by: r.created_by,
             label,
-            subtitle: r.course_id ? (courseName.get(r.course_id) ?? null) : null,
+            subtitle,
             body: r.body ?? null,
+            submitterName: requesterName,
+            submitterEmail: requesterEmail,
+            enqueuedByName: requesterName,
+            enqueuedByEmail: requesterEmail,
           };
         }),
       ];
@@ -1207,6 +1342,35 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                                 </span>
                               </div>
                             )}
+                            {/* "Enviado por": dueño de la entrega (grading) o
+                                solicitante (generación) con nombre + email. */}
+                            {j.submitterName && (
+                              <div className="col-span-2">
+                                <span className="text-muted-foreground">
+                                  {t("unifiedAiQueue.detailSubmitter")}:
+                                </span>{" "}
+                                <span>
+                                  {j.submitterName}
+                                  {j.submitterEmail ? ` (${j.submitterEmail})` : ""}
+                                </span>
+                              </div>
+                            )}
+                            {/* "Encolado por": SOLO si difiere del submitter
+                                (ej. docente recalifica la entrega de un
+                                alumno). En generación coincide → no se muestra
+                                redundante. */}
+                            {j.enqueuedByName &&
+                              j.enqueuedByName !== j.submitterName && (
+                                <div className="col-span-2">
+                                  <span className="text-muted-foreground">
+                                    {t("unifiedAiQueue.detailEnqueuedBy")}:
+                                  </span>{" "}
+                                  <span>
+                                    {j.enqueuedByName}
+                                    {j.enqueuedByEmail ? ` (${j.enqueuedByEmail})` : ""}
+                                  </span>
+                                </div>
+                              )}
                             {j.source === "grading" && j.target_table && (
                               <div className="col-span-2">
                                 <span className="text-muted-foreground">{t("unifiedAiQueue.detailTarget")}:</span>{" "}

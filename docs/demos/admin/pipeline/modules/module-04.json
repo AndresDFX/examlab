@@ -1,0 +1,37 @@
+{
+  "id": "modulo-04",
+  "title": "Gestión de Cursos",
+  "appPath": "/app/admin/courses",
+  "readySelectors": ["[data-tour-id=\"create-course\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Módulo cuatro: gestión de cursos. Veamos cómo se crea un curso y qué información se define.",
+      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Gestión de Cursos", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "crear-curso",
+      "kind": "platform",
+      "openDialog": "[data-tour-id=\"create-course\"]",
+      "narration": "Abrimos el formulario de Nuevo curso. Le damos un nombre claro, como lo verán los estudiantes. Elegimos el periodo académico al que pertenece. La asignatura del plan es la fuente de verdad: al seleccionarla, se heredan el programa y el semestre. Definimos las fechas de inicio y fin. Y configuramos los cortes evaluativos, que reparten el porcentaje de la nota final entre exámenes, talleres, proyectos y asistencia.",
+      "bufferMs": 900,
+      "beats": [
+        { "target": "[data-tour-id=\"course-field-name\"]", "hold": 3500, "side": "right", "focus": { "title": "Nombre", "body": "Cómo verán el curso los estudiantes." } },
+        { "target": "[data-tour-id=\"course-field-period\"]", "hold": 3800, "side": "right", "focus": { "title": "Periodo académico", "body": "El semestre al que pertenece el curso." } },
+        { "target": "[data-tour-id=\"course-field-subject\"]", "hold": 5500, "side": "right", "focus": { "title": "Asignatura del plan", "body": "Fuente de verdad: hereda el programa y el semestre." } },
+        { "target": "[data-tour-id=\"course-field-dates\"]", "hold": 3800, "side": "right", "focus": { "title": "Fechas", "body": "Inicio y fin del curso." } },
+        { "target": "[data-tour-id=\"course-field-cuts\"]", "hold": 6000, "side": "right", "focus": { "title": "Cortes evaluativos", "body": "Reparten el porcentaje de la nota final." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: contenidos y videos.",
+      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Siguiente módulo", "subtitle": "Contenidos y Videos" },
+      "bufferMs": 600
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "id": "modulo-02",
+  "title": "Gestión de Usuarios y Roles",
+  "appPath": "/app/admin/users",
+  "readySelectors": ["[data-tour-id=\"create-user\"]", "main table tbody tr"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Módulo dos: gestión de usuarios y roles. Administramos las personas de Demo Global Corp y definimos lo que cada una puede hacer.",
+      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Usuarios y Roles", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "alta",
+      "kind": "platform",
+      "narration": "Creamos una persona con el botón Nuevo usuario: indicamos su correo, su nombre y sus roles, y le damos una contraseña temporal que deberá cambiar en su primer ingreso.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-id=\"create-user\"]", "scale": 1.7, "hold": 5500, "side": "bottom", "focus": { "title": "Nuevo usuario", "body": "Crea una persona y asigna sus roles y contraseña temporal." } }
+      ]
+    },
+    {
+      "id": "roles",
+      "kind": "platform",
+      "narration": "El rol es la pieza clave del control de acceso: define qué módulos ve y qué puede hacer cada persona. La lista muestra los roles de cada usuario; un docente ve sus herramientas de enseñanza, un estudiante solo las suyas.",
+      "bufferMs": 900,
+      "beats": [
+        { "target": "th:Roles", "scale": 1.7, "hold": 4200, "side": "bottom", "focus": { "title": "Roles", "body": "Definen qué ve y qué puede hacer cada persona." } },
+        { "target": "row:0", "scale": 1.0, "hold": 4200, "side": "bottom", "focus": { "title": "Cada usuario", "body": "Sus roles aparecen en la lista, junto a su nombre y correo." } }
+      ]
+    },
+    {
+      "id": "import-acciones",
+      "kind": "platform",
+      "narration": "Para grupos grandes, importamos muchos usuarios a la vez desde un archivo. Y cada usuario ofrece acciones de soporte: iniciar sesión como esa persona o restablecer su contraseña, todo registrado en la auditoría.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-id=\"bulk-import-users\"]", "scale": 1.7, "hold": 4500, "side": "bottom", "focus": { "title": "Importar en lote", "body": "Carga muchos usuarios desde un archivo CSV." } },
+        { "target": "rowaction:0", "clickToOpen": true, "hold": 5500, "side": "left" }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: la estructura académica de la institución.",
+      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Siguiente módulo", "subtitle": "Estructura Académica" },
+      "bufferMs": 600
+    }
+  ]
+}

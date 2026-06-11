@@ -1,0 +1,59 @@
+{
+  "id": "modulo-01",
+  "title": "Panel de administración y Dashboard",
+  "appPath": "/app",
+  "readySelectors": ["[data-tour-module=\"courses\"]", "text=Cursos recientes"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Demostración del panel de administración de Demo Global Corp, en ExamLab.",
+      "card": { "kicker": "ExamLab · Serie de demostración", "title": "Demo Global Corp", "subtitle": "Rol: Administrador" },
+      "bufferMs": 600
+    },
+    {
+      "id": "identidad",
+      "kind": "platform",
+      "narration": "Este es el panel de la institución. Su identidad —el logotipo, el nombre y los colores— acompaña toda la plataforma, dándole una experiencia propia y reconocible.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-id=\"brand\"]", "scale": 1.7, "hold": 3400, "side": "right", "focus": { "title": "Identidad de la institución", "body": "Logo, nombre y colores propios de Demo Global Corp." } },
+        { "target": "[data-tour-id=\"role-switcher\"]", "scale": 1.6, "hold": 3000, "side": "right", "focus": { "title": "Tu rol", "body": "Operás como Administrador de la institución." } }
+      ]
+    },
+    {
+      "id": "modulos",
+      "kind": "platform",
+      "narration": "Desde el menú lateral, el Administrador tiene a mano toda la gestión: cursos, usuarios, estructura académica, contenidos, certificados, informes, configuración y auditoría. Cada área, a un solo clic.",
+      "bufferMs": 900,
+      "beats": [
+        { "target": "[data-tour-module=\"courses\"]", "scale": 1.55, "hold": 1500, "side": "right", "focus": { "title": "Cursos", "body": "Crea y administra los cursos." } },
+        { "target": "[data-tour-nav=\"/app/admin/users\"]", "scale": 1.55, "hold": 1500, "side": "right", "focus": { "title": "Usuarios", "body": "Docentes, estudiantes y administradores." } },
+        { "target": "[data-tour-module=\"academic\"]", "scale": 1.55, "hold": 1450, "side": "right", "focus": { "title": "Académico", "body": "Programas, periodos y asignaturas." } },
+        { "target": "[data-tour-module=\"contents\"]", "scale": 1.55, "hold": 1400, "side": "right", "focus": { "title": "Contenidos", "body": "Material de estudio del curso." } },
+        { "target": "[data-tour-module=\"audit_logs\"]", "scale": 1.55, "hold": 1400, "side": "right", "focus": { "title": "Auditoría", "body": "Quién hizo qué y cuándo." } },
+        { "target": "[data-tour-nav=\"/app/admin/settings\"]", "scale": 1.55, "hold": 1400, "side": "right", "focus": { "title": "Configuración", "body": "Branding, cuotas y módulos." } }
+      ]
+    },
+    {
+      "id": "dashboard",
+      "kind": "platform",
+      "narration": "El panel de inicio resume el estado de la institución de un vistazo: cursos activos, usuarios y el trabajo pendiente por calificar. Debajo, los cursos recientes y la actividad reciente del sistema.",
+      "bufferMs": 700,
+      "beats": [
+        { "target": "stat:0", "scale": 1.7, "hold": 1500, "side": "bottom", "focus": { "title": "Cursos activos", "body": "Cuántos cursos tiene la institución." } },
+        { "target": "stat:1", "scale": 1.7, "hold": 1500, "side": "bottom", "focus": { "title": "Usuarios", "body": "Personas registradas en la plataforma." } },
+        { "target": "card:Cursos recientes", "scale": 1.3, "hold": 1900, "side": "bottom", "focus": { "title": "Cursos recientes", "body": "Los últimos cursos creados." } },
+        { "target": "card:Actividad reciente", "scale": 1.3, "hold": 1900, "side": "bottom", "focus": { "title": "Actividad reciente", "body": "Eventos del sistema en tiempo real." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: la gestión de usuarios y sus roles.",
+      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Siguiente módulo", "subtitle": "Gestión de Usuarios y Roles" },
+      "bufferMs": 600
+    }
+  ]
+}

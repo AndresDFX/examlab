@@ -2604,11 +2604,16 @@ function ResultsDialog({
   // no llegó (primer render), fallback a las del prop.
   const options = liveOptions.length > 0 ? liveOptions : (poll.options ?? []);
   const total = options.reduce((acc, o) => acc + o.responses_count, 0);
-  // Gestión de cupos (mover / asignar restantes) solo tiene sentido en slot
-  // y con la encuesta ABIERTA. El backend también lo bloquea (poll_is_open).
+  // Gestión de cupos en encuestas de tipo slot:
+  //  - REASIGNAR (mover un alumno a otro cupo): permitido también con la
+  //    encuesta CERRADA — es una corrección puntual post-cierre. El backend
+  //    ya no lo bloquea; el claim atómico evita sobrecupo.
+  //  - ASIGNAR RESTANTES (masivo de no-respondientes): solo con la encuesta
+  //    ABIERTA (el backend lo sigue bloqueando con poll_is_open).
   const isSlot = poll.poll_type === "slot";
   const pollOpen = pollIsOpen(poll);
-  const slotMgmt = isSlot && pollOpen;
+  const canReassign = isSlot;
+  const canAssignRemaining = isSlot && pollOpen;
   return (
     <Dialog open={Boolean(poll)} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
@@ -2674,9 +2679,10 @@ function ResultsDialog({
                         const display = v.full_name ?? v.user_id.slice(0, 8);
                         const isClearing = clearing.has(v.user_id);
                         const isMoving = moving.has(v.user_id);
-                        // Cupos DESTINO con espacio (≠ al actual). Solo en slot
-                        // abierto. El backend re-valida el cupo atómicamente.
-                        const freeSlots = slotMgmt
+                        // Cupos DESTINO con espacio (≠ al actual). Disponible en
+                        // slot, abierta o cerrada. El backend re-valida el cupo
+                        // atómicamente (sin sobrecupo).
+                        const freeSlots = canReassign
                           ? options.filter(
                               (x) =>
                                 x.id !== o.id &&
@@ -2692,7 +2698,7 @@ function ResultsDialog({
                             <span className="truncate max-w-[140px]" title={display}>
                               {display}
                             </span>
-                            {slotMgmt ? (
+                            {canReassign ? (
                               isMoving ? (
                                 <Spinner size="xs" />
                               ) : (
@@ -2753,8 +2759,8 @@ function ResultsDialog({
         <DialogFooter className="gap-2 sm:gap-2">
           {/* Asignación masiva: reparte los matriculados que NO respondieron a
               los cupos libres (claim atómico por cupo, sin sobrecupo). Solo en
-              slot abierto. */}
-          {slotMgmt && (
+              slot ABIERTO (a diferencia de reasignar, que también va en cerradas). */}
+          {canAssignRemaining && (
             <Button
               variant="secondary"
               onClick={() => void assignRemaining()}

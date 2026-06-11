@@ -3442,6 +3442,8 @@
     "detailAttempts": "Attempts:",
     "detailCreated": "Created:",
     "detailFinished": "Finished:",
+    "detailSubmitter": "Submitted by",
+    "detailEnqueuedBy": "Enqueued by",
     "detailTarget": "Target:",
     "detailBody": "Request body:",
     "detailLastError": "Last error",

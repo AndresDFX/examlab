@@ -102,6 +102,10 @@ export function RowActionsMenu({
           variant="ghost"
           size="icon"
           aria-label={label}
+          // Hook estable para los videos de demo (docs/demos): permite a la
+          // grabación enfocar con precisión el botón de acciones de una fila
+          // (vs. resaltar la fila entera). No afecta el comportamiento.
+          data-row-actions=""
           className={cn("h-8 w-8", className)}
           onClick={(e) => e.stopPropagation()}
         >
