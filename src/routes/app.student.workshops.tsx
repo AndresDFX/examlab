@@ -533,6 +533,16 @@ function StudentWorkshops() {
           const requiresGroup = workshop.group_mode === "group_required";
           const blockedNoGroup = requiresGroup && !groupId;
           void isGroupWorkshop;
+          // Intentos agotados = consumió el cap de intentos Y la entrega previa
+          // YA fue calificada. En ese estado no puede re-entregar (el submit de
+          // WorkshopQuestions lo bloquea) ni borrar — así que tampoco mostramos
+          // el CTA "Actualizar": ofrecer actualizar algo que ya no admite más
+          // intentos es confuso. Si está `entregado` SIN nota sigue en el MISMO
+          // intento (puede re-editar) → no se considera agotado.
+          const attemptsExhausted =
+            !!submission &&
+            Number(submission.attempt_count ?? 0) >= Number(workshop.max_attempts ?? 1) &&
+            (submission.status === "calificado" || submission.final_grade != null);
           return (
             <Card key={workshop.id}>
               <CardContent className="p-5 space-y-3">
@@ -649,7 +659,7 @@ function StudentWorkshops() {
                     re-entregar se vuelve a calificar. En modo mixto: si
                     el estudiante tiene grupo, la entrega es del grupo;
                     si no, entrega individualmente. */}
-                {isOpen && !blockedNoGroup && (
+                {isOpen && !blockedNoGroup && !attemptsExhausted && (
                   <Button
                     size="sm"
                     className="w-full"
@@ -686,11 +696,7 @@ function StudentWorkshops() {
                     de WorkshopQuestions. */}
                 {(() => {
                   if (!isOpen || !submission) return null;
-                  const isGradedPrev =
-                    submission.status === "calificado" || submission.final_grade != null;
-                  const consumedAll =
-                    Number(submission.attempt_count ?? 0) >= Number(workshop.max_attempts ?? 1);
-                  const canDelete = !(consumedAll && isGradedPrev);
+                  const canDelete = !attemptsExhausted;
                   return canDelete ? (
                     <Button
                       size="sm"

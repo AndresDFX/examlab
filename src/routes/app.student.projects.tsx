@@ -566,6 +566,15 @@ function StudentProjects() {
           // Modo grupal estricto: si el estudiante no esta en un grupo,
           // no puede entregar. En modo mixto (teacher_assigned) si.
           const blockedNoGroup = project.group_mode === "group_required" && !groupId;
+          // Intentos agotados = consumió el cap Y la entrega previa YA fue
+          // calificada. En ese estado no puede re-entregar ni borrar — así que
+          // tampoco mostramos el CTA "Actualizar" (ofrecer actualizar algo que
+          // ya no admite más intentos confunde). `entregado` SIN nota sigue en
+          // el MISMO intento → no se considera agotado.
+          const attemptsExhausted =
+            !!submission &&
+            Number(submission.attempt_count ?? 0) >= Number(project.max_attempts ?? 1) &&
+            (submission.status === "calificado" || submission.final_grade != null);
 
           return (
             <Card key={project.id}>
@@ -667,7 +676,7 @@ function StudentProjects() {
                 {/* Mientras esté abierto el plazo, el estudiante puede
                     actualizar su entrega aunque ya tenga calificación de
                     IA — al re-entregar se vuelve a calificar. */}
-                {isOpen && !blockedNoGroup && (
+                {isOpen && !blockedNoGroup && !attemptsExhausted && (
                   <Button
                     size="sm"
                     className="w-full"
@@ -704,11 +713,7 @@ function StudentProjects() {
                     que se califique. Misma regla que en el submit. */}
                 {(() => {
                   if (!isOpen || !submission) return null;
-                  const isGradedPrev =
-                    submission.status === "calificado" || submission.final_grade != null;
-                  const consumedAll =
-                    Number(submission.attempt_count ?? 0) >= Number(project.max_attempts ?? 1);
-                  const canDelete = !(consumedAll && isGradedPrev);
+                  const canDelete = !attemptsExhausted;
                   return canDelete ? (
                     <Button
                       size="sm"
