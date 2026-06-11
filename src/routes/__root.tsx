@@ -188,7 +188,19 @@ function RootShell({ children }: { children: React.ReactNode }) {
                         });
                         document.addEventListener('visibilitychange', function () {
                           if (document.visibilityState === 'visible') {
-                            try { reg.update(); } catch (e) {}
+                            // reg.update() re-fetcha /sw.js de la red (se sirve con
+                            // Cache-Control: no-cache). En conexiones intermitentes —móvil
+                            // que bloquea/desbloquea, red escolar tras Cloudflare— ese fetch
+                            // falla y update() RECHAZA con "Script .../sw.js load failed".
+                            // El try/catch NO atrapa el rechazo async; hay que encadenar
+                            // .catch o queda como unhandledrejection (benigno: el SW vigente
+                            // sigue activo, pero ensucia el monitoreo). Si el navegador se
+                            // reporta offline, ni intentamos el fetch.
+                            if (navigator.onLine === false) return;
+                            try {
+                              var up = reg.update();
+                              if (up && typeof up.catch === 'function') up.catch(function () {});
+                            } catch (e) {}
                           }
                         });
                       })
