@@ -2651,7 +2651,40 @@ export function StudentWorkshopTaker({
             Termina de ver los videos introductorios para habilitar la entrega.
           </p>
         )}
-        <Button onClick={submit} disabled={submitting || videoGateBlocking} className="w-full">
+        {/* Intentos restantes color-coded (normal → ámbar 1 restante → rojo
+            0 restantes) + aviso. Mismo patrón que el taker de proyectos
+            (ProjectFiles): cuando no quedan intentos, el botón "Entregar" se
+            deshabilita en vez de mostrarse habilitado y fallar al hacer clic. */}
+        <div className="flex items-center justify-center gap-1.5 text-[11px] mb-1">
+          <span className="text-muted-foreground">Intentos restantes:</span>
+          <span
+            className={`tabular-nums font-medium ${
+              attemptsExhausted
+                ? "text-destructive"
+                : attemptsRemaining === 1
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-foreground"
+            }`}
+          >
+            {attemptsRemaining} / {effectiveMaxAttempts}
+          </span>
+        </div>
+        {attemptsExhausted ? (
+          <p className="text-[11px] text-destructive text-center mb-1.5">
+            Ya consumiste todos tus intentos. No puedes volver a entregar.
+          </p>
+        ) : attemptsRemaining === 1 ? (
+          <p className="text-[11px] text-amber-700 dark:text-amber-300 text-center font-medium mb-1.5">
+            {effectiveMaxAttempts === 1
+              ? "Aviso: este taller admite UNA sola entrega — revisa todo antes de enviar."
+              : "Aviso: te queda 1 intento — revisa todo antes de enviar."}
+          </p>
+        ) : null}
+        <Button
+          onClick={submit}
+          disabled={submitting || videoGateBlocking || attemptsExhausted}
+          className="w-full"
+        >
           {submitting ? (
             <>
               <Spinner size="md" className="mr-1" />
