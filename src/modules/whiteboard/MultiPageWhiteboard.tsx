@@ -26,6 +26,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -122,6 +131,10 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
   // Búsqueda dentro del dropdown "Ver todas las hojas".
   const [pageListSearch, setPageListSearch] = useState("");
   const [pageListOpen, setPageListOpen] = useState(false);
+  // Dialog de creación de hoja: el nombre es OBLIGATORIO. `newPageKind`
+  // guarda el tipo elegido (drawing/text) y abre el dialog; null = cerrado.
+  const [newPageKind, setNewPageKind] = useState<PageType | null>(null);
+  const [newPageName, setNewPageName] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -217,8 +230,17 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
     [activePageId],
   );
 
-  const addPage = async (kind: PageType) => {
+  const addPage = async (kind: PageType, name: string) => {
     if (busy) return;
+    const trimmed = name.trim();
+    if (!trimmed) {
+      toast.error(
+        i18n.t("toast.modules_whiteboard_MultiPageWhiteboard.nameRequired", {
+          defaultValue: "El nombre de la hoja es obligatorio.",
+        }),
+      );
+      return;
+    }
     setBusy(true);
     try {
       const nextPos = pages.length === 0 ? 0 : Math.max(...pages.map((p) => p.position)) + 1;
@@ -226,6 +248,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
         whiteboard_id: whiteboardId,
         position: nextPos,
         page_type: kind,
+        name: trimmed,
       };
       // Inicializamos el campo correspondiente al tipo de hoja para
       // que el editor arranque limpio. El otro campo queda NULL/default.
@@ -243,6 +266,8 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
       const newPage = data as WhiteboardPage;
       setPages((prev) => [...prev, newPage]);
       setActivePageId(newPage.id);
+      setNewPageKind(null);
+      setNewPageName("");
     } catch (e) {
       toast.error(friendlyError(e, "No se pudo agregar la hoja"));
     } finally {
@@ -373,10 +398,17 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
   // Persistir la hoja activa para restaurarla al reentrar a la pizarra.
   // WHY effect (no inline en cada setter): cubre TODOS los cambios de
   // activePageId (tab click, dropdown, addPage, deletePage) sin tocarlos uno
-  // a uno. deletePage queda cubierto: tras borrar reasigna a remaining[0] →
-  // este effect reescribe la clave con la hoja válida (o la limpia si null).
+  // a uno.
+  //
+  // CRÍTICO: solo persistimos cuando activePageId es NO-null. En el mount
+  // activePageId arranca null y este effect corría ANTES de que load()
+  // resolviera su await, BORRANDO la clave guardada → load() leía null y
+  // siempre caía a rows[0] (bug: "no me deja en la misma hoja al volver /
+  // cambiar de pestaña"). Al no escribir el null transitorio, load() puede
+  // leer la última hoja vista. Una hoja borrada/stale la maneja load() con
+  // su check `rows.some(r => r.id === stored)` (cae a rows[0]).
   useEffect(() => {
-    writeStoredActivePage(whiteboardId, activePageId);
+    if (activePageId) writeStoredActivePage(whiteboardId, activePageId);
   }, [activePageId, whiteboardId]);
 
   const scrollBy = (delta: number) => {
@@ -668,7 +700,12 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Tipo de hoja nueva</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => void addPage("drawing")}>
+              <DropdownMenuItem
+                onSelect={() => {
+                  setNewPageName("");
+                  setNewPageKind("drawing");
+                }}
+              >
                 <Palette className="h-4 w-4 mr-2 text-violet-500" />
                 <div className="flex flex-col">
                   <span className="text-sm">Hoja de dibujo</span>
@@ -677,7 +714,12 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                   </span>
                 </div>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void addPage("text")}>
+              <DropdownMenuItem
+                onSelect={() => {
+                  setNewPageName("");
+                  setNewPageKind("text");
+                }}
+              >
                 <FileText className="h-4 w-4 mr-2 text-sky-500" />
                 <div className="flex flex-col">
                   <span className="text-sm">Hoja de texto</span>
@@ -720,6 +762,68 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
           />
         )}
       </div>
+
+      {/* Dialog de creación de hoja — el NOMBRE es obligatorio. */}
+      <Dialog
+        open={newPageKind !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setNewPageKind(null);
+            setNewPageName("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {newPageKind === "text" ? (
+                <FileText className="h-5 w-5 text-sky-500" />
+              ) : (
+                <Palette className="h-5 w-5 text-violet-500" />
+              )}
+              {newPageKind === "text" ? "Nueva hoja de texto" : "Nueva hoja de dibujo"}
+            </DialogTitle>
+            <DialogDescription>Ponle un nombre a la hoja para identificarla.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="new-page-name" required>
+              Nombre de la hoja
+            </Label>
+            <Input
+              id="new-page-name"
+              value={newPageName}
+              onChange={(e) => setNewPageName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newPageName.trim() && !busy) {
+                  void addPage(newPageKind!, newPageName);
+                }
+              }}
+              autoFocus
+              maxLength={120}
+              placeholder={newPageKind === "text" ? "Ej: Notas de la clase" : "Ej: Diagrama de flujo"}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setNewPageKind(null);
+                setNewPageName("");
+              }}
+              disabled={busy}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => newPageKind && void addPage(newPageKind, newPageName)}
+              disabled={busy || !newPageName.trim()}
+            >
+              {busy ? <Spinner size="sm" className="mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+              Crear hoja
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
