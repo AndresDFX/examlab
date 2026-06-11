@@ -1552,9 +1552,9 @@ function SuperAdminDashboard() {
                             </Badge>
                           )}
                         </div>
-                        <div className="text-[11px] text-muted-foreground truncate">
-                          <code>/t/{tt.slug}</code>
-                        </div>
+                        {/* La "URL del tenant" (/t/<slug>) se removió: el slug NO
+                            vive en la URL (ver use-tenant.ts) — se resuelve por
+                            localStorage. Mostrar esa ruta era engañoso. */}
                       </div>
                       <div className="text-[11px] text-muted-foreground text-right shrink-0 tabular-nums">
                         <div>
