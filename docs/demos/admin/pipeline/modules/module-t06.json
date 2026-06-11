@@ -1,0 +1,46 @@
+{
+  "id": "modulo-t06",
+  "title": "Banco de Preguntas (Docente)",
+  "series": "teacher",
+  "role": "Docente",
+  "appPath": "/app/teacher/question-bank",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/question-bank\"]", "text=Banco"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "El banco de preguntas, desde el rol Docente.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Banco de Preguntas", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "El banco organiza preguntas reutilizables por curso. Una vez creadas, se pueden insertar en cualquier examen o taller del mismo curso.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Preguntas por curso", "body": "Reutilizables en tus evaluaciones." } }
+      ]
+    },
+    {
+      "id": "crear",
+      "kind": "platform",
+      "narration": "Al crear una pregunta se elige su tipo, se redacta el enunciado y se asignan los puntos sugeridos.",
+      "bufferMs": 800,
+      "openDialog": "createbtn",
+      "beats": [
+        { "target": "field:Tipo", "hold": 3000, "side": "right", "focus": { "title": "Tipo", "body": "Selección, abierta, código y más." } },
+        { "target": "field:Enunciado", "hold": 3200, "side": "right", "focus": { "title": "Enunciado", "body": "El texto de la pregunta." } },
+        { "target": "field:Puntos", "hold": 3000, "side": "right", "focus": { "title": "Puntos sugeridos", "body": "Valor por defecto al insertarla." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: el libro de calificaciones.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Calificaciones" },
+      "bufferMs": 600
+    }
+  ]
+}

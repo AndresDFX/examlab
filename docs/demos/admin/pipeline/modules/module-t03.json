@@ -1,0 +1,56 @@
+{
+  "id": "modulo-t03",
+  "title": "Exámenes (Docente)",
+  "series": "teacher",
+  "role": "Docente",
+  "appPath": "/app/teacher/exams",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/exams\"]", "text=Exámenes"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Creación y gestión de exámenes, desde el rol Docente.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Exámenes", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "El listado reúne las evaluaciones del docente con su curso, las fechas de inicio y fin, y el estado de cada una.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "row:0", "scale": 1.0, "hold": 4000, "side": "bottom", "focus": { "title": "Tus exámenes", "body": "Curso, fechas y estado." } }
+      ]
+    },
+    {
+      "id": "acciones",
+      "kind": "platform",
+      "narration": "Desde acciones, el docente edita el examen, gestiona sus preguntas, lo asigna a los estudiantes y abre el monitoreo en vivo durante la prueba.",
+      "bufferMs": 700,
+      "beats": [
+        { "target": "rowaction:0", "clickToOpen": true, "hold": 4800 }
+      ]
+    },
+    {
+      "id": "crear",
+      "kind": "platform",
+      "narration": "Al crear un examen se define su título y descripción, la fecha y hora de cierre, y el tipo de navegación: libre o secuencial.",
+      "bufferMs": 800,
+      "openDialog": "createbtn",
+      "beats": [
+        { "target": "field:Título", "hold": 3000, "side": "right", "focus": { "title": "Título", "body": "Nombre de la evaluación." } },
+        { "target": "field:Descripción", "hold": 3000, "side": "right", "focus": { "title": "Descripción", "body": "Indicaciones generales." } },
+        { "target": "field:Fin", "hold": 3000, "side": "right", "focus": { "title": "Cierre", "body": "Fecha y hora límite." } },
+        { "target": "field:Navegación", "hold": 3200, "side": "right", "focus": { "title": "Navegación", "body": "Libre o secuencial entre preguntas." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: los talleres.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Talleres" },
+      "bufferMs": 600
+    }
+  ]
+}

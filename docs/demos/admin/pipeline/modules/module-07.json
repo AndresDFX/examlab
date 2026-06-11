@@ -1,0 +1,45 @@
+{
+  "id": "modulo-07",
+  "title": "Configuración de IA",
+  "appPath": "/app/admin/ai-prompts",
+  "readySelectors": ["[role=\"tab\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Módulo siete: configuración de inteligencia artificial. Define cómo la IA califica y qué modelo usa la institución.",
+      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Configuración de IA", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "prompts",
+      "kind": "platform",
+      "tab": "Prompts",
+      "narration": "En Prompts se ajusta el criterio con el que la IA evalúa, por cada caso de uso: talleres, exámenes y proyectos. Es la política base de la institución, y cada docente puede afinarla para su propio curso.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "text:Módulo", "scale": 1.5, "hold": 4500, "side": "bottom", "focus": { "title": "Filtrar por módulo", "body": "Talleres, exámenes, proyectos, contenidos…" } },
+        { "target": "text:Taller completo", "scale": 1.45, "hold": 5500, "side": "bottom", "focus": { "title": "Prompt por caso de uso", "body": "El criterio con que la IA evalúa cada cosa." } }
+      ]
+    },
+    {
+      "id": "modelo",
+      "kind": "platform",
+      "tab": "Modelo",
+      "narration": "En Modelo se elige el proveedor —Google Gemini u OpenAI— y el modelo activo. Aquí también va la clave de la institución: sin ella, la calificación con IA no funciona.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "text:Modelo activo", "scale": 1.4, "hold": 4500, "side": "bottom", "focus": { "title": "Modelo activo", "body": "El modelo que usa la calificación con IA." } },
+        { "target": "field:Proveedor", "scale": 1.5, "hold": 5000, "side": "right", "focus": { "title": "Proveedor", "body": "Google Gemini u OpenAI, con su API key." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: la configuración de la institución.",
+      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Siguiente módulo", "subtitle": "Configuración del Tenant" },
+      "bufferMs": 600
+    }
+  ]
+}

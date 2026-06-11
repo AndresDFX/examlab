@@ -7,9 +7,10 @@ import { readFileSync, mkdirSync } from "node:fs";
 const BIN = "C:/Temp/examlab-rec/ffmpeg/ffmpeg-8.1.1-essentials_build/bin";
 const FF = `${BIN}/ffmpeg.exe`, FP = `${BIN}/ffprobe.exe`;
 const AUDIO = "C:/Temp/examlab-rec/audio2";
-const OUTDIR = "C:/Projects/Personal/examlab/docs/demos/admin/output";
 const MODULE_PATH = process.argv[2] ?? "C:/Temp/examlab-rec/modules/module-01.json";
 const SPEC = JSON.parse(readFileSync(MODULE_PATH, "utf8"));
+// Carpeta de salida por SERIE/rol (spec.series; default "admin").
+const OUTDIR = `C:/Projects/Personal/examlab/docs/demos/${SPEC.series ?? "admin"}/output`;
 const N = SPEC.scenes.length;
 const RAW = `C:/Temp/examlab-rec/out/${SPEC.id}-raw.webm`;
 const OUT = `${OUTDIR}/${SPEC.id}.mp4`;

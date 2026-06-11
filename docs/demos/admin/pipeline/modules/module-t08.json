@@ -1,0 +1,43 @@
+{
+  "id": "modulo-t08",
+  "title": "Asistencia (Docente)",
+  "series": "teacher",
+  "role": "Docente",
+  "appPath": "/app/teacher/attendance",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/attendance\"]", "text=Asistencia"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Control de asistencia, desde el rol Docente.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Asistencia", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "Cada curso organiza sus clases en sesiones, con su fecha y duración. La asistencia de cada corte se calcula a partir de estas sesiones.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "row:0", "scale": 1.0, "hold": 4000, "side": "bottom", "focus": { "title": "Sesiones de clase", "body": "Fecha, hora y duración." } }
+      ]
+    },
+    {
+      "id": "acciones",
+      "kind": "platform",
+      "narration": "Desde cada sesión, el docente abre el check-in con código rotativo para que los estudiantes se marquen presentes, comparte una pizarra o snippets de código, y duplica la sesión.",
+      "bufferMs": 700,
+      "beats": [
+        { "target": "rowaction:0", "clickToOpen": true, "hold": 5200 }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: los contenidos del curso.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Contenidos" },
+      "bufferMs": 600
+    }
+  ]
+}

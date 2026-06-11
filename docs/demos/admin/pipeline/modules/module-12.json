@@ -1,0 +1,35 @@
+{
+  "id": "modulo-12",
+  "title": "Cuenta y Sesión",
+  "appPath": "/app",
+  "readySelectors": ["[data-tour-id=\"role-switcher\"]", "text=Cursos recientes"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Módulo doce, el último: tu cuenta y la sesión.",
+      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Cuenta y Sesión", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "cuenta",
+      "kind": "platform",
+      "narration": "Al pie del menú vive tu cuenta. El selector de rol cambia entre tus perfiles —Administrador, Docente, Estudiante— reconfigurando lo que ves. La campana muestra las notificaciones; el sobre, los mensajes internos. Y al cerrar sesión, el contexto de la institución se limpia por completo.",
+      "bufferMs": 900,
+      "beats": [
+        { "target": "[data-tour-id=\"role-switcher\"]", "scale": 1.7, "hold": 5000, "side": "right", "focus": { "title": "Selector de rol", "body": "Cambia entre Administrador, Docente y Estudiante." } },
+        { "target": "[data-tour-id=\"notifications-bell\"]", "scale": 1.9, "hold": 4000, "side": "right", "focus": { "title": "Notificaciones", "body": "Avisos del sistema y de los usuarios." } },
+        { "target": "[data-tour-id=\"messages-bell\"]", "scale": 1.9, "hold": 4000, "side": "right", "focus": { "title": "Mensajes", "body": "Comunicación interna y difusiones a cursos." } },
+        { "target": "[data-tour-id=\"logout\"]", "scale": 1.9, "hold": 4500, "side": "right", "focus": { "title": "Cerrar sesión", "body": "Limpia por completo el contexto de la institución." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "Con esto concluye el recorrido del rol Administrador en ExamLab.",
+      "card": { "kicker": "ExamLab · Serie de demostración", "title": "Fin del recorrido", "subtitle": "Rol Administrador · Demo Global Corp" },
+      "bufferMs": 800
+    }
+  ]
+}

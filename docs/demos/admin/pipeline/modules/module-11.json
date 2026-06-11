@@ -1,0 +1,71 @@
+{
+  "id": "modulo-11",
+  "title": "Auditoría, Soporte y Papelera",
+  "appPath": "/app/admin/audit-logs",
+  "readySelectors": ["text=Registro de auditoría"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Módulo once: auditoría, soporte y papelera. Las herramientas de gobierno de la institución.",
+      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Auditoría · Soporte · Papelera", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "auditoria",
+      "kind": "platform",
+      "narration": "La auditoría registra quién hizo qué y cuándo. Sirve para responder reclamos e investigar incidentes, y solo muestra la actividad de esta institución.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "firstcard", "scale": 1.18, "hold": 8500, "side": "bottom", "focus": { "title": "Auditoría", "body": "Quién hizo qué y cuándo, en la institución." } }
+      ]
+    },
+    {
+      "id": "soporte-intro",
+      "kind": "card",
+      "route": "/app/admin/support",
+      "ready": ["text=Nuevo ticket"],
+      "narration": "El canal de soporte con la plataforma.",
+      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Soporte", "subtitle": "PQRS hacia la plataforma" },
+      "bufferMs": 500
+    },
+    {
+      "id": "soporte",
+      "kind": "platform",
+      "openDialog": "createbtn",
+      "narration": "Abrimos un ticket nuevo. Elegimos su categoría —petición, queja, reclamo o sugerencia—, escribimos un asunto, y describimos el caso con el detalle necesario.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "field:Categoría", "hold": 3500, "side": "right", "focus": { "title": "Categoría", "body": "Petición, queja, reclamo o sugerencia." } },
+        { "target": "field:Asunto", "hold": 3000, "side": "right", "focus": { "title": "Asunto", "body": "El tema del ticket." } },
+        { "target": "field:Descripción", "hold": 4000, "side": "right", "focus": { "title": "Descripción", "body": "El detalle del caso (puedes adjuntar archivos)." } }
+      ]
+    },
+    {
+      "id": "papelera-intro",
+      "kind": "card",
+      "route": "/app/trash",
+      "ready": ["main table"],
+      "narration": "Y la papelera.",
+      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Papelera", "subtitle": "Recuperar lo eliminado" },
+      "bufferMs": 500
+    },
+    {
+      "id": "papelera",
+      "kind": "platform",
+      "narration": "Lo que se elimina no desaparece: pasa a la papelera, donde permanece treinta días antes del borrado definitivo. Desde aquí se restaura con un clic.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "firstcard", "scale": 1.18, "hold": 8000, "side": "bottom", "focus": { "title": "Papelera", "body": "Restaura lo eliminado; 30 días antes del borrado." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el último módulo: tu cuenta y el cierre de sesión.",
+      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Siguiente módulo", "subtitle": "Cuenta y Sesión" },
+      "bufferMs": 600
+    }
+  ]
+}

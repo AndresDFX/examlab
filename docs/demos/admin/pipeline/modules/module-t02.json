@@ -1,0 +1,43 @@
+{
+  "id": "modulo-t02",
+  "title": "Gestión de Cursos (Docente)",
+  "series": "teacher",
+  "role": "Docente",
+  "appPath": "/app/teacher/courses",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/courses\"]", "text=Cursos"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Gestión de cursos, desde el rol Docente.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Mis Cursos", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "Aquí el docente ve únicamente los cursos que tiene asignados. Cada fila muestra el nombre del curso, el periodo y el idioma, con su estado actual.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "row:0", "scale": 1.0, "hold": 4000, "side": "bottom", "focus": { "title": "Tus cursos", "body": "Solo los cursos en los que enseñas." } }
+      ]
+    },
+    {
+      "id": "acciones",
+      "kind": "platform",
+      "narration": "Desde el menú de acciones de cada curso, el docente accede a su tablero, gestiona las sesiones de clase, el contenido y los estudiantes matriculados.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "rowaction:0", "clickToOpen": true, "hold": 4800 }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: la creación y el monitoreo de exámenes.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Exámenes" },
+      "bufferMs": 600
+    }
+  ]
+}

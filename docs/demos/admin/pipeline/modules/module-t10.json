@@ -1,0 +1,46 @@
+{
+  "id": "modulo-t10",
+  "title": "Biblioteca de Videos (Docente)",
+  "series": "teacher",
+  "role": "Docente",
+  "appPath": "/app/videos",
+  "readySelectors": ["[data-tour-nav=\"/app/videos\"]", "text=Videos"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "La biblioteca de videos, desde el rol Docente.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Biblioteca de Videos", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "La biblioteca reúne los videos de apoyo del docente. Pueden asociarse a un curso específico o quedar disponibles de forma general.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "firstcard", "scale": 1.12, "hold": 4000, "side": "bottom", "focus": { "title": "Videos de apoyo", "body": "Por curso o generales." } }
+      ]
+    },
+    {
+      "id": "crear",
+      "kind": "platform",
+      "narration": "Para agregar un video se indica su título, el enlace y una descripción; también puede subirse un archivo desde el computador.",
+      "bufferMs": 800,
+      "openDialog": "createbtn",
+      "beats": [
+        { "target": "field:Título", "hold": 3000, "side": "right", "focus": { "title": "Título", "body": "Nombre del video." } },
+        { "target": "field:URL", "hold": 3000, "side": "right", "focus": { "title": "Enlace", "body": "URL del video." } },
+        { "target": "field:Descripción", "hold": 3000, "side": "right", "focus": { "title": "Descripción", "body": "Contexto del material." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: las pizarras.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Pizarras" },
+      "bufferMs": 600
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "id": "modulo-t12",
+  "title": "Encuestas (Docente)",
+  "series": "teacher",
+  "role": "Docente",
+  "appPath": "/app/teacher/polls",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/polls\"]", "text=Encuestas"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Encuestas y dinámicas, desde el rol Docente.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Encuestas", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "El docente crea encuestas de opinión, reservas de cupo por horario y juegos tipo concurso para dinamizar la clase.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "firstcard", "scale": 1.12, "hold": 4200, "side": "bottom", "focus": { "title": "Encuestas del curso", "body": "Opinión, cupos y concursos." } }
+      ]
+    },
+    {
+      "id": "crear",
+      "kind": "platform",
+      "narration": "Al crear una encuesta se define su título, una descripción y el tipo de dinámica que se quiere aplicar.",
+      "bufferMs": 800,
+      "openDialog": "createbtn",
+      "beats": [
+        { "target": "field:Título", "hold": 3200, "side": "right", "focus": { "title": "Título", "body": "Nombre de la encuesta." } },
+        { "target": "field:Descripción", "hold": 3200, "side": "right", "focus": { "title": "Descripción", "body": "Contexto para el estudiante." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el último módulo del rol Docente: tu cuenta y la sesión.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Cuenta y Sesión" },
+      "bufferMs": 600
+    }
+  ]
+}

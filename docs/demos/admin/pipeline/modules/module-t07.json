@@ -1,0 +1,43 @@
+{
+  "id": "modulo-t07",
+  "title": "Calificaciones (Docente)",
+  "series": "teacher",
+  "role": "Docente",
+  "appPath": "/app/teacher/gradebook",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/gradebook\"]", "text=Calificaciones"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "El libro de calificaciones, desde el rol Docente.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Calificaciones", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "El libro de notas consolida, por curso, las calificaciones de exámenes, talleres, proyectos y asistencia, ponderadas por cada corte.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "firstcard", "scale": 1.1, "hold": 4500, "side": "bottom", "focus": { "title": "Consolidado por corte", "body": "Notas ponderadas del curso." } }
+      ]
+    },
+    {
+      "id": "detalle",
+      "kind": "platform",
+      "narration": "El docente filtra por curso, revisa la nota final de cada estudiante y exporta el consolidado para sus reportes.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "text:Exportar", "scale": 1.4, "hold": 3800, "side": "bottom", "focus": { "title": "Exportar", "body": "Descarga el consolidado en CSV." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: la asistencia.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Asistencia" },
+      "bufferMs": 600
+    }
+  ]
+}

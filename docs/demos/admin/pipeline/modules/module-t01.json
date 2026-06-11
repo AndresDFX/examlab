@@ -1,0 +1,57 @@
+{
+  "id": "modulo-t01",
+  "title": "Panel del Docente",
+  "series": "teacher",
+  "role": "Docente",
+  "appPath": "/app",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/exams\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Demostración del rol Docente en ExamLab, sobre la institución Demo Global Corp.",
+      "card": { "kicker": "ExamLab · Serie de demostración", "title": "Demo Global Corp", "subtitle": "Rol: Docente" },
+      "bufferMs": 600
+    },
+    {
+      "id": "identidad",
+      "kind": "platform",
+      "narration": "El entorno conserva la identidad de la institución. Ahora operamos como Docente: el menú y las herramientas se ajustan al rol.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-id=\"brand\"]", "scale": 1.7, "hold": 3800, "side": "right", "focus": { "title": "Identidad de la institución", "body": "La marca de Demo Global Corp acompaña la plataforma." } },
+        { "target": "[data-tour-id=\"role-switcher\"]", "scale": 1.6, "hold": 4000, "side": "right", "focus": { "title": "Tu rol", "body": "Operás como Docente." } }
+      ]
+    },
+    {
+      "id": "modulos",
+      "kind": "platform",
+      "narration": "Desde el menú, el docente gestiona sus cursos, exámenes, talleres y proyectos, el libro de notas y la asistencia. Todo lo necesario para enseñar y evaluar.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/teacher/courses\"]", "scale": 1.55, "hold": 2600, "side": "right", "focus": { "title": "Mis cursos", "body": "Los cursos que dicta." } },
+        { "target": "[data-tour-nav=\"/app/teacher/exams\"]", "scale": 1.55, "hold": 2600, "side": "right", "focus": { "title": "Exámenes", "body": "Crea y monitorea evaluaciones." } },
+        { "target": "[data-tour-nav=\"/app/teacher/gradebook\"]", "scale": 1.55, "hold": 2600, "side": "right", "focus": { "title": "Calificaciones", "body": "El libro de notas por corte." } },
+        { "target": "[data-tour-nav=\"/app/teacher/attendance\"]", "scale": 1.55, "hold": 2600, "side": "right", "focus": { "title": "Asistencia", "body": "Sesiones y check-in de estudiantes." } }
+      ]
+    },
+    {
+      "id": "dashboard",
+      "kind": "platform",
+      "narration": "El panel de inicio resume su trabajo: lo que tiene pendiente por calificar y las sesiones del día, con la agenda de próximas clases y exámenes.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "firstcard", "scale": 1.2, "hold": 5500, "side": "bottom", "focus": { "title": "Tu panel", "body": "Pendientes por calificar y sesiones del día." } },
+        { "target": "text:Próximas", "scale": 1.3, "hold": 5000, "side": "bottom", "focus": { "title": "Agenda", "body": "Próximas clases y exámenes." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo del rol Docente: la gestión de sus cursos.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Gestión de Cursos" },
+      "bufferMs": 600
+    }
+  ]
+}

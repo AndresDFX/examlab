@@ -1,0 +1,32 @@
+{
+  "id": "modulo-09",
+  "title": "Certificados",
+  "appPath": "/app/certificates",
+  "readySelectors": ["text=Sin certificados"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Módulo nueve: certificados. La constancia de finalización que reciben los estudiantes que aprueban un curso.",
+      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Certificados", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "cuerpo",
+      "kind": "platform",
+      "narration": "Aquí se revisan los certificados emitidos en la institución. Cada certificado se genera desde el libro de notas cuando un estudiante aprueba un curso, y su diseño —logo, firma y texto— se define una vez en Configuración.",
+      "bufferMs": 900,
+      "beats": [
+        { "target": "text:Sin certificados", "scale": 1.3, "hold": 11000, "side": "bottom", "focus": { "title": "Cómo se emiten", "body": "Desde el libro de notas al aprobar; el diseño, en Configuración." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: estadísticas e informes.",
+      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Siguiente módulo", "subtitle": "Estadísticas e Informes" },
+      "bufferMs": 600
+    }
+  ]
+}

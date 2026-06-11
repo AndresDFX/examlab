@@ -1,0 +1,53 @@
+{
+  "id": "modulo-08",
+  "title": "Configuración del Tenant",
+  "appPath": "/app/admin/settings",
+  "readySelectors": ["[role=\"tab\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Módulo ocho: configuración de la institución. El panel de control de Demo Global Corp: identidad, módulos visibles y correos.",
+      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Configuración", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "institucion",
+      "kind": "platform",
+      "tab": "Institución",
+      "narration": "En Institución se define la identidad: el logotipo, el nombre y los colores de la institución, que se aplican al instante en toda la plataforma.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "firstcard", "scale": 1.15, "hold": 7000, "side": "bottom", "focus": { "title": "Identidad de la institución", "body": "Logotipo, nombre y colores — branding propio." } }
+      ]
+    },
+    {
+      "id": "modulos",
+      "kind": "platform",
+      "tab": "Módulos",
+      "narration": "En Módulos se decide qué partes de la plataforma ve cada rol, y en qué orden aparecen en el menú. Otra capa del control de acceso.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "firstcard", "scale": 1.15, "hold": 6500, "side": "bottom", "focus": { "title": "Visibilidad de módulos", "body": "Qué módulos ve cada rol y su orden." } }
+      ]
+    },
+    {
+      "id": "correos",
+      "kind": "platform",
+      "tab": "Correos",
+      "narration": "Y en Correos se prenden o apagan los avisos por email por categoría, como el correo de bienvenida que se envía al crear usuarios.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "text:Bienvenida", "scale": 1.4, "hold": 6000, "side": "bottom", "focus": { "title": "Correos", "body": "Activa o apaga cada aviso, como la bienvenida." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: certificados.",
+      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Siguiente módulo", "subtitle": "Certificados" },
+      "bufferMs": 600
+    }
+  ]
+}

@@ -74,18 +74,42 @@ async function killTour(page) {
   try { await page.addStyleTag({ content: ".driver-popover,.driver-overlay,.driver-overlay-animated,.driver-active-element{display:none !important;}" }); } catch {}
   await page.keyboard.press("Escape").catch(() => {});
 }
-async function selectAdminRole(page) {
+// Activa el rol pedido en el role-switcher del sidebar. `roleLabel` viene del
+// spec (spec.role; default "Administrador") para soportar series por rol
+// (Admin / Docente / Estudiante) con la misma cuenta multi-rol demo.
+async function selectRole(page, roleLabel) {
+  const rx = new RegExp(roleLabel, "i");
   try {
     await page.waitForSelector('[data-tour-id="role-switcher"]', { timeout: 8000 });
     const trigger = page.locator('[data-tour-id="role-switcher"] [role="combobox"]').first();
     if ((await trigger.count()) === 0) return;
     const cur = (await trigger.textContent().catch(() => "") ?? "").trim();
-    if (/Administrador/i.test(cur)) return;
+    if (rx.test(cur)) return;
     await trigger.click({ timeout: 3000 }); await sleep(400);
-    const opt = page.getByRole("option", { name: /Administrador/i }).first();
+    const opt = page.getByRole("option", { name: rx }).first();
     if ((await opt.count()) > 0) { await opt.click({ timeout: 3000 }); await sleep(1500); }
     else await page.keyboard.press("Escape");
   } catch { /* noop */ }
+}
+
+// Navega por SPA (clic en el nav del sidebar) para PRESERVAR el rol activo,
+// que vive en memoria (active-role-signal, NO localStorage): un page.goto
+// recarga la página y resetea el rol → RBAC redirige las rutas /app/teacher/*
+// al dashboard. Clicar el <Link> del sidebar es navegación in-app y conserva
+// el rol. Fallback a page.goto si el link no existe (ej. rutas sin nav item;
+// seguro para Admin, cuyo rol por defecto persiste tras el reload).
+async function spaNavigate(page, route) {
+  const link = page.locator(`[data-tour-nav="${route}"]`).first();
+  try {
+    await link.waitFor({ timeout: 6000 });
+    await link.scrollIntoViewIfNeeded().catch(() => {});
+    await link.click({ timeout: 4000 });
+    await page.waitForTimeout(900);
+    return true;
+  } catch {
+    await page.goto(`${APP_URL}${route}`, { waitUntil: "domcontentloaded" }).catch(() => {});
+    return false;
+  }
 }
 
 // ── Cámara (translate+scale sobre body, con clamp para cubrir el viewport) ──
@@ -121,16 +145,32 @@ async function measureTargets(page, targets, scroll = false) {
         }
         el = list[n] || null;
       }
+      else if (ts === "firstcard") {
+        // Primera tarjeta (Card) del panel/tab activo — objetivo robusto para
+        // secciones de configuración sin hooks. Siempre resuelve algo.
+        const scope = document.querySelector('[data-state="active"][role="tabpanel"]') || document.querySelector('[role="dialog"]') || document.querySelector("main") || document.body;
+        el = scope.querySelector('[data-slot="card"]') ||
+             [...scope.querySelectorAll("div")].find((d) => /rounded/.test(d.className) && /border/.test(d.className) && d.querySelector("h1,h2,h3")) ||
+             scope.firstElementChild;
+      }
       else if (ts === "createbtn") {
         // Botón primario "Nuevo/Nueva/Crear/Agregar" de la vista (o tab) activa.
         el = [...document.querySelectorAll("main button")].find((b) => /^\s*(nuev|crear|agregar|añadir)/i.test(b.textContent || "")) || null;
+      }
+      else if (ts.startsWith("text:")) {
+        // Elemento por su TEXTO visible (encabezado/botón/etiqueta), scopeado a
+        // la tab activa o al diálogo si lo hay. Para páginas de configuración sin
+        // hooks. Devuelve el elemento "hoja-ish" (pocos hijos) que empieza con el texto.
+        const txt = ts.slice(5).toLowerCase();
+        const scope = document.querySelector('[data-state="active"][role="tabpanel"]') || document.querySelector('[role="dialog"]') || document.querySelector("main") || document.body;
+        el = [...scope.querySelectorAll("*")].find((e) => { const o = (e.textContent || "").trim().toLowerCase(); return o.startsWith(txt) && e.children.length <= 6; }) || null;
       }
       else if (ts.startsWith("field:")) {
         // Campo de un formulario por el texto de su <label> (dentro del diálogo
         // abierto si lo hay). Devuelve el contenedor (label + input) para
         // resaltar todo el campo. Útil cuando el campo no tiene data-tour-id.
         const txt = ts.slice(6).toLowerCase();
-        const scope = document.querySelector('[role="dialog"]') || document.body;
+        const scope = document.querySelector('[role="dialog"]') || document.querySelector('[data-state="active"][role="tabpanel"]') || document.body;
         const lbl = [...scope.querySelectorAll("label")].find((l) => (l.textContent || "").trim().toLowerCase().startsWith(txt));
         el = lbl ? lbl.parentElement : null;
       }
@@ -277,10 +317,15 @@ async function main() {
   const page = await context.newPage();
 
   const offsets = []; let t0 = 0;
+  let currentRoute = "/app";
   const mark = (i, label) => { offsets[i] = Date.now() - t0; console.log(`  [${i + 1}/${scenes.length}] @${offsets[i]}ms — ${label}`); };
 
   try {
-    await page.goto(`${APP_URL}${spec.appPath}`, { waitUntil: "domcontentloaded" });
+    // Aterrizamos SIEMPRE en /app (dashboard, accesible a cualquier rol). La
+    // navegación a la ruta del módulo se hace por SPA tras fijar el rol —
+    // ver scene-0. (Un goto directo a /app/teacher/* recargaría con el rol
+    // por defecto y RBAC redirigiría al dashboard.)
+    await page.goto(`${APP_URL}/app`, { waitUntil: "domcontentloaded" });
     // Carátula de la 1ª escena ASAP → cubre la carga (pre-roll mínimo).
     if (scenes[0].kind === "card") await overlay(page, scenes[0].card);
     await sleep(300);
@@ -294,12 +339,23 @@ async function main() {
       if (sc.kind === "card") {
         if (i > 0) await overlay(page, sc.card); // la 1ª ya está puesta
         if (i === 0) {
-          // Cargar la página detrás de la carátula (pre-roll mínimo).
-          await selectAdminRole(page);
-          await waitReady(page, spec.readySelectors);
-          await killTour(page);
-          await cameraSetup(page);
-          await hideCursor(page, true);
+          // Fijar el rol del spec PRIMERO (estamos en /app), luego navegar por
+          // SPA a la ruta del módulo para preservar el rol activo en memoria.
+          await selectRole(page, spec.role ?? "Administrador");
+          if (spec.appPath && spec.appPath !== "/app") {
+            await spaNavigate(page, spec.appPath);
+            currentRoute = spec.appPath;
+          }
+          await waitReady(page, sc.ready ?? spec.readySelectors);
+          await killTour(page); await cameraSetup(page); await hideCursor(page, true);
+        } else if (sc.route && sc.route !== currentRoute) {
+          // Cambio de ruta DETRÁS de la carátula (módulos multi-ruta): la
+          // carátula cubre la navegación. Reafirmamos el rol y vamos por SPA.
+          await selectRole(page, spec.role ?? "Administrador");
+          await spaNavigate(page, sc.route);
+          currentRoute = sc.route;
+          await waitReady(page, sc.ready ?? spec.readySelectors);
+          await killTour(page); await cameraSetup(page); await hideCursor(page, true);
         }
         await sleep(Math.max(0, target(i) - (Date.now() - s)));
         await clearOverlay(page);

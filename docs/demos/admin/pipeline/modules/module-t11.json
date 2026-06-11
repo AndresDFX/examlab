@@ -1,0 +1,54 @@
+{
+  "id": "modulo-t11",
+  "title": "Pizarras (Docente)",
+  "series": "teacher",
+  "role": "Docente",
+  "appPath": "/app/teacher/whiteboards",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/whiteboards\"]", "text=Pizarras"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Pizarras de clase, desde el rol Docente.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Pizarras", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "Las pizarras son espacios de dibujo para explicar conceptos en clase. Pueden asociarse a un curso y compartirse en vivo con los estudiantes.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "row:0", "scale": 1.0, "hold": 4000, "side": "bottom", "focus": { "title": "Tus pizarras", "body": "Asociadas a un curso." } }
+      ]
+    },
+    {
+      "id": "acciones",
+      "kind": "platform",
+      "narration": "Desde acciones, el docente abre la pizarra para dibujar, la duplica o la elimina.",
+      "bufferMs": 700,
+      "beats": [
+        { "target": "rowaction:0", "clickToOpen": true, "hold": 4500 }
+      ]
+    },
+    {
+      "id": "crear",
+      "kind": "platform",
+      "narration": "Al crear una pizarra se define su nombre y una descripción opcional.",
+      "bufferMs": 800,
+      "openDialog": "createbtn",
+      "beats": [
+        { "target": "field:Nombre", "hold": 3200, "side": "right", "focus": { "title": "Nombre", "body": "Identifica la pizarra." } },
+        { "target": "field:Descripción", "hold": 3200, "side": "right", "focus": { "title": "Descripción", "body": "Contexto opcional." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: las encuestas.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Encuestas" },
+      "bufferMs": 600
+    }
+  ]
+}

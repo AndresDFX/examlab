@@ -1,0 +1,55 @@
+{
+  "id": "modulo-t04",
+  "title": "Talleres (Docente)",
+  "series": "teacher",
+  "role": "Docente",
+  "appPath": "/app/teacher/workshops",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/workshops\"]", "text=Talleres"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Gestión de talleres, desde el rol Docente.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Talleres", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "Los talleres son actividades prácticas con entrega y calificación. El listado muestra su curso, la fecha límite y su estado.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "row:0", "scale": 1.0, "hold": 4000, "side": "bottom", "focus": { "title": "Tus talleres", "body": "Curso, fecha límite y estado." } }
+      ]
+    },
+    {
+      "id": "acciones",
+      "kind": "platform",
+      "narration": "Desde acciones, el docente gestiona las preguntas del taller, organiza el trabajo en grupo, califica las entregas y duplica la actividad.",
+      "bufferMs": 700,
+      "beats": [
+        { "target": "rowaction:0", "clickToOpen": true, "hold": 4800 }
+      ]
+    },
+    {
+      "id": "crear",
+      "kind": "platform",
+      "narration": "Al crear un taller se definen su título, la descripción y las instrucciones que guían al estudiante en la entrega.",
+      "bufferMs": 800,
+      "openDialog": "createbtn",
+      "beats": [
+        { "target": "field:Título", "hold": 3000, "side": "right", "focus": { "title": "Título", "body": "Nombre del taller." } },
+        { "target": "field:Descripción", "hold": 3000, "side": "right", "focus": { "title": "Descripción", "body": "Resumen de la actividad." } },
+        { "target": "field:Instrucciones", "hold": 3400, "side": "right", "focus": { "title": "Instrucciones", "body": "Guía detallada para el estudiante." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: los proyectos.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Proyectos" },
+      "bufferMs": 600
+    }
+  ]
+}

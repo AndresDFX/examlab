@@ -1,0 +1,46 @@
+{
+  "id": "modulo-t09",
+  "title": "Contenidos (Docente)",
+  "series": "teacher",
+  "role": "Docente",
+  "appPath": "/app/teacher/contents",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/contents\"]", "text=Contenidos"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Contenidos del curso, desde el rol Docente.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Contenidos", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "El módulo de contenidos reúne el material didáctico del curso. El docente puede generarlo con apoyo de inteligencia artificial o subir sus propios archivos.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "firstcard", "scale": 1.12, "hold": 4200, "side": "bottom", "focus": { "title": "Material del curso", "body": "Generado o subido por el docente." } }
+      ]
+    },
+    {
+      "id": "crear",
+      "kind": "platform",
+      "narration": "Al generar contenido se elige el tipo de material, el curso al que pertenece y el idioma de redacción.",
+      "bufferMs": 800,
+      "openDialog": "createbtn",
+      "beats": [
+        { "target": "field:Tipo de evaluación", "hold": 3200, "side": "right", "focus": { "title": "Tipo de material", "body": "El formato a generar." } },
+        { "target": "field:Curso", "hold": 3000, "side": "right", "focus": { "title": "Curso", "body": "A qué curso se asigna." } },
+        { "target": "field:Idioma", "hold": 3000, "side": "right", "focus": { "title": "Idioma", "body": "Idioma del contenido." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: la biblioteca de videos.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Videos" },
+      "bufferMs": 600
+    }
+  ]
+}

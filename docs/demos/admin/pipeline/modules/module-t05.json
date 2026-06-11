@@ -1,0 +1,55 @@
+{
+  "id": "modulo-t05",
+  "title": "Proyectos (Docente)",
+  "series": "teacher",
+  "role": "Docente",
+  "appPath": "/app/teacher/projects",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/projects\"]", "text=Proyectos"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Gestión de proyectos, desde el rol Docente.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Proyectos", "subtitle": "Demo Global Corp" },
+      "bufferMs": 600
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "Los proyectos son entregas extensas que combinan la calificación de la entrega con una sustentación. El listado muestra cada proyecto con su curso y estado.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "row:0", "scale": 1.0, "hold": 4000, "side": "bottom", "focus": { "title": "Tus proyectos", "body": "Entrega más sustentación." } }
+      ]
+    },
+    {
+      "id": "acciones",
+      "kind": "platform",
+      "narration": "Desde acciones, el docente define los archivos esperados, organiza los grupos de trabajo, revisa las entregas y registra la sustentación.",
+      "bufferMs": 700,
+      "beats": [
+        { "target": "rowaction:0", "clickToOpen": true, "hold": 4800 }
+      ]
+    },
+    {
+      "id": "crear",
+      "kind": "platform",
+      "narration": "Al crear un proyecto se define su título, la fecha de inicio y su estado de publicación.",
+      "bufferMs": 800,
+      "openDialog": "createbtn",
+      "beats": [
+        { "target": "field:Título", "hold": 3000, "side": "right", "focus": { "title": "Título", "body": "Tema o título del proyecto." } },
+        { "target": "field:Fecha inicio", "hold": 3000, "side": "right", "focus": { "title": "Fecha inicio", "body": "Cuándo comienza el proyecto." } },
+        { "target": "field:Estado", "hold": 3200, "side": "right", "focus": { "title": "Estado", "body": "Borrador o publicado." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: el banco de preguntas.",
+      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Banco de preguntas" },
+      "bufferMs": 600
+    }
+  ]
+}
