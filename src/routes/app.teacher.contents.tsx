@@ -1069,13 +1069,16 @@ function TeacherContents() {
         subtitle={t("contents.subtitle")}
         icon={<Presentation className="h-6 w-6 text-pink-500" />}
         actions={
-          <>
+          // flex-wrap: en móvil (375px) los 2 CTAs no caben en una línea y
+          // desbordaban el header; envolver + size="sm" los deja apilar.
+          <div className="flex flex-wrap items-center gap-2">
             {/* "Subir externo" abre el dialog que crea un
                 `generated_contents` con `status='done'` (sin IA) y
                 asocia el contenido a N cursos vía
                 `content_course_assignments`. UX paralela a "Nuevo
                 contenido" (IA) pero para material ya producido. */}
             <Button
+              size="sm"
               variant="outline"
               data-tour-id="upload-external-content"
               onClick={() => setUploadDialogOpen(true)}
@@ -1083,11 +1086,11 @@ function TeacherContents() {
               <Upload className="h-4 w-4 mr-1" />
               {t("contents.uploadExternal", { defaultValue: "Subir externo" })}
             </Button>
-            <Button onClick={() => setDialogOpen(true)}>
+            <Button size="sm" onClick={() => setDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-1" />
               {t("contents.newContent")}
             </Button>
-          </>
+          </div>
         }
       />
 

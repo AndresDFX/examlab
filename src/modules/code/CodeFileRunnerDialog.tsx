@@ -110,9 +110,9 @@ export function CodeFileRunnerDialog({ file, onOpenChange, auditId }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
-            <FileCode2 className="h-4 w-4 text-indigo-500" />
-            {file?.name}
+          <DialogTitle className="flex items-center gap-2 text-sm font-semibold min-w-0">
+            <FileCode2 className="h-4 w-4 text-indigo-500 shrink-0" />
+            <span className="truncate">{file?.name}</span>
           </DialogTitle>
           <DialogDescription>
             {language

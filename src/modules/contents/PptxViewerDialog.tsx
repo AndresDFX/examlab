@@ -232,10 +232,10 @@ export function PptxViewerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90dvh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <PresentationIcon className="h-5 w-5 text-primary" />
-            {file.name}
-            <Badge variant="outline" className="text-[10px] ml-2 tabular-nums">
+          <DialogTitle className="flex items-center gap-2 text-base min-w-0">
+            <PresentationIcon className="h-5 w-5 text-primary shrink-0" />
+            <span className="truncate">{file.name}</span>
+            <Badge variant="outline" className="text-[10px] ml-2 tabular-nums shrink-0">
               {t("pptxViewer.slideCount", { count: slides.length })}
             </Badge>
           </DialogTitle>

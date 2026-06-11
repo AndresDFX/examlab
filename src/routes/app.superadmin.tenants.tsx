@@ -717,7 +717,7 @@ function SuperAdminTenantsPage() {
         title={tl("superadminTenants.title")}
         subtitle={`${tenants.length} institucion${tenants.length === 1 ? "" : "es"} en la plataforma`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={clearViewAs}>
               {tl("superadminTenants.clearViewAsBtn")}
             </Button>

@@ -99,9 +99,9 @@ export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
-            <NotebookPen className="h-4 w-4 text-orange-500" />
-            {file?.name}
+          <DialogTitle className="flex items-center gap-2 text-sm font-semibold min-w-0">
+            <NotebookPen className="h-4 w-4 text-orange-500 shrink-0" />
+            <span className="truncate">{file?.name}</span>
           </DialogTitle>
           <DialogDescription className="text-[11px]">
             {notebook

@@ -519,9 +519,9 @@ function PollCard({
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Icon className="h-4 w-4 text-sky-500" />
-              {poll.title}
+            <CardTitle className="text-base flex items-center gap-2 min-w-0">
+              <Icon className="h-4 w-4 text-sky-500 shrink-0" />
+              <span className="truncate">{poll.title}</span>
             </CardTitle>
             <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
               {poll.course_name && (

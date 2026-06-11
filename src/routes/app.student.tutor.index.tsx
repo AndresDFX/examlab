@@ -108,7 +108,7 @@ function TutorIndex() {
                     <Sparkles className="h-5 w-5 text-indigo-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm">{c.name}</div>
+                    <div className="font-medium text-sm truncate">{c.name}</div>
                     {c.period && (
                       <p className="text-[11px] text-muted-foreground">{c.period}</p>
                     )}

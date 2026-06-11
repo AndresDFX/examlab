@@ -598,7 +598,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
         <CardHeader>
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1 min-w-0">
-              <CardTitle className="text-lg">{course.name}</CardTitle>
+              <CardTitle className="text-lg truncate">{course.name}</CardTitle>
               {course.description && (
                 <p className="text-sm text-muted-foreground">{course.description}</p>
               )}
@@ -644,7 +644,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 shrink-0 justify-end">
               <Button size="sm" variant="outline" asChild>
                 <Link to="/app/student/tutor/$courseId" params={{ courseId: course.id }}>
                   <Sparkles className="h-4 w-4 mr-1" />
