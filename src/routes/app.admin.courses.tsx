@@ -17,6 +17,11 @@ import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { DateCell } from "@/components/ui/date-cell";
+import {
+  nextBoardContentName,
+  uploadBoardContent,
+  BOARD_ACCEPTED_EXTENSIONS,
+} from "@/modules/contents/board-content-upload";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { Input } from "@/components/ui/input";
@@ -2604,6 +2609,16 @@ interface SessionRow {
   notes_url: string | null;
 }
 
+/** Fila del grid "Contenidos del curso" en el tablero — material subido
+ *  desde el propio tablero (o generado) anclado a este curso. */
+interface BoardContentItem {
+  id: string;
+  displayName: string;
+  createdAt: string | null;
+  isPublished: boolean;
+  fileCount: number;
+}
+
 interface AvailableContent {
   id: string;
   topic: string;
@@ -2819,6 +2834,10 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
   const confirm = useConfirm();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [contents, setContents] = useState<AvailableContent[]>([]);
+  // Grid "Contenidos del curso": material anclado a este curso (incluye el
+  // subido desde el propio tablero con el botón "Subir contenido").
+  const [boardContents, setBoardContents] = useState<BoardContentItem[]>([]);
+  const [uploadingContent, setUploadingContent] = useState(false);
   const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -2891,7 +2910,7 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
         // asociado (genéricos reutilizables).
         db
           .from("generated_contents")
-          .select("id, topic, mode, course_id, files")
+          .select("id, topic, mode, course_id, files, display_name, created_at, is_published")
           .eq("status", "done")
           .is("deleted_at", null)
           .or(`course_id.eq.${course.id},course_id.is.null`),
@@ -2932,6 +2951,22 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
           };
         }),
       );
+      // Grid "Contenidos del curso": solo los anclados a ESTE curso (los
+      // genéricos sin curso quedan fuera). Incluye los subidos desde el
+      // tablero. Orden por fecha desc (lo más nuevo arriba).
+      setBoardContents(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ((contentsRes.data ?? []) as any[])
+          .filter((g) => g.course_id === course.id)
+          .map((g) => ({
+            id: g.id as string,
+            displayName: (g.display_name as string) ?? (g.topic as string),
+            createdAt: (g.created_at as string) ?? null,
+            isPublished: !!g.is_published,
+            fileCount: Array.isArray(g.files) ? g.files.length : 0,
+          }))
+          .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "")),
+      );
 
       const items: ScheduledItem[] = [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2960,6 +2995,61 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
       const dueTs = new Date(it.due).getTime();
       return Math.abs(dueTs - sessTs) <= 3 * 24 * 60 * 60 * 1000;
     });
+  };
+
+  /** Subir contenido desde el tablero (sin ir al módulo de Contenidos).
+   *  Auto-nombra "Contenidos #N - <curso>" y refresca el grid + el selector
+   *  de asignación. */
+  const handleBoardUpload = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0 || !course || !user) return;
+    const files = Array.from(fileList);
+    setUploadingContent(true);
+    try {
+      // Nombre auto: traemos TODOS los display_name del curso (incl. los
+      // soft-deleted, sin filtro deleted_at) para que N no choque con el
+      // índice único (teacher_id, lower(display_name)).
+      const { data: existing } = await db
+        .from("generated_contents")
+        .select("display_name")
+        .eq("teacher_id", user.id)
+        .eq("course_id", course.id);
+      const names = ((existing ?? []) as { display_name: string }[]).map((r) => r.display_name);
+      const displayName = nextBoardContentName(names, course.name);
+      const res = await uploadBoardContent({
+        userId: user.id,
+        courseId: course.id,
+        courseName: course.name,
+        files,
+        displayName,
+      });
+      if (res.error) {
+        toast.error(
+          t("course.boardUploadError", {
+            defaultValue: "No se pudo subir el contenido. Reintenta.",
+          }),
+        );
+      } else {
+        toast.success(
+          t("course.boardUploadOk", {
+            defaultValue: "{{name}} subido ({{count}} archivo(s)).",
+            name: res.displayName,
+            count: res.uploaded,
+          }),
+        );
+        if (res.skipped.length > 0 || res.failed.length > 0) {
+          toast.warning(
+            t("course.boardUploadPartial", {
+              defaultValue: "{{skipped}} descartado(s) por formato/tamaño, {{failed}} fallaron.",
+              skipped: res.skipped.length,
+              failed: res.failed.length,
+            }),
+          );
+        }
+        setReloadNonce((n) => n + 1);
+      }
+    } finally {
+      setUploadingContent(false);
+    }
   };
 
   /** Persiste el cambio de contenido para UNA sesión. Optimista —
@@ -3298,6 +3388,35 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
                 <CalendarRange className="h-3.5 w-3.5 mr-1" />
                 {t("course.boardCalendar", { defaultValue: "Calendario" })}
               </Button>
+              {/* Subir contenido SIN ir al módulo de Contenidos: file picker
+                  nativo (igual patrón que el import CSV). Se sube como un
+                  contenido del curso auto-nombrado "Contenidos #N - <curso>"
+                  y aparece en el grid de abajo + en el selector de asignación. */}
+              <Label
+                className="inline-flex items-center gap-1 h-8 px-2 text-xs rounded-md border border-input bg-background hover:bg-muted/40 cursor-pointer"
+                title={t("course.boardUploadTooltip", {
+                  defaultValue:
+                    "Sube material del curso (PDF, diapositivas, código…) sin ir al módulo de Contenidos",
+                })}
+              >
+                {uploadingContent ? (
+                  <Spinner size="sm" />
+                ) : (
+                  <FileText className="h-3.5 w-3.5" />
+                )}
+                {t("course.boardUploadContent", { defaultValue: "Subir contenido" })}
+                <input
+                  type="file"
+                  multiple
+                  accept={BOARD_ACCEPTED_EXTENSIONS.join(",")}
+                  className="hidden"
+                  onChange={(e) => {
+                    void handleBoardUpload(e.target.files);
+                    e.target.value = "";
+                  }}
+                  disabled={uploadingContent}
+                />
+              </Label>
             </div>
           </div>
         </DialogHeader>
@@ -3429,6 +3548,50 @@ function CourseBoardDialog({ course, onClose }: { course: Course | null; onClose
               {t("course.boardCreateSession")}
             </Button>
           </div>
+        </div>
+
+        {/* Contenidos del curso — material anclado a este curso. Cada
+            "Subir contenido" del header agrega una fila acá, sin pasar por
+            el módulo de Contenidos. También se ven los generados con IA. */}
+        <div className="rounded-md border">
+          <div className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 text-xs font-medium text-muted-foreground">
+            <FileText className="h-3.5 w-3.5" />
+            {t("course.boardContentsTitle", { defaultValue: "Contenidos del curso" })}
+            {boardContents.length > 0 && (
+              <span className="text-[10px] tabular-nums">({boardContents.length})</span>
+            )}
+          </div>
+          {boardContents.length === 0 ? (
+            <div className="px-3 py-4 text-xs text-muted-foreground">
+              {t("course.boardContentsEmpty", {
+                defaultValue:
+                  'Aún no hay contenidos del curso. Usa "Subir contenido" arriba para agregar material sin ir al módulo de Contenidos.',
+              })}
+            </div>
+          ) : (
+            <div className="divide-y">
+              {boardContents.map((c) => (
+                <div key={c.id} className="flex items-center gap-2 px-3 py-2 text-xs">
+                  <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="font-medium truncate flex-1 min-w-0">{c.displayName}</span>
+                  {!c.isPublished && (
+                    <span className="text-[9px] text-amber-600 dark:text-amber-400 shrink-0">
+                      {t("course.boardContentsDraft", { defaultValue: "Borrador" })}
+                    </span>
+                  )}
+                  <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+                    {t("course.boardContentsFiles", {
+                      defaultValue: "{{count}} archivo(s)",
+                      count: c.fileCount,
+                    })}
+                  </span>
+                  <span className="hidden sm:block text-[10px] text-muted-foreground shrink-0">
+                    <DateCell value={c.createdAt} variant="auto" />
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {loading ? (
