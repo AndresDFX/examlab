@@ -25,8 +25,16 @@ let requestModelHint: { courseId?: string | null; authHeader?: string | null } =
 function setRequestModelHint(h: { courseId?: string | null; authHeader?: string | null }): void {
   requestModelHint = h;
 }
+// Último modelo activo, cacheado a nivel módulo para que `describeAiError`
+// (`cachedModel?.provider`) nombre el provider correcto en el path de error.
+// `aiChatCompletion` llama `getActiveAiModel()` antes del fetch → poblado para
+// cuando un error HTTP dispara `describeAiError`. Sin esto era ReferenceError
+// "cachedModel is not defined".
+let cachedModel: ActiveModel | null = null;
 async function getActiveAiModel(): Promise<ActiveModel> {
-  return await resolveActiveModel(requestModelHint);
+  const m = await resolveActiveModel(requestModelHint);
+  cachedModel = m;
+  return m;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -42,8 +42,18 @@ function setRequestModelHint(h: { courseId?: string | null; authHeader?: string 
   requestModelHint = h;
 }
 
+// Último modelo activo resuelto, cacheado a nivel módulo. `describeAiError`
+// lo lee (`cachedModel?.provider`) para nombrar el provider correcto en el
+// mensaje de error. Los call sites hacen `await getActiveAiModel()` antes de
+// cada fetch IA, así que para cuando un error dispara `describeAiError` ya
+// está poblado. Sin esta definición, `cachedModel?.provider` era un
+// ReferenceError "cachedModel is not defined" en el path de error HTTP.
+let cachedModel: ActiveModel | null = null;
+
 async function getActiveAiModel(): Promise<ActiveModel> {
-  return await resolveActiveModel(requestModelHint);
+  const m = await resolveActiveModel(requestModelHint);
+  cachedModel = m;
+  return m;
 }
 export type { AiProvider };
 

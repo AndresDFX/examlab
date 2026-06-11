@@ -24,8 +24,19 @@ function setRequestModelHint(h: { courseId?: string | null; authHeader?: string 
   requestModelHint = h;
 }
 
+// Último modelo activo resuelto, cacheado a nivel módulo. `describeAiError`
+// lo lee para nombrar el provider correcto (OPENAI / GEMINI) en el mensaje
+// de error. `aiChatCompletion` SIEMPRE llama `getActiveAiModel()` antes del
+// fetch, así que para cuando un error dispara `describeAiError` esta variable
+// ya está poblada. Antes `describeAiError` referenciaba un `cachedModel`
+// inexistente → ReferenceError "cachedModel is not defined" enmascarado como
+// fallo de generación (audit: ai.questions_generation_failed).
+let cachedModel: ActiveModel | null = null;
+
 async function getActiveAiModel(): Promise<ActiveModel> {
-  return await resolveActiveModel(requestModelHint);
+  const m = await resolveActiveModel(requestModelHint);
+  cachedModel = m;
+  return m;
 }
 export type { AiProvider };
 
