@@ -121,10 +121,15 @@ interface UnifiedJob {
   label: string;
   /** Subtítulo opcional (curso, estudiante, etc.). */
   subtitle: string | null;
+  /** Nombre del curso resuelto — fila explícita del detalle (el subtítulo
+   *  del header lo trunca; acá se muestra completo). */
+  courseLabel?: string | null;
   /** Solo grading: campos del workflow de rechazo. Para generation
    *  quedan en null/undefined porque no aplica. */
   rejection_reason?: string | null;
   rejected_by?: string | null;
+  /** Nombre resuelto de quien rechazó (rejected_by → profiles). */
+  rejectedByName?: string | null;
   rejected_at?: string | null;
   acknowledged_at?: string | null;
   /** Solo grading: para resolver detalles del target. */
@@ -485,6 +490,10 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
           ...[...gradingRaw, ...genRaw]
             .map((r) => r.created_by)
             .filter((c): c is string => !!c),
+          // rejected_by (solo grading) → para mostrar "Rechazado por" con nombre.
+          ...gradingRaw
+            .map((r) => r.rejected_by)
+            .filter((c): c is string => !!c),
           ...ownerIds,
         ]),
       );
@@ -560,8 +569,12 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
             created_by: r.created_by,
             label,
             subtitle,
+            courseLabel,
             rejection_reason: r.rejection_reason,
             rejected_by: r.rejected_by,
+            rejectedByName: r.rejected_by
+              ? (profileNameById.get(r.rejected_by) ?? null)
+              : null,
             rejected_at: r.rejected_at,
             acknowledged_at: r.acknowledged_at,
             target_table: r.target_table,
@@ -602,6 +615,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
             created_by: r.created_by,
             label,
             subtitle,
+            courseLabel,
             body: r.body ?? null,
             submitterName: requesterName,
             submitterEmail: requesterEmail,
@@ -1350,9 +1364,23 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                               <code className="font-mono text-[10px]">{j.id.slice(0, 8)}…</code>
                             </div>
                             <div>
+                              <span className="text-muted-foreground">{t("unifiedAiQueue.detailType")}:</span>{" "}
+                              <span>{kindLabelFor(j)}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">{t("unifiedAiQueue.detailStatus")}:</span>{" "}
+                              <span>{STATUS_LABELS[j.status]}</span>
+                            </div>
+                            <div>
                               <span className="text-muted-foreground">{t("unifiedAiQueue.detailAttempts")}:</span>{" "}
                               <span className="tabular-nums">{j.attempts}</span>
                             </div>
+                            {j.courseLabel && (
+                              <div className="col-span-2">
+                                <span className="text-muted-foreground">{t("unifiedAiQueue.detailCourse")}:</span>{" "}
+                                <span>{j.courseLabel}</span>
+                              </div>
+                            )}
                             <div>
                               <span className="text-muted-foreground">{t("unifiedAiQueue.detailCreated")}:</span>{" "}
                               <span className="tabular-nums">{formatDateTime(j.created_at)}</span>
@@ -1401,6 +1429,31 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                                   {j.target_table}/{j.target_row_id?.slice(0, 8)}…
                                 </code>
                               </div>
+                            )}
+                            {/* Datos de rechazo en el detalle — para quien
+                                gestiona la cola (Admin/SA) que ve jobs ajenos.
+                                El dueño del job ya tiene el bloque interactivo
+                                naranja abajo (con "Cerrar conversación"). */}
+                            {j.status === "rejected" && !isMyRejection && (
+                              <>
+                                <div className="col-span-2">
+                                  <span className="text-muted-foreground">
+                                    {t("unifiedAiQueue.detailRejectedBy")}:
+                                  </span>{" "}
+                                  <span>
+                                    {j.rejectedByName ?? "—"}
+                                    {j.rejected_at ? ` · ${formatDateTime(j.rejected_at)}` : ""}
+                                  </span>
+                                </div>
+                                <div className="col-span-2">
+                                  <span className="text-muted-foreground">
+                                    {t("unifiedAiQueue.detailRejectionReason")}:
+                                  </span>{" "}
+                                  <span className="whitespace-pre-wrap break-words">
+                                    {j.rejection_reason ?? t("unifiedAiQueue.noReason")}
+                                  </span>
+                                </div>
+                              </>
                             )}
                           </div>
                           {j.source === "generation" && j.body && (
@@ -1486,7 +1539,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                               </p>
                               {j.rejected_at && (
                                 <p className="text-[10px] text-muted-foreground">
-                                  {t("unifiedAiQueue.rejectedAt", { date: formatDateTime(j.rejected_at) })}
+                                  {t("unifiedAiQueue.rejectedAt", { datetime: formatDateTime(j.rejected_at) })}
                                 </p>
                               )}
                             </div>
