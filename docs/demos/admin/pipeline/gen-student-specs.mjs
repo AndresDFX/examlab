@@ -12,9 +12,13 @@ const outro = (subtitle, narration) => ({ id: "outro", kind: "card", narration, 
 // el módulo dure entre 30 y 60s, manteniendo el estándar de la serie.
 const over = (narration, navPath, navTitle, navBody, cardTitle, cardBody, scale = 1.12) => ({
   id: "vista", kind: "platform", narration, bufferMs: 800,
+  // Enfocamos el CONTENIDO real (maincard), no el ítem del sidebar ni la
+  // primera stat-card. Dos beats sobre el mismo contenido: un overview suave
+  // y luego un zoom, para dar movimiento sin que la "zona marcada" caiga en
+  // el lugar equivocado (el usuario reportó el foco mal ubicado con nav/stat).
   beats: [
-    { target: `[data-tour-nav="${navPath}"]`, scale: 1.5, hold: 3600, side: "right", focus: { title: navTitle, body: navBody } },
-    { target: "firstcard", scale, hold: 5500, side: "bottom", focus: { title: cardTitle, body: cardBody } },
+    { target: "maincard", scale: 1.04, hold: 4500, side: "bottom", focus: { title: cardTitle, body: cardBody } },
+    { target: "maincard", scale, hold: 6000, side: "bottom", focus: { title: navTitle, body: navBody } },
   ],
 });
 
@@ -113,9 +117,7 @@ const specs = [
     intro("Cuenta y Sesión", "Último módulo del rol Estudiante: tu cuenta y la sesión."),
     { id: "cuenta", kind: "platform", narration: "Al pie del menú vive tu cuenta. El selector de rol cambia entre tus perfiles disponibles. La campana muestra las notificaciones; el sobre, los mensajes con tus docentes. Y al cerrar sesión, el contexto de la institución se limpia por completo.", bufferMs: 900, beats: [
       { target: '[data-tour-id="role-switcher"]', scale: 1.7, hold: 4800, side: "right", focus: { title: "Selector de rol", body: "Cambia entre tus perfiles disponibles." } },
-      { target: '[data-tour-id="notifications-bell"]', scale: 1.9, hold: 4000, side: "right", focus: { title: "Notificaciones", body: "Avisos de tus cursos y entregas." } },
-      { target: '[data-tour-id="messages-bell"]', scale: 1.9, hold: 4000, side: "right", focus: { title: "Mensajes", body: "Comunicación con tus docentes." } },
-      { target: '[data-tour-id="logout"]', scale: 1.9, hold: 4500, side: "right", focus: { title: "Cerrar sesión", body: "Limpia por completo el contexto de la institución." } },
+      { target: "footerbar", scale: 1.8, hold: 6500, side: "right", focus: { title: "Notificaciones, mensajes y sesión", body: "La campana muestra avisos; el sobre, los mensajes; y el último botón cierra la sesión." } },
     ]},
     { id: "outro", kind: "card", narration: "Con esto concluye el recorrido del rol Estudiante en ExamLab.", card: card("ExamLab · Serie de demostración", "Fin del recorrido", "Rol Estudiante · Demo Global Corp"), bufferMs: 800 },
   ]),

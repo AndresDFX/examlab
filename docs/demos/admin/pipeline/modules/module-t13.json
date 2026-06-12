@@ -21,9 +21,7 @@
       "bufferMs": 900,
       "beats": [
         { "target": "[data-tour-id=\"role-switcher\"]", "scale": 1.7, "hold": 5000, "side": "right", "focus": { "title": "Selector de rol", "body": "Cambia entre tus perfiles disponibles." } },
-        { "target": "[data-tour-id=\"notifications-bell\"]", "scale": 1.9, "hold": 4000, "side": "right", "focus": { "title": "Notificaciones", "body": "Avisos de tus cursos y del sistema." } },
-        { "target": "[data-tour-id=\"messages-bell\"]", "scale": 1.9, "hold": 4000, "side": "right", "focus": { "title": "Mensajes", "body": "Comunicación con tus estudiantes." } },
-        { "target": "[data-tour-id=\"logout\"]", "scale": 1.9, "hold": 4500, "side": "right", "focus": { "title": "Cerrar sesión", "body": "Limpia por completo el contexto de la institución." } }
+        { "target": "footerbar", "scale": 1.8, "hold": 7000, "side": "right", "focus": { "title": "Notificaciones, mensajes y sesión", "body": "La campana muestra avisos; el sobre, los mensajes; y el último botón cierra la sesión." } }
       ]
     },
     {

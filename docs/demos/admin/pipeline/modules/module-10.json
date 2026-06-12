@@ -18,12 +18,8 @@
       "narration": "En Estadísticas se ve el estado de la institución de un vistazo: los cursos, los estudiantes, el porcentaje de aprobación global, la asistencia promedio y las alertas de integridad. Y, más abajo, la comparativa entre cursos, con el detalle de cada uno.",
       "bufferMs": 900,
       "beats": [
-        { "target": "stat:0", "scale": 1.5, "hold": 2700, "side": "bottom", "focus": { "title": "Cursos", "body": "Cursos activos de la institución." } },
-        { "target": "stat:1", "scale": 1.5, "hold": 2500, "side": "bottom", "focus": { "title": "Estudiantes", "body": "Total de estudiantes matriculados." } },
-        { "target": "stat:2", "scale": 1.45, "hold": 2700, "side": "bottom", "focus": { "title": "Aprobación global", "body": "Ponderado por matrícula." } },
-        { "target": "stat:3", "scale": 1.45, "hold": 2700, "side": "bottom", "focus": { "title": "Asistencia promedio", "body": "Promedio de asistencia a clases." } },
-        { "target": "stat:4", "scale": 1.45, "hold": 2900, "side": "bottom", "focus": { "title": "Alertas de integridad", "body": "Posibles casos de IA o copia a revisar." } },
-        { "target": "text:Comparativa", "scale": 1.15, "hold": 4500, "side": "bottom", "scroll": true, "focus": { "title": "Comparativa entre cursos", "body": "Aprobación, asistencia y alertas, curso por curso." } }
+        { "target": "statrow", "scale": 1.15, "hold": 7000, "side": "bottom", "focus": { "title": "Estado de la institución", "body": "Cursos, estudiantes, aprobación, asistencia promedio y alertas de integridad." } },
+        { "target": "text:Comparativa", "scale": 1.15, "hold": 4800, "side": "bottom", "scroll": true, "focus": { "title": "Comparativa entre cursos", "body": "Aprobación, asistencia y alertas, curso por curso." } }
       ]
     },
     {

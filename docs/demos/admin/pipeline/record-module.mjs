@@ -178,6 +178,35 @@ async function measureTargets(page, targets, scroll = false) {
              [...scope.querySelectorAll("div")].find((d) => /rounded/.test(d.className) && /border/.test(d.className) && d.querySelector("h1,h2,h3")) ||
              scope.firstElementChild;
       }
+      else if (ts === "maincard") {
+        // Tarjeta de CONTENIDO real (taller / encuesta / certificado / nota),
+        // SALTANDO las stat-cards superiores. Las cards del estudiante NO usan
+        // `data-slot="card"`: son divs `rounded border`. Las stat-cards son
+        // BAJAS (~86px) y SIN botón; el contenido es alto (>120px) y/o trae un
+        // botón/enlace de acción ("Iniciar entrega", "Descargar", opciones…).
+        const scope = document.querySelector('[data-state="active"][role="tabpanel"]') || document.querySelector("main") || document.body;
+        const cards = [...scope.querySelectorAll("div")].filter((d) => {
+          if (!/rounded/.test(d.className) || !/border/.test(d.className)) return false;
+          const r = d.getBoundingClientRect();
+          return r.width > 200 && r.height > 30;
+        });
+        el = cards.find((c) => c.querySelector("button, a[href]") || c.getBoundingClientRect().height >= 120) ||
+             cards[0] || scope.firstElementChild;
+      }
+      else if (ts === "statrow") {
+        // El contenedor de la fila de stats (todas juntas) → UN solo zoom que
+        // las cubre. fitScale lo encoge para que quepan las 4-5 tarjetas.
+        el = statGrid || (document.querySelector("main") || document.body).querySelector('[data-slot="card"]');
+      }
+      else if (ts === "footerbar") {
+        // La BARRA del footer del sidebar (campana + sobre + más + logout
+        // juntos). Zoom a la fila completa, no a cada ícono diminuto: los
+        // wrappers de las campanas tienen rect enorme (popover) y fitScale los
+        // dejaba sin zoom → "posición incorrecta". La fila es compacta y se
+        // amplía bien.
+        const bell = document.querySelector('[data-tour-id="notifications-bell"]');
+        el = bell ? (bell.closest(".flex.items-center.justify-between") || bell.parentElement?.parentElement || bell.parentElement) : null;
+      }
       else if (ts === "createbtn") {
         // Botón primario "Nuevo/Nueva/Crear/Agregar" de la vista (o tab) activa.
         el = [...document.querySelectorAll("main button")].find((b) => /^\s*(nuev|crear|agregar|añadir)/i.test(b.textContent || "")) || null;
