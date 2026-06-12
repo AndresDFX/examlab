@@ -33,6 +33,18 @@
       ]
     },
     {
+      "id": "crear",
+      "kind": "platform",
+      "narration": "Y al crear un curso se define su nombre, el periodo académico y una descripción; la escala de calificación y los pesos de evaluación se ajustan más abajo.",
+      "bufferMs": 800,
+      "openDialog": "createbtn",
+      "beats": [
+        { "target": "field:Nombre", "hold": 3000, "side": "right", "focus": { "title": "Nombre", "body": "Cómo se llama el curso." } },
+        { "target": "field:Periodo", "hold": 3000, "side": "right", "focus": { "title": "Periodo académico", "body": "El periodo al que pertenece." } },
+        { "target": "field:Descripción", "hold": 3200, "side": "right", "focus": { "title": "Descripción", "body": "Resumen del curso." } }
+      ]
+    },
+    {
       "id": "outro",
       "kind": "card",
       "narration": "En el siguiente módulo: la creación y el monitoreo de exámenes.",

@@ -53,6 +53,24 @@
       ]
     },
     {
+      "id": "entrega",
+      "kind": "platform",
+      "openDialog": "text:Iniciar entrega",
+      "narration": "Para entregar, el estudiante abre el taller, revisa las instrucciones y envía su trabajo desde aquí mismo.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "firstcard",
+          "hold": 5000,
+          "side": "right",
+          "focus": {
+            "title": "Tu entrega",
+            "body": "Instrucciones y espacio para responder y enviar."
+          }
+        }
+      ]
+    },
+    {
       "id": "outro",
       "kind": "card",
       "narration": "En el siguiente módulo: los proyectos.",

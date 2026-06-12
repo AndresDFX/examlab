@@ -27,7 +27,7 @@
     {
       "id": "vista",
       "kind": "platform",
-      "narration": "El estudiante participa en las dinámicas que propone el docente. Puede votar en consultas de opinión, reservar un horario disponible o responder a los juegos tipo concurso en tiempo real. Es una forma ágil de participar durante la clase.",
+      "narration": "El estudiante participa en las dinámicas que propone el docente: consultas de opinión, reservas de horario o juegos tipo concurso en tiempo real.",
       "bufferMs": 800,
       "beats": [
         {
@@ -48,6 +48,26 @@
           "focus": {
             "title": "Tus encuestas",
             "body": "Opinión, reservas y concursos."
+          }
+        }
+      ]
+    },
+    {
+      "id": "votar",
+      "kind": "platform",
+      "narration": "Para participar, elige una opción y su voto queda registrado al instante; puede cambiarlo si el docente lo permite.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "text:Estructuras",
+          "click": true,
+          "focusTarget": "firstcard",
+          "scale": 1.12,
+          "hold": 4800,
+          "side": "bottom",
+          "focus": {
+            "title": "Tu voto",
+            "body": "Registrado al instante."
           }
         }
       ]

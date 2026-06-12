@@ -49,6 +49,11 @@ const specs = [
     intro("Talleres", "Entrega de talleres, desde el rol Estudiante."),
     over("Los talleres son actividades prácticas con entrega y calificación. El estudiante revisa las instrucciones, desarrolla su trabajo y lo entrega antes de la fecha límite. Después recibe su nota y la retroalimentación detallada del docente.",
       "/app/student/workshops", "Talleres", "Tus actividades prácticas.", "Tus talleres", "Entrega y retroalimentación.", 1.15),
+    { id: "entrega", kind: "platform", openDialog: "text:Iniciar entrega",
+      narration: "Para entregar, el estudiante abre el taller, revisa las instrucciones y envía su trabajo desde aquí mismo.",
+      bufferMs: 800, beats: [
+        { target: "firstcard", hold: 5000, side: "right", focus: { title: "Tu entrega", body: "Instrucciones y espacio para responder y enviar." } },
+      ] },
     outro("Proyectos", "En el siguiente módulo: los proyectos."),
   ]),
   mk("modulo-s05", "Proyectos (Estudiante)", "/app/student/projects", nav("/app/student/projects", "Proyectos"), [
@@ -71,8 +76,13 @@ const specs = [
   ]),
   mk("modulo-s08", "Encuestas (Estudiante)", "/app/student/polls", nav("/app/student/polls", "Encuestas"), [
     intro("Encuestas", "Participación en encuestas, desde el rol Estudiante."),
-    over("El estudiante participa en las dinámicas que propone el docente. Puede votar en consultas de opinión, reservar un horario disponible o responder a los juegos tipo concurso en tiempo real. Es una forma ágil de participar durante la clase.",
+    over("El estudiante participa en las dinámicas que propone el docente: consultas de opinión, reservas de horario o juegos tipo concurso en tiempo real.",
       "/app/student/polls", "Encuestas", "Tu participación en clase.", "Tus encuestas", "Opinión, reservas y concursos."),
+    { id: "votar", kind: "platform",
+      narration: "Para participar, elige una opción y su voto queda registrado al instante; puede cambiarlo si el docente lo permite.",
+      bufferMs: 800, beats: [
+        { target: "text:Estructuras", click: true, focusTarget: "firstcard", scale: 1.12, hold: 4800, side: "bottom", focus: { title: "Tu voto", body: "Registrado al instante." } },
+      ] },
     outro("Pizarras", "En el siguiente módulo: las pizarras."),
   ]),
   mk("modulo-s09", "Pizarras (Estudiante)", "/app/student/whiteboards", nav("/app/student/whiteboards", "Pizarras"), [

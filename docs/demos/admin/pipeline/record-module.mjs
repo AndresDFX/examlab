@@ -431,6 +431,20 @@ async function main() {
             if (beat.clickToOpen) {
               await cameraReset(page, 500);
               await openMenuFocus(page, rect, beat);
+            } else if (beat.click) {
+              // Acción INLINE (ej. votar en una encuesta): reset a identidad,
+              // clic en el target, espera a que la UI refleje el resultado, y
+              // enfoca `focusTarget` (ej. la card con el voto registrado).
+              await page.evaluate(() => { document.body.style.transition = "none"; document.body.style.transform = "none"; document.documentElement.style.overflow = ""; });
+              await sleep(160);
+              if (rect) await page.mouse.click(rect.cx, rect.cy);
+              await sleep(beat.afterClickMs ?? 1300);
+              const [r2] = await measureTargets(page, [beat.focusTarget ?? beat.target], !!beat.scroll);
+              const fsc = fitScale(r2, beat.scale ?? 1.2);
+              await cameraTo(page, r2, fsc, 600);
+              await focusOn(page, r2, beat.focus, fsc, beat.side);
+              await sleep(beat.hold ?? 3500);
+              await focusOff(page);
             } else {
               // Escala efectiva con auto-fit → nunca recorta el elemento.
               const fs = fitScale(rect, beat.scale ?? 1.5);

@@ -15,12 +15,15 @@
       "bufferMs": 600
     },
     {
-      "id": "sesiones",
+      "id": "crear",
       "kind": "platform",
-      "narration": "Cada clase se registra como una sesión. El docente las crea una a una o las programa en bloque para todo el periodo.",
+      "narration": "Cada clase se registra como una sesión. Al crear una, el docente define su fecha, la hora y un título para la clase; también puede programarlas en bloque para todo el periodo.",
       "bufferMs": 800,
+      "openDialog": "text:Nueva sesión",
       "beats": [
-        { "target": "text:Nueva sesión", "scale": 1.4, "hold": 4000, "side": "bottom", "focus": { "title": "Sesiones de clase", "body": "Crear o programar las clases del curso." } }
+        { "target": "field:Fecha", "hold": 3000, "side": "right", "focus": { "title": "Fecha", "body": "Día de la clase." } },
+        { "target": "field:Hora fin", "hold": 3000, "side": "right", "focus": { "title": "Hora", "body": "Inicio y duración de la sesión." } },
+        { "target": "field:Título", "hold": 3200, "side": "right", "focus": { "title": "Título", "body": "Tema de la clase (opcional)." } }
       ]
     },
     {
