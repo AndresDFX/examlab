@@ -72,8 +72,8 @@ async function waitReady(page, selectors) {
   // estudiante hacen N+1 fetches y muestran "Cargando…" varios segundos). Sin
   // esto, los beats miden la página vacía / en spinner. El websocket de Supabase
   // realtime no cuenta como request, así que networkidle se alcanza al cuajar.
-  await page.waitForLoadState("networkidle", { timeout: 12000 }).catch(() => {});
-  await page.waitForTimeout(500);
+  await page.waitForLoadState("networkidle", { timeout: 2000 }).catch(() => {});
+  await page.waitForTimeout(400);
 }
 async function killTour(page) {
   try { await page.addStyleTag({ content: ".driver-popover,.driver-overlay,.driver-overlay-animated,.driver-active-element{display:none !important;}" }); } catch {}
@@ -117,6 +117,16 @@ async function spaNavigate(page, route) {
   }
 }
 
+// Cap de escala para que el elemento (a esa escala) quepa en el viewport con
+// margen → evita el zoom "recortado" en elementos anchos (filas, cards, stats).
+// NUNCA sube la escala: para elementos pequeños, la escala pedida manda.
+function fitScale(rect, requested) {
+  if (!rect || !rect.width || !rect.height) return requested;
+  const maxW = (VIEWPORT.width * 0.9) / rect.width;
+  const maxH = (VIEWPORT.height * 0.8) / rect.height;
+  return Math.max(1.0, Math.min(requested, maxW, maxH));
+}
+
 // ── Cámara (translate+scale sobre body, con clamp para cubrir el viewport) ──
 async function cameraSetup(page) {
   await page.evaluate(() => { const b = document.body; b.style.transformOrigin = "0 0"; b.style.willChange = "transform"; b.style.transform = "none"; });
@@ -126,7 +136,7 @@ async function measureTargets(page, targets, scroll = false) {
     const rc = (el) => { if (!el) return null; const r = el.getBoundingClientRect(); return { left: r.left, top: r.top, width: r.width, height: r.height, cx: r.left + r.width / 2, cy: r.top + r.height / 2 }; };
     const cardOf = (txt) => { const h = [...document.querySelectorAll("*")].find((e) => (e.textContent || "").trim() === txt && e.children.length <= 3); return h ? h.closest("div") : null; };
     const grids = [...document.querySelectorAll('main .grid, main [class*="grid"]')];
-    const statGrid = grids.find((g) => g.children.length >= 4 && g.children.length <= 6);
+    const statGrid = grids.find((g) => g.children.length >= 3 && g.children.length <= 6);
     return targets.map((ts) => {
       let el = null;
       if (ts.startsWith("stat:")) el = statGrid ? statGrid.children[parseInt(ts.slice(5), 10)] : null;
@@ -322,15 +332,18 @@ async function main() {
   const page = await context.newPage();
 
   const offsets = []; let t0 = 0;
-  let currentRoute = "/app";
+  // El rol Admin (default de la cuenta) NO redirige en rutas /app/admin/*, así
+  // que para Admin navegamos DIRECTO a appPath (rápido). Docente/Estudiante sí
+  // requieren aterrizar en /app, fijar el rol y navegar por SPA (su rol activo
+  // es efímero y un reload a /app/teacher|student/* redirige al dashboard).
+  const roleLabel = spec.role ?? "Administrador";
+  const isAdminRole = /admin/i.test(roleLabel);
+  let currentRoute = isAdminRole ? (spec.appPath || "/app") : "/app";
   const mark = (i, label) => { offsets[i] = Date.now() - t0; console.log(`  [${i + 1}/${scenes.length}] @${offsets[i]}ms — ${label}`); };
 
   try {
-    // Aterrizamos SIEMPRE en /app (dashboard, accesible a cualquier rol). La
-    // navegación a la ruta del módulo se hace por SPA tras fijar el rol —
-    // ver scene-0. (Un goto directo a /app/teacher/* recargaría con el rol
-    // por defecto y RBAC redirigiría al dashboard.)
-    await page.goto(`${APP_URL}/app`, { waitUntil: "domcontentloaded" });
+    // Admin: directo a appPath (rápido). Docente/Estudiante: a /app (luego SPA-nav).
+    await page.goto(`${APP_URL}${isAdminRole ? (spec.appPath || "/app") : "/app"}`, { waitUntil: "domcontentloaded" });
     // Carátula de la 1ª escena ASAP → cubre la carga (pre-roll mínimo).
     if (scenes[0].kind === "card") await overlay(page, scenes[0].card);
     await sleep(300);
@@ -344,10 +357,10 @@ async function main() {
       if (sc.kind === "card") {
         if (i > 0) await overlay(page, sc.card); // la 1ª ya está puesta
         if (i === 0) {
-          // Fijar el rol del spec PRIMERO (estamos en /app), luego navegar por
-          // SPA a la ruta del módulo para preservar el rol activo en memoria.
-          await selectRole(page, spec.role ?? "Administrador");
-          if (spec.appPath && spec.appPath !== "/app") {
+          // Admin: ya estamos en appPath (goto directo). Docente/Estudiante:
+          // fijar el rol y navegar por SPA para preservar el rol activo.
+          await selectRole(page, roleLabel);
+          if (!isAdminRole && spec.appPath && spec.appPath !== "/app") {
             await spaNavigate(page, spec.appPath);
             currentRoute = spec.appPath;
           }
@@ -395,16 +408,24 @@ async function main() {
           await sleep(300);
         } else {
           await sleep(250);
-          const rects = await measureTargets(page, sc.beats.map((b) => b.target));
+          // Medición JUST-IN-TIME por beat (no upfront): el contenido dinámico
+          // puede haber cambiado, y permite `scroll:true` para targets bajo el
+          // fold (resetea cámara + restaura overflow para poder hacer scroll).
           for (let j = 0; j < sc.beats.length; j++) {
             const beat = sc.beats[j];
-            const rect = rects[j];
+            if (beat.scroll) {
+              await page.evaluate(() => { document.body.style.transition = "none"; document.body.style.transform = "none"; document.documentElement.style.overflow = ""; });
+              await sleep(140);
+            }
+            const [rect] = await measureTargets(page, [beat.target], !!beat.scroll);
             if (beat.clickToOpen) {
               await cameraReset(page, 500);
               await openMenuFocus(page, rect, beat);
             } else {
-              await cameraTo(page, rect, beat.scale ?? 1.5, 600);
-              await focusOn(page, rect, beat.focus, beat.scale ?? 1.5, beat.side);
+              // Escala efectiva con auto-fit → nunca recorta el elemento.
+              const fs = fitScale(rect, beat.scale ?? 1.5);
+              await cameraTo(page, rect, fs, 600);
+              await focusOn(page, rect, beat.focus, fs, beat.side);
               await sleep(beat.hold ?? 1500);
               await focusOff(page);
             }

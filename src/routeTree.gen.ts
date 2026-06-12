@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
@@ -22,6 +23,7 @@ import { Route as AuthCancelEmailChangeRouteImport } from './routes/auth.cancel-
 import { Route as AppVideosRouteImport } from './routes/app.videos'
 import { Route as AppUnauthorizedRouteImport } from './routes/app.unauthorized'
 import { Route as AppTrashRouteImport } from './routes/app.trash'
+import { Route as AppPrivacyRouteImport } from './routes/app.privacy'
 import { Route as AppPreferencesRouteImport } from './routes/app.preferences'
 import { Route as AppMessagesRouteImport } from './routes/app.messages'
 import { Route as AppCertificatesRouteImport } from './routes/app.certificates'
@@ -85,6 +87,11 @@ import { Route as AppStudentKahootGameIdRouteImport } from './routes/app.student
 import { Route as AppForumCourseIdForumIdRouteImport } from './routes/app.forum.$courseId.$forumId'
 import { Route as AppForumCourseIdForumIdThreadIdRouteImport } from './routes/app.forum.$courseId.$forumId.$threadId'
 
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -148,6 +155,11 @@ const AppUnauthorizedRoute = AppUnauthorizedRouteImport.update({
 const AppTrashRoute = AppTrashRouteImport.update({
   id: '/trash',
   path: '/trash',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPrivacyRoute = AppPrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => AppRoute,
 } as any)
 const AppPreferencesRoute = AppPreferencesRouteImport.update({
@@ -471,9 +483,11 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRouteWithChildren
+  '/privacy': typeof PrivacyRoute
   '/app/certificates': typeof AppCertificatesRoute
   '/app/messages': typeof AppMessagesRoute
   '/app/preferences': typeof AppPreferencesRoute
+  '/app/privacy': typeof AppPrivacyRoute
   '/app/trash': typeof AppTrashRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/videos': typeof AppVideosRoute
@@ -546,9 +560,11 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/privacy': typeof PrivacyRoute
   '/app/certificates': typeof AppCertificatesRoute
   '/app/messages': typeof AppMessagesRoute
   '/app/preferences': typeof AppPreferencesRoute
+  '/app/privacy': typeof AppPrivacyRoute
   '/app/trash': typeof AppTrashRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/videos': typeof AppVideosRoute
@@ -624,9 +640,11 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRouteWithChildren
+  '/privacy': typeof PrivacyRoute
   '/app/certificates': typeof AppCertificatesRoute
   '/app/messages': typeof AppMessagesRoute
   '/app/preferences': typeof AppPreferencesRoute
+  '/app/privacy': typeof AppPrivacyRoute
   '/app/trash': typeof AppTrashRoute
   '/app/unauthorized': typeof AppUnauthorizedRoute
   '/app/videos': typeof AppVideosRoute
@@ -703,9 +721,11 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/auth'
+    | '/privacy'
     | '/app/certificates'
     | '/app/messages'
     | '/app/preferences'
+    | '/app/privacy'
     | '/app/trash'
     | '/app/unauthorized'
     | '/app/videos'
@@ -778,9 +798,11 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/privacy'
     | '/app/certificates'
     | '/app/messages'
     | '/app/preferences'
+    | '/app/privacy'
     | '/app/trash'
     | '/app/unauthorized'
     | '/app/videos'
@@ -855,9 +877,11 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/auth'
+    | '/privacy'
     | '/app/certificates'
     | '/app/messages'
     | '/app/preferences'
+    | '/app/privacy'
     | '/app/trash'
     | '/app/unauthorized'
     | '/app/videos'
@@ -933,11 +957,19 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRouteWithChildren
+  PrivacyRoute: typeof PrivacyRoute
   VerifyShortCodeRoute: typeof VerifyShortCodeRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -1027,6 +1059,13 @@ declare module '@tanstack/react-router' {
       path: '/trash'
       fullPath: '/app/trash'
       preLoaderRoute: typeof AppTrashRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/privacy': {
+      id: '/app/privacy'
+      path: '/privacy'
+      fullPath: '/app/privacy'
+      preLoaderRoute: typeof AppPrivacyRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/preferences': {
@@ -1495,6 +1534,7 @@ interface AppRouteChildren {
   AppCertificatesRoute: typeof AppCertificatesRoute
   AppMessagesRoute: typeof AppMessagesRoute
   AppPreferencesRoute: typeof AppPreferencesRoute
+  AppPrivacyRoute: typeof AppPrivacyRoute
   AppTrashRoute: typeof AppTrashRoute
   AppUnauthorizedRoute: typeof AppUnauthorizedRoute
   AppVideosRoute: typeof AppVideosRoute
@@ -1562,6 +1602,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppCertificatesRoute: AppCertificatesRoute,
   AppMessagesRoute: AppMessagesRoute,
   AppPreferencesRoute: AppPreferencesRoute,
+  AppPrivacyRoute: AppPrivacyRoute,
   AppTrashRoute: AppTrashRoute,
   AppUnauthorizedRoute: AppUnauthorizedRoute,
   AppVideosRoute: AppVideosRoute,
@@ -1649,6 +1690,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRouteWithChildren,
+  PrivacyRoute: PrivacyRoute,
   VerifyShortCodeRoute: VerifyShortCodeRoute,
 }
 export const routeTree = rootRouteImport

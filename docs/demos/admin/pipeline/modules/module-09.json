@@ -15,10 +15,10 @@
     {
       "id": "cuerpo",
       "kind": "platform",
-      "narration": "Aquí se revisan los certificados emitidos en la institución. Cada certificado se genera desde el libro de notas cuando un estudiante aprueba un curso, y su diseño —logo, firma y texto— se define una vez en Configuración.",
+      "narration": "Aquí se revisan los certificados emitidos en la institución. Cada certificado se genera desde el libro de notas cuando un estudiante aprueba un curso, y su diseño —logo, firma y texto— se define una vez en Configuración. Además, cada certificado lleva un código que permite verificar su autenticidad de forma pública.",
       "bufferMs": 900,
       "beats": [
-        { "target": "text:Sin certificados", "scale": 1.3, "hold": 11000, "side": "bottom", "focus": { "title": "Cómo se emiten", "body": "Desde el libro de notas al aprobar; el diseño, en Configuración." } }
+        { "target": "text:Sin certificados", "scale": 1.08, "hold": 13000, "side": "bottom", "focus": { "title": "Cómo se emiten", "body": "Desde el libro de notas al aprobar; el diseño, en Configuración." } }
       ]
     },
     {

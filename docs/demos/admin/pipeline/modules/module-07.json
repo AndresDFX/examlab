@@ -8,9 +8,9 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo siete: configuración de inteligencia artificial. Define cómo la IA califica y qué modelo usa la institución.",
+      "narration": "Módulo siete: configuración de inteligencia artificial.",
       "card": { "kicker": "ExamLab · Rol Administrador", "title": "Configuración de IA", "subtitle": "Demo Global Corp" },
-      "bufferMs": 600
+      "bufferMs": 400
     },
     {
       "id": "prompts",
@@ -19,8 +19,8 @@
       "narration": "En Prompts se ajusta el criterio con el que la IA evalúa, por cada caso de uso: talleres, exámenes y proyectos. Es la política base de la institución, y cada docente puede afinarla para su propio curso.",
       "bufferMs": 800,
       "beats": [
-        { "target": "text:Módulo", "scale": 1.5, "hold": 4500, "side": "bottom", "focus": { "title": "Filtrar por módulo", "body": "Talleres, exámenes, proyectos, contenidos…" } },
-        { "target": "text:Taller completo", "scale": 1.45, "hold": 5500, "side": "bottom", "focus": { "title": "Prompt por caso de uso", "body": "El criterio con que la IA evalúa cada cosa." } }
+        { "target": "text:Módulo", "scale": 1.25, "hold": 4500, "side": "bottom", "focus": { "title": "Filtrar por módulo", "body": "Talleres, exámenes, proyectos, contenidos…" } },
+        { "target": "text:Taller completo", "scale": 1.2, "hold": 5500, "side": "bottom", "focus": { "title": "Prompt por caso de uso", "body": "El criterio con que la IA evalúa cada cosa." } }
       ]
     },
     {
@@ -30,8 +30,8 @@
       "narration": "En Modelo se elige el proveedor —Google Gemini u OpenAI— y el modelo activo. Aquí también va la clave de la institución: sin ella, la calificación con IA no funciona.",
       "bufferMs": 800,
       "beats": [
-        { "target": "text:Modelo activo", "scale": 1.4, "hold": 4500, "side": "bottom", "focus": { "title": "Modelo activo", "body": "El modelo que usa la calificación con IA." } },
-        { "target": "field:Proveedor", "scale": 1.5, "hold": 5000, "side": "right", "focus": { "title": "Proveedor", "body": "Google Gemini u OpenAI, con su API key." } }
+        { "target": "text:Modelo activo", "scale": 1.25, "hold": 4500, "side": "bottom", "focus": { "title": "Modelo activo", "body": "El modelo que usa la calificación con IA." } },
+        { "target": "field:Proveedor", "scale": 1.3, "hold": 5000, "side": "right", "focus": { "title": "Proveedor", "body": "Google Gemini u OpenAI, con su API key." } }
       ]
     },
     {

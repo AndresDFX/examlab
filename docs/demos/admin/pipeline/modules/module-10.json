@@ -2,7 +2,7 @@
   "id": "modulo-10",
   "title": "Estadísticas e Informes",
   "appPath": "/app/admin/statistics",
-  "readySelectors": ["text=Asistencia promedio"],
+  "readySelectors": ["text=Estadísticas globales"],
   "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
   "scenes": [
     {
@@ -15,11 +15,15 @@
     {
       "id": "estadisticas",
       "kind": "platform",
-      "narration": "En Estadísticas se ve el estado de la institución de un vistazo: cursos activos, estudiantes, asistencia promedio y alertas de integridad. Y, más abajo, el detalle curso por curso.",
-      "bufferMs": 800,
+      "narration": "En Estadísticas se ve el estado de la institución de un vistazo: los cursos, los estudiantes, el porcentaje de aprobación global, la asistencia promedio y las alertas de integridad. Y, más abajo, la comparativa entre cursos, con el detalle de cada uno.",
+      "bufferMs": 900,
       "beats": [
-        { "target": "firstcard", "scale": 1.2, "hold": 6000, "side": "bottom", "focus": { "title": "Estado de la institución", "body": "Cursos, estudiantes, asistencia y alertas." } },
-        { "target": "text:Detalle por curso", "scale": 1.3, "hold": 5500, "side": "bottom", "focus": { "title": "Detalle por curso", "body": "Rendimiento y participación, curso por curso." } }
+        { "target": "stat:0", "scale": 1.5, "hold": 2700, "side": "bottom", "focus": { "title": "Cursos", "body": "Cursos activos de la institución." } },
+        { "target": "stat:1", "scale": 1.5, "hold": 2500, "side": "bottom", "focus": { "title": "Estudiantes", "body": "Total de estudiantes matriculados." } },
+        { "target": "stat:2", "scale": 1.45, "hold": 2700, "side": "bottom", "focus": { "title": "Aprobación global", "body": "Ponderado por matrícula." } },
+        { "target": "stat:3", "scale": 1.45, "hold": 2700, "side": "bottom", "focus": { "title": "Asistencia promedio", "body": "Promedio de asistencia a clases." } },
+        { "target": "stat:4", "scale": 1.45, "hold": 2900, "side": "bottom", "focus": { "title": "Alertas de integridad", "body": "Posibles casos de IA o copia a revisar." } },
+        { "target": "text:Comparativa", "scale": 1.15, "hold": 4500, "side": "bottom", "scroll": true, "focus": { "title": "Comparativa entre cursos", "body": "Aprobación, asistencia y alertas, curso por curso." } }
       ]
     },
     {
@@ -34,11 +38,10 @@
     {
       "id": "informes",
       "kind": "platform",
-      "narration": "Las plantillas definen cómo se generan actas y boletines en PDF: qué columnas incluir, cómo agrupar y filtrar. Se crean con Nueva plantilla, y los docentes las usan desde sus cursos.",
+      "narration": "Las plantillas definen cómo se generan actas y boletines en PDF: qué columnas incluir, cómo agrupar y cómo filtrar. Se crean con Nueva plantilla, y los docentes las usan después desde sus propios cursos.",
       "bufferMs": 800,
       "beats": [
-        { "target": "createbtn", "scale": 1.6, "hold": 5500, "side": "bottom", "focus": { "title": "Nueva plantilla", "body": "Define actas y boletines en PDF." } },
-        { "target": "th:Nombre", "scale": 1.4, "hold": 5000, "side": "bottom", "focus": { "title": "Plantillas", "body": "Columnas, agrupaciones y filtros configurables." } }
+        { "target": "createbtn", "scale": 1.5, "hold": 11000, "side": "bottom", "focus": { "title": "Nueva plantilla", "body": "Define actas y boletines en PDF: columnas, agrupaciones y filtros." } }
       ]
     },
     {

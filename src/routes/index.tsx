@@ -142,7 +142,10 @@ function Home() {
       </section>
 
       <footer className="border-t py-6 text-center text-xs text-muted-foreground">
-        © <CurrentYear /> ExamLab — Plataforma académica
+        <div>© <CurrentYear /> ExamLab — Plataforma académica</div>
+        <Link to="/privacy" className="mt-1 inline-block hover:text-foreground">
+          Política de privacidad
+        </Link>
       </footer>
     </div>
   );

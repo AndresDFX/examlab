@@ -1028,8 +1028,15 @@ function TeacherPolls() {
 // ── Create dialog ──────────────────────────────────────────────────
 
 interface DraftOption {
+  // `id` presente SOLO para opciones/slots que ya existen en DB (modo edit).
+  // Permite el sync por diff vote-safe de los slots (actualizar/insertar/
+  // borrar-solo-sin-reservas) sin romper poll_responses. Los slots nuevos
+  // (generados o agregados a mano) nacen sin id → se insertan.
+  id?: string;
   label: string;
   max_responses: string; // string en form, convertimos a number en save
+  // Reservas ya hechas en este slot (modo edit). Bloquea su eliminación.
+  responses_count?: number;
 }
 
 function CreatePollDialog({
@@ -1069,7 +1076,13 @@ function CreatePollDialog({
   const hasVotes = (editingPoll?.options ?? []).some(
     (o) => ((o as { responses_count?: number }).responses_count ?? 0) > 0,
   );
-  const optionsLocked = isEdit && hasVotes;
+  // Las encuestas de CUPO (slot) quedan SIEMPRE editables, incluso con
+  // reservas: su sync usa un diff vote-safe (actualiza/inserta/borra-solo-
+  // sin-reservas) que preserva poll_responses. Caso de uso: reabrir un cupo
+  // que no se llenó y agregar/quitar fechas para los estudiantes que faltan.
+  // single/multiple SÍ se bloquean con votos (su sync es delete-all +
+  // reinsert, que rompería las respuestas existentes).
+  const optionsLocked = isEdit && hasVotes && type !== "slot";
   // Composer de slot manual (modo cupo): fecha + hora + cupo para agregar
   // un slot que faltó en la generación masiva.
   const [manualSlotDate, setManualSlotDate] = useState("");
@@ -1379,8 +1392,10 @@ function CreatePollDialog({
       // para mostrar al docente lo que existe sin modificar.
       setOptions(
         (editingPoll.options ?? []).map((o) => ({
+          id: o.id,
           label: o.label,
           max_responses: o.max_responses != null ? String(o.max_responses) : "",
+          responses_count: (o as { responses_count?: number }).responses_count ?? 0,
         })),
       );
     } else {
@@ -1564,6 +1579,14 @@ function CreatePollDialog({
             auto_close_when_all_responded: autoCloseAll,
             is_published: isPublished,
             attendance_session_id: sessionId,
+            // Reabrir al editar: si el docente fija un cierre futuro (o sin
+            // cierre), la encuesta vuelve a quedar abierta. Caso típico de
+            // cupo: reabrir el que no se llenó para los que faltan. Con
+            // cierre en el pasado, se respeta el estado manual previo.
+            closed_manually:
+              !closesAt || new Date(closesAt).getTime() > Date.now()
+                ? false
+                : editingPoll.closed_manually,
           })
           .eq("id", editingPoll.id);
         if (updErr) {

@@ -37,9 +37,9 @@
       "narration": "Abrimos un ticket nuevo. Elegimos su categoría —petición, queja, reclamo o sugerencia—, escribimos un asunto, y describimos el caso con el detalle necesario.",
       "bufferMs": 800,
       "beats": [
-        { "target": "field:Categoría", "hold": 3500, "side": "right", "focus": { "title": "Categoría", "body": "Petición, queja, reclamo o sugerencia." } },
+        { "target": "field:Categoría", "hold": 6000, "side": "right", "focus": { "title": "Categoría", "body": "Petición, queja, reclamo o sugerencia." } },
         { "target": "field:Asunto", "hold": 3000, "side": "right", "focus": { "title": "Asunto", "body": "El tema del ticket." } },
-        { "target": "field:Descripción", "hold": 4000, "side": "right", "focus": { "title": "Descripción", "body": "El detalle del caso (puedes adjuntar archivos)." } }
+        { "target": "field:Descripción", "hold": 4500, "side": "right", "focus": { "title": "Descripción", "body": "El detalle del caso (puedes adjuntar archivos)." } }
       ]
     },
     {

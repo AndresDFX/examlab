@@ -1247,6 +1247,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       ))}
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
+                  <DropdownMenuSeparator />
+                  {/* Política de privacidad: visible en TODOS los roles (este
+                      menú se renderiza para cualquier usuario autenticado). */}
+                  <DropdownMenuItem
+                    onClick={() => navigate({ to: "/app/privacy" })}
+                    className="gap-2"
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    {t("nav.privacy")}
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
 

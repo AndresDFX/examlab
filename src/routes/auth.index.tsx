@@ -652,9 +652,13 @@ function AuthPage() {
             <p className="text-xs text-muted-foreground mt-4 text-center">
               {t("auth.contactAdmin")}
             </p>
-            <div className="mt-4 text-center">
-              <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">
+            <div className="mt-4 flex items-center justify-center gap-3 text-xs text-muted-foreground">
+              <Link to="/" className="hover:text-foreground">
                 {t("auth.backToHome")}
+              </Link>
+              <span aria-hidden>·</span>
+              <Link to="/privacy" className="hover:text-foreground">
+                {t("nav.privacy")}
               </Link>
             </div>
           </CardContent>

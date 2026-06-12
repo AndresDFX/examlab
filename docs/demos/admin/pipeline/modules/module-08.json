@@ -16,10 +16,12 @@
       "id": "institucion",
       "kind": "platform",
       "tab": "Institución",
-      "narration": "En Institución se define la identidad: el logotipo, el nombre y los colores de la institución, que se aplican al instante en toda la plataforma.",
+      "narration": "En Institución se define la identidad de la institución: su nombre, el logotipo y los colores de la marca, que se aplican al instante en toda la plataforma.",
       "bufferMs": 800,
       "beats": [
-        { "target": "firstcard", "scale": 1.15, "hold": 7000, "side": "bottom", "focus": { "title": "Identidad de la institución", "body": "Logotipo, nombre y colores — branding propio." } }
+        { "target": "field:Nombre", "scale": 1.35, "hold": 3400, "side": "bottom", "focus": { "title": "Nombre", "body": "El nombre de la institución." } },
+        { "target": "field:Logo institucional", "scale": 1.35, "hold": 3400, "side": "bottom", "focus": { "title": "Logotipo", "body": "La marca que verá toda la plataforma." } },
+        { "target": "field:Color primario", "scale": 1.3, "hold": 3600, "side": "right", "focus": { "title": "Colores", "body": "Primario, secundario y acentos de la marca." } }
       ]
     },
     {
@@ -29,17 +31,18 @@
       "narration": "En Módulos se decide qué partes de la plataforma ve cada rol, y en qué orden aparecen en el menú. Otra capa del control de acceso.",
       "bufferMs": 800,
       "beats": [
-        { "target": "firstcard", "scale": 1.15, "hold": 6500, "side": "bottom", "focus": { "title": "Visibilidad de módulos", "body": "Qué módulos ve cada rol y su orden." } }
+        { "target": "firstcard", "scale": 1.1, "hold": 6500, "side": "bottom", "focus": { "title": "Visibilidad de módulos", "body": "Qué módulos ve cada rol y su orden." } }
       ]
     },
     {
       "id": "correos",
       "kind": "platform",
       "tab": "Correos",
-      "narration": "Y en Correos se prenden o apagan los avisos por email por categoría, como el correo de bienvenida que se envía al crear usuarios.",
+      "narration": "Y en Correos se prenden o apagan los avisos por email, categoría por categoría: la bienvenida a nuevos usuarios, los recordatorios de entregas, los mensajes y más.",
       "bufferMs": 800,
       "beats": [
-        { "target": "text:Bienvenida", "scale": 1.4, "hold": 6000, "side": "bottom", "focus": { "title": "Correos", "body": "Activa o apaga cada aviso, como la bienvenida." } }
+        { "target": "firstcard", "scale": 1.1, "hold": 4500, "side": "bottom", "focus": { "title": "Avisos por email", "body": "Cada categoría se activa o se apaga." } },
+        { "target": "text:Bienvenida", "scale": 1.2, "hold": 4500, "side": "bottom", "focus": { "title": "Por categoría", "body": "Como la bienvenida a nuevos usuarios." } }
       ]
     },
     {
