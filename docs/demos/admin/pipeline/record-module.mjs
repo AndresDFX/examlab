@@ -52,6 +52,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function overlay(page, card) {
   await page.evaluate((c) => {
+    // La carátula es un overlay `position:fixed`. El body conserva
+    // `will-change: transform` (lo setea cameraSetup) que, AUNQUE el transform
+    // sea none, crea un CONTAINING BLOCK para descendientes fixed → el overlay
+    // inset:0 se mide contra el BODY (página alta, ej. calendario) y su texto
+    // centrado cae en el tercio inferior. Limpiar transform Y will-change
+    // devuelve el fixed al viewport (centrado correcto).
+    document.body.style.transition = "none";
+    document.body.style.transform = "none";
+    document.body.style.willChange = "auto";
+    document.documentElement.style.overflow = "";
     let o = document.getElementById("demo-overlay");
     if (!o) { o = document.createElement("div"); o.id = "demo-overlay"; document.body.appendChild(o); }
     o.setAttribute("style", "position:fixed;inset:0;z-index:2147483000;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:linear-gradient(135deg,#0b1220,#1D4ED8);color:#fff;font-family:Inter,system-ui,sans-serif;text-align:center;");

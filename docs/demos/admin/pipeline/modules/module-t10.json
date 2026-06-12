@@ -26,13 +26,13 @@
     {
       "id": "crear",
       "kind": "platform",
-      "narration": "Para agregar un video se indica su título, el enlace y una descripción; también puede subirse un archivo desde el computador.",
+      "narration": "Al agregar un video se abre este formulario, donde indicamos el título del video, luego el enlace que apunta a YouTube, Vimeo o un archivo, y por último una descripción opcional.",
       "bufferMs": 800,
       "openDialog": "createbtn",
       "beats": [
-        { "target": "field:Título", "hold": 3000, "side": "right", "focus": { "title": "Título", "body": "Nombre del video." } },
-        { "target": "field:URL", "hold": 3000, "side": "right", "focus": { "title": "Enlace", "body": "URL del video." } },
-        { "target": "field:Descripción", "hold": 3000, "side": "right", "focus": { "title": "Descripción", "body": "Contexto del material." } }
+        { "target": "field:Título", "hold": 4500, "side": "right", "focus": { "title": "Título", "body": "Nombre del video." } },
+        { "target": "field:URL", "hold": 3500, "side": "right", "focus": { "title": "Enlace", "body": "Apunta a YouTube, Vimeo o un archivo." } },
+        { "target": "field:Descripción", "hold": 2800, "side": "right", "focus": { "title": "Descripción", "body": "Contexto opcional del material." } }
       ]
     },
     {

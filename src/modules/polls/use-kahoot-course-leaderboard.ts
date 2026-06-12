@@ -17,6 +17,14 @@ import { supabase } from "@/integrations/supabase/client";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
+// Contador a nivel de módulo → topic de canal ÚNICO por instancia del hook.
+// Sin esto, dos `StudentKahootRanking` (slots 0 y 1) que resuelven al MISMO
+// courseId (o ambos a null → "none") creaban un canal con el mismo topic;
+// Supabase reusa el canal por topic, así que el `.on()` de la 2ª instancia
+// corría DESPUÉS del `.subscribe()` de la 1ª → "cannot add postgres_changes
+// callbacks after subscribe()" → crashea el dashboard entero del estudiante.
+let channelSeq = 0;
+
 export interface KahootLeaderRow {
   rank: number;
   user_id: string;
@@ -29,6 +37,9 @@ export function useKahootCourseLeaderboard(courseId: string | null, limit = 5) {
   const [rows, setRows] = useState<KahootLeaderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const cancelledRef = useRef(false);
+  // Id estable por instancia (se asigna una sola vez) → topic de canal único.
+  const instanceIdRef = useRef<number>(0);
+  if (instanceIdRef.current === 0) instanceIdRef.current = ++channelSeq;
 
   const reload = useCallback(async () => {
     if (!courseId) {
@@ -46,13 +57,20 @@ export function useKahootCourseLeaderboard(courseId: string | null, limit = 5) {
     cancelledRef.current = false;
     setLoading(true);
     void reload();
+    // Sin curso seleccionado no hay nada que escuchar → no abrimos canal
+    // (evita el topic compartido "…-none" entre instancias).
+    if (!courseId) {
+      return () => {
+        cancelledRef.current = true;
+      };
+    }
     let timer: ReturnType<typeof setTimeout> | null = null;
     const trigger = () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => void reload(), 600);
     };
     const channel = supabase
-      .channel(`kahoot-course-lb-${courseId ?? "none"}`)
+      .channel(`kahoot-course-lb-${courseId}-${instanceIdRef.current}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "kahoot_games" }, trigger)
       .subscribe();
     return () => {

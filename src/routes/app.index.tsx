@@ -1096,14 +1096,55 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           <StudentEventsCalendar userId={userId} className="h-full w-full flex flex-col min-h-0" />
         </div>
 
-        {/* Ranking ACUMULADO de Kahoot por curso (reemplaza Próximas clases /
-            Próximos exámenes, manteniendo el layout de 2 cards apiladas a la
-            derecha del calendario). El alumno elige entre sus cursos y ve en
-            vivo quién va punteando (1º-4º). */}
+        {/* Columna derecha: 2 cards apiladas. ANTES eran dos rankings Kahoot
+            idénticos (slot 0 y 1) — el usuario reportó la duplicación. Ahora:
+            (1) "Próximos exámenes" (lista accionable, complementa el conteo del
+            stat y los dots del calendario) y (2) UN ranking Kahoot (gamificación).
+            Sin cards repetidas. */}
         <div className="flex flex-col gap-4 min-h-0">
-          <StudentKahootRanking courses={enrolledCourses} userId={userId} slot={0} />
+          {/* Próximos exámenes — usa upcomingExams ya cargado arriba. */}
+          <Card className="flex flex-col min-h-0 lg:flex-1">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-violet-500 dark:text-violet-400" />{" "}
+                {t("dashboard.upcomingExams")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
+              <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
+                {upcomingExams.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">
+                    {t("dashboard.noUpcomingExams")}
+                  </p>
+                ) : (
+                  upcomingExams.map((e: any) => {
+                    const isOpen =
+                      new Date() >= new Date(e.start_time) && new Date() <= new Date(e.end_time);
+                    return (
+                      <EventRow
+                        key={e.id}
+                        title={e.title}
+                        subtitle={e.course?.name}
+                        date={formatDate(e.start_time)}
+                        badge={isOpen ? t("dashboard.inProgress") : undefined}
+                        badgeColor="bg-success text-success-foreground"
+                      />
+                    );
+                  })
+                )}
+              </div>
+              <Link to="/app/student/exams" className="block">
+                <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
+                  {t("dashboard.viewAll", { defaultValue: "Ver todos" })}{" "}
+                  <ArrowRight className="h-3 w-3 ml-1" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
 
-          <StudentKahootRanking courses={enrolledCourses} userId={userId} slot={1} />
+          {/* Ranking ACUMULADO de Kahoot por curso (gamificación). El alumno
+              elige entre sus cursos y ve en vivo quién va punteando (1º-4º). */}
+          <StudentKahootRanking courses={enrolledCourses} userId={userId} slot={0} />
         </div>
       </div>
 

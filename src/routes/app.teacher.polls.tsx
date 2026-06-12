@@ -1076,13 +1076,6 @@ function CreatePollDialog({
   const hasVotes = (editingPoll?.options ?? []).some(
     (o) => ((o as { responses_count?: number }).responses_count ?? 0) > 0,
   );
-  // Las encuestas de CUPO (slot) quedan SIEMPRE editables, incluso con
-  // reservas: su sync usa un diff vote-safe (actualiza/inserta/borra-solo-
-  // sin-reservas) que preserva poll_responses. Caso de uso: reabrir un cupo
-  // que no se llenó y agregar/quitar fechas para los estudiantes que faltan.
-  // single/multiple SÍ se bloquean con votos (su sync es delete-all +
-  // reinsert, que rompería las respuestas existentes).
-  const optionsLocked = isEdit && hasVotes && type !== "slot";
   // Composer de slot manual (modo cupo): fecha + hora + cupo para agregar
   // un slot que faltó en la generación masiva.
   const [manualSlotDate, setManualSlotDate] = useState("");
@@ -1096,6 +1089,13 @@ function CreatePollDialog({
   // los demás se persisten en la junction `poll_courses`.
   const [courseIds, setCourseIds] = useState<string[]>([]);
   const [type, setType] = useState<PollType>("single");
+  // Las encuestas de CUPO (slot) quedan SIEMPRE editables, incluso con
+  // reservas: su sync usa un diff vote-safe (actualiza/inserta/borra-solo-
+  // sin-reservas) que preserva poll_responses. Caso de uso: reabrir un cupo
+  // que no se llenó y agregar/quitar fechas para los estudiantes que faltan.
+  // single/multiple SÍ se bloquean con votos (su sync es delete-all +
+  // reinsert, que rompería las respuestas existentes).
+  const optionsLocked = isEdit && hasVotes && type !== "slot";
   const [visibility, setVisibility] = useState<ResultsVis>("after_close");
   const [closesAt, setClosesAt] = useState(""); // datetime-local
   // Parámetros nuevos (migración 20260603000000):
@@ -1620,11 +1620,86 @@ function CreatePollDialog({
             return;
           }
         }
-        // Sync de opciones cuando NO hay votos (optionsLocked=false). Es
-        // seguro borrar + reinsertar porque ningún poll_response las
-        // referencia todavía. Con votos, optionsLocked=true y este bloque
-        // se salta (las opciones quedan intactas).
-        if (!optionsLocked) {
+        // Sync de opciones/slots.
+        if (type === "slot") {
+          // DIFF vote-safe: las encuestas de cupo pueden editarse con reservas
+          // ya hechas. Preservamos los slots existentes (referenciados por
+          // poll_responses), insertamos los nuevos, actualizamos cupo/etiqueta,
+          // y borramos SOLO los que el docente quitó y NO tienen reservas.
+          const validOpts = effectiveOptions.filter((o) => o.label.trim());
+          const existing = (editingPoll.options ?? []) as Array<{
+            id: string;
+            label: string;
+            responses_count?: number;
+          }>;
+          const keptIds = new Set(
+            validOpts.map((o) => o.id).filter((x): x is string => Boolean(x)),
+          );
+          const removed = existing.filter((e) => !keptIds.has(e.id));
+          const removedWithVotes = removed.filter((e) => (e.responses_count ?? 0) > 0);
+          if (removedWithVotes.length > 0) {
+            toast.error(
+              i18n.t("toast.routes_app_teacher_polls.cannotRemoveSlotWithVotes", {
+                defaultValue:
+                  "No puedes eliminar fechas con reservas: {{labels}}. Quítale primero la respuesta a esos estudiantes desde «Ver resultados».",
+                labels: removedWithVotes.map((r) => r.label).join(", "),
+              }),
+            );
+            return;
+          }
+          if (removed.length > 0) {
+            const { error: delErr } = await db
+              .from("poll_options")
+              .delete()
+              .in(
+                "id",
+                removed.map((r) => r.id),
+              );
+            if (delErr) {
+              toast.error(friendlyError(delErr, t("teacherPolls.errUpdateOptions")));
+              return;
+            }
+          }
+          // Actualizar existentes (label/posición/cupo) e insertar nuevos,
+          // respetando el orden de la lista del formulario.
+          const toInsert: Array<{
+            poll_id: string;
+            label: string;
+            position: number;
+            max_responses: number;
+          }> = [];
+          for (let i = 0; i < validOpts.length; i++) {
+            const o = validOpts[i];
+            const cupo = Math.max(1, Math.floor(Number(o.max_responses) || 1));
+            if (o.id) {
+              const { error: upErr } = await db
+                .from("poll_options")
+                .update({ label: o.label.trim(), position: i, max_responses: cupo })
+                .eq("id", o.id);
+              if (upErr) {
+                toast.error(friendlyError(upErr, t("teacherPolls.errUpdateOptions")));
+                return;
+              }
+            } else {
+              toInsert.push({
+                poll_id: editingPoll.id,
+                label: o.label.trim(),
+                position: i,
+                max_responses: cupo,
+              });
+            }
+          }
+          if (toInsert.length > 0) {
+            const { error: insErr } = await db.from("poll_options").insert(toInsert);
+            if (insErr) {
+              toast.error(friendlyError(insErr, t("teacherPolls.errUpdateOptions")));
+              return;
+            }
+          }
+        } else if (!optionsLocked) {
+          // single/multiple SIN votos: seguro borrar + reinsertar porque
+          // ningún poll_response referencia las opciones todavía. Con votos,
+          // optionsLocked=true y este bloque se salta (quedan intactas).
           const validOpts = effectiveOptions.filter((o) => o.label.trim());
           const { error: delOptErr } = await db
             .from("poll_options")
@@ -1638,8 +1713,7 @@ function CreatePollDialog({
             poll_id: editingPoll.id,
             label: o.label.trim(),
             position: i,
-            max_responses:
-              type === "slot" ? Math.max(1, Math.floor(Number(o.max_responses) || 1)) : null,
+            max_responses: null,
           }));
           if (optsPayload.length > 0) {
             const { error: insOptErr } = await db.from("poll_options").insert(optsPayload);
@@ -2121,6 +2195,14 @@ function CreatePollDialog({
                 {t("teacherPolls.optionsLockedNote")}
               </p>
             )}
+            {type === "slot" && isEdit && hasVotes && (
+              <p className="text-[11px] text-sky-700 dark:text-sky-400 bg-sky-500/10 border border-sky-500/30 rounded px-2 py-1.5 mt-1 mb-2">
+                {t("teacherPolls.slotEditWithVotesNote", {
+                  defaultValue:
+                    "Puedes agregar nuevas fechas, ampliar el cupo y reabrir la encuesta (fija un cierre futuro). Las fechas que ya tienen reservas no se pueden eliminar.",
+                })}
+              </p>
+            )}
             {type === "slot" && !optionsLocked && (
               <>
                 {/* Generador de slots (V2): el docente agrega múltiples
@@ -2390,7 +2472,7 @@ function CreatePollDialog({
                   {type === "slot" && (
                     <Input
                       type="number"
-                      min={1}
+                      min={Math.max(1, o.responses_count ?? 1)}
                       value={o.max_responses}
                       onChange={(e) => updateOption(idx, { max_responses: e.target.value })}
                       placeholder={t("teacherPolls.cupoPlaceholder")}
@@ -2399,13 +2481,41 @@ function CreatePollDialog({
                       disabled={optionsLocked}
                     />
                   )}
-                  {!optionsLocked && options.length > 2 && (
-                    <RowAction
-                      label={t("teacherPolls.removeOption")}
-                      icon={Trash2}
-                      tone="destructive"
-                      onClick={() => removeOption(idx)}
-                    />
+                  {type === "slot" ? (
+                    // Slot con reservas → NO eliminable (rompería poll_responses):
+                    // se muestra el conteo. Sin reservas → botón borrar normal.
+                    (o.responses_count ?? 0) > 0 ? (
+                      <span
+                        className="whitespace-nowrap rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                        title={t("teacherPolls.slotHasReservations", {
+                          defaultValue: "Esta fecha tiene reservas y no puede eliminarse",
+                        })}
+                      >
+                        {t("teacherPolls.slotReservationsCount", {
+                          defaultValue: "{{count}} reserva(s)",
+                          count: o.responses_count ?? 0,
+                        })}
+                      </span>
+                    ) : (
+                      options.length > 2 && (
+                        <RowAction
+                          label={t("teacherPolls.removeOption")}
+                          icon={Trash2}
+                          tone="destructive"
+                          onClick={() => removeOption(idx)}
+                        />
+                      )
+                    )
+                  ) : (
+                    !optionsLocked &&
+                    options.length > 2 && (
+                      <RowAction
+                        label={t("teacherPolls.removeOption")}
+                        icon={Trash2}
+                        tone="destructive"
+                        onClick={() => removeOption(idx)}
+                      />
+                    )
                   )}
                 </div>
               ))}

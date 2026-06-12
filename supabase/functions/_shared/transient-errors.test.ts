@@ -89,6 +89,41 @@ describe("isTransientError", () => {
     });
   });
 
+  // Mensajes EXACTOS que producen las edges/workers ante un 503 del gateway.
+  // Si estos dejan de matchear, los jobs NO se re-encolarían — por eso los
+  // fijamos como invariante de los flujos de cola (grading + generation).
+  describe("formatos reales de error que llegan a los workers (503 → re-encola)", () => {
+    it("describeAiError: 'Error de IA [503]: ...' → true (el [503] tiene word boundaries)", () => {
+      expect(
+        isTransientError(
+          'Error de IA [503]: {"error":{"message":"The model is overloaded. Please try again later."}}',
+        ),
+      ).toBe(true);
+    });
+    it("describeAiError: 'Error de IA [500]: ...' → true", () => {
+      expect(isTransientError("Error de IA [500]: internal error")).toBe(true);
+    });
+    it("grading worker: 'Edge function ai-grade-submission → 503 ...' → true", () => {
+      expect(
+        isTransientError("Edge function ai-grade-submission → 503 Service Unavailable"),
+      ).toBe(true);
+    });
+    it("generation worker: 'generate-contents HTTP 503: ...' → true", () => {
+      expect(isTransientError("generate-contents HTTP 503: upstream overloaded")).toBe(true);
+    });
+    it("generation worker (regen): 'generate-contents (regen): Error de IA [503]: ...' → true", () => {
+      expect(
+        isTransientError("generate-contents (regen): Error de IA [503]: overloaded"),
+      ).toBe(true);
+    });
+    it("describeAiError: 'Error de IA [400]: ...' → false (input/contenido, NO se re-encola)", () => {
+      expect(isTransientError("Error de IA [400]: invalid request")).toBe(false);
+    });
+    it("describeAiError: 'Error de IA [401]: ...' → false (API key, NO se re-encola)", () => {
+      expect(isTransientError("Error de IA [401]: unauthorized")).toBe(false);
+    });
+  });
+
   describe("case-insensitive", () => {
     it("TIMEOUT en mayúsculas", () => {
       expect(isTransientError("TIMEOUT")).toBe(true);

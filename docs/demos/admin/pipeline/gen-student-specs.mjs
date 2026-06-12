@@ -22,14 +22,14 @@ const mk = (id, title, appPath, ready, scenes) => ({ id, title, series: "student
 const nav = (path, text) => [`[data-tour-nav="${path}"]`, `text=${text}`];
 
 const specs = [
-  mk("modulo-s01", "Panel del Estudiante", "/app", ['[data-tour-id="role-switcher"]', "text=Próximas"], [
+  mk("modulo-s01", "Panel del Estudiante", "/app", ['[data-tour-id="role-switcher"]', '[data-tour-nav="/app/student/courses"]'], [
     intro("Panel del Estudiante", "Demostración del rol Estudiante en ExamLab, sobre la institución Demo Global Corp."),
     { id: "identidad", kind: "platform", narration: "El entorno mantiene la identidad de la institución. Ahora operamos como Estudiante: el menú muestra solo lo que el alumno necesita para aprender y mantenerse al día.", bufferMs: 800, beats: [
       { target: '[data-tour-id="role-switcher"]', scale: 1.6, hold: 4200, side: "right", focus: { title: "Tu rol", body: "Operás como Estudiante." } },
     ]},
-    { id: "panel", kind: "platform", narration: "El panel de inicio reúne, en una sola vista, el calendario de eventos y la agenda con las próximas clases y exámenes. Es el punto de partida para saber, de un vistazo, qué tiene pendiente el estudiante.", bufferMs: 800, beats: [
-      { target: "firstcard", scale: 1.12, hold: 4800, side: "bottom", focus: { title: "Tu panel", body: "Calendario y pendientes." } },
-      { target: "text:Próximas", scale: 1.3, hold: 4500, side: "bottom", focus: { title: "Agenda", body: "Próximas clases y exámenes." } },
+    { id: "panel", kind: "platform", narration: "El panel de inicio resume lo que el estudiante tiene pendiente —exámenes, talleres y proyectos— y reúne, en una sola vista, un calendario con todas sus fechas y el ranking en vivo de los juegos de cada curso.", bufferMs: 800, beats: [
+      { target: "stat:0", scale: 1.4, hold: 4500, side: "bottom", focus: { title: "Pendientes", body: "Exámenes, talleres y proyectos por hacer." } },
+      { target: "text:Leyenda", scale: 1.15, hold: 4500, side: "bottom", scroll: true, focus: { title: "Calendario", body: "Todas tus fechas en un vistazo." } },
     ]},
     outro("Mis Cursos", "En el siguiente módulo: tus cursos."),
   ]),
@@ -99,7 +99,7 @@ const specs = [
       "/app/student/calendar", "Calendario", "Tus fechas en un vistazo.", "Tu calendario", "Clases, exámenes y entregas.", 1.1),
     outro("Cuenta y Sesión", "En el último módulo del rol Estudiante: tu cuenta y la sesión."),
   ]),
-  mk("modulo-s13", "Cuenta y Sesión (Estudiante)", "/app", ['[data-tour-id="role-switcher"]', '[data-tour-nav="/app/student/exams"]'], [
+  mk("modulo-s13", "Cuenta y Sesión (Estudiante)", "/app/student/courses", ['[data-tour-id="role-switcher"]', '[data-tour-nav="/app/student/courses"]'], [
     intro("Cuenta y Sesión", "Último módulo del rol Estudiante: tu cuenta y la sesión."),
     { id: "cuenta", kind: "platform", narration: "Al pie del menú vive tu cuenta. El selector de rol cambia entre tus perfiles disponibles. La campana muestra las notificaciones; el sobre, los mensajes con tus docentes. Y al cerrar sesión, el contexto de la institución se limpia por completo.", bufferMs: 900, beats: [
       { target: '[data-tour-id="role-switcher"]', scale: 1.7, hold: 4800, side: "right", focus: { title: "Selector de rol", body: "Cambia entre tus perfiles disponibles." } },

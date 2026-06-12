@@ -3,10 +3,10 @@
   "title": "Cuenta y Sesión (Estudiante)",
   "series": "student",
   "role": "Estudiante",
-  "appPath": "/app",
+  "appPath": "/app/student/courses",
   "readySelectors": [
     "[data-tour-id=\"role-switcher\"]",
-    "[data-tour-nav=\"/app/student/exams\"]"
+    "[data-tour-nav=\"/app/student/courses\"]"
   ],
   "voice": {
     "name": "es-CO-GonzaloNeural",

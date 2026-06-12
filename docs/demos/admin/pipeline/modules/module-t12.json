@@ -26,12 +26,13 @@
     {
       "id": "crear",
       "kind": "platform",
-      "narration": "Al crear una encuesta se define su título, una descripción y el tipo de dinámica que se quiere aplicar.",
+      "narration": "Al crear una encuesta se abre este formulario, donde le ponemos un título, una descripción opcional, y elegimos el tipo de dinámica: opinión, reserva de cupo o concurso.",
       "bufferMs": 800,
       "openDialog": "createbtn",
       "beats": [
-        { "target": "field:Título", "hold": 3200, "side": "right", "focus": { "title": "Título", "body": "Nombre de la encuesta." } },
-        { "target": "field:Descripción", "hold": 3200, "side": "right", "focus": { "title": "Descripción", "body": "Contexto para el estudiante." } }
+        { "target": "field:Título", "hold": 4500, "side": "right", "focus": { "title": "Título", "body": "Nombre de la encuesta." } },
+        { "target": "field:Descripción", "hold": 2800, "side": "right", "focus": { "title": "Descripción", "body": "Contexto para el estudiante." } },
+        { "target": "field:Tipo", "hold": 4500, "side": "right", "focus": { "title": "Tipo de dinámica", "body": "Opinión, reserva de cupo o concurso." } }
       ]
     },
     {

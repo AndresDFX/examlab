@@ -6,7 +6,7 @@
   "appPath": "/app",
   "readySelectors": [
     "[data-tour-id=\"role-switcher\"]",
-    "text=Próximas"
+    "[data-tour-nav=\"/app/student/courses\"]"
   ],
   "voice": {
     "name": "es-CO-GonzaloNeural",
@@ -45,27 +45,28 @@
     {
       "id": "panel",
       "kind": "platform",
-      "narration": "El panel de inicio reúne, en una sola vista, el calendario de eventos y la agenda con las próximas clases y exámenes. Es el punto de partida para saber, de un vistazo, qué tiene pendiente el estudiante.",
+      "narration": "El panel de inicio resume lo que el estudiante tiene pendiente —exámenes, talleres y proyectos— y reúne, en una sola vista, un calendario con todas sus fechas y el ranking en vivo de los juegos de cada curso.",
       "bufferMs": 800,
       "beats": [
         {
-          "target": "firstcard",
-          "scale": 1.12,
-          "hold": 4800,
-          "side": "bottom",
-          "focus": {
-            "title": "Tu panel",
-            "body": "Calendario y pendientes."
-          }
-        },
-        {
-          "target": "text:Próximas",
-          "scale": 1.3,
+          "target": "stat:0",
+          "scale": 1.4,
           "hold": 4500,
           "side": "bottom",
           "focus": {
-            "title": "Agenda",
-            "body": "Próximas clases y exámenes."
+            "title": "Pendientes",
+            "body": "Exámenes, talleres y proyectos por hacer."
+          }
+        },
+        {
+          "target": "text:Leyenda",
+          "scale": 1.15,
+          "hold": 4500,
+          "side": "bottom",
+          "scroll": true,
+          "focus": {
+            "title": "Calendario",
+            "body": "Todas tus fechas en un vistazo."
           }
         }
       ]
