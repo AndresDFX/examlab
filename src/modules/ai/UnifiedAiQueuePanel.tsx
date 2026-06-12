@@ -429,33 +429,49 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         pFileToSub.set(r.id, r.submission_id);
 
       // Fetch projects + exams referenciados por grading (segundo paso de lookup).
-      const projIds = Array.from(new Set(pSubToProj.values()));
       const examIds = Array.from(new Set(subToExam.values()));
       // Las submissions de los project_submission_files que aún no
       // resolvimos su owner (no estaban en pSubIds).
       const pFileSubIds = Array.from(new Set(pFileToSub.values())).filter(
         (id) => !ownerByTargetRow.has(id),
       );
-      const [projL, examL, pFileSubL] = await Promise.all([
-        projIds.length > 0
-          ? db.from("projects").select("id, title").in("id", projIds)
-          : Promise.resolve({ data: [] }),
+      const [examL, pFileSubL] = await Promise.all([
         examIds.length > 0
           ? db.from("exams").select("id, title").in("id", examIds)
           : Promise.resolve({ data: [] }),
+        // pedimos project_id además de user_id → para resolver el TÍTULO del
+        // proyecto de los jobs project_submission_files (paridad con
+        // project_full, que sí muestra el título de la entrega).
         pFileSubIds.length > 0
-          ? db.from("project_submissions").select("id, user_id").in("id", pFileSubIds)
+          ? db.from("project_submissions").select("id, user_id, project_id").in("id", pFileSubIds)
           : Promise.resolve({ data: [] }),
       ]);
-      for (const r of (projL.data ?? []) as Array<{ id: string; title: string }>)
-        titleById.set(r.id, r.title);
       for (const r of (examL.data ?? []) as Array<{ id: string; title: string }>)
         titleById.set(r.id, r.title);
-      // owner por submission_id de los project_submission_files.
+      // owner + project del submission de cada project_submission_file.
       const ownerBySubId = new Map<string, string>();
-      for (const r of (pFileSubL.data ?? []) as Array<{ id: string; user_id: string | null }>) {
+      const fileSubToProj = new Map<string, string>();
+      for (const r of (pFileSubL.data ?? []) as Array<{
+        id: string;
+        user_id: string | null;
+        project_id: string | null;
+      }>) {
         if (r.user_id) ownerBySubId.set(r.id, r.user_id);
+        if (r.project_id) fileSubToProj.set(r.id, r.project_id);
       }
+      // Títulos de TODOS los proyectos referenciados (project_full vía
+      // pSubToProj + project_submission_files vía fileSubToProj). Se hace
+      // acá —no en el Promise.all de arriba— porque fileSubToProj recién
+      // se conoce tras resolver las submissions de los archivos.
+      const allProjIds = Array.from(
+        new Set<string>([...pSubToProj.values(), ...fileSubToProj.values()]),
+      );
+      const projL =
+        allProjIds.length > 0
+          ? await db.from("projects").select("id, title").in("id", allProjIds)
+          : { data: [] };
+      for (const r of (projL.data ?? []) as Array<{ id: string; title: string }>)
+        titleById.set(r.id, r.title);
 
       // ─── Resolución de nombres (created_by + dueños de entregas) ──────
       // Juntamos TODOS los user_ids en un solo Set y hacemos UN lookup a
@@ -505,6 +521,13 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
             if (t) label = t;
           } else if (r.target_table === "project_submissions") {
             const projId = pSubToProj.get(r.target_row_id);
+            const t = projId ? titleById.get(projId) : undefined;
+            if (t) label = t;
+          } else if (r.target_table === "project_submission_files") {
+            // file → submission → project_id (la submission pudo resolverse
+            // como project_full en pSubToProj, o como archivo en fileSubToProj).
+            const subId = pFileToSub.get(r.target_row_id);
+            const projId = subId ? (pSubToProj.get(subId) ?? fileSubToProj.get(subId)) : undefined;
             const t = projId ? titleById.get(projId) : undefined;
             if (t) label = t;
           }
