@@ -2,7 +2,7 @@
   "id": "modulo-09",
   "title": "Certificados",
   "appPath": "/app/certificates",
-  "readySelectors": ["text=Sin certificados"],
+  "readySelectors": ["main table"],
   "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
   "scenes": [
     {
@@ -13,12 +13,39 @@
       "bufferMs": 600
     },
     {
-      "id": "cuerpo",
+      "id": "grid",
       "kind": "platform",
-      "narration": "Aquí se revisan los certificados emitidos en la institución. Cada certificado se genera desde el libro de notas cuando un estudiante aprueba un curso, y su diseño —logo, firma y texto— se define una vez en Configuración. Además, cada certificado lleva un código que permite verificar su autenticidad de forma pública.",
-      "bufferMs": 900,
+      "narration": "Los certificados no se crean a mano: se emiten desde el libro de notas cuando un estudiante aprueba un curso. Aquí se listan los emitidos en la institución, con el estudiante, el curso y su código de verificación.",
+      "bufferMs": 800,
       "beats": [
-        { "target": "text:Sin certificados", "scale": 1.08, "hold": 13000, "side": "bottom", "focus": { "title": "Cómo se emiten", "body": "Desde el libro de notas al aprobar; el diseño, en Configuración." } }
+        { "target": "row:0", "scale": 1.0, "hold": 4500, "side": "bottom", "focus": { "title": "Certificados emitidos", "body": "Estudiante, curso, nota y código de verificación." } }
+      ]
+    },
+    {
+      "id": "acciones",
+      "kind": "platform",
+      "narration": "Desde cada certificado se descarga el PDF o se copia el enlace de verificación pública.",
+      "bufferMs": 700,
+      "beats": [
+        { "target": "rowaction:0", "clickToOpen": true, "hold": 4500 }
+      ]
+    },
+    {
+      "id": "verify-intro",
+      "kind": "card",
+      "route": "/verify/2VRRLPYDB24Z",
+      "ready": ["text=ExamLab"],
+      "narration": "Y así se ve un certificado ya generado, en su página de verificación.",
+      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Certificado generado", "subtitle": "Verificación pública" },
+      "bufferMs": 700
+    },
+    {
+      "id": "verify",
+      "kind": "platform",
+      "narration": "Cualquiera con el enlace o el código puede confirmar su autenticidad: el estudiante, el curso, la fecha y la nota — sin necesidad de iniciar sesión.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "firstcard", "scale": 1.1, "hold": 5500, "side": "bottom", "focus": { "title": "Certificado verificado", "body": "Datos sellados; válido y comprobable públicamente." } }
       ]
     },
     {
