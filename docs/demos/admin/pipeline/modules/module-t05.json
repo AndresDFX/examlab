@@ -39,9 +39,9 @@
       "bufferMs": 800,
       "openDialog": "createbtn",
       "beats": [
-        { "target": "field:Título", "hold": 3000, "side": "right", "focus": { "title": "Título", "body": "Tema o título del proyecto." } },
-        { "target": "field:Fecha inicio", "hold": 3000, "side": "right", "focus": { "title": "Fecha inicio", "body": "Cuándo comienza el proyecto." } },
-        { "target": "field:Estado", "hold": 3200, "side": "right", "focus": { "title": "Estado", "body": "Borrador o publicado." } }
+        { "target": "field:Título", "hold": 3000, "side": "right", "syncWord": "título", "focus": { "title": "Título", "body": "Tema o título del proyecto." } },
+        { "target": "field:Fecha inicio", "hold": 3000, "side": "right", "syncWord": "fecha", "focus": { "title": "Fecha inicio", "body": "Cuándo comienza el proyecto." } },
+        { "target": "field:Estado", "hold": 4200, "side": "right", "syncWord": "estado", "focus": { "title": "Estado", "body": "Borrador o publicado." } }
       ]
     },
     {

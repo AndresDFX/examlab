@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 # Generador de voz GENÉRICO: lee un spec de módulo (JSON) y sintetiza la
 # narración de cada escena con edge-tts. Reutilizable para cualquier módulo.
+# Además del mp3, guarda scene-N-words.json con los WordBoundary (offset ms
+# por palabra) — el recorder los usa para sincronizar cada beat/spotlight con
+# el instante en que la palabra se PRONUNCIA (beat.syncWord).
 #
 # Uso:  python gen-voice.py [ruta_modulo.json]
-import asyncio, json, sys, edge_tts
+import asyncio, json, os, sys, edge_tts
 
 MODULE = sys.argv[1] if len(sys.argv) > 1 else "C:/Temp/examlab-rec/modules/module-01.json"
 OUT = "C:/Temp/examlab-rec/audio2"
@@ -16,14 +19,21 @@ VOICE = voice.get("name", "es-CO-GonzaloNeural")
 RATE = voice.get("rate", "-4%")
 scenes = spec["scenes"]
 
-async def save_with_retry(text, path, attempts=4):
+async def save_with_retry(text, path, words_path, attempts=4):
     for a in range(1, attempts + 1):
         try:
-            c = edge_tts.Communicate(text, VOICE, rate=RATE)
-            await c.save(path)
-            # validar que NO quedó vacío (fallo transitorio deja 0 bytes)
-            import os
+            c = edge_tts.Communicate(text, VOICE, rate=RATE, boundary="WordBoundary")
+            words = []
+            with open(path, "wb") as f:
+                async for ch in c.stream():
+                    if ch["type"] == "audio":
+                        f.write(ch["data"])
+                    elif ch["type"] == "WordBoundary":
+                        # offset viene en ticks de 100ns → ms
+                        words.append({"w": ch["text"], "t": round(ch["offset"] / 10000)})
             if os.path.getsize(path) > 1000:
+                with open(words_path, "w", encoding="utf-8") as wf:
+                    json.dump(words, wf, ensure_ascii=False)
                 return
             raise RuntimeError("archivo vacío")
         except Exception as e:
@@ -34,7 +44,7 @@ async def save_with_retry(text, path, attempts=4):
 async def main():
     for i, sc in enumerate(scenes, 1):
         text = sc.get("narration", "").strip()
-        await save_with_retry(text, f"{OUT}/scene-{i}.mp3")
+        await save_with_retry(text, f"{OUT}/scene-{i}.mp3", f"{OUT}/scene-{i}-words.json")
         print(f"  ok scene-{i}.mp3  ({sc.get('id','')})")
 
 asyncio.run(main())

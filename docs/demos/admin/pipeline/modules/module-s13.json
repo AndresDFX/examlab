@@ -27,49 +27,12 @@
     {
       "id": "cuenta",
       "kind": "platform",
-      "narration": "Al pie del menú vive tu cuenta. El selector de rol cambia entre tus perfiles disponibles. La campana muestra las notificaciones; el sobre, los mensajes con tus docentes. Y al cerrar sesión, el contexto de la institución se limpia por completo.",
+      "narration": "Al pie del menú vive tu cuenta. La campana muestra las notificaciones; el sobre, los mensajes con tus docentes. Y al cerrar sesión, el contexto de la institución se limpia por completo.",
       "bufferMs": 900,
       "beats": [
-        {
-          "target": "[data-tour-id=\"role-switcher\"]",
-          "scale": 1.7,
-          "hold": 4800,
-          "side": "right",
-          "focus": {
-            "title": "Selector de rol",
-            "body": "Cambia entre tus perfiles disponibles."
-          }
-        },
-        {
-          "target": "[data-tour-id=\"notifications-bell\"]",
-          "scale": 1.9,
-          "hold": 4000,
-          "side": "right",
-          "focus": {
-            "title": "Notificaciones",
-            "body": "Avisos de tus cursos y entregas."
-          }
-        },
-        {
-          "target": "[data-tour-id=\"messages-bell\"]",
-          "scale": 1.9,
-          "hold": 4000,
-          "side": "right",
-          "focus": {
-            "title": "Mensajes",
-            "body": "Comunicación con tus docentes."
-          }
-        },
-        {
-          "target": "[data-tour-id=\"logout\"]",
-          "scale": 1.9,
-          "hold": 4500,
-          "side": "right",
-          "focus": {
-            "title": "Cerrar sesión",
-            "body": "Limpia por completo el contexto de la institución."
-          }
-        }
+        { "target": "[data-tour-id=\"notifications-bell\"]", "scale": 2.1, "hold": 3200, "side": "right", "overpan": true, "syncWord": "campana", "focus": { "title": "Notificaciones", "body": "Avisos de notas, fechas y mensajes." } },
+        { "target": "[data-tour-id=\"messages-bell\"]", "scale": 2.1, "hold": 3200, "side": "right", "overpan": true, "syncWord": "sobre", "focus": { "title": "Mensajes", "body": "Comunicación directa con tus docentes." } },
+        { "target": "[data-tour-id=\"logout\"]", "scale": 2.1, "hold": 4200, "side": "right", "overpan": true, "syncWord": "cerrar", "focus": { "title": "Cerrar sesión", "body": "Limpia por completo el contexto de la institución." } }
       ]
     },
     {

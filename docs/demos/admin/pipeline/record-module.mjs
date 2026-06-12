@@ -27,6 +27,48 @@ const scenes = spec.scenes;
 const narrMs = scenes.map((_, i) => Math.round(parseFloat(execFileSync(FFPROBE, ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", `${AUDIO}/scene-${i + 1}.mp3`]).toString().trim()) * 1000));
 const target = (i) => narrMs[i] + (scenes[i].bufferMs ?? 700);
 
+// ── Sincronía narración ↔ beats (WordBoundary de edge-tts) ──────────────────
+// gen-voice.py guarda scene-N-words.json: [{w: palabra, t: ms desde el inicio
+// de la narración}]. Un beat con `syncWord` espera a que esa palabra se
+// PRONUNCIE (menos SYNC_LEAD para absorber medición + transición de cámara)
+// antes de mostrarse; y su hold se extiende hasta el gate del beat siguiente.
+// Así el spotlight de cada campo/módulo aparece JUSTO cuando el guion lo dice.
+const SYNC_LEAD = 650;
+const sceneWords = scenes.map((_, i) => {
+  try { return JSON.parse(readFileSync(`${AUDIO}/scene-${i + 1}-words.json`, "utf8")); } catch { return null; }
+});
+const normWord = (w) => (w || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
+function wordTimeMs(words, query, occurrence = 1) {
+  if (!words || !query) return null;
+  const q = normWord(query);
+  let seen = 0;
+  for (const it of words) {
+    const nw = normWord(it.w);
+    if (nw === q || nw.startsWith(q)) { seen += 1; if (seen >= occurrence) return it.t; }
+  }
+  return null;
+}
+// Gate del beat k de la escena: instante (rel. al inicio de escena) en que
+// debe ARRANCAR su preparación. null = sin sync (usa holds del spec).
+function beatGateMs(words, beat) {
+  if (!beat || !beat.syncWord || !words) return null;
+  const t = wordTimeMs(words, beat.syncWord, beat.syncOccurrence ?? 1);
+  if (t == null) { console.log(`  ⚠ syncWord "${beat.syncWord}" no está en la narración`); return null; }
+  return Math.max(0, t - SYNC_LEAD);
+}
+async function waitForGate(gateMs, sceneStart) {
+  if (gateMs == null) return;
+  const wait = gateMs - (Date.now() - sceneStart);
+  if (wait > 0) await sleep(wait);
+}
+// Hold efectivo: hasta el gate del próximo beat (si tiene syncWord) o el hold
+// del spec. Mínimo 800ms para que el ojo registre el spotlight.
+function effectiveHold(words, beats, j, sceneStart, fallback) {
+  const ng = beatGateMs(words, beats[j + 1]);
+  if (ng == null) return fallback;
+  return Math.max(800, ng - (Date.now() - sceneStart));
+}
+
 const INIT = `(() => {
   if (window.__demoInit) return; window.__demoInit = true;
   const css = document.createElement('style');
@@ -138,8 +180,13 @@ function fitScale(rect, requested) {
 }
 
 // ── Cámara (translate+scale sobre body, con clamp para cubrir el viewport) ──
+// OJO: NO setear will-change:transform acá. cameraSetup corre DESPUÉS de poner
+// la carátula (escenas card con cambio de ruta) y will-change crea un
+// CONTAINING BLOCK para el overlay fixed → en páginas con body más alto que el
+// viewport (ej. auditoría) el texto de la carátula caía al tercio inferior
+// ("salto de imagen" reportado en módulo 11 al entrar a Soporte).
 async function cameraSetup(page) {
-  await page.evaluate(() => { const b = document.body; b.style.transformOrigin = "0 0"; b.style.willChange = "transform"; b.style.transform = "none"; });
+  await page.evaluate(() => { const b = document.body; b.style.transformOrigin = "0 0"; b.style.transform = "none"; });
 }
 async function measureTargets(page, targets, scroll = false) {
   return await page.evaluate(({ targets, scroll }) => {
@@ -149,6 +196,22 @@ async function measureTargets(page, targets, scroll = false) {
     const statGrid = grids.find((g) => g.children.length >= 3 && g.children.length <= 6);
     return targets.map((ts) => {
       let el = null;
+      if (ts === "footericons") {
+        // Unión de los 4 íconos del footer del sidebar (campana + sobre +
+        // opciones + logout). NO depende de clases de un ancestro (el closest
+        // por clases resolvió un contenedor gigante en una grabación → sin
+        // zoom y popover flotando). La unión es un rect virtual compacto.
+        const ids = ["notifications-bell", "messages-bell", "more-options", "logout"];
+        const rs = ids
+          .map((id) => document.querySelector(`[data-tour-id="${id}"]`))
+          .filter(Boolean)
+          .map((e) => e.getBoundingClientRect())
+          .filter((r) => r.width > 0 && r.height > 0);
+        if (!rs.length) return null;
+        const l = Math.min(...rs.map((r) => r.left)), t = Math.min(...rs.map((r) => r.top));
+        const rgt = Math.max(...rs.map((r) => r.right)), b = Math.max(...rs.map((r) => r.bottom));
+        return { left: l, top: t, width: rgt - l, height: b - t, cx: (l + rgt) / 2, cy: (t + b) / 2 };
+      }
       if (ts.startsWith("stat:")) el = statGrid ? statGrid.children[parseInt(ts.slice(5), 10)] : null;
       else if (ts.startsWith("card:")) el = cardOf(ts.slice(5));
       else if (ts.startsWith("th:")) { const txt = ts.slice(3); el = [...document.querySelectorAll("main th, table th")].find((h) => (h.textContent || "").trim().includes(txt)) || null; }
@@ -234,18 +297,25 @@ async function measureTargets(page, targets, scroll = false) {
     });
   }, { targets, scroll });
 }
-async function cameraTo(page, c, scale, ms = 650) {
+async function cameraTo(page, c, scale, ms = 650, overpan = false) {
   if (!c) return;
-  await page.evaluate(({ c, s, ms }) => {
+  await page.evaluate(({ c, s, ms, overpan }) => {
     const vw = window.innerWidth, vh = window.innerHeight;
     let tx = vw / 2 - c.cx * s, ty = vh / 2 - c.cy * s;
-    tx = Math.min(0, Math.max(vw * (1 - s), tx));
-    ty = Math.min(0, Math.max(vh * (1 - s), ty));
+    // overpan: permite panear MÁS ALLÁ del borde del body para CENTRAR
+    // elementos pegados a una esquina (ej. footer del sidebar). El vacío que
+    // queda a la vista lo cubre el dim del spotlight (box-shadow 99999px).
+    // Sin overpan, el clamp dejaba el footer en la esquina y el popover
+    // "flotando" lejos → "zoom en posición incorrecta".
+    if (!overpan) {
+      tx = Math.min(0, Math.max(vw * (1 - s), tx));
+      ty = Math.min(0, Math.max(vh * (1 - s), ty));
+    }
     const b = document.body;
     b.style.transition = `transform ${ms}ms cubic-bezier(.4,0,.2,1)`;
     b.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`;
     document.documentElement.style.overflow = "hidden";
-  }, { c, s: scale, ms });
+  }, { c, s: scale, ms, overpan });
   await sleep(ms);
 }
 async function cameraReset(page, ms = 700) {
@@ -267,14 +337,16 @@ async function clickTab(page, label) {
 }
 
 // ── Foco estilo driver.js: hueco (dim + outline) + popover, glued al rect ──
-async function focusOn(page, rect, info, scale, side) {
+async function focusOn(page, rect, info, scale, side, overpan = false) {
   if (!rect) return;
-  await page.evaluate(({ rect, info, s, side }) => {
+  await page.evaluate(({ rect, info, s, side, overpan }) => {
     const vw = window.innerWidth, vh = window.innerHeight, M = 22, GAP = 16, popW = 250;
-    // Transform de la cámara para este beat (MISMO clamp que cameraTo).
+    // Transform de la cámara para este beat (MISMO clamp/overpan que cameraTo).
     let tx = vw / 2 - rect.cx * s, ty = vh / 2 - rect.cy * s;
-    tx = Math.min(0, Math.max(vw * (1 - s), tx));
-    ty = Math.min(0, Math.max(vh * (1 - s), ty));
+    if (!overpan) {
+      tx = Math.min(0, Math.max(vw * (1 - s), tx));
+      ty = Math.min(0, Math.max(vh * (1 - s), ty));
+    }
     // Rect del elemento EN PANTALLA tras el transform.
     const sx = tx + rect.left * s, sy = ty + rect.top * s, sw = rect.width * s, sh = rect.height * s;
 
@@ -305,7 +377,7 @@ async function focusOn(page, rect, info, scale, side) {
     pop.style.transformOrigin = "top left";
     pop.style.transform = `scale(${1 / s})`;
     pop.style.opacity = "1";
-  }, { rect, info, s: scale, side: side || "bottom" });
+  }, { rect, info, s: scale, side: side || "bottom", overpan });
 }
 async function focusOff(page) {
   await page.evaluate(() => { for (const id of ["demo-hole", "demo-pop"]) { const e = document.getElementById(id); if (e) e.style.opacity = "0"; } });
@@ -434,13 +506,17 @@ async function main() {
           await page.locator('[role="dialog"]').first().waitFor({ timeout: 4000 }).catch(() => {});
           await sleep(700);
           console.log(`  → diálogo abierto: ${await page.evaluate(() => !!document.querySelector('[role="dialog"]'))}`);
-          for (const beat of sc.beats) {
+          const words = sceneWords[i];
+          for (let j = 0; j < sc.beats.length; j++) {
+            const beat = sc.beats[j];
+            // syncWord: esperar a que el guion PRONUNCIE la palabra del campo.
+            await waitForGate(beatGateMs(words, beat), s);
             // measureTargets con scroll=true hace scrollIntoView del campo
             // (sirve para targets CSS y custom como `field:`) y mide su rect.
             const [rect] = await measureTargets(page, [beat.target], true);
             await sleep(300);
             await focusOn(page, rect, beat.focus, 1.0, beat.side);
-            await sleep(beat.hold ?? 3500);
+            await sleep(effectiveHold(words, sc.beats, j, s, beat.hold ?? 3500));
             await focusOff(page);
           }
           await page.keyboard.press("Escape").catch(() => {});
@@ -450,15 +526,42 @@ async function main() {
           // Medición JUST-IN-TIME por beat (no upfront): el contenido dinámico
           // puede haber cambiado, y permite `scroll:true` para targets bajo el
           // fold (resetea cámara + restaura overflow para poder hacer scroll).
+          const words = sceneWords[i];
+          // Estado del transform de cámara VIGENTE. getBoundingClientRect
+          // refleja el transform del beat ANTERIOR → hay que DES-PROYECTAR la
+          // medición a coords body-local antes de calcular la cámara nueva.
+          // Sin esto, los beats 2+ de una escena quedaban doble-transformados
+          // (root cause de TODOS los "zoom/focus en posición incorrecta").
+          let cam = { tx: 0, ty: 0, s: 1 };
+          const computeCam = (c, sc2, overpan) => {
+            const vw = VIEWPORT.width, vh = VIEWPORT.height;
+            let tx = vw / 2 - c.cx * sc2, ty = vh / 2 - c.cy * sc2;
+            if (!overpan) {
+              tx = Math.min(0, Math.max(vw * (1 - sc2), tx));
+              ty = Math.min(0, Math.max(vh * (1 - sc2), ty));
+            }
+            return { tx, ty, s: sc2 };
+          };
+          const unproject = (r) => {
+            if (!r || (cam.s === 1 && !cam.tx && !cam.ty)) return r;
+            const o = { left: (r.left - cam.tx) / cam.s, top: (r.top - cam.ty) / cam.s, width: r.width / cam.s, height: r.height / cam.s };
+            o.cx = o.left + o.width / 2; o.cy = o.top + o.height / 2;
+            return o;
+          };
           for (let j = 0; j < sc.beats.length; j++) {
             const beat = sc.beats[j];
+            // syncWord: esperar a que el guion PRONUNCIE la palabra del beat.
+            await waitForGate(beatGateMs(words, beat), s);
             if (beat.scroll) {
               await page.evaluate(() => { document.body.style.transition = "none"; document.body.style.transform = "none"; document.documentElement.style.overflow = ""; });
               await sleep(140);
+              cam = { tx: 0, ty: 0, s: 1 };
             }
-            const [rect] = await measureTargets(page, [beat.target], !!beat.scroll);
+            const [rectRaw] = await measureTargets(page, [beat.target], !!beat.scroll);
+            const rect = unproject(rectRaw);
             if (beat.clickToOpen) {
               await cameraReset(page, 500);
+              cam = { tx: 0, ty: 0, s: 1 };
               await openMenuFocus(page, rect, beat);
             } else if (beat.click) {
               // Acción INLINE (ej. votar en una encuesta): reset a identidad,
@@ -466,20 +569,23 @@ async function main() {
               // enfoca `focusTarget` (ej. la card con el voto registrado).
               await page.evaluate(() => { document.body.style.transition = "none"; document.body.style.transform = "none"; document.documentElement.style.overflow = ""; });
               await sleep(160);
+              cam = { tx: 0, ty: 0, s: 1 };
               if (rect) await page.mouse.click(rect.cx, rect.cy);
               await sleep(beat.afterClickMs ?? 1300);
               const [r2] = await measureTargets(page, [beat.focusTarget ?? beat.target], !!beat.scroll);
               const fsc = fitScale(r2, beat.scale ?? 1.2);
               await cameraTo(page, r2, fsc, 600);
+              if (r2) cam = computeCam(r2, fsc, false);
               await focusOn(page, r2, beat.focus, fsc, beat.side);
-              await sleep(beat.hold ?? 3500);
+              await sleep(effectiveHold(words, sc.beats, j, s, beat.hold ?? 3500));
               await focusOff(page);
             } else {
               // Escala efectiva con auto-fit → nunca recorta el elemento.
               const fs = fitScale(rect, beat.scale ?? 1.5);
-              await cameraTo(page, rect, fs, 600);
-              await focusOn(page, rect, beat.focus, fs, beat.side);
-              await sleep(beat.hold ?? 1500);
+              await cameraTo(page, rect, fs, 600, !!beat.overpan);
+              if (rect) cam = computeCam(rect, fs, !!beat.overpan);
+              await focusOn(page, rect, beat.focus, fs, beat.side, !!beat.overpan);
+              await sleep(effectiveHold(words, sc.beats, j, s, beat.hold ?? 1500));
               await focusOff(page);
             }
           }

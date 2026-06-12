@@ -39,10 +39,10 @@
       "bufferMs": 800,
       "openDialog": "createbtn",
       "beats": [
-        { "target": "field:Título", "hold": 3000, "side": "right", "focus": { "title": "Título", "body": "Nombre de la evaluación." } },
-        { "target": "field:Descripción", "hold": 3000, "side": "right", "focus": { "title": "Descripción", "body": "Indicaciones generales." } },
-        { "target": "field:Fin", "hold": 3000, "side": "right", "focus": { "title": "Cierre", "body": "Fecha y hora límite." } },
-        { "target": "field:Navegación", "hold": 3200, "side": "right", "focus": { "title": "Navegación", "body": "Libre o secuencial entre preguntas." } }
+        { "target": "field:Título", "hold": 3000, "side": "right", "syncWord": "título", "focus": { "title": "Título", "body": "Nombre de la evaluación." } },
+        { "target": "field:Descripción", "hold": 3000, "side": "right", "syncWord": "descripción", "focus": { "title": "Descripción", "body": "Indicaciones generales." } },
+        { "target": "field:Fin", "hold": 3000, "side": "right", "syncWord": "fecha", "focus": { "title": "Cierre", "body": "Fecha y hora límite." } },
+        { "target": "field:Navegación", "hold": 4200, "side": "right", "syncWord": "navegación", "focus": { "title": "Navegación", "body": "Libre o secuencial entre preguntas." } }
       ]
     },
     {

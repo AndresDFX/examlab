@@ -35,6 +35,7 @@
           "scale": 1.6,
           "hold": 4200,
           "side": "right",
+          "syncWord": "operamos",
           "focus": {
             "title": "Tu rol",
             "body": "Operás como Estudiante."
@@ -49,13 +50,14 @@
       "bufferMs": 800,
       "beats": [
         {
-          "target": "stat:0",
-          "scale": 1.4,
+          "target": "statrow",
+          "scale": 1.2,
           "hold": 4500,
           "side": "bottom",
+          "syncWord": "pendiente",
           "focus": {
             "title": "Pendientes",
-            "body": "Exámenes, talleres y proyectos por hacer."
+            "body": "Próximos exámenes, talleres y proyectos por hacer."
           }
         },
         {
@@ -64,6 +66,7 @@
           "hold": 4500,
           "side": "bottom",
           "scroll": true,
+          "syncWord": "calendario",
           "focus": {
             "title": "Calendario",
             "body": "Todas tus fechas en un vistazo."

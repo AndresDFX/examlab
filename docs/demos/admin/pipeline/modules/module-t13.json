@@ -17,11 +17,12 @@
     {
       "id": "cuenta",
       "kind": "platform",
-      "narration": "Al pie del menú vive tu cuenta. El selector de rol cambia entre tus perfiles, reconfigurando lo que ves. La campana muestra las notificaciones; el sobre, los mensajes internos. Y al cerrar sesión, el contexto de la institución se limpia por completo.",
+      "narration": "Al pie del menú vive tu cuenta. La campana muestra las notificaciones; el sobre, los mensajes internos con estudiantes y colegas. Y al cerrar sesión, el contexto de la institución se limpia por completo.",
       "bufferMs": 900,
       "beats": [
-        { "target": "[data-tour-id=\"role-switcher\"]", "scale": 1.7, "hold": 5000, "side": "right", "focus": { "title": "Selector de rol", "body": "Cambia entre tus perfiles disponibles." } },
-        { "target": "footerbar", "scale": 1.8, "hold": 7000, "side": "right", "focus": { "title": "Notificaciones, mensajes y sesión", "body": "La campana muestra avisos; el sobre, los mensajes; y el último botón cierra la sesión." } }
+        { "target": "[data-tour-id=\"notifications-bell\"]", "scale": 2.1, "hold": 3200, "side": "right", "overpan": true, "syncWord": "campana", "focus": { "title": "Notificaciones", "body": "Avisos de entregas, mensajes y del sistema." } },
+        { "target": "[data-tour-id=\"messages-bell\"]", "scale": 2.1, "hold": 3200, "side": "right", "overpan": true, "syncWord": "sobre", "focus": { "title": "Mensajes", "body": "Comunicación con estudiantes y difusiones a cursos." } },
+        { "target": "[data-tour-id=\"logout\"]", "scale": 2.1, "hold": 4200, "side": "right", "overpan": true, "syncWord": "cerrar", "focus": { "title": "Cerrar sesión", "body": "Limpia por completo el contexto de la institución." } }
       ]
     },
     {

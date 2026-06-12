@@ -18,10 +18,10 @@
       "narration": "Al pie del menú vive tu cuenta. El selector de rol cambia entre tus perfiles —Administrador, Docente, Estudiante— reconfigurando lo que ves. La campana muestra las notificaciones; el sobre, los mensajes internos. Y al cerrar sesión, el contexto de la institución se limpia por completo.",
       "bufferMs": 900,
       "beats": [
-        { "target": "[data-tour-id=\"role-switcher\"]", "scale": 1.7, "hold": 8500, "side": "right", "focus": { "title": "Selector de rol", "body": "Cambia entre Administrador, Docente y Estudiante." } },
-        { "target": "[data-tour-id=\"notifications-bell\"]", "scale": 1.9, "hold": 3000, "side": "right", "focus": { "title": "Notificaciones", "body": "Avisos del sistema y de los usuarios." } },
-        { "target": "[data-tour-id=\"messages-bell\"]", "scale": 1.9, "hold": 3000, "side": "right", "focus": { "title": "Mensajes", "body": "Comunicación interna y difusiones a cursos." } },
-        { "target": "[data-tour-id=\"logout\"]", "scale": 1.9, "hold": 3800, "side": "right", "focus": { "title": "Cerrar sesión", "body": "Limpia por completo el contexto de la institución." } }
+        { "target": "[data-tour-id=\"role-switcher\"]", "scale": 1.7, "hold": 8500, "side": "right", "syncWord": "selector", "focus": { "title": "Selector de rol", "body": "Cambia entre Administrador, Docente y Estudiante." } },
+        { "target": "[data-tour-id=\"notifications-bell\"]", "scale": 2.1, "hold": 3000, "side": "right", "overpan": true, "syncWord": "campana", "focus": { "title": "Notificaciones", "body": "Avisos del sistema y de los usuarios." } },
+        { "target": "[data-tour-id=\"messages-bell\"]", "scale": 2.1, "hold": 3000, "side": "right", "overpan": true, "syncWord": "sobre", "focus": { "title": "Mensajes", "body": "Comunicación interna y difusiones a cursos." } },
+        { "target": "[data-tour-id=\"logout\"]", "scale": 2.1, "hold": 4200, "side": "right", "overpan": true, "syncWord": "cerrar", "focus": { "title": "Cerrar sesión", "body": "Limpia por completo el contexto de la institución." } }
       ]
     },
     {

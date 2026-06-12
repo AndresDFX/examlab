@@ -39,9 +39,9 @@
       "bufferMs": 800,
       "openDialog": "createbtn",
       "beats": [
-        { "target": "field:Título", "hold": 3000, "side": "right", "focus": { "title": "Título", "body": "Nombre del taller." } },
-        { "target": "field:Descripción", "hold": 3000, "side": "right", "focus": { "title": "Descripción", "body": "Resumen de la actividad." } },
-        { "target": "field:Instrucciones", "hold": 3400, "side": "right", "focus": { "title": "Instrucciones", "body": "Guía detallada para el estudiante." } }
+        { "target": "field:Título", "hold": 3000, "side": "right", "syncWord": "título", "focus": { "title": "Título", "body": "Nombre del taller." } },
+        { "target": "field:Descripción", "hold": 3000, "side": "right", "syncWord": "descripción", "focus": { "title": "Descripción", "body": "Resumen de la actividad." } },
+        { "target": "field:Instrucciones", "hold": 4400, "side": "right", "syncWord": "instrucciones", "focus": { "title": "Instrucciones", "body": "Guía detallada para el estudiante." } }
       ]
     },
     {
