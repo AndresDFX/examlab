@@ -1,0 +1,67 @@
+{
+  "id": "modulo-s09",
+  "title": "Pizarras (Estudiante)",
+  "series": "student",
+  "role": "Estudiante",
+  "appPath": "/app/student/whiteboards",
+  "readySelectors": [
+    "[data-tour-nav=\"/app/student/whiteboards\"]",
+    "text=Pizarras"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Pizarras compartidas, desde el rol Estudiante.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Pizarras",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 2200
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "Cuando el docente comparte una pizarra en vivo, el estudiante la ve actualizarse en tiempo real. Y si la pizarra es colaborativa, también puede dibujar en ella. Es un espacio para resolver ejercicios y explicar ideas en conjunto durante la clase.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "[data-tour-nav=\"/app/student/whiteboards\"]",
+          "scale": 1.5,
+          "hold": 3600,
+          "side": "right",
+          "focus": {
+            "title": "Pizarras",
+            "body": "Espacios de dibujo."
+          }
+        },
+        {
+          "target": "firstcard",
+          "scale": 1.12,
+          "hold": 5500,
+          "side": "bottom",
+          "focus": {
+            "title": "Pizarras compartidas",
+            "body": "Colaboración en vivo con el docente."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: el tutor con inteligencia artificial.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Siguiente módulo",
+        "subtitle": "Tutor IA"
+      },
+      "bufferMs": 2200
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "id": "modulo-s11",
+  "title": "Certificados (Estudiante)",
+  "series": "student",
+  "role": "Estudiante",
+  "appPath": "/app/student/certificates",
+  "readySelectors": [
+    "[data-tour-nav=\"/app/student/certificates\"]",
+    "text=Certificados"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Certificados de los cursos, desde el rol Estudiante.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Certificados",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 2200
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "Cuando el estudiante completa un curso que contempla certificación, su certificado aparece en esta sección. Desde aquí puede descargarlo en formato digital. Cada certificado incluye un código que permite verificar su autenticidad.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "[data-tour-nav=\"/app/student/certificates\"]",
+          "scale": 1.5,
+          "hold": 3600,
+          "side": "right",
+          "focus": {
+            "title": "Certificados",
+            "body": "Tus logros acreditados."
+          }
+        },
+        {
+          "target": "firstcard",
+          "scale": 1.12,
+          "hold": 5500,
+          "side": "bottom",
+          "focus": {
+            "title": "Tus certificados",
+            "body": "Descarga y verificación."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: el calendario.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Siguiente módulo",
+        "subtitle": "Calendario"
+      },
+      "bufferMs": 2200
+    }
+  ]
+}

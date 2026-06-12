@@ -1,0 +1,67 @@
+{
+  "id": "modulo-s03",
+  "title": "Exámenes (Estudiante)",
+  "series": "student",
+  "role": "Estudiante",
+  "appPath": "/app/student/exams",
+  "readySelectors": [
+    "[data-tour-nav=\"/app/student/exams\"]",
+    "text=Exámenes"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Presentación de exámenes, desde el rol Estudiante.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Exámenes",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 2200
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "El estudiante ve los exámenes que el docente le ha asignado, cada uno con su fecha y su duración. Cuando la evaluación está abierta, la presenta en un entorno controlado, con cronómetro y medidas de supervisión. Al terminar, puede consultar su resultado y la retroalimentación.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "[data-tour-nav=\"/app/student/exams\"]",
+          "scale": 1.5,
+          "hold": 3600,
+          "side": "right",
+          "focus": {
+            "title": "Exámenes",
+            "body": "Tus evaluaciones asignadas."
+          }
+        },
+        {
+          "target": "firstcard",
+          "scale": 1.18,
+          "hold": 5500,
+          "side": "bottom",
+          "focus": {
+            "title": "Tus exámenes",
+            "body": "Presentación con cronómetro y supervisión."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: los talleres.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Siguiente módulo",
+        "subtitle": "Talleres"
+      },
+      "bufferMs": 2200
+    }
+  ]
+}

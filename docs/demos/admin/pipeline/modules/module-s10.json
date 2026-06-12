@@ -1,0 +1,67 @@
+{
+  "id": "modulo-s10",
+  "title": "Tutor IA (Estudiante)",
+  "series": "student",
+  "role": "Estudiante",
+  "appPath": "/app/student/tutor",
+  "readySelectors": [
+    "[data-tour-nav=\"/app/student/tutor\"]",
+    "text=Tutor"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "El tutor con inteligencia artificial, desde el rol Estudiante.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Tutor IA",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 2200
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "El estudiante elige uno de sus cursos y conversa con un tutor de inteligencia artificial. El tutor conoce el material de ese curso, así que responde dudas y explica conceptos apoyándose en los contenidos que el docente compartió. Es un acompañamiento disponible en todo momento.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "[data-tour-nav=\"/app/student/tutor\"]",
+          "scale": 1.5,
+          "hold": 3600,
+          "side": "right",
+          "focus": {
+            "title": "Tutor IA",
+            "body": "Tu acompañante de estudio."
+          }
+        },
+        {
+          "target": "firstcard",
+          "scale": 1.12,
+          "hold": 5500,
+          "side": "bottom",
+          "focus": {
+            "title": "Tutor del curso",
+            "body": "Responde con base en el material del curso."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: los certificados.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Siguiente módulo",
+        "subtitle": "Certificados"
+      },
+      "bufferMs": 2200
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "id": "modulo-s07",
+  "title": "Asistencia (Estudiante)",
+  "series": "student",
+  "role": "Estudiante",
+  "appPath": "/app/student/attendance",
+  "readySelectors": [
+    "[data-tour-nav=\"/app/student/attendance\"]",
+    "text=Asistencia"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Registro de asistencia, desde el rol Estudiante.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Asistencia",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 2200
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "El estudiante revisa las sesiones de clase de cada uno de sus cursos. Cuando el docente abre el check-in, se marca presente escaneando un código que rota cada pocos segundos. Así su asistencia queda registrada al instante, sin pasar lista manual.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "[data-tour-nav=\"/app/student/attendance\"]",
+          "scale": 1.5,
+          "hold": 3600,
+          "side": "right",
+          "focus": {
+            "title": "Asistencia",
+            "body": "Tus sesiones de clase."
+          }
+        },
+        {
+          "target": "firstcard",
+          "scale": 1.12,
+          "hold": 5500,
+          "side": "bottom",
+          "focus": {
+            "title": "Tu asistencia",
+            "body": "Check-in con código rotativo."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: las encuestas.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Siguiente módulo",
+        "subtitle": "Encuestas"
+      },
+      "bufferMs": 2200
+    }
+  ]
+}

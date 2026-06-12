@@ -1,0 +1,67 @@
+{
+  "id": "modulo-s08",
+  "title": "Encuestas (Estudiante)",
+  "series": "student",
+  "role": "Estudiante",
+  "appPath": "/app/student/polls",
+  "readySelectors": [
+    "[data-tour-nav=\"/app/student/polls\"]",
+    "text=Encuestas"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Participación en encuestas, desde el rol Estudiante.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Encuestas",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 2200
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "El estudiante participa en las dinámicas que propone el docente. Puede votar en consultas de opinión, reservar un horario disponible o responder a los juegos tipo concurso en tiempo real. Es una forma ágil de participar durante la clase.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "[data-tour-nav=\"/app/student/polls\"]",
+          "scale": 1.5,
+          "hold": 3600,
+          "side": "right",
+          "focus": {
+            "title": "Encuestas",
+            "body": "Tu participación en clase."
+          }
+        },
+        {
+          "target": "firstcard",
+          "scale": 1.12,
+          "hold": 5500,
+          "side": "bottom",
+          "focus": {
+            "title": "Tus encuestas",
+            "body": "Opinión, reservas y concursos."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: las pizarras.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Siguiente módulo",
+        "subtitle": "Pizarras"
+      },
+      "bufferMs": 2200
+    }
+  ]
+}

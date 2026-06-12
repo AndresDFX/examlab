@@ -1,0 +1,67 @@
+{
+  "id": "modulo-s12",
+  "title": "Calendario (Estudiante)",
+  "series": "student",
+  "role": "Estudiante",
+  "appPath": "/app/student/calendar",
+  "readySelectors": [
+    "[data-tour-nav=\"/app/student/calendar\"]",
+    "text=Calendario"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "El calendario de eventos, desde el rol Estudiante.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Calendario",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 2200
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "El calendario reúne, en una sola vista, todas las fechas relevantes del estudiante. Clases, exámenes y entregas aparecen diferenciadas por tipo y color. Así el estudiante planifica su trabajo y no pierde de vista ningún compromiso.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "[data-tour-nav=\"/app/student/calendar\"]",
+          "scale": 1.5,
+          "hold": 3600,
+          "side": "right",
+          "focus": {
+            "title": "Calendario",
+            "body": "Tus fechas en un vistazo."
+          }
+        },
+        {
+          "target": "firstcard",
+          "scale": 1.1,
+          "hold": 5500,
+          "side": "bottom",
+          "focus": {
+            "title": "Tu calendario",
+            "body": "Clases, exámenes y entregas."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el último módulo del rol Estudiante: tu cuenta y la sesión.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Siguiente módulo",
+        "subtitle": "Cuenta y Sesión"
+      },
+      "bufferMs": 2200
+    }
+  ]
+}

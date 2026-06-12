@@ -1,0 +1,85 @@
+{
+  "id": "modulo-s01",
+  "title": "Panel del Estudiante",
+  "series": "student",
+  "role": "Estudiante",
+  "appPath": "/app",
+  "readySelectors": [
+    "[data-tour-id=\"role-switcher\"]",
+    "text=Próximas"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Demostración del rol Estudiante en ExamLab, sobre la institución Demo Global Corp.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Panel del Estudiante",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 2200
+    },
+    {
+      "id": "identidad",
+      "kind": "platform",
+      "narration": "El entorno mantiene la identidad de la institución. Ahora operamos como Estudiante: el menú muestra solo lo que el alumno necesita para aprender y mantenerse al día.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "[data-tour-id=\"role-switcher\"]",
+          "scale": 1.6,
+          "hold": 4200,
+          "side": "right",
+          "focus": {
+            "title": "Tu rol",
+            "body": "Operás como Estudiante."
+          }
+        }
+      ]
+    },
+    {
+      "id": "panel",
+      "kind": "platform",
+      "narration": "El panel de inicio reúne, en una sola vista, el calendario de eventos y la agenda con las próximas clases y exámenes. Es el punto de partida para saber, de un vistazo, qué tiene pendiente el estudiante.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "firstcard",
+          "scale": 1.12,
+          "hold": 4800,
+          "side": "bottom",
+          "focus": {
+            "title": "Tu panel",
+            "body": "Calendario y pendientes."
+          }
+        },
+        {
+          "target": "text:Próximas",
+          "scale": 1.3,
+          "hold": 4500,
+          "side": "bottom",
+          "focus": {
+            "title": "Agenda",
+            "body": "Próximas clases y exámenes."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: tus cursos.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Siguiente módulo",
+        "subtitle": "Mis Cursos"
+      },
+      "bufferMs": 2200
+    }
+  ]
+}

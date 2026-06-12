@@ -68,7 +68,12 @@ async function waitReady(page, selectors) {
   for (const s of sels) {
     await page.locator(s).first().waitFor({ timeout: 20000 }).catch(() => {});
   }
-  await page.waitForTimeout(400);
+  // Espera a que las queries de datos de la página terminen (varias vistas del
+  // estudiante hacen N+1 fetches y muestran "Cargando…" varios segundos). Sin
+  // esto, los beats miden la página vacía / en spinner. El websocket de Supabase
+  // realtime no cuenta como request, así que networkidle se alcanza al cuajar.
+  await page.waitForLoadState("networkidle", { timeout: 12000 }).catch(() => {});
+  await page.waitForTimeout(500);
 }
 async function killTour(page) {
   try { await page.addStyleTag({ content: ".driver-popover,.driver-overlay,.driver-overlay-animated,.driver-active-element{display:none !important;}" }); } catch {}

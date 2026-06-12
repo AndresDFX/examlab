@@ -1,0 +1,67 @@
+{
+  "id": "modulo-s06",
+  "title": "Mis Notas (Estudiante)",
+  "series": "student",
+  "role": "Estudiante",
+  "appPath": "/app/student/grades",
+  "readySelectors": [
+    "[data-tour-nav=\"/app/student/grades\"]",
+    "text=Calificaciones"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Consulta de calificaciones, desde el rol Estudiante.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Mis Notas",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 2200
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "El estudiante consulta sus calificaciones de cada curso, organizadas por corte. La vista muestra el aporte de cada examen, taller y proyecto al consolidado. Y al final, la nota definitiva del curso, ponderada según el esquema de evaluación.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "[data-tour-nav=\"/app/student/grades\"]",
+          "scale": 1.5,
+          "hold": 3600,
+          "side": "right",
+          "focus": {
+            "title": "Calificaciones",
+            "body": "Tu desempeño por curso."
+          }
+        },
+        {
+          "target": "firstcard",
+          "scale": 1.12,
+          "hold": 5500,
+          "side": "bottom",
+          "focus": {
+            "title": "Tus notas",
+            "body": "Consolidado por corte y nota final."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: la asistencia.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Siguiente módulo",
+        "subtitle": "Asistencia"
+      },
+      "bufferMs": 2200
+    }
+  ]
+}

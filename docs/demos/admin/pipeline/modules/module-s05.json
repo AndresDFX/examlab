@@ -1,0 +1,67 @@
+{
+  "id": "modulo-s05",
+  "title": "Proyectos (Estudiante)",
+  "series": "student",
+  "role": "Estudiante",
+  "appPath": "/app/student/projects",
+  "readySelectors": [
+    "[data-tour-nav=\"/app/student/projects\"]",
+    "text=Proyectos"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Entrega de proyectos, desde el rol Estudiante.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Proyectos",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 2200
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "Los proyectos son entregas más amplias, a menudo en grupo. El estudiante sube sus archivos y el enlace al repositorio de su trabajo. La nota final combina la calificación de la entrega con la sustentación ante el docente.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "[data-tour-nav=\"/app/student/projects\"]",
+          "scale": 1.5,
+          "hold": 3600,
+          "side": "right",
+          "focus": {
+            "title": "Proyectos",
+            "body": "Tus entregas mayores."
+          }
+        },
+        {
+          "target": "firstcard",
+          "scale": 1.15,
+          "hold": 5500,
+          "side": "bottom",
+          "focus": {
+            "title": "Tus proyectos",
+            "body": "Entrega, repositorio y sustentación."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: tus notas.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Siguiente módulo",
+        "subtitle": "Mis Notas"
+      },
+      "bufferMs": 2200
+    }
+  ]
+}

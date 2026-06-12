@@ -1,0 +1,67 @@
+{
+  "id": "modulo-s04",
+  "title": "Talleres (Estudiante)",
+  "series": "student",
+  "role": "Estudiante",
+  "appPath": "/app/student/workshops",
+  "readySelectors": [
+    "[data-tour-nav=\"/app/student/workshops\"]",
+    "text=Talleres"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Entrega de talleres, desde el rol Estudiante.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Talleres",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 2200
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "Los talleres son actividades prácticas con entrega y calificación. El estudiante revisa las instrucciones, desarrolla su trabajo y lo entrega antes de la fecha límite. Después recibe su nota y la retroalimentación detallada del docente.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "[data-tour-nav=\"/app/student/workshops\"]",
+          "scale": 1.5,
+          "hold": 3600,
+          "side": "right",
+          "focus": {
+            "title": "Talleres",
+            "body": "Tus actividades prácticas."
+          }
+        },
+        {
+          "target": "firstcard",
+          "scale": 1.15,
+          "hold": 5500,
+          "side": "bottom",
+          "focus": {
+            "title": "Tus talleres",
+            "body": "Entrega y retroalimentación."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: los proyectos.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Siguiente módulo",
+        "subtitle": "Proyectos"
+      },
+      "bufferMs": 2200
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "id": "modulo-s02",
+  "title": "Mis Cursos (Estudiante)",
+  "series": "student",
+  "role": "Estudiante",
+  "appPath": "/app/student/courses",
+  "readySelectors": [
+    "[data-tour-nav=\"/app/student/courses\"]",
+    "text=Cursos"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Tus cursos, desde el rol Estudiante.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Mis Cursos",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 2200
+    },
+    {
+      "id": "vista",
+      "kind": "platform",
+      "narration": "Aquí el estudiante encuentra los cursos en los que está matriculado. Al entrar a un curso accede a su tablero, con el material de clase organizado por sesión. Desde ahí consulta documentos, videos y recursos que el docente comparte a lo largo del periodo.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "[data-tour-nav=\"/app/student/courses\"]",
+          "scale": 1.5,
+          "hold": 3600,
+          "side": "right",
+          "focus": {
+            "title": "Mis cursos",
+            "body": "Donde vive cada curso."
+          }
+        },
+        {
+          "target": "firstcard",
+          "scale": 1.12,
+          "hold": 5500,
+          "side": "bottom",
+          "focus": {
+            "title": "Tus cursos",
+            "body": "Material y sesiones de cada curso."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el siguiente módulo: tus exámenes.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Siguiente módulo",
+        "subtitle": "Exámenes"
+      },
+      "bufferMs": 2200
+    }
+  ]
+}

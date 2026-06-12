@@ -26,12 +26,12 @@
     {
       "id": "crear",
       "kind": "platform",
-      "narration": "Al generar contenido se elige el tipo de material, el curso al que pertenece y el idioma de redacción.",
+      "narration": "Al generar contenido se define el nombre del material, el tema a desarrollar y el idioma de redacción.",
       "bufferMs": 800,
       "openDialog": "createbtn",
       "beats": [
-        { "target": "field:Tipo de evaluación", "hold": 3200, "side": "right", "focus": { "title": "Tipo de material", "body": "El formato a generar." } },
-        { "target": "field:Curso", "hold": 3000, "side": "right", "focus": { "title": "Curso", "body": "A qué curso se asigna." } },
+        { "target": "field:Nombre", "hold": 3200, "side": "right", "focus": { "title": "Nombre del contenido", "body": "Cómo se titula el material." } },
+        { "target": "field:Tema", "hold": 3200, "side": "right", "focus": { "title": "Tema", "body": "Qué se desarrollará." } },
         { "target": "field:Idioma", "hold": 3000, "side": "right", "focus": { "title": "Idioma", "body": "Idioma del contenido." } }
       ]
     },

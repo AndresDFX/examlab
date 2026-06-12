@@ -15,21 +15,21 @@
       "bufferMs": 600
     },
     {
-      "id": "vista",
+      "id": "sesiones",
       "kind": "platform",
-      "narration": "Cada curso organiza sus clases en sesiones, con su fecha y duración. La asistencia de cada corte se calcula a partir de estas sesiones.",
+      "narration": "Cada clase se registra como una sesión. El docente las crea una a una o las programa en bloque para todo el periodo.",
       "bufferMs": 800,
       "beats": [
-        { "target": "row:0", "scale": 1.0, "hold": 4000, "side": "bottom", "focus": { "title": "Sesiones de clase", "body": "Fecha, hora y duración." } }
+        { "target": "text:Nueva sesión", "scale": 1.4, "hold": 4000, "side": "bottom", "focus": { "title": "Sesiones de clase", "body": "Crear o programar las clases del curso." } }
       ]
     },
     {
-      "id": "acciones",
+      "id": "matriz",
       "kind": "platform",
-      "narration": "Desde cada sesión, el docente abre el check-in con código rotativo para que los estudiantes se marquen presentes, comparte una pizarra o snippets de código, y duplica la sesión.",
-      "bufferMs": 700,
+      "narration": "La asistencia se consolida por estudiante y alimenta el porcentaje de cada corte. Cuando el docente abre el check-in, los estudiantes se marcan presentes con un código que rota cada pocos segundos.",
+      "bufferMs": 800,
       "beats": [
-        { "target": "rowaction:0", "clickToOpen": true, "hold": 5200 }
+        { "target": "firstcard", "scale": 1.1, "hold": 5200, "side": "bottom", "focus": { "title": "Registro por sesión", "body": "Presente o ausente, y el porcentaje por corte." } }
       ]
     },
     {
