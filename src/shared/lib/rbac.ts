@@ -30,6 +30,9 @@ export const ROUTE_RULES: RouteRule[] = [
   // /app/teacher/* solo por historia; mover el path implicaría
   // routeTree.gen.ts + breaking links externos.
   { prefix: "/app/teacher/contents", roles: ["Docente", "Admin", "SuperAdmin"] },
+  // Tablero del curso (página, ex-modal CourseBoardDialog): se abre desde el
+  // grid de cursos tanto del Docente como del Admin/SA — los tres pasan.
+  { prefix: "/app/teacher/board", roles: ["Docente", "Admin", "SuperAdmin"] },
   // `/app/teacher/whiteboards` y `/app/teacher/polls` también relajados
   // a SuperAdmin para que pueda revisarlos cross-tenant (paridad con
   // contents). RLS filtra por owner_id / course visibility — el SA solo

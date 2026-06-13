@@ -368,6 +368,11 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
   const { t } = useTranslation();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [contents, setContents] = useState<Record<string, ContentRow>>({});
+  // Material GENERAL del curso: contenidos asignados al curso (fila en
+  // content_course_assignments) que NO están atados a ninguna sesión — ej.
+  // lo subido desde el Tablero del docente con destino "general". La RLS
+  // (migración 20260938000000) solo devuelve los publicados.
+  const [globalContents, setGlobalContents] = useState<ContentRow[]>([]);
   const [brand, setBrand] = useState<BrandRow | null>(null);
   const [attendance, setAttendance] = useState<Map<string, AttendanceStatus>>(new Map());
   const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
@@ -399,20 +404,40 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       const sessRows = (ses ?? []) as SessionRow[];
       setSessions(sessRows);
 
-      // 2. Contenidos asignados — RLS abre lectura via session-link
-      const contentIds = Array.from(
+      // 2. Contenidos: los asignados a sesiones (RLS via session-link) + el
+      // material GENERAL del curso (content_course_assignments; RLS via
+      // course-link solo si está publicado). Una sola query por la unión.
+      const { data: ccaRows } = await db
+        .from("content_course_assignments")
+        .select("content_id")
+        .eq("course_id", course.id);
+      const ccaIds = Array.from(
+        new Set(((ccaRows ?? []) as Array<{ content_id: string }>).map((r) => r.content_id)),
+      );
+      const sessionContentIds = Array.from(
         new Set(sessRows.map((s) => s.content_id).filter((x): x is string => !!x)),
       );
-      if (contentIds.length > 0) {
+      const allContentIds = Array.from(new Set([...sessionContentIds, ...ccaIds]));
+      const map: Record<string, ContentRow> = {};
+      if (allContentIds.length > 0) {
         const { data: cs } = await db
           .from("generated_contents")
           .select("id, topic, mode, duration_minutes, modality, files, release_after_session_date")
-          .in("id", contentIds)
+          .in("id", allContentIds)
           .is("deleted_at", null);
-        const map: Record<string, ContentRow> = {};
         for (const c of (cs ?? []) as ContentRow[]) map[c.id] = c;
-        setContents(map);
       }
+      setContents(map);
+      // Global = asignado al curso pero a NINGUNA sesión (las sesiones ya
+      // muestran el suyo). Si la RLS no lo devolvió (no publicado), se cae
+      // con el filter(Boolean).
+      const sessionSet = new Set(sessionContentIds);
+      setGlobalContents(
+        ccaIds
+          .filter((id) => !sessionSet.has(id))
+          .map((id) => map[id])
+          .filter((c): c is ContentRow => !!c),
+      );
 
       // 3. Marca institucional para construir el .pptx en cliente
       const { data: br } = await db.from("content_brand_config").select("*").maybeSingle();
@@ -663,6 +688,49 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
         </CardHeader>
       </Card>
 
+      {/* Material GENERAL del curso — contenidos publicados asignados al
+          curso sin sesión específica (ej. subidos desde el Tablero del
+          docente con destino "Material general"). Visible SIEMPRE, arriba
+          del cronograma. */}
+      {globalContents.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            {t("courseBoard.courseMaterial", { defaultValue: "Material del curso" })}
+          </h2>
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              {globalContents.map((c) => {
+                const visible = c.files.filter((f) => !isTeacherOnlyFile(f.name));
+                if (visible.length === 0) return null;
+                return (
+                  <div key={c.id} className="space-y-1.5">
+                    <div className="text-xs text-muted-foreground flex items-center gap-1">
+                      <FileText className="h-3 w-3" />
+                      {c.topic}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {visible.map((f) => (
+                        <ContentFileChip
+                          key={f.path}
+                          file={f}
+                          topic={c.topic}
+                          onDownload={downloadFile}
+                          onPreview={setPreviewFile}
+                          onRunCode={setRunCodeFile}
+                          onOpenNotebook={setNotebookFile}
+                          onViewMedia={setMediaFile}
+                          downloadingPath={downloadingPath}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {sessions.length === 0 ? (
         <EmptyState text={t("courseBoard.noSessions")} icon={Calendar} />
       ) : (
@@ -883,149 +951,19 @@ function SessionGroup({
 
                 {files.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-2 border-t">
-                    {files.map((f) => {
-                      const busy = downloadingPath === f.path;
-                      const canPreview = (f.kind === "md" || f.kind === "txt") && !!f.body;
-                      // Archivo de código subido (.java/.py/.js) con su texto
-                      // inline en body → se puede ver + ejecutar en la sesión.
-                      const canRunCode = !!codeLanguageForFile(f.name) && !!f.body;
-                      // Notebook .ipynb con su JSON inline → ver celdas + ejecutar.
-                      const canOpenNotebook = isNotebookFile(f.name) && !!f.body;
-                      // Imagen / PDF → se ven inline en el visor (antes solo
-                      // se descargaban). Detección por extensión del nombre.
-                      const canViewMedia = isViewableMedia(f.name);
-                      const TypeIcon = iconForFile(f);
-                      const label = humanLabelForFile(f);
-                      if (canOpenNotebook) {
-                        return (
-                          <div
-                            key={f.path}
-                            className="inline-flex rounded-md border overflow-hidden"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => onOpenNotebook(f)}
-                              className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
-                              title={`${f.name} — Abrir y ejecutar notebook`}
-                              aria-label={`${f.name} — Abrir y ejecutar notebook`}
-                            >
-                              <NotebookPen className="h-3.5 w-3.5 text-orange-500" />
-                              <span className="truncate max-w-[120px]">{f.name}</span>
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => onDownload(f, content?.topic ?? s.title ?? "Material")}
-                              className="flex items-center justify-center w-8 h-8 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
-                              title={`${f.name} — ${t("contents.downloadHint")}`}
-                              aria-label={`${f.name} — ${t("contents.downloadHint")}`}
-                            >
-                              {busy ? <Spinner size="xs" /> : <Download className="h-3.5 w-3.5" />}
-                            </button>
-                          </div>
-                        );
-                      }
-                      if (canRunCode) {
-                        return (
-                          <div
-                            key={f.path}
-                            className="inline-flex rounded-md border overflow-hidden"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => onRunCode(f)}
-                              className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
-                              title={`${f.name} — Ver y ejecutar`}
-                              aria-label={`${f.name} — Ver y ejecutar`}
-                            >
-                              <Play className="h-3.5 w-3.5 text-indigo-500" />
-                              <span className="truncate max-w-[120px]">{f.name}</span>
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => onDownload(f, content?.topic ?? s.title ?? "Material")}
-                              className="flex items-center justify-center w-8 h-8 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
-                              title={`${f.name} — ${t("contents.downloadHint")}`}
-                              aria-label={`${f.name} — ${t("contents.downloadHint")}`}
-                            >
-                              {busy ? <Spinner size="xs" /> : <Download className="h-3.5 w-3.5" />}
-                            </button>
-                          </div>
-                        );
-                      }
-                      if (canPreview) {
-                        return (
-                          <div
-                            key={f.path}
-                            className="inline-flex rounded-md border overflow-hidden"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => onPreview(f)}
-                              className="flex items-center justify-center w-8 h-8 hover:bg-muted/60 transition-colors"
-                              title={`${label} — ${t("contents.previewHint")}`}
-                              aria-label={`${label} — ${t("contents.previewHint")}`}
-                            >
-                              <TypeIcon className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => onDownload(f, content?.topic ?? s.title ?? "Material")}
-                              className="flex items-center justify-center w-8 h-8 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
-                              title={`${label} — ${t("contents.downloadHint")}`}
-                              aria-label={`${label} — ${t("contents.downloadHint")}`}
-                            >
-                              {busy ? <Spinner size="xs" /> : <Download className="h-3.5 w-3.5" />}
-                            </button>
-                          </div>
-                        );
-                      }
-                      if (canViewMedia) {
-                        return (
-                          <div
-                            key={f.path}
-                            className="inline-flex rounded-md border overflow-hidden"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => onViewMedia(f)}
-                              className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
-                              title={`${f.name} — ${isImageFile(f.name) ? t("mediaViewer.viewImage") : t("mediaViewer.viewPdf")}`}
-                              aria-label={`${f.name} — ${isImageFile(f.name) ? t("mediaViewer.viewImage") : t("mediaViewer.viewPdf")}`}
-                            >
-                              <TypeIcon className="h-3.5 w-3.5 text-violet-500" />
-                              <span className="truncate max-w-[120px]">{f.name}</span>
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => onDownload(f, content?.topic ?? s.title ?? "Material")}
-                              className="flex items-center justify-center w-8 h-8 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
-                              title={`${f.name} — ${t("contents.downloadHint")}`}
-                              aria-label={`${f.name} — ${t("contents.downloadHint")}`}
-                            >
-                              {busy ? <Spinner size="xs" /> : <Download className="h-3.5 w-3.5" />}
-                            </button>
-                          </div>
-                        );
-                      }
-                      return (
-                        <Button
-                          key={f.path}
-                          size="icon"
-                          variant="outline"
-                          className="h-8 w-8"
-                          disabled={busy}
-                          onClick={() => onDownload(f, content?.topic ?? s.title ?? "Material")}
-                          title={`${label} — ${t("contents.downloadHint")}`}
-                          aria-label={`${label} — ${t("contents.downloadHint")}`}
-                        >
-                          {busy ? <Spinner size="xs" /> : <TypeIcon className="h-3.5 w-3.5" />}
-                        </Button>
-                      );
-                    })}
+                    {files.map((f) => (
+                      <ContentFileChip
+                        key={f.path}
+                        file={f}
+                        topic={content?.topic ?? s.title ?? "Material"}
+                        onDownload={onDownload}
+                        onPreview={onPreview}
+                        onRunCode={onRunCode}
+                        onOpenNotebook={onOpenNotebook}
+                        onViewMedia={onViewMedia}
+                        downloadingPath={downloadingPath}
+                      />
+                    ))}
                   </div>
                 )}
 
@@ -1071,6 +1009,138 @@ function SessionGroup({
         })}
       </div>
     </div>
+  );
+}
+
+/** Chip de UN archivo de contenido con su acción primaria (abrir notebook /
+ *  ejecutar código / preview / ver media) + descarga. Extraído del render
+ *  inline de SessionGroup para reusarlo en la sección "Material del curso"
+ *  (material general, sin sesión) con el MISMO comportamiento. */
+function ContentFileChip({
+  file: f,
+  topic,
+  onDownload,
+  onPreview,
+  onRunCode,
+  onOpenNotebook,
+  onViewMedia,
+  downloadingPath,
+}: {
+  file: ContentFileEntry;
+  /** Nombre del contenido/sesión — va al builder del PPTX al descargar. */
+  topic: string;
+  onDownload: (file: ContentFileEntry, topic: string) => Promise<void>;
+  onPreview: (file: ContentFileEntry) => void;
+  onRunCode: (file: ContentFileEntry) => void;
+  onOpenNotebook: (file: ContentFileEntry) => void;
+  onViewMedia: (file: ContentFileEntry) => void;
+  downloadingPath: string | null;
+}) {
+  const { t } = useTranslation();
+  const busy = downloadingPath === f.path;
+  const canPreview = (f.kind === "md" || f.kind === "txt") && !!f.body;
+  // Archivo de código subido (.java/.py/.js) con su texto inline en body →
+  // se puede ver + ejecutar.
+  const canRunCode = !!codeLanguageForFile(f.name) && !!f.body;
+  // Notebook .ipynb con su JSON inline → ver celdas + ejecutar.
+  const canOpenNotebook = isNotebookFile(f.name) && !!f.body;
+  // Imagen / PDF → se ven inline en el visor.
+  const canViewMedia = isViewableMedia(f.name);
+  const TypeIcon = iconForFile(f);
+  const label = humanLabelForFile(f);
+
+  const downloadBtn = (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={() => onDownload(f, topic)}
+      className="flex items-center justify-center w-8 h-8 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
+      title={`${f.name} — ${t("contents.downloadHint")}`}
+      aria-label={`${f.name} — ${t("contents.downloadHint")}`}
+    >
+      {busy ? <Spinner size="xs" /> : <Download className="h-3.5 w-3.5" />}
+    </button>
+  );
+
+  if (canOpenNotebook) {
+    return (
+      <div className="inline-flex rounded-md border overflow-hidden">
+        <button
+          type="button"
+          onClick={() => onOpenNotebook(f)}
+          className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
+          title={`${f.name} — Abrir y ejecutar notebook`}
+          aria-label={`${f.name} — Abrir y ejecutar notebook`}
+        >
+          <NotebookPen className="h-3.5 w-3.5 text-orange-500" />
+          <span className="truncate max-w-[120px]">{f.name}</span>
+        </button>
+        {downloadBtn}
+      </div>
+    );
+  }
+  if (canRunCode) {
+    return (
+      <div className="inline-flex rounded-md border overflow-hidden">
+        <button
+          type="button"
+          onClick={() => onRunCode(f)}
+          className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
+          title={`${f.name} — Ver y ejecutar`}
+          aria-label={`${f.name} — Ver y ejecutar`}
+        >
+          <Play className="h-3.5 w-3.5 text-indigo-500" />
+          <span className="truncate max-w-[120px]">{f.name}</span>
+        </button>
+        {downloadBtn}
+      </div>
+    );
+  }
+  if (canPreview) {
+    return (
+      <div className="inline-flex rounded-md border overflow-hidden">
+        <button
+          type="button"
+          onClick={() => onPreview(f)}
+          className="flex items-center justify-center w-8 h-8 hover:bg-muted/60 transition-colors"
+          title={`${label} — ${t("contents.previewHint")}`}
+          aria-label={`${label} — ${t("contents.previewHint")}`}
+        >
+          <TypeIcon className="h-3.5 w-3.5" />
+        </button>
+        {downloadBtn}
+      </div>
+    );
+  }
+  if (canViewMedia) {
+    return (
+      <div className="inline-flex rounded-md border overflow-hidden">
+        <button
+          type="button"
+          onClick={() => onViewMedia(f)}
+          className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
+          title={`${f.name} — ${isImageFile(f.name) ? t("mediaViewer.viewImage") : t("mediaViewer.viewPdf")}`}
+          aria-label={`${f.name} — ${isImageFile(f.name) ? t("mediaViewer.viewImage") : t("mediaViewer.viewPdf")}`}
+        >
+          <TypeIcon className="h-3.5 w-3.5 text-violet-500" />
+          <span className="truncate max-w-[120px]">{f.name}</span>
+        </button>
+        {downloadBtn}
+      </div>
+    );
+  }
+  return (
+    <Button
+      size="icon"
+      variant="outline"
+      className="h-8 w-8"
+      disabled={busy}
+      onClick={() => onDownload(f, topic)}
+      title={`${label} — ${t("contents.downloadHint")}`}
+      aria-label={`${label} — ${t("contents.downloadHint")}`}
+    >
+      {busy ? <Spinner size="xs" /> : <TypeIcon className="h-3.5 w-3.5" />}
+    </Button>
   );
 }
 

@@ -1,6 +1,7 @@
 /**
- * Subida rápida de contenido desde el TABLERO del docente (CourseBoardDialog),
- * sin pasar por el módulo de Contenidos ni su formulario completo.
+ * Subida rápida de contenido desde el TABLERO del curso (página
+ * /app/teacher/board/$courseId), sin pasar por el módulo de Contenidos ni su
+ * formulario completo.
  *
  * Reusa el mismo destino que `UploadExternalContentDialog`:
  *   - Fila en `generated_contents` (status='done', is_published=true) anclada
@@ -75,6 +76,8 @@ export type BoardUploadResult = {
   contentId: string | null;
   displayName: string;
   uploaded: number;
+  /** Paths en Storage de los archivos que SÍ subieron (en orden). */
+  uploadedPaths: string[];
   /** Archivos descartados por validación (extensión/tamaño). */
   skipped: { name: string; reason: "ext" | "size" | "total" }[];
   /** Archivos que pasaron validación pero fallaron al subir a Storage. */
@@ -83,24 +86,11 @@ export type BoardUploadResult = {
   error?: string;
 };
 
-/**
- * Sube N archivos como UN contenido del curso. Devuelve un resumen para que el
- * caller arme el toast. Best-effort por archivo: los que fallan se reportan,
- * los demás suben. Si NINGÚN archivo válido sube, borra la fila huérfana.
- */
-export async function uploadBoardContent(params: {
-  userId: string;
-  courseId: string;
-  courseName: string;
-  files: File[];
-  displayName: string;
-  language?: string;
-}): Promise<BoardUploadResult> {
-  const { userId, courseId, courseName, files, displayName, language = "es" } = params;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any;
-
-  // 1) Validación de extensión + tamaño (per-file y total).
+/** Validación compartida de extensión + tamaño (per-file y total). */
+function validateBoardFiles(files: File[]): {
+  valid: File[];
+  skipped: BoardUploadResult["skipped"];
+} {
   const skipped: BoardUploadResult["skipped"] = [];
   const valid: File[] = [];
   let totalBytes = 0;
@@ -120,12 +110,64 @@ export async function uploadBoardContent(params: {
     totalBytes += f.size;
     valid.push(f);
   }
+  return { valid, skipped };
+}
+
+/** Sube UN archivo al folder del contenido + arma su entry de files[].
+ *  Devuelve null si Storage rechazó la subida. `upsert: true` — re-subir el
+ *  mismo nombre reemplaza la versión anterior (misma semántica in-place que
+ *  los editores de contenido). */
+async function uploadOneFile(
+  userId: string,
+  contentId: string,
+  f: File,
+): Promise<{ name: string; path: string; kind: string; body?: string } | null> {
+  const path = `${userId}/${contentId}/${slugifyFilename(f.name)}`;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: upErr } = await (supabase.storage as any)
+    .from(BOARD_CONTENT_BUCKET)
+    .upload(path, f, { upsert: true, contentType: f.type || undefined });
+  if (upErr) return null;
+  const lower = f.name.toLowerCase();
+  let body: string | undefined;
+  if (INLINE_BODY_EXTENSIONS.some((ext) => lower.endsWith(ext))) {
+    try {
+      let text = await f.text();
+      if (lower.endsWith(".ipynb")) text = stripNotebookOutputs(text);
+      body = text.length > MAX_INLINE_BODY_CHARS ? text.slice(0, MAX_INLINE_BODY_CHARS) : text;
+    } catch {
+      /* sin body — degrada a descargable */
+    }
+  }
+  return { name: f.name, path, kind: "uploaded", ...(body !== undefined ? { body } : {}) };
+}
+
+/**
+ * Sube N archivos como UN contenido del curso. Devuelve un resumen para que el
+ * caller arme el toast. Best-effort por archivo: los que fallan se reportan,
+ * los demás suben. Si NINGÚN archivo válido sube, borra la fila huérfana.
+ */
+export async function uploadBoardContent(params: {
+  userId: string;
+  courseId: string;
+  courseName: string;
+  files: File[];
+  displayName: string;
+  language?: string;
+}): Promise<BoardUploadResult> {
+  const { userId, courseId, courseName, files, displayName, language = "es" } = params;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+
+  // 1) Validación de extensión + tamaño (per-file y total).
+  const { valid, skipped } = validateBoardFiles(files);
 
   if (valid.length === 0) {
     return {
       contentId: null,
       displayName,
       uploaded: 0,
+      uploadedPaths: [],
       skipped,
       failed: [],
       error: "no_valid_files",
@@ -155,6 +197,7 @@ export async function uploadBoardContent(params: {
       contentId: null,
       displayName,
       uploaded: 0,
+      uploadedPaths: [],
       skipped,
       failed: [],
       error: insErr?.message ?? "insert_failed",
@@ -166,44 +209,149 @@ export async function uploadBoardContent(params: {
   const uploaded: Array<{ name: string; path: string; kind: string; body?: string }> = [];
   const failed: string[] = [];
   for (const f of valid) {
-    const path = `${userId}/${contentId}/${slugifyFilename(f.name)}`;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: upErr } = await (supabase.storage as any)
-      .from(BOARD_CONTENT_BUCKET)
-      .upload(path, f, { upsert: false, contentType: f.type || undefined });
-    if (upErr) {
-      failed.push(f.name);
-      continue;
-    }
-    const lower = f.name.toLowerCase();
-    let body: string | undefined;
-    if (INLINE_BODY_EXTENSIONS.some((ext) => lower.endsWith(ext))) {
-      try {
-        let text = await f.text();
-        if (lower.endsWith(".ipynb")) text = stripNotebookOutputs(text);
-        body = text.length > MAX_INLINE_BODY_CHARS ? text.slice(0, MAX_INLINE_BODY_CHARS) : text;
-      } catch {
-        /* sin body — degrada a descargable */
-      }
-    }
-    uploaded.push({ name: f.name, path, kind: "uploaded", ...(body !== undefined ? { body } : {}) });
+    const entry = await uploadOneFile(userId, contentId, f);
+    if (entry) uploaded.push(entry);
+    else failed.push(f.name);
   }
 
   if (uploaded.length === 0) {
     // Todo falló al subir → borrar la fila para no dejarla huérfana.
     await db.from("generated_contents").delete().eq("id", contentId);
-    return { contentId: null, displayName, uploaded: 0, skipped, failed, error: "all_uploads_failed" };
+    return {
+      contentId: null,
+      displayName,
+      uploaded: 0,
+      uploadedPaths: [],
+      skipped,
+      failed,
+      error: "all_uploads_failed",
+    };
   }
 
   // 4) Guardar el listado de archivos subidos.
   await db.from("generated_contents").update({ files: uploaded }).eq("id", contentId);
 
   // 5) Junction N-N con el curso (el ancla `course_id` ya está; esto lo hace
-  //    visible por el flujo de assignments). Best-effort.
+  //    visible por el flujo de assignments Y abre la lectura RLS del material
+  //    "general del curso" a los estudiantes matriculados — ver migración
+  //    20260938000000_course_material_global_visibility). Best-effort.
   await db
     .from("content_course_assignments")
     .insert({ content_id: contentId, course_id: courseId, created_by: userId });
 
   void courseName; // (queda disponible para futuros usos del resumen)
-  return { contentId, displayName, uploaded: uploaded.length, skipped, failed };
+  return {
+    contentId,
+    displayName,
+    uploaded: uploaded.length,
+    uploadedPaths: uploaded.map((u) => u.path),
+    skipped,
+    failed,
+  };
+}
+
+/**
+ * AGREGA archivos a un contenido EXISTENTE (caso "subir más material a una
+ * clase que ya tiene contenido asignado"). Sube al folder del contenido,
+ * mergea files[] por path (re-subir el mismo nombre reemplaza la entry) y
+ * devuelve los paths subidos para que el caller extienda la visibilidad de la
+ * sesión (content_file_paths) si aplica.
+ *
+ * RLS: el UPDATE de generated_contents exige ser el dueño (teacher_id) o
+ * Admin — si falla, el caller muestra el error y no se tocó la sesión.
+ */
+export async function appendBoardContentFiles(params: {
+  userId: string;
+  contentId: string;
+  files: File[];
+}): Promise<BoardUploadResult> {
+  const { userId, contentId, files } = params;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+
+  const { valid, skipped } = validateBoardFiles(files);
+  if (valid.length === 0) {
+    return {
+      contentId,
+      displayName: "",
+      uploaded: 0,
+      uploadedPaths: [],
+      skipped,
+      failed: [],
+      error: "no_valid_files",
+    };
+  }
+
+  // Fila actual — necesitamos files[] para mergear y display_name para el toast.
+  const { data: row, error: rowErr } = await db
+    .from("generated_contents")
+    .select("id, display_name, files")
+    .eq("id", contentId)
+    .maybeSingle();
+  if (rowErr || !row) {
+    return {
+      contentId,
+      displayName: "",
+      uploaded: 0,
+      uploadedPaths: [],
+      skipped,
+      failed: [],
+      error: rowErr?.message ?? "content_not_found",
+    };
+  }
+  const displayName = (row.display_name as string) ?? "";
+
+  const uploaded: Array<{ name: string; path: string; kind: string; body?: string }> = [];
+  const failed: string[] = [];
+  for (const f of valid) {
+    const entry = await uploadOneFile(userId, contentId, f);
+    if (entry) uploaded.push(entry);
+    else failed.push(f.name);
+  }
+  if (uploaded.length === 0) {
+    return {
+      contentId,
+      displayName,
+      uploaded: 0,
+      uploadedPaths: [],
+      skipped,
+      failed,
+      error: "all_uploads_failed",
+    };
+  }
+
+  // Merge por path: si el mismo archivo ya existía, la entry nueva reemplaza
+  // a la vieja (Storage ya pisó el objeto con upsert) — sin duplicados.
+  const existing = (Array.isArray(row.files) ? row.files : []) as Array<{
+    name: string;
+    path: string;
+    kind?: string;
+    body?: string;
+  }>;
+  const newPaths = new Set(uploaded.map((u) => u.path));
+  const merged = [...existing.filter((f) => !newPaths.has(f.path)), ...uploaded];
+  const { error: updErr } = await db
+    .from("generated_contents")
+    .update({ files: merged })
+    .eq("id", contentId);
+  if (updErr) {
+    return {
+      contentId,
+      displayName,
+      uploaded: 0,
+      uploadedPaths: [],
+      skipped,
+      failed: valid.map((f) => f.name),
+      error: updErr.message,
+    };
+  }
+
+  return {
+    contentId,
+    displayName,
+    uploaded: uploaded.length,
+    uploadedPaths: uploaded.map((u) => u.path),
+    skipped,
+    failed,
+  };
 }
