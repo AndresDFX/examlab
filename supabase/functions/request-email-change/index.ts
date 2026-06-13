@@ -30,6 +30,7 @@ import {
   userClientFromRequest,
 } from "../_shared/admin.ts";
 import { auditFromEdge } from "../_shared/audit.ts";
+import { emailMimeContent } from "../_shared/email.ts";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -347,8 +348,7 @@ Deno.serve(async (req: Request) => {
           to: newEmail,
           replyTo: from,
           subject: `${fromName}: Confirma tu nuevo correo`,
-          content: confirmText,
-          html: confirmHtml,
+          mimeContent: emailMimeContent(confirmText, confirmHtml),
           headers: {
             "X-Entity-Ref-ID": `email-change-confirm-${userId}-${Date.now()}`,
             "List-Unsubscribe": `<mailto:${from}?subject=Cancelar%20notificaciones%20${encodeURIComponent(fromName)}>`,
@@ -367,8 +367,7 @@ Deno.serve(async (req: Request) => {
             to: currentEmail,
             replyTo: from,
             subject: `${fromName}: ⚠️ Se solicitó cambiar el correo de tu cuenta`,
-            content: noticeText,
-            html: noticeHtml,
+            mimeContent: emailMimeContent(noticeText, noticeHtml),
             headers: {
               "X-Entity-Ref-ID": `email-change-notice-${userId}-${Date.now()}`,
               "List-Unsubscribe": `<mailto:${from}?subject=Cancelar%20notificaciones%20${encodeURIComponent(fromName)}>`,

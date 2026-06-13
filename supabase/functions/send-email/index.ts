@@ -33,6 +33,7 @@
 
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { adminClient, corsHeaders, jsonError, jsonResponse } from "../_shared/admin.ts";
+import { emailMimeContent } from "../_shared/email.ts";
 
 // ── Replicación del helper `shouldSendEmail` ─────────────────────────
 // MANTENER SINCRONIZADO con `src/modules/notifications/notification-email.ts`
@@ -486,8 +487,10 @@ Deno.serve(async (req: Request) => {
         }
         return `${fromName}: ${cleanTitle}`;
       })(),
-      content: text,
-      html,
+      // Cuerpo en base64 vía mimeContent (NO `content`/`html`) para esquivar el
+      // quoted-printable en minúsculas de denomailer 1.6.0 que rompe el render en
+      // Outlook/Hotmail. Ver _shared/email.ts.
+      mimeContent: emailMimeContent(text, html),
       // Headers extra para deliverability — especialmente Outlook/
       // Hotmail los pesan fuerte:
       //   - List-Unsubscribe: RFC 2369 — mecanismo opt-out. Sin esto,

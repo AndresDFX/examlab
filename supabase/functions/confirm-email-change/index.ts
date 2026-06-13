@@ -28,6 +28,7 @@
 
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { adminClient, corsHeaders, jsonError, jsonResponse } from "../_shared/admin.ts";
+import { emailMimeContent } from "../_shared/email.ts";
 
 function escapeHtml(input: string): string {
   return input
@@ -239,8 +240,7 @@ Deno.serve(async (req: Request) => {
         to: oldEmail,
         replyTo: from,
         subject: `${fromName}: ✅ Tu correo fue cambiado — 24h para revertir si no fuiste vos`,
-        content: text,
-        html,
+        mimeContent: emailMimeContent(text, html),
         headers: {
           "X-Entity-Ref-ID": `email-change-applied-${row.user_id}-${Date.now()}`,
         },
