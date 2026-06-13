@@ -204,6 +204,13 @@ export function AdminCourses() {
    *  load de cursos. Si falla la carga (RLS / network), simplemente la
    *  columna "Actividad" muestra "—" — el grid no se rompe. */
   const [courseStats, setCourseStats] = useState<Map<string, CourseStats>>(new Map());
+  // Escala de calificación POR DEFECTO de la institución (app_settings).
+  // Un curso NUEVO la hereda; el docente/admin puede sobrescribirla al
+  // crear/editar el curso. Fallback 0–5 si no hay app_settings.
+  const [defaultScale, setDefaultScale] = useState<{ min: number; max: number }>({
+    min: 0,
+    max: 5,
+  });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   // Filtro de institución (solo SuperAdmin). 'all' = ve cross-tenant
@@ -544,6 +551,21 @@ export function AdminCourses() {
       .is("deleted_at", null)
       .order("name");
     setTenants((tens ?? []) as Array<{ id: string; slug: string; name: string }>);
+    // Escala por defecto de la institución (para heredarla en cursos nuevos).
+    // limit(1): el Admin ve solo su app_settings (RLS); el SuperAdmin podría
+    // ver varias filas → tomamos la primera (igual la puede sobrescribir).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: appSet } = await (supabase as any)
+      .from("app_settings")
+      .select("default_grade_scale_min, default_grade_scale_max")
+      .limit(1);
+    const scaleRow = (appSet ?? [])[0] as
+      | { default_grade_scale_min?: number; default_grade_scale_max?: number }
+      | undefined;
+    setDefaultScale({
+      min: Number(scaleRow?.default_grade_scale_min ?? 0),
+      max: Number(scaleRow?.default_grade_scale_max ?? 5),
+    });
     setCourses((data ?? []) as unknown as Course[]);
 
     // Stats por curso (Actividad): cargamos en paralelo 5 queries
@@ -638,8 +660,9 @@ export function AdminCourses() {
       subject_id: subj.id,
       start_date: "",
       end_date: "",
-      grade_scale_min: 0,
-      grade_scale_max: 5,
+      // Hereda la escala de la institución (app_settings); sobrescribible.
+      grade_scale_min: defaultScale.min,
+      grade_scale_max: defaultScale.max,
       // Pesos: si la asignatura los definió, los heredamos; si no,
       // usamos los defaults del sistema.
       exam_weight: Number(ev.exam_weight ?? 40),
@@ -672,8 +695,9 @@ export function AdminCourses() {
       subject_id: null,
       start_date: "",
       end_date: "",
-      grade_scale_min: 0,
-      grade_scale_max: 5,
+      // Hereda la escala de la institución (app_settings); sobrescribible.
+      grade_scale_min: defaultScale.min,
+      grade_scale_max: defaultScale.max,
       exam_weight: 40,
       workshop_weight: 30,
       attendance_weight: 10,

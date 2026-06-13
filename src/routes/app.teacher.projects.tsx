@@ -137,7 +137,13 @@ export const Route = createFileRoute("/app/teacher/projects")({
   }),
 });
 
-type Course = { id: string; name: string; period: string | null; language?: string | null };
+type Course = {
+  id: string;
+  name: string;
+  period: string | null;
+  language?: string | null;
+  grade_scale_max?: number | null;
+};
 type Cut = {
   id: string;
   course_id: string;
@@ -536,7 +542,10 @@ function TeacherProjects() {
     // un solo `Promise.all` rechazaba el load entero y la tabla quedaba
     // vacía sin mensaje, lo que bloqueaba el diagnóstico.
     try {
-      const cs = await db.from("courses").select("id, name, period, language").order("name");
+      const cs = await db
+        .from("courses")
+        .select("id, name, period, language, grade_scale_max")
+        .order("name");
       if (cs.error) throw new Error(`courses: ${cs.error.message}`);
       setCourses((cs.data ?? []) as Course[]);
     } catch (e) {
@@ -793,7 +802,9 @@ function TeacherProjects() {
       code_intro_video_id: null,
       course_id: first,
       cut_id: null,
-      max_score: 100,
+      // Hereda la escala del curso (que hereda la de la institución).
+      // Antes quedaba fijo en 100 aunque el curso fuera /5. Sobrescribible.
+      max_score: courses.find((c) => c.id === first)?.grade_scale_max ?? 100,
       status: "draft",
       linked_course_ids: first ? [first] : [],
       // "Visible desde" arranca AHORA y "Fecha límite" en 2 semanas por

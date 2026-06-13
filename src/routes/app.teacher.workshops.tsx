@@ -762,7 +762,10 @@ function TeacherWorkshops() {
       // paso extra para escribir la fecha.
       start_date: toLocal(now),
       due_date: toLocal(due),
-      max_score: 100,
+      // Hereda la escala del curso (que a su vez hereda la de la
+      // institución). Antes quedaba fijo en 100 aunque el curso fuera /5.
+      // Sobrescribible en el campo "Puntaje máximo".
+      max_score: courses.find((c) => c.id === first)?.grade_scale_max ?? 100,
       status: "draft",
       rubric: null,
     });
@@ -779,7 +782,17 @@ function TeacherWorkshops() {
       if (next.has(id)) next.delete(id);
       else next.add(id);
       const first = [...next][0];
-      if (first) setForm((f) => ({ ...f, course_id: first }));
+      if (first)
+        setForm((f) => ({
+          ...f,
+          course_id: first,
+          // Taller NUEVO: el puntaje máximo sigue la escala del curso
+          // primario. Al editar (f.id) NO se toca para no pisar un valor ya
+          // guardado.
+          max_score: f.id
+            ? f.max_score
+            : (courses.find((c) => c.id === first)?.grade_scale_max ?? f.max_score),
+        }));
       setCourseCuts((prevCuts) => {
         const updated: Record<string, { cut_id: string | null; weight: number }> = {};
         for (const cid of next) {
