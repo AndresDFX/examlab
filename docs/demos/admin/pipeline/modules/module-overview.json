@@ -1,0 +1,158 @@
+{
+  "id": "modulo-overview",
+  "title": "ExamLab — Recorrido general (IA)",
+  "series": "presentacion",
+  "role": "Docente",
+  "appPath": "/app",
+  "readySelectors": ["[data-tour-id=\"role-switcher\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "ExamLab es una plataforma educativa donde la inteligencia artificial te ahorra horas de trabajo. Este es un recorrido general.",
+      "card": {
+        "kicker": "ExamLab · Recorrido general",
+        "title": "Una plataforma con IA",
+        "subtitle": "Crea, evalúa y enseña en menos tiempo"
+      },
+      "bufferMs": 2400
+    },
+    {
+      "id": "panel",
+      "kind": "platform",
+      "narration": "Todo tu trabajo vive en un solo panel: lo que tienes pendiente, tus próximas clases y la cola de inteligencia artificial trabajando para ti.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "statrow",
+          "scale": 1.2,
+          "hold": 4800,
+          "side": "bottom",
+          "syncWord": "pendiente",
+          "focus": {
+            "title": "Tu panel",
+            "body": "Pendientes, clases y cola de IA en un vistazo."
+          }
+        }
+      ]
+    },
+    {
+      "id": "cursos",
+      "kind": "card",
+      "route": "/app/teacher/courses",
+      "narration": "Organizas tus cursos, su cronograma y sus contenidos en un mismo lugar.",
+      "card": {
+        "kicker": "ExamLab · Cursos",
+        "title": "Tus cursos",
+        "subtitle": "Cronograma y contenidos"
+      },
+      "bufferMs": 2000
+    },
+    {
+      "id": "cursos-view",
+      "kind": "platform",
+      "narration": "Cada curso reúne sus clases, su material y sus evaluaciones, listos para los estudiantes.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "maincard",
+          "scale": 1.08,
+          "hold": 4200,
+          "side": "bottom",
+          "syncWord": "material",
+          "focus": {
+            "title": "Cada curso, completo",
+            "body": "Clases, material y evaluaciones juntos."
+          }
+        }
+      ]
+    },
+    {
+      "id": "examenes",
+      "kind": "card",
+      "route": "/app/teacher/exams",
+      "narration": "Creas exámenes, talleres y proyectos. Y la inteligencia artificial puede generarte las preguntas a partir de un tema, en segundos.",
+      "card": {
+        "kicker": "ExamLab · Evaluaciones con IA",
+        "title": "Evaluaciones",
+        "subtitle": "Generadas con IA"
+      },
+      "bufferMs": 2600
+    },
+    {
+      "id": "examenes-view",
+      "kind": "platform",
+      "narration": "Desde aquí armas una evaluación; la IA propone las preguntas y la rúbrica, y tú solo ajustas.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "createbtn",
+          "scale": 1.5,
+          "hold": 4600,
+          "side": "left",
+          "overpan": true,
+          "syncWord": "propone",
+          "focus": {
+            "title": "Generar con IA",
+            "body": "Preguntas y rúbrica a partir de un tema."
+          }
+        }
+      ]
+    },
+    {
+      "id": "contenidos",
+      "kind": "card",
+      "route": "/app/teacher/contents",
+      "narration": "También generas material de clase con IA: presentaciones y guías listas para enseñar.",
+      "card": {
+        "kicker": "ExamLab · Contenido con IA",
+        "title": "Material de clase",
+        "subtitle": "Presentaciones y guías con IA"
+      },
+      "bufferMs": 2400
+    },
+    {
+      "id": "calificaciones",
+      "kind": "card",
+      "route": "/app/teacher/gradebook",
+      "narration": "Y al evaluar, la IA califica las entregas con retroalimentación y detecta copias entre estudiantes. Tú revisas y publicas.",
+      "card": {
+        "kicker": "ExamLab · Calificación con IA",
+        "title": "Calificación automática",
+        "subtitle": "Feedback y antifraude con IA"
+      },
+      "bufferMs": 2800
+    },
+    {
+      "id": "calificaciones-view",
+      "kind": "platform",
+      "narration": "El consolidado de notas se arma solo, por corte y por curso, y lo exportas cuando lo necesites.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "maincard",
+          "scale": 1.05,
+          "hold": 4200,
+          "side": "top",
+          "syncWord": "consolidado",
+          "focus": {
+            "title": "Notas consolidadas",
+            "body": "Por corte y por curso, listas para exportar."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "ExamLab: menos tareas repetitivas y más tiempo para lo que importa, enseñar.",
+      "card": {
+        "kicker": "ExamLab · Plataforma educativa con IA",
+        "title": "La IA te devuelve tiempo",
+        "subtitle": "Crea · Evalúa · Enseña"
+      },
+      "bufferMs": 2600
+    }
+  ]
+}
