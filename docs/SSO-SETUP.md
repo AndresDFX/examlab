@@ -6,6 +6,27 @@
 
 ---
 
+## Escenario: "soy el owner del proyecto (no una institución) y quiero que CUALQUIER usuario ya existente entre con Outlook"
+
+**Respuesta corta:** sí se puede, y es justo para lo que sirve esto. Pero **registrar UNA app en Azure AD es obligatorio** — no hay un atajo que lo evite, ni con Supabase ni con nadie. Cualquier "Login con Microsoft/Google" del mundo necesita una app registrada que entregue un **Client ID + Secret**; Supabase no presta una app compartida (tampoco Google). La buena noticia: **es un registro ÚNICO de ~10 minutos**, lo haces **tú como owner**, y NO necesitas una app por institución.
+
+¿"No sería más simple con Supabase"? Supabase **ya es la parte simple**: hace el intercambio de tokens y te da la sesión. Lo único "externo" es el registro de la app en Azure, que existe porque Microsoft exige identificar a quién le da los datos del usuario. No es algo que ExamLab o Supabase puedan saltarse.
+
+**Cómo montarlo para tu caso (un solo registro multi-tenant, sirve para todos):**
+
+1. **¿No tienes Azure?** No importa que no tengas institución: con **cualquier cuenta Microsoft** (incluso un `@outlook.com` personal) entras a [portal.azure.com](https://portal.azure.com) y tienes un **directorio Entra ID gratis**. No necesitas pagar nada ni ser una organización.
+2. **Registra la app UNA vez** (paso 1 de abajo) y en **"Supported account types"** elige:
+   > **`Accounts in any organizational directory (Any Microsoft Entra ID tenant) and personal Microsoft accounts`**
+   
+   Eso es la opción **multi-tenant + personales** (= tenant **`common`**). Con esa sola app, **cualquier** usuario con cuenta Microsoft —de cualquier organización o un Outlook/Hotmail personal— puede autenticarse. No registras nada por institución.
+3. En Supabase pones **Azure Tenant URL = `https://login.microsoftonline.com/common`** (paso 2). Debe coincidir con el "multi-tenant + personales" que elegiste en Azure.
+4. **"Cualquier usuario YA EXISTENTE"**: la plataforma **no crea cuentas nuevas por SSO** a propósito (política de seguridad). El edge `auth-sso-verify` deja entrar **solo si el email de la cuenta Microsoft ya existe** en `profiles.institutional_email`. Así que, una vez configurado, **todo usuario pre-existente cuyo correo coincida con su cuenta de Outlook entra con un click**. No hay que tocar usuario por usuario.
+5. Si algunos de esos usuarios fueron **creados con contraseña** y ahora quieren entrar por Outlook, habilita **Account Linking** en Supabase (sección 4) para que enlace la identidad Microsoft al usuario existente del mismo correo.
+
+> En resumen: **1 app multi-tenant (tú, owner, una sola vez) + provider Azure en Supabase con `common` + Account Linking**. Después, cualquier usuario existente entra con Outlook sin configuración adicional. El resto de esta guía es el detalle paso a paso.
+
+---
+
 ## 0. Cómo funciona el flujo (para entender la config)
 
 ```
