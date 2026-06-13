@@ -1,0 +1,50 @@
+{
+  "id": "modulo-social",
+  "title": "ExamLab — Social (20s)",
+  "series": "social",
+  "role": "Docente",
+  "appPath": "/app/teacher/exams",
+  "readySelectors": ["[data-tour-id=\"role-switcher\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-2%" },
+  "scenes": [
+    {
+      "id": "logo-intro",
+      "kind": "card",
+      "narration": "ExamLab, la plataforma educativa con inteligencia artificial.",
+      "card": {
+        "kicker": "",
+        "title": "ExamLab",
+        "subtitle": "Plataforma educativa con IA"
+      },
+      "bufferMs": 1600
+    },
+    {
+      "id": "ia-view",
+      "kind": "platform",
+      "narration": "La inteligencia artificial genera tus exámenes, talleres y proyectos, y califica las entregas por ti.",
+      "bufferMs": 500,
+      "beats": [
+        {
+          "target": "createbtn",
+          "scale": 1.5,
+          "hold": 4200,
+          "side": "left",
+          "overpan": true,
+          "syncWord": "califica",
+          "focus": { "title": "Generar con IA", "body": "Crea y califica automáticamente." }
+        }
+      ]
+    },
+    {
+      "id": "logo-outro",
+      "kind": "card",
+      "narration": "ExamLab. Crea, evalúa y enseña en menos tiempo.",
+      "card": {
+        "kicker": "ExamLab",
+        "title": "ExamLab",
+        "subtitle": "Crea · Evalúa · Enseña"
+      },
+      "bufferMs": 1800
+    }
+  ]
+}
