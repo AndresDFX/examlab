@@ -25,6 +25,27 @@ Este manual está organizado por **rol**. Abre el que corresponda a tu perfil:
 
 ---
 
+## En el celular (app móvil sin tienda) — ExamLab es una PWA
+
+ExamLab es una **PWA (Progressive Web App)**: la **misma página web funciona como una app** en tu celular, **sin descargar nada de Play Store ni App Store**. Entras por el navegador y, si quieres, la **instalas en la pantalla de inicio** para abrirla con un toque como cualquier otra app.
+
+**Cómo instalarla:**
+
+- **Android (Chrome):** abre **https://examlab.lovable.app**, toca el menú **⋮** y elige **"Instalar app"** / **"Agregar a pantalla de inicio"**. (A veces aparece solo un aviso para instalar.)
+- **iPhone / iPad (Safari):** abre la página, toca **Compartir** (el cuadro con la flecha ↑) y elige **"Añadir a pantalla de inicio"**.
+
+**Qué ganas al usarla en el celular / instalada:**
+
+- **Pantalla completa**, sin la barra del navegador — se ve y se siente como una app nativa.
+- **Orientación vertical fija**: la app se mantiene en **vertical** aunque el teléfono gire, para que la lectura y los formularios no se descuadren.
+- **Notificaciones push**: recibes avisos (exámenes, calificaciones, mensajes, etc.) aunque no tengas la pestaña abierta — según tus preferencias en **Notificaciones**.
+- **Soporte offline al presentar exámenes**: si la conexión falla mientras respondes un examen, tus respuestas se **guardan en el dispositivo** y se **sincronizan solas** cuando vuelve internet — no pierdes lo escrito.
+- **Siempre actualizada**: como es web, no hay que actualizar desde una tienda; al recargar ya tienes la última versión.
+
+> No necesitas un dispositivo potente: todo corre en la nube. Funciona en celulares y tablets modernos (Android y iOS) con un navegador al día.
+
+---
+
 ## Demostración
 
 - Recorrido general (todos los roles): `docs/demos/presentacion/output/modulo-overview.mp4`

@@ -148,11 +148,22 @@ Vista unificada de los certificados emitidos en la institución.
 
 Gestión de las personas de la institución y sus roles (Admin, Docente, Estudiante).
 
-- Crea usuarios uno a uno o por **importación masiva (CSV)**; reciben contraseña temporal y deben cambiarla en su primer ingreso.
+- Crea usuarios uno a uno o por **importación masiva (CSV)**.
 - Asigna o quita roles, edita datos y usa "Iniciar como" para entrar en el contexto de un usuario y dar soporte.
 - Filtra y ordena la tabla; las acciones de fila están en el menú de tres puntos.
 
 ![Usuarios](screenshots/administrador/15-admin_users.png)
+
+#### Correos automáticos al dar de alta una institución / usuarios
+
+Cuando se pone en marcha una institución nueva, los **correos** que envía la plataforma se disparan al **crear sus usuarios** (no por crear la institución en sí):
+
+- **Correo de bienvenida**: cada usuario **nuevo** (creado uno a uno o por CSV) recibe un correo con un **enlace seguro para definir su propia contraseña**. El enlace es de un solo uso y **vence a los 7 días**. Al abrirlo, la persona elige su contraseña y entra directo — no necesita una clave temporal.
+- **Si los correos de bienvenida están desactivados** (Configuración → Correos → categoría *Bienvenida*): no se envía el correo; en su lugar el usuario se crea con una **contraseña temporal** que el administrador comparte, y la plataforma le **obliga a cambiarla en su primer ingreso**.
+- **Reenvío / recuperación**: si a alguien no le llegó o se le venció el enlace, puede usar **"¿Olvidaste tu contraseña?"** en la pantalla de ingreso, o el administrador puede reenviar/restablecer su contraseña desde este módulo.
+- Estos correos salen del servidor de correo de la plataforma (SMTP). Si una institución usa filtros estrictos, conviene revisar la carpeta de **spam/no deseado** la primera vez.
+
+> Crear la **institución** (tenant) en sí —con su nombre, branding y cupos— **no** envía correos: solo prepara su configuración por defecto. Los correos empiezan cuando se **crean las personas** que la usarán.
 
 ### Informes/Plantillas
 
