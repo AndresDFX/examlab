@@ -1442,7 +1442,7 @@ function TeacherProjects() {
           db
             .from("project_submission_files")
             .select(
-              "id, submission_id, file_id, content, ai_grade, ai_feedback, ai_likelihood, ai_reasons, zip_truncated, zip_chars_used, code_paths, zip_path",
+              "id, submission_id, file_id, content, ai_grade, ai_feedback, ai_likelihood, ai_reasons, code_paths, zip_path",
             )
             .in("submission_id", subIds),
         ]);
@@ -1459,6 +1459,36 @@ function TeacherProjects() {
         const grouped: Record<string, SubFile[]> = {};
         for (const a of (ans ?? []) as SubFile[]) {
           (grouped[a.submission_id] ||= []).push(a);
+        }
+
+        // Badge "ZIP truncado": zip_truncated/zip_chars_used son columnas
+        // OPCIONALES que pueden faltar en algún entorno (en prod faltaban y el
+        // SELECT principal fallaba ENTERO, dejando la entrega vacía). Se piden
+        // en un query SEPARADO y tolerante: si falla (columna ausente), no hay
+        // badge, pero el CONTENIDO de la entrega nunca deja de verse.
+        try {
+          const { data: zipMeta } = await db
+            .from("project_submission_files")
+            .select("id, zip_truncated, zip_chars_used")
+            .in("submission_id", subIds);
+          if (zipMeta) {
+            const metaById = new Map(
+              (zipMeta as Array<{ id: string; zip_truncated?: boolean; zip_chars_used?: number }>).map(
+                (m) => [m.id, m],
+              ),
+            );
+            for (const subId of Object.keys(grouped)) {
+              for (const a of grouped[subId]) {
+                const m = metaById.get(a.id);
+                if (m) {
+                  a.zip_truncated = m.zip_truncated ?? null;
+                  a.zip_chars_used = m.zip_chars_used ?? null;
+                }
+              }
+            }
+          }
+        } catch {
+          /* columnas ausentes: sin badge, sin romper el contenido */
         }
 
         // ── Storage fallback para entregas tipo codigo_zip ──
