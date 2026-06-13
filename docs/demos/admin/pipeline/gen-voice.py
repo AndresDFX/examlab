@@ -20,10 +20,12 @@ RATE = voice.get("rate", "-4%")
 PITCH = voice.get("pitch", "+0Hz")  # opcional por módulo: levanta el tono (ej. "+8Hz") para una voz menos plana
 scenes = spec["scenes"]
 
-async def save_with_retry(text, path, words_path, attempts=4):
+async def save_with_retry(text, path, words_path, rate=None, pitch=None, attempts=4):
+    rate = rate if rate is not None else RATE
+    pitch = pitch if pitch is not None else PITCH
     for a in range(1, attempts + 1):
         try:
-            c = edge_tts.Communicate(text, VOICE, rate=RATE, pitch=PITCH, boundary="WordBoundary")
+            c = edge_tts.Communicate(text, VOICE, rate=rate, pitch=pitch, boundary="WordBoundary")
             words = []
             with open(path, "wb") as f:
                 async for ch in c.stream():
@@ -45,7 +47,11 @@ async def save_with_retry(text, path, words_path, attempts=4):
 async def main():
     for i, sc in enumerate(scenes, 1):
         text = sc.get("narration", "").strip()
-        await save_with_retry(text, f"{OUT}/scene-{i}.mp3", f"{OUT}/scene-{i}-words.json")
+        # Voz por ESCENA: sc.voice.{rate,pitch} sobreescribe el módulo → voz dinámica
+        # (ej. tono cansado/deadpan en el dolor, enérgico en el giro y la oferta).
+        sv = sc.get("voice", {})
+        await save_with_retry(text, f"{OUT}/scene-{i}.mp3", f"{OUT}/scene-{i}-words.json",
+                              sv.get("rate"), sv.get("pitch"))
         print(f"  ok scene-{i}.mp3  ({sc.get('id','')})")
 
 asyncio.run(main())

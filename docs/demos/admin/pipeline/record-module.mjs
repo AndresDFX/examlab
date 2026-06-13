@@ -93,6 +93,19 @@ const INIT = `(() => {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function overlay(page, card) {
+  // GIF de meme: si card.gif es una ruta LOCAL, la incrustamos como data URI.
+  // La página corre en https (examlab.lovable.app) y un <img src="file://"> queda
+  // bloqueado por el navegador; el data URI no depende de red ni de origen.
+  if (card.gif && !/^(https?:|data:)/i.test(card.gif)) {
+    const p = card.gif.replace(/^file:\/+/i, "");
+    try {
+      const b64 = readFileSync(p).toString("base64");
+      card = { ...card, gif: "data:image/gif;base64," + b64 };
+    } catch (e) {
+      console.log(`  ⚠ gif no encontrado (${p}): ${e.message}`);
+      card = { ...card, gif: null };
+    }
+  }
   await page.evaluate((c) => {
     // La carátula es un overlay `position:fixed`. El body conserva
     // `will-change: transform` (lo setea cameraSetup) que, AUNQUE el transform
@@ -107,7 +120,9 @@ async function overlay(page, card) {
     let o = document.getElementById("demo-overlay");
     if (!o) { o = document.createElement("div"); o.id = "demo-overlay"; document.body.appendChild(o); }
     o.setAttribute("style", "position:fixed;inset:0;z-index:2147483000;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:" + (c.bg || "linear-gradient(135deg,#0b1220,#1D4ED8)") + ";color:#fff;font-family:Inter,system-ui,sans-serif;text-align:center;");
-    o.innerHTML = (c.emoji ? '<div style="font-size:104px;line-height:1;margin-bottom:8px;filter:drop-shadow(0 6px 18px rgba(0,0,0,.35))">' + c.emoji + '</div>' : '') +
+    o.innerHTML = (c.gif
+        ? '<img src="' + c.gif + '" style="width:340px;height:auto;border-radius:18px;margin-bottom:10px;box-shadow:0 14px 40px rgba(0,0,0,.5);image-rendering:auto">'
+        : (c.emoji ? '<div style="font-size:104px;line-height:1;margin-bottom:8px;filter:drop-shadow(0 6px 18px rgba(0,0,0,.35))">' + c.emoji + '</div>' : '')) +
       '<div style="font-size:15px;letter-spacing:3px;text-transform:uppercase;opacity:.8">' + (c.kicker || "") + '</div>' +
       '<div style="font-size:54px;font-weight:800">' + (c.title || "") + '</div>' +
       '<div style="font-size:24px;opacity:.92">' + (c.subtitle || "") + '</div>';
@@ -529,7 +544,11 @@ async function main() {
           await killTour(page); await cameraSetup(page); await hideCursor(page, true);
         }
         await sleep(Math.max(0, target(i) - (Date.now() - s)));
-        await clearOverlay(page);
+        // Solo limpiar el overlay si la SIGUIENTE escena es plataforma (necesita ver
+        // la app). Entre cards consecutivos (o si es la última escena) lo mantenemos
+        // puesto: el overlay() siguiente reemplaza su contenido → cero parpadeo de la
+        // plataforma de fondo entre escenas tipo card.
+        if (scenes[i + 1] && scenes[i + 1].kind !== "card") await clearOverlay(page);
       } else {
         // platform: cámara identidad → (opcional) abrir vía menú / cambiar de
         // tab → medir los targets de ESTA escena just-in-time (las tabs y el

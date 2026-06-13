@@ -1,6 +1,6 @@
 {
   "id": "modulo-promo",
-  "title": "ExamLab — Promo meme (dolor docente → ExamLab, ~34s)",
+  "title": "ExamLab — Promo meme (voz dinámica + gif, ~34s)",
   "series": "social",
   "role": "Docente",
   "appPath": "/app/teacher/exams",
@@ -10,6 +10,7 @@
     {
       "id": "meme-pov",
       "kind": "card",
+      "voice": { "rate": "+2%", "pitch": "+2Hz" },
       "narration": "Domingo, casi medianoche, y la pila de exámenes ni se mueve.",
       "card": { "emoji": "😩", "kicker": "POV", "title": "Domingo, 11:58 p.m.", "subtitle": "y la pila de exámenes no baja", "bg": "linear-gradient(135deg,#0b1220,#1e1b4b)" },
       "bufferMs": 250
@@ -17,6 +18,7 @@
     {
       "id": "meme-nadie",
       "kind": "card",
+      "voice": { "rate": "+2%", "pitch": "+2Hz" },
       "narration": "Y tú, a las dos de la mañana, armando el parcial desde cero.",
       "card": { "emoji": "🥲", "kicker": "NADIE:", "title": "Tú, a las 2 a.m.", "subtitle": "armando el parcial desde cero", "bg": "linear-gradient(135deg,#111827,#3b0764)" },
       "bufferMs": 250
@@ -24,6 +26,7 @@
     {
       "id": "meme-cafe",
       "kind": "card",
+      "voice": { "rate": "+0%", "pitch": "+0Hz" },
       "narration": "Cien hojas, un lapicero, y el café ya ni te hace efecto.",
       "card": { "emoji": "💀", "kicker": "Y SIGUES", "title": "100 hojas, 1 lapicero", "subtitle": "el café ya ni hace efecto", "bg": "linear-gradient(135deg,#0c0a09,#451a03)" },
       "bufferMs": 250
@@ -31,13 +34,15 @@
     {
       "id": "giro",
       "kind": "card",
-      "narration": "¿Y si no tuviera que ser así? Llegó ExamLab.",
-      "card": { "emoji": "✨", "kicker": "PLOT TWIST", "title": "¿Y si no fuera así?", "subtitle": "Llegó ExamLab", "bg": "linear-gradient(135deg,#7c3aed,#2563eb)" },
-      "bufferMs": 350
+      "voice": { "rate": "+14%", "pitch": "+15Hz" },
+      "narration": "¡Pero espera! ¿Y si no tuviera que ser así? ¡Llegó ExamLab!",
+      "card": { "emoji": "🤯", "gif": "C:/Temp/examlab-rec/assets/meme-mindblown.gif", "kicker": "PLOT TWIST", "title": "¿Y si no fuera así?", "subtitle": "Llegó ExamLab", "bg": "linear-gradient(135deg,#7c3aed,#2563eb)" },
+      "bufferMs": 500
     },
     {
       "id": "func-genera",
       "kind": "card",
+      "voice": { "rate": "+11%", "pitch": "+11Hz" },
       "narration": "La IA te arma exámenes, talleres y proyectos en segundos.",
       "card": { "emoji": "🤖", "kicker": "GENERA POR TI", "title": "Exámenes en segundos", "subtitle": "talleres y proyectos, hechos por la IA", "bg": "linear-gradient(135deg,#06b6d4,#3b82f6)" },
       "bufferMs": 250
@@ -45,6 +50,7 @@
     {
       "id": "func-califica",
       "kind": "card",
+      "voice": { "rate": "+11%", "pitch": "+11Hz" },
       "narration": "Y los califica sola, con retro, y hasta detecta copias. ¡Tu domingo, libre!",
       "card": { "emoji": "✅", "kicker": "Y CALIFICA SOLA", "title": "Corrige y da feedback", "subtitle": "+ asistencia, notas y tutor de IA", "bg": "linear-gradient(135deg,#10b981,#06b6d4)" },
       "bufferMs": 300
@@ -52,7 +58,8 @@
     {
       "id": "oferta",
       "kind": "card",
-      "narration": "Licencia de docente gratis por tiempo limitado. Pruébala tú mismo. ¡Escríbeme!",
+      "voice": { "rate": "+9%", "pitch": "+12Hz" },
+      "narration": "Y ahora, licencia de docente gratis por tiempo limitado. Pruébala tú mismo. ¡Escríbeme!",
       "card": { "emoji": "🎁", "kicker": "POR TIEMPO LIMITADO", "title": "Licencia docente GRATIS", "subtitle": "pruébala tú mismo · ¡Escríbeme!", "bg": "linear-gradient(135deg,#8b5cf6,#ec4899)" },
       "bufferMs": 1300
     }
