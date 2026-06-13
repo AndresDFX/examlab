@@ -335,12 +335,14 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
             .filter((c): c is string => !!c),
         ),
       );
-      const wIds = [
-        ...gradingRaw
-          .filter((j) => j.target_table === "workshop_submissions")
-          .map((j) => j.target_row_id),
-        ...genRaw.filter((j) => j.source_table === "workshops").map((j) => j.source_id),
-      ];
+      // Solo los workshops referenciados DIRECTO por generación
+      // (source_id ES el workshop id). Para grading, target_row_id es el id
+      // de la ENTREGA (workshop_submissions), NO del taller — su título se
+      // resuelve en un 2º paso vía workshop_submissions.workshop_id (igual
+      // que project_submissions → project_id).
+      const wIds = genRaw
+        .filter((j) => j.source_table === "workshops")
+        .map((j) => j.source_id);
       const eIds = genRaw.filter((j) => j.source_table === "exams").map((j) => j.source_id);
       const pSubIds = gradingRaw
         .filter((j) => j.target_table === "project_submissions")
@@ -379,11 +381,10 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         submissionIds.length > 0
           ? db.from("submissions").select("id, exam_id, user_id").in("id", submissionIds)
           : Promise.resolve({ data: [] }),
-        // workshop_submissions: necesitamos user_id (el título ya lo
-        // resolvemos directo desde target_row_id en wIds, esto es solo
-        // para el dueño).
+        // workshop_submissions: pedimos workshop_id además de user_id → para
+        // resolver el TÍTULO del taller (paridad con project_submissions).
         wSubIds.length > 0
-          ? db.from("workshop_submissions").select("id, user_id").in("id", wSubIds)
+          ? db.from("workshop_submissions").select("id, user_id, workshop_id").in("id", wSubIds)
           : Promise.resolve({ data: [] }),
         pFileIds.length > 0
           ? db.from("project_submission_files").select("id, submission_id").in("id", pFileIds)
@@ -424,8 +425,16 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         subToExam.set(r.id, r.exam_id);
         if (r.user_id) ownerByTargetRow.set(r.id, r.user_id);
       }
-      for (const r of (wSubL.data ?? []) as Array<{ id: string; user_id: string | null }>) {
+      // workshop_submission_id → workshop_id (para resolver el título del
+      // taller de los jobs workshop_full, igual que pSubToProj para proyectos).
+      const wSubToWorkshop = new Map<string, string>();
+      for (const r of (wSubL.data ?? []) as Array<{
+        id: string;
+        user_id: string | null;
+        workshop_id: string | null;
+      }>) {
         if (r.user_id) ownerByTargetRow.set(r.id, r.user_id);
+        if (r.workshop_id) wSubToWorkshop.set(r.id, r.workshop_id);
       }
       // project_submission_files → submission_id; resolveremos el user_id
       // del owner en el segundo paso (junto a projects/exams).
@@ -478,6 +487,18 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       for (const r of (projL.data ?? []) as Array<{ id: string; title: string }>)
         titleById.set(r.id, r.title);
 
+      // Títulos de los talleres referenciados por jobs workshop_full (grading):
+      // target_row_id → workshop_submission → workshop_id (wSubToWorkshop) →
+      // título. Se hace acá porque wSubToWorkshop recién se conoce tras el
+      // primer Promise.all (idéntico al patrón de allProjIds para proyectos).
+      const allWorkshopIds = Array.from(new Set<string>(wSubToWorkshop.values()));
+      const wGradeL =
+        allWorkshopIds.length > 0
+          ? await db.from("workshops").select("id, title").in("id", allWorkshopIds)
+          : { data: [] };
+      for (const r of (wGradeL.data ?? []) as Array<{ id: string; title: string }>)
+        titleById.set(r.id, r.title);
+
       // ─── Resolución de nombres (created_by + dueños de entregas) ──────
       // Juntamos TODOS los user_ids en un solo Set y hacemos UN lookup a
       // profiles. NO embebemos (*.user_id → auth.users no es embebible;
@@ -526,7 +547,8 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
             const t = examId ? titleById.get(examId) : undefined;
             if (t) label = t;
           } else if (r.target_table === "workshop_submissions") {
-            const t = titleById.get(r.target_row_id);
+            const wsId = wSubToWorkshop.get(r.target_row_id);
+            const t = wsId ? titleById.get(wsId) : undefined;
             if (t) label = t;
           } else if (r.target_table === "project_submissions") {
             const projId = pSubToProj.get(r.target_row_id);
