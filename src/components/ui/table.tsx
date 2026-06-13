@@ -124,20 +124,15 @@ function useColumnResize(
     if (!table) return;
     const desktop = window.matchMedia("(min-width: 640px)");
 
-    const apply = () => {
+    // Pin de los anchos DESKTOP: mide el ancho natural de cada columna y lo
+    // fija + aplica overrides guardados. DEBE llamarse SOLO cuando el layout
+    // ya refleja el viewport desktop (ver `apply`).
+    const pinDesktop = () => {
       const cells = headerCells(table);
-      if (!desktop.matches) {
-        // Mobile: sin resize. Limpiamos anchos pinneados → layout normal.
-        for (const th of cells) th.style.width = "";
-        table.style.width = "";
-        return;
-      }
       if (cells.length < 2) return;
       // 1. Pin del ancho actual de cada columna visible (el que dé el
-      //    layout `table-fixed`). Sin esto, ensanchar una columna haría
-      //    que `table-fixed` robe espacio a las demás. MIN_COL_WIDTH evita
-      //    que columnas sin `w-X` explícito colapsen a unos pocos px
-      //    cuando las otras columnas suman casi todo el viewport.
+      //    layout `table-fixed`). MIN_COL_WIDTH evita que columnas sin `w-X`
+      //    explícito colapsen a unos pocos px.
       for (const th of cells) {
         if (isVisibleCol(th)) {
           const natural = Math.round(th.getBoundingClientRect().width);
@@ -162,9 +157,32 @@ function useColumnResize(
       syncTableWidth(table);
     };
 
+    let raf = 0;
+    const apply = () => {
+      // SIEMPRE limpiar primero: resetea cualquier ancho pinneado (incluido
+      // el que dejó el breakpoint anterior) para que el navegador recalcule
+      // el layout NATURAL del breakpoint actual.
+      const cells = headerCells(table);
+      for (const th of cells) th.style.width = "";
+      table.style.width = "";
+      if (!desktop.matches) return; // mobile: layout responsive normal
+      // Desktop: medir + pinear en el SIGUIENTE frame. Medir dentro del
+      // evento `change` (mobile→desktop) capturaba los anchos VIEJOS del
+      // breakpoint mobile —el navegador aún no había hecho reflow al viewport
+      // nuevo— y los fijaba → las columnas quedaban "pegadas" como en
+      // responsive. El rAF da el reflow antes de medir.
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        if (desktop.matches) pinDesktop();
+      });
+    };
+
     apply();
     desktop.addEventListener("change", apply);
-    return () => desktop.removeEventListener("change", apply);
+    return () => {
+      desktop.removeEventListener("change", apply);
+      cancelAnimationFrame(raf);
+    };
   }, [enabled, tableRef]);
 }
 
