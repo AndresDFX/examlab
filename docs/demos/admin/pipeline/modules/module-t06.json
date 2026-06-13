@@ -75,8 +75,6 @@
           "click": true,
           "target": "button:Generar",
           "syncWord": "generamos",
-          "waitText": "generada",
-          "waitTimeoutMs": 90000,
           "focusTarget": "row:0",
           "scale": 1.05,
           "hold": 2500,
@@ -84,7 +82,8 @@
           "focus": {
             "title": "Generando…",
             "body": "El modelo redacta el enunciado, las opciones y la respuesta."
-          }
+          },
+          "afterClickMs": 11000
         }
       ]
     },

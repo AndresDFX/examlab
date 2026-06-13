@@ -27,12 +27,45 @@
     {
       "id": "cuenta",
       "kind": "platform",
-      "narration": "Al pie del menú vive tu cuenta. La campana muestra las notificaciones; el sobre, los mensajes con tus docentes. Y al cerrar sesión, el contexto de la institución se limpia por completo.",
+      "narration": "Al pie del menú vive tu cuenta. La campana muestra tus notificaciones; el sobre, los mensajes con tus docentes. Y el último botón cierra tu sesión cuando terminas.",
       "bufferMs": 900,
       "beats": [
-        { "target": "[data-tour-id=\"notifications-bell\"]", "scale": 2.1, "hold": 3200, "side": "right", "overpan": true, "syncWord": "campana", "focus": { "title": "Notificaciones", "body": "Avisos de notas, fechas y mensajes." } },
-        { "target": "[data-tour-id=\"messages-bell\"]", "scale": 2.1, "hold": 3200, "side": "right", "overpan": true, "syncWord": "sobre", "focus": { "title": "Mensajes", "body": "Comunicación directa con tus docentes." } },
-        { "target": "[data-tour-id=\"logout\"]", "scale": 2.1, "hold": 4200, "side": "right", "overpan": true, "syncWord": "cerrar", "focus": { "title": "Cerrar sesión", "body": "Limpia por completo el contexto de la institución." } }
+        {
+          "target": "[data-tour-id=\"notifications-bell\"]",
+          "scale": 2.1,
+          "hold": 3200,
+          "side": "right",
+          "overpan": true,
+          "syncWord": "campana",
+          "focus": {
+            "title": "Notificaciones",
+            "body": "Avisos de notas, fechas y mensajes."
+          }
+        },
+        {
+          "target": "[data-tour-id=\"messages-bell\"]",
+          "scale": 2.1,
+          "hold": 3200,
+          "side": "right",
+          "overpan": true,
+          "syncWord": "sobre",
+          "focus": {
+            "title": "Mensajes",
+            "body": "Comunicación directa con tus docentes."
+          }
+        },
+        {
+          "target": "[data-tour-id=\"logout\"]",
+          "scale": 2.1,
+          "hold": 4200,
+          "side": "right",
+          "overpan": true,
+          "syncWord": "cerrar",
+          "focus": {
+            "title": "Cerrar sesión",
+            "body": "Sales de tu cuenta de forma segura."
+          }
+        }
       ]
     },
     {

@@ -656,13 +656,37 @@ async function main() {
               await sleep(160);
               cam = { tx: 0, ty: 0, s: 1 };
               if (rect) {
-                await page.mouse.click(rect.cx, rect.cy);
+                // Click en el INPUT/TEXTAREA REAL dentro del contenedor del
+                // target (un `field:Temas` resuelve al contenedor label+input;
+                // clickear su centro caía sobre el LABEL → el foco no entraba
+                // al input, Ctrl+A seleccionaba la página y el type no llenaba
+                // nada — bug del banco t06). Buscamos el editable y clickeamos
+                // SU centro; si no hay, caemos al centro del contenedor.
+                const ed = await page.evaluate((tgt) => {
+                  let container = null;
+                  if (tgt.startsWith("field:")) {
+                    const txt = tgt.slice(6).toLowerCase();
+                    const scope = document.querySelector('[role="dialog"]') || document.querySelector('[data-state="active"][role="tabpanel"]') || document.body;
+                    const lbl = [...scope.querySelectorAll("label")].find((l) => (l.textContent || "").trim().toLowerCase().startsWith(txt));
+                    container = lbl ? lbl.parentElement : null;
+                  } else {
+                    container = document.querySelector(tgt);
+                  }
+                  if (!container) return null;
+                  const tag = container.tagName;
+                  const editable = (tag === "INPUT" || tag === "TEXTAREA") ? container
+                    : container.querySelector("input:not([type=hidden]), textarea, [contenteditable='true']");
+                  if (!editable) return null;
+                  const r = editable.getBoundingClientRect();
+                  return { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+                }, beat.target);
+                const click = ed || { cx: rect.cx, cy: rect.cy };
+                await page.mouse.click(click.cx, click.cy);
                 const fs = fitScale(rect, beat.scale ?? 1.3);
                 await cameraTo(page, rect, fs, 500);
                 cam = computeCam(rect, fs, false);
                 // Seleccionar todo lo existente para REEMPLAZAR (inputs con
-                // valor previo, ej. Cantidad=5). Sin esto, type() solo
-                // ANEXA y queda "51" o "20". Ctrl+A en input/textarea
+                // valor previo, ej. Cantidad=5). Ctrl+A en input/textarea
                 // selecciona su contenido; el type lo sobreescribe.
                 await page.keyboard.press("Control+A").catch(() => {});
                 await page.keyboard.type(beat.text ?? "", { delay: beat.typeDelayMs ?? 30 });

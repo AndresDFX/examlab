@@ -25,29 +25,45 @@
       "bufferMs": 2200
     },
     {
-      "id": "vista",
+      "id": "lista",
       "kind": "platform",
-      "narration": "El estudiante ve los exámenes que el docente le ha asignado, cada uno con su fecha y su duración. Cuando la evaluación está abierta, la presenta en un entorno controlado, con cronómetro y medidas de supervisión. Al terminar, puede consultar su resultado y la retroalimentación.",
-      "bufferMs": 800,
+      "narration": "El estudiante ve los exámenes que el docente le asignó, cada uno con su fecha y su duración. Y en las preguntas de programación cuenta con un compilador integrado: escribe el código y lo ejecuta sin salir del examen.",
+      "bufferMs": 900,
       "beats": [
         {
-          "target": "[data-tour-nav=\"/app/student/exams\"]",
-          "scale": 1.5,
-          "hold": 3600,
-          "side": "right",
-          "focus": {
-            "title": "Exámenes",
-            "body": "Tus evaluaciones asignadas."
-          }
-        },
-        {
-          "target": "firstcard",
-          "scale": 1.18,
-          "hold": 5500,
+          "target": "maincard",
+          "scale": 1.08,
+          "hold": 8500,
           "side": "bottom",
+          "syncWord": "exámenes",
           "focus": {
             "title": "Tus exámenes",
-            "body": "Presentación con cronómetro y supervisión."
+            "body": "Asignados, con fecha y duración. Las preguntas de código traen compilador integrado."
+          }
+        }
+      ]
+    },
+    {
+      "id": "proctoring",
+      "kind": "platform",
+      "openVia": {
+        "target": "a[href*=\"/app/student/take\"]"
+      },
+      "ready": [
+        "text=Antes de comenzar"
+      ],
+      "narration": "Al presentar un examen, ExamLab lo corre en un entorno supervisado. Antes de empezar muestra las reglas: hay un cronómetro, y cambiar de pestaña, minimizar o salir de pantalla completa cuenta como advertencia; a la tercera, el intento se marca como sospechoso y se entrega solo. Copiar y pegar quedan deshabilitados.",
+      "bufferMs": 1000,
+      "beats": [
+        {
+          "target": "text:Antes de comenzar",
+          "scale": 1.15,
+          "hold": 11000,
+          "side": "right",
+          "syncWord": "supervisado",
+          "focus": {
+            "title": "Proctoring",
+            "body": "Cronómetro, control de pestaña/pantalla completa y 3 advertencias."
           }
         }
       ]

@@ -1,0 +1,88 @@
+{
+  "id": "modulo-t14",
+  "title": "Calendario (Docente)",
+  "series": "teacher",
+  "role": "Docente",
+  "appPath": "/app/teacher/calendar",
+  "readySelectors": [
+    "[data-tour-nav=\"/app/teacher/calendar\"]",
+    "text=Calendario"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Y un módulo que conecta todo: el calendario.",
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Calendario",
+        "subtitle": "Sincronización con Google"
+      },
+      "bufferMs": 600
+    },
+    {
+      "id": "sync",
+      "kind": "platform",
+      "narration": "Desde el calendario, cada docente conecta su propia cuenta de Google y sincroniza las sesiones del curso. Elige el proveedor —hoy Google Calendar—, conecta su cuenta una sola vez, y a partir de ahí cada sesión se vuelve un evento real con su enlace de Google Meet, invitando automáticamente a los estudiantes matriculados.",
+      "bufferMs": 1000,
+      "beats": [
+        {
+          "target": "card:Proveedor",
+          "scale": 1.15,
+          "hold": 6500,
+          "side": "bottom",
+          "syncWord": "proveedor",
+          "focus": {
+            "title": "Elige tu proveedor",
+            "body": "Google Calendar hoy; Outlook y Microsoft 365 en camino."
+          }
+        },
+        {
+          "target": "button:Conectar",
+          "scale": 1.4,
+          "hold": 7000,
+          "side": "bottom",
+          "syncWord": "conecta",
+          "focus": {
+            "title": "Conectar tu cuenta",
+            "body": "Autorizas una vez; los tokens nunca quedan expuestos."
+          }
+        }
+      ]
+    },
+    {
+      "id": "grabaciones",
+      "kind": "platform",
+      "narration": "Y la sincronización va en los dos sentidos: cuando una clase se graba en Google Meet, la grabación vuelve a ExamLab y aparece en el tablero del curso, junto a cada sesión, lista para que los estudiantes la repasen.",
+      "bufferMs": 1000,
+      "beats": [
+        {
+          "target": "firstcard",
+          "scale": 1.1,
+          "hold": 9000,
+          "side": "bottom",
+          "syncWord": "graba",
+          "focus": {
+            "title": "Las grabaciones vuelven al tablero",
+            "body": "Cada sesión muestra su grabación y notas a los estudiantes."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "Con esto cerramos el recorrido completo del rol Docente en ExamLab.",
+      "card": {
+        "kicker": "ExamLab · Serie de demostración",
+        "title": "Fin del recorrido",
+        "subtitle": "Rol Docente · Demo Global Corp"
+      },
+      "bufferMs": 800
+    }
+  ]
+}
