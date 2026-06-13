@@ -509,12 +509,14 @@ async function main() {
           }
           await waitReady(page, sc.ready ?? spec.readySelectors);
           await killTour(page); await cameraSetup(page); await hideCursor(page, true);
-        } else if (sc.route && sc.route !== currentRoute) {
-          // Cambio de ruta DETRÁS de la carátula (módulos multi-ruta): la
-          // carátula cubre la navegación. Reafirmamos el rol y vamos por SPA.
-          await selectRole(page, spec.role ?? "Administrador");
-          await spaNavigate(page, sc.route);
-          currentRoute = sc.route;
+        } else if ((sc.route && sc.route !== currentRoute) || sc.role) {
+          // Cambio de ruta (y/o de ROL) DETRÁS de la carátula. La carátula
+          // cubre la navegación. `sc.role` permite videos multi-rol (un mismo
+          // recorrido que pasa por Administrador → Docente → Estudiante):
+          // cada sección setea su rol y navega a su ruta por SPA, preservando
+          // el rol activo. Default al rol global del spec.
+          await selectRole(page, sc.role ?? spec.role ?? "Administrador");
+          if (sc.route) { await spaNavigate(page, sc.route); currentRoute = sc.route; }
           await waitReady(page, sc.ready ?? spec.readySelectors);
           await killTour(page); await cameraSetup(page); await hideCursor(page, true);
         } else if (sc.openVia) {

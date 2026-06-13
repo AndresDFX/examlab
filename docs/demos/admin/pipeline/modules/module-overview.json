@@ -1,8 +1,8 @@
 {
   "id": "modulo-overview",
-  "title": "ExamLab — Recorrido general (IA)",
+  "title": "ExamLab — Recorrido general (3 roles, IA)",
   "series": "presentacion",
-  "role": "Docente",
+  "role": "Administrador",
   "appPath": "/app",
   "readySelectors": ["[data-tour-id=\"role-switcher\"]"],
   "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
@@ -10,130 +10,121 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "ExamLab es una plataforma educativa donde la inteligencia artificial te ahorra horas de trabajo. Este es un recorrido general.",
+      "narration": "ExamLab adapta la experiencia a cada rol: administrador, docente y estudiante. Veamos cómo la inteligencia artificial les ahorra tiempo a todos.",
       "card": {
         "kicker": "ExamLab · Recorrido general",
-        "title": "Una plataforma con IA",
-        "subtitle": "Crea, evalúa y enseña en menos tiempo"
+        "title": "Una plataforma, tres roles",
+        "subtitle": "Administrador · Docente · Estudiante"
       },
-      "bufferMs": 2400
+      "bufferMs": 2600
     },
     {
-      "id": "panel",
+      "id": "admin-panel",
       "kind": "platform",
-      "narration": "Todo tu trabajo vive en un solo panel: lo que tienes pendiente, tus próximas clases y la cola de inteligencia artificial trabajando para ti.",
+      "narration": "El administrador gobierna toda la institución desde un panel: cursos, usuarios, certificados y la actividad reciente, de un vistazo.",
       "bufferMs": 900,
       "beats": [
         {
           "target": "statrow",
           "scale": 1.2,
-          "hold": 4800,
+          "hold": 5000,
           "side": "bottom",
-          "syncWord": "pendiente",
+          "syncWord": "institución",
           "focus": {
-            "title": "Tu panel",
-            "body": "Pendientes, clases y cola de IA en un vistazo."
+            "title": "Panel del administrador",
+            "body": "Cursos, usuarios y actividad de la institución."
           }
         }
       ]
     },
     {
-      "id": "cursos",
+      "id": "admin-usuarios",
       "kind": "card",
-      "route": "/app/teacher/courses",
-      "narration": "Organizas tus cursos, su cronograma y sus contenidos en un mismo lugar.",
+      "role": "Administrador",
+      "route": "/app/admin/users",
+      "narration": "Da de alta a docentes y estudiantes, define sus roles y los matricula.",
       "card": {
-        "kicker": "ExamLab · Cursos",
-        "title": "Tus cursos",
-        "subtitle": "Cronograma y contenidos"
+        "kicker": "ExamLab · Administrador",
+        "title": "Usuarios y roles",
+        "subtitle": "Altas, roles y matrículas"
       },
-      "bufferMs": 2000
+      "bufferMs": 2300
     },
     {
-      "id": "cursos-view",
+      "id": "admin-usuarios-view",
       "kind": "platform",
-      "narration": "Cada curso reúne sus clases, su material y sus evaluaciones, listos para los estudiantes.",
-      "bufferMs": 900,
-      "beats": [
-        {
-          "target": "maincard",
-          "scale": 1.08,
-          "hold": 4200,
-          "side": "bottom",
-          "syncWord": "material",
-          "focus": {
-            "title": "Cada curso, completo",
-            "body": "Clases, material y evaluaciones juntos."
-          }
-        }
-      ]
-    },
-    {
-      "id": "examenes",
-      "kind": "card",
-      "route": "/app/teacher/exams",
-      "narration": "Creas exámenes, talleres y proyectos. Y la inteligencia artificial puede generarte las preguntas a partir de un tema, en segundos.",
-      "card": {
-        "kicker": "ExamLab · Evaluaciones con IA",
-        "title": "Evaluaciones",
-        "subtitle": "Generadas con IA"
-      },
-      "bufferMs": 2600
-    },
-    {
-      "id": "examenes-view",
-      "kind": "platform",
-      "narration": "Desde aquí armas una evaluación; la IA propone las preguntas y la rúbrica, y tú solo ajustas.",
-      "bufferMs": 900,
-      "beats": [
-        {
-          "target": "createbtn",
-          "scale": 1.5,
-          "hold": 4600,
-          "side": "left",
-          "overpan": true,
-          "syncWord": "propone",
-          "focus": {
-            "title": "Generar con IA",
-            "body": "Preguntas y rúbrica a partir de un tema."
-          }
-        }
-      ]
-    },
-    {
-      "id": "contenidos",
-      "kind": "card",
-      "route": "/app/teacher/contents",
-      "narration": "También generas material de clase con IA: presentaciones y guías listas para enseñar.",
-      "card": {
-        "kicker": "ExamLab · Contenido con IA",
-        "title": "Material de clase",
-        "subtitle": "Presentaciones y guías con IA"
-      },
-      "bufferMs": 2400
-    },
-    {
-      "id": "calificaciones",
-      "kind": "card",
-      "route": "/app/teacher/gradebook",
-      "narration": "Y al evaluar, la IA califica las entregas con retroalimentación y detecta copias entre estudiantes. Tú revisas y publicas.",
-      "card": {
-        "kicker": "ExamLab · Calificación con IA",
-        "title": "Calificación automática",
-        "subtitle": "Feedback y antifraude con IA"
-      },
-      "bufferMs": 2800
-    },
-    {
-      "id": "calificaciones-view",
-      "kind": "platform",
-      "narration": "El consolidado de notas se arma solo, por corte y por curso, y lo exportas cuando lo necesites.",
+      "narration": "Puede importar usuarios en bloque y gestionar toda la estructura académica de la institución desde un solo lugar.",
       "bufferMs": 900,
       "beats": [
         {
           "target": "maincard",
           "scale": 1.05,
-          "hold": 4200,
+          "hold": 4800,
+          "side": "top",
+          "syncWord": "estructura",
+          "focus": {
+            "title": "Gestión de usuarios",
+            "body": "Importación en bloque, roles y matrículas."
+          }
+        }
+      ]
+    },
+    {
+      "id": "docente",
+      "kind": "card",
+      "role": "Docente",
+      "route": "/app/teacher/exams",
+      "narration": "El docente crea y evalúa. Y la inteligencia artificial le genera las preguntas a partir de un tema, en segundos.",
+      "card": {
+        "kicker": "ExamLab · Docente",
+        "title": "Crear y evaluar con IA",
+        "subtitle": "Exámenes, talleres y proyectos"
+      },
+      "bufferMs": 2600
+    },
+    {
+      "id": "docente-view",
+      "kind": "platform",
+      "narration": "Al armar una evaluación, la IA propone las preguntas y la rúbrica; el docente solo ajusta. Los exámenes incluyen tiempo y control de pantalla para evitar fraude.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "createbtn",
+          "scale": 1.5,
+          "hold": 5400,
+          "side": "left",
+          "overpan": true,
+          "syncWord": "propone",
+          "focus": {
+            "title": "Generar con IA",
+            "body": "Preguntas y rúbrica a partir de un tema; proctoring incluido."
+          }
+        }
+      ]
+    },
+    {
+      "id": "docente-calif",
+      "kind": "card",
+      "role": "Docente",
+      "route": "/app/teacher/gradebook",
+      "narration": "Al recibir las entregas, la IA las califica con retroalimentación y detecta copias entre estudiantes. El docente revisa y publica.",
+      "card": {
+        "kicker": "ExamLab · Docente",
+        "title": "Calificación con IA",
+        "subtitle": "Feedback y antifraude"
+      },
+      "bufferMs": 2700
+    },
+    {
+      "id": "docente-calif-view",
+      "kind": "platform",
+      "narration": "El consolidado de notas se arma solo, por corte y por curso, con las ponderaciones que defina, y lo exporta cuando lo necesite.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "maincard",
+          "scale": 1.05,
+          "hold": 5000,
           "side": "top",
           "syncWord": "consolidado",
           "focus": {
@@ -144,13 +135,77 @@
       ]
     },
     {
+      "id": "estudiante",
+      "kind": "card",
+      "role": "Estudiante",
+      "route": "/app/student/exams",
+      "narration": "El estudiante presenta sus exámenes, talleres y proyectos desde un solo lugar, con su calendario siempre al día.",
+      "card": {
+        "kicker": "ExamLab · Estudiante",
+        "title": "Aprender y entregar",
+        "subtitle": "Exámenes, talleres y proyectos"
+      },
+      "bufferMs": 2600
+    },
+    {
+      "id": "estudiante-view",
+      "kind": "platform",
+      "narration": "Ve lo que tiene pendiente, presenta en línea y, en preguntas de programación, ejecuta su código dentro de la misma plataforma.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "firstcard",
+          "scale": 1.08,
+          "hold": 5000,
+          "side": "bottom",
+          "syncWord": "pendiente",
+          "focus": {
+            "title": "Tus evaluaciones",
+            "body": "Presenta en línea; ejecuta código sin salir de la plataforma."
+          }
+        }
+      ]
+    },
+    {
+      "id": "estudiante-tutor",
+      "kind": "card",
+      "role": "Estudiante",
+      "route": "/app/student/tutor",
+      "narration": "Y cuenta con un tutor de inteligencia artificial que responde sus dudas leyendo el material real del curso.",
+      "card": {
+        "kicker": "ExamLab · Estudiante",
+        "title": "Tutor con IA",
+        "subtitle": "Responde sobre el material del curso"
+      },
+      "bufferMs": 2500
+    },
+    {
+      "id": "estudiante-tutor-view",
+      "kind": "platform",
+      "narration": "Pregunta cuando quiera y el tutor le responde con base en sus contenidos, para estudiar mejor y a su ritmo.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "maincard",
+          "scale": 1.06,
+          "hold": 4800,
+          "side": "top",
+          "syncWord": "contenidos",
+          "focus": {
+            "title": "Tutor del curso",
+            "body": "Respuestas basadas en el material del propio curso."
+          }
+        }
+      ]
+    },
+    {
       "id": "outro",
       "kind": "card",
-      "narration": "ExamLab: menos tareas repetitivas y más tiempo para lo que importa, enseñar.",
+      "narration": "Tres roles, una sola plataforma. La inteligencia artificial le devuelve tiempo a toda tu institución.",
       "card": {
         "kicker": "ExamLab · Plataforma educativa con IA",
         "title": "La IA te devuelve tiempo",
-        "subtitle": "Crea · Evalúa · Enseña"
+        "subtitle": "Administrador · Docente · Estudiante"
       },
       "bufferMs": 2600
     }
