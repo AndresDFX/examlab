@@ -98,11 +98,11 @@ contentSlide({
   s.addText("Elige según qué tanto quieras involucrarte: solo referir, vender y acompañar, o escalar.", { x: 0.6, y: 0.88, w: 12, h: 0.28, fontSize: 12.5, color: "E0E7FF" });
 
   const tiers = [
-    { name: "Referido", who: "Solo presentas al cliente; ExamLab cierra y opera.", pct: "15%", basis: "del primer año · pago único", accent: PRIMARY2, hl: false,
+    { name: "Referido", who: "Solo presentas al cliente; ExamLab cierra y opera.", pct: "10%", basis: "del primer año · pago único", accent: PRIMARY2, hl: false,
       feats: ["Cero gestión de tu parte", "Ideal para un contacto puntual", "Sin compromiso ni metas"] },
-    { name: "Aliado Comercial", who: "Vendes y acompañas al cliente en el día a día.", pct: "25%", basis: "recurrente · mientras el cliente siga activo", accent: AI, hl: true,
+    { name: "Aliado Comercial", who: "Vendes y acompañas al cliente en el día a día.", pct: "15%", basis: "recurrente · mientras el cliente siga activo", accent: AI, hl: true,
       feats: ["Cobras también las renovaciones", "Materiales de venta + cuentas demo", "Registro de oportunidad protegido"] },
-    { name: "Aliado Premium", who: "Desde 5 instituciones activas a tu nombre.", pct: "35%", basis: "recurrente · + beneficios", accent: PRIMARY, hl: false,
+    { name: "Aliado Premium", who: "Desde 5 instituciones activas a tu nombre.", pct: "20%", basis: "recurrente · + beneficios", accent: PRIMARY, hl: false,
       feats: ["Soporte prioritario y co-branding", "Condiciones especiales por volumen", "Acompañamiento del equipo ExamLab"] },
   ];
   tiers.forEach((t, i) => {
@@ -146,10 +146,10 @@ contentSlide({
   ];
   const rows = [
     head,
-    mk("Referido", "1 plan Institucional ($1.000/mes)", "15% del primer año", "$1.800 una vez", true),
-    mk("Aliado Comercial", "1 plan Profesional ($299/mes)", "25% recurrente", "~$75/mes (~$897/año)"),
-    mk("Aliado Comercial", "3 planes Institucional ($1.000/mes)", "25% recurrente", "$750/mes ($9.000/año)"),
-    mk("Aliado Premium", "1 plan Institucional ($1.000/mes)", "35% recurrente", "$350/mes ($4.200/año)"),
+    mk("Referido", "1 plan Institucional ($1.000/mes)", "10% del primer año", "$1.200 una vez", true),
+    mk("Aliado Comercial", "1 plan Profesional ($299/mes)", "15% recurrente", "~$45/mes (~$538/año)"),
+    mk("Aliado Comercial", "3 planes Institucional ($1.000/mes)", "15% recurrente", "$450/mes ($5.400/año)"),
+    mk("Aliado Premium", "1 plan Institucional ($1.000/mes)", "20% recurrente", "$200/mes ($2.400/año)"),
   ];
   s.addTable(rows, { x: 0.7, y: 1.75, w: 11.93, colW: [2.6, 4.2, 2.6, 2.53], rowH: 0.72, border: { type: "solid", color: "E2E8F0", pt: 1 }, align: "left", valign: "middle", margin: 6 });
   s.addShape(pptx.ShapeType.roundRect, { x: 0.7, y: 5.6, w: 11.93, h: 0.95, fill: { color: AIBG }, line: { color: AI, width: 1 }, rectRadius: 0.08 });

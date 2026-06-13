@@ -10,9 +10,9 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 
 | Modalidad | Qué haces | Comisión |
 |---|---|---|
-| **Referido** | Solo presentas al cliente; nosotros cerramos y operamos. | **15% del primer año** (pago único) |
-| **Aliado Comercial** | Vendes y acompañas al cliente. | **25% recurrente** mientras siga activo (incluye renovaciones) |
-| **Aliado Premium** | Desde 5 instituciones activas a tu nombre. | **35% recurrente** + soporte prioritario y co-branding |
+| **Referido** | Solo presentas al cliente; nosotros cerramos y operamos. | **10% del primer año** (pago único) |
+| **Aliado Comercial** | Vendes y acompañas al cliente. | **15% recurrente** mientras siga activo (incluye renovaciones) |
+| **Aliado Premium** | Desde 5 instituciones activas a tu nombre. | **20% recurrente** + soporte prioritario y co-branding |
 
 **Reglas claras:** registro de oportunidad (el cliente que registras queda protegido **90 días**) · pago **mensual o trimestral** sobre lo efectivamente cobrado · **sin cuota de entrada** · no pones infraestructura ni el costo de IA (el cliente usa su propia API key) · te damos demos, presentaciones y cuentas de prueba.
 
@@ -31,11 +31,11 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 > ExamLab es la plataforma educativa con **IA** que les ahorra horas a los docentes (genera exámenes/talleres y los califica sola). No vendes una promesa: vendes algo que ya funciona, y tú solo pones la **relación con las instituciones** — nosotros ponemos plataforma, infraestructura y soporte.
 >
 > **Cómo ganas** (eliges qué tanto te involucras):
-> - **Referido** — solo me presentas el cliente → **15% del primer año**.
-> - **Aliado Comercial** — vendes y acompañas → **25% recurrente** mientras el cliente siga activo (también las renovaciones).
-> - **Aliado Premium** — desde 5 instituciones → **35% recurrente** + beneficios.
+> - **Referido** — solo me presentas el cliente → **10% del primer año**.
+> - **Aliado Comercial** — vendes y acompañas → **15% recurrente** mientras el cliente siga activo (también las renovaciones).
+> - **Aliado Premium** — desde 5 instituciones → **20% recurrente** + beneficios.
 >
-> **Un ejemplo:** como Aliado Comercial, 3 instituciones grandes ($1.000/mes c/u) te dejan **$750/mes recurrentes** (~$9.000/año), y se repite cada año que renueven. 💸
+> **Un ejemplo:** como Aliado Comercial, 3 instituciones grandes ($1.000/mes c/u) te dejan **$450/mes recurrentes** (~$5.400/año), y se repite cada año que renueven. 💸
 >
 > Asociarte es **gratis**, sin metas obligatorias, y te paso todos los materiales para vender (demos en video, presentaciones y cuentas de prueba).
 >
@@ -56,7 +56,7 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 >
 > Es la plataforma educativa con IA que arma y califica evaluaciones sola. Tú pones los contactos, yo pongo plataforma + soporte.
 >
-> 💸 Ganas así: **referido 15%** del 1er año · **aliado comercial 25% recurrente** · **premium 35%**. Ej: 3 instituciones grandes = ~$750/mes recurrentes.
+> 💸 Ganas así: **referido 10%** del 1er año · **aliado comercial 15% recurrente** · **premium 20%**. Ej: 3 instituciones grandes = ~$450/mes recurrentes.
 >
 > Gratis asociarse y te paso todo para vender (demos + presentaciones + cuentas de prueba). Te mando la presentación 👇 ¿lo miramos? 🚀
 >
