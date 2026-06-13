@@ -57,3 +57,4 @@ supabase/.temp/
 # arriba, pero lo explicito acá por claridad.
 /recordings/
 .env.recording
+.tmp.driveupload
