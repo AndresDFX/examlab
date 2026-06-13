@@ -165,6 +165,10 @@ function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Row | null>(null);
+  // Correo institucional ORIGINAL al abrir el editor — para detectar si el
+  // admin lo cambió y, de ser así, propagar el cambio al correo de acceso
+  // (auth.users.email) vía la edge `admin-update-email`, no solo a profiles.
+  const editOriginalEmailRef = useRef<string>("");
   const [password, setPassword] = useState("");
   // Toggle "ojo" para el input de contraseña (crear/editar). Default
   // false (oculto) para evitar shoulder-surfing — quien crea al usuario
@@ -632,6 +636,7 @@ function AdminUsers() {
 
   const openEdit = (r: Row) => {
     setEditing({ ...r });
+    editOriginalEmailRef.current = r.institutional_email ?? "";
     setPassword("");
     setShowPassword(false);
     setEnrollCourseId(null);
@@ -798,6 +803,32 @@ function AdminUsers() {
         return;
       }
       if (editing.id) {
+        // Cambio del CORREO DE ACCESO (login): NO se escribe a profiles
+        // directamente — el correo de login vive en auth.users.email y solo
+        // el service_role lo toca. Si el admin cambió el correo, lo enrutamos
+        // por la edge `admin-update-email`, que actualiza auth.users.email
+        // (fuente de verdad) y el trigger tg_sync_profile_institutional_email
+        // espeja a profiles.institutional_email. Hacerlo PRIMERO: si falla
+        // (correo tomado, fuera de tenant), abortamos sin tocar nada más.
+        const newEmail = editing.institutional_email.trim();
+        const emailChanged =
+          newEmail.toLowerCase() !== (editOriginalEmailRef.current ?? "").trim().toLowerCase();
+        if (emailChanged) {
+          const { data: emRes, error: emErr } = await supabase.functions.invoke(
+            "admin-update-email",
+            { body: { userId: editing.id, newEmail } },
+          );
+          if (emErr || emRes?.error) {
+            const detail = await extractEdgeError(emErr, emRes);
+            toast.error(
+              detail ||
+                i18n.t("toast.routes_app_admin_users.emailChangeFailed", {
+                  defaultValue: "No se pudo cambiar el correo de acceso",
+                }),
+            );
+            return;
+          }
+        }
         // Update profile
         // Identidad estudiantil — solo se persiste para usuarios con rol
         // Estudiante. Para Admin/Docente forzamos NULL aunque el form
@@ -806,10 +837,12 @@ function AdminUsers() {
         // SuperAdmin puede reasignar tenant en edit (sujeto al trigger
         // tg_check_profile_tenant_change que bloquea si el user tiene
         // cursos activos en el tenant viejo). Admin no lo toca.
+        // institutional_email NO va acá — lo gobierna la edge admin-update-email
+        // + el trigger de sincronía (ver bloque emailChanged arriba). Escribirlo
+        // directo dejaría auth.users.email desincronizado (el bug que se corrige).
         const updatePayload: Record<string, unknown> = {
           full_name: editing.full_name,
           personal_email: editing.personal_email || null,
-          institutional_email: editing.institutional_email,
           codigo: isStudent ? editing.codigo?.trim() || null : null,
           student_code: isStudent ? editing.student_code?.trim() || null : null,
           documento: isStudent ? editing.documento?.trim() || null : null,
