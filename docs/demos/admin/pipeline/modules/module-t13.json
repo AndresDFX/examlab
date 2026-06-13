@@ -1,35 +1,127 @@
 {
   "id": "modulo-t13",
-  "title": "Cuenta y Sesión (Docente)",
+  "title": "Mensajes (Docente)",
   "series": "teacher",
   "role": "Docente",
-  "appPath": "/app",
-  "readySelectors": ["[data-tour-id=\"role-switcher\"]", "[data-tour-nav=\"/app/teacher/exams\"]"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "appPath": "/app/messages",
+  "readySelectors": [
+    "text=Mensajes",
+    "[data-tour-id=\"broadcast-messages\"]"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Último módulo del rol Docente: tu cuenta y la sesión.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Cuenta y Sesión", "subtitle": "Demo Global Corp" },
+      "narration": "Mensajes: la comunicación interna de ExamLab, desde el rol Docente.",
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Mensajes",
+        "subtitle": "Demo Global Corp"
+      },
       "bufferMs": 600
     },
     {
-      "id": "cuenta",
+      "id": "difusion",
       "kind": "platform",
-      "narration": "Al pie del menú vive tu cuenta. La campana muestra las notificaciones; el sobre, los mensajes internos con estudiantes y colegas. Y al cerrar sesión, el contexto de la institución se limpia por completo.",
-      "bufferMs": 900,
+      "openVia": {
+        "target": "[data-tour-id=\"broadcast-messages\"]"
+      },
+      "ready": [
+        "[role=\"dialog\"]"
+      ],
+      "narration": "Más allá del chat uno a uno, el docente puede difundir un anuncio a todos los estudiantes de uno o varios cursos a la vez. Seleccionamos los cursos, escribimos el asunto y el mensaje —donde podemos etiquetar talleres o exámenes con el símbolo numeral—, y enviamos. Cada alumno recibe una notificación, un correo y el anuncio en su chat.",
+      "bufferMs": 1000,
       "beats": [
-        { "target": "[data-tour-id=\"notifications-bell\"]", "scale": 2.1, "hold": 3200, "side": "right", "overpan": true, "syncWord": "campana", "focus": { "title": "Notificaciones", "body": "Avisos de entregas, mensajes y del sistema." } },
-        { "target": "[data-tour-id=\"messages-bell\"]", "scale": 2.1, "hold": 3200, "side": "right", "overpan": true, "syncWord": "sobre", "focus": { "title": "Mensajes", "body": "Comunicación con estudiantes y difusiones a cursos." } },
-        { "target": "[data-tour-id=\"logout\"]", "scale": 2.1, "hold": 4200, "side": "right", "overpan": true, "syncWord": "cerrar", "focus": { "title": "Cerrar sesión", "body": "Limpia por completo el contexto de la institución." } }
+        {
+          "click": true,
+          "target": "text:Seleccionar todos",
+          "afterClickMs": 700,
+          "syncWord": "cursos",
+          "focusTarget": "[role=\"dialog\"]",
+          "scale": 1,
+          "hold": 2500,
+          "side": "bottom",
+          "focus": {
+            "title": "A uno o varios cursos",
+            "body": "Difunde a todos los estudiantes de los cursos elegidos."
+          }
+        },
+        {
+          "typeInto": true,
+          "target": "field:Asunto",
+          "scale": 1.05,
+          "syncWord": "asunto",
+          "text": "Recordatorio: entrega del Taller 1 esta semana",
+          "hold": 800
+        },
+        {
+          "typeInto": true,
+          "target": "field:Mensaje",
+          "scale": 1.05,
+          "syncWord": "mensaje",
+          "text": "Recuerden repasar los algoritmos de ordenamiento antes de la entrega.",
+          "hold": 1200
+        }
+      ]
+    },
+    {
+      "id": "programar",
+      "kind": "platform",
+      "narration": "Y no tiene que ser ahora mismo: con Programar envío elegimos una fecha y hora futura, y el botón pasa a Programar.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "field:Programar",
+          "scale": 1.15,
+          "hold": 6000,
+          "side": "top",
+          "scroll": true,
+          "syncWord": "Programar",
+          "focus": {
+            "title": "Programar envío",
+            "body": "Elige fecha y hora; el anuncio se manda solo al vencer."
+          }
+        }
+      ]
+    },
+    {
+      "id": "programados",
+      "kind": "platform",
+      "openVia": {
+        "target": "button:Programados"
+      },
+      "ready": [
+        "[role=\"dialog\"]"
+      ],
+      "narration": "Desde Programados gestionamos todo lo que está agendado: cada mensaje pendiente, con su fecha de envío, se puede editar, cancelar o revisar en el historial.",
+      "bufferMs": 1000,
+      "beats": [
+        {
+          "target": "[role=\"dialog\"]",
+          "scale": 1,
+          "hold": 9000,
+          "side": "bottom",
+          "syncWord": "gestionamos",
+          "focus": {
+            "title": "Mensajes programados",
+            "body": "Pendientes con su fecha: editar, cancelar o ver el historial."
+          }
+        }
       ]
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "Con esto concluye el recorrido del rol Docente en ExamLab.",
-      "card": { "kicker": "ExamLab · Serie de demostración", "title": "Fin del recorrido", "subtitle": "Rol Docente · Demo Global Corp" },
+      "card": {
+        "kicker": "ExamLab · Serie de demostración",
+        "title": "Fin del recorrido",
+        "subtitle": "Rol Docente · Demo Global Corp"
+      },
       "bufferMs": 800
     }
   ]

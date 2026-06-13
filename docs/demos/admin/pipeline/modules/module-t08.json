@@ -4,42 +4,122 @@
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/teacher/attendance",
-  "readySelectors": ["[data-tour-nav=\"/app/teacher/attendance\"]", "text=Asistencia"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "[data-tour-nav=\"/app/teacher/attendance\"]",
+    "main table"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
       "narration": "Control de asistencia, desde el rol Docente.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Asistencia", "subtitle": "Demo Global Corp" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Asistencia",
+        "subtitle": "Demo Global Corp"
+      },
       "bufferMs": 600
-    },
-    {
-      "id": "crear",
-      "kind": "platform",
-      "narration": "Cada clase se registra como una sesión. Al crear una, el docente define su fecha, la hora y un título para la clase; también puede programarlas en bloque para todo el periodo.",
-      "bufferMs": 800,
-      "openDialog": "text:Nueva sesión",
-      "beats": [
-        { "target": "field:Fecha", "hold": 3000, "side": "right", "focus": { "title": "Fecha", "body": "Día de la clase." } },
-        { "target": "field:Hora fin", "hold": 3000, "side": "right", "focus": { "title": "Hora", "body": "Inicio y duración de la sesión." } },
-        { "target": "field:Título", "hold": 3200, "side": "right", "focus": { "title": "Título", "body": "Tema de la clase (opcional)." } }
-      ]
     },
     {
       "id": "matriz",
       "kind": "platform",
-      "narration": "La asistencia se consolida por estudiante y alimenta el porcentaje de cada corte. Cuando el docente abre el check-in, los estudiantes se marcan presentes con un código que rota cada pocos segundos.",
-      "bufferMs": 800,
+      "narration": "La asistencia es una matriz: cada columna es una clase, cada fila un estudiante. Pero llamar a lista uno por uno es lento, así que ExamLab lo resuelve con un código QR que se proyecta en el salón.",
+      "bufferMs": 900,
       "beats": [
-        { "target": "firstcard", "scale": 1.1, "hold": 5200, "side": "bottom", "focus": { "title": "Registro por sesión", "body": "Presente o ausente, y el porcentaje por corte." } }
+        {
+          "selectOption": "Fundamentos",
+          "target": "[role=\"combobox\"]",
+          "scale": 1,
+          "hold": 1200,
+          "syncWord": "matriz",
+          "focus": null
+        },
+        {
+          "target": "firstcard",
+          "scale": 1.05,
+          "hold": 6500,
+          "side": "bottom",
+          "syncWord": "columna",
+          "focus": {
+            "title": "Matriz de asistencia",
+            "body": "Columnas = clases, filas = estudiantes."
+          }
+        }
+      ]
+    },
+    {
+      "id": "qr",
+      "kind": "platform",
+      "openVia": {
+        "target": "[title=\"Iniciar check-in con QR\"]"
+      },
+      "ready": [
+        "[role=\"dialog\"]"
+      ],
+      "narration": "Abrimos el check-in con QR. Elegimos cuánto dura la ventana y cada cuánto rota el código, e iniciamos.",
+      "bufferMs": 700,
+      "beats": [
+        {
+          "target": "field:Duración",
+          "scale": 1.05,
+          "hold": 4500,
+          "side": "right",
+          "syncWord": "dura",
+          "focus": {
+            "title": "Ventana y rotación",
+            "body": "Duración del check-in y rotación del código de seguridad."
+          }
+        },
+        {
+          "click": true,
+          "target": "button:Iniciar",
+          "syncWord": "iniciamos",
+          "waitText": "Presentes",
+          "waitTimeoutMs": 12000,
+          "afterClickMs": 3000,
+          "focusTarget": "text:Código manual",
+          "scale": 1,
+          "hold": 2000,
+          "side": "left",
+          "focus": {
+            "title": "Check-in abierto",
+            "body": "QR + código de 6 dígitos."
+          }
+        }
+      ]
+    },
+    {
+      "id": "qr-hold",
+      "kind": "platform",
+      "narration": "Y aquí está: un QR gigante en pantalla, con un código de seis dígitos que rota por seguridad y un contador de presentes en vivo. Los estudiantes lo escanean desde su celular y se marcan solos.",
+      "bufferMs": 1200,
+      "beats": [
+        {
+          "target": "text:Presentes",
+          "scale": 1,
+          "hold": 10000,
+          "side": "left",
+          "syncWord": "QR",
+          "focus": {
+            "title": "Self check-in",
+            "body": "El contador sube en vivo a medida que escanean."
+          }
+        }
       ]
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "En el siguiente módulo: los contenidos del curso.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Contenidos" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Siguiente módulo",
+        "subtitle": "Contenidos"
+      },
       "bufferMs": 600
     }
   ]

@@ -1,10 +1,9 @@
 {
   "id": "modulo-14",
-  "title": "Cuenta y Sesión",
-  "appPath": "/app",
+  "title": "Papelera",
+  "appPath": "/app/trash",
   "readySelectors": [
-    "[data-tour-id=\"role-switcher\"]",
-    "text=Cursos recientes"
+    "main table"
   ],
   "voice": {
     "name": "es-CO-GonzaloNeural",
@@ -14,65 +13,82 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo catorce, el último: tu cuenta y la sesión.",
+      "narration": "Módulo catorce: la papelera. Borrar ya no es para siempre.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
-        "title": "Cuenta y Sesión",
-        "subtitle": "Demo Global Corp"
+        "title": "Papelera",
+        "subtitle": "Recuperar lo eliminado"
       },
       "bufferMs": 600
     },
     {
-      "id": "cuenta",
+      "id": "item",
       "kind": "platform",
-      "narration": "Al pie del menú vive tu cuenta. El selector de rol cambia entre tus perfiles —Administrador, Docente, Estudiante— reconfigurando lo que ves. La campana muestra las notificaciones; el sobre, los mensajes internos. Y al cerrar sesión, el contexto de la institución se limpia por completo.",
-      "bufferMs": 900,
+      "narration": "La papelera guarda todo lo que eliminas —cursos, exámenes, talleres, proyectos— durante treinta días. Aquí vemos un taller que se borró: con su nombre, quién lo borró y la cuenta regresiva de días que le quedan antes de purgarse.",
+      "bufferMs": 1000,
       "beats": [
         {
-          "target": "[data-tour-id=\"role-switcher\"]",
-          "scale": 1.7,
-          "hold": 8500,
-          "side": "right",
-          "syncWord": "selector",
+          "target": "stat:0",
+          "scale": 1.4,
+          "hold": 4500,
+          "side": "bottom",
+          "syncWord": "guarda",
           "focus": {
-            "title": "Selector de rol",
-            "body": "Cambia entre Administrador, Docente y Estudiante."
+            "title": "Todo recuperable",
+            "body": "Va a la papelera 30 días antes del borrado definitivo."
           }
         },
         {
-          "target": "[data-tour-id=\"notifications-bell\"]",
-          "scale": 2.1,
-          "hold": 3000,
-          "side": "right",
-          "overpan": true,
-          "syncWord": "campana",
+          "target": "row:0",
+          "scale": 1.25,
+          "hold": 5500,
+          "side": "bottom",
+          "syncWord": "taller",
           "focus": {
-            "title": "Notificaciones",
-            "body": "Avisos del sistema y de los usuarios."
+            "title": "Un taller eliminado",
+            "body": "Nombre, quién lo borró y cuándo."
           }
         },
         {
-          "target": "[data-tour-id=\"messages-bell\"]",
-          "scale": 2.1,
-          "hold": 3000,
-          "side": "right",
-          "overpan": true,
-          "syncWord": "sobre",
+          "target": "th:Purga en",
+          "scale": 1.3,
+          "hold": 4500,
+          "side": "left",
+          "scroll": true,
+          "syncWord": "regresiva",
           "focus": {
-            "title": "Mensajes",
-            "body": "Comunicación interna y difusiones a cursos."
+            "title": "Cuenta regresiva",
+            "body": "Ámbar y luego rojo cuando faltan pocos días."
+          }
+        }
+      ]
+    },
+    {
+      "id": "acciones",
+      "kind": "platform",
+      "narration": "Y por cada elemento hay dos acciones: Restaurar, que lo devuelve a su curso intacto, con todo su contenido... o Eliminar definitivo, que lo borra por completo y siempre pide confirmación, porque esa acción no tiene vuelta atrás.",
+      "bufferMs": 1000,
+      "beats": [
+        {
+          "target": "main table tr:has(td) td:last-child button:first-child",
+          "scale": 1.9,
+          "hold": 5500,
+          "side": "left",
+          "syncWord": "Restaurar",
+          "focus": {
+            "title": "Restaurar",
+            "body": "Vuelve a su lista, intacto."
           }
         },
         {
-          "target": "[data-tour-id=\"logout\"]",
-          "scale": 2.1,
-          "hold": 4200,
-          "side": "right",
-          "overpan": true,
-          "syncWord": "cerrar",
+          "target": "main table tr:has(td) td:last-child button:last-child",
+          "scale": 1.9,
+          "hold": 5500,
+          "side": "left",
+          "syncWord": "definitivo",
           "focus": {
-            "title": "Cerrar sesión",
-            "body": "Limpia por completo el contexto de la institución."
+            "title": "Eliminar definitivo",
+            "body": "Borrado permanente; pide confirmación."
           }
         }
       ]
@@ -80,13 +96,13 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "Con esto concluye el recorrido del rol Administrador en ExamLab.",
+      "narration": "En el siguiente módulo: tu cuenta y la sesión.",
       "card": {
-        "kicker": "ExamLab · Serie de demostración",
-        "title": "Fin del recorrido",
-        "subtitle": "Rol Administrador · Demo Global Corp"
+        "kicker": "ExamLab · Rol Administrador",
+        "title": "Siguiente módulo",
+        "subtitle": "Cuenta y Sesión"
       },
-      "bufferMs": 800
+      "bufferMs": 600
     }
   ]
 }

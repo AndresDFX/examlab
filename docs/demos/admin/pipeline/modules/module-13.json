@@ -1,9 +1,9 @@
 {
   "id": "modulo-13",
-  "title": "Papelera",
-  "appPath": "/app/trash",
+  "title": "Soporte",
+  "appPath": "/app/admin/support",
   "readySelectors": [
-    "main table"
+    "text=Nuevo ticket"
   ],
   "voice": {
     "name": "es-CO-GonzaloNeural",
@@ -13,29 +13,49 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo trece: la papelera. Recuperar lo eliminado.",
+      "narration": "Módulo trece: el canal de soporte con la plataforma. Peticiones, quejas, reclamos y sugerencias.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
-        "title": "Papelera",
-        "subtitle": "Recuperar lo eliminado"
+        "title": "Soporte",
+        "subtitle": "PQRS hacia la plataforma"
       },
       "bufferMs": 600
     },
     {
-      "id": "papelera",
+      "id": "soporte",
       "kind": "platform",
-      "narration": "Lo que se elimina no desaparece: pasa a la papelera, donde permanece treinta días antes del borrado definitivo. Cursos, exámenes, talleres, proyectos, sesiones y más. Desde aquí se restauran con un clic, o se eliminan de forma permanente cuando estás seguro.",
+      "openDialog": "createbtn",
+      "narration": "Abrimos un ticket nuevo. Elegimos su categoría —petición, queja, reclamo o sugerencia—, escribimos un asunto, y describimos el caso con el detalle necesario. La conversación con la plataforma sigue dentro del mismo ticket.",
       "bufferMs": 900,
       "beats": [
         {
-          "target": "firstcard",
-          "scale": 1.18,
-          "hold": 15500,
-          "side": "bottom",
-          "syncWord": "papelera",
+          "target": "field:Categoría",
+          "hold": 6000,
+          "side": "right",
+          "syncWord": "categoría",
           "focus": {
-            "title": "Papelera",
-            "body": "Restaura lo eliminado; 30 días antes del borrado definitivo."
+            "title": "Categoría",
+            "body": "Petición, queja, reclamo o sugerencia."
+          }
+        },
+        {
+          "target": "field:Asunto",
+          "hold": 3000,
+          "side": "right",
+          "syncWord": "asunto",
+          "focus": {
+            "title": "Asunto",
+            "body": "El tema del ticket."
+          }
+        },
+        {
+          "target": "field:Descripción",
+          "hold": 6000,
+          "side": "right",
+          "syncWord": "describimos",
+          "focus": {
+            "title": "Descripción",
+            "body": "El detalle del caso (puedes adjuntar archivos)."
           }
         }
       ]
@@ -43,11 +63,11 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el último módulo: tu cuenta y el cierre de sesión.",
+      "narration": "En el siguiente módulo: la papelera.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Siguiente módulo",
-        "subtitle": "Cuenta y Sesión"
+        "subtitle": "Papelera"
       },
       "bufferMs": 600
     }

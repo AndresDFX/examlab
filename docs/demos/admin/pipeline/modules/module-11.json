@@ -1,9 +1,10 @@
 {
   "id": "modulo-11",
-  "title": "Auditoría",
-  "appPath": "/app/admin/audit-logs",
+  "title": "Informes",
+  "appPath": "/app/admin/report-templates",
   "readySelectors": [
-    "text=Registro de auditoría"
+    "main table",
+    "text=Nueva plantilla"
   ],
   "voice": {
     "name": "es-CO-GonzaloNeural",
@@ -13,40 +14,106 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo once: la auditoría. El registro de todo lo que pasa en la institución.",
+      "narration": "Módulo once: los informes. Las plantillas de actas y boletines en PDF.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
-        "title": "Auditoría",
-        "subtitle": "Demo Global Corp"
+        "title": "Informes",
+        "subtitle": "Plantillas globales"
       },
       "bufferMs": 600
     },
     {
-      "id": "auditoria",
+      "id": "vista",
       "kind": "platform",
-      "narration": "La auditoría registra quién hizo qué y cuándo: inicios de sesión, cambios, calificaciones y eliminaciones. Se puede filtrar por curso, categoría, evento o nivel, exportar a CSV, y solo muestra la actividad de esta institución. Es la herramienta para responder reclamos e investigar incidentes.",
+      "narration": "El administrador arma plantillas globales que cualquier docente podrá usar. Hay dos caminos: cargar un documento de Word que ya tengas, que se convierte en plantilla editable conservando el formato... o crear una desde cero.",
       "bufferMs": 900,
       "beats": [
         {
-          "target": "firstcard",
-          "scale": 1.18,
-          "hold": 9000,
+          "target": "button:Cargar Word",
+          "scale": 1.4,
+          "hold": 5200,
           "side": "bottom",
-          "syncWord": "registra",
+          "syncWord": "cargar",
           "focus": {
-            "title": "Auditoría",
-            "body": "Quién hizo qué y cuándo, en la institución."
+            "title": "Cargar Word (.docx)",
+            "body": "Importa un documento existente y edítalo aquí."
           }
         },
         {
-          "target": "row:0",
-          "scale": 1.25,
-          "hold": 6500,
+          "target": "createbtn",
+          "scale": 1.5,
+          "hold": 3500,
           "side": "bottom",
-          "syncWord": "reclamos",
+          "syncWord": "crear",
           "focus": {
-            "title": "Cada evento",
-            "body": "Fecha, actor, acción, categoría y nivel."
+            "title": "Nueva plantilla",
+            "body": "Crea el informe desde cero."
+          }
+        }
+      ]
+    },
+    {
+      "id": "crear",
+      "kind": "platform",
+      "openVia": {
+        "target": "button:Nueva plantilla"
+      },
+      "ready": [
+        "[role=\"dialog\"]"
+      ],
+      "narration": "Al crear una plantilla le damos un nombre, elegimos si es por estudiante o consolidada por curso, y en el cuerpo redactamos el informe como en un procesador de texto.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "typeInto": true,
+          "target": "field:Nombre",
+          "scale": 1.2,
+          "syncWord": "nombre",
+          "text": "Boletín de notas",
+          "hold": 1500
+        },
+        {
+          "target": "field:Tipo de informe",
+          "scale": 1.2,
+          "hold": 4000,
+          "side": "bottom",
+          "syncWord": "estudiante",
+          "focus": {
+            "title": "Tipo de informe",
+            "body": "Por estudiante o consolidado por curso."
+          }
+        }
+      ]
+    },
+    {
+      "id": "variables",
+      "kind": "platform",
+      "narration": "Y acá está lo potente: el panel de variables disponibles. Con un clic insertamos datos dinámicos —el nombre del estudiante, su nota final, el curso— justo donde está el cursor. Eso embebe la información real de cada estudiante al generar el informe.",
+      "bufferMs": 1000,
+      "beats": [
+        {
+          "target": "card:Variables disponibles",
+          "scale": 1.15,
+          "hold": 6500,
+          "side": "left",
+          "syncWord": "panel",
+          "focus": {
+            "title": "Variables disponibles",
+            "body": "Click inserta el dato en la posición del cursor."
+          }
+        },
+        {
+          "click": true,
+          "target": "button:Estudiante",
+          "afterClickMs": 900,
+          "syncWord": "insertamos",
+          "focusTarget": "card:Variables disponibles",
+          "scale": 1.15,
+          "hold": 5500,
+          "side": "left",
+          "focus": {
+            "title": "Datos dinámicos",
+            "body": "Nombre, código, nota final, curso… reemplazados por datos reales."
           }
         }
       ]
@@ -54,11 +121,11 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: el soporte.",
+      "narration": "En el siguiente módulo: la auditoría.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Siguiente módulo",
-        "subtitle": "Soporte"
+        "subtitle": "Auditoría"
       },
       "bufferMs": 600
     }

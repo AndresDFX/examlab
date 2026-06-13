@@ -4,14 +4,24 @@
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/teacher/projects",
-  "readySelectors": ["[data-tour-nav=\"/app/teacher/projects\"]", "text=Proyectos"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "[data-tour-nav=\"/app/teacher/projects\"]",
+    "text=Proyectos"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
       "narration": "Gestión de proyectos, desde el rol Docente.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Proyectos", "subtitle": "Demo Global Corp" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Proyectos",
+        "subtitle": "Demo Global Corp"
+      },
       "bufferMs": 600
     },
     {
@@ -20,7 +30,16 @@
       "narration": "Los proyectos son entregas extensas que combinan la calificación de la entrega con una sustentación. El listado muestra cada proyecto con su curso y estado.",
       "bufferMs": 800,
       "beats": [
-        { "target": "row:0", "scale": 1.0, "hold": 4000, "side": "bottom", "focus": { "title": "Tus proyectos", "body": "Entrega más sustentación." } }
+        {
+          "target": "row:0",
+          "scale": 1,
+          "hold": 4000,
+          "side": "bottom",
+          "focus": {
+            "title": "Tus proyectos",
+            "body": "Entrega más sustentación."
+          }
+        }
       ]
     },
     {
@@ -29,26 +48,125 @@
       "narration": "Desde acciones, el docente define los archivos esperados, organiza los grupos de trabajo, revisa las entregas y registra la sustentación.",
       "bufferMs": 700,
       "beats": [
-        { "target": "rowaction:0", "clickToOpen": true, "hold": 4800 }
+        {
+          "target": "rowaction:0",
+          "clickToOpen": true,
+          "hold": 4800
+        }
       ]
     },
     {
       "id": "crear",
       "kind": "platform",
-      "narration": "Al crear un proyecto se define su título, la fecha de inicio y su estado de publicación.",
+      "narration": "Al crear un proyecto se define su título, la fecha de inicio y su estado de publicación. Y la descripción no hay que redactarla: se genera con inteligencia artificial a partir del título.",
       "bufferMs": 800,
       "openDialog": "createbtn",
       "beats": [
-        { "target": "field:Título", "hold": 3000, "side": "right", "syncWord": "título", "focus": { "title": "Título", "body": "Tema o título del proyecto." } },
-        { "target": "field:Fecha inicio", "hold": 3000, "side": "right", "syncWord": "fecha", "focus": { "title": "Fecha inicio", "body": "Cuándo comienza el proyecto." } },
-        { "target": "field:Estado", "hold": 4200, "side": "right", "syncWord": "estado", "focus": { "title": "Estado", "body": "Borrador o publicado." } }
+        {
+          "target": "field:Título",
+          "hold": 3000,
+          "side": "right",
+          "syncWord": "título",
+          "focus": {
+            "title": "Título",
+            "body": "Tema o título del proyecto."
+          }
+        },
+        {
+          "target": "field:Fecha inicio",
+          "hold": 2800,
+          "side": "right",
+          "syncWord": "fecha",
+          "focus": {
+            "title": "Fecha inicio",
+            "body": "Cuándo comienza el proyecto."
+          }
+        },
+        {
+          "target": "field:Estado",
+          "hold": 2800,
+          "side": "right",
+          "syncWord": "estado",
+          "focus": {
+            "title": "Estado",
+            "body": "Borrador o publicado."
+          }
+        },
+        {
+          "target": "button:Generar con IA",
+          "hold": 4200,
+          "side": "right",
+          "syncWord": "descripción",
+          "focus": {
+            "title": "Descripción con IA",
+            "body": "La IA redacta la descripción global a partir del título."
+          }
+        }
       ]
+    },
+    {
+      "id": "ia-vivo",
+      "kind": "platform",
+      "openVia": {
+        "target": "rowaction:0",
+        "menuItem": "Preguntas"
+      },
+      "tab": "Generar con IA",
+      "narration": "Los entregables del proyecto también los arma la inteligencia artificial: le damos los temas... y generamos. Siempre incluye una entrega de código fuente, más preguntas de análisis y diseño.",
+      "bufferMs": 700,
+      "beats": [
+        {
+          "typeInto": true,
+          "target": "field:Temas",
+          "scale": 1.25,
+          "syncWord": "temas",
+          "text": "Sistema de gestión para una biblioteca: catálogo, préstamos y multas",
+          "hold": 900
+        },
+        {
+          "click": true,
+          "target": "button:Generar con IA",
+          "syncWord": "generamos",
+          "waitText": "generadas",
+          "waitTimeoutMs": 90000,
+          "focusTarget": "[role=\"dialog\"]",
+          "scale": 1,
+          "hold": 2000,
+          "focus": {
+            "title": "Generando…",
+            "body": "La IA arma los entregables del proyecto."
+          }
+        }
+      ]
+    },
+    {
+      "id": "ia-resultado",
+      "kind": "platform",
+      "narration": "En segundos queda el set completo: la entrega de código en ZIP y las preguntas de análisis, cada una con su puntaje, listas para ajustar.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "[role=\"dialog\"]",
+          "scale": 1,
+          "hold": 8500,
+          "side": "bottom",
+          "focus": {
+            "title": "Entregables generados",
+            "body": "Código ZIP + preguntas de análisis y diseño."
+          }
+        }
+      ],
+      "tab": "Preguntas"
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "En el siguiente módulo: el banco de preguntas.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Banco de preguntas" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Siguiente módulo",
+        "subtitle": "Banco de preguntas"
+      },
       "bufferMs": 600
     }
   ]

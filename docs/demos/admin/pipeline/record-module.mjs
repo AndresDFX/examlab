@@ -274,6 +274,14 @@ async function measureTargets(page, targets, scroll = false) {
         // Botón primario "Nuevo/Nueva/Crear/Agregar" de la vista (o tab) activa.
         el = [...document.querySelectorAll("main button")].find((b) => /^\s*(nuev|crear|agregar|añadir)/i.test(b.textContent || "")) || null;
       }
+      else if (ts.startsWith("button:")) {
+        // BOTÓN por texto, excluyendo tabs (Radix TabsTrigger es <button
+        // role="tab">). Necesario cuando una tab y un botón comparten texto
+        // (ej. tab "Generar con IA" + botón "Generar con IA" del taller).
+        const txt = ts.slice(7).toLowerCase();
+        const scope = document.querySelector('[role="dialog"]') || document.querySelector('[data-state="active"][role="tabpanel"]') || document.querySelector("main") || document.body;
+        el = [...scope.querySelectorAll("button")].find((b) => b.getAttribute("role") !== "tab" && (b.textContent || "").trim().toLowerCase().startsWith(txt)) || null;
+      }
       else if (ts.startsWith("text:")) {
         // Elemento por su TEXTO visible (encabezado/botón/etiqueta), scopeado a
         // la tab activa o al diálogo si lo hay. Para páginas de configuración sin
@@ -412,6 +420,30 @@ async function openMenuFocus(page, rect, beat) {
   await sleep(250);
 }
 
+// Llega a pantallas SIN ítem de nav (detalle de examen) o abre diálogos de
+// gestión (preguntas del taller) clicando un trigger y, opcionalmente, un
+// ítem del menú desplegado. Click por coords a identidad (resetea cámara).
+// Para rutas de detalle esto PRESERVA el rol activo (un goto lo perdería).
+async function openVia(page, spec) {
+  // Cierra cualquier modal/listbox que haya quedado abierto de una escena
+  // previa (ej. el dialog de difusión sigue abierto y taparía el botón que
+  // queremos clickear). Doble Escape por si hay popover + dialog anidados.
+  await page.keyboard.press("Escape").catch(() => {});
+  await sleep(150);
+  await page.keyboard.press("Escape").catch(() => {});
+  await page.evaluate(() => { document.body.style.transition = "none"; document.body.style.transform = "none"; document.documentElement.style.overflow = ""; });
+  await sleep(250);
+  const [rect] = await measureTargets(page, [spec.target]);
+  if (!rect) { console.log(`  ⚠ openVia: target "${spec.target}" no encontrado`); return; }
+  await page.mouse.click(rect.cx, rect.cy);
+  await sleep(500);
+  if (spec.menuItem) {
+    const item = page.getByRole("menuitem", { name: new RegExp(spec.menuItem, "i") }).first();
+    await item.click({ timeout: 5000 }).catch((e) => console.log(`  ⚠ openVia menuItem "${spec.menuItem}":`, e.message));
+    await sleep(1300);
+  }
+}
+
 async function loginAndGetState(browser) {
   const ctx = await browser.newContext({ viewport: VIEWPORT, locale: "es-CO" });
   const page = await ctx.newPage();
@@ -485,14 +517,22 @@ async function main() {
           currentRoute = sc.route;
           await waitReady(page, sc.ready ?? spec.readySelectors);
           await killTour(page); await cameraSetup(page); await hideCursor(page, true);
+        } else if (sc.openVia) {
+          // Navegación por CLICKS detrás de la carátula (rutas de detalle sin
+          // ítem de nav, ej. rowaction → "Editar" → /app/teacher/exams/$id).
+          // Preserva el rol activo, que un page.goto perdería.
+          await openVia(page, sc.openVia);
+          await waitReady(page, sc.ready ?? spec.readySelectors);
+          await killTour(page); await cameraSetup(page); await hideCursor(page, true);
         }
         await sleep(Math.max(0, target(i) - (Date.now() - s)));
         await clearOverlay(page);
       } else {
-        // platform: cámara identidad → (opcional) cambiar de tab → medir los
-        // targets de ESTA escena just-in-time (las tabs/contenido dinámico no
-        // existen hasta activarse) → secuencia de beats.
+        // platform: cámara identidad → (opcional) abrir vía menú / cambiar de
+        // tab → medir los targets de ESTA escena just-in-time (las tabs y el
+        // contenido dinámico no existen hasta activarse) → secuencia de beats.
         await page.evaluate(() => { document.body.style.transition = "none"; document.body.style.transform = "none"; });
+        if (sc.openVia) await openVia(page, sc.openVia);
         if (sc.tab) await clickTab(page, sc.tab);
 
         if (sc.openDialog) {
@@ -563,6 +603,73 @@ async function main() {
               await cameraReset(page, 500);
               cam = { tx: 0, ty: 0, s: 1 };
               await openMenuFocus(page, rect, beat);
+            } else if (beat.selectOption) {
+              // Radix Select robusto: localiza el TRIGGER real ([role=combobox])
+              // DENTRO del contenedor del target (un `field:Tipo` resuelve al
+              // contenedor label+select; clickear su centro caía sobre el label,
+              // no sobre el trigger → no abría). Reintenta abrir si el listbox
+              // no apareció (un solo click a veces no dispara el pointerdown de
+              // Radix). Cierra con Escape si la opción no se pudo clickear (un
+              // listbox abierto bloquea el resto de la escena).
+              await page.evaluate(() => { document.body.style.transition = "none"; document.body.style.transform = "none"; document.documentElement.style.overflow = ""; });
+              await sleep(160);
+              cam = { tx: 0, ty: 0, s: 1 };
+              const trig = await page.evaluate((tgt) => {
+                let container = null;
+                if (tgt.startsWith("field:")) {
+                  const txt = tgt.slice(6).toLowerCase();
+                  const scope = document.querySelector('[role="dialog"]') || document.querySelector('[data-state="active"][role="tabpanel"]') || document.body;
+                  const lbl = [...scope.querySelectorAll("label")].find((l) => (l.textContent || "").trim().toLowerCase().startsWith(txt));
+                  container = lbl ? lbl.parentElement : null;
+                } else {
+                  container = document.querySelector(tgt);
+                }
+                if (!container) return null;
+                const combo = container.matches?.('[role="combobox"]') ? container : container.querySelector('[role="combobox"]');
+                const el = combo || container;
+                const r = el.getBoundingClientRect();
+                return { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+              }, beat.target);
+              let optOk = true;
+              if (!trig) { optOk = false; console.log(`  ⚠ selectOption: trigger "${beat.target}" no encontrado`); }
+              else {
+                await page.mouse.click(trig.cx, trig.cy);
+                let opened = await page.locator('[role="listbox"]').first().waitFor({ timeout: 1500 }).then(() => true).catch(() => false);
+                if (!opened) { await sleep(250); await page.mouse.click(trig.cx, trig.cy); await page.locator('[role="listbox"]').first().waitFor({ timeout: 1500 }).catch(() => {}); }
+                const opt = page.getByRole("option", { name: new RegExp(beat.selectOption, "i") }).first();
+                await opt.click({ timeout: 4000 }).catch((e) => { optOk = false; console.log(`  ⚠ selectOption "${beat.selectOption}":`, e.message.split("\n")[0]); });
+                if (!optOk) { await page.keyboard.press("Escape").catch(() => {}); await sleep(200); }
+              }
+              await sleep(800);
+              const [r2] = await measureTargets(page, [beat.target]);
+              const fs = fitScale(r2, beat.scale ?? 1.25);
+              await cameraTo(page, r2, fs, 500);
+              if (r2) cam = computeCam(r2, fs, false);
+              await focusOn(page, r2, beat.focus, fs, beat.side);
+              await sleep(effectiveHold(words, sc.beats, j, s, beat.hold ?? 1500));
+              await focusOff(page);
+            } else if (beat.typeInto) {
+              // TIPEO EN VIVO: clic en el campo (a identidad), zoom al campo y
+              // teclea el texto carácter a carácter — el espectador VE cómo se
+              // llena (ej. los temas para la generación con IA).
+              await page.evaluate(() => { document.body.style.transition = "none"; document.body.style.transform = "none"; document.documentElement.style.overflow = ""; });
+              await sleep(160);
+              cam = { tx: 0, ty: 0, s: 1 };
+              if (rect) {
+                await page.mouse.click(rect.cx, rect.cy);
+                const fs = fitScale(rect, beat.scale ?? 1.3);
+                await cameraTo(page, rect, fs, 500);
+                cam = computeCam(rect, fs, false);
+                // Seleccionar todo lo existente para REEMPLAZAR (inputs con
+                // valor previo, ej. Cantidad=5). Sin esto, type() solo
+                // ANEXA y queda "51" o "20". Ctrl+A en input/textarea
+                // selecciona su contenido; el type lo sobreescribe.
+                await page.keyboard.press("Control+A").catch(() => {});
+                await page.keyboard.type(beat.text ?? "", { delay: beat.typeDelayMs ?? 30 });
+                await focusOn(page, rect, beat.focus, fs, beat.side);
+                await sleep(effectiveHold(words, sc.beats, j, s, beat.hold ?? 1200));
+                await focusOff(page);
+              }
             } else if (beat.click) {
               // Acción INLINE (ej. votar en una encuesta): reset a identidad,
               // clic en el target, espera a que la UI refleje el resultado, y
@@ -571,7 +678,18 @@ async function main() {
               await sleep(160);
               cam = { tx: 0, ty: 0, s: 1 };
               if (rect) await page.mouse.click(rect.cx, rect.cy);
-              await sleep(beat.afterClickMs ?? 1300);
+              if (beat.waitText) {
+                // Espera VIVA (ej. generación con IA): hasta que aparezca el
+                // texto (toast "N preguntas generadas"), no un sleep fijo.
+                await page
+                  .locator(`text=${beat.waitText}`)
+                  .first()
+                  .waitFor({ timeout: beat.waitTimeoutMs ?? 60000 })
+                  .catch((e) => console.log(`  ⚠ waitText "${beat.waitText}":`, e.message.split("\n")[0]));
+                await sleep(700);
+              } else {
+                await sleep(beat.afterClickMs ?? 1300);
+              }
               const [r2] = await measureTargets(page, [beat.focusTarget ?? beat.target], !!beat.scroll);
               const fsc = fitScale(r2, beat.scale ?? 1.2);
               await cameraTo(page, r2, fsc, 600);

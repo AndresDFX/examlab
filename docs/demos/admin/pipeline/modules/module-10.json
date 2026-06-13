@@ -1,6 +1,6 @@
 {
   "id": "modulo-10",
-  "title": "Estadísticas e Informes",
+  "title": "Estadísticas",
   "appPath": "/app/admin/statistics",
   "readySelectors": [
     "text=Estadísticas globales"
@@ -13,134 +13,73 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo diez: estadísticas e informes. El pulso de la institución, y los reportes.",
+      "narration": "Módulo diez: estadísticas. El pulso de toda la institución.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
-        "title": "Estadísticas e Informes",
+        "title": "Estadísticas",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 600
     },
     {
-      "id": "estadisticas",
+      "id": "kpis",
       "kind": "platform",
-      "narration": "En Estadísticas se ve el estado de la institución de un vistazo: los cursos, los estudiantes, el porcentaje de aprobación global, la asistencia promedio y las alertas de integridad. Y, más abajo, la comparativa entre cursos, con el detalle de cada uno.",
+      "narration": "Estadísticas resume el estado de toda la institución en cinco indicadores: cuántos cursos y estudiantes hay, el porcentaje de aprobación global, la asistencia promedio y las alertas de integridad. Y todo se puede acotar por programa, periodo o asignatura.",
       "bufferMs": 900,
       "beats": [
         {
           "target": "statrow",
           "scale": 1.15,
-          "hold": 7000,
+          "hold": 8000,
           "side": "bottom",
+          "syncWord": "resume",
           "focus": {
             "title": "Estado de la institución",
-            "body": "Cursos, estudiantes, aprobación, asistencia promedio y alertas de integridad."
+            "body": "Cursos, estudiantes, aprobación, asistencia y alertas de integridad."
           }
         },
         {
-          "target": "text:Comparativa",
+          "target": "text:Programa",
           "scale": 1.15,
-          "hold": 4800,
+          "hold": 4500,
           "side": "bottom",
           "scroll": true,
+          "syncWord": "acotar",
+          "focus": {
+            "title": "Filtros institucionales",
+            "body": "Por programa, periodo o asignatura."
+          }
+        }
+      ]
+    },
+    {
+      "id": "detalle",
+      "kind": "platform",
+      "narration": "Más abajo, la comparativa entre cursos pone lado a lado la aprobación, la asistencia y las alertas de cada curso. Y la tabla de detalle muestra los números curso por curso, con un clic para entrar al dashboard completo de cada uno.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "card:Comparativa entre cursos",
+          "scale": 1.1,
+          "hold": 6000,
+          "side": "top",
+          "scroll": true,
+          "syncWord": "comparativa",
           "focus": {
             "title": "Comparativa entre cursos",
             "body": "Aprobación, asistencia y alertas, curso por curso."
           }
-        }
-      ]
-    },
-    {
-      "id": "informes-intro",
-      "kind": "card",
-      "route": "/app/admin/report-templates",
-      "ready": [
-        "main table"
-      ],
-      "narration": "Y los informes de la institución.",
-      "card": {
-        "kicker": "ExamLab · Rol Administrador",
-        "title": "Informes",
-        "subtitle": "Plantillas de actas y boletines"
-      },
-      "bufferMs": 500
-    },
-    {
-      "id": "informes-acciones",
-      "kind": "platform",
-      "narration": "Las plantillas definen cómo se generan actas y boletines en PDF. Hay dos caminos: crear una plantilla desde cero, o cargar un documento de Word existente y editarlo desde aquí.",
-      "bufferMs": 800,
-      "beats": [
-        {
-          "target": "createbtn",
-          "scale": 1.5,
-          "hold": 3200,
-          "side": "bottom",
-          "syncWord": "crear",
-          "focus": {
-            "title": "Nueva plantilla",
-            "body": "Crea el acta o boletín desde cero."
-          }
         },
         {
-          "target": "text:Cargar Word",
-          "scale": 1.5,
-          "hold": 4200,
-          "side": "bottom",
-          "syncWord": "cargar",
-          "syncOccurrence": 2,
+          "target": "card:Detalle por curso",
+          "scale": 1.05,
+          "hold": 5500,
+          "side": "top",
+          "scroll": true,
+          "syncWord": "tabla",
           "focus": {
-            "title": "Cargar Word (.docx)",
-            "body": "Importa un documento existente y edítalo aquí."
-          }
-        }
-      ]
-    },
-    {
-      "id": "informes-crear",
-      "kind": "platform",
-      "openDialog": "createbtn",
-      "narration": "Un caso práctico: al crear una plantilla se le da un nombre, una descripción del documento, y se define la orientación y el tamaño de página del PDF final.",
-      "bufferMs": 900,
-      "beats": [
-        {
-          "target": "field:Nombre",
-          "hold": 3000,
-          "side": "right",
-          "syncWord": "nombre",
-          "focus": {
-            "title": "Nombre",
-            "body": "Cómo se llamará la plantilla."
-          }
-        },
-        {
-          "target": "field:Descripción",
-          "hold": 3000,
-          "side": "right",
-          "syncWord": "descripción",
-          "focus": {
-            "title": "Descripción",
-            "body": "Qué genera este documento."
-          }
-        },
-        {
-          "target": "field:Orientación",
-          "hold": 2800,
-          "side": "right",
-          "syncWord": "orientación",
-          "focus": {
-            "title": "Orientación",
-            "body": "Vertical u horizontal."
-          }
-        },
-        {
-          "target": "field:Tamaño",
-          "hold": 3600,
-          "side": "right",
-          "syncWord": "tamaño",
-          "focus": {
-            "title": "Tamaño",
-            "body": "Carta, oficio o A4."
+            "title": "Detalle por curso",
+            "body": "Click en un curso abre su dashboard completo."
           }
         }
       ]
@@ -148,11 +87,11 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: la auditoría.",
+      "narration": "En el siguiente módulo: los informes.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Siguiente módulo",
-        "subtitle": "Auditoría"
+        "subtitle": "Informes"
       },
       "bufferMs": 600
     }

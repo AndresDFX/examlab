@@ -46,8 +46,8 @@
     {
       "id": "panel",
       "kind": "platform",
-      "narration": "El panel de inicio resume lo que el estudiante tiene pendiente —exámenes, talleres y proyectos— y reúne, en una sola vista, un calendario con todas sus fechas y el ranking en vivo de los juegos de cada curso.",
-      "bufferMs": 800,
+      "narration": "El panel resume lo que el estudiante tiene pendiente —exámenes, talleres y proyectos—, un calendario con todas sus fechas del mes, y el ranking Kahoot: el puntaje acumulado de los juegos en vivo de cada curso, con el podio actualizado en tiempo real.",
+      "bufferMs": 1000,
       "beats": [
         {
           "target": "statrow",
@@ -57,19 +57,31 @@
           "syncWord": "pendiente",
           "focus": {
             "title": "Pendientes",
-            "body": "Próximos exámenes, talleres y proyectos por hacer."
+            "body": "Exámenes, talleres y proyectos por hacer."
           }
         },
         {
-          "target": "text:Leyenda",
-          "scale": 1.15,
-          "hold": 4500,
+          "target": "main div.grid-cols-7:not(.uppercase)",
+          "scale": 1.35,
+          "hold": 5000,
           "side": "bottom",
           "scroll": true,
           "syncWord": "calendario",
           "focus": {
             "title": "Calendario",
-            "body": "Todas tus fechas en un vistazo."
+            "body": "Todas tus fechas del mes: un punto de color por tipo de evento."
+          }
+        },
+        {
+          "target": "text:Ranking Kahoot",
+          "scale": 1.15,
+          "hold": 6000,
+          "side": "left",
+          "scroll": true,
+          "syncWord": "ranking",
+          "focus": {
+            "title": "Ranking Kahoot",
+            "body": "Puntaje acumulado de los juegos del curso, con podio en vivo."
           }
         }
       ]

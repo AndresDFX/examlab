@@ -4,50 +4,122 @@
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/teacher/whiteboards",
-  "readySelectors": ["[data-tour-nav=\"/app/teacher/whiteboards\"]", "text=Pizarras"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "[data-tour-nav=\"/app/teacher/whiteboards\"]",
+    "main table"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
       "narration": "Pizarras de clase, desde el rol Docente.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Pizarras", "subtitle": "Demo Global Corp" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Pizarras",
+        "subtitle": "Demo Global Corp"
+      },
       "bufferMs": 600
     },
     {
-      "id": "vista",
+      "id": "lista",
       "kind": "platform",
-      "narration": "Las pizarras son espacios de dibujo para explicar conceptos en clase. Pueden asociarse a un curso y compartirse en vivo con los estudiantes.",
+      "narration": "Las pizarras son lienzos de dibujo para explicar conceptos en clase. En la lista, el docente ve cuántas tiene, cuáles comparte con un curso y cuáles son privadas.",
       "bufferMs": 800,
       "beats": [
-        { "target": "row:0", "scale": 1.0, "hold": 4000, "side": "bottom", "focus": { "title": "Tus pizarras", "body": "Asociadas a un curso." } }
+        {
+          "target": "statrow",
+          "scale": 1.12,
+          "hold": 8000,
+          "side": "bottom",
+          "syncWord": "lista",
+          "focus": {
+            "title": "Tus pizarras",
+            "body": "Total, compartidas, privadas y por curso."
+          }
+        }
       ]
     },
     {
-      "id": "acciones",
+      "id": "abrir",
+      "kind": "card",
+      "openVia": {
+        "target": "rowaction:0",
+        "menuItem": "Abrir"
+      },
+      "ready": [
+        ".App-toolbar"
+      ],
+      "narration": "Al abrir una pizarra entramos al editor, con todo el lienzo y sus herramientas.",
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Pizarra",
+        "subtitle": "Editor de dibujo"
+      },
+      "bufferMs": 700
+    },
+    {
+      "id": "toolbar",
       "kind": "platform",
-      "narration": "Desde acciones, el docente abre la pizarra para dibujar, la duplica o la elimina.",
-      "bufferMs": 700,
+      "narration": "Esta es la barra de herramientas completa: selección, rectángulos, rombos y elipses, flechas y líneas, dibujo a mano alzada, texto, imágenes y borrador. Todo lo de un editor visual profesional.",
+      "bufferMs": 900,
       "beats": [
-        { "target": "rowaction:0", "clickToOpen": true, "hold": 4500 }
+        {
+          "target": ".App-toolbar",
+          "scale": 1.4,
+          "hold": 9000,
+          "side": "bottom",
+          "syncWord": "barra",
+          "focus": {
+            "title": "Barra de herramientas",
+            "body": "Formas, flechas, lápiz, texto, imagen y borrador."
+          }
+        }
       ]
     },
     {
-      "id": "crear",
+      "id": "librerias",
       "kind": "platform",
-      "narration": "Al crear una pizarra se define su nombre y una descripción opcional.",
-      "bufferMs": 800,
-      "openDialog": "createbtn",
+      "narration": "Y desde el panel de librerías el docente arrastra formas predefinidas al lienzo: diagramas de flujo, clases UML, estructuras de datos y más. Cada pizarra puede compartirse en vivo con el curso, que la ve mientras el docente dibuja.",
+      "bufferMs": 900,
       "beats": [
-        { "target": "field:Nombre", "hold": 3200, "side": "right", "focus": { "title": "Nombre", "body": "Identifica la pizarra." } },
-        { "target": "field:Descripción", "hold": 3200, "side": "right", "focus": { "title": "Descripción", "body": "Contexto opcional." } }
+        {
+          "target": ".sidebar-trigger",
+          "scale": 1.7,
+          "hold": 5000,
+          "side": "left",
+          "syncWord": "librerías",
+          "focus": {
+            "title": "Librerías predefinidas",
+            "body": "Flowchart, UML, estructuras de datos y más."
+          }
+        },
+        {
+          "target": "field:Compartir con curso",
+          "scale": 1.2,
+          "hold": 5000,
+          "side": "bottom",
+          "scroll": true,
+          "syncWord": "compartirse",
+          "focus": {
+            "title": "Compartir en vivo",
+            "body": "Asóciala a un curso; los alumnos la ven mientras dibujas."
+          }
+        }
       ]
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "En el siguiente módulo: las encuestas.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Encuestas" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Siguiente módulo",
+        "subtitle": "Encuestas"
+      },
       "bufferMs": 600
     }
   ]

@@ -25,29 +25,57 @@
       "bufferMs": 2200
     },
     {
-      "id": "vista",
+      "id": "lista",
       "kind": "platform",
-      "narration": "Aquí el estudiante encuentra los cursos en los que está matriculado. Al entrar a un curso accede a su tablero, con el material de clase organizado por sesión. Desde ahí consulta documentos, videos y recursos que el docente comparte a lo largo del periodo.",
+      "narration": "En Mis Cursos, el estudiante ve todos los cursos en los que está matriculado, con su período y sus fechas. Cada tarjeta es la puerta de entrada al tablero del curso.",
       "bufferMs": 800,
       "beats": [
         {
-          "target": "[data-tour-nav=\"/app/student/courses\"]",
-          "scale": 1.5,
-          "hold": 3600,
-          "side": "right",
+          "target": "maincard",
+          "scale": 1.08,
+          "hold": 7000,
+          "side": "bottom",
+          "syncWord": "cursos",
           "focus": {
-            "title": "Mis cursos",
-            "body": "Donde vive cada curso."
+            "title": "Tus cursos",
+            "body": "Cada curso matriculado, con período y fechas."
+          }
+        }
+      ]
+    },
+    {
+      "id": "tablero",
+      "kind": "platform",
+      "openVia": {
+        "target": "button:Arquitectura de Software"
+      },
+      "ready": [
+        "text=Próximas sesiones",
+        "text=Sesiones pasadas"
+      ],
+      "narration": "Al entrar, el tablero reúne todo lo importante: el cronograma de clases con sus fechas, el material de cada sesión para ver o descargar, los enlaces a la reunión y a la grabación, y su asistencia. Y desde aquí accede al Tutor con inteligencia artificial y al foro del curso.",
+      "bufferMs": 1000,
+      "beats": [
+        {
+          "target": "card:Arquitectura de Software — Grupo A",
+          "scale": 1.05,
+          "hold": 5000,
+          "side": "bottom",
+          "syncWord": "tablero",
+          "focus": {
+            "title": "Tablero del curso",
+            "body": "Cronograma, material, asistencia y enlaces."
           }
         },
         {
-          "target": "firstcard",
-          "scale": 1.12,
+          "target": "button:Tutor IA",
+          "scale": 1.3,
           "hold": 5500,
           "side": "bottom",
+          "syncWord": "Tutor",
           "focus": {
-            "title": "Tus cursos",
-            "body": "Material y sesiones de cada curso."
+            "title": "Tutor IA y Foro",
+            "body": "Pregunta al tutor con IA o participa en el foro del curso."
           }
         }
       ]

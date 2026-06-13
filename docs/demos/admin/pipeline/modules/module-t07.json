@@ -4,39 +4,89 @@
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/teacher/gradebook",
-  "readySelectors": ["[data-tour-nav=\"/app/teacher/gradebook\"]", "text=Calificaciones"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "[data-tour-nav=\"/app/teacher/gradebook\"]",
+    "text=Consolidado por cortes"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
       "narration": "El libro de calificaciones, desde el rol Docente.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Calificaciones", "subtitle": "Demo Global Corp" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Calificaciones",
+        "subtitle": "Demo Global Corp"
+      },
       "bufferMs": 600
     },
     {
-      "id": "vista",
+      "id": "consolidado",
       "kind": "platform",
-      "narration": "El libro de notas consolida, por curso, las calificaciones de exámenes, talleres, proyectos y asistencia, ponderadas por cada corte.",
-      "bufferMs": 800,
+      "narration": "El gradebook reúne toda la nota del curso en una sola pantalla. El curso usa escala de cero a cinco y se aprueba con tres. En el consolidado, cada estudiante tiene su nota por corte y su nota final ponderada.",
+      "bufferMs": 900,
       "beats": [
-        { "target": "firstcard", "scale": 1.1, "hold": 4500, "side": "bottom", "focus": { "title": "Consolidado por corte", "body": "Notas ponderadas del curso." } }
+        {
+          "target": "text:Escala",
+          "scale": 1.2,
+          "hold": 4500,
+          "side": "bottom",
+          "syncWord": "escala",
+          "focus": {
+            "title": "Escala del curso",
+            "body": "De 0 a 5; se aprueba con 3 o más."
+          }
+        },
+        {
+          "target": "card:Consolidado por cortes",
+          "scale": 1.08,
+          "hold": 8000,
+          "side": "top",
+          "scroll": true,
+          "syncWord": "consolidado",
+          "focus": {
+            "title": "Nota del estudiante",
+            "body": "Aquí, 4,30 en el Corte 1 → final 4,30, aprobado (verde)."
+          }
+        }
       ]
     },
     {
       "id": "detalle",
       "kind": "platform",
-      "narration": "El docente filtra por curso, revisa la nota final de cada estudiante y exporta el consolidado para sus reportes.",
-      "bufferMs": 800,
+      "narration": "Con un clic en Detalle, el docente ve de dónde sale esa nota: los talleres, los exámenes, los proyectos y la asistencia, cada uno con su peso. Y todo se exporta a un archivo de notas con un botón.",
+      "bufferMs": 900,
       "beats": [
-        { "target": "text:Exportar", "scale": 1.4, "hold": 3800, "side": "bottom", "focus": { "title": "Exportar", "body": "Descarga el consolidado en CSV." } }
+        {
+          "click": true,
+          "target": "button:Detalle",
+          "syncWord": "Detalle",
+          "waitText": "Detalle del corte",
+          "waitTimeoutMs": 8000,
+          "focusTarget": "[role=\"dialog\"]",
+          "scale": 1,
+          "hold": 7000,
+          "side": "bottom",
+          "focus": {
+            "title": "Detalle del corte",
+            "body": "Talleres, exámenes, proyectos y asistencia, con su peso."
+          }
+        }
       ]
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "En el siguiente módulo: la asistencia.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Asistencia" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Siguiente módulo",
+        "subtitle": "Asistencia"
+      },
       "bufferMs": 600
     }
   ]

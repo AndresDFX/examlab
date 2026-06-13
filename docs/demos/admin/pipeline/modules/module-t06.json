@@ -4,42 +4,118 @@
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/teacher/question-bank",
-  "readySelectors": ["[data-tour-nav=\"/app/teacher/question-bank\"]", "text=Banco"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "[data-tour-nav=\"/app/teacher/question-bank\"]",
+    "text=Banco de preguntas"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
       "narration": "El banco de preguntas, desde el rol Docente.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Banco de Preguntas", "subtitle": "Demo Global Corp" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Banco de Preguntas",
+        "subtitle": "Demo Global Corp"
+      },
       "bufferMs": 600
     },
     {
-      "id": "vista",
+      "id": "intro2",
       "kind": "platform",
-      "narration": "El banco organiza preguntas reutilizables por curso. Una vez creadas, se pueden insertar en cualquier examen o taller del mismo curso.",
+      "narration": "El banco guarda preguntas reutilizables, organizadas por curso, que luego importas a exámenes, talleres o proyectos. Y lo más potente: generar una pregunta con inteligencia artificial a partir de un simple tema.",
       "bufferMs": 800,
       "beats": [
-        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Preguntas por curso", "body": "Reutilizables en tus evaluaciones." } }
+        {
+          "target": "firstcard",
+          "scale": 1.08,
+          "hold": 8000,
+          "side": "bottom",
+          "syncWord": "banco",
+          "focus": {
+            "title": "Banco de preguntas",
+            "body": "Preguntas reutilizables por curso, listas para importar."
+          }
+        }
       ]
     },
     {
-      "id": "crear",
+      "id": "ia-vivo",
       "kind": "platform",
-      "narration": "Al crear una pregunta se elige su tipo, se redacta el enunciado y se asignan los puntos sugeridos.",
-      "bufferMs": 800,
-      "openDialog": "createbtn",
+      "openVia": {
+        "target": "button:Generar con IA"
+      },
+      "ready": [
+        "[role=\"dialog\"]"
+      ],
+      "narration": "Abrimos el generador con inteligencia artificial, pedimos una pregunta, y escribimos el tema: variables y tipos de datos. Y generamos.",
+      "bufferMs": 700,
       "beats": [
-        { "target": "field:Tipo", "hold": 3000, "side": "right", "focus": { "title": "Tipo", "body": "Selección, abierta, código y más." } },
-        { "target": "field:Enunciado", "hold": 3200, "side": "right", "focus": { "title": "Enunciado", "body": "El texto de la pregunta." } },
-        { "target": "field:Puntos", "hold": 3000, "side": "right", "focus": { "title": "Puntos sugeridos", "body": "Valor por defecto al insertarla." } }
+        {
+          "typeInto": true,
+          "target": "field:Cantidad",
+          "scale": 1.2,
+          "syncWord": "pedimos",
+          "text": "1",
+          "hold": 700
+        },
+        {
+          "typeInto": true,
+          "target": "field:Temas",
+          "scale": 1.2,
+          "syncWord": "tema",
+          "text": "Variables y tipos de datos en programación",
+          "hold": 900
+        },
+        {
+          "click": true,
+          "target": "button:Generar",
+          "syncWord": "generamos",
+          "waitText": "generada",
+          "waitTimeoutMs": 90000,
+          "focusTarget": "row:0",
+          "scale": 1.05,
+          "hold": 2500,
+          "side": "bottom",
+          "focus": {
+            "title": "Generando…",
+            "body": "El modelo redacta el enunciado, las opciones y la respuesta."
+          }
+        }
+      ]
+    },
+    {
+      "id": "resultado",
+      "kind": "platform",
+      "narration": "En segundos, la pregunta aparece en el banco con su enunciado y su tipo. Desde aquí puedes editarla, compartirla con tu institución o importarla directo a un examen.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "row:0",
+          "scale": 1.1,
+          "hold": 9000,
+          "side": "bottom",
+          "syncWord": "aparece",
+          "focus": {
+            "title": "Pregunta lista",
+            "body": "Editar, compartir con la organización o importar a una evaluación."
+          }
+        }
       ]
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "En el siguiente módulo: el libro de calificaciones.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Calificaciones" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Siguiente módulo",
+        "subtitle": "Calificaciones"
+      },
       "bufferMs": 600
     }
   ]

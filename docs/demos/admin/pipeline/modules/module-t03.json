@@ -4,14 +4,24 @@
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/teacher/exams",
-  "readySelectors": ["[data-tour-nav=\"/app/teacher/exams\"]", "text=Exámenes"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "[data-tour-nav=\"/app/teacher/exams\"]",
+    "text=Exámenes"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
       "narration": "Creación y gestión de exámenes, desde el rol Docente.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Exámenes", "subtitle": "Demo Global Corp" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Exámenes",
+        "subtitle": "Demo Global Corp"
+      },
       "bufferMs": 600
     },
     {
@@ -20,7 +30,16 @@
       "narration": "El listado reúne las evaluaciones del docente con su curso, las fechas de inicio y fin, y el estado de cada una.",
       "bufferMs": 800,
       "beats": [
-        { "target": "row:0", "scale": 1.0, "hold": 4000, "side": "bottom", "focus": { "title": "Tus exámenes", "body": "Curso, fechas y estado." } }
+        {
+          "target": "row:0",
+          "scale": 1,
+          "hold": 4000,
+          "side": "bottom",
+          "focus": {
+            "title": "Tus exámenes",
+            "body": "Curso, fechas y estado."
+          }
+        }
       ]
     },
     {
@@ -29,7 +48,11 @@
       "narration": "Desde acciones, el docente edita el examen, gestiona sus preguntas, lo asigna a los estudiantes y abre el monitoreo en vivo durante la prueba.",
       "bufferMs": 700,
       "beats": [
-        { "target": "rowaction:0", "clickToOpen": true, "hold": 4800 }
+        {
+          "target": "rowaction:0",
+          "clickToOpen": true,
+          "hold": 4800
+        }
       ]
     },
     {
@@ -39,17 +62,136 @@
       "bufferMs": 800,
       "openDialog": "createbtn",
       "beats": [
-        { "target": "field:Título", "hold": 3000, "side": "right", "syncWord": "título", "focus": { "title": "Título", "body": "Nombre de la evaluación." } },
-        { "target": "field:Descripción", "hold": 3000, "side": "right", "syncWord": "descripción", "focus": { "title": "Descripción", "body": "Indicaciones generales." } },
-        { "target": "field:Fin", "hold": 3000, "side": "right", "syncWord": "fecha", "focus": { "title": "Cierre", "body": "Fecha y hora límite." } },
-        { "target": "field:Navegación", "hold": 4200, "side": "right", "syncWord": "navegación", "focus": { "title": "Navegación", "body": "Libre o secuencial entre preguntas." } }
+        {
+          "target": "field:Título",
+          "hold": 3000,
+          "side": "right",
+          "syncWord": "título",
+          "focus": {
+            "title": "Título",
+            "body": "Nombre de la evaluación."
+          }
+        },
+        {
+          "target": "field:Descripción",
+          "hold": 3000,
+          "side": "right",
+          "syncWord": "descripción",
+          "focus": {
+            "title": "Descripción",
+            "body": "Indicaciones generales."
+          }
+        },
+        {
+          "target": "field:Fin",
+          "hold": 3000,
+          "side": "right",
+          "syncWord": "fecha",
+          "focus": {
+            "title": "Cierre",
+            "body": "Fecha y hora límite."
+          }
+        },
+        {
+          "target": "field:Navegación",
+          "hold": 4200,
+          "side": "right",
+          "syncWord": "navegación",
+          "focus": {
+            "title": "Navegación",
+            "body": "Libre o secuencial entre preguntas."
+          }
+        }
+      ]
+    },
+    {
+      "id": "ia-nav",
+      "kind": "card",
+      "openVia": {
+        "target": "rowaction:0",
+        "menuItem": "Editar"
+      },
+      "ready": [
+        "text=Configuración"
+      ],
+      "narration": "Y las preguntas no hay que escribirlas a mano: veamos en vivo cómo se generan con inteligencia artificial.",
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Preguntas con IA",
+        "subtitle": "Generación en vivo"
+      },
+      "bufferMs": 600
+    },
+    {
+      "id": "ia-vivo",
+      "kind": "platform",
+      "tab": "Preguntas",
+      "narration": "Dentro del examen, le damos a la inteligencia artificial los temas a evaluar, definimos cuántas preguntas y de qué tipo... y generamos.",
+      "bufferMs": 700,
+      "beats": [
+        {
+          "target": "card:Generar con IA",
+          "scale": 1.15,
+          "hold": 2200,
+          "side": "bottom",
+          "focus": {
+            "title": "Generar con IA",
+            "body": "Temas, cantidad y tipos de pregunta."
+          }
+        },
+        {
+          "typeInto": true,
+          "target": "field:Temas",
+          "scale": 1.25,
+          "syncWord": "temas",
+          "text": "Estructuras de control en Java: condicionales, ciclos y arreglos",
+          "hold": 900
+        },
+        {
+          "click": true,
+          "target": "button:Generar preguntas",
+          "syncWord": "generamos",
+          "waitText": "generadas",
+          "waitTimeoutMs": 90000,
+          "scroll": true,
+          "focusTarget": "#exam-questions-list",
+          "scale": 1.1,
+          "hold": 2500,
+          "focus": {
+            "title": "Preguntas generadas",
+            "body": "La IA las redactó en segundos."
+          }
+        }
+      ]
+    },
+    {
+      "id": "ia-resultado",
+      "kind": "platform",
+      "narration": "En segundos, las preguntas quedan en el examen: con su enunciado, su tipo y su puntaje. Listas para revisar, ajustar o eliminar.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "#exam-questions-list",
+          "scale": 1.12,
+          "hold": 9500,
+          "side": "right",
+          "scroll": true,
+          "focus": {
+            "title": "Listas para revisar",
+            "body": "Edita el enunciado, el puntaje o elimina las que no convenzan."
+          }
+        }
       ]
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "En el siguiente módulo: los talleres.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Talleres" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Siguiente módulo",
+        "subtitle": "Talleres"
+      },
       "bufferMs": 600
     }
   ]

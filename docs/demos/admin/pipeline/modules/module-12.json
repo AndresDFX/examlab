@@ -1,9 +1,9 @@
 {
   "id": "modulo-12",
-  "title": "Soporte",
-  "appPath": "/app/admin/support",
+  "title": "Auditoría",
+  "appPath": "/app/admin/audit-logs",
   "readySelectors": [
-    "text=Nuevo ticket"
+    "text=Registro de auditoría"
   ],
   "voice": {
     "name": "es-CO-GonzaloNeural",
@@ -13,49 +13,40 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo doce: el canal de soporte con la plataforma. Peticiones, quejas, reclamos y sugerencias.",
+      "narration": "Módulo doce: la auditoría. El registro de todo lo que pasa en la institución.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
-        "title": "Soporte",
-        "subtitle": "PQRS hacia la plataforma"
+        "title": "Auditoría",
+        "subtitle": "Demo Global Corp"
       },
       "bufferMs": 600
     },
     {
-      "id": "soporte",
+      "id": "auditoria",
       "kind": "platform",
-      "openDialog": "createbtn",
-      "narration": "Abrimos un ticket nuevo. Elegimos su categoría —petición, queja, reclamo o sugerencia—, escribimos un asunto, y describimos el caso con el detalle necesario. La conversación con la plataforma sigue dentro del mismo ticket.",
+      "narration": "La auditoría registra quién hizo qué y cuándo: inicios de sesión, cambios, calificaciones y eliminaciones. Se puede filtrar por curso, categoría, evento o nivel, exportar a CSV, y solo muestra la actividad de esta institución. Es la herramienta para responder reclamos e investigar incidentes.",
       "bufferMs": 900,
       "beats": [
         {
-          "target": "field:Categoría",
-          "hold": 6000,
-          "side": "right",
-          "syncWord": "categoría",
+          "target": "firstcard",
+          "scale": 1.18,
+          "hold": 9000,
+          "side": "bottom",
+          "syncWord": "registra",
           "focus": {
-            "title": "Categoría",
-            "body": "Petición, queja, reclamo o sugerencia."
+            "title": "Auditoría",
+            "body": "Quién hizo qué y cuándo, en la institución."
           }
         },
         {
-          "target": "field:Asunto",
-          "hold": 3000,
-          "side": "right",
-          "syncWord": "asunto",
+          "target": "row:0",
+          "scale": 1.25,
+          "hold": 6500,
+          "side": "bottom",
+          "syncWord": "reclamos",
           "focus": {
-            "title": "Asunto",
-            "body": "El tema del ticket."
-          }
-        },
-        {
-          "target": "field:Descripción",
-          "hold": 6000,
-          "side": "right",
-          "syncWord": "describimos",
-          "focus": {
-            "title": "Descripción",
-            "body": "El detalle del caso (puedes adjuntar archivos)."
+            "title": "Cada evento",
+            "body": "Fecha, actor, acción, categoría y nivel."
           }
         }
       ]
@@ -63,11 +54,11 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: la papelera.",
+      "narration": "En el siguiente módulo: el soporte.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Siguiente módulo",
-        "subtitle": "Papelera"
+        "subtitle": "Soporte"
       },
       "bufferMs": 600
     }

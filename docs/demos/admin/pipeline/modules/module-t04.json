@@ -4,14 +4,24 @@
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/teacher/workshops",
-  "readySelectors": ["[data-tour-nav=\"/app/teacher/workshops\"]", "text=Talleres"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "[data-tour-nav=\"/app/teacher/workshops\"]",
+    "text=Talleres"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
       "narration": "Gestión de talleres, desde el rol Docente.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Talleres", "subtitle": "Demo Global Corp" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Talleres",
+        "subtitle": "Demo Global Corp"
+      },
       "bufferMs": 600
     },
     {
@@ -20,7 +30,16 @@
       "narration": "Los talleres son actividades prácticas con entrega y calificación. El listado muestra su curso, la fecha límite y su estado.",
       "bufferMs": 800,
       "beats": [
-        { "target": "row:0", "scale": 1.0, "hold": 4000, "side": "bottom", "focus": { "title": "Tus talleres", "body": "Curso, fecha límite y estado." } }
+        {
+          "target": "row:0",
+          "scale": 1,
+          "hold": 4000,
+          "side": "bottom",
+          "focus": {
+            "title": "Tus talleres",
+            "body": "Curso, fecha límite y estado."
+          }
+        }
       ]
     },
     {
@@ -29,7 +48,11 @@
       "narration": "Desde acciones, el docente gestiona las preguntas del taller, organiza el trabajo en grupo, califica las entregas y duplica la actividad.",
       "bufferMs": 700,
       "beats": [
-        { "target": "rowaction:0", "clickToOpen": true, "hold": 4800 }
+        {
+          "target": "rowaction:0",
+          "clickToOpen": true,
+          "hold": 4800
+        }
       ]
     },
     {
@@ -39,16 +62,101 @@
       "bufferMs": 800,
       "openDialog": "createbtn",
       "beats": [
-        { "target": "field:Título", "hold": 3000, "side": "right", "syncWord": "título", "focus": { "title": "Título", "body": "Nombre del taller." } },
-        { "target": "field:Descripción", "hold": 3000, "side": "right", "syncWord": "descripción", "focus": { "title": "Descripción", "body": "Resumen de la actividad." } },
-        { "target": "field:Instrucciones", "hold": 4400, "side": "right", "syncWord": "instrucciones", "focus": { "title": "Instrucciones", "body": "Guía detallada para el estudiante." } }
+        {
+          "target": "field:Título",
+          "hold": 3000,
+          "side": "right",
+          "syncWord": "título",
+          "focus": {
+            "title": "Título",
+            "body": "Nombre del taller."
+          }
+        },
+        {
+          "target": "field:Descripción",
+          "hold": 3000,
+          "side": "right",
+          "syncWord": "descripción",
+          "focus": {
+            "title": "Descripción",
+            "body": "Resumen de la actividad."
+          }
+        },
+        {
+          "target": "field:Instrucciones",
+          "hold": 4400,
+          "side": "right",
+          "syncWord": "instrucciones",
+          "focus": {
+            "title": "Instrucciones",
+            "body": "Guía detallada para el estudiante."
+          }
+        }
       ]
+    },
+    {
+      "id": "ia-vivo",
+      "kind": "platform",
+      "openVia": {
+        "target": "rowaction:0",
+        "menuItem": "Preguntas"
+      },
+      "tab": "Generar con IA",
+      "narration": "Las preguntas del taller también se generan con inteligencia artificial: abrimos las preguntas del taller, le damos los temas... y generamos en vivo.",
+      "bufferMs": 700,
+      "beats": [
+        {
+          "typeInto": true,
+          "target": "field:Temas",
+          "scale": 1.25,
+          "syncWord": "temas",
+          "text": "Variables, tipos de datos y operadores en Java",
+          "hold": 900
+        },
+        {
+          "click": true,
+          "target": "button:Generar con IA",
+          "syncWord": "generamos",
+          "waitText": "generadas",
+          "waitTimeoutMs": 90000,
+          "focusTarget": "[role=\"dialog\"]",
+          "scale": 1,
+          "hold": 2000,
+          "focus": {
+            "title": "Generando…",
+            "body": "La IA redacta las preguntas del taller."
+          }
+        }
+      ]
+    },
+    {
+      "id": "ia-resultado",
+      "kind": "platform",
+      "narration": "En segundos quedan en el taller, con su enunciado, su tipo y sus puntos: listas para revisar y editar una a una.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "[role=\"dialog\"]",
+          "scale": 1,
+          "hold": 8500,
+          "side": "bottom",
+          "focus": {
+            "title": "Preguntas generadas",
+            "body": "Quedan en el taller, listas para usar."
+          }
+        }
+      ],
+      "tab": "Preguntas"
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "En el siguiente módulo: los proyectos.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Proyectos" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Siguiente módulo",
+        "subtitle": "Proyectos"
+      },
       "bufferMs": 600
     }
   ]

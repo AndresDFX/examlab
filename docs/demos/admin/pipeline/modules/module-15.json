@@ -1,0 +1,92 @@
+{
+  "id": "modulo-15",
+  "title": "Cuenta y Sesión",
+  "appPath": "/app",
+  "readySelectors": [
+    "[data-tour-id=\"role-switcher\"]",
+    "text=Cursos recientes"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Módulo quince: tu cuenta y la sesión.",
+      "card": {
+        "kicker": "ExamLab · Rol Administrador",
+        "title": "Cuenta y Sesión",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 600
+    },
+    {
+      "id": "cuenta",
+      "kind": "platform",
+      "narration": "Al pie del menú vive tu cuenta. El selector de rol cambia entre tus perfiles —Administrador, Docente, Estudiante— reconfigurando lo que ves. La campana muestra las notificaciones; el sobre, los mensajes internos. Y al cerrar sesión, el contexto de la institución se limpia por completo.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "[data-tour-id=\"role-switcher\"]",
+          "scale": 1.7,
+          "hold": 8500,
+          "side": "right",
+          "syncWord": "selector",
+          "focus": {
+            "title": "Selector de rol",
+            "body": "Cambia entre Administrador, Docente y Estudiante."
+          }
+        },
+        {
+          "target": "[data-tour-id=\"notifications-bell\"]",
+          "scale": 2.1,
+          "hold": 3000,
+          "side": "right",
+          "overpan": true,
+          "syncWord": "campana",
+          "focus": {
+            "title": "Notificaciones",
+            "body": "Avisos del sistema y de los usuarios."
+          }
+        },
+        {
+          "target": "[data-tour-id=\"messages-bell\"]",
+          "scale": 2.1,
+          "hold": 3000,
+          "side": "right",
+          "overpan": true,
+          "syncWord": "sobre",
+          "focus": {
+            "title": "Mensajes",
+            "body": "Comunicación interna y difusiones a cursos."
+          }
+        },
+        {
+          "target": "[data-tour-id=\"logout\"]",
+          "scale": 2.1,
+          "hold": 4200,
+          "side": "right",
+          "overpan": true,
+          "syncWord": "cerrar",
+          "focus": {
+            "title": "Cerrar sesión",
+            "body": "Limpia por completo el contexto de la institución."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el último módulo: la cola de inteligencia artificial.",
+      "card": {
+        "kicker": "ExamLab · Rol Administrador",
+        "title": "Siguiente módulo",
+        "subtitle": "Cola de IA"
+      },
+      "bufferMs": 800
+    }
+  ]
+}
