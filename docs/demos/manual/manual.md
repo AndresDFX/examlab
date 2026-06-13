@@ -19,7 +19,7 @@ Este manual está organizado por **rol**. Abre el que corresponda a tu perfil:
 
 > Tu menú lateral muestra solo los módulos de tu rol. Si tienes más de un rol, puedes cambiar entre ellos con el selector que aparece arriba del menú.
 
-> **¿Entras con una cuenta de demostración?** Tu espacio empieza **vacío**: como Docente, **crea tu propio curso** para arrancar y usa la IA para generar exámenes y talleres. La matrícula de estudiantes la hace un administrador, así que el ciclo completo de calificación con entregas reales se ve en los videos demo, no en esta cuenta.
+> **¿Entras con una cuenta de demostración?** Tu espacio empieza **vacío**: como Docente, **crea tu propio curso** para arrancar y usa la IA para generar exámenes y talleres. La matrícula de estudiantes la hace un administrador, así que el ciclo completo de calificación con entregas reales se ve en los videos demo, no en esta cuenta. Tu cuenta trae **dos roles: Docente y Estudiante** — cambia con el selector arriba del menú para ver también la vista del alumno.
 >
 > Si la **IA falla** en algún momento, lo más probable es que sea **disponibilidad del modelo** (es un entorno de demostración) — espera unos minutos y reintenta. No es un error de la plataforma.
 

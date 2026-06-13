@@ -25,6 +25,7 @@ Mensaje para **entregarle a un docente su cuenta de demo** (con credenciales e i
 > **Para arrancar (2 minutos):**
 > - Crea tu **primer curso** (tu espacio empieza vacío, es normal).
 > - Entra a **Exámenes** o **Talleres** → **Crear** → deja que la **IA te genere las preguntas**. Eso es lo que más te va a ahorrar tiempo 🤖✨
+> - 🔁 Tu cuenta tiene **dos roles: Docente y Estudiante**. Con el **selector arriba del menú** cambias entre ellos para ver también cómo lo vive el alumno.
 >
 > **Un par de cosas para que no te tome por sorpresa:**
 > - La cuenta **no trae estudiantes** (eso lo hace un administrador), así que el ciclo completo de *calificar entregas reales* se ve mejor en los videos demo. Tú igual puedes crear y generar todo lo que quieras.
@@ -52,7 +53,7 @@ Mensaje para **entregarle a un docente su cuenta de demo** (con credenciales e i
 >
 > 🎥 *(video de cómo ingresar adjunto)*
 >
-> Para arrancar: crea un **curso** y deja que la **IA te genere un examen o taller** 🤖. El espacio empieza vacío (normal) y no trae estudiantes. Si la IA no responde un momento, es disponibilidad del modelo (es demo) — reintenta en un ratito. Cualquier cosa me dices 🙌
+> Para arrancar: crea un **curso** y deja que la **IA te genere un examen o taller** 🤖. Tu cuenta tiene **dos roles, Docente y Estudiante** 🔁 — cámbialos con el selector arriba del menú para ver ambas vistas. El espacio empieza vacío (normal) y no trae estudiantes. Si la IA no responde un momento, es disponibilidad del modelo (es demo) — reintenta en un ratito. Cualquier cosa me dices 🙌
 >
 > 🎬 Videos y manual:
 > 📹 General: [ENLACE] · 🛠️ Admin: [ENLACE] · 👩‍🏫 Docente: [ENLACE] · 🎓 Estudiante: [ENLACE] · 📘 Manual: [ENLACE]

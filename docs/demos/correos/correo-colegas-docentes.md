@@ -25,6 +25,8 @@ Para gente con la que **eres docente** (pares). Tono de colega a colega: que lo 
 >
 > **Pruébala en 2 minutos:** crea un **curso** y entra a **Exámenes** o **Talleres** → **Crear** → deja que la **IA te genere las preguntas**. Ahí se ve el ahorro de tiempo real 🤖✨
 >
+> 🔁 Tu cuenta trae **dos roles, Docente y Estudiante**: con el selector arriba del menú cambias entre ellos y revisas la plataforma desde ambos lados.
+>
 > Un par de cosas para que no te tome por sorpresa: la cuenta **no trae estudiantes** (eso lo hace un administrador), así que el ciclo completo de calificar entregas reales se aprecia mejor en los videos. Y si en algún momento la **IA no responde**, casi siempre es disponibilidad del modelo (es un entorno de demo) — espera un ratito y reintenta.
 >
 > **🎬 Videos por rol + manual** (para que veas el panorama completo):

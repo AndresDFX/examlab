@@ -23,7 +23,8 @@ NOTAS = (
     "administrador), así que el ciclo completo de calificación de entregas reales se ve en los "
     "videos demo, no en esta cuenta. La contraseña es genérica y no caduca al primer ingreso. "
     "Si la IA falla puntualmente, suele ser disponibilidad del modelo (es una demo): espera unos "
-    "minutos y reintenta — no es un error de la plataforma."
+    "minutos y reintenta — no es un error de la plataforma. "
+    "La cuenta tiene dos roles (Docente y Estudiante): cambia con el selector arriba del menú para ver ambas vistas."
 )
 
 HEADERS = ["#", "Nombre", "Email (usuario)", "Contraseña", "Rol", "Institución",
@@ -37,7 +38,7 @@ USERS = [
 ]
 rows = [HEADERS]
 for i, (name, email) in enumerate(USERS, 1):
-    rows.append([str(i), name, email, PWD, "Docente", TENANT, URL, "", "", NOTAS])
+    rows.append([str(i), name, email, PWD, "Docente + Estudiante", TENANT, URL, "", "", NOTAS])
 
 def col_letter(n):  # 0 -> A
     s = ""
