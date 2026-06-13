@@ -39,6 +39,7 @@ interface BaseBody {
     | "select"
     | "disconnect"
     | "sync"
+    | "sync_poll_to_calendar"
     | "list_events"
     | "link_events_to_sessions"
     | "cron_sync_recordings";
@@ -56,6 +57,15 @@ interface SelectBody extends BaseBody {
 interface SyncBody extends BaseBody {
   action: "sync";
   courseId: string;
+}
+/** Sincroniza una encuesta de CUPO (poll_type='slot') al calendario del
+ *  docente creando UN evento por cada estudiante matriculado en los cursos
+ *  de la encuesta (con el docente como invitado). Re-sincronizar ACTUALIZA
+ *  los eventos ya creados (idempotente vía tabla poll_calendar_events).
+ *  Solo aplica a encuestas de cupo — los demás tipos se rechazan. */
+interface SyncPollToCalendarBody extends BaseBody {
+  action: "sync_poll_to_calendar";
+  pollId: string;
 }
 /** Lista eventos del calendario seleccionado dentro de una ventana
  *  temporal. Se usa en el flujo INVERSO al sync: el docente ya tiene
@@ -130,6 +140,12 @@ Deno.serve(async (req) => {
         return await handleDisconnect(userId);
       case "sync":
         return await handleSync(userId, body as SyncBody, provider);
+      case "sync_poll_to_calendar":
+        return await handleSyncPollToCalendar(
+          userId,
+          body as SyncPollToCalendarBody,
+          provider,
+        );
       case "list_events":
         return await handleListEvents(userId, body as ListEventsBody, provider);
       case "link_events_to_sessions":
@@ -742,6 +758,308 @@ async function handleSync(userId: string, body: SyncBody, provider: Provider) {
     total: (sessions ?? []).length,
     errors,
   });
+}
+
+// ────────── Sync encuesta de CUPO → calendario ──────────
+// Crea/actualiza UN evento por estudiante matriculado en los cursos de la
+// encuesta de cupo, con el docente como invitado. Idempotente: la tabla
+// `poll_calendar_events` mapea (poll_id, user_id) → event_id del proveedor,
+// así re-sincronizar PATCHea el evento existente en vez de duplicar.
+//
+// Fecha/hora del evento (decisión documentada en la migración
+// 20260943000000): los labels de los slots NO traen el año → parsearlos a
+// timestamp exacto es ambiguo/frágil. Usamos `polls.closes_at` como ancla
+// para todos los estudiantes; si es NULL caemos a NOW() + 7 días. Duración
+// 90 min, zona America/Bogota. El evento es un recordatorio del cierre /
+// sustentación de la cupo.
+async function handleSyncPollToCalendar(
+  userId: string,
+  body: SyncPollToCalendarBody,
+  // El provider del body es solo un hint (la UI de Encuestas no lo conoce);
+  // el handler deriva `effectiveProvider` de la conexión del docente.
+  _provider: Provider,
+) {
+  if (!body.pollId) return jsonError("poll_required", 400);
+
+  // 1) Cargar la encuesta + validar que es de CUPO (slot).
+  const { data: poll } = await adminClient
+    .from("polls")
+    .select("id, title, poll_type, closes_at, course_id")
+    .eq("id", body.pollId)
+    .maybeSingle();
+  if (!poll) return jsonError("poll_not_found", 404);
+  if (poll.poll_type !== "slot") return jsonError("poll_not_slot", 400);
+
+  // 2) Cursos de la encuesta (junction multi-curso). Siempre incluye el
+  //    curso ancla tras el backfill de poll_courses.
+  const { data: pollCourses } = await adminClient
+    .from("poll_courses")
+    .select("course_id")
+    .eq("poll_id", body.pollId);
+  const courseIds = (pollCourses ?? [])
+    .map((c: { course_id: string }) => c.course_id)
+    .filter((id: string) => !!id);
+  // Fallback defensivo: si la junction estuviera vacía, usar el curso ancla.
+  if (courseIds.length === 0 && poll.course_id) courseIds.push(poll.course_id);
+  if (courseIds.length === 0) return jsonError("poll_has_no_courses", 400);
+
+  // 3) Validar que el caller es docente de ALGUNO de los cursos de la
+  //    encuesta (mismo criterio de WRITE que poll_courses: docente del
+  //    curso ancla / cualquier curso linkeado).
+  const { data: ct } = await adminClient
+    .from("course_teachers")
+    .select("course_id")
+    .eq("user_id", userId)
+    .in("course_id", courseIds)
+    .limit(1);
+  if (!ct || ct.length === 0) return jsonError("not_teacher_of_course", 403);
+
+  // 4) Conexión + calendario. A diferencia de `handleSync` (que recibe el
+  //    provider desde la UI del módulo Calendario), la UI de Encuestas NO
+  //    conoce a qué proveedor está conectado el docente — así que DERIVAMOS
+  //    el provider efectivo de la fila de tokens (ignoramos el hint del body).
+  const { data: tok } = await adminClient
+    .from("teacher_google_tokens")
+    .select("calendar_id, provider, provider_email, google_email")
+    .eq("teacher_id", userId)
+    .maybeSingle();
+  if (!tok?.calendar_id) return jsonError("no_calendar_selected", 400);
+  const effectiveProvider: Provider = tok.provider === "microsoft" ? "microsoft" : "google";
+  const calId = encodeURIComponent(tok.calendar_id);
+  const teacherEmail = tok.provider_email ?? tok.google_email ?? null;
+
+  // Pre-check: ¿existe todavía el calendario? (mismo patrón que handleSync)
+  try {
+    if (effectiveProvider === "microsoft") {
+      await callMicrosoft<{ id: string }>(userId, `/me/calendars/${calId}`, { method: "GET" });
+    } else {
+      await callGoogle<{ id: string }>(userId, `/calendar/v3/calendars/${calId}`, {
+        method: "GET",
+      });
+    }
+  } catch (e) {
+    const isGone =
+      effectiveProvider === "microsoft" ? isMicrosoftEventGoneError(e) : isGoogleEventGoneError(e);
+    if (isGone) {
+      await adminClient
+        .from("teacher_google_tokens")
+        .update({ calendar_id: null, calendar_name: null })
+        .eq("teacher_id", userId);
+      await audit(userId, "calendar.calendar_missing", "warning", {
+        provider: effectiveProvider,
+        poll_id: body.pollId,
+        calendar_id: tok.calendar_id,
+      });
+      return jsonError("calendar_not_accessible", 410);
+    }
+    throw e;
+  }
+
+  // 5) Curso (para el nombre) + matriculados DISTINCT a través de todos los
+  //    cursos de la encuesta + registro de sincronización previo.
+  const [{ data: course }, { data: enrolls }, { data: existing }] = await Promise.all([
+    adminClient.from("courses").select("name").eq("id", courseIds[0]).maybeSingle(),
+    adminClient.from("course_enrollments").select("user_id").in("course_id", courseIds),
+    adminClient
+      .from("poll_calendar_events")
+      .select("user_id, event_id")
+      .eq("poll_id", body.pollId),
+  ]);
+
+  const studentIds = Array.from(
+    new Set((enrolls ?? []).map((e: { user_id: string }) => e.user_id)),
+  );
+  if (studentIds.length === 0) {
+    return jsonOk({ created: 0, updated: 0, failed: 0, total: 0, errors: [] });
+  }
+
+  // Emails por estudiante (para el attendee de SU evento).
+  const { data: profs } = await adminClient
+    .from("profiles")
+    .select("id, institutional_email")
+    .in("id", studentIds);
+  const emailByUser = new Map<string, string>();
+  for (const p of (profs ?? []) as Array<{ id: string; institutional_email: string | null }>) {
+    if (p.institutional_email && p.institutional_email.includes("@")) {
+      emailByUser.set(p.id, p.institutional_email);
+    }
+  }
+
+  // event_id ya sincronizado por estudiante (idempotencia).
+  const eventIdByUser = new Map<string, string>();
+  for (const r of (existing ?? []) as Array<{ user_id: string; event_id: string }>) {
+    eventIdByUser.set(r.user_id, r.event_id);
+  }
+
+  // Fecha/hora ancla — ver decisión documentada arriba.
+  const anchorDate = poll.closes_at
+    ? new Date(poll.closes_at)
+    : new Date(Date.now() + 7 * 24 * 60 * 60_000);
+  const start = anchorDate.toISOString();
+  const end = new Date(anchorDate.getTime() + 90 * 60_000).toISOString();
+
+  const courseName = course?.name ?? "Curso";
+  const summary = `${courseName} - ${poll.title ?? "Encuesta"}`;
+  const description =
+    `Encuesta de cupo sincronizada desde ExamLab.\n` +
+    `Curso: ${courseName}\nEncuesta: ${poll.title ?? ""}`;
+
+  let created = 0,
+    updated = 0,
+    failed = 0;
+  const errors: string[] = [];
+
+  for (const studentId of studentIds) {
+    const studentEmail = emailByUser.get(studentId);
+    try {
+      // Attendees: el estudiante + el docente. Si falta el email del
+      // estudiante, el evento igual se crea (sin attendee de alumno) —
+      // queda en el calendario del docente como recordatorio.
+      const emails = [studentEmail, teacherEmail].filter(
+        (e): e is string => !!e && e.includes("@"),
+      );
+
+      const existingEventId = eventIdByUser.get(studentId);
+
+      if (effectiveProvider === "microsoft") {
+        const msAttendees = emails.map((email) => ({
+          emailAddress: { address: email, name: email.split("@")[0] },
+          type: "required" as const,
+        }));
+        const eventBody = {
+          subject: summary,
+          body: { contentType: "Text", content: description },
+          start: { dateTime: start.replace("Z", ""), timeZone: "America/Bogota" },
+          end: { dateTime: end.replace("Z", ""), timeZone: "America/Bogota" },
+          attendees: msAttendees,
+        };
+        const insertEvent = async (): Promise<MsEvent> =>
+          await callMicrosoft<MsEvent>(userId, `/me/calendars/${calId}/events`, {
+            method: "POST",
+            body: JSON.stringify(eventBody),
+          });
+
+        if (existingEventId) {
+          let recreated = false;
+          let ev: MsEvent | null = null;
+          try {
+            ev = await callMicrosoft<MsEvent>(
+              userId,
+              `/me/events/${encodeURIComponent(existingEventId)}`,
+              { method: "PATCH", body: JSON.stringify(eventBody) },
+            );
+          } catch (e) {
+            if (isMicrosoftEventGoneError(e)) recreated = true;
+            else throw e;
+          }
+          if (recreated) {
+            ev = await insertEvent();
+            await upsertPollCalendarEvent(body.pollId, studentId, effectiveProvider, ev.id);
+            created++;
+          } else {
+            updated++;
+          }
+        } else {
+          const ev = await insertEvent();
+          await upsertPollCalendarEvent(body.pollId, studentId, effectiveProvider, ev.id);
+          created++;
+        }
+        continue;
+      }
+
+      // ── GOOGLE ──
+      const googleAttendees = emails.map((email) => ({
+        email,
+        responseStatus: "accepted" as const,
+      }));
+      const eventBody = {
+        summary,
+        description,
+        start: { dateTime: start, timeZone: "America/Bogota" },
+        end: { dateTime: end, timeZone: "America/Bogota" },
+        attendees: googleAttendees,
+        guestsCanSeeOtherGuests: false,
+        reminders: { useDefault: true },
+      };
+      const insertEvent = async (): Promise<GCalEvent> =>
+        await callGoogle<GCalEvent>(
+          userId,
+          `/calendar/v3/calendars/${calId}/events?sendUpdates=all`,
+          { method: "POST", body: JSON.stringify(eventBody) },
+        );
+
+      if (existingEventId) {
+        let recreated = false;
+        let ev: GCalEvent | null = null;
+        try {
+          ev = await callGoogle<GCalEvent>(
+            userId,
+            `/calendar/v3/calendars/${calId}/events/${encodeURIComponent(existingEventId)}?sendUpdates=all`,
+            { method: "PATCH", body: JSON.stringify(eventBody) },
+          );
+        } catch (e) {
+          if (isGoogleEventGoneError(e)) recreated = true;
+          else throw e;
+        }
+        if (recreated) {
+          ev = await insertEvent();
+          await upsertPollCalendarEvent(body.pollId, studentId, effectiveProvider, ev.id);
+          created++;
+        } else {
+          updated++;
+        }
+      } else {
+        const ev = await insertEvent();
+        await upsertPollCalendarEvent(body.pollId, studentId, effectiveProvider, ev.id);
+        created++;
+      }
+    } catch (e) {
+      failed++;
+      errors.push(`${studentEmail ?? studentId}: ${(e as Error).message}`);
+    }
+  }
+
+  await audit(
+    userId,
+    failed > 0 && created + updated === 0 ? "calendar.poll_sync_failed" : "calendar.poll_synced",
+    failed > 0 && created + updated === 0 ? "error" : "info",
+    {
+      provider: effectiveProvider,
+      poll_id: body.pollId,
+      poll_title: poll.title ?? null,
+      course_ids: courseIds,
+      calendar_id: tok.calendar_id,
+      created,
+      updated,
+      failed,
+      total: studentIds.length,
+      first_errors: errors.slice(0, 3),
+    },
+    summary,
+  );
+
+  return jsonOk({ created, updated, failed, total: studentIds.length, errors });
+}
+
+/** UPSERT idempotente de la fila de sincronización (poll, estudiante) →
+ *  event_id. onConflict en el UNIQUE (poll_id, user_id): re-sync actualiza
+ *  el event_id + updated_at en vez de duplicar. */
+async function upsertPollCalendarEvent(
+  pollId: string,
+  userId: string,
+  provider: Provider,
+  eventId: string,
+) {
+  await adminClient.from("poll_calendar_events").upsert(
+    {
+      poll_id: pollId,
+      user_id: userId,
+      provider,
+      event_id: eventId,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "poll_id,user_id" },
+  );
 }
 
 // ────────── Reverse sync: Google Calendar → ExamLab ──────────

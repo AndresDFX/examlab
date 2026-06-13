@@ -1120,6 +1120,10 @@ function CreatePollDialog({
     { label: "", max_responses: "" },
   ]);
   const [saving, setSaving] = useState(false);
+  // Sincronización de la encuesta de cupo con el calendario del docente
+  // (crea/actualiza un evento por estudiante). Solo aplica a tipo 'slot' y
+  // requiere que la encuesta YA exista (necesita pollId) → habilitado en edit.
+  const [syncingCalendar, setSyncingCalendar] = useState(false);
 
   // Conteo de matriculados (DISTINCT user_id) a través de TODOS los
   // cursos seleccionados — sirve para el hint del cupo y para
@@ -1473,6 +1477,43 @@ function CreatePollDialog({
     setOptions((opts) => (opts.length > 2 ? opts.filter((_, i) => i !== idx) : opts));
   const updateOption = (idx: number, patch: Partial<DraftOption>) =>
     setOptions((opts) => opts.map((o, i) => (i === idx ? { ...o, ...patch } : o)));
+
+  // Sincroniza la encuesta de cupo con el calendario del docente: invoca la
+  // edge `calendar` (acción `sync_poll_to_calendar`) que crea un evento por
+  // estudiante matriculado, con el docente como invitado, y los actualiza en
+  // re-sincronizaciones (no duplica). Solo tiene sentido para tipo 'slot' y
+  // cuando la encuesta ya existe (modo edición → tenemos editingPoll.id).
+  const handleSyncPollToCalendar = async () => {
+    if (!editingPoll) return;
+    setSyncingCalendar(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("calendar", {
+        body: { action: "sync_poll_to_calendar", pollId: editingPoll.id },
+      });
+      const res = data as
+        | { ok?: boolean; created?: number; updated?: number; failed?: number; total?: number }
+        | null;
+      if (error || res?.ok === false) {
+        toast.error(friendlyError(error, t("teacherPolls.errSyncCalendar")));
+        return;
+      }
+      if ((res?.total ?? 0) === 0) {
+        toast.warning(t("teacherPolls.syncCalendarNoStudents"));
+        return;
+      }
+      toast.success(
+        t("teacherPolls.syncCalendarResult", {
+          created: res?.created ?? 0,
+          updated: res?.updated ?? 0,
+          failed: res?.failed ?? 0,
+        }),
+      );
+    } catch (e) {
+      toast.error(friendlyError(e, t("teacherPolls.errSyncCalendar")));
+    } finally {
+      setSyncingCalendar(false);
+    }
+  };
 
   const save = async () => {
     if (!userId) return;
@@ -2533,6 +2574,30 @@ function CreatePollDialog({
           )}
         </div>
         <DialogFooter>
+          {/* Sincronizar con calendario — solo encuestas de CUPO (slot). En
+              modo crear queda deshabilitado (necesita pollId) con un hint que
+              invita a guardar primero; en edit ya tenemos editingPoll.id. */}
+          {type === "slot" && (
+            <div className="mr-auto flex items-center gap-1">
+              <Button
+                variant="outline"
+                onClick={() => void handleSyncPollToCalendar()}
+                disabled={!isEdit || saving || syncingCalendar}
+              >
+                {syncingCalendar ? (
+                  <Spinner size="sm" className="mr-1" />
+                ) : (
+                  <CalendarRange className="h-4 w-4 mr-1" />
+                )}
+                {t("teacherPolls.syncToCalendar")}
+              </Button>
+              <HelpHint>
+                {isEdit
+                  ? t("teacherPolls.syncToCalendarHint")
+                  : t("teacherPolls.syncToCalendarSaveFirst")}
+              </HelpHint>
+            </div>
+          )}
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             {t("common.cancel")}
           </Button>
