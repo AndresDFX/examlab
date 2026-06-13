@@ -1437,7 +1437,7 @@ function TeacherProjects() {
       if (subsList.length) {
         const userIds = subsList.map((s) => s.user_id);
         const subIds = subsList.map((s) => s.id);
-        const [{ data: profs }, { data: ans }] = await Promise.all([
+        const [{ data: profs }, { data: ans, error: ansErr }] = await Promise.all([
           db.from("profiles").select("id, full_name, institutional_email").in("id", userIds),
           db
             .from("project_submission_files")
@@ -1446,6 +1446,15 @@ function TeacherProjects() {
             )
             .in("submission_id", subIds),
         ]);
+        // No tragar el error de las RESPUESTAS: si este query falla (ej. una
+        // columna ausente en la DB), `ans` quedaba null y la entrega se veía
+        // VACÍA sin avisar — fue el bug "no se ve lo que entregaron". Avisar.
+        if (ansErr) {
+          console.error("[projects] load submission files failed", ansErr);
+          toast.error(
+            friendlyError(ansErr, "No se pudieron cargar las respuestas de las entregas."),
+          );
+        }
         const profMap = new Map(((profs ?? []) as Array<{ id: string }>).map((pp) => [pp.id, pp]));
         const grouped: Record<string, SubFile[]> = {};
         for (const a of (ans ?? []) as SubFile[]) {
