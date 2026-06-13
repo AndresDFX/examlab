@@ -104,16 +104,20 @@ contentSlide({
   const s = pptx.addSlide();
   s.background = { color: WHITE };
   s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: W, h: 1.15, fill: { color: PRIMARY }, line: { type: "none" } });
-  s.addText("PLANES DE SUSCRIPCIÓN", { x: 0.6, y: 0.18, w: 11, h: 0.3, fontSize: 11, color: "E0E7FF", charSpacing: 2 });
-  s.addText("Un plan para cada tamaño de institución", { x: 0.6, y: 0.46, w: 12, h: 0.6, fontSize: 24, bold: true, color: WHITE });
+  s.addText("PLANES DE SUSCRIPCIÓN", { x: 0.6, y: 0.14, w: 11, h: 0.28, fontSize: 11, color: "E0E7FF", charSpacing: 2 });
+  s.addText("Un plan para cada tamaño de institución", { x: 0.6, y: 0.4, w: 12, h: 0.5, fontSize: 23, bold: true, color: WHITE });
+  s.addText("Mismas funciones en todos los planes — solo cambia la cantidad de usuarios.", { x: 0.6, y: 0.88, w: 12, h: 0.28, fontSize: 12.5, color: "E0E7FF" });
 
+  // Los planes se diferencian SOLO por cantidad de usuarios: TODAS las
+  // funciones están incluidas en los tres (mismos `feats`). El API key de IA
+  // lo provee el cliente → la suscripción no factura uso de IA; el precio
+  // cubre plataforma + infraestructura (que administra el proveedor) + soporte.
+  // El plan grande sube porque la infra a esa escala cuesta más.
+  const ALL_FEATS = ["Todas las funciones incluidas", "Sin límite de cursos", "Soporte incluido"];
   const tiers = [
-    { name: "Esencial", target: "Institución pequeña", price: "$99", est: "Hasta 250", doc: "Hasta 20", adm: "3", accent: PRIMARY2, hl: false,
-      feats: ["IA: generar y calificar", "Asistencia con QR", "Mensajería y foros"] },
-    { name: "Profesional", target: "Institución mediana", price: "$299", est: "Hasta 1.500", doc: "Hasta 80", adm: "6", accent: AI, hl: true,
-      feats: ["Todo lo de Esencial", "Tutor IA + antifraude", "Calendario + reportes"] },
-    { name: "Institucional", target: "Institución grande", price: "$699", est: "Hasta 6.000", doc: "Hasta 300", adm: "12", accent: PRIMARY, hl: false,
-      feats: ["Todo lo de Profesional", "Multi-sede + branding", "Soporte prioritario"] },
+    { name: "Esencial", target: "Institución pequeña", price: "$99", est: "Hasta 250", doc: "Hasta 20", adm: "3", accent: PRIMARY2, hl: false, feats: ALL_FEATS },
+    { name: "Profesional", target: "Institución mediana", price: "$299", est: "Hasta 1.500", doc: "Hasta 80", adm: "6", accent: AI, hl: true, feats: ALL_FEATS },
+    { name: "Institucional", target: "Institución grande", price: "$1.290", est: "Hasta 6.000", doc: "Hasta 300", adm: "12", accent: PRIMARY, hl: false, feats: ALL_FEATS },
   ];
   tiers.forEach((t, i) => {
     const x = 0.55 + i * 4.18;
@@ -144,48 +148,49 @@ contentSlide({
     const fitems = t.feats.map((f) => ({ text: f, options: { bullet: { code: "2713" }, color: "334155", fontSize: 11.5, paraSpaceAfter: 6 } }));
     s.addText(fitems, { x: x + 0.3, y: y + 3.7, w: w - 0.55, h: 1.4, valign: "top" });
   });
-  s.addText("Valores de referencia (USD) — ajustar a la política comercial. Capacidad por institución.", { x: 0.55, y: H - 0.62, w: 12.2, h: 0.3, fontSize: 9.5, italic: true, color: MUTED, align: "center" });
+  s.addText("Precios de referencia (USD/mes) — incluyen plataforma, infraestructura y soporte. El API key de IA lo provee la institución (su uso de IA no se factura en la suscripción). Ajustar a la política comercial.", { x: 0.55, y: H - 0.66, w: 12.2, h: 0.34, fontSize: 9.5, italic: true, color: MUTED, align: "center" });
   footer(s, PRIMARY);
 }
 
-// ───────── 5. Comparativa por plan ─────────
+// ───────── 5. Todo incluido en todos los planes ─────────
 {
   const s = pptx.addSlide();
   s.background = { color: WHITE };
-  s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: W, h: 1.15, fill: { color: PRIMARY2 }, line: { type: "none" } });
-  s.addText("COMPARATIVA", { x: 0.6, y: 0.18, w: 11, h: 0.3, fontSize: 11, color: "E9D5FF", charSpacing: 2 });
-  s.addText("Qué incluye cada plan", { x: 0.6, y: 0.46, w: 12, h: 0.6, fontSize: 24, bold: true, color: WHITE });
-  const rows = [
-    ["Característica", "Esencial", "Profesional", "Institucional"],
-    ["Cursos, exámenes, talleres y proyectos", "✓", "✓", "✓"],
-    ["IA: generación de evaluaciones y contenido", "✓", "✓", "✓"],
-    ["IA: calificación automática con feedback", "✓", "✓", "✓"],
-    ["Asistencia con QR y mensajería", "✓", "✓", "✓"],
-    ["Tutor IA del curso", "—", "✓", "✓"],
-    ["Antifraude (detección de copia)", "—", "✓", "✓"],
-    ["Sincronización de calendario y reportes", "—", "✓", "✓"],
-    ["Multi-sede, branding y auditoría avanzada", "—", "—", "✓"],
-    ["Soporte prioritario", "Email", "Email", "Prioritario"],
+  s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: W, h: 1.35, fill: { color: PRIMARY2 }, line: { type: "none" } });
+  s.addShape(pptx.ShapeType.rect, { x: 0, y: 1.35, w: W, h: 0.06, fill: { color: AI }, line: { type: "none" } });
+  s.addText("TODO INCLUIDO", { x: 0.6, y: 0.2, w: 11, h: 0.3, fontSize: 11, color: "E9D5FF", charSpacing: 2 });
+  s.addText("Todas las funciones, en todos los planes", { x: 0.6, y: 0.46, w: 12, h: 0.55, fontSize: 24, bold: true, color: WHITE });
+  s.addText("Sin funciones bloqueadas: la única diferencia entre planes es la cantidad de usuarios.", { x: 0.6, y: 1.0, w: 12, h: 0.3, fontSize: 12.5, color: "E9D5FF" });
+
+  const feats = [
+    "Cursos, cronograma y tablero",
+    "Exámenes, talleres y proyectos",
+    "Generación de evaluaciones con IA",
+    "Generación de contenido (PPTX/guías) con IA",
+    "Calificación automática con retroalimentación",
+    "Tutor IA del curso",
+    "Detección de copia / antifraude",
+    "Banco de preguntas reutilizable",
+    "Asistencia con QR (auto check-in)",
+    "Sincronización con Google/Microsoft Calendar",
+    "Mensajería, foros y difusión",
+    "Encuestas y Kahoot en vivo",
+    "Certificados, reportes y libro de calificaciones",
+    "Ejecución de código (Java/Python) en línea",
+    "Multi-sede, branding y auditoría",
+    "Notificaciones en la app y push",
   ];
-  const colX = [0.6, 7.2, 9.25, 11.3];
-  const colW = [6.5, 2.0, 2.0, 2.0];
-  const y0 = 1.45, rh = 0.5;
-  rows.forEach((r, ri) => {
-    const y = y0 + ri * rh;
-    if (ri === 0) s.addShape(pptx.ShapeType.rect, { x: 0.5, y, w: 12.4, h: rh, fill: { color: INK }, line: { type: "none" } });
-    else if (ri % 2 === 0) s.addShape(pptx.ShapeType.rect, { x: 0.5, y, w: 12.4, h: rh, fill: { color: LIGHT }, line: { type: "none" } });
-    r.forEach((cell, ci) => {
-      const isHead = ri === 0;
-      const isCheck = cell === "✓";
-      s.addText(cell, {
-        x: colX[ci], y, w: colW[ci], h: rh, valign: "middle",
-        align: ci === 0 ? "left" : "center",
-        fontSize: isHead ? 12.5 : 12,
-        bold: isHead || ci === 0,
-        color: isHead ? WHITE : isCheck ? AI : cell === "—" ? "94A3B8" : INK,
-      });
-    });
+  const colW = 6.0, x0 = 0.7, gap = 0.3, rh = 0.52, y0 = 1.75, perCol = Math.ceil(feats.length / 2);
+  feats.forEach((f, i) => {
+    const col = Math.floor(i / perCol);
+    const row = i % perCol;
+    const x = x0 + col * (colW + gap);
+    const y = y0 + row * rh;
+    s.addText("✓", { x, y, w: 0.4, h: rh, fontSize: 14, bold: true, color: AI, valign: "middle" });
+    s.addText(f, { x: x + 0.42, y, w: colW - 0.42, h: rh, fontSize: 13, color: INK, valign: "middle" });
   });
+  s.addShape(pptx.ShapeType.roundRect, { x: 0.7, y: 6.55, w: 11.9, h: 0.62, fill: { color: AIBG }, line: { color: AI, width: 1 }, rectRadius: 0.08 });
+  s.addText([{ text: "✨  ", options: { color: AI, fontSize: 13, bold: true } }, { text: "El API key de IA lo pones tú: usas tu propia cuenta de IA, sin sobrecosto de uso en la suscripción.", options: { color: INK, fontSize: 12.5, italic: true } }], { x: 0.95, y: 6.55, w: 11.4, h: 0.62, valign: "middle" });
   footer(s, PRIMARY2);
 }
 
