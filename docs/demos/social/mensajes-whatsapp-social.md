@@ -4,10 +4,31 @@
 
 **Tono:** informal, cercano, estilo WhatsApp (emojis con mesura). Elige la versión que más te suene y pégala. Los mensajes están pensados para dos contextos:
 
+- ⚡ **Directo** — le pasas el video a alguien sin vueltas, súper informal.
 - 📱 **Estado** — lo ven *todos* tus contactos, dura 24 h, sin nombre. Corto y con gancho.
 - 👥 **Interno** — dentro de tu institución/equipo: colegas docentes o directivos/coordinación.
 
-> En el Estado: sube el **video** y pon el texto **encima** como descripción. En interno: manda el **video primero** y el texto como mensaje aparte (o de pie).
+> En el Estado: sube el **video** y pon el texto **encima** como descripción. En directo/interno: manda el **video primero** y el texto como mensaje aparte (o de pie).
+
+---
+
+## ⚡ Súper directo (solo pasar el video)
+
+Para cuando solo quieres mandarle el clip a alguien sin discurso. Manda el video y, si acaso, una de estas líneas:
+
+**Recomendado:**
+
+> Ey, mira este video 👇 en 20 seg ves de qué va 🔥
+
+**Otras:**
+
+> Parce, te paso esto 👀 está buenísimo, échale ojo 👇
+
+> Mira mira 👇 esto te va a servir un montón. Me cuentas 😉
+
+> Ve este video y me dices 🙌🔥
+
+> 👀👇 (sí, así, sin texto — a veces el video solo habla)
 
 ---
 
