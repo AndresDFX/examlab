@@ -1058,7 +1058,7 @@ function CourseBoardPage() {
               className="h-8 text-xs w-24"
             />
           </div>
-          <div className="space-y-1 flex-1 min-w-[160px] sm:min-w-48">
+          <div className="space-y-1 w-full sm:flex-1 sm:min-w-[160px] md:min-w-48">
             <Label className="text-[11px]">{t("common.title")}</Label>
             <Input
               value={editingId ? "" : draftTitle}
@@ -1070,7 +1070,7 @@ function CourseBoardPage() {
               className="h-8 text-xs"
             />
           </div>
-          <div className="space-y-1 flex-1 min-w-[160px] sm:min-w-48">
+          <div className="space-y-1 w-full sm:flex-1 sm:min-w-[160px] md:min-w-48">
             <Label className="text-[11px]">{t("course.boardMeetingUrl")}</Label>
             <Input
               type="url"
@@ -1083,7 +1083,7 @@ function CourseBoardPage() {
               className="h-8 text-xs"
             />
           </div>
-          <div className="space-y-1 flex-1 min-w-[160px] sm:min-w-48">
+          <div className="space-y-1 w-full sm:flex-1 sm:min-w-[160px] md:min-w-48">
             <Label className="text-[11px]">
               {t("course.boardRecordingUrl", { defaultValue: "Enlace de grabación (opcional)" })}
             </Label>
@@ -1098,7 +1098,7 @@ function CourseBoardPage() {
               className="h-8 text-xs"
             />
           </div>
-          <div className="space-y-1 flex-1 min-w-[160px] sm:min-w-48">
+          <div className="space-y-1 w-full sm:flex-1 sm:min-w-[160px] md:min-w-48">
             <Label className="text-[11px]">
               {t("course.boardNotesUrl", {
                 defaultValue: "Enlace de notas / minuta (opcional)",
@@ -1227,7 +1227,7 @@ function CourseBoardPage() {
                           className="h-8 text-xs w-24"
                         />
                       </div>
-                      <div className="space-y-1 flex-1 min-w-[160px] sm:min-w-48">
+                      <div className="space-y-1 w-full sm:flex-1 sm:min-w-[160px] md:min-w-48">
                         <Label className="text-[11px]">{t("common.title")}</Label>
                         <Input
                           value={draftTitle}
@@ -1236,7 +1236,7 @@ function CourseBoardPage() {
                           className="h-8 text-xs"
                         />
                       </div>
-                      <div className="space-y-1 flex-1 min-w-[160px] sm:min-w-48">
+                      <div className="space-y-1 w-full sm:flex-1 sm:min-w-[160px] md:min-w-48">
                         <Label className="text-[11px]">{t("course.boardMeetingUrl")}</Label>
                         <Input
                           type="url"
@@ -1246,7 +1246,7 @@ function CourseBoardPage() {
                           className="h-8 text-xs"
                         />
                       </div>
-                      <div className="space-y-1 flex-1 min-w-[160px] sm:min-w-48">
+                      <div className="space-y-1 w-full sm:flex-1 sm:min-w-[160px] md:min-w-48">
                         <Label className="text-[11px]">
                           {t("course.boardRecordingUrl", {
                             defaultValue: "Enlace de grabación (opcional)",
@@ -1260,7 +1260,7 @@ function CourseBoardPage() {
                           className="h-8 text-xs"
                         />
                       </div>
-                      <div className="space-y-1 flex-1 min-w-[160px] sm:min-w-48">
+                      <div className="space-y-1 w-full sm:flex-1 sm:min-w-[160px] md:min-w-48">
                         <Label className="text-[11px]">
                           {t("course.boardNotesUrl", {
                             defaultValue: "Enlace de notas / minuta (opcional)",

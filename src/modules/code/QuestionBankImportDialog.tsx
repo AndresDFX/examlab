@@ -316,7 +316,7 @@ export function QuestionBankImportDialog({
         {/* Lista */}
         <ScrollArea className="flex-1 -mx-1 px-1">
           {loading ? (
-            <div className="p-8 text-center text-muted-foreground">
+            <div className="p-4 sm:p-8 text-center text-muted-foreground">
               <Spinner size="md" /> Cargando banco…
             </div>
           ) : filtered.length === 0 ? (

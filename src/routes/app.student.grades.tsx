@@ -767,7 +767,7 @@ function KindGroup({
           ? i18n.t("studentGrades.kindProjects")
           : i18n.t("studentGrades.kindAttendance");
   return (
-    <div className="rounded-md border overflow-hidden">
+    <div className="rounded-md border overflow-x-auto overflow-y-hidden">
       <div className="flex items-center justify-between gap-2 bg-muted/40 px-3 py-2 border-b">
         <div className="flex items-center gap-2">
           <KindBadge kind={kind} />

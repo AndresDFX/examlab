@@ -506,7 +506,7 @@ function StudentAttendance() {
         icon={<CalendarCheck className="h-6 w-6 text-primary" />}
         actions={
           courses.length > 0 ? (
-            <div className="min-w-[220px]">
+            <div className="w-full sm:w-56">
               <Select
                 value={selectedCourseId ?? undefined}
                 onValueChange={(v) => setSelectedCourseId(v)}

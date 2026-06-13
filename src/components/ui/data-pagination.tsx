@@ -145,7 +145,7 @@ export function DataPagination<T>({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-8 w-8"
             disabled={currentPage <= 1}
             onClick={() => setCurrentPage(currentPage - 1)}
             aria-label="Página anterior"
@@ -166,7 +166,7 @@ export function DataPagination<T>({
                 key={entry}
                 variant={entry === currentPage ? "outline" : "ghost"}
                 size="icon"
-                className="h-7 w-7 text-xs tabular-nums"
+                className="h-8 w-8 text-xs tabular-nums"
                 onClick={() => setCurrentPage(entry)}
                 aria-current={entry === currentPage ? "page" : undefined}
                 aria-label={`Ir a página ${entry}`}
@@ -178,7 +178,7 @@ export function DataPagination<T>({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-8 w-8"
             disabled={currentPage >= totalPages}
             onClick={() => setCurrentPage(currentPage + 1)}
             aria-label="Página siguiente"

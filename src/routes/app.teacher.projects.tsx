@@ -2539,7 +2539,7 @@ function TeacherProjects() {
                               type="button"
                               size="icon"
                               variant="ghost"
-                              className="h-7 w-7"
+                              className="h-8 w-8"
                               onClick={moveUp}
                               disabled={idx === 0}
                               title="Mover arriba"
@@ -2550,7 +2550,7 @@ function TeacherProjects() {
                               type="button"
                               size="icon"
                               variant="ghost"
-                              className="h-7 w-7"
+                              className="h-8 w-8"
                               onClick={moveDown}
                               disabled={idx === formIntroVideos.length - 1}
                               title="Mover abajo"
@@ -2561,7 +2561,7 @@ function TeacherProjects() {
                               type="button"
                               size="icon"
                               variant="ghost"
-                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                               onClick={remove}
                               title="Quitar video"
                             >
@@ -2957,7 +2957,7 @@ function TeacherProjects() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-6 w-6 p-0"
+                            className="h-8 w-8 p-0"
                             title="Asignar a todos los matriculados de este curso"
                             onClick={() => assignByCourse(cid)}
                           >

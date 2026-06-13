@@ -308,7 +308,7 @@ export function ImageEditorDialog({ file, contentId, onClose, onSaved }: Props) 
                 type="button"
                 onClick={() => setColor(c)}
                 className={cn(
-                  "h-6 w-6 rounded-full border-2 transition-transform",
+                  "h-8 w-8 rounded-full border-2 transition-transform",
                   color === c ? "border-foreground scale-110" : "border-transparent",
                 )}
                 style={{ backgroundColor: c }}

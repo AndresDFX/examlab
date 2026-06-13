@@ -99,7 +99,7 @@ export function NotificationBell({
         </div>
         <div className="max-h-80 overflow-y-auto overscroll-contain">
           {notifications.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">Sin notificaciones</div>
+            <div className="py-4 sm:py-8 text-center text-sm text-muted-foreground">Sin notificaciones</div>
           ) : (
             <div className="divide-y">
               {notifications.map((n) => {

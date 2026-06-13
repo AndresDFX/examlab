@@ -96,7 +96,11 @@ export function PageHeader({
             <p className="text-sm text-muted-foreground">{subtitle}</p>
           ) : null}
         </div>
-        {actions ? <div className="flex items-center gap-2 shrink-0">{actions}</div> : null}
+        {actions ? (
+          <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full sm:max-w-none sm:shrink-0 sm:flex-nowrap">
+            {actions}
+          </div>
+        ) : null}
       </div>
     </div>
   );

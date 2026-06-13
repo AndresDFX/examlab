@@ -108,7 +108,7 @@ export function TableEmpty({
   }
   return (
     <TableRow>
-      <TableCell colSpan={colSpan} className="text-center py-8">
+      <TableCell colSpan={colSpan} className="text-center py-4 sm:py-8">
         {inner}
       </TableCell>
     </TableRow>
