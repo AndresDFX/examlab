@@ -106,8 +106,9 @@ async function overlay(page, card) {
     document.documentElement.style.overflow = "";
     let o = document.getElementById("demo-overlay");
     if (!o) { o = document.createElement("div"); o.id = "demo-overlay"; document.body.appendChild(o); }
-    o.setAttribute("style", "position:fixed;inset:0;z-index:2147483000;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:linear-gradient(135deg,#0b1220,#1D4ED8);color:#fff;font-family:Inter,system-ui,sans-serif;text-align:center;");
-    o.innerHTML = '<div style="font-size:15px;letter-spacing:3px;text-transform:uppercase;opacity:.8">' + (c.kicker || "") + '</div>' +
+    o.setAttribute("style", "position:fixed;inset:0;z-index:2147483000;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:" + (c.bg || "linear-gradient(135deg,#0b1220,#1D4ED8)") + ";color:#fff;font-family:Inter,system-ui,sans-serif;text-align:center;");
+    o.innerHTML = (c.emoji ? '<div style="font-size:104px;line-height:1;margin-bottom:8px;filter:drop-shadow(0 6px 18px rgba(0,0,0,.35))">' + c.emoji + '</div>' : '') +
+      '<div style="font-size:15px;letter-spacing:3px;text-transform:uppercase;opacity:.8">' + (c.kicker || "") + '</div>' +
       '<div style="font-size:54px;font-weight:800">' + (c.title || "") + '</div>' +
       '<div style="font-size:24px;opacity:.92">' + (c.subtitle || "") + '</div>';
   }, card);
