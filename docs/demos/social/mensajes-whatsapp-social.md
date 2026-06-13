@@ -126,6 +126,7 @@ Para cuando solo quieres mandarle el clip a alguien sin discurso. Manda el video
 - Si te escriben por el Estado, ten lista una respuesta corta con el video o una propuesta concreta: *"lo probamos esta semana"*.
 - Con **directivos**, mide el beneficio en **"horas que recupera el docente"** y acompáñalo con un **dato real tuyo** (ej. *"me ahorré X horas calificando este corte"*) — la prueba social pesa más con números propios.
 - Para un **colega puntual**, personaliza con `[Nombre]` y dile que **tú ya lo estás usando**: convence más que cualquier folleto.
+- ⚠️ **Sé honesto con los testimonios.** Las versiones en primera persona (*"llevo semanas usando esto"*, *"me ahorró horas esta semana"*) úsalas **solo si de verdad ya lo probaste**. Si apenas estás empezando, prefiere las versiones de **gancho/pregunta** o suaviza a *"lo estoy probando"*.
 
 ---
 
@@ -134,4 +135,5 @@ Para cuando solo quieres mandarle el clip a alguien sin discurso. Manda el video
 - **Formato WhatsApp**: negrita con `*asteriscos*`, cursiva con `_guiones bajos_`. Al pegar, si quieres negritas reales escribe `*ExamLab*`.
 - Reemplaza `[Nombre]` en los mensajes directos.
 - Si además vas a **dar acceso de prueba**, manda en un mensaje aparte los datos del Excel [`../correos/ExamLab-Usuarios-Demo.xlsx`](../correos/ExamLab-Usuarios-Demo.xlsx) (usuario + contraseña genérica + URL) junto con el video de **cómo ingresar** ([`output/modulo-login.mp4`](output/modulo-login.mp4)).
-- Para algo **más detallado/comercial** alrededor del video de presentación, usa [`../correos/whatsapp-video-presentacion.md`](../correos/whatsapp-video-presentacion.md) y las presentaciones en [`../presentacion/`](../presentacion/).
+- Para una versión **más comercial/extensa** alrededor del video, usa las presentaciones en [`../presentacion/`](../presentacion/). Si quieres **más opciones de copy corto** para el mismo video, [`../correos/whatsapp-video-presentacion.md`](../correos/whatsapp-video-presentacion.md) tiene variantes alternativas (mismo registro, no más detallado).
+- Para **entregar la cuenta de prueba** a un docente, usa el mensaje dedicado en [`../correos/correo-entrega-cuenta-docente.md`](../correos/correo-entrega-cuenta-docente.md).

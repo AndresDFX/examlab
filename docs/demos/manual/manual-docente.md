@@ -2,6 +2,8 @@
 
 Como **Docente** en ExamLab tu trabajo es crear y evaluar: armas cursos, preparas material, generas y aplicas evaluaciones, llevas la asistencia y consolidas las notas. La plataforma pone la **IA a tu servicio** en cada paso — puedes generar evaluaciones y contenido automáticamente, dejar que la IA califique las entregas, detectar fraude y ofrecer un tutor a tus estudiantes. Este manual recorre, módulo por módulo, lo que verás en el menú lateral cuando entras con tu rol Docente.
 
+> **Si entras con una cuenta de demostración:** tu espacio empieza **vacío**. Crea tu propio **curso** para arrancar y aprovecha la IA para generar evaluaciones (la generación corre al instante). Ten en cuenta que la **matrícula de estudiantes la hace un administrador** — sin estudiantes no podrás probar el ciclo completo de calificación de entregas reales; ese flujo se muestra en los videos demo. Si la **IA falla** puntualmente, casi siempre es **disponibilidad del modelo** (es una demo): espera unos minutos y reintenta — no es un fallo de la plataforma.
+
 ---
 
 ### Panel

@@ -16,6 +16,15 @@ OUT = os.path.join(OUT_DIR, "ExamLab-Usuarios-Demo.xlsx")
 URL = "https://examlab.lovable.app/auth"
 TENANT = "ExamLab Demo"
 PWD = "ExamlabDemo2026"
+NOTAS = (
+    "Cuenta de demo. Al iniciar sesión, selecciona la institución \"ExamLab Demo\". "
+    "El espacio empieza vacío: crea tu propio curso para empezar y usa la IA para generar "
+    "exámenes/talleres (corre al instante). No incluye estudiantes (la matrícula la hace un "
+    "administrador), así que el ciclo completo de calificación de entregas reales se ve en los "
+    "videos demo, no en esta cuenta. La contraseña es genérica y no caduca al primer ingreso. "
+    "Si la IA falla puntualmente, suele ser disponibilidad del modelo (es una demo): espera unos "
+    "minutos y reintenta — no es un error de la plataforma."
+)
 
 HEADERS = ["#", "Nombre", "Email (usuario)", "Contraseña", "Rol", "Institución",
            "URL de ingreso", "Entregado a", "Fecha entrega", "Notas"]
@@ -28,7 +37,7 @@ USERS = [
 ]
 rows = [HEADERS]
 for i, (name, email) in enumerate(USERS, 1):
-    rows.append([str(i), name, email, PWD, "Docente", TENANT, URL, "", "", ""])
+    rows.append([str(i), name, email, PWD, "Docente", TENANT, URL, "", "", NOTAS])
 
 def col_letter(n):  # 0 -> A
     s = ""

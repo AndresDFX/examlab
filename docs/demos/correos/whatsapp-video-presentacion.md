@@ -33,11 +33,12 @@
 >
 > Eso es **ExamLab**: la IA te genera exámenes, talleres y proyectos, los **califica con retroalimentación** y detecta copias. Tú revisas y publicas. 🤖✨
 >
-> Lo estoy usando y me está funcionando 👌. Si quieres, te creo una **cuenta de prueba** y lo ves por dentro. ¿Le entramos? 🚀
+> Lo estoy probando y me está gustando 👌. Si quieres, te creo una **cuenta de prueba** y lo ves por dentro. ¿Le entramos? 🚀
 
 ---
 
 ### Notas
 - WhatsApp no permite formato enriquecido salvo *cursiva*/**negrita** con `_ _` y `* *` — al pegar, ajusta si quieres negritas reales (`*ExamLab*`).
 - Reemplaza `[Nombre]`.
-- Si vas a mandar también la cuenta de prueba, usa los datos del Excel `ExamLab-Usuarios-Demo.xlsx` (usuario + contraseña genérica + URL) en un mensaje aparte.
+- La frase *"lo estoy probando"* de la versión con más gancho: úsala solo si **de verdad** ya la probaste; si no, quítala.
+- Si vas a mandar también la cuenta de prueba, usa el mensaje dedicado [`correo-entrega-cuenta-docente.md`](correo-entrega-cuenta-docente.md) (o los datos del Excel [`ExamLab-Usuarios-Demo.xlsx`](ExamLab-Usuarios-Demo.xlsx) + el video de cómo ingresar `../social/output/modulo-login.mp4`) en un mensaje aparte.
