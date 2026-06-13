@@ -614,30 +614,56 @@ async function main() {
               await page.evaluate(() => { document.body.style.transition = "none"; document.body.style.transform = "none"; document.documentElement.style.overflow = ""; });
               await sleep(160);
               cam = { tx: 0, ty: 0, s: 1 };
-              const trig = await page.evaluate((tgt) => {
-                let container = null;
-                if (tgt.startsWith("field:")) {
+              // Trigger como LOCATOR de Playwright (no coords): locator.click()
+              // espera actionability real (visible/estable/recibe eventos) y
+              // dispara los eventos como un usuario — Radix abre confiable,
+              // mientras que mouse.click(coords) a veces no disparaba el
+              // pointerdown. `beat.target` debe ser un selector CSS del trigger
+              // o de su contenedor (ej. [role="combobox"] o [data-tour-id=...]).
+              let trigger = null, optOk = true;
+              if (beat.target.startsWith("field:")) {
+                // Fallback legacy para field:Label (sube por ancestros del label).
+                const handle = await page.evaluateHandle((tgt) => {
                   const txt = tgt.slice(6).toLowerCase();
                   const scope = document.querySelector('[role="dialog"]') || document.querySelector('[data-state="active"][role="tabpanel"]') || document.body;
                   const lbl = [...scope.querySelectorAll("label")].find((l) => (l.textContent || "").trim().toLowerCase().startsWith(txt));
-                  container = lbl ? lbl.parentElement : null;
-                } else {
-                  container = document.querySelector(tgt);
-                }
-                if (!container) return null;
-                const combo = container.matches?.('[role="combobox"]') ? container : container.querySelector('[role="combobox"]');
-                const el = combo || container;
-                const r = el.getBoundingClientRect();
-                return { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
-              }, beat.target);
-              let optOk = true;
-              if (!trig) { optOk = false; console.log(`  ⚠ selectOption: trigger "${beat.target}" no encontrado`); }
+                  let node = lbl;
+                  for (let i = 0; node && i < 5; i++) { const c = node.querySelector?.('[role="combobox"]'); if (c) return c; node = node.parentElement; }
+                  return null;
+                }, beat.target);
+                const el = handle.asElement();
+                if (el) trigger = el;
+              } else {
+                const base = page.locator(beat.target).first();
+                const inner = base.locator('[role="combobox"]');
+                trigger = (await inner.count().catch(() => 0)) > 0 ? inner.first() : base;
+              }
+              if (!trigger) { optOk = false; console.log(`  ⚠ selectOption: trigger "${beat.target}" no encontrado`); }
               else {
-                await page.mouse.click(trig.cx, trig.cy);
-                let opened = await page.locator('[role="listbox"]').first().waitFor({ timeout: 1500 }).then(() => true).catch(() => false);
-                if (!opened) { await sleep(250); await page.mouse.click(trig.cx, trig.cy); await page.locator('[role="listbox"]').first().waitFor({ timeout: 1500 }).catch(() => {}); }
+                // Patrón validado por probe en vivo: UN click al trigger para
+                // abrir, esperar la opción, clickearla. Reintentar la OPCIÓN sin
+                // re-clickear el trigger (re-clickear lo TOGGLE-cerraba — root
+                // cause real del fallo de cupos, no el regex ni los acentos).
                 const opt = page.getByRole("option", { name: new RegExp(beat.selectOption, "i") }).first();
-                await opt.click({ timeout: 4000 }).catch((e) => { optOk = false; console.log(`  ⚠ selectOption "${beat.selectOption}":`, e.message.split("\n")[0]); });
+                await trigger.scrollIntoViewIfNeeded({ timeout: 1000 }).catch(() => {});
+                await trigger.click({ timeout: 2500 }).catch(() => {});
+                await sleep(600);
+                // Si el click no abrió el listbox (flaky en el PRIMER diálogo
+                // tras cargar la página), forzar la apertura por teclado: con
+                // el trigger enfocado, Enter abre el Radix Select. Solo cuando
+                // aún no hay opciones visibles (no toggle si ya está abierto).
+                if ((await opt.count().catch(() => 0)) === 0) {
+                  await trigger.focus().catch(() => {});
+                  await page.keyboard.press("Enter").catch(() => {});
+                  await sleep(500);
+                }
+                for (let attempt = 0; attempt < 3 && optOk; attempt++) {
+                  await opt.scrollIntoViewIfNeeded({ timeout: 800 }).catch(() => {});
+                  const clicked = await opt.click({ timeout: 1800 }).then(() => true).catch(() => false);
+                  if (clicked) break;
+                  if (attempt === 2) { optOk = false; console.log(`  ⚠ selectOption "${beat.selectOption}": no se pudo tras 3 intentos`); }
+                  else { await trigger.click({ timeout: 1500 }).catch(() => {}); await sleep(500); } // reabrir solo si falló
+                }
                 if (!optOk) { await page.keyboard.press("Escape").catch(() => {}); await sleep(200); }
               }
               await sleep(800);
@@ -715,11 +741,26 @@ async function main() {
                 await sleep(beat.afterClickMs ?? 1300);
               }
               const [r2] = await measureTargets(page, [beat.focusTarget ?? beat.target], !!beat.scroll);
-              const fsc = fitScale(r2, beat.scale ?? 1.2);
-              await cameraTo(page, r2, fsc, 600);
-              if (r2) cam = computeCam(r2, fsc, false);
-              await focusOn(page, r2, beat.focus, fsc, beat.side);
+              if (beat.noPan) {
+                // Overlay fullscreen (ej. proyector de QR `fixed inset-0`): NO
+                // paneamos. El transform de cámara crea un containing block que
+                // re-posiciona el fixed a un cuadrante (gris a los lados) — al
+                // dejar la cámara en identidad el overlay ocupa todo el viewport.
+                await cameraReset(page, 300); cam = { tx: 0, ty: 0, s: 1 };
+                await focusOn(page, r2, beat.focus, 1.0, beat.side);
+              } else {
+                const fsc = fitScale(r2, beat.scale ?? 1.2);
+                await cameraTo(page, r2, fsc, 600);
+                if (r2) cam = computeCam(r2, fsc, false);
+                await focusOn(page, r2, beat.focus, fsc, beat.side);
+              }
               await sleep(effectiveHold(words, sc.beats, j, s, beat.hold ?? 3500));
+              await focusOff(page);
+            } else if (beat.noPan) {
+              // Beat normal SIN pan (overlay fullscreen): identidad + popover.
+              await cameraReset(page, 300); cam = { tx: 0, ty: 0, s: 1 };
+              await focusOn(page, rect, beat.focus, 1.0, beat.side);
+              await sleep(effectiveHold(words, sc.beats, j, s, beat.hold ?? 1500));
               await focusOff(page);
             } else {
               // Escala efectiva con auto-fit → nunca recorta el elemento.

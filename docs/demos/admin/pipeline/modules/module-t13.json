@@ -116,11 +116,11 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "Con esto concluye el recorrido del rol Docente en ExamLab.",
+      "narration": "En el último módulo del rol Docente: el calendario.",
       "card": {
-        "kicker": "ExamLab · Serie de demostración",
-        "title": "Fin del recorrido",
-        "subtitle": "Rol Docente · Demo Global Corp"
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Siguiente módulo",
+        "subtitle": "Calendario"
       },
       "bufferMs": 800
     }

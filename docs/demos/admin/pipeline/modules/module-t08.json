@@ -31,19 +31,11 @@
       "bufferMs": 900,
       "beats": [
         {
-          "selectOption": "Fundamentos",
-          "target": "[role=\"combobox\"]",
-          "scale": 1,
-          "hold": 1200,
-          "syncWord": "matriz",
-          "focus": null
-        },
-        {
           "target": "firstcard",
           "scale": 1.05,
-          "hold": 6500,
+          "hold": 7000,
           "side": "bottom",
-          "syncWord": "columna",
+          "syncWord": "matriz",
           "focus": {
             "title": "Matriz de asistencia",
             "body": "Columnas = clases, filas = estudiantes."
@@ -88,7 +80,8 @@
           "focus": {
             "title": "Check-in abierto",
             "body": "QR + código de 6 dígitos."
-          }
+          },
+          "noPan": true
         }
       ]
     },
@@ -107,7 +100,8 @@
           "focus": {
             "title": "Self check-in",
             "body": "El contador sube en vivo a medida que escanean."
-          }
+          },
+          "noPan": true
         }
       ]
     },

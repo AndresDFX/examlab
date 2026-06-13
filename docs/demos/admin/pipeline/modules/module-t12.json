@@ -25,7 +25,7 @@
       "bufferMs": 600
     },
     {
-      "id": "cupos",
+      "id": "tipos",
       "kind": "platform",
       "openVia": {
         "target": "createbtn"
@@ -33,53 +33,8 @@
       "ready": [
         "[role=\"dialog\"]"
       ],
-      "narration": "Hay varios tipos de encuesta. Empecemos por una de cupos, estilo Doodle: le damos un título, elegimos el tipo Cupo por opción, y aparece el generador de slots: definimos las fechas, la ventana horaria, cada cuántos minutos se abre un cupo, y cuántos estudiantes caben. El sistema multiplica fechas por franjas y calcula la capacidad para que todos quepan.",
+      "narration": "Al crear una encuesta le damos un título y elegimos el tipo: opción única, múltiple, cupos por opción estilo Doodle —ideal para fechas de sustentación con cupo limitado— o un Kahoot: un quiz gamificado en vivo, con temporizador, puntos por velocidad y podio.",
       "bufferMs": 900,
-      "beats": [
-        {
-          "typeInto": true,
-          "target": "field:Título",
-          "scale": 1.15,
-          "syncWord": "título",
-          "text": "Fechas de sustentación — Proyecto final",
-          "hold": 800
-        },
-        {
-          "selectOption": "Cupo por opción",
-          "target": "field:Tipo",
-          "scale": 1.15,
-          "hold": 2500,
-          "syncWord": "Cupo",
-          "focus": {
-            "title": "Cupo por opción (Doodle)",
-            "body": "Cada franja tiene un cupo limitado."
-          }
-        },
-        {
-          "target": "text:Generar slots",
-          "scale": 1.1,
-          "hold": 9000,
-          "side": "top",
-          "scroll": true,
-          "syncWord": "generador",
-          "focus": {
-            "title": "Generador de cupos",
-            "body": "Fechas × franjas = slots, con cupo automático por matriculados."
-          }
-        }
-      ]
-    },
-    {
-      "id": "kahoot-crear",
-      "kind": "platform",
-      "openVia": {
-        "target": "createbtn"
-      },
-      "ready": [
-        "[role=\"dialog\"]"
-      ],
-      "narration": "Pero lo más divertido es un Kahoot: un quiz gamificado en vivo, con temporizador, puntos por velocidad y podio. Le ponemos título, elegimos el tipo Kahoot, y lo creamos.",
-      "bufferMs": 700,
       "beats": [
         {
           "typeInto": true,
@@ -90,28 +45,15 @@
           "hold": 800
         },
         {
-          "selectOption": "Kahoot",
           "target": "field:Tipo",
-          "scale": 1.15,
-          "hold": 2800,
-          "syncWord": "Kahoot",
-          "focus": {
-            "title": "Kahoot (quiz en vivo)",
-            "body": "Temporizador, puntos por velocidad y podio."
-          }
-        },
-        {
-          "click": true,
-          "target": "button:Crear",
-          "syncWord": "creamos",
-          "waitText": "Encuesta creada",
-          "waitTimeoutMs": 10000,
-          "afterClickMs": 1500,
-          "focusTarget": "main",
-          "scale": 1,
-          "hold": 1500,
+          "scale": 1.2,
+          "hold": 7500,
           "side": "bottom",
-          "focus": null
+          "syncWord": "tipo",
+          "focus": {
+            "title": "Tipo de encuesta",
+            "body": "Opción única, múltiple, cupos (Doodle) o Kahoot."
+          }
         }
       ]
     },
@@ -125,7 +67,7 @@
       "ready": [
         "[role=\"dialog\"]"
       ],
-      "narration": "Y aquí está la magia: abrimos las preguntas del Kahoot, escribimos los temas —pilas, colas, listas y árboles—, decimos cuántas queremos, y la inteligencia artificial las genera. En segundos crea cada pregunta con sus opciones de colores y la respuesta correcta marcada.",
+      "narration": "Y aquí está la magia del Kahoot: abrimos sus preguntas, escribimos los temas —pilas, colas, listas y árboles—, y la inteligencia artificial las genera. En segundos crea cada pregunta con sus opciones de colores y la respuesta correcta marcada.",
       "bufferMs": 900,
       "beats": [
         {
@@ -140,9 +82,7 @@
           "click": true,
           "target": "button:Generar",
           "syncWord": "genera",
-          "waitText": "pregunta",
-          "waitTimeoutMs": 90000,
-          "afterClickMs": 1500,
+          "afterClickMs": 15000,
           "focusTarget": "[role=\"dialog\"]",
           "scale": 1,
           "hold": 2000,
@@ -163,7 +103,7 @@
         {
           "target": "[role=\"dialog\"]",
           "scale": 1,
-          "hold": 10000,
+          "hold": 8000,
           "side": "bottom",
           "syncWord": "listas",
           "focus": {
