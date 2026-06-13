@@ -115,14 +115,14 @@ contentSlide({
   // El plan grande sube porque la infra a esa escala cuesta más.
   const ALL_FEATS = ["Todas las funciones incluidas", "Sin límite de cursos", "Soporte incluido"];
   const tiers = [
-    { name: "Esencial", target: "Institución pequeña", price: "$99", est: "Hasta 250", doc: "Hasta 20", adm: "3", accent: PRIMARY2, hl: false, feats: ALL_FEATS },
-    { name: "Profesional", target: "Institución mediana", price: "$299", est: "Hasta 1.500", doc: "Hasta 80", adm: "6", accent: AI, hl: true, feats: ALL_FEATS },
-    { name: "Institucional", target: "Institución grande", price: "$1.290", est: "Hasta 6.000", doc: "Hasta 300", adm: "12", accent: PRIMARY, hl: false, feats: ALL_FEATS },
+    { name: "Esencial", target: "Institución pequeña", price: "$99", est: "Hasta 250", doc: "Hasta 10", adm: "2", accent: PRIMARY2, hl: false, feats: ALL_FEATS },
+    { name: "Profesional", target: "Institución mediana", price: "$299", est: "Hasta 1.500", doc: "Hasta 40", adm: "4", accent: AI, hl: true, feats: ALL_FEATS },
+    { name: "Institucional", target: "Institución grande", price: "$1.000", est: "Hasta 5.000", doc: "Hasta 150", adm: "8", accent: PRIMARY, hl: false, feats: ALL_FEATS },
   ];
   tiers.forEach((t, i) => {
     const x = 0.55 + i * 4.18;
     const w = 3.95;
-    const y = 1.45, h = 5.25;
+    const y = 1.45, h = 4.6;
     if (t.hl) {
       s.addShape(pptx.ShapeType.roundRect, { x: x - 0.08, y: y - 0.18, w: w + 0.16, h: h + 0.36, fill: { color: AIBG }, line: { color: t.accent, width: 2.5 }, rectRadius: 0.12, shadow: { type: "outer", blur: 6, offset: 3, color: "A7F3D0" } });
       s.addText("MÁS POPULAR", { x: x + w / 2 - 1.0, y: y - 0.48, w: 2.0, h: 0.36, fontSize: 10, bold: true, color: WHITE, align: "center", valign: "middle", fill: { color: t.accent }, rectRadius: 0.08, shape: pptx.ShapeType.roundRect });
@@ -140,15 +140,25 @@ contentSlide({
       { k: "Administradores", v: t.adm },
     ];
     cap.forEach((c, j) => {
-      const cy = y + 2.0 + j * 0.5;
+      const cy = y + 1.9 + j * 0.45;
       s.addText(c.k, { x: x + 0.28, y: cy, w: 2.1, h: 0.4, fontSize: 12.5, color: "334155", valign: "middle" });
       s.addText(c.v, { x: x + w - 1.75, y: cy, w: 1.5, h: 0.4, fontSize: 13, bold: true, color: INK, align: "right", valign: "middle" });
     });
-    s.addShape(pptx.ShapeType.line, { x: x + 0.28, y: y + 3.55, w: w - 0.56, h: 0, line: { color: "E2E8F0", width: 1 } });
-    const fitems = t.feats.map((f) => ({ text: f, options: { bullet: { code: "2713" }, color: "334155", fontSize: 11.5, paraSpaceAfter: 6 } }));
-    s.addText(fitems, { x: x + 0.3, y: y + 3.7, w: w - 0.55, h: 1.4, valign: "top" });
+    s.addShape(pptx.ShapeType.line, { x: x + 0.28, y: y + 3.3, w: w - 0.56, h: 0, line: { color: "E2E8F0", width: 1 } });
+    const fitems = t.feats.map((f) => ({ text: f, options: { bullet: { code: "2713" }, color: "334155", fontSize: 11.5, paraSpaceAfter: 5 } }));
+    s.addText(fitems, { x: x + 0.3, y: y + 3.42, w: w - 0.55, h: 1.05, valign: "top" });
   });
-  s.addText("Precios de referencia (USD/mes) — incluyen plataforma, infraestructura y soporte. El API key de IA lo provee la institución (su uso de IA no se factura en la suscripción). Ajustar a la política comercial.", { x: 0.55, y: H - 0.66, w: 12.2, h: 0.34, fontSize: 9.5, italic: true, color: MUTED, align: "center" });
+  // Banner "Contáctanos" — instituciones con más de 5.000 estudiantes (plan a la medida)
+  {
+    const by = 6.15, bh = 0.58;
+    s.addShape(pptx.ShapeType.roundRect, { x: 0.55, y: by, w: 12.23, h: bh, fill: { color: INK }, line: { type: "none" }, rectRadius: 0.1 });
+    s.addText([
+      { text: "¿Más de 5.000 estudiantes?  ", options: { fontSize: 14, bold: true, color: WHITE } },
+      { text: "Diseñamos un plan a la medida para tu institución.", options: { fontSize: 12.5, color: "E0E7FF" } },
+    ], { x: 0.95, y: by, w: 8.6, h: bh, valign: "middle" });
+    s.addText("Contáctanos →", { x: 9.7, y: by + 0.09, w: 2.9, h: bh - 0.18, fontSize: 13, bold: true, color: INK, align: "center", valign: "middle", fill: { color: "FACC15" }, rectRadius: 0.08, shape: pptx.ShapeType.roundRect });
+  }
+  s.addText("Precios de referencia (USD/mes) — incluyen plataforma, infraestructura y soporte. El API key de IA lo provee la institución (su uso de IA no se factura en la suscripción). Más de 5.000 estudiantes: plan a la medida con el equipo de ventas. Ajustar a la política comercial.", { x: 0.55, y: 6.80, w: 12.2, h: 0.32, fontSize: 9, italic: true, color: MUTED, align: "center" });
   footer(s, PRIMARY);
 }
 
@@ -205,6 +215,6 @@ contentSlide({
   s.addText("Solicita una demo · ExamLab", { x: 0.82, y: 6.0, w: 9, h: 0.5, fontSize: 16, bold: true, color: WHITE });
 }
 
-const file = join(OUT_DIR, "ExamLab-Presentacion-Comercial.pptx");
+const file = process.env.OUT_FILE || join(OUT_DIR, "ExamLab-Presentacion-Comercial.pptx");
 await pptx.writeFile({ fileName: file });
 console.log("OK →", file);
