@@ -2234,6 +2234,9 @@ function TeacherWorkshops() {
       ),
     );
     toast.success(t("workshop.gradeApproved"));
+    // Aprobar la nota de IA finaliza la calificación → volver a la lista
+    // para pasar al siguiente (mismo criterio que saveGrade).
+    setViewingSubId(null);
   };
 
   const rejectAIGrade = async (subId: string) => {
@@ -2359,6 +2362,11 @@ function TeacherWorkshops() {
     setWsSubs((prev) =>
       prev.map((s) => (s.id === subId ? { ...s, final_grade: grade, status: "calificado" } : s)),
     );
+    // Tras calificar, volver a la LISTA de entregas (cerrar el detalle del
+    // estudiante actual) para poder pasar al siguiente — antes quedaba
+    // abierto en el mismo alumno y había que pulsar "volver" a mano. Mismo
+    // criterio UX que el colapso del estudiante en proyectos.
+    setViewingSubId(null);
 
     // Notificar al estudiante (o a todos los miembros del grupo si la
     // entrega es grupal). El RPC notify_course_students no aplica acá
