@@ -42,4 +42,4 @@ Gracias, en serio — me importa mucho tu lectura de esto. 🙌
   - Demo completo Administrador → `docs/demos/admin/serie-admin-completa.mp4`
   - Demo completo Docente → `docs/demos/teacher/serie-teacher-completa.mp4`
   - Demo completo Estudiante → `docs/demos/student/serie-student-completa.mp4`
-- En la **comercial** los precios son de referencia ($99 / $299 / $1.290 por mes) — ajústalos a tu política antes de mostrarlos.
+- En la **comercial** los precios son de referencia ($99 / $299 / $1.000 por mes, con un plan a la medida — "Contáctanos" — para más de 5.000 estudiantes) — ajústalos a tu política antes de mostrarlos.
