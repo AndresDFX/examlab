@@ -1,50 +1,69 @@
 {
   "id": "modulo-promo",
-  "title": "ExamLab — Promo licencia docente (overview, ~30s)",
+  "title": "ExamLab — Promo licencia docente (dinámico, ~35s)",
   "series": "social",
   "role": "Docente",
   "appPath": "/app/teacher/exams",
   "readySelectors": ["[data-tour-id=\"role-switcher\"]"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-2%" },
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "+7%", "pitch": "+8Hz" },
   "scenes": [
     {
-      "id": "logo-intro",
+      "id": "hook",
       "kind": "card",
-      "narration": "ExamLab. La plataforma que evalúa con inteligencia artificial.",
-      "card": {
-        "kicker": "",
-        "title": "ExamLab",
-        "subtitle": "Evalúa con inteligencia artificial"
-      },
-      "bufferMs": 1500
+      "narration": "Profe: ¿y si la inteligencia artificial hiciera lo aburrido por ti?",
+      "card": { "kicker": "", "title": "ExamLab", "subtitle": "Evalúa con IA" },
+      "bufferMs": 600
     },
     {
-      "id": "overview",
+      "id": "genera",
       "kind": "platform",
-      "narration": "Mira esto: la IA te genera exámenes, talleres y proyectos en segundos. Y cuando tus alumnos entregan, también los califica por ti. Asistencia, notas y hasta un tutor de IA. Todo en un solo lugar, y te ahorra horas cada semana.",
-      "bufferMs": 600,
+      "narration": "¡Genera exámenes, talleres y proyectos en segundos!",
+      "bufferMs": 300,
       "beats": [
-        {
-          "target": "createbtn",
-          "scale": 1.45,
-          "hold": 6000,
-          "side": "left",
-          "overpan": true,
-          "syncWord": "califica",
-          "focus": { "title": "IA que genera y califica", "body": "Crea evaluaciones y califica las entregas automáticamente." }
-        }
+        { "target": "createbtn", "scale": 1.5, "hold": 1800, "side": "left", "overpan": true, "syncWord": "Genera" },
+        { "target": "row:0", "scale": 1.3, "hold": 1500, "side": "right", "syncWord": "segundos" }
+      ]
+    },
+    {
+      "id": "t-califica",
+      "kind": "card",
+      "route": "/app/teacher/gradebook",
+      "narration": "¿Y calificar? La IA lo hace.",
+      "card": { "kicker": "", "title": "Calificación", "subtitle": "con IA" },
+      "bufferMs": 500
+    },
+    {
+      "id": "califica",
+      "kind": "platform",
+      "narration": "Califica las entregas y consolida las notas por ti.",
+      "bufferMs": 300,
+      "beats": [
+        { "target": "card:Consolidado por cortes", "scale": 1.2, "hold": 2400, "side": "top", "syncWord": "consolida" }
+      ]
+    },
+    {
+      "id": "t-mas",
+      "kind": "card",
+      "route": "/app/teacher/attendance",
+      "narration": "Y mucho más:",
+      "card": { "kicker": "", "title": "Todo en un lugar", "subtitle": "asistencia · tutor IA" },
+      "bufferMs": 400
+    },
+    {
+      "id": "mas",
+      "kind": "platform",
+      "narration": "asistencia con QR y tutor de IA.",
+      "bufferMs": 300,
+      "beats": [
+        { "target": "firstcard", "scale": 1.2, "hold": 1900, "side": "top", "syncWord": "QR" }
       ]
     },
     {
       "id": "cta-licencia",
       "kind": "card",
-      "narration": "Y aquí va lo bueno: por tiempo limitado regalo una licencia de docente, con cuentas listas, para que tú mismo la pruebes. Sin compromiso. Escríbeme o entra al link en mi bio antes de que se acabe.",
-      "card": {
-        "kicker": "POR TIEMPO LIMITADO",
-        "title": "Licencia de docente gratis",
-        "subtitle": "Pruébala tú mismo, con cuentas listas. Escríbeme o entra al link en bio."
-      },
-      "bufferMs": 2400
+      "narration": "Y por tiempo limitado regalo una licencia de docente, con cuentas listas, para que la pruebes tú mismo. Sin compromiso. ¡Escríbeme!",
+      "card": { "kicker": "POR TIEMPO LIMITADO", "title": "Licencia de docente gratis", "subtitle": "Pruébala tú mismo, con cuentas listas. Escríbeme." },
+      "bufferMs": 1600
     }
   ]
 }
