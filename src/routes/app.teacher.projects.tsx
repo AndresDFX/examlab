@@ -1785,6 +1785,10 @@ function TeacherProjects() {
           : s,
       ),
     );
+    // Tras guardar, colapsar la fila de este estudiante en el accordion
+    // para volver a la vista completa de la lista (el docente pidió que el
+    // estudiante "se minimice" al guardar y se vean todos de nuevo).
+    setOpenAccordionItems((prev) => prev.filter((id) => id !== subId));
     toast.success(
       validFactor != null
         ? i18n.t("toast.routes_app_teacher_projects.defenseSaved", {
