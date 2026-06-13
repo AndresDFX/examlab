@@ -67,6 +67,11 @@ const REMEMBER_SLUG_KEY = "examlab_remember_slug";
 function AuthPage() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
+  // Gate para evitar el "flash" del formulario de login cuando el usuario YA
+  // tiene sesión: arrancamos mostrando un loader y solo revelamos el form si
+  // confirmamos que NO hay sesión (o si la hay, redirigimos sin mostrarlo).
+  // Inicial determinista (true) → no rompe la hidratación SSR.
+  const [checkingSession, setCheckingSession] = useState(true);
   // Email + rememberMe pre-llenados desde localStorage si el usuario
   // marcó "Recordarme" en una sesión anterior. La password NO se pre-
   // llena desde código — si el navegador la guardó vía su password
@@ -207,10 +212,13 @@ function AuthPage() {
         // Sesión ya activa → al app (o al deep-link recordado, ej. QR de
         // Kahoot). No tocamos localStorage del override aquí (el usuario
         // podría tener uno legítimo de antes; si es regular, `useTenant` lo
-        // ignora).
+        // ignora). NO bajamos checkingSession: mantenemos el loader mientras
+        // el hard-navigate descarga la página → cero flash del formulario.
         window.location.href = consumeReturnTo() ?? "/app";
+      } else {
+        setCheckingSession(false); // sin sesión → revelar el formulario
       }
-    });
+    }).catch(() => setCheckingSession(false));
   }, []);
 
   /**
@@ -410,6 +418,17 @@ function AuthPage() {
       toast.error(friendlyError(err, "No se pudo validar la sesión"));
     }
   };
+
+  // Mientras verificamos la sesión, loader a pantalla completa en vez del
+  // formulario. Si el usuario ya estaba logueado, esto elimina el flash del
+  // login antes de redirigir a /app (móvil y web).
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-background">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">
