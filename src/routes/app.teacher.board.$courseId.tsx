@@ -74,6 +74,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { classNumberFromFilename, isTeacherOnlyFile } from "@/modules/contents/contents-extract";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { RowAction } from "@/components/ui/row-action";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useTranslation } from "react-i18next";
 
@@ -888,6 +889,33 @@ function CourseBoardPage() {
     toast.success(t("course.boardSessionDeleted"));
   };
 
+  /** Quita un contenido del curso desde el tablero. Mismo soft-delete que el
+   *  módulo de Contenidos (`generated_contents.deleted_at` → Papelera): al
+   *  quitarlo deja de verse en el tablero del docente Y en el del estudiante
+   *  (y en el módulo de Contenidos) — coherente en TODOS los lugares. Es
+   *  reversible: queda en la Papelera y se puede restaurar dentro de 30 días,
+   *  así que el material no se pierde. */
+  const removeBoardContent = async (c: BoardContentItem) => {
+    const ok = await confirm({
+      title: t("course.boardContentRemoveTitle", { defaultValue: "¿Quitar este contenido del curso?" }),
+      description: t("course.boardContentRemoveBody", {
+        defaultValue:
+          'Se quitará "{{name}}" del curso y dejará de verse en el tablero del estudiante. Queda en la Papelera y puedes restaurarlo dentro de 30 días.',
+        name: c.displayName,
+      }),
+      confirmLabel: t("common.remove", { defaultValue: "Quitar" }),
+      tone: "destructive",
+    });
+    if (!ok) return;
+    const { error } = await softDelete("generated_contents", c.id);
+    if (error) {
+      toast.error(friendlyError(error));
+      return;
+    }
+    setBoardContents((prev) => prev.filter((x) => x.id !== c.id));
+    toast.success(t("course.boardContentRemoved", { defaultValue: "Contenido quitado del curso" }));
+  };
+
   /** Badge de visibilidad de un contenido del grid: a qué clase(s) está
    *  asignado, o si es material general del curso, o si aún no es visible. */
   const visibilityBadge = (c: BoardContentItem) => {
@@ -1171,6 +1199,12 @@ function CourseBoardPage() {
                 <span className="hidden sm:block text-[10px] text-muted-foreground shrink-0">
                   <DateCell value={c.createdAt} variant="auto" />
                 </span>
+                <RowAction
+                  icon={Trash2}
+                  label={t("course.boardContentRemove", { defaultValue: "Quitar del curso" })}
+                  tone="destructive"
+                  onClick={() => void removeBoardContent(c)}
+                />
               </div>
             ))}
           </div>
