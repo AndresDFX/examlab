@@ -89,7 +89,7 @@ import {
 } from "@/components/ui/multi-select";
 import { ListFilters } from "@/components/ui/list-filters";
 import { StatCard } from "@/components/ui/stat-card";
-import { CheckCircle2, Lock, ExternalLink } from "lucide-react";
+import { CheckCircle2, Lock, ExternalLink, Video, Upload } from "lucide-react";
 import { CourseListCell } from "@/components/ui/course-list-cell";
 import { TeacherProjectFilesEditor } from "@/modules/projects/ProjectFiles";
 import { AssignSelector } from "@/shared/components/AssignSelector";
@@ -432,6 +432,7 @@ function TeacherProjects() {
     defense_factor: number | null;
     defense_notes: string | null;
     defense_at: string | null;
+    defense_video_url: string | null;
     repository_url: string | null;
     submitted_at: string | null;
     profile?: { full_name: string; institutional_email: string };
@@ -1423,7 +1424,7 @@ function TeacherProjects() {
         db
           .from("project_submissions")
           .select(
-            "id, user_id, group_id, status, final_grade, ai_grade, submission_grade, defense_factor, defense_notes, defense_at, repository_url, submitted_at",
+            "id, user_id, group_id, status, final_grade, ai_grade, submission_grade, defense_factor, defense_notes, defense_at, defense_video_url, repository_url, submitted_at",
           )
           .eq("project_id", p.id)
           .order("submitted_at", { ascending: false }),
@@ -1692,9 +1693,15 @@ function TeacherProjects() {
    * como submission_grade × factor. Si factor es null/vacío, deja la
    * entrega "sin sustentar" (final_grade null, status entregado).
    */
-  const saveDefense = async (subId: string, factor: number | null, notes: string) => {
+  const saveDefense = async (
+    subId: string,
+    factor: number | null,
+    notes: string,
+    videoUrl?: string | null,
+  ) => {
     const sub = gradingSubs.find((s) => s.id === subId);
     if (!sub) return;
+    const videoVal = (videoUrl ?? "").trim() || null;
     const subGrade = sub.submission_grade ?? sub.ai_grade;
     if (subGrade == null) {
       toast.error(
@@ -1714,6 +1721,7 @@ function TeacherProjects() {
         defense_factor: validFactor,
         defense_notes: notes || null,
         defense_at: validFactor != null ? new Date().toISOString() : null,
+        defense_video_url: videoVal,
         final_grade: newFinal,
         status: validFactor != null ? "calificado" : "entregado",
       })
@@ -1730,6 +1738,7 @@ function TeacherProjects() {
               defense_factor: validFactor,
               defense_notes: notes || null,
               defense_at: validFactor != null ? new Date().toISOString() : null,
+              defense_video_url: videoVal,
               final_grade: newFinal,
               status: validFactor != null ? "calificado" : "entregado",
             }
@@ -3214,21 +3223,13 @@ function TeacherProjects() {
                               </a>
                             </div>
                           )}
-                          <DefensePanel
-                            sub={sub}
-                            maxScore={Number(gradingProject?.max_score ?? 100)}
-                            onSave={saveDefense}
-                          />
-                          {(sub.status === "calificado" || sub.status === "ai_revisado") && (
-                            <div className="flex justify-end">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/10"
-                                onClick={() => reopenProjectSubmission(sub.id)}
-                              >
-                                Reabrir entrega
-                              </Button>
+                          {/* Lo que entregó el estudiante va PRIMERO. Antes
+                              esta sección quedaba DEBAJO del panel de
+                              sustentación (fuera de pantalla) y el docente
+                              creía que "no se veía lo que entregaron". */}
+                          {gradingFiles.length > 0 && (
+                            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Lo que entregó el estudiante
                             </div>
                           )}
                           {gradingFiles.map((f) => {
@@ -3433,6 +3434,26 @@ function TeacherProjects() {
                               </Card>
                             );
                           })}
+                          {/* Sustentación + reabrir DESPUÉS de las entregas:
+                              primero se ve/califica lo entregado, luego se
+                              registra la sustentación y la nota final. */}
+                          <DefensePanel
+                            sub={sub}
+                            maxScore={Number(gradingProject?.max_score ?? 100)}
+                            onSave={saveDefense}
+                          />
+                          {(sub.status === "calificado" || sub.status === "ai_revisado") && (
+                            <div className="flex justify-end">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/10"
+                                onClick={() => reopenProjectSubmission(sub.id)}
+                              >
+                                Reabrir entrega
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </AccordionContent>
                     </AccordionItem>
@@ -3485,13 +3506,64 @@ function DefensePanel({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sub: any;
   maxScore: number;
-  onSave: (subId: string, factor: number | null, notes: string) => Promise<void>;
+  onSave: (
+    subId: string,
+    factor: number | null,
+    notes: string,
+    videoUrl?: string | null,
+  ) => Promise<void>;
 }) {
   const [factor, setFactor] = useState<string>(
     sub.defense_factor != null ? String(sub.defense_factor) : "",
   );
   const [notes, setNotes] = useState<string>(sub.defense_notes ?? "");
   const [saving, setSaving] = useState(false);
+  // Video de sustentación: `videoUrl` guarda un enlace externo (http…) o un
+  // path del bucket project-files (subido). El input de URL solo refleja el
+  // caso externo; el subido se muestra como chip "Ver video (subido)".
+  const [videoUrl, setVideoUrl] = useState<string>(sub.defense_video_url ?? "");
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const isExternalUrl = /^https?:\/\//i.test(videoUrl);
+  const handleUploadVideo = async (file: File) => {
+    setUploadingVideo(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) {
+        toast.error("No autenticado");
+        return;
+      }
+      // Path bajo el uid del docente → permitido por la policy de INSERT
+      // del bucket project-files (folder[1] = auth.uid()).
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `${u.user.id}/defense/${sub.id}-${safe}`;
+      const { error } = await supabase.storage
+        .from("project-files")
+        .upload(path, file, { upsert: true });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      setVideoUrl(path);
+      toast.success("Video subido. Guarda la sustentación para registrarlo.");
+    } finally {
+      setUploadingVideo(false);
+    }
+  };
+  const openVideo = async () => {
+    if (!videoUrl) return;
+    if (/^https?:\/\//i.test(videoUrl)) {
+      window.open(videoUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    const { data, error } = await supabase.storage
+      .from("project-files")
+      .createSignedUrl(videoUrl, 120);
+    if (error || !data?.signedUrl) {
+      toast.error(error?.message ?? "No se pudo abrir el video");
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
   const subGrade: number | null = sub.submission_grade ?? sub.ai_grade ?? null;
   const factorNum = factor.trim() === "" ? null : Number(factor.replace(",", "."));
   const factorValid = factorNum == null || (factorNum >= 0 && factorNum <= 1);
@@ -3538,6 +3610,55 @@ function DefensePanel({
           onChange={(e) => setNotes(e.target.value)}
           className="text-xs"
         />
+        {/* Video de sustentación: pegar un enlace o subir un archivo. */}
+        <div className="space-y-1">
+          <div className="text-muted-foreground text-[11px]">Video de sustentación (opcional)</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              type="url"
+              placeholder="Pega un enlace (Drive, YouTube, Meet…)"
+              value={isExternalUrl ? videoUrl : ""}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              className="h-8 text-xs flex-1 min-w-[180px]"
+            />
+            <label className="inline-flex shrink-0 cursor-pointer items-center gap-1 h-8 px-2.5 rounded-md border text-xs hover:bg-muted/50">
+              <input
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.currentTarget.value = "";
+                  if (f) void handleUploadVideo(f);
+                }}
+              />
+              {uploadingVideo ? <Spinner size="sm" /> : <Upload className="h-3.5 w-3.5" />}
+              Subir
+            </label>
+          </div>
+          {videoUrl && (
+            <div className="flex items-center gap-2 text-[11px]">
+              <button
+                type="button"
+                onClick={() => void openVideo()}
+                className="inline-flex items-center gap-1 text-primary hover:underline"
+              >
+                <Video className="h-3.5 w-3.5" /> Ver video {isExternalUrl ? "(enlace)" : "(subido)"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setVideoUrl("")}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                Quitar
+              </button>
+            </div>
+          )}
+          <p className="text-[10px] text-muted-foreground">
+            Para videos largos conviene un enlace (Drive/YouTube); la subida directa tiene tope de
+            tamaño.
+          </p>
+        </div>
         <div className="flex justify-end">
           <Button
             size="sm"
@@ -3545,7 +3666,7 @@ function DefensePanel({
               if (!factorValid) return;
               setSaving(true);
               try {
-                await onSave(sub.id, factorNum, notes);
+                await onSave(sub.id, factorNum, notes, videoUrl);
               } finally {
                 setSaving(false);
               }
