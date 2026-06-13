@@ -67,6 +67,10 @@ GRANT EXECUTE ON FUNCTION public.project_group_in_my_tenant(UUID) TO authenticat
 -- ═══════════════════════════════════════════════════════════════════════
 DROP POLICY IF EXISTS "Authenticated view questions" ON public.questions;
 DROP POLICY IF EXISTS "Docentes/Admins manage questions" ON public.questions;
+-- Idempotencia: dropear también los nombres NUEVOS por si un apply previo
+-- (parcial o no registrado) ya los dejó creados → el CREATE chocaría.
+DROP POLICY IF EXISTS "questions_select_in_tenant" ON public.questions;
+DROP POLICY IF EXISTS "questions_staff_manage" ON public.questions;
 
 CREATE POLICY "questions_select_in_tenant"
   ON public.questions FOR SELECT TO authenticated
@@ -88,6 +92,8 @@ CREATE POLICY "questions_staff_manage"
 -- ═══════════════════════════════════════════════════════════════════════
 DROP POLICY IF EXISTS "project_files_view_all_authenticated" ON public.project_files;
 DROP POLICY IF EXISTS "project_files_manage_teachers_admins" ON public.project_files;
+DROP POLICY IF EXISTS "project_files_select_in_tenant" ON public.project_files;
+DROP POLICY IF EXISTS "project_files_staff_manage" ON public.project_files;
 
 CREATE POLICY "project_files_select_in_tenant"
   ON public.project_files FOR SELECT TO authenticated
@@ -109,6 +115,8 @@ CREATE POLICY "project_files_staff_manage"
 -- ═══════════════════════════════════════════════════════════════════════
 DROP POLICY IF EXISTS "workshop_groups_read" ON public.workshop_groups;
 DROP POLICY IF EXISTS "workshop_groups_teacher_admin_write" ON public.workshop_groups;
+DROP POLICY IF EXISTS "workshop_groups_select_in_tenant" ON public.workshop_groups;
+DROP POLICY IF EXISTS "workshop_groups_staff_manage" ON public.workshop_groups;
 
 CREATE POLICY "workshop_groups_select_in_tenant"
   ON public.workshop_groups FOR SELECT TO authenticated
@@ -130,6 +138,8 @@ CREATE POLICY "workshop_groups_staff_manage"
 -- ═══════════════════════════════════════════════════════════════════════
 DROP POLICY IF EXISTS "workshop_group_members_read" ON public.workshop_group_members;
 DROP POLICY IF EXISTS "workshop_group_members_teacher_admin_write" ON public.workshop_group_members;
+DROP POLICY IF EXISTS "workshop_group_members_select_in_tenant" ON public.workshop_group_members;
+DROP POLICY IF EXISTS "workshop_group_members_staff_manage" ON public.workshop_group_members;
 
 CREATE POLICY "workshop_group_members_select_in_tenant"
   ON public.workshop_group_members FOR SELECT TO authenticated
@@ -151,6 +161,8 @@ CREATE POLICY "workshop_group_members_staff_manage"
 -- ═══════════════════════════════════════════════════════════════════════
 DROP POLICY IF EXISTS "project_groups_read" ON public.project_groups;
 DROP POLICY IF EXISTS "project_groups_teacher_admin_write" ON public.project_groups;
+DROP POLICY IF EXISTS "project_groups_select_in_tenant" ON public.project_groups;
+DROP POLICY IF EXISTS "project_groups_staff_manage" ON public.project_groups;
 
 CREATE POLICY "project_groups_select_in_tenant"
   ON public.project_groups FOR SELECT TO authenticated
@@ -172,6 +184,8 @@ CREATE POLICY "project_groups_staff_manage"
 -- ═══════════════════════════════════════════════════════════════════════
 DROP POLICY IF EXISTS "project_group_members_read" ON public.project_group_members;
 DROP POLICY IF EXISTS "project_group_members_teacher_admin_write" ON public.project_group_members;
+DROP POLICY IF EXISTS "project_group_members_select_in_tenant" ON public.project_group_members;
+DROP POLICY IF EXISTS "project_group_members_staff_manage" ON public.project_group_members;
 
 CREATE POLICY "project_group_members_select_in_tenant"
   ON public.project_group_members FOR SELECT TO authenticated
@@ -189,31 +203,23 @@ CREATE POLICY "project_group_members_staff_manage"
   );
 
 -- ═══════════════════════════════════════════════════════════════════════
--- 7) workshop_courses (join taller↔curso; tiene course_id directo)
+-- 7) workshop_courses (join taller↔curso) — YA scopeado por 20260528000000
+--    (sección 9 de esa migración: workshop_courses_select_in_tenant +
+--    workshop_courses_staff_manage). Recrearlo acá era REDUNDANTE y, peor,
+--    chocaba: `CREATE POLICY workshop_courses_select_in_tenant ... already
+--    exists` (la creó 20260528 antes que esta migración), abortando todo el
+--    archivo. Además la versión de aquí omitía `OR is_super_admin()` en el
+--    WRITE → habría regresionado el acceso del SuperAdmin. Se elimina el
+--    bloque: 20260528 es el dueño canónico de las policies de workshop_courses
+--    (incluye SA). No tocar acá.
 -- ═══════════════════════════════════════════════════════════════════════
-DROP POLICY IF EXISTS "workshop_courses_view_all_authenticated" ON public.workshop_courses;
-DROP POLICY IF EXISTS "workshop_courses_manage_teachers_admins" ON public.workshop_courses;
-
-CREATE POLICY "workshop_courses_select_in_tenant"
-  ON public.workshop_courses FOR SELECT TO authenticated
-  USING (public.course_in_my_tenant(course_id));
-
-CREATE POLICY "workshop_courses_staff_manage"
-  ON public.workshop_courses FOR ALL TO authenticated
-  USING (
-    public.course_in_my_tenant(course_id)
-    AND (public.has_role(auth.uid(), 'Docente') OR public.has_role(auth.uid(), 'Admin'))
-  )
-  WITH CHECK (
-    public.course_in_my_tenant(course_id)
-    AND (public.has_role(auth.uid(), 'Docente') OR public.has_role(auth.uid(), 'Admin'))
-  );
 
 -- ═══════════════════════════════════════════════════════════════════════
 -- 8) workshop_intro_videos — solo SELECT (el WRITE ya estaba bien scopeado
 --    a course_teachers del taller; no se toca).
 -- ═══════════════════════════════════════════════════════════════════════
 DROP POLICY IF EXISTS "workshop_intro_videos_select_auth" ON public.workshop_intro_videos;
+DROP POLICY IF EXISTS "workshop_intro_videos_select_in_tenant" ON public.workshop_intro_videos;
 CREATE POLICY "workshop_intro_videos_select_in_tenant"
   ON public.workshop_intro_videos FOR SELECT TO authenticated
   USING (public.workshop_in_my_tenant(workshop_id));
@@ -222,6 +228,7 @@ CREATE POLICY "workshop_intro_videos_select_in_tenant"
 -- 9) project_intro_videos — solo SELECT (WRITE ya scopeado).
 -- ═══════════════════════════════════════════════════════════════════════
 DROP POLICY IF EXISTS "project_intro_videos_select_auth" ON public.project_intro_videos;
+DROP POLICY IF EXISTS "project_intro_videos_select_in_tenant" ON public.project_intro_videos;
 CREATE POLICY "project_intro_videos_select_in_tenant"
   ON public.project_intro_videos FOR SELECT TO authenticated
   USING (public.project_in_my_tenant(project_id));
@@ -236,6 +243,8 @@ CREATE POLICY "project_intro_videos_select_in_tenant"
 -- ═══════════════════════════════════════════════════════════════════════
 DROP POLICY IF EXISTS "Users see own assignments" ON public.exam_assignments;
 DROP POLICY IF EXISTS "Docentes/Admins manage assignments" ON public.exam_assignments;
+DROP POLICY IF EXISTS "exam_assignments_select_in_tenant" ON public.exam_assignments;
+DROP POLICY IF EXISTS "exam_assignments_staff_manage" ON public.exam_assignments;
 
 CREATE POLICY "exam_assignments_select_in_tenant"
   ON public.exam_assignments FOR SELECT TO authenticated
