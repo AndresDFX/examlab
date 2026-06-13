@@ -40,7 +40,8 @@ interface BaseBody {
     | "disconnect"
     | "sync"
     | "list_events"
-    | "link_events_to_sessions";
+    | "link_events_to_sessions"
+    | "cron_sync_recordings";
   provider?: "google" | "microsoft";
 }
 interface InitBody extends BaseBody {
@@ -88,9 +89,6 @@ Deno.serve(async (req) => {
     return jsonError("method_not_allowed", 405);
   }
 
-  const userId = await getUserIdFromRequest(req);
-  if (!userId) return jsonError("unauthorized", 401);
-
   let body: BaseBody;
   try {
     body = await req.json();
@@ -98,6 +96,25 @@ Deno.serve(async (req) => {
     return jsonError("invalid_json", 400);
   }
   const provider: Provider = body.provider === "microsoft" ? "microsoft" : "google";
+
+  // Tarea programada (pg_cron): sincroniza automáticamente las
+  // grabaciones/notas/enlaces de Calendar hacia las sesiones YA vinculadas
+  // de TODOS los docentes con calendario conectado. No usa user JWT — se
+  // autentica con el service_role key (la edge es verify_jwt=false y valida
+  // internamente, mismo patrón que los workers de IA).
+  if (body.action === "cron_sync_recordings") {
+    const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    const svc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!svc || bearer !== svc) return jsonError("unauthorized", 401);
+    try {
+      return await handleCronSyncRecordings();
+    } catch (e) {
+      return jsonError((e as Error).message, 500);
+    }
+  }
+
+  const userId = await getUserIdFromRequest(req);
+  if (!userId) return jsonError("unauthorized", 401);
 
   try {
     switch (body.action) {
@@ -895,6 +912,123 @@ async function handleListEvents(userId: string, body: ListEventsBody, provider: 
     }
     return jsonError(`google_api_error: ${(e as Error).message}`, 502);
   }
+}
+
+/**
+ * Tarea programada: re-sincroniza, para CADA docente con calendario
+ * conectado, las sesiones que ya quedaron vinculadas a un evento
+ * (`google_event_id` set). Re-fetch del evento → actualiza recording_url /
+ * notes_url / meeting_url SI el evento ahora los tiene (no pisa con null lo
+ * que se cargó manualmente). Así las grabaciones que Meet/Calendar adjuntan
+ * tras la clase aparecen solas en el tablero, sin que el docente entre a
+ * "Vincular eventos".
+ *
+ * Acotado a sesiones recientes (últimos 45 días) y a un tope de eventos por
+ * corrida para no exceder el timeout del edge ni golpear rate limits de la
+ * API. Errores por docente/sesión (token revocado, evento borrado) se cuentan
+ * y se sigue — una cuenta caída no aborta el resto.
+ */
+const CRON_MAX_EVENTS = 600;
+async function handleCronSyncRecordings() {
+  const sinceIso = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const { data: tokens } = await adminClient
+    .from("teacher_google_tokens")
+    .select("teacher_id, calendar_id, provider")
+    .not("calendar_id", "is", null);
+
+  let teachers = 0;
+  let checked = 0;
+  let updated = 0;
+  let failed = 0;
+
+  for (const tok of (tokens ?? []) as Array<{
+    teacher_id: string;
+    calendar_id: string;
+    provider: string | null;
+  }>) {
+    if (checked >= CRON_MAX_EVENTS) break;
+    teachers += 1;
+    const prov: Provider = (tok.provider ?? "google") === "microsoft" ? "microsoft" : "google";
+    try {
+      const { data: cts } = await adminClient
+        .from("course_teachers")
+        .select("course_id")
+        .eq("user_id", tok.teacher_id);
+      const courseIds = (cts ?? []).map((c: { course_id: string }) => c.course_id);
+      if (courseIds.length === 0) continue;
+
+      const { data: sessions } = await adminClient
+        .from("attendance_sessions")
+        .select("id, google_event_id, recording_url, notes_url, meeting_url")
+        .in("course_id", courseIds)
+        .not("google_event_id", "is", null)
+        .is("deleted_at", null)
+        .gte("session_date", sinceIso);
+
+      const calId = encodeURIComponent(tok.calendar_id);
+      for (const s of (sessions ?? []) as Array<{
+        id: string;
+        google_event_id: string;
+        recording_url: string | null;
+        notes_url: string | null;
+        meeting_url: string | null;
+      }>) {
+        if (checked >= CRON_MAX_EVENTS) break;
+        checked += 1;
+        try {
+          let recordingUrl: string | null = null;
+          let notesUrl: string | null = null;
+          let meetingUrl: string | null = null;
+          if (prov === "microsoft") {
+            const ev = await callMicrosoft<MsEvent>(
+              tok.teacher_id,
+              `/me/events/${encodeURIComponent(s.google_event_id)}?$select=id,subject,webLink,onlineMeeting`,
+              { method: "GET" },
+            );
+            meetingUrl = ev.onlineMeeting?.joinUrl ?? ev.webLink ?? null;
+          } else {
+            const ev = await callGoogle<GoogleEvent>(
+              tok.teacher_id,
+              `/calendar/v3/calendars/${calId}/events/${encodeURIComponent(s.google_event_id)}`,
+              { method: "GET" },
+            );
+            meetingUrl = ev.hangoutLink ?? ev.htmlLink ?? null;
+            recordingUrl = extractGoogleRecordingUrl(ev);
+            notesUrl = extractGoogleNotesUrl(ev);
+          }
+          // Solo lo que el evento TIENE y que cambió — nunca pisar con null.
+          const patch: Record<string, unknown> = {};
+          if (recordingUrl && recordingUrl !== s.recording_url) patch.recording_url = recordingUrl;
+          if (notesUrl && notesUrl !== s.notes_url) patch.notes_url = notesUrl;
+          if (meetingUrl && meetingUrl !== s.meeting_url) patch.meeting_url = meetingUrl;
+          if (Object.keys(patch).length > 0) {
+            await adminClient.from("attendance_sessions").update(patch).eq("id", s.id);
+            updated += 1;
+          }
+        } catch (_) {
+          failed += 1;
+        }
+      }
+    } catch (_) {
+      failed += 1;
+    }
+  }
+
+  // Audit best-effort (actor = sistema; el helper audit() exige userId real).
+  try {
+    await adminClient.from("audit_logs").insert({
+      action: "calendar.cron_sync_recordings",
+      category: "calendar",
+      severity: "info",
+      metadata: { teachers, checked, updated, failed },
+    });
+  } catch (_) {
+    /* best-effort */
+  }
+
+  return jsonOk({ teachers, checked, updated, failed });
 }
 
 async function handleLinkEventsToSessions(

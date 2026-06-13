@@ -919,7 +919,11 @@ function SessionGroup({
                         )}
                       </div>
                     )}
-                    {s.meeting_url && (
+                    {/* "Unirse" solo si la clase aún NO tiene grabación. Una vez
+                        existe la grabación, la clase ya pasó: ocultamos el enlace
+                        de la reunión (que ya no sirve) y abajo se muestra la
+                        grabación. */}
+                    {s.meeting_url && !s.recording_url && (
                       <MeetingLink url={s.meeting_url} label={t("courseBoard.joinMeeting")} />
                     )}
                     {/* Grabación + notas (sincronizadas de Calendar o

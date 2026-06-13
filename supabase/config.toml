@@ -60,10 +60,15 @@ verify_jwt = true
 enabled = true
 verify_jwt = true
 
-# Calendar RPC — requiere JWT del docente para identificarlo.
+# Calendar RPC. verify_jwt=false porque el handler valida internamente con
+# getUserIdFromRequest (adminClient.auth.getUser(token)) para las acciones de
+# usuario, y la acción `cron_sync_recordings` (pg_cron) se autentica con el
+# service_role key — que en este proyecto es del nuevo formato sb_secret_* y el
+# gateway con verify_jwt=true rechazaría con UNAUTHORIZED_INVALID_JWT_FORMAT.
+# Mismo patrón que ai-grading-worker / generate-contents.
 [functions."calendar"]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 
 # OAuth callback público — Google manda el redirect sin Authorization.
 # Sin verify_jwt = false el callback rebota con 401 y el flujo se rompe.
