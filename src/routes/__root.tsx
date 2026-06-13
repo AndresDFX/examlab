@@ -7,6 +7,7 @@ import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
 import { TenantThemeProvider } from "@/modules/tenants/TenantThemeProvider";
 import { GlobalErrorLogger } from "@/shared/components/GlobalErrorLogger";
 import { IosInstallBanner } from "@/modules/pwa/IosInstallBanner";
+import { usePortraitLock } from "@/shared/lib/portrait-lock";
 
 import "@/i18n";
 import appCss from "../styles.css?url";
@@ -264,6 +265,11 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
+  // Re-asegura la orientación vertical en la PWA instalada tras la
+  // hidratación (el lock parse-time de arriba es un único intento; este
+  // reintenta si rechazó antes de estabilizar standalone). No-op en navegador.
+  usePortraitLock();
+
   // delayDuration en 200ms para que tooltips de RowAction aparezcan
   // rápido al pasar el mouse — el default de 700ms se siente lento
   // en grids donde el usuario hace hover rápidamente entre filas.
