@@ -18,7 +18,8 @@
     "icons": "node scripts/generate-icons.js",
     "record:tour:admin": "node --experimental-strip-types scripts/record-tour.ts --role=admin",
     "record:tour:teacher": "node --experimental-strip-types scripts/record-tour.ts --role=teacher",
-    "record:tour:student": "node --experimental-strip-types scripts/record-tour.ts --role=student"
+    "record:tour:student": "node --experimental-strip-types scripts/record-tour.ts --role=student",
+    "manual:pdf": "node scripts/gen-manual-pdfs.mjs"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",
