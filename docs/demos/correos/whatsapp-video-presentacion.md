@@ -37,8 +37,20 @@
 
 ---
 
+## Bloque de videos y manual (pega los enlaces, borra lo que no uses)
+
+> 🎬 Mira ExamLab en video y el manual:
+> 📹 Recorrido general: [ENLACE]
+> 🛠️ Funcionalidades — Administrador: [ENLACE]
+> 👩‍🏫 Funcionalidades — Docente: [ENLACE]
+> 🎓 Funcionalidades — Estudiante: [ENLACE]
+> 📘 Manual de usuario: [ENLACE]
+
+---
+
 ### Notas
 - WhatsApp no permite formato enriquecido salvo *cursiva*/**negrita** con `_ _` y `* *` — al pegar, ajusta si quieres negritas reales (`*ExamLab*`).
 - Reemplaza `[Nombre]`.
 - La frase *"lo estoy probando"* de la versión con más gancho: úsala solo si **de verdad** ya la probaste; si no, quítala.
 - Si vas a mandar también la cuenta de prueba, usa el mensaje dedicado [`correo-entrega-cuenta-docente.md`](correo-entrega-cuenta-docente.md) (o los datos del Excel [`ExamLab-Usuarios-Demo.xlsx`](ExamLab-Usuarios-Demo.xlsx) + el video de cómo ingresar `../social/output/modulo-login.mp4`) en un mensaje aparte.
+- **Bloque de videos y manual** — reemplaza cada `[ENLACE]`: 📹 general → `../presentacion/output/modulo-overview.mp4` · 🛠️ Admin → `../admin/serie-admin-completa.mp4` · 👩‍🏫 Docente → `../teacher/serie-teacher-completa.mp4` · 🎓 Estudiante → `../student/serie-student-completa.mp4` · 📘 Manual → `../manual/manual.md`.

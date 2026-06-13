@@ -27,6 +27,9 @@ Para que te hagas una idea, te dejo todo:
 - **General** — qué es y qué hace la plataforma.
 - **Comercial** — los planes (se diferencian por cantidad de usuarios; todas las funciones vienen en todos, y el API key de IA lo pone la institución), para que veamos cómo encajaría con nosotros.
 
+**4) Manual de usuario (paso a paso, por rol)**
+📘 [ENLACE — Manual de usuario]
+
 Si lo ves con sentido, armamos una reunión y te muestro en vivo cómo la uso en mis clases. Me encantaría que la institución le sacara el mismo provecho. 🙌
 
 Un abrazo,
@@ -42,4 +45,5 @@ Un abrazo,
   - Demo completo Administrador → `docs/demos/admin/serie-admin-completa.mp4`
   - Demo completo Docente → `docs/demos/teacher/serie-teacher-completa.mp4`
   - Demo completo Estudiante → `docs/demos/student/serie-student-completa.mp4`
+  - Manual de usuario → `docs/demos/manual/manual.md` (PDF / Drive / web)
 - En la comercial los precios son de referencia ($99 / $299 / $1.000 por mes, con un plan a la medida — "Contáctanos" — para más de 5.000 estudiantes) — ajústalos antes de mostrarlos.

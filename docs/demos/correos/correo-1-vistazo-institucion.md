@@ -21,6 +21,10 @@ Y si quieres ir más a fondo, acá están los **recorridos completos** por cada 
 - **Docente:** [ENLACE — Demo completo Docente]
 - **Estudiante:** [ENLACE — Demo completo Estudiante]
 
+Y si prefieres leerlo paso a paso, te dejo el **manual de usuario** (por rol):
+
+📘 **Manual de usuario:** [ENLACE — Manual de usuario]
+
 Te adjunto también una **presentación cortita** con los puntos clave de la plataforma, por si quieres tenerla a mano.
 
 Míralo con calma cuando tengas un rato y me cuentas qué te parece. Cualquier duda me escribes y lo vemos. 🙌
@@ -37,4 +41,5 @@ Un abrazo,
   - Demo completo Administrador → `docs/demos/admin/serie-admin-completa.mp4`
   - Demo completo Docente → `docs/demos/teacher/serie-teacher-completa.mp4`
   - Demo completo Estudiante → `docs/demos/student/serie-student-completa.mp4`
+  - Manual de usuario → `docs/demos/manual/manual.md` (compártelo como PDF / Drive / web)
 - Este correo **no** menciona precios ni planes — es el primer vistazo.

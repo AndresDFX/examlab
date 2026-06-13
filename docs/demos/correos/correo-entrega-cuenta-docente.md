@@ -30,6 +30,13 @@ Mensaje para **entregarle a un docente su cuenta de demo** (con credenciales e i
 > - La cuenta **no trae estudiantes** (eso lo hace un administrador), así que el ciclo completo de *calificar entregas reales* se ve mejor en los videos demo. Tú igual puedes crear y generar todo lo que quieras.
 > - Si en algún momento la **IA no responde**, casi siempre es **disponibilidad del modelo** (es un entorno de demostración) — espera unos minutos y reintenta. No es que esté roto 🙂
 >
+> **🎬 Videos y manual** (por si quieres ver cómo se usa):
+> - 📹 Recorrido general: [ENLACE]
+> - 🛠️ Todas las funcionalidades — Administrador: [ENLACE]
+> - 👩‍🏫 Todas las funcionalidades — Docente: [ENLACE]
+> - 🎓 Todas las funcionalidades — Estudiante: [ENLACE]
+> - 📘 Manual de usuario: [ENLACE]
+>
 > Cualquier duda me escribes y lo vemos. ¡Que la disfrutes! 🙌
 
 ---
@@ -46,6 +53,9 @@ Mensaje para **entregarle a un docente su cuenta de demo** (con credenciales e i
 > 🎥 *(video de cómo ingresar adjunto)*
 >
 > Para arrancar: crea un **curso** y deja que la **IA te genere un examen o taller** 🤖. El espacio empieza vacío (normal) y no trae estudiantes. Si la IA no responde un momento, es disponibilidad del modelo (es demo) — reintenta en un ratito. Cualquier cosa me dices 🙌
+>
+> 🎬 Videos y manual:
+> 📹 General: [ENLACE] · 🛠️ Admin: [ENLACE] · 👩‍🏫 Docente: [ENLACE] · 🎓 Estudiante: [ENLACE] · 📘 Manual: [ENLACE]
 
 ---
 
@@ -54,4 +64,10 @@ Mensaje para **entregarle a un docente su cuenta de demo** (con credenciales e i
 - **Adjunta** el video de cómo ingresar: [`../social/output/modulo-login.mp4`](../social/output/modulo-login.mp4).
 - **Reemplaza** `[Nombre]` y `[tu correo del demo …]` por el usuario real (fila del Excel [`ExamLab-Usuarios-Demo.xlsx`](ExamLab-Usuarios-Demo.xlsx)). Cada docente tiene su propio correo; la **contraseña genérica `ExamlabDemo2026`** es la misma para todos y **no caduca** al primer ingreso.
 - Asegúrate de que entiendan que deben elegir **ExamLab Demo** en el desplegable (hay otras instituciones en la lista).
+- **Reemplaza cada `[ENLACE]`** del bloque "Videos y manual" por el link real (Drive/YouTube/web):
+  - 📹 Recorrido general → `../presentacion/output/modulo-overview.mp4`
+  - 🛠️ Administrador → `../admin/serie-admin-completa.mp4`
+  - 👩‍🏫 Docente → `../teacher/serie-teacher-completa.mp4`
+  - 🎓 Estudiante → `../student/serie-student-completa.mp4`
+  - 📘 Manual de usuario → `../manual/manual.md`
 - Para enganchar antes de entregar la cuenta, ver los correos [`correo-1-vistazo-institucion.md`](correo-1-vistazo-institucion.md) / [`correo-3-mi-institucion.md`](correo-3-mi-institucion.md) y el video social.

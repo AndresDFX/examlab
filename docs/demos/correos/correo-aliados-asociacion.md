@@ -39,6 +39,13 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 >
 > Asociarte es **gratis**, sin metas obligatorias, y te paso todos los materiales para vender (demos en video, presentaciones y cuentas de prueba).
 >
+> **🎬 Mira el producto** (videos y manual, para que lo conozcas y lo muestres):
+> - 📹 Recorrido general: [ENLACE]
+> - 🛠️ Todas las funcionalidades — Administrador: [ENLACE]
+> - 👩‍🏫 Todas las funcionalidades — Docente: [ENLACE]
+> - 🎓 Todas las funcionalidades — Estudiante: [ENLACE]
+> - 📘 Manual de usuario: [ENLACE]
+>
 > Te adjunto la **presentación del programa** con el detalle. Si te suena, armamos una llamada corta y dejamos por escrito modalidad y %. ¿Le entramos? 🚀
 
 ---
@@ -52,6 +59,9 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 > 💸 Ganas así: **referido 15%** del 1er año · **aliado comercial 25% recurrente** · **premium 35%**. Ej: 3 instituciones grandes = ~$750/mes recurrentes.
 >
 > Gratis asociarse y te paso todo para vender (demos + presentaciones + cuentas de prueba). Te mando la presentación 👇 ¿lo miramos? 🚀
+>
+> 🎬 Videos y manual:
+> 📹 General: [ENLACE] · 🛠️ Admin: [ENLACE] · 👩‍🏫 Docente: [ENLACE] · 🎓 Estudiante: [ENLACE] · 📘 Manual: [ENLACE]
 
 ---
 
@@ -69,5 +79,11 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 - **Adjunta** la presentación [`../presentacion/ExamLab-Presentacion-Aliados.pptx`](../presentacion/ExamLab-Presentacion-Aliados.pptx).
 - **Ajusta los %** (15 / 25 / 35) y los ejemplos a tu política comercial real antes de comprometerlos. Los precios usados ($99 / $299 / $1.000) son los de referencia de la presentación comercial — manténlos sincronizados.
 - Reemplaza `[Nombre]` y, en la presentación (última diapositiva), `[tu correo / WhatsApp aquí]`.
-- Para el contexto del producto, puedes acompañar con el video general (`../presentacion/output/modulo-overview.mp4`) o el clip social (`../social/output/modulo-social.mp4`).
+- **Reemplaza cada `[ENLACE]`** del bloque "Videos y manual" por el link real (Drive/YouTube/web):
+  - 📹 Recorrido general → `../presentacion/output/modulo-overview.mp4`
+  - 🛠️ Administrador → `../admin/serie-admin-completa.mp4`
+  - 👩‍🏫 Docente → `../teacher/serie-teacher-completa.mp4`
+  - 🎓 Estudiante → `../student/serie-student-completa.mp4`
+  - 📘 Manual de usuario → `../manual/manual.md`
+  - (Clip corto para WhatsApp/redes: `../social/output/modulo-social.mp4`)
 - Si tras asociarse el aliado va a mostrar la plataforma, entrégale una cuenta de prueba con [`correo-entrega-cuenta-docente.md`](correo-entrega-cuenta-docente.md).

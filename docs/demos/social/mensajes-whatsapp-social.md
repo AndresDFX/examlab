@@ -118,6 +118,19 @@ Para cuando solo quieres mandarle el clip a alguien sin discurso. Manda el video
 
 ---
 
+## 🎬 Bloque de videos y manual (pega los enlaces, borra lo que no uses)
+
+> 🎬 Conoce ExamLab a fondo:
+> 📹 Recorrido general: [ENLACE]
+> 🛠️ Funcionalidades — Administrador: [ENLACE]
+> 👩‍🏫 Funcionalidades — Docente: [ENLACE]
+> 🎓 Funcionalidades — Estudiante: [ENLACE]
+> 📘 Manual de usuario: [ENLACE]
+
+> Úsalo cuando alguien pida ver más que el clip de 20 s (un colega que quiere el detalle, un directivo que pide material).
+
+---
+
 ## Tips para que rinda
 
 - El **Estado** es efímero (24 h) y sin nombre: el gancho debe entenderse **solo**, sin contexto previo.
@@ -137,3 +150,4 @@ Para cuando solo quieres mandarle el clip a alguien sin discurso. Manda el video
 - Si además vas a **dar acceso de prueba**, manda en un mensaje aparte los datos del Excel [`../correos/ExamLab-Usuarios-Demo.xlsx`](../correos/ExamLab-Usuarios-Demo.xlsx) (usuario + contraseña genérica + URL) junto con el video de **cómo ingresar** ([`output/modulo-login.mp4`](output/modulo-login.mp4)).
 - Para una versión **más comercial/extensa** alrededor del video, usa las presentaciones en [`../presentacion/`](../presentacion/). Si quieres **más opciones de copy corto** para el mismo video, [`../correos/whatsapp-video-presentacion.md`](../correos/whatsapp-video-presentacion.md) tiene variantes alternativas (mismo registro, no más detallado).
 - Para **entregar la cuenta de prueba** a un docente, usa el mensaje dedicado en [`../correos/correo-entrega-cuenta-docente.md`](../correos/correo-entrega-cuenta-docente.md).
+- **Bloque de videos y manual** — reemplaza cada `[ENLACE]`: 📹 general → `../presentacion/output/modulo-overview.mp4` · 🛠️ Admin → `../admin/serie-admin-completa.mp4` · 👩‍🏫 Docente → `../teacher/serie-teacher-completa.mp4` · 🎓 Estudiante → `../student/serie-student-completa.mp4` · 📘 Manual → `../manual/manual.md`.
