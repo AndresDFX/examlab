@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useState } from "react";
 import { toast } from "sonner";
+import { friendlyError } from "@/shared/lib/db-errors";
 import { useImpersonation, stopImpersonate } from "./impersonation";
 
 export function ImpersonationBanner() {
@@ -25,7 +26,7 @@ export function ImpersonationBanner() {
     try {
       await stopImpersonate();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error al restaurar la sesión");
+      toast.error(friendlyError(e, "Error al restaurar la sesión"));
       setStopping(false);
     }
   };

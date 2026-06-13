@@ -3579,7 +3579,7 @@ function DefensePanel({
         .from("project-files")
         .upload(path, file, { upsert: true });
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyError(error));
         return;
       }
       setVideoUrl(path);
@@ -3598,7 +3598,7 @@ function DefensePanel({
       .from("project-files")
       .createSignedUrl(videoUrl, 120);
     if (error || !data?.signedUrl) {
-      toast.error(error?.message ?? "No se pudo abrir el video");
+      toast.error(friendlyError(error, "No se pudo abrir el video"));
       return;
     }
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");

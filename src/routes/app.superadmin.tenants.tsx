@@ -706,7 +706,7 @@ function SuperAdminTenantsPage() {
       await startImpersonate(target.id);
       // startImpersonate hace window.location.href — no llegamos acá.
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "No se pudo iniciar la impersonación");
+      toast.error(friendlyError(e, "No se pudo iniciar la impersonación"));
     }
   };
 

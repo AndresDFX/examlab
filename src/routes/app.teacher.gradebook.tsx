@@ -1245,7 +1245,7 @@ function Gradebook() {
       await startImpersonate(studentId);
       // startImpersonate dispara window.location.href → no llegamos aquí.
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error al iniciar la vista");
+      toast.error(friendlyError(e, "Error al iniciar la vista"));
     }
   };
 

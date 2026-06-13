@@ -188,7 +188,7 @@ function TeacherStudentsInner() {
     try {
       await startImpersonate(s.id);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : i18n.t("teacherStudents.impersonateError"));
+      toast.error(friendlyError(e, i18n.t("teacherStudents.impersonateError")));
       setImpersonating(null);
     }
   };
