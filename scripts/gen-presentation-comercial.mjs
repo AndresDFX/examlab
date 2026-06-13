@@ -115,24 +115,24 @@ contentSlide({
   // El plan grande sube porque la infra a esa escala cuesta más.
   const ALL_FEATS = ["Todas las funciones incluidas", "Sin límite de cursos", "Soporte incluido"];
   const tiers = [
-    { name: "Esencial", target: "Institución pequeña", price: "$99", est: "Hasta 250", doc: "Hasta 10", adm: "2", accent: PRIMARY2, hl: false, feats: ALL_FEATS },
-    { name: "Profesional", target: "Institución mediana", price: "$299", est: "Hasta 1.500", doc: "Hasta 40", adm: "4", accent: AI, hl: true, feats: ALL_FEATS },
-    { name: "Institucional", target: "Institución grande", price: "$1.000", est: "Hasta 5.000", doc: "Hasta 150", adm: "8", accent: PRIMARY, hl: false, feats: ALL_FEATS },
+    { name: "Esencial", target: "Institución pequeña", price: "$99", est: "Hasta 250", doc: "Hasta 5", adm: "2", accent: PRIMARY2, hl: false, feats: ALL_FEATS },
+    { name: "Profesional", target: "Institución mediana", price: "$299", est: "Hasta 1.500", doc: "Hasta 20", adm: "4", accent: AI, hl: true, feats: ALL_FEATS },
+    { name: "Institucional", target: "Institución grande", price: "$1.000", est: "Hasta 5.000", doc: "Hasta 100", adm: "8", accent: PRIMARY, hl: false, feats: ALL_FEATS },
   ];
   tiers.forEach((t, i) => {
     const x = 0.55 + i * 4.18;
     const w = 3.95;
-    const y = 1.45, h = 4.6;
+    const y = 1.85, h = 4.15;
     if (t.hl) {
       s.addShape(pptx.ShapeType.roundRect, { x: x - 0.08, y: y - 0.18, w: w + 0.16, h: h + 0.36, fill: { color: AIBG }, line: { color: t.accent, width: 2.5 }, rectRadius: 0.12, shadow: { type: "outer", blur: 6, offset: 3, color: "A7F3D0" } });
-      s.addText("MÁS POPULAR", { x: x + w / 2 - 1.0, y: y - 0.48, w: 2.0, h: 0.36, fontSize: 10, bold: true, color: WHITE, align: "center", valign: "middle", fill: { color: t.accent }, rectRadius: 0.08, shape: pptx.ShapeType.roundRect });
+      s.addText("MÁS POPULAR", { x: x + w / 2 - 1.0, y: y - 0.32, w: 2.0, h: 0.34, fontSize: 10, bold: true, color: WHITE, align: "center", valign: "middle", fill: { color: t.accent }, rectRadius: 0.08, shape: pptx.ShapeType.roundRect });
     } else {
       s.addShape(pptx.ShapeType.roundRect, { x, y, w, h, fill: { color: WHITE }, line: { color: "CBD5E1", width: 1.25 }, rectRadius: 0.12 });
     }
     s.addShape(pptx.ShapeType.rect, { x: x + 0.0, y, w, h: 0.12, fill: { color: t.accent }, line: { type: "none" } });
     s.addText(t.name, { x: x + 0.25, y: y + 0.28, w: w - 0.5, h: 0.5, fontSize: 22, bold: true, color: INK });
     s.addText(t.target, { x: x + 0.25, y: y + 0.82, w: w - 0.5, h: 0.35, fontSize: 12.5, color: MUTED });
-    s.addText([{ text: t.price, options: { fontSize: 32, bold: true, color: t.accent } }, { text: "  /mes", options: { fontSize: 13, color: MUTED } }], { x: x + 0.25, y: y + 1.2, w: w - 0.5, h: 0.6 });
+    s.addText([{ text: t.price, options: { fontSize: 32, bold: true, color: t.accent } }, { text: "  /mes", options: { fontSize: 13, color: MUTED } }], { x: x + 0.25, y: y + 1.2, w: w - 0.5, h: 0.5 });
     // capacidades
     const cap = [
       { k: "Estudiantes", v: t.est },
@@ -140,17 +140,17 @@ contentSlide({
       { k: "Administradores", v: t.adm },
     ];
     cap.forEach((c, j) => {
-      const cy = y + 1.9 + j * 0.45;
+      const cy = y + 1.75 + j * 0.40;
       s.addText(c.k, { x: x + 0.28, y: cy, w: 2.1, h: 0.4, fontSize: 12.5, color: "334155", valign: "middle" });
       s.addText(c.v, { x: x + w - 1.75, y: cy, w: 1.5, h: 0.4, fontSize: 13, bold: true, color: INK, align: "right", valign: "middle" });
     });
-    s.addShape(pptx.ShapeType.line, { x: x + 0.28, y: y + 3.3, w: w - 0.56, h: 0, line: { color: "E2E8F0", width: 1 } });
+    s.addShape(pptx.ShapeType.line, { x: x + 0.28, y: y + 3.0, w: w - 0.56, h: 0, line: { color: "E2E8F0", width: 1 } });
     const fitems = t.feats.map((f) => ({ text: f, options: { bullet: { code: "2713" }, color: "334155", fontSize: 11.5, paraSpaceAfter: 5 } }));
-    s.addText(fitems, { x: x + 0.3, y: y + 3.42, w: w - 0.55, h: 1.05, valign: "top" });
+    s.addText(fitems, { x: x + 0.3, y: y + 3.12, w: w - 0.55, h: 0.92, valign: "top" });
   });
   // Banner "Contáctanos" — instituciones con más de 5.000 estudiantes (plan a la medida)
   {
-    const by = 6.15, bh = 0.58;
+    const by = 6.24, bh = 0.50;
     s.addShape(pptx.ShapeType.roundRect, { x: 0.55, y: by, w: 12.23, h: bh, fill: { color: INK }, line: { type: "none" }, rectRadius: 0.1 });
     s.addText([
       { text: "¿Más de 5.000 estudiantes?  ", options: { fontSize: 14, bold: true, color: WHITE } },
