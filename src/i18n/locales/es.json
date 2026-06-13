@@ -1400,6 +1400,22 @@
       "content": {
         "label": "Contenidos",
         "desc": "Material nuevo asignado a una sesión (push/in-app, sin email)"
+      },
+      "broadcast": {
+        "label": "Difusiones del curso",
+        "desc": "Anuncios del docente o admin enviados a todo el curso"
+      },
+      "poll": {
+        "label": "Encuestas",
+        "desc": "Cuando se publica una encuesta o Kahoot (push/in-app, sin email)"
+      },
+      "system": {
+        "label": "Alertas del sistema",
+        "desc": "Resumen diario de pendientes y avisos operativos de la plataforma"
+      },
+      "support": {
+        "label": "Soporte (PQRS)",
+        "desc": "Respuestas y cambios de estado en tus tickets de soporte"
       }
     }
   },

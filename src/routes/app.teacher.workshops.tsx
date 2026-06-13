@@ -2366,6 +2366,11 @@ function TeacherWorkshops() {
     } else if (subData.user_id) {
       recipients = [subData.user_id];
     }
+    // Excluir al propio docente que califica: un usuario multi-rol
+    // (Docente + Estudiante con el MISMO id) NO debe auto-notificarse al
+    // calificar su propia entrega.
+    const myId = user?.id;
+    recipients = Array.from(new Set(recipients)).filter((uid) => uid && uid !== myId);
     if (recipients.length > 0) {
       await supabase.from("notifications").insert(
         recipients.map((uid) => ({

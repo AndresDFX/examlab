@@ -1400,6 +1400,22 @@
       "content": {
         "label": "Contents",
         "desc": "New material assigned to a session (push/in-app, no email)"
+      },
+      "broadcast": {
+        "label": "Course broadcasts",
+        "desc": "Announcements from the teacher or admin sent to the whole course"
+      },
+      "poll": {
+        "label": "Polls",
+        "desc": "When a poll or Kahoot is published (push/in-app, no email)"
+      },
+      "system": {
+        "label": "System alerts",
+        "desc": "Daily pending-items summary and platform operational notices"
+      },
+      "support": {
+        "label": "Support (tickets)",
+        "desc": "Replies and status changes on your support tickets"
       }
     }
   },

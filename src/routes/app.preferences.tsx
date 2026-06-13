@@ -45,6 +45,10 @@ import {
   CalendarCheck,
   BookOpen,
   RotateCcw,
+  Megaphone,
+  BarChart3,
+  ServerCog,
+  LifeBuoy,
 } from "lucide-react";
 
 export const Route = createFileRoute("/app/preferences")({ component: PreferencesPage });
@@ -65,6 +69,13 @@ interface KindConfig {
    *  switch que el server descarta. Coherente con `_notification_kind_emails`
    *  + `CRITICAL_KINDS` en notification-email.ts. */
   availableChannels: Channel[];
+  /** Roles que EFECTIVAMENTE reciben este kind. Si está, el toggle solo
+   *  se muestra a usuarios que posean alguno de esos roles (evita mostrar
+   *  "Soporte" a un estudiante, o "Encuestas" a un SuperAdmin que nunca
+   *  las recibe). Si falta → visible para todos (kinds transversales como
+   *  mensajes 1-a-1). Se filtra por roles POSEÍDOS (no el rol activo): tu
+   *  preferencia aplica sin importar con qué rol estés navegando. */
+  roles?: string[];
 }
 
 // Catálogo de kinds que el usuario puede silenciar. Solo incluimos los
@@ -76,6 +87,7 @@ const KINDS: KindConfig[] = [
     icon: FileText,
     color: "text-violet-500",
     availableChannels: ["email", "push"],
+    roles: ["Estudiante"],
   },
   {
     key: "workshop",
@@ -83,6 +95,7 @@ const KINDS: KindConfig[] = [
     icon: Hammer,
     color: "text-amber-500",
     availableChannels: ["email", "push"],
+    roles: ["Estudiante"],
   },
   {
     key: "project",
@@ -90,6 +103,7 @@ const KINDS: KindConfig[] = [
     icon: FolderKanban,
     color: "text-rose-500",
     availableChannels: ["email", "push"],
+    roles: ["Estudiante"],
   },
   {
     key: "grade",
@@ -97,6 +111,7 @@ const KINDS: KindConfig[] = [
     icon: Award,
     color: "text-emerald-500",
     availableChannels: ["email", "push"],
+    roles: ["Estudiante"],
   },
   {
     key: "feedback",
@@ -104,6 +119,9 @@ const KINDS: KindConfig[] = [
     icon: MessageSquareText,
     color: "text-pink-500",
     availableChannels: ["email", "push"],
+    // Estudiante recibe respuestas del docente; Docente recibe comentarios
+    // del alumno en el hilo de retroalimentación.
+    roles: ["Estudiante", "Docente"],
   },
   {
     key: "info",
@@ -111,6 +129,7 @@ const KINDS: KindConfig[] = [
     icon: Send,
     color: "text-cyan-500",
     availableChannels: ["email", "push"],
+    // Mensajes 1-a-1 → cualquier rol los recibe. Transversal (sin gate).
   },
   {
     key: "attendance",
@@ -118,6 +137,7 @@ const KINDS: KindConfig[] = [
     icon: CalendarCheck,
     color: "text-blue-500",
     availableChannels: ["email", "push"],
+    roles: ["Estudiante"],
   },
   {
     key: "content",
@@ -127,6 +147,47 @@ const KINDS: KindConfig[] = [
     // `content` no está en `_notification_kind_emails` — el server NUNCA
     // manda email para este kind. Mostrar el switch confundiría.
     availableChannels: ["push"],
+    roles: ["Estudiante"],
+  },
+  {
+    key: "broadcast",
+    i18nKey: "broadcast",
+    icon: Megaphone,
+    color: "text-orange-500",
+    // Difusión docente/admin a un curso. Emaila por destinatario
+    // (CRITICAL_KINDS incluye 'broadcast').
+    availableChannels: ["email", "push"],
+    roles: ["Estudiante"],
+  },
+  {
+    key: "poll",
+    i18nKey: "poll",
+    icon: BarChart3,
+    color: "text-fuchsia-500",
+    // `poll` no está en `_notification_kind_emails` → solo push.
+    availableChannels: ["push"],
+    roles: ["Estudiante"],
+  },
+  {
+    key: "system",
+    i18nKey: "system",
+    icon: ServerCog,
+    color: "text-slate-500",
+    // Resumen diario docente + alertas del sistema (storage, edges). El
+    // email es condicional al link (alertas admin / reset password), pero
+    // el toggle gobierna ese envío cuando aplica.
+    availableChannels: ["email", "push"],
+    roles: ["Docente", "Admin", "SuperAdmin"],
+  },
+  {
+    key: "support",
+    i18nKey: "support",
+    icon: LifeBuoy,
+    color: "text-teal-500",
+    // Tickets PQRS (Admin del tenant ↔ SuperAdmin). Email condicional al
+    // toggle global `platform_settings.support_emails_enabled`.
+    availableChannels: ["email", "push"],
+    roles: ["Admin", "SuperAdmin"],
   },
 ];
 
@@ -152,7 +213,7 @@ function normalizePrefs(p: Prefs): Prefs {
 
 function PreferencesPage() {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   const [prefs, setPrefs] = useState<Prefs>({});
   const [original, setOriginal] = useState<Prefs>({});
   const [loading, setLoading] = useState(true);
@@ -205,6 +266,17 @@ function PreferencesPage() {
   const dirty = useMemo(
     () => JSON.stringify(normalizePrefs(prefs)) !== JSON.stringify(normalizePrefs(original)),
     [prefs, original],
+  );
+
+  // Solo mostramos los kinds que el usuario EFECTIVAMENTE puede recibir
+  // según sus roles poseídos. Los kinds sin `roles` (ej. mensajes 1-a-1)
+  // son transversales y se muestran siempre. Funciona idéntico en todos
+  // los tenants y en cross-tenant: las preferencias viven en el propio
+  // perfil del usuario (profiles.notification_preferences) y los roles
+  // salen de useAuth — sin dependencia del tenant activo.
+  const visibleKinds = useMemo(
+    () => KINDS.filter((k) => !k.roles || k.roles.some((r) => (roles as string[]).includes(r))),
+    [roles],
   );
 
   const save = async () => {
@@ -291,7 +363,7 @@ function PreferencesPage() {
               <div className="text-center">{t("preferences.tableHeaderEmail")}</div>
               <div className="text-center">{t("preferences.tableHeaderPush")}</div>
             </div>
-            {KINDS.map((cat) => {
+            {visibleKinds.map((cat) => {
               const Icon = cat.icon;
               const label = t(`preferences.kinds.${cat.i18nKey}.label`);
               const desc = t(`preferences.kinds.${cat.i18nKey}.desc`);

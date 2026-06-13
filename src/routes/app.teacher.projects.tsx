@@ -1804,17 +1804,38 @@ function TeacherProjects() {
     // kind='grade' → CRITICAL_KIND → dispara correo + ícono Award.
     if (validFactor != null) {
       const maxScore = gradingProject?.max_score ?? 100;
-      await db.from("notifications").insert({
-        user_id: sub.user_id,
-        title: `Sustentación calificada: ${gradingProject?.title ?? "proyecto"}`,
-        body:
+      // Destinatarios: si la entrega es de grupo, TODOS los miembros (no
+      // solo el "último editor" en sub.user_id); si es individual, el dueño.
+      let recipients: string[] = sub.user_id ? [sub.user_id] : [];
+      if (sub.group_id) {
+        const { data: members } = await db
+          .from("project_group_members")
+          .select("user_id")
+          .eq("group_id", sub.group_id);
+        const ids = ((members ?? []) as { user_id: string }[]).map((m) => m.user_id);
+        if (ids.length > 0) recipients = ids;
+      }
+      // Excluir al propio docente que califica: un usuario multi-rol
+      // (Docente + Estudiante con el MISMO id) NO debe auto-notificarse al
+      // sustentar su propia entrega ("me llegó a mí como docente").
+      const myId = user?.id;
+      recipients = Array.from(new Set(recipients)).filter((uid) => uid && uid !== myId);
+      if (recipients.length > 0) {
+        const body =
           `Tu proyecto fue sustentado y la nota final es ${newFinal}/${maxScore}. ` +
           (notes
             ? `Notas del docente: ${notes.slice(0, 240)}`
-            : "Entra a la plataforma para ver el detalle."),
-        kind: "grade",
-        link: "/app/student/projects",
-      });
+            : "Entra a la plataforma para ver el detalle.");
+        await db.from("notifications").insert(
+          recipients.map((uid) => ({
+            user_id: uid,
+            title: `Sustentación calificada: ${gradingProject?.title ?? "proyecto"}`,
+            body,
+            kind: "grade",
+            link: "/app/student/projects",
+          })),
+        );
+      }
     }
   };
 
