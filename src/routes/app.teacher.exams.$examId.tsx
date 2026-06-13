@@ -54,6 +54,7 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { ErrorState } from "@/components/ui/empty-state";
 import { HelpHint } from "@/components/ui/help-hint";
+import { ReopenClosedBanner } from "@/shared/components/ReopenClosedBanner";
 import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
 import { Library } from "lucide-react";
 import { extractEdgeError } from "@/shared/lib/edge-error";
@@ -935,6 +936,30 @@ function ExamEditor() {
                   </p>
                 )}
               </div>
+              {/* Reabrir un examen cerrado: cambia el estado a Publicado y
+                  fija una fecha de fin futura para que los estudiantes lo
+                  puedan presentar de nuevo. Solo en edición de un examen
+                  existente cuyo estado actual es 'closed'. El Guardar normal
+                  persiste los cambios (RLS ya permite al docente). */}
+              {(exam as any).status === "closed" && (
+                <ReopenClosedBanner
+                  hint="Cambia el estado a Publicado y fija una fecha de fin futura para que los estudiantes puedan presentarlo de nuevo."
+                  onReopen={() => {
+                    const now = new Date();
+                    const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+                    const endMs = exam.end_time ? new Date(exam.end_time).getTime() : 0;
+                    const nextEnd =
+                      endMs > now.getTime() ? exam.end_time : sevenDays.toISOString();
+                    const nextStart = exam.start_time || now.toISOString();
+                    setExam({
+                      ...exam,
+                      status: "published",
+                      start_time: nextStart,
+                      end_time: nextEnd,
+                    });
+                  }}
+                />
+              )}
               {/* Estado del examen. draft=oculto para alumnos, published=visible,
                   closed=cerrado manualmente. Independiente de la ventana
                   start_time/end_time (un examen "published" fuera de ventana

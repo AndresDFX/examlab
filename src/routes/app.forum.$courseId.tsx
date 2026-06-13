@@ -140,6 +140,10 @@ function ForumsList() {
   const [newOpensAt, setNewOpensAt] = useState(""); // datetime-local string
   const [newClosesAt, setNewClosesAt] = useState("");
 
+  // Reapertura de foro cerrado con un nuevo plazo.
+  const [reopenForum, setReopenForum] = useState<Forum | null>(null);
+  const [reopenClosesAt, setReopenClosesAt] = useState(""); // datetime-local string
+
   const load = async () => {
     setLoading(true);
     setLoadError(null);
@@ -206,6 +210,18 @@ function ForumsList() {
     return Number.isNaN(d.getTime()) ? null : d.toISOString();
   };
 
+  /** Inverso de `datetimeLocalToIso`: arma el string `YYYY-MM-DDTHH:mm`
+   *  (hora local, sin zona) que consume el DateTimePicker, a partir de un
+   *  Date. Usamos getters locales (no toISOString, que daría UTC y correría
+   *  la hora) para que el round-trip con `datetimeLocalToIso` sea consistente. */
+  const dateToDatetimeLocal = (d: Date): string => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return (
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+      `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    );
+  };
+
   const createForum = async () => {
     if (!user) return;
     const title = newTitle.trim();
@@ -257,31 +273,63 @@ function ForumsList() {
   };
 
   const toggleClosed = async (forum: Forum) => {
-    const isClosed = !!forum.manually_closed_at;
+    // "Cerrado" abarca el cierre manual Y el auto (closes_at ya pasó).
+    // Si el foro está cerrado se va a REABRIR: en vez de togglear solo
+    // manually_closed_at (que dejaría el closes_at viejo ya vencido y el
+    // foro se re-cerraría de inmediato), abrimos un mini-dialog para fijar
+    // un nuevo plazo. Prefijamos el plazo a ahora + 7 días.
+    const isClosed = computeForumState(forum).kind !== "open";
+    if (isClosed) {
+      const inSevenDays = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      setReopenClosesAt(dateToDatetimeLocal(inSevenDays));
+      setReopenForum(forum);
+      return;
+    }
+    // Cierre manual: conserva el flujo actual (confirm + RPC).
     const ok = await confirm({
-      title: isClosed ? t("forum.confirmReopenTitle") : t("forum.confirmCloseTitle"),
-      description: isClosed
-        ? t("forum.confirmCloseDescClosed", { title: forum.title })
-        : t("forum.confirmCloseDescOpen", { title: forum.title }),
-      tone: isClosed ? "default" : "warning",
-      confirmLabel: isClosed ? t("forum.confirmReopenLabel") : t("forum.confirmCloseLabel"),
+      title: t("forum.confirmCloseTitle"),
+      description: t("forum.confirmCloseDescOpen", { title: forum.title }),
+      tone: "warning",
+      confirmLabel: t("forum.confirmCloseLabel"),
     });
     if (!ok) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any).rpc("toggle_forum_closed", {
       _forum_id: forum.id,
-      _close: !isClosed,
+      _close: true,
     });
     if (error) {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success(
-      !isClosed
-        ? i18n.t("toast.routes_app_forum_courseId.forumClosed")
-        : i18n.t("toast.routes_app_forum_courseId.forumReopened"),
-    );
+    toast.success(i18n.t("toast.routes_app_forum_courseId.forumClosed"));
     await load();
+  };
+
+  const confirmReopen = async () => {
+    if (!reopenForum) return;
+    const closesAt = datetimeLocalToIso(reopenClosesAt);
+    // Si el docente fijó un plazo, debe ser futuro: reabrir con una fecha
+    // ya pasada re-cerraría el foro de inmediato (auto). Vacío = sin cierre.
+    if (closesAt && new Date(closesAt).getTime() <= Date.now()) {
+      toast.error("El nuevo cierre debe ser una fecha futura.");
+      return;
+    }
+    try {
+      const { error } = await db
+        .from("forums")
+        .update({ manually_closed_at: null, closes_at: closesAt })
+        .eq("id", reopenForum.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(i18n.t("toast.routes_app_forum_courseId.forumReopened"));
+      await load();
+      setReopenForum(null);
+    } catch (e) {
+      toast.error(friendlyError(e));
+    }
   };
 
   const deleteForum = async (forum: Forum) => {
@@ -447,6 +495,34 @@ function ForumsList() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={!!reopenForum}
+        onOpenChange={(o) => {
+          if (!o) setReopenForum(null);
+        }}
+      >
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reabrir foro</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Nuevo cierre (plazo)</Label>
+              <DateTimePicker value={reopenClosesAt} onChange={setReopenClosesAt} />
+              <p className="text-xs text-muted-foreground mt-1">
+                Déjalo vacío para sin cierre automático.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setReopenForum(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => void confirmReopen()}>Reabrir</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -504,9 +580,9 @@ function ForumRow({
                   size="sm"
                   variant="ghost"
                   onClick={onToggleClosed}
-                  title={forum.manually_closed_at ? i18n.t("forum.actionReopen") : i18n.t("forum.actionClose")}
+                  title={isClosed ? i18n.t("forum.actionReopen") : i18n.t("forum.actionClose")}
                 >
-                  {forum.manually_closed_at ? (
+                  {isClosed ? (
                     <Unlock className="h-3.5 w-3.5" />
                   ) : (
                     <Lock className="h-3.5 w-3.5" />

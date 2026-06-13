@@ -102,6 +102,7 @@ import { DateTimePicker } from "@/components/ui/date-picker";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { ReopenClosedBanner } from "@/shared/components/ReopenClosedBanner";
 import { DateCell } from "@/components/ui/date-cell";
 import { usePagination } from "@/hooks/use-pagination";
 import { useTableSort } from "@/hooks/use-table-sort";
@@ -2842,6 +2843,19 @@ function TeacherProjects() {
                 />
               </div>
             </div>
+            {editing && !form.is_external && form.status === "closed" && (
+              <ReopenClosedBanner
+                hint="Para reabrir el proyecto, cambia el estado a Publicado y fija una nueva fecha límite futura."
+                onReopen={() => {
+                  const dueMs = form.due_date ? new Date(form.due_date).getTime() : NaN;
+                  const isFuture = !Number.isNaN(dueMs) && dueMs > Date.now();
+                  const nextDue = isFuture
+                    ? form.due_date
+                    : toLocal(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString());
+                  setForm({ ...form, status: "published", due_date: nextDue });
+                }}
+              />
+            )}
             {!form.is_external && (
               <div>
                 <Label>Estado</Label>

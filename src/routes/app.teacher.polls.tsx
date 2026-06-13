@@ -55,6 +55,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDialog";
+import { ReopenClosedBanner } from "@/shared/components/ReopenClosedBanner";
 import {
   Select,
   SelectContent,
@@ -2050,6 +2051,28 @@ function CreatePollDialog({
               <p className="text-[11px] text-muted-foreground mt-1">
                 {t("teacherPolls.closesAtEmptyHint")}
               </p>
+              {isEdit && editingPoll && !pollIsOpen(editingPoll) && (
+                <div className="mt-2">
+                  <ReopenClosedBanner
+                    hint="Fija un cierre futuro y guarda para reabrir la encuesta."
+                    onReopen={() => {
+                      // Plazo futuro por defecto = ahora + 7 días, en el MISMO
+                      // formato datetime-local (YYYY-MM-DDTHH:mm, hora local) que
+                      // usa la hidratación de `closesAt`. Si el cierre actual ya
+                      // es futuro, lo conservamos. Al Guardar, `closed_manually`
+                      // pasa a false porque el cierre queda en el futuro.
+                      const sevenDays = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+                      const offsetMs = sevenDays.getTimezoneOffset() * 60_000;
+                      const localValue = new Date(sevenDays.getTime() - offsetMs)
+                        .toISOString()
+                        .slice(0, 16);
+                      setClosesAt((prev) =>
+                        prev && new Date(prev).getTime() > Date.now() ? prev : localValue,
+                      );
+                    }}
+                  />
+                </div>
+              )}
             </div>
             <div>
               <Label>

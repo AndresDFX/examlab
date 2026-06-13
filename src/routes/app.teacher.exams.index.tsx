@@ -79,6 +79,7 @@ import { CourseListCell } from "@/components/ui/course-list-cell";
 import { HelpHint } from "@/components/ui/help-hint";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { ReopenClosedBanner } from "@/shared/components/ReopenClosedBanner";
 
 const EXAMS_TEMPLATE = `course_name,title,description,start_time,end_time,time_limit_minutes,navigation_type,shuffle_enabled
 Programación I,Parcial 1,Examen del primer corte,2025-09-15T08:00,2025-09-15T10:00,90,libre,false
@@ -958,6 +959,30 @@ function TeacherExams() {
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
             </div>
+            {/* Reabrir un examen cerrado: solo aplica cuando se EDITA un
+                examen existente (form con id) cuyo estado actual es 'closed'.
+                Este dialog del índice se usa hoy solo para CREAR (la edición
+                navega a /app/teacher/exams/$examId), así que el banner no se
+                muestra acá — pero queda gateado por id+estado para honrar la
+                semántica "solo en edición" si el dialog se reutilizara. */}
+            {(form as any).id && (form as any).status === "closed" && (
+              <ReopenClosedBanner
+                hint="Cambia el estado a Publicado y fija una fecha de fin futura para que los estudiantes puedan presentarlo de nuevo."
+                onReopen={() => {
+                  const now = new Date();
+                  const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+                  const endMs = form.end_time ? new Date(form.end_time).getTime() : 0;
+                  const nextEnd = endMs > now.getTime() ? form.end_time : toLocal(sevenDays);
+                  const nextStart = form.start_time || toLocal(now);
+                  setForm({
+                    ...form,
+                    status: "published",
+                    start_time: nextStart,
+                    end_time: nextEnd,
+                  } as any);
+                }}
+              />
+            )}
             <div>
               <Label>
                 Estado{" "}

@@ -39,6 +39,7 @@ import { DecimalInput } from "@/components/ui/decimal-input";
 import { RowAction } from "@/components/ui/row-action";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DuplicateAssessmentDialog } from "@/shared/components/DuplicateAssessmentDialog";
+import { ReopenClosedBanner } from "@/shared/components/ReopenClosedBanner";
 import { useTranslation } from "react-i18next";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
@@ -3291,6 +3292,24 @@ function TeacherWorkshops() {
                 </div>
               </div>
             </div>
+            {!(form as any).is_external && (form as any).id && form.status === "closed" && (
+              <ReopenClosedBanner
+                message="Este taller está cerrado."
+                hint="Reabre el taller para que los estudiantes puedan volver a entregar. Se fijará un nuevo plazo de entrega; revísalo antes de guardar."
+                onReopen={() => {
+                  const current = (form.due_date as string) ?? "";
+                  const currentDate = current ? new Date(current) : null;
+                  const isFuture =
+                    currentDate != null &&
+                    !isNaN(currentDate.getTime()) &&
+                    currentDate.getTime() > Date.now();
+                  const nextDue = isFuture
+                    ? current
+                    : toLocal(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+                  setForm({ ...form, status: "published", due_date: nextDue });
+                }}
+              />
+            )}
             {!(form as any).is_external && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
