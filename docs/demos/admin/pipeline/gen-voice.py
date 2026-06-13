@@ -17,12 +17,13 @@ with open(MODULE, "r", encoding="utf-8") as f:
 voice = spec.get("voice", {})
 VOICE = voice.get("name", "es-CO-GonzaloNeural")
 RATE = voice.get("rate", "-4%")
+PITCH = voice.get("pitch", "+0Hz")  # opcional por módulo: levanta el tono (ej. "+8Hz") para una voz menos plana
 scenes = spec["scenes"]
 
 async def save_with_retry(text, path, words_path, attempts=4):
     for a in range(1, attempts + 1):
         try:
-            c = edge_tts.Communicate(text, VOICE, rate=RATE, boundary="WordBoundary")
+            c = edge_tts.Communicate(text, VOICE, rate=RATE, pitch=PITCH, boundary="WordBoundary")
             words = []
             with open(path, "wb") as f:
                 async for ch in c.stream():
