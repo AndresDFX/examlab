@@ -380,10 +380,24 @@ async function clickTab(page, label) {
   } catch (e) { console.log(`  ⚠ tab "${label}":`, e.message); }
 }
 
+// Estilos ESTÁTICOS de los FX de foco (hueco, popover, dim). Se inyectan una sola
+// vez como hoja de estilos (#demo-fx-css); el código solo aplica la geometría
+// dinámica (posición/tamaño) inline, que es lo único que cambia por beat.
+const FX_CSS =
+  "#demo-hole{position:absolute;z-index:9000;border-radius:12px;" +
+  "box-shadow:0 0 0 3px #2563EB,0 0 0 99999px rgba(2,6,23,.62);pointer-events:none}" +
+  "#demo-pop{position:absolute;z-index:9001;background:#fff;border-radius:12px;padding:12px 14px;" +
+  "box-shadow:0 12px 34px rgba(0,0,0,.32);border:1px solid rgba(2,6,23,.08);" +
+  "font-family:Inter,system-ui,sans-serif;pointer-events:none}" +
+  "#demo-pop .pop-title{display:block;font-size:15px;margin-bottom:4px;color:#1D4ED8}" +
+  "#demo-pop .pop-body{font-size:13px;line-height:1.4;color:#334155}" +
+  "#demo-dim{position:fixed;inset:0;z-index:45;background:rgba(2,6,23,.55);pointer-events:none}";
+
 // ── Foco estilo driver.js: hueco (dim + outline) + popover, glued al rect ──
 async function focusOn(page, rect, info, scale, side, overpan = false) {
   if (!rect) return;
-  await page.evaluate(({ rect, info, s, side, overpan }) => {
+  await page.evaluate(({ rect, info, s, side, overpan, fxCss }) => {
+    if (!document.getElementById("demo-fx-css")) { const _st = document.createElement("style"); _st.id = "demo-fx-css"; _st.textContent = fxCss; document.head.appendChild(_st); }
     const vw = window.innerWidth, vh = window.innerHeight, M = 22, GAP = 16, popW = 250;
     // Transform de la cámara para este beat (MISMO clamp/overpan que cameraTo).
     let tx = vw / 2 - rect.cx * s, ty = vh / 2 - rect.cy * s;
@@ -398,7 +412,11 @@ async function focusOn(page, rect, info, scale, side, overpan = false) {
     const pad = 6;
     let hole = document.getElementById("demo-hole");
     if (!hole) { hole = document.createElement("div"); hole.id = "demo-hole"; document.body.appendChild(hole); }
-    hole.setAttribute("style", `position:absolute;z-index:9000;left:${rect.left - pad}px;top:${rect.top - pad}px;width:${rect.width + pad * 2}px;height:${rect.height + pad * 2}px;border-radius:12px;box-shadow:0 0 0 3px #2563EB,0 0 0 99999px rgba(2,6,23,.62);pointer-events:none;opacity:1;`);
+    hole.style.left = (rect.left - pad) + "px";
+    hole.style.top = (rect.top - pad) + "px";
+    hole.style.width = (rect.width + pad * 2) + "px";
+    hole.style.height = (rect.height + pad * 2) + "px";
+    hole.style.opacity = "1";
 
     // POPOVER — se posiciona EN PANTALLA, se clampa al viewport, y se convierte
     // de vuelta a body-local para que tras el transform caiga exactamente ahí.
@@ -407,8 +425,9 @@ async function focusOn(page, rect, info, scale, side, overpan = false) {
     let pop = document.getElementById("demo-pop");
     if (!info || !info.title) { if (pop) pop.style.opacity = "0"; return; }
     if (!pop) { pop = document.createElement("div"); pop.id = "demo-pop"; document.body.appendChild(pop); }
-    pop.innerHTML = `<b style="display:block;font-size:15px;margin-bottom:4px;color:#1D4ED8">${info.title}</b><span style="font-size:13px;line-height:1.4;color:#334155">${info.body}</span>`;
-    pop.style.cssText = `position:absolute;z-index:9001;width:${popW}px;background:#fff;border-radius:12px;padding:12px 14px;box-shadow:0 12px 34px rgba(0,0,0,.32);border:1px solid rgba(2,6,23,.08);font-family:Inter,system-ui,sans-serif;pointer-events:none;left:-9999px;top:-9999px;`;
+    pop.innerHTML = `<b class="pop-title">${info.title}</b><span class="pop-body">${info.body}</span>`;
+    pop.style.width = popW + "px";
+    pop.style.left = "-9999px"; pop.style.top = "-9999px"; // medir offsetHeight fuera de pantalla antes de posicionar
     const popH = pop.offsetHeight || 76;
     let px, py;
     if (side === "right") { px = sx + sw + GAP; py = sy; if (px + popW > vw - M) px = sx - popW - GAP; }
@@ -421,7 +440,7 @@ async function focusOn(page, rect, info, scale, side, overpan = false) {
     pop.style.transformOrigin = "top left";
     pop.style.transform = `scale(${1 / s})`;
     pop.style.opacity = "1";
-  }, { rect, info, s: scale, side: side || "bottom", overpan });
+  }, { rect, info, s: scale, side: side || "bottom", overpan, fxCss: FX_CSS });
 }
 async function focusOff(page) {
   await page.evaluate(() => { for (const id of ["demo-hole", "demo-pop"]) { const e = document.getElementById(id); if (e) e.style.opacity = "0"; } });
@@ -445,11 +464,11 @@ async function openMenuFocus(page, rect, beat) {
   // Dim DETRÁS del menú (z-45 < z-50 del DropdownMenuContent Radix;
   // pointer-events:none → no dispara "interact outside", así el menú NO se
   // cierra). Un "hueco" focusOn sobre el menú sí lo cerraba.
-  await page.evaluate(() => {
+  await page.evaluate((fxCss) => {
+    if (!document.getElementById("demo-fx-css")) { const _st = document.createElement("style"); _st.id = "demo-fx-css"; _st.textContent = fxCss; document.head.appendChild(_st); }
     let d = document.getElementById("demo-dim");
     if (!d) { d = document.createElement("div"); d.id = "demo-dim"; document.body.appendChild(d); }
-    d.setAttribute("style", "position:fixed;inset:0;z-index:45;background:rgba(2,6,23,.55);pointer-events:none;");
-  });
+  }, FX_CSS);
   await sleep(beat.hold ?? 4500);
   await page.evaluate(() => { const d = document.getElementById("demo-dim"); if (d) d.remove(); });
   await page.keyboard.press("Escape").catch(() => {});
