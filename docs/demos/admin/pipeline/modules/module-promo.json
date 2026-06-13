@@ -1,53 +1,60 @@
 {
   "id": "modulo-promo",
-  "title": "ExamLab — Promo visual (cards/emoji, dinámico, ~30s)",
+  "title": "ExamLab — Promo meme (dolor docente → ExamLab, ~34s)",
   "series": "social",
   "role": "Docente",
   "appPath": "/app/teacher/exams",
   "readySelectors": ["[data-tour-id=\"role-switcher\"]"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "+8%", "pitch": "+9Hz" },
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "+8%", "pitch": "+8Hz" },
   "scenes": [
     {
-      "id": "gancho",
+      "id": "meme-pov",
       "kind": "card",
-      "narration": "Profe: recupera las horas que pierdes calificando.",
-      "card": { "emoji": "⏰", "kicker": "DOCENTE, ESTO ES PARA TI", "title": "Recupera tus horas", "subtitle": "Menos trabajo manual, más enseñar", "bg": "linear-gradient(135deg,#F97316,#DB2777)" },
-      "bufferMs": 300
+      "narration": "Domingo, casi medianoche, y la pila de exámenes ni se mueve.",
+      "card": { "emoji": "😩", "kicker": "POV", "title": "Domingo, 11:58 p.m.", "subtitle": "y la pila de exámenes no baja", "bg": "linear-gradient(135deg,#0b1220,#1e1b4b)" },
+      "bufferMs": 250
     },
     {
-      "id": "ia-genera",
+      "id": "meme-nadie",
       "kind": "card",
-      "narration": "La IA crea tus exámenes y talleres en segundos.",
-      "card": { "emoji": "🧠", "kicker": "LA IA CREA POR TI", "title": "Exámenes en segundos", "subtitle": "Talleres y proyectos, al instante", "bg": "linear-gradient(135deg,#7C3AED,#4F46E5)" },
-      "bufferMs": 300
+      "narration": "Y tú, a las dos de la mañana, armando el parcial desde cero.",
+      "card": { "emoji": "🥲", "kicker": "NADIE:", "title": "Tú, a las 2 a.m.", "subtitle": "armando el parcial desde cero", "bg": "linear-gradient(135deg,#111827,#3b0764)" },
+      "bufferMs": 250
     },
     {
-      "id": "ia-califica",
+      "id": "meme-cafe",
       "kind": "card",
-      "narration": "Y los califica, con retroalimentación para cada alumno.",
-      "card": { "emoji": "✅", "kicker": "Y ADEMÁS CALIFICA", "title": "Notas con feedback", "subtitle": "Retroalimentación automática", "bg": "linear-gradient(135deg,#059669,#0D9488)" },
-      "bufferMs": 300
+      "narration": "Cien hojas, un lapicero, y el café ya ni te hace efecto.",
+      "card": { "emoji": "💀", "kicker": "Y SIGUES", "title": "100 hojas, 1 lapicero", "subtitle": "el café ya ni hace efecto", "bg": "linear-gradient(135deg,#0c0a09,#451a03)" },
+      "bufferMs": 250
     },
     {
-      "id": "dos-roles",
+      "id": "giro",
       "kind": "card",
-      "narration": "Entras como Docente y Estudiante. Cámbialo cuando quieras.",
-      "card": { "emoji": "🔁", "kicker": "DOS ROLES, UN CLIC", "title": "Docente y Estudiante", "subtitle": "Cámbialo cuando quieras", "bg": "linear-gradient(135deg,#9333EA,#EC4899)" },
-      "bufferMs": 300
+      "narration": "¿Y si no tuviera que ser así? Llegó ExamLab.",
+      "card": { "emoji": "✨", "kicker": "PLOT TWIST", "title": "¿Y si no fuera así?", "subtitle": "Llegó ExamLab", "bg": "linear-gradient(135deg,#7c3aed,#2563eb)" },
+      "bufferMs": 350
     },
     {
-      "id": "nota-ia",
+      "id": "func-genera",
       "kind": "card",
-      "narration": "¿La IA tarda? Es disponibilidad del modelo: espera y reintenta.",
-      "card": { "emoji": "⏳", "kicker": "BUENO SABERLO", "title": "Si la IA tarda", "subtitle": "Es disponibilidad del modelo · espera y reintenta", "bg": "linear-gradient(135deg,#F59E0B,#EF4444)" },
+      "narration": "La IA te arma exámenes, talleres y proyectos en segundos.",
+      "card": { "emoji": "🤖", "kicker": "GENERA POR TI", "title": "Exámenes en segundos", "subtitle": "talleres y proyectos, hechos por la IA", "bg": "linear-gradient(135deg,#06b6d4,#3b82f6)" },
+      "bufferMs": 250
+    },
+    {
+      "id": "func-califica",
+      "kind": "card",
+      "narration": "Y los califica sola, con retro, y hasta detecta copias. ¡Tu domingo, libre!",
+      "card": { "emoji": "✅", "kicker": "Y CALIFICA SOLA", "title": "Corrige y da feedback", "subtitle": "+ asistencia, notas y tutor de IA", "bg": "linear-gradient(135deg,#10b981,#06b6d4)" },
       "bufferMs": 300
     },
     {
       "id": "oferta",
       "kind": "card",
-      "narration": "Licencia de docente gratis por tiempo limitado. ¡Escríbeme!",
-      "card": { "emoji": "🎁", "kicker": "POR TIEMPO LIMITADO", "title": "Licencia docente GRATIS", "subtitle": "Pruébala tú mismo · ¡Escríbeme!", "bg": "linear-gradient(135deg,#10B981,#3B82F6)" },
-      "bufferMs": 1400
+      "narration": "Licencia de docente gratis por tiempo limitado. Pruébala tú mismo. ¡Escríbeme!",
+      "card": { "emoji": "🎁", "kicker": "POR TIEMPO LIMITADO", "title": "Licencia docente GRATIS", "subtitle": "pruébala tú mismo · ¡Escríbeme!", "bg": "linear-gradient(135deg,#8b5cf6,#ec4899)" },
+      "bufferMs": 1300
     }
   ]
 }
