@@ -2,14 +2,23 @@
   "id": "modulo-08",
   "title": "Configuración del Tenant",
   "appPath": "/app/admin/settings",
-  "readySelectors": ["[role=\"tab\"]"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "[role=\"tab\"]"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo ocho: configuración de la institución. El panel de control de Demo Global Corp: identidad, módulos visibles y correos.",
-      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Configuración", "subtitle": "Demo Global Corp" },
+      "narration": "Módulo ocho: configuración de la institución. Identidad, módulos visibles, correos, el compilador de código y la auditoría.",
+      "card": {
+        "kicker": "ExamLab · Rol Administrador",
+        "title": "Configuración",
+        "subtitle": "Demo Global Corp"
+      },
       "bufferMs": 600
     },
     {
@@ -19,9 +28,36 @@
       "narration": "En Institución se define la identidad de la institución: su nombre, el logotipo y los colores de la marca, que se aplican al instante en toda la plataforma.",
       "bufferMs": 800,
       "beats": [
-        { "target": "field:Nombre", "scale": 1.35, "hold": 3400, "side": "bottom", "focus": { "title": "Nombre", "body": "El nombre de la institución." } },
-        { "target": "field:Logo institucional", "scale": 1.35, "hold": 3400, "side": "bottom", "focus": { "title": "Logotipo", "body": "La marca que verá toda la plataforma." } },
-        { "target": "field:Color primario", "scale": 1.3, "hold": 3600, "side": "right", "focus": { "title": "Colores", "body": "Primario, secundario y acentos de la marca." } }
+        {
+          "target": "field:Nombre",
+          "scale": 1.35,
+          "hold": 3400,
+          "side": "bottom",
+          "focus": {
+            "title": "Nombre",
+            "body": "El nombre de la institución."
+          }
+        },
+        {
+          "target": "field:Logo institucional",
+          "scale": 1.35,
+          "hold": 3400,
+          "side": "bottom",
+          "focus": {
+            "title": "Logotipo",
+            "body": "La marca que verá toda la plataforma."
+          }
+        },
+        {
+          "target": "field:Color primario",
+          "scale": 1.3,
+          "hold": 3600,
+          "side": "right",
+          "focus": {
+            "title": "Colores",
+            "body": "Primario, secundario y acentos de la marca."
+          }
+        }
       ]
     },
     {
@@ -31,25 +67,94 @@
       "narration": "En Módulos se decide qué partes de la plataforma ve cada rol, y en qué orden aparecen en el menú. Otra capa del control de acceso.",
       "bufferMs": 800,
       "beats": [
-        { "target": "firstcard", "scale": 1.1, "hold": 6500, "side": "bottom", "focus": { "title": "Visibilidad de módulos", "body": "Qué módulos ve cada rol y su orden." } }
+        {
+          "target": "firstcard",
+          "scale": 1.1,
+          "hold": 6500,
+          "side": "bottom",
+          "focus": {
+            "title": "Visibilidad de módulos",
+            "body": "Qué módulos ve cada rol y su orden."
+          }
+        }
       ]
     },
     {
       "id": "correos",
       "kind": "platform",
       "tab": "Correos",
-      "narration": "Y en Correos se prenden o apagan los avisos por email, categoría por categoría: la bienvenida a nuevos usuarios, los recordatorios de entregas, los mensajes y más.",
+      "narration": "En Correos se prenden o apagan los avisos por email, categoría por categoría: la bienvenida a nuevos usuarios, los recordatorios de entregas, los mensajes y más.",
       "bufferMs": 800,
       "beats": [
-        { "target": "firstcard", "scale": 1.1, "hold": 4500, "side": "bottom", "focus": { "title": "Avisos por email", "body": "Cada categoría se activa o se apaga." } },
-        { "target": "text:Bienvenida", "scale": 1.2, "hold": 4500, "side": "bottom", "focus": { "title": "Por categoría", "body": "Como la bienvenida a nuevos usuarios." } }
+        {
+          "target": "firstcard",
+          "scale": 1.1,
+          "hold": 4500,
+          "side": "bottom",
+          "focus": {
+            "title": "Avisos por email",
+            "body": "Cada categoría se activa o se apaga."
+          }
+        },
+        {
+          "target": "text:Bienvenida",
+          "scale": 1.2,
+          "hold": 4500,
+          "side": "bottom",
+          "focus": {
+            "title": "Por categoría",
+            "body": "Como la bienvenida a nuevos usuarios."
+          }
+        }
+      ]
+    },
+    {
+      "id": "compilador",
+      "kind": "platform",
+      "tab": "Compilador",
+      "narration": "En Compilador se elige el proveedor que ejecuta el código de los estudiantes en exámenes y talleres, por lenguaje.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "firstcard",
+          "scale": 1.15,
+          "hold": 6200,
+          "side": "bottom",
+          "focus": {
+            "title": "Compilador",
+            "body": "Proveedor de ejecución de código por lenguaje."
+          }
+        }
+      ]
+    },
+    {
+      "id": "auditoria",
+      "kind": "platform",
+      "tab": "Auditoría",
+      "narration": "Y en Auditoría se define cuánto tiempo se conservan los registros de actividad de la institución.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "firstcard",
+          "scale": 1.15,
+          "hold": 5200,
+          "side": "bottom",
+          "focus": {
+            "title": "Auditoría",
+            "body": "Retención de los registros de actividad."
+          }
+        }
       ]
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "En el siguiente módulo: certificados.",
-      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Siguiente módulo", "subtitle": "Certificados" },
+      "card": {
+        "kicker": "ExamLab · Rol Administrador",
+        "title": "Siguiente módulo",
+        "subtitle": "Certificados"
+      },
       "bufferMs": 600
     }
   ]

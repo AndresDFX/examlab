@@ -2,14 +2,23 @@
   "id": "modulo-10",
   "title": "Estadísticas e Informes",
   "appPath": "/app/admin/statistics",
-  "readySelectors": ["text=Estadísticas globales"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "text=Estadísticas globales"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
       "narration": "Módulo diez: estadísticas e informes. El pulso de la institución, y los reportes.",
-      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Estadísticas e Informes", "subtitle": "Demo Global Corp" },
+      "card": {
+        "kicker": "ExamLab · Rol Administrador",
+        "title": "Estadísticas e Informes",
+        "subtitle": "Demo Global Corp"
+      },
       "bufferMs": 600
     },
     {
@@ -18,33 +27,133 @@
       "narration": "En Estadísticas se ve el estado de la institución de un vistazo: los cursos, los estudiantes, el porcentaje de aprobación global, la asistencia promedio y las alertas de integridad. Y, más abajo, la comparativa entre cursos, con el detalle de cada uno.",
       "bufferMs": 900,
       "beats": [
-        { "target": "statrow", "scale": 1.15, "hold": 7000, "side": "bottom", "focus": { "title": "Estado de la institución", "body": "Cursos, estudiantes, aprobación, asistencia promedio y alertas de integridad." } },
-        { "target": "text:Comparativa", "scale": 1.15, "hold": 4800, "side": "bottom", "scroll": true, "focus": { "title": "Comparativa entre cursos", "body": "Aprobación, asistencia y alertas, curso por curso." } }
+        {
+          "target": "statrow",
+          "scale": 1.15,
+          "hold": 7000,
+          "side": "bottom",
+          "focus": {
+            "title": "Estado de la institución",
+            "body": "Cursos, estudiantes, aprobación, asistencia promedio y alertas de integridad."
+          }
+        },
+        {
+          "target": "text:Comparativa",
+          "scale": 1.15,
+          "hold": 4800,
+          "side": "bottom",
+          "scroll": true,
+          "focus": {
+            "title": "Comparativa entre cursos",
+            "body": "Aprobación, asistencia y alertas, curso por curso."
+          }
+        }
       ]
     },
     {
       "id": "informes-intro",
       "kind": "card",
       "route": "/app/admin/report-templates",
-      "ready": ["main table"],
+      "ready": [
+        "main table"
+      ],
       "narration": "Y los informes de la institución.",
-      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Informes", "subtitle": "Plantillas de actas y boletines" },
+      "card": {
+        "kicker": "ExamLab · Rol Administrador",
+        "title": "Informes",
+        "subtitle": "Plantillas de actas y boletines"
+      },
       "bufferMs": 500
     },
     {
-      "id": "informes",
+      "id": "informes-acciones",
       "kind": "platform",
-      "narration": "Las plantillas definen cómo se generan actas y boletines en PDF: qué columnas incluir, cómo agrupar y cómo filtrar. Se crean con Nueva plantilla, y los docentes las usan después desde sus propios cursos.",
+      "narration": "Las plantillas definen cómo se generan actas y boletines en PDF. Hay dos caminos: crear una plantilla desde cero, o cargar un documento de Word existente y editarlo desde aquí.",
       "bufferMs": 800,
       "beats": [
-        { "target": "createbtn", "scale": 1.5, "hold": 11000, "side": "bottom", "focus": { "title": "Nueva plantilla", "body": "Define actas y boletines en PDF: columnas, agrupaciones y filtros." } }
+        {
+          "target": "createbtn",
+          "scale": 1.5,
+          "hold": 3200,
+          "side": "bottom",
+          "syncWord": "crear",
+          "focus": {
+            "title": "Nueva plantilla",
+            "body": "Crea el acta o boletín desde cero."
+          }
+        },
+        {
+          "target": "text:Cargar Word",
+          "scale": 1.5,
+          "hold": 4200,
+          "side": "bottom",
+          "syncWord": "cargar",
+          "syncOccurrence": 2,
+          "focus": {
+            "title": "Cargar Word (.docx)",
+            "body": "Importa un documento existente y edítalo aquí."
+          }
+        }
+      ]
+    },
+    {
+      "id": "informes-crear",
+      "kind": "platform",
+      "openDialog": "createbtn",
+      "narration": "Un caso práctico: al crear una plantilla se le da un nombre, una descripción del documento, y se define la orientación y el tamaño de página del PDF final.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "field:Nombre",
+          "hold": 3000,
+          "side": "right",
+          "syncWord": "nombre",
+          "focus": {
+            "title": "Nombre",
+            "body": "Cómo se llamará la plantilla."
+          }
+        },
+        {
+          "target": "field:Descripción",
+          "hold": 3000,
+          "side": "right",
+          "syncWord": "descripción",
+          "focus": {
+            "title": "Descripción",
+            "body": "Qué genera este documento."
+          }
+        },
+        {
+          "target": "field:Orientación",
+          "hold": 2800,
+          "side": "right",
+          "syncWord": "orientación",
+          "focus": {
+            "title": "Orientación",
+            "body": "Vertical u horizontal."
+          }
+        },
+        {
+          "target": "field:Tamaño",
+          "hold": 3600,
+          "side": "right",
+          "syncWord": "tamaño",
+          "focus": {
+            "title": "Tamaño",
+            "body": "Carta, oficio o A4."
+          }
+        }
       ]
     },
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: auditoría, soporte y papelera.",
-      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Siguiente módulo", "subtitle": "Auditoría · Soporte · Papelera" },
+      "narration": "En el siguiente módulo: la auditoría.",
+      "card": {
+        "kicker": "ExamLab · Rol Administrador",
+        "title": "Siguiente módulo",
+        "subtitle": "Auditoría"
+      },
       "bufferMs": 600
     }
   ]

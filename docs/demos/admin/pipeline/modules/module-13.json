@@ -1,0 +1,55 @@
+{
+  "id": "modulo-13",
+  "title": "Papelera",
+  "appPath": "/app/trash",
+  "readySelectors": [
+    "main table"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Módulo trece: la papelera. Recuperar lo eliminado.",
+      "card": {
+        "kicker": "ExamLab · Rol Administrador",
+        "title": "Papelera",
+        "subtitle": "Recuperar lo eliminado"
+      },
+      "bufferMs": 600
+    },
+    {
+      "id": "papelera",
+      "kind": "platform",
+      "narration": "Lo que se elimina no desaparece: pasa a la papelera, donde permanece treinta días antes del borrado definitivo. Cursos, exámenes, talleres, proyectos, sesiones y más. Desde aquí se restauran con un clic, o se eliminan de forma permanente cuando estás seguro.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "firstcard",
+          "scale": 1.18,
+          "hold": 15500,
+          "side": "bottom",
+          "syncWord": "papelera",
+          "focus": {
+            "title": "Papelera",
+            "body": "Restaura lo eliminado; 30 días antes del borrado definitivo."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "En el último módulo: tu cuenta y el cierre de sesión.",
+      "card": {
+        "kicker": "ExamLab · Rol Administrador",
+        "title": "Siguiente módulo",
+        "subtitle": "Cuenta y Sesión"
+      },
+      "bufferMs": 600
+    }
+  ]
+}
