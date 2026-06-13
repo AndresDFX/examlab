@@ -53,13 +53,18 @@ export const ROUTE_RULES: RouteRule[] = [
   // question_bank admite Admin; sin Admin acá el guard lo mandaba a
   // /app/unauthorized pese a estar el código preparado para él.
   { prefix: "/app/teacher/question-bank", roles: ["Docente", "Admin", "SuperAdmin"] },
-  { prefix: "/app/teacher/exams", roles: ["Docente", "SuperAdmin"] },
-  { prefix: "/app/teacher/monitor", roles: ["Docente", "SuperAdmin"] },
-  { prefix: "/app/teacher/workshops", roles: ["Docente", "SuperAdmin"] },
-  { prefix: "/app/teacher/projects", roles: ["Docente", "SuperAdmin"] },
-  { prefix: "/app/teacher/gradebook", roles: ["Docente", "SuperAdmin"] },
-  { prefix: "/app/teacher/grading", roles: ["Docente", "SuperAdmin"] },
-  { prefix: "/app/teacher/attendance", roles: ["Docente", "SuperAdmin"] },
+  // Admin homologado (evaluación + seguimiento): supervisa exámenes,
+  // talleres, proyectos, calificaciones y asistencia de su institución +
+  // los sub-flujos (monitor en vivo, calificación de entregas). Las páginas
+  // ya usan isStaffRole y la RLS scopea por tenant. Calendario y kahoot
+  // quedan fuera del alcance elegido.
+  { prefix: "/app/teacher/exams", roles: ["Docente", "Admin", "SuperAdmin"] },
+  { prefix: "/app/teacher/monitor", roles: ["Docente", "Admin", "SuperAdmin"] },
+  { prefix: "/app/teacher/workshops", roles: ["Docente", "Admin", "SuperAdmin"] },
+  { prefix: "/app/teacher/projects", roles: ["Docente", "Admin", "SuperAdmin"] },
+  { prefix: "/app/teacher/gradebook", roles: ["Docente", "Admin", "SuperAdmin"] },
+  { prefix: "/app/teacher/grading", roles: ["Docente", "Admin", "SuperAdmin"] },
+  { prefix: "/app/teacher/attendance", roles: ["Docente", "Admin", "SuperAdmin"] },
   { prefix: "/app/teacher/calendar", roles: ["Docente", "SuperAdmin"] },
   { prefix: "/app/teacher/kahoot", roles: ["Docente", "SuperAdmin"] },
   { prefix: "/app/teacher", roles: ["Docente"] },

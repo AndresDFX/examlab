@@ -177,7 +177,9 @@ const NAV: NavItem[] = [
     to: "/app/teacher/exams",
     labelKey: "nav.exams",
     icon: FileText,
-    roles: ["Docente", "SuperAdmin"],
+    // Admin homologado: supervisa exámenes de su institución (la página
+    // ya usa isStaffRole y carga los cursos del tenant vía RLS).
+    roles: ["Docente", "Admin", "SuperAdmin"],
   },
   {
     to: "/app/student/exams",
@@ -190,7 +192,7 @@ const NAV: NavItem[] = [
     to: "/app/teacher/workshops",
     labelKey: "nav.workshops",
     icon: Hammer,
-    roles: ["Docente", "SuperAdmin"],
+    roles: ["Docente", "Admin", "SuperAdmin"],
   },
   {
     to: "/app/student/workshops",
@@ -203,7 +205,7 @@ const NAV: NavItem[] = [
     to: "/app/teacher/projects",
     labelKey: "nav.projects",
     icon: FolderKanban,
-    roles: ["Docente", "SuperAdmin"],
+    roles: ["Docente", "Admin", "SuperAdmin"],
   },
   {
     to: "/app/student/projects",
@@ -216,7 +218,7 @@ const NAV: NavItem[] = [
     to: "/app/teacher/gradebook",
     labelKey: "nav.grades",
     icon: ClipboardList,
-    roles: ["Docente", "SuperAdmin"],
+    roles: ["Docente", "Admin", "SuperAdmin"],
   },
   {
     to: "/app/student/grades",
@@ -257,7 +259,7 @@ const NAV: NavItem[] = [
     to: "/app/teacher/attendance",
     labelKey: "nav.attendance",
     icon: CalendarCheck,
-    roles: ["Docente", "SuperAdmin"],
+    roles: ["Docente", "Admin", "SuperAdmin"],
   },
   {
     to: "/app/student/attendance",
