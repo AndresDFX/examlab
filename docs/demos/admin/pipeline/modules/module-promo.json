@@ -1,0 +1,50 @@
+{
+  "id": "modulo-promo",
+  "title": "ExamLab — Promo licencia docente (overview, ~30s)",
+  "series": "social",
+  "role": "Docente",
+  "appPath": "/app/teacher/exams",
+  "readySelectors": ["[data-tour-id=\"role-switcher\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-2%" },
+  "scenes": [
+    {
+      "id": "logo-intro",
+      "kind": "card",
+      "narration": "ExamLab. La plataforma que evalúa con inteligencia artificial.",
+      "card": {
+        "kicker": "",
+        "title": "ExamLab",
+        "subtitle": "Evalúa con inteligencia artificial"
+      },
+      "bufferMs": 1500
+    },
+    {
+      "id": "overview",
+      "kind": "platform",
+      "narration": "Mira esto: la IA te genera exámenes, talleres y proyectos en segundos. Y cuando tus alumnos entregan, también los califica por ti. Asistencia, notas y hasta un tutor de IA. Todo en un solo lugar, y te ahorra horas cada semana.",
+      "bufferMs": 600,
+      "beats": [
+        {
+          "target": "createbtn",
+          "scale": 1.45,
+          "hold": 6000,
+          "side": "left",
+          "overpan": true,
+          "syncWord": "califica",
+          "focus": { "title": "IA que genera y califica", "body": "Crea evaluaciones y califica las entregas automáticamente." }
+        }
+      ]
+    },
+    {
+      "id": "cta-licencia",
+      "kind": "card",
+      "narration": "Y aquí va lo bueno: por tiempo limitado regalo una licencia de docente, con cuentas listas, para que tú mismo la pruebes. Sin compromiso. Escríbeme o entra al link en mi bio antes de que se acabe.",
+      "card": {
+        "kicker": "POR TIEMPO LIMITADO",
+        "title": "Licencia de docente gratis",
+        "subtitle": "Pruébala tú mismo, con cuentas listas. Escríbeme o entra al link en bio."
+      },
+      "bufferMs": 2400
+    }
+  ]
+}
