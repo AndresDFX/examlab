@@ -120,6 +120,17 @@ function RootShell({ children }: { children: React.ReactNode }) {
             __html: `(function(){try{var t=localStorage.getItem('examlab-theme');if(t==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`,
           }}
         />
+        {/* PWA en vertical: el manifest ya declara orientation:"portrait", pero
+            las PWA YA INSTALADAS cachean el manifest viejo (orientation:"any") y
+            seguían abriendo en horizontal. Este lock en runtime fuerza vertical
+            sin reinstalar. Solo aplica en modo standalone (PWA instalada); en
+            navegador y en pantallas que entran a fullscreen (pizarra) lock()
+            lanza/queda no-op y lo silenciamos. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var sa=(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone;if(sa&&screen.orientation&&screen.orientation.lock){screen.orientation.lock('portrait').catch(function(){});}}catch(e){}})();`,
+          }}
+        />
         {children}
         <Scripts />
         <script
