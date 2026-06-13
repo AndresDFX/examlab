@@ -117,15 +117,35 @@ async function overlay(page, card) {
     document.body.style.transform = "none";
     document.body.style.willChange = "auto";
     document.documentElement.style.overflow = "";
+    // Hoja de estilos de la carátula (se inyecta una sola vez): clases reutilizables
+    // en vez de estilos inline repetidos por escena. Lo ÚNICO dinámico que queda
+    // inline es el fondo (gradiente por tarjeta) y el src del gif — el resto vive aquí.
+    if (!document.getElementById("demo-overlay-css")) {
+      const st = document.createElement("style");
+      st.id = "demo-overlay-css";
+      st.textContent =
+        "#demo-overlay{position:fixed;inset:0;z-index:2147483000;pointer-events:none;" +
+        "display:flex;flex-direction:column;align-items:center;justify-content:center;" +
+        "gap:14px;color:#fff;font-family:Inter,system-ui,sans-serif;text-align:center}" +
+        "#demo-overlay .ov-gif{width:340px;height:auto;border-radius:18px;margin-bottom:10px;" +
+        "box-shadow:0 14px 40px rgba(0,0,0,.5)}" +
+        "#demo-overlay .ov-emoji{font-size:104px;line-height:1;margin-bottom:8px;" +
+        "filter:drop-shadow(0 6px 18px rgba(0,0,0,.35))}" +
+        "#demo-overlay .ov-kicker{font-size:15px;letter-spacing:3px;text-transform:uppercase;opacity:.8}" +
+        "#demo-overlay .ov-title{font-size:54px;font-weight:800}" +
+        "#demo-overlay .ov-sub{font-size:24px;opacity:.92}";
+      document.head.appendChild(st);
+    }
     let o = document.getElementById("demo-overlay");
     if (!o) { o = document.createElement("div"); o.id = "demo-overlay"; document.body.appendChild(o); }
-    o.setAttribute("style", "position:fixed;inset:0;z-index:2147483000;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:" + (c.bg || "linear-gradient(135deg,#0b1220,#1D4ED8)") + ";color:#fff;font-family:Inter,system-ui,sans-serif;text-align:center;");
-    o.innerHTML = (c.gif
-        ? '<img src="' + c.gif + '" style="width:340px;height:auto;border-radius:18px;margin-bottom:10px;box-shadow:0 14px 40px rgba(0,0,0,.5);image-rendering:auto">'
-        : (c.emoji ? '<div style="font-size:104px;line-height:1;margin-bottom:8px;filter:drop-shadow(0 6px 18px rgba(0,0,0,.35))">' + c.emoji + '</div>' : '')) +
-      '<div style="font-size:15px;letter-spacing:3px;text-transform:uppercase;opacity:.8">' + (c.kicker || "") + '</div>' +
-      '<div style="font-size:54px;font-weight:800">' + (c.title || "") + '</div>' +
-      '<div style="font-size:24px;opacity:.92">' + (c.subtitle || "") + '</div>';
+    o.style.background = c.bg || "linear-gradient(135deg,#0b1220,#1D4ED8)";
+    const visual = c.gif
+      ? '<img class="ov-gif" src="' + c.gif + '">'
+      : (c.emoji ? '<div class="ov-emoji">' + c.emoji + '</div>' : '');
+    o.innerHTML = visual +
+      '<div class="ov-kicker">' + (c.kicker || "") + '</div>' +
+      '<div class="ov-title">' + (c.title || "") + '</div>' +
+      '<div class="ov-sub">' + (c.subtitle || "") + '</div>';
   }, card);
 }
 async function clearOverlay(page) { await page.evaluate(() => { const o = document.getElementById("demo-overlay"); if (o) o.remove(); }); }
