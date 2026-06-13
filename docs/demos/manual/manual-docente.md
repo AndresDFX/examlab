@@ -1,0 +1,185 @@
+# Manual — Docente
+
+Como **Docente** en ExamLab tu trabajo es crear y evaluar: armas cursos, preparas material, generas y aplicas evaluaciones, llevas la asistencia y consolidas las notas. La plataforma pone la **IA a tu servicio** en cada paso — puedes generar evaluaciones y contenido automáticamente, dejar que la IA califique las entregas, detectar fraude y ofrecer un tutor a tus estudiantes. Este manual recorre, módulo por módulo, lo que verás en el menú lateral cuando entras con tu rol Docente.
+
+---
+
+### Panel
+
+Tu pantalla de inicio. Resume de un vistazo lo que tienes pendiente y lo que viene en los próximos días.
+
+- Cuatro indicadores arriba: **Notas pendientes**, **Cola IA**, **Pendientes mi respuesta** y **Sesiones de hoy**.
+- Debajo, dos tarjetas: **Próximas clases** y **Próximos exámenes**. Toca cualquier dato para ir directo al módulo correspondiente.
+
+![Panel](screenshots/docente/01-dashboard.png)
+
+### Calendario
+
+Vista de mes con todos tus eventos: clases, exámenes, entregas de talleres y proyectos.
+
+- Cambia de mes con las flechas y haz clic en un día para ver el detalle de sus eventos.
+- Te sirve para confirmar fechas antes de programar una nueva evaluación o sesión y evitar choques.
+
+![Calendario](screenshots/docente/02-teacher_calendar.png)
+
+### Cron IA
+
+Aquí ves **todo lo que la IA hizo o tiene pendiente** sin salir de una sola pantalla: calificaciones y generaciones de contenido.
+
+- La cola de **calificación** lista las entregas que la IA está evaluando; la de **generación** lista las preguntas/archivos que pediste generar.
+- Si un trabajo queda **pendiente**, puedes procesarlo ahora; si **falló**, puedes reintentarlo. Expande cada fila para ver el detalle del error y copiarlo.
+
+![Cron IA](screenshots/docente/03-teacher_ai_cron.png)
+
+### Prompts de IA por curso
+
+Personaliza **cómo califica y genera la IA en TU curso**, ajustando las instrucciones (prompts) que recibe el modelo.
+
+- Elige el curso y el caso de uso (taller, examen, proyecto). Verás el prompt global de referencia y un campo editable para tu versión del curso.
+- Solo cambias el "rol y criterios" del modelo; los datos dinámicos (rúbrica, respuesta, puntaje) los pone el sistema. **"Volver al global"** elimina tu personalización.
+
+![Prompts de IA por curso](screenshots/docente/04-teacher_ai_prompts.png)
+
+### Banco de preguntas
+
+Tu repositorio de preguntas reutilizables por curso, para no reescribirlas en cada examen.
+
+- Selecciona el curso (el banco vive por curso) y usa **Nueva pregunta** para crearlas. Puedes **duplicar** una pregunta para hacer variantes.
+- Si el selector de curso aparece vacío, pídele al Admin que te asigne a un curso para empezar.
+
+![Banco de preguntas](screenshots/docente/05-teacher_question_bank.png)
+
+### Cursos (y Tablero)
+
+El centro de tu actividad: aquí están tus cursos y, dentro de cada uno, el **Tablero** con las sesiones de clase.
+
+- Abre un curso para ver sus cortes, pesos de evaluación y el tablero de sesiones (clases, material, pizarras y código asociado).
+- Desde aquí gestionas la estructura del curso que alimenta exámenes, talleres, proyectos y calificaciones.
+
+![Cursos (y Tablero)](screenshots/docente/06-teacher_courses.png)
+
+### Contenidos
+
+Sube y organiza el material del curso: documentos, presentaciones, imágenes, PDF, código y notebooks.
+
+- **🤖 Genera material didáctico con IA** a partir de un tema, o sube tus propios archivos y asígnalos a una sesión.
+- Imágenes y PDF se ven **en línea** (las imágenes se pueden anotar); el código y los notebooks `.ipynb` los estudiantes pueden **ejecutar** desde su tablero. Este material también nutre al **Tutor IA** del curso.
+
+![Contenidos](screenshots/docente/07-teacher_contents.png)
+
+### Videos
+
+Biblioteca de videos del curso o globales, para complementar tus clases.
+
+- Agrega videos (por URL) y asígnalos a un curso o déjalos como globales.
+- Para quitar un video usa **Eliminar** (es permanente — los videos no van a la Papelera).
+
+![Videos](screenshots/docente/08-videos.png)
+
+### Exámenes
+
+Crea, aplica y monitorea exámenes en línea con proctoring.
+
+- **🤖 Genera preguntas con IA** al crear el examen, o tómalas del banco. Configura duración, navegación (libre o secuencial), mezcla y máximo de advertencias.
+- Durante el examen tienes **monitor en vivo**; al terminar, la **IA califica automáticamente** y el **análisis antifraude** marca entregas sospechosas. Puedes **duplicar** un examen eligiendo qué copiar.
+
+![Exámenes](screenshots/docente/09-teacher_exams.png)
+
+### Talleres
+
+Actividades evaluables, individuales o **en grupo**, con calificación asistida por IA.
+
+- **🤖 Genera el taller completo o pregunta por pregunta con IA.** Activa "Trabajo en grupo" para que un grupo comparta una sola entrega y nota.
+- Las entregas se **califican con IA** y puedes registrar talleres "externos" (presenciales) solo para anotar notas y observaciones.
+
+![Talleres](screenshots/docente/10-teacher_workshops.png)
+
+### Pizarras
+
+Pizarras digitales (estilo Excalidraw) para diagramar en clase, con librerías de formas predefinidas (flujogramas, UML, estructuras de datos).
+
+- Crea una pizarra y dibuja; el viewport y el contenido se guardan automáticamente.
+- Puedes asociar una pizarra a una sesión y activarla como **compartida en vivo** para que los estudiantes editen contigo en tiempo real.
+
+![Pizarras](screenshots/docente/11-teacher_whiteboards.png)
+
+### Proyectos
+
+Entregas más grandes con **sustentación**, link al repositorio y entrega de código en ZIP.
+
+- **🤖 Genera los archivos/criterios del proyecto con IA.** El estudiante entrega un link `https://...` obligatorio y, si aplica, un ZIP con su código (la **IA lo descomprime y califica**).
+- La nota final = nota de entrega × **factor de sustentación**: tú registras la sustentación en el panel de calificación. Soporta trabajo en grupo y detección de plagio.
+
+![Proyectos](screenshots/docente/12-teacher_projects.png)
+
+### Calificaciones
+
+El consolidado de notas del curso por corte, listo para revisar y exportar.
+
+- Muestra el promedio ponderado por estudiante según los pesos de cada examen, taller, proyecto y la asistencia del corte.
+- Exporta a CSV y registra notas de actividades externas. Recuerda: lo no entregado cuenta como 0 con su peso hasta que aparezca una nota.
+
+![Calificaciones](screenshots/docente/13-teacher_gradebook.png)
+
+### Asistencia
+
+Registra la asistencia de cada sesión, con **check-in por QR rotativo** para que los estudiantes se marquen solos.
+
+- Crea sesiones (o impórtalas por CSV) y abre el **check-in**: proyecta el QR con código y cuenta-regresiva; verás en vivo cuántos van marcando presente.
+- Al cerrar puedes marcar como ausentes a los pendientes. La asistencia de cada corte entra automáticamente a la nota final.
+
+![Asistencia](screenshots/docente/14-teacher_attendance.png)
+
+### Certificaciones
+
+Consulta y gestiona los certificados emitidos a los estudiantes del curso.
+
+- Revisa los certificados generados y su estado.
+- Sirve para verificar a quién se le emitió constancia de un curso o evaluación.
+
+![Certificaciones](screenshots/docente/15-certificates.png)
+
+### Estudiantes
+
+El listado de tus estudiantes con su información de contacto y los cursos en que están matriculados.
+
+- Busca por nombre, correo o código y filtra por curso.
+- Desde las acciones de fila puedes ver el detalle o gestionar el acceso del estudiante (p. ej. restablecer contraseña).
+
+![Estudiantes](screenshots/docente/16-teacher_students.png)
+
+### Informes
+
+Genera informes en PDF a partir de plantillas (globales o tuyas).
+
+- Elige una plantilla, selecciona curso o estudiante y obtén una **vista previa** que puedes **imprimir o guardar como PDF**.
+- Puedes crear plantillas **privadas** o personalizar una global para tu curso.
+
+![Informes](screenshots/docente/17-teacher_reports.png)
+
+### Papelera
+
+Recuperación de elementos eliminados (cursos, exámenes, talleres, proyectos, sesiones, pizarras, contenidos y encuestas).
+
+- Lo que eliminas va aquí por **30 días** antes de borrarse definitivamente; mientras tanto puedes **restaurarlo**.
+- También puedes eliminar de forma permanente. Un elemento en la papelera no aparece en ningún otro flujo hasta restaurarlo.
+
+![Papelera](screenshots/docente/18-trash.png)
+
+### Encuestas
+
+Crea encuestas, votaciones tipo Doodle (slots de horario) y juegos **Kahoot** en vivo para tus clases.
+
+- Define las opciones (o las preguntas del Kahoot), asóciala a un curso o sesión, publícala y comparte el enlace.
+- Revisa los resultados por opción (con nombres de quien votó) y duplica una encuesta para reutilizar su estructura.
+
+![Encuestas](screenshots/docente/19-teacher_polls.png)
+
+### Auditoría
+
+Registro de actividad para revisar qué pasó y cuándo dentro del ámbito de tus cursos.
+
+- Consulta los eventos registrados (creaciones, cambios, acciones) con su fecha.
+- Útil para rastrear una acción puntual o entender un cambio inesperado.
+
+![Auditoría](screenshots/docente/20-teacher_audit_logs.png)
