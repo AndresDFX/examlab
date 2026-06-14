@@ -6,10 +6,12 @@
  *   - Docente: ve los emitidos en cursos donde es teacher (`course_teachers`).
  *   - Admin: ve todos.
  *
- * Acá NO hay filtro `user_id` — la RLS hace el trabajo. Las acciones
- * (download del PDF + copy link de verificación) son las mismas que en
- * la vista estudiante. Revocar quedó como follow-up (requiere RPC
- * dedicada `revoke_certificate(_id, _reason)`).
+ * Acá NO hay filtro `user_id` — la RLS hace el trabajo. Acciones por
+ * fila: descargar PDF, copiar link de verificación, ver pública, y
+ * REVOCAR (solo si el cert no está revocado). La RPC
+ * `revoke_certificate(_id, _reason)` (mig 20260518140000) chequea
+ * autorización (Admin tenant O docente del curso) y notifica al
+ * estudiante automáticamente.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
@@ -43,7 +45,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Award, Download, Copy, ExternalLink } from "lucide-react";
+import { Award, Download, Copy, ExternalLink, Ban } from "lucide-react";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { downloadCertificate, buildVerifyUrl } from "@/modules/certificates/certificate-pdf";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { usePagination } from "@/hooks/use-pagination";
@@ -85,6 +88,7 @@ function CertificatesAdmin() {
   const { t } = useTranslation();
   const { user, roles } = useAuth();
   const activeRole = useActiveRole();
+  const confirm = useConfirm();
   const [items, setItems] = useState<CertificateRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -247,6 +251,54 @@ function CertificatesAdmin() {
   const handleCopyLink = (cert: CertificateRow) => {
     void navigator.clipboard.writeText(buildVerifyUrl(cert.short_code));
     toast.success(i18n.t("toast.routes_app_certificates.verifyLinkCopied", { defaultValue: "Link de verificación copiado" }));
+  };
+
+  /**
+   * Revoca un certificado emitido. La RPC `revoke_certificate(_id, _reason)`
+   * (mig 20260518140000) chequea autorización: Admin del tenant o docente
+   * del curso. Setea `revoked_at = now()`, `revoked_by = auth.uid()`,
+   * `revoke_reason` + notifica al estudiante. La vista pública de
+   * verificación marca el certificado como inválido a partir de ahí.
+   */
+  const handleRevoke = async (cert: CertificateRow) => {
+    const reasonInput = window.prompt(
+      i18n.t("toast.routes_app_certificates.revokeReasonPrompt", {
+        defaultValue:
+          "Motivo de revocación (opcional, se muestra en la página pública):",
+      }),
+      "",
+    );
+    // prompt() retorna null si el user cancela; "" si confirma sin texto.
+    if (reasonInput === null) return;
+    const ok = await confirm({
+      tone: "destructive",
+      title: i18n.t("toast.routes_app_certificates.revokeTitle", {
+        defaultValue: "Revocar certificado",
+      }),
+      description: i18n.t("toast.routes_app_certificates.revokeDescription", {
+        defaultValue:
+          "El certificado quedará marcado como NO VÁLIDO en la verificación pública. El estudiante recibirá una notificación. Esta acción no se puede deshacer desde la UI.",
+      }),
+      confirmLabel: i18n.t("toast.routes_app_certificates.revokeConfirm", {
+        defaultValue: "Revocar",
+      }),
+    });
+    if (!ok) return;
+    const { error } = await db.rpc("revoke_certificate", {
+      _certificate_id: cert.id,
+      _reason: reasonInput.trim() || null,
+    });
+    if (error) {
+      toast.error(friendlyError(error));
+      return;
+    }
+    toast.success(
+      i18n.t("toast.routes_app_certificates.revokedOk", {
+        defaultValue: "Certificado revocado",
+      }),
+    );
+    // Refrescar la lista — bumpear `retryNonce` re-corre el useEffect de load.
+    setRetryNonce((n) => n + 1);
   };
 
   if (!isAdmin && !isDocente) {
@@ -478,6 +530,17 @@ function CertificatesAdmin() {
                               label: t("hc_routesAppCertificates.actionOpenPublicVerify"),
                               icon: ExternalLink,
                               href: buildVerifyUrl(c.short_code),
+                            },
+                            // Revocar: solo si NO está revocado ya.
+                            // La RPC chequea autorización del lado server.
+                            !c.revoked_at && {
+                              label: i18n.t("toast.routes_app_certificates.revokeAction", {
+                                defaultValue: "Revocar",
+                              }),
+                              icon: Ban,
+                              tone: "destructive" as const,
+                              separatorBefore: true,
+                              onClick: () => void handleRevoke(c),
                             },
                           ]}
                         />
