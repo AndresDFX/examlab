@@ -43,6 +43,18 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 Sesión de mejoras amplia (cada ítem = un `/goal` del usuario). Commits sobre `main`.
 
+> **Paralelización (#25):** desde acá los workflows con archivos de código DISJUNTOS
+> corren EN PARALELO usando `t(..., {defaultValue})` (sin editar locales) para no
+> chocar en `es.json`/`en.json`; un pase final consolida las claves. Se corrieron
+> hasta 3 workflows a la vez.
+
+- **Validación fecha fin ≥ fecha inicio** (#10, iguales permitido): helper
+  `isValidDateRange` + aplicado en cortes/curso, exámenes (create+edit), talleres,
+  proyectos, periodos académicos. — `b30101e`
+- **Excel calificaciones: cortes COMBINADOS** (#26): `mergeCells` por corte +
+  columna de asistencia por corte + etiqueta "Corte N (peso%)". — `41f0e37`
+- **Dashboard Admin: diagnóstico de TODOS los cursos del tenant** (#8): stat
+  "Por calificar" clickeable → modal con todos los cursos → CourseDiagnosticDialog. — `567935d`
 - **Export Excel de calificaciones — fila de grupo por corte** (#9): `toXLSX` acepta
   `options.groupHeader` opcional → fila extra arriba del header que mapea cada columna
   de item al nombre de su corte. Sólo Excel (CSV sin cambios). `GradeColumn.cutId`
