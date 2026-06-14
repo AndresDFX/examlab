@@ -838,7 +838,7 @@ function CourseBoardPage() {
         })
         .eq("id", editingId);
       if (error) {
-        toast.error(friendlyUniqueViolation(error) ?? error.message);
+        toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
         return;
       }
       setSessions((prev) =>

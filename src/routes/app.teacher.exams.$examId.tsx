@@ -429,7 +429,7 @@ function ExamEditor() {
       .from("exams")
       .update(payload as any)
       .eq("id", examId);
-    if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
+    if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
     if (courseChanged) {
       // Limpia asignaciones del curso anterior y re-asigna todos los
       // matriculados del nuevo curso. Idempotente: si vuelves a guardar
@@ -554,7 +554,7 @@ function ExamEditor() {
           ...(starterUpdate ?? {}),
         })
         .eq("id", editingId);
-      if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
+      if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
       toast.success(
         i18n.t("toast.routes_app_teacher_exams_examId.questionUpdated", {
           defaultValue: "Pregunta actualizada correctamente",
@@ -582,7 +582,7 @@ function ExamEditor() {
                 ? getStarterCode(language) || null
                 : null,
       });
-      if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
+      if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
       toast.success(
         i18n.t("toast.routes_app_teacher_exams_examId.questionAdded", {
           defaultValue: "Pregunta agregada correctamente",
@@ -624,7 +624,7 @@ function ExamEditor() {
     });
     if (!ok) return;
     const { error } = await supabase.from("questions").delete().eq("id", id);
-    if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
+    if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
     load();
   };
 
@@ -756,7 +756,7 @@ function ExamEditor() {
       const { error } = await supabase
         .from("exam_assignments")
         .insert({ exam_id: examId, user_id: uid });
-      if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
+      if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
       await supabase.from("notifications").insert({
         user_id: uid,
         title: "Examen asignado",
@@ -776,7 +776,7 @@ function ExamEditor() {
         .delete()
         .eq("exam_id", examId)
         .eq("user_id", uid);
-      if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
+      if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
       const ns = new Set(assigned);
       ns.delete(uid);
       setAssigned(ns);
@@ -794,7 +794,7 @@ function ExamEditor() {
     const { error } = await supabase
       .from("exam_assignments")
       .insert(toAdd.map((id) => ({ exam_id: examId, user_id: id })));
-    if (error) return toast.error(friendlyUniqueViolation(error) ?? error.message);
+    if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
     for (const id of toAdd) {
       await supabase.from("notifications").insert({
         user_id: id,
