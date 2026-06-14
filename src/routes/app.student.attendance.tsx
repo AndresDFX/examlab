@@ -67,12 +67,12 @@ import i18n from "@/i18n";
 const db = supabase as any;
 
 const CHECK_IN_ERROR_MESSAGES: Record<string, string> = {
-  no_auth: "Necesitas iniciar sesión.",
-  session_not_found: "La sesión ya no existe.",
-  check_in_closed: "El check-in está cerrado o expiró.",
-  not_enrolled: "No estás matriculado en este curso.",
-  invalid_code: "Código inválido. Pídele al docente el actual.",
-  unauthorized: "No tienes permiso.",
+  no_auth: "studentAttendance.errNoAuth",
+  session_not_found: "studentAttendance.errSessionNotFound",
+  check_in_closed: "studentAttendance.errClosed",
+  not_enrolled: "studentAttendance.errNotEnrolled",
+  invalid_code: "studentAttendance.errInvalidCode",
+  unauthorized: "studentAttendance.errUnauthorized",
 };
 
 export const Route = createFileRoute("/app/student/attendance")({
@@ -115,31 +115,31 @@ function statusMeta(status: string | null | undefined) {
   switch (status) {
     case "presente":
       return {
-        label: "Presente",
+        label: i18n.t("studentAttendance.statusPresent"),
         icon: CheckCircle2,
         className: "bg-success/10 text-success border-success/30",
       };
     case "ausente":
       return {
-        label: "Ausente",
+        label: i18n.t("studentAttendance.statusAbsent"),
         icon: X,
         className: "bg-destructive/10 text-destructive border-destructive/30",
       };
     case "tardanza":
       return {
-        label: "Tardanza",
+        label: i18n.t("studentAttendance.statusLate"),
         icon: CheckCircle2,
         className: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
       };
     case "justificado":
       return {
-        label: "Justificado",
+        label: i18n.t("studentAttendance.statusJustified"),
         icon: CheckCircle2,
         className: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30",
       };
     default:
       return {
-        label: "Sin registro",
+        label: i18n.t("studentAttendance.statusNone"),
         icon: null,
         className: "bg-muted text-muted-foreground",
       };
@@ -409,7 +409,7 @@ function StudentAttendance() {
         }
         const result = data as { ok: boolean; error?: string };
         if (!result?.ok) {
-          toast.error(CHECK_IN_ERROR_MESSAGES[result?.error ?? ""] ?? result?.error ?? "Error");
+          { const _k = CHECK_IN_ERROR_MESSAGES[result?.error ?? ""]; toast.error(_k ? t(_k) : (result?.error ?? t("studentAttendance.errGeneric"))); }
           return false;
         }
         toast.success(
@@ -479,7 +479,7 @@ function StudentAttendance() {
   }, [sessions, recordBySession]);
 
   if (!user) {
-    return <p className="text-muted-foreground p-6">Inicia sesión para ver tu asistencia.</p>;
+    return <p className="text-muted-foreground p-6">{t("studentAttendance.loginRequired")}</p>;
   }
 
   if (loadError) {
@@ -512,7 +512,7 @@ function StudentAttendance() {
                 onValueChange={(v) => setSelectedCourseId(v)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un curso" />
+                  <SelectValue placeholder={t("studentAttendance.selectCourse")} />
                 </SelectTrigger>
                 <SelectContent>
                   {courses.map((c) => (
@@ -539,7 +539,7 @@ function StudentAttendance() {
           </CardHeader>
           <CardContent className="pt-0 space-y-3">
             <p className="text-xs text-muted-foreground">
-              Tu docente abrió la asistencia. Escanea el QR proyectado o escribe el código.
+              {t("studentAttendance.checkInOpenHint")}
             </p>
             <div className="space-y-2">
               {openSessions.map((s) => (
@@ -557,7 +557,7 @@ function StudentAttendance() {
                   <div className="flex items-center gap-1.5">
                     <Button size="sm" onClick={() => setScannerOpen(true)}>
                       <QrCode className="h-4 w-4 mr-1" />
-                      Escanear QR
+                      {t("studentAttendance.scanQr")}
                     </Button>
                     <Button
                       size="sm"
@@ -599,7 +599,7 @@ function StudentAttendance() {
             </Card>
             <Card>
               <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground">Presentes</div>
+                <div className="text-xs text-muted-foreground">{t("studentAttendance.presentCount")}</div>
                 <div className="text-2xl font-semibold tabular-nums text-success">
                   {stats.presente}
                 </div>
@@ -628,7 +628,7 @@ function StudentAttendance() {
 
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-base">Detalle por sesión</CardTitle>
+              <CardTitle className="text-base">{t("studentAttendance.detailBySession")}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {loadingData && (
@@ -639,7 +639,7 @@ function StudentAttendance() {
               )}
               {!loadingData && sessions.length === 0 && (
                 <p className="text-sm text-muted-foreground p-6 text-center">
-                  No hay sesiones de asistencia registradas en este curso.
+                  {t("studentAttendance.noSessions")}
                 </p>
               )}
               {!loadingData && sessions.length > 0 && (
@@ -648,10 +648,10 @@ function StudentAttendance() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Fecha</TableHead>
-                        <TableHead>Sesión</TableHead>
+                        <TableHead>{t("studentAttendance.colSession")}</TableHead>
                         <TableHead>Estado</TableHead>
-                        <TableHead>Grabación</TableHead>
-                        <TableHead>Nota del docente</TableHead>
+                        <TableHead>{t("studentAttendance.colRecording")}</TableHead>
+                        <TableHead>{t("studentAttendance.colTeacherNote")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -757,7 +757,7 @@ function StudentAttendance() {
                                     }
                                   >
                                     <Code2 className="h-3 w-3 mr-1" />
-                                    Código
+                                    {t("studentAttendance.btnCode")}
                                   </Button>
                                 )}
                                 {/* Pizarra compartida — solo cuando el
@@ -777,7 +777,7 @@ function StudentAttendance() {
                                     }
                                   >
                                     <Palette className="h-3 w-3 mr-1" />
-                                    Pizarra
+                                    {t("studentAttendance.btnWhiteboard")}
                                   </Button>
                                 )}
                                 {!video &&
@@ -812,7 +812,7 @@ function StudentAttendance() {
 
       {/* Scanner dialog */}
       {scannerOpen && (
-        <CheckInDialog title="Escanear QR" onClose={() => setScannerOpen(false)}>
+        <CheckInDialog title={t("studentAttendance.scanQr")} onClose={() => setScannerOpen(false)}>
           <AttendanceQRScanner
             onClose={() => setScannerOpen(false)}
             onDetected={async ({ sessionId, code }) => {
@@ -828,10 +828,10 @@ function StudentAttendance() {
 
       {/* Manual code dialog */}
       {manualOpen && (
-        <CheckInDialog title="Ingresar código manual" onClose={() => setManualOpen(null)}>
+        <CheckInDialog title={t("studentAttendance.enterCodeManual")} onClose={() => setManualOpen(null)}>
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Pídele al docente el código de 6 dígitos que aparece bajo el QR.
+              {t("studentAttendance.manualHint")}
             </p>
             <Input
               autoFocus
@@ -867,7 +867,7 @@ function StudentAttendance() {
                 ) : (
                   <CheckCircle2 className="h-4 w-4 mr-1" />
                 )}
-                Marcar presente
+                {t("studentAttendance.markPresent")}
               </Button>
             </div>
           </div>
@@ -880,7 +880,7 @@ function StudentAttendance() {
       <Dialog open={!!recordingDialog} onOpenChange={(o) => !o && setRecordingDialog(null)}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Grabación · {recordingDialog?.sessionTitle}</DialogTitle>
+            <DialogTitle>{t("studentAttendance.recordingTitle", { title: recordingDialog?.sessionTitle })}</DialogTitle>
           </DialogHeader>
           {recordingDialog && (
             <div className="space-y-2">
