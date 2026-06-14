@@ -78,6 +78,7 @@ interface Forum {
   session?: {
     title: string | null;
     session_date: string;
+    deleted_at: string | null;
   } | null;
 }
 
@@ -140,7 +141,7 @@ function ForumThreads() {
       db
         .from("forums")
         .select(
-          "id, course_id, title, description, opens_at, closes_at, manually_closed_at, session:attendance_sessions(title, session_date)",
+          "id, course_id, title, description, opens_at, closes_at, manually_closed_at, session:attendance_sessions(title, session_date, deleted_at)",
         )
         .eq("id", forumId)
         .maybeSingle(),
@@ -279,7 +280,7 @@ function ForumThreads() {
                   : t("forumThreads.statusClosed")}
             </Badge>
           )}
-          {forum.session && (
+          {forum.session && !forum.session.deleted_at && (
             <Badge variant="secondary" className="text-[10px]">
               <CalendarClock className="h-2.5 w-2.5 mr-0.5" />
               {i18n.t("forum.sessionBadge", { date: formatDate(forum.session.session_date) })}

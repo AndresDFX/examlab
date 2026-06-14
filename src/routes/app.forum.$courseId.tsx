@@ -81,6 +81,7 @@ interface Forum {
   session?: {
     title: string | null;
     session_date: string;
+    deleted_at: string | null;
   } | null;
 }
 
@@ -157,17 +158,20 @@ function ForumsList() {
       db
         .from("forums")
         .select(
-          "id, course_id, session_id, title, description, opens_at, closes_at, manually_closed_at, created_at, session:attendance_sessions(title, session_date)",
+          "id, course_id, session_id, title, description, opens_at, closes_at, manually_closed_at, created_at, session:attendance_sessions(title, session_date, deleted_at)",
         )
         .eq("course_id", courseId)
         .order("created_at", { ascending: false }),
       // Sesiones para el selector de "asociar a sesión" (solo si docente).
       // No filtramos por fecha — el docente puede asociar a una sesión
-      // pasada para reabrir discusión sobre esa clase.
+      // pasada para reabrir discusión sobre esa clase. Sí excluimos las que
+      // están en PAPELERA (deleted_at): una sesión borrada no debe aparecer
+      // en el picker ni asociarse a un foro.
       db
         .from("attendance_sessions")
         .select("id, title, session_date")
         .eq("course_id", courseId)
+        .is("deleted_at", null)
         .order("session_date", { ascending: false })
         .limit(60),
     ]);
@@ -555,7 +559,7 @@ function ForumRow({
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-semibold text-sm truncate">{forum.title}</h3>
               <ForumStateBadge state={state} />
-              {forum.session && (
+              {forum.session && !forum.session.deleted_at && (
                 <Badge variant="secondary" className="text-[10px]">
                   <CalendarClock className="h-2.5 w-2.5 mr-0.5" />
                   {i18n.t("forum.sessionBadge", { date: formatDate(forum.session.session_date) })}
