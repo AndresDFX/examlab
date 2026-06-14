@@ -60,7 +60,9 @@ import {
   LogIn,
   Copy,
   KeyRound,
+  Mail,
 } from "lucide-react";
+import { TenantEmailSettingsDialog } from "@/modules/superadmin/TenantEmailSettingsDialog";
 import { startImpersonate } from "@/modules/admin/impersonation";
 import { AssignUsersToTenantDialog } from "@/modules/superadmin/AssignUsersToTenantDialog";
 import { isValidTenantSlug, slugifyTenantName } from "@/modules/tenants/tenant";
@@ -129,6 +131,7 @@ function SuperAdminTenantsPage() {
    *  usuarios pertenecen a este tenant (marca para agregar, desmarca
    *  para quitar). tenant=null = cerrado. */
   const [assignUsersTenant, setAssignUsersTenant] = useState<Tenant | null>(null);
+  const [emailTenant, setEmailTenant] = useState<Tenant | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -828,6 +831,17 @@ function SuperAdminTenantsPage() {
                             onClick: () => setAssignUsersTenant(t),
                           },
                           {
+                            label: tl("superadminTenants.actionEmail", {
+                              defaultValue: "Configurar correo",
+                            }),
+                            icon: Mail,
+                            onClick: () => setEmailTenant(t),
+                            hint: tl("superadminTenants.actionEmailHint", {
+                              defaultValue:
+                                "SMTP propio de la institución (host, usuario, remitente). Si no, usa el global.",
+                            }),
+                          },
+                          {
                             label: tl("superadminTenants.actionViewAs"),
                             icon: Eye,
                             onClick: () => viewAs(t),
@@ -1135,6 +1149,17 @@ function SuperAdminTenantsPage() {
         tenants={tenants}
         onAssigned={() => void load()}
       />
+
+      {emailTenant && (
+        <TenantEmailSettingsDialog
+          open={emailTenant !== null}
+          onOpenChange={(o) => {
+            if (!o) setEmailTenant(null);
+          }}
+          tenantId={emailTenant.id}
+          tenantName={emailTenant.name}
+        />
+      )}
 
       {/* Credenciales del usuario de prueba — se muestran UNA SOLA VEZ
           tras crear una institución. La password no se persiste en

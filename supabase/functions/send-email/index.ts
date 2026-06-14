@@ -343,7 +343,7 @@ Deno.serve(async (req: Request) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: profile } = await (adminClient as any)
     .from("profiles")
-    .select("full_name, institutional_email, personal_email")
+    .select("full_name, institutional_email, personal_email, tenant_id")
     .eq("id", row.user_id)
     .maybeSingle();
 
@@ -385,14 +385,44 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ ok: true, sent: false, reason: decision.reason });
   }
 
-  // 3) Configuración SMTP. Si falta cualquier secret, no podemos enviar.
-  const host = Deno.env.get("SMTP_HOST");
-  const portRaw = Deno.env.get("SMTP_PORT");
-  const user = Deno.env.get("SMTP_USER");
-  const password = Deno.env.get("SMTP_PASSWORD");
-  const from = Deno.env.get("EMAIL_FROM");
-  const fromName = Deno.env.get("EMAIL_FROM_NAME") ?? "ExamLab";
+  // 3) Configuración SMTP. Por defecto el SMTP GLOBAL (env). Si el tenant del
+  // DESTINATARIO tiene config propia (tenant_email_settings.use_custom_smtp con
+  // credenciales completas), la usamos en su lugar — así cada institución
+  // manda con su propia cuenta y no comparte el throttle del SMTP global.
+  let host = Deno.env.get("SMTP_HOST");
+  let portRaw = Deno.env.get("SMTP_PORT");
+  let user = Deno.env.get("SMTP_USER");
+  let password = Deno.env.get("SMTP_PASSWORD");
+  let from = Deno.env.get("EMAIL_FROM");
+  let fromName = Deno.env.get("EMAIL_FROM_NAME") ?? "ExamLab";
   const appUrl = Deno.env.get("APP_PUBLIC_URL") ?? "";
+  let smtpSource = "global";
+
+  const tenantId: string | null = profile?.tenant_id ?? null;
+  if (tenantId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: tes } = await (adminClient as any)
+      .from("tenant_email_settings")
+      .select("use_custom_smtp, smtp_host, smtp_port, smtp_user, smtp_password, email_from, email_from_name")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (
+      tes?.use_custom_smtp &&
+      tes.smtp_host &&
+      tes.smtp_port &&
+      tes.smtp_user &&
+      tes.smtp_password &&
+      tes.email_from
+    ) {
+      host = tes.smtp_host;
+      portRaw = String(tes.smtp_port);
+      user = tes.smtp_user;
+      password = tes.smtp_password;
+      from = tes.email_from;
+      fromName = tes.email_from_name || fromName;
+      smtpSource = "tenant";
+    }
+  }
 
   if (!host || !portRaw || !user || !password || !from) {
     await markSkipped(notificationId, "no_settings");
@@ -510,6 +540,7 @@ Deno.serve(async (req: Request) => {
     await auditEmail(notificationId, "email.delivered", "info", {
       smtp_host: host,
       smtp_port: port,
+      smtp_source: smtpSource,
       smtp_ms: Date.now() - smtpStartMs,
       sender: `${fromName} <${from}>`,
       recipients_count: recipients.length,
@@ -528,6 +559,7 @@ Deno.serve(async (req: Request) => {
       error: truncated,
       smtp_host: host,
       smtp_port: port,
+      smtp_source: smtpSource,
       smtp_ms: Date.now() - smtpStartMs,
     });
     return jsonError(`SMTP send failed: ${truncated}`, 500);
