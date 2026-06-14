@@ -18,8 +18,10 @@ Es tu pantalla de inicio: un resumen accionable del estado de la institución. T
 
 Centraliza el seguimiento de todo el trabajo que la **IA** hace en segundo plano: calificación automática y generación de evaluaciones/contenido.
 
-- En la pestaña **Jobs** ves la cola de calificación y de generación con su estado (pendiente, en proceso, fallado, listo).
+- En la pestaña **Jobs** ves la cola de calificación y de generación con su estado (pendiente, en proceso, fallado, listo). Los jobs en proceso muestran **cuánto llevan procesándose** y se marcan en ámbar si quedan atascados.
 - Expande una fila para ver el detalle y el error completo si algo falló; puedes **Reintentar**, **Procesar ahora** o **Cancelar** un job.
+- **Procesar todos** drena la cola procesando los jobs **uno a uno**; si quedan pendientes, **reintenta automáticamente hasta 3 veces** y solo entonces te avisa que esperes unos minutos y lo vuelvas a pulsar.
+- Con selección múltiple, **Volver a la cola** devuelve los jobs marcados a pendiente para reintentarlos (no los borra) y **Eliminar** los quita definitivamente. **Liberar atascados** rescata de un clic los jobs colgados "en proceso".
 - Útil cuando un docente reporta que "la IA no calificó": acá confirmas si quedó encolado y lo reprocesas.
 
 ![Cron IA (cola de IA)](screenshots/administrador/02-admin_ai_cron.png)
@@ -51,6 +53,7 @@ Es el corazón de la operación académica: aquí se crean los cursos y se defin
 - Crea un curso, asígnale docentes y matricula estudiantes.
 - Define los **cortes** y cómo se reparte la nota final (exámenes, talleres, proyectos y asistencia por corte).
 - Usa el buscador, el orden por columna y las acciones de fila (gestionar, duplicar, eliminar) para administrar muchos cursos con orden.
+- **Diagnóstico del curso**: un escaneo del estado del curso en pestañas (Calificaciones, Errores IA, Conversaciones, Asistencia). En Calificaciones ves la matriz estudiante × actividad con lo accionable resaltado: entregas **sin calificar**, **errores de IA** y proyectos que **faltan sustentación**. El botón **Calificar todos con IA** encola de una sola vez todas las entregas pendientes.
 
 ![Cursos](screenshots/administrador/05-admin_courses.png)
 
@@ -110,7 +113,7 @@ Libro de notas consolidado por curso y por corte, con todo lo que pesa en la not
 
 - Revisa el consolidado por estudiante y corte, incluyendo exámenes, talleres, proyectos y asistencia según los pesos del curso.
 - Registra notas de actividades externas con observaciones por estudiante.
-- Exporta el gradebook a CSV cuando necesites entregar reportes oficiales.
+- Exporta el gradebook a **CSV o Excel (.xlsx)** cuando necesites entregar reportes oficiales.
 
 ![Calificaciones](screenshots/administrador/11-teacher_gradebook.png)
 
@@ -220,6 +223,7 @@ Registro de actividad de la institución: quién hizo qué y cuándo, para traza
 
 - Filtra y busca eventos por tipo, severidad o fecha.
 - Útil para investigar incidencias (por ejemplo, errores de importación o cambios de configuración).
+- Exporta los eventos filtrados a **CSV o Excel (.xlsx)** para análisis externo.
 - La retención de estos registros se ajusta desde Configuración → Auditoría.
 
 ![Auditoría](screenshots/administrador/20-admin_audit_logs.png)

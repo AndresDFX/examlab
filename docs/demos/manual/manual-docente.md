@@ -28,8 +28,9 @@ Vista de mes con todos tus eventos: clases, exámenes, entregas de talleres y pr
 
 Aquí ves **todo lo que la IA hizo o tiene pendiente** sin salir de una sola pantalla: calificaciones y generaciones de contenido.
 
-- La cola de **calificación** lista las entregas que la IA está evaluando; la de **generación** lista las preguntas/archivos que pediste generar.
+- La cola de **calificación** lista las entregas que la IA está evaluando; la de **generación** lista las preguntas/archivos que pediste generar. Los trabajos en proceso muestran **cuánto llevan** y se marcan en ámbar si quedan atascados.
 - Si un trabajo queda **pendiente**, puedes procesarlo ahora; si **falló**, puedes reintentarlo. Expande cada fila para ver el detalle del error y copiarlo.
+- **Procesar todos** drena la cola uno a uno y **reintenta automáticamente hasta 3 veces** los que queden; solo entonces te pide esperar y reintentar. Con selección múltiple, **Volver a la cola** los devuelve a pendiente (sin borrarlos) y **Eliminar** los quita.
 
 ![Cron IA](screenshots/docente/03-teacher_ai_cron.png)
 
@@ -57,6 +58,7 @@ El centro de tu actividad: aquí están tus cursos y, dentro de cada uno, el **T
 
 - Abre un curso para ver sus cortes, pesos de evaluación y el tablero de sesiones (clases, material, pizarras y código asociado).
 - Desde aquí gestionas la estructura del curso que alimenta exámenes, talleres, proyectos y calificaciones.
+- **Diagnóstico del curso**: un vistazo del estado del curso en pestañas (Calificaciones, Errores IA, Conversaciones, Asistencia). En Calificaciones ves la matriz estudiante × actividad con lo accionable resaltado: entregas **sin calificar**, **errores de IA** y proyectos que **faltan sustentación**. El botón **Calificar todos con IA** encola de una vez todas las entregas pendientes.
 - **Foros del curso**: dentro de cada curso puedes abrir **foros de discusión** con ventana de fechas (apertura/cierre) para que los estudiantes participen en hilos asincrónicos. Tú moderas, fijas o cierras hilos cuando corresponda.
 
 ![Cursos (y Tablero)](screenshots/docente/06-teacher_courses.png)
@@ -122,7 +124,7 @@ Entregas más grandes con **sustentación**, link al repositorio y entrega de c�
 El consolidado de notas del curso por corte, listo para revisar y exportar.
 
 - Muestra el promedio ponderado por estudiante según los pesos de cada examen, taller, proyecto y la asistencia del corte.
-- Exporta a CSV y registra notas de actividades externas. Recuerda: lo no entregado cuenta como 0 con su peso hasta que aparezca una nota.
+- Exporta a **CSV o Excel (.xlsx)** y registra notas de actividades externas. Recuerda: lo no entregado cuenta como 0 con su peso hasta que aparezca una nota.
 
 ![Calificaciones](screenshots/docente/13-teacher_gradebook.png)
 
