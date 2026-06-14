@@ -59,7 +59,43 @@
 ## 1. Registrar la aplicación en Azure AD (Microsoft Entra ID)
 
 1. Entra a **[portal.azure.com](https://portal.azure.com)** con una cuenta con permisos sobre el directorio de la institución.
+
+   > **¿Quieres crear la app en TU directorio y no en el de la universidad?**
+   > Si arriba a la derecha ves que estás en un directorio ajeno (ej.
+   > "Unicamacho-academico" / dominio `profesores.uniajc.edu.co`) es porque tu
+   > cuenta entró como invitada a ESE directorio. Para usar el TUYO:
+   > 1. Click en tu avatar (arriba a la derecha) → **Cambiar directorio**
+   >    (*Switch directory*) — o el engranaje ⚙️ → **Directorios +
+   >    suscripciones**.
+   > 2. Elige tu **Directorio predeterminado** (*Default Directory*, el ligado a
+   >    tu cuenta personal), NO el de la universidad.
+   > 3. **¿Solo aparece el de la universidad?** Crea el tuyo: **Microsoft Entra
+   >    ID** → **Administrar inquilinos** (*Manage tenants*) → **Crear** → tipo
+   >    **Microsoft Entra ID** → ponle nombre (ej. "ExamLab Personal"). Luego
+   >    **Cambiar directorio** a ese nuevo.
+   >
+   > Como ExamLab usa el tipo de cuenta **multi-tenant + cuentas personales**
+   > (`common`, ver abajo), da igual en qué directorio vivas la app: cualquier
+   > usuario de cualquier institución podrá entrar. Crearla en tu directorio
+   > propio evita que la universidad sea dueña/administre la app.
+
 2. Ve a **Microsoft Entra ID** (antes "Azure Active Directory") → **App registrations** → **New registration**.
+
+   > **¿No encuentras "App registrations"?** NO la busques escribiendo `app` en
+   > el buscador de arriba — eso muestra "App Services", "App Configuration",
+   > etc., que NO son lo mismo. "App registrations" vive **dentro de Microsoft
+   > Entra ID**, no es un servicio suelto. Dos formas de llegar:
+   > - En el buscador de arriba escribe **`Registros de aplicaciones`** (portal
+   >   en español) o **`App registrations`** (en inglés) y selecciónalo en
+   >   *Servicios*. (Buscar solo `app` no lo lista.)
+   > - O entra a **Microsoft Entra ID** (búscalo como `Entra` o `Microsoft Entra
+   >   ID`) y, en el menú izquierdo, abre **Registros de aplicaciones** →
+   >   **Nuevo registro**.
+   >
+   > Si tu portal está en español los nombres son: **Registros de aplicaciones**
+   > (App registrations), **Nuevo registro** (New registration), **Tipos de
+   > cuenta admitidos** (Supported account types), **URI de redirección**
+   > (Redirect URI), **Certificados y secretos** (Certificates & secrets).
 3. Llena el formulario:
    - **Name:** `ExamLab SSO`
    - **Supported account types:** elige según el alcance institucional:
