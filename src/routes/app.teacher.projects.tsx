@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
+import { cancelPendingAiJobsForTarget } from "@/modules/ai/ai-grading";
 import { useAuth } from "@/hooks/use-auth";
 import { isStaffRole } from "@/shared/lib/roles";
 import { scoreCerradaMulti } from "@/modules/exams/question-scoring";
@@ -1800,6 +1801,14 @@ function TeacherProjects() {
     // para volver a la vista completa de la lista (el docente pidió que el
     // estudiante "se minimice" al guardar y se vean todos de nuevo).
     setOpenAccordionItems((prev) => prev.filter((id) => id !== subId));
+    // Sustentación guardada = calificación final manual → quitar de la cola
+    // cualquier job IA pendiente de esta entrega (y sus archivos). La nota
+    // final ya quedó persistida; fire-and-forget.
+    void cancelPendingAiJobsForTarget(
+      "project_submissions",
+      subId,
+      "Cancelado: el docente registró la sustentación (nota final manual).",
+    );
     toast.success(
       validFactor != null
         ? i18n.t("toast.routes_app_teacher_projects.defenseSaved", {

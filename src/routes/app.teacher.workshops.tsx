@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
+import { cancelPendingAiJobsForTarget } from "@/modules/ai/ai-grading";
 import { useAuth } from "@/hooks/use-auth";
 import { isStaffRole } from "@/shared/lib/roles";
 import { Card, CardContent } from "@/components/ui/card";
@@ -2237,6 +2238,13 @@ function TeacherWorkshops() {
     // Aprobar la nota de IA finaliza la calificación → volver a la lista
     // para pasar al siguiente (mismo criterio que saveGrade).
     setViewingSubId(null);
+    // Entrega finalizada → quitar de la cola cualquier otro job IA pendiente
+    // de esta entrega (p. ej. un re-encolado), redundante tras aprobar.
+    void cancelPendingAiJobsForTarget(
+      "workshop_submissions",
+      subId,
+      "Cancelado: el docente aprobó la calificación; entrega finalizada.",
+    );
   };
 
   const rejectAIGrade = async (subId: string) => {
@@ -2367,6 +2375,14 @@ function TeacherWorkshops() {
     // abierto en el mismo alumno y había que pulsar "volver" a mano. Mismo
     // criterio UX que el colapso del estudiante en proyectos.
     setViewingSubId(null);
+    // El docente calificó MANUALMENTE → quitar de la cola cualquier job IA
+    // pendiente de esta entrega (y sus respuestas), para que la IA no la
+    // re-procese. Fire-and-forget: la nota manual ya quedó guardada.
+    void cancelPendingAiJobsForTarget(
+      "workshop_submissions",
+      subId,
+      "Cancelado: el docente calificó manualmente el taller.",
+    );
 
     // Notificar al estudiante (o a todos los miembros del grupo si la
     // entrega es grupal). El RPC notify_course_students no aplica acá

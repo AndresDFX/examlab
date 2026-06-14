@@ -239,6 +239,44 @@ export async function aiGradeOrEnqueue(req: AiGradeRequest): Promise<AiGradeResu
   return { ranSync: false, jobId };
 }
 
+/**
+ * Cancela los jobs de IA pendientes/processing encolados para una entrega
+ * cuando el docente la califica/gestiona MANUALMENTE — así la IA no la
+ * vuelve a procesar (gasta cupo, pisa estado). Cubre la entrega + sus hijos
+ * (answers de taller / files de proyecto) vía la RPC genérica.
+ *
+ * Fire-and-forget seguro: si falla, el peor caso es que el worker procese un
+ * job stale (escribe `ai_grade`, NO `final_grade`), así que la nota manual
+ * del docente NO se pierde — solo loggeamos el warning.
+ *
+ * @param table  'submissions' | 'workshop_submissions' | 'project_submissions'
+ * @param rowId  id de la entrega
+ * @param reason mensaje opcional para el `last_error` del job cancelado
+ * @returns número de jobs cancelados (0 si no había nada en cola)
+ */
+export async function cancelPendingAiJobsForTarget(
+  table: "submissions" | "workshop_submissions" | "project_submissions",
+  rowId: string,
+  reason?: string,
+): Promise<number> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).rpc("cancel_pending_ai_jobs_by_target", {
+      _target_table: table,
+      _target_row_id: rowId,
+      _reason: reason ?? null,
+    });
+    if (error) {
+      console.warn("[ai-grading] cancel_pending_ai_jobs_by_target falló", error.message);
+      return 0;
+    }
+    return Number(data ?? 0);
+  } catch (e) {
+    console.warn("[ai-grading] cancel_pending_ai_jobs_by_target excepción", e);
+    return 0;
+  }
+}
+
 /** Mensaje placeholder visible al estudiante mientras la IA está encolada. */
 export const PENDING_AI_FEEDBACK = "Pendiente IA — la calificación llegará al procesar la cola.";
 
