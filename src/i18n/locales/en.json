@@ -73,7 +73,8 @@
     "register": "Register",
     "register_action": "Register",
     "clearSelection": "Clear selection",
-    "remove": "Remove"
+    "remove": "Remove",
+    "endDateBeforeStart": "The end date cannot be earlier than the start date."
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -2073,7 +2074,7 @@
       "confirmReopenDesc": "It will return to 'active' status and the close timestamp will be cleared.",
       "confirmReopenLabel": "Reopen",
       "toastCodeRequired": "Code is required",
-      "toastStartBeforeEnd": "Start date must be before end date",
+      "toastStartBeforeEnd": "The end date cannot be earlier than the start date",
       "toastUpdated": "Period updated",
       "toastCreated": "Period created",
       "toastDeleted": "Period deleted",
@@ -2702,7 +2703,8 @@
     },
     "routes_app_admin_courses": {
       "nameRequired": "Name required",
-      "endDateAfterStart": "The end date must be after the start date",
+      "endDateAfterStart": "The end date cannot be earlier than the start date",
+      "cutEndDateBeforeStart": "In the \"{{label}}\" grading cut, the end date cannot be earlier than the start date",
       "courseWeightsMustSum100": "Course weights must add up to 100% (current total: {{total}}%)",
       "cutWeightsMustSum100": "The grading cut weights must add up to 100% (current total: {{total}}%)",
       "subWeightsMismatch": "Sub-weights do not match the cut weight:\n{{details}}",

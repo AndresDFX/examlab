@@ -59,6 +59,7 @@ import { ProjectGroupsEditor } from "@/modules/projects/ProjectGroupsEditor";
 import { toast } from "sonner";
 import { logEvent } from "@/shared/lib/audit";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
+import { isValidDateRange } from "@/shared/lib/date-range";
 import {
   Plus,
   Pencil,
@@ -908,6 +909,13 @@ function TeacherProjects() {
     const primaryCourse =
       form.course_id && linked.includes(form.course_id) ? form.course_id : linked[0];
     const isExternal = !!(form as any).is_external;
+    // Regla cross-form (goal #10): la fecha de entrega (due_date) no puede
+    // ser anterior a la de inicio (start_date); iguales OK. Solo aplica al
+    // proyecto en línea — el externo solo registra la fecha del evento.
+    if (!isExternal && !isValidDateRange(form.start_date, form.due_date)) {
+      toast.error(t("common.endDateBeforeStart"));
+      return;
+    }
     // Patrón "campos desactivados": cuando is_external=true, omitir
     // campos sin sentido (instrucciones, link) del payload para no
     // insertar dummies. `max_files` se omite SIEMPRE — la cantidad real

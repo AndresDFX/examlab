@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
+import { isValidDateRange } from "@/shared/lib/date-range";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -352,6 +353,15 @@ function ExamEditor() {
         ? null
         : Math.max(1, Number(rawAttempts) || 1);
     const isExternal = !!(exam as any).is_external;
+    // Regla cross-form (goal #10): la fecha/hora de fin no puede ser anterior
+    // a la de inicio (iguales OK). Solo aplica al examen en línea — el externo
+    // fuerza end = start (ventana 0s). Espeja la validación del create dialog
+    // en app.teacher.exams.index.tsx; el helper compara por epoch así que
+    // tolera el ISO crudo de la DB vs el datetime-local del picker.
+    if (!isExternal && !isValidDateRange(exam.start_time, exam.end_time)) {
+      toast.error(t("common.endDateBeforeStart"));
+      return;
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const requestedWeight = Math.max(0, Number((exam as any).weight ?? 1) || 0);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -73,7 +73,8 @@
     "register": "Registrar",
     "register_action": "Registrar",
     "clearSelection": "Limpiar selección",
-    "remove": "Quitar"
+    "remove": "Quitar",
+    "endDateBeforeStart": "La fecha de fin no puede ser anterior a la fecha de inicio."
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -2073,7 +2074,7 @@
       "confirmReopenDesc": "Vuelve a estado 'activo' y se limpia la marca de cierre.",
       "confirmReopenLabel": "Reabrir",
       "toastCodeRequired": "El código es obligatorio",
-      "toastStartBeforeEnd": "La fecha de inicio debe ser anterior a la de fin",
+      "toastStartBeforeEnd": "La fecha de fin no puede ser anterior a la de inicio",
       "toastUpdated": "Periodo actualizado",
       "toastCreated": "Periodo creado",
       "toastDeleted": "Periodo eliminado",
@@ -2702,7 +2703,8 @@
     },
     "routes_app_admin_courses": {
       "nameRequired": "Nombre requerido",
-      "endDateAfterStart": "La fecha de fin debe ser posterior a la fecha de inicio",
+      "endDateAfterStart": "La fecha de fin no puede ser anterior a la fecha de inicio",
+      "cutEndDateBeforeStart": "En el corte \"{{label}}\" la fecha de fin no puede ser anterior a la de inicio",
       "courseWeightsMustSum100": "Los pesos del curso deben sumar 100% (suma actual: {{total}}%)",
       "cutWeightsMustSum100": "Los pesos de los cortes deben sumar 100% (suma actual: {{total}}%)",
       "subWeightsMismatch": "Sub-pesos no cuadran con el peso del corte:\n{{details}}",

@@ -58,6 +58,7 @@ import { logEvent } from "@/shared/lib/audit";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
+import { isValidDateRange } from "@/shared/lib/date-range";
 import {
   Plus,
   Pencil,
@@ -862,6 +863,13 @@ function TeacherWorkshops() {
     }
 
     const isExternal = !!(form as any).is_external;
+    // Regla cross-form (goal #10): el plazo (due_date) no puede ser
+    // anterior a "Visible desde" (start_date); iguales OK. Solo aplica al
+    // taller en línea — el externo solo registra la fecha del evento.
+    if (!isExternal && !isValidDateRange((form as any).start_date, form.due_date)) {
+      toast.error(t("common.endDateBeforeStart"));
+      return;
+    }
     const groupMode: string = isExternal
       ? "individual"
       : ((form as any).group_mode ?? "individual");

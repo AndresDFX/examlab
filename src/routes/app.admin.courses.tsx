@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { logEvent } from "@/shared/lib/audit";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
+import { isValidDateRange } from "@/shared/lib/date-range";
 import { toCSV, downloadCSV, parseCSV } from "@/shared/lib/csv";
 import { SESSIONS_TEMPLATE, parseSessionsCsv } from "@/modules/sessions/csv";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
@@ -885,10 +886,10 @@ export function AdminCourses() {
     }
     const startInput = toDateInput(editing.start_date);
     const endInput = toDateInput(editing.end_date);
-    if (startInput && endInput && startInput > endInput) {
+    if (!isValidDateRange(startInput, endInput)) {
       toast.error(
         i18n.t("toast.routes_app_admin_courses.endDateAfterStart", {
-          defaultValue: "La fecha de fin debe ser posterior a la fecha de inicio",
+          defaultValue: "La fecha de fin no puede ser anterior a la fecha de inicio",
         }),
       );
       return;
@@ -915,8 +916,24 @@ export function AdminCourses() {
         return;
       }
     } else {
-      // Con cortes: (a) la suma de cut.weight debe ser 100; (b) en cada
-      // corte, los sub-pesos deben sumar exactamente cut.weight.
+      // Con cortes: (a) la fecha fin de cada corte no puede ser anterior a su
+      // inicio (iguales OK); (b) la suma de cut.weight debe ser 100; (c) en
+      // cada corte, los sub-pesos deben sumar exactamente cut.weight.
+      const badRangeIdx = editingCuts.findIndex(
+        (c) => !isValidDateRange(c.start_date, c.end_date),
+      );
+      if (badRangeIdx >= 0) {
+        const c = editingCuts[badRangeIdx];
+        const label =
+          c.name?.trim() || t("hc_routesAppAdminCourses.cutDefaultName", { n: badRangeIdx + 1 });
+        toast.error(
+          i18n.t("toast.routes_app_admin_courses.cutEndDateBeforeStart", {
+            defaultValue: 'En el corte "{{label}}" la fecha de fin no puede ser anterior a la de inicio',
+            label,
+          }),
+        );
+        return;
+      }
       const sumCuts = editingCuts.reduce((a, c) => a + Number(c.weight || 0), 0);
       if (Math.abs(sumCuts - 100) >= TOL) {
         toast.error(

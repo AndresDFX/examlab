@@ -51,6 +51,7 @@ import { toast } from "sonner";
 import { CalendarRange, Plus, Pencil, Trash2, Lock, Unlock, Copy } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { isValidDateRange } from "@/shared/lib/date-range";
 import { logEvent } from "@/shared/lib/audit";
 import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
@@ -168,7 +169,10 @@ export function AdminAcademicPeriodsPanel() {
       toast.error(i18n.t("academic.periods.toastCodeRequired"));
       return;
     }
-    if (draft.start_date && draft.end_date && draft.start_date > draft.end_date) {
+    // Regla cross-form (goal #10): la fecha de fin no puede ser anterior a la
+    // de inicio (iguales OK). Ambos son YYYY-MM-DD del DatePicker → mismo
+    // espacio; el helper compara por epoch.
+    if (!isValidDateRange(draft.start_date, draft.end_date)) {
       toast.error(i18n.t("academic.periods.toastStartBeforeEnd"));
       return;
     }

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
+import { isValidDateRange } from "@/shared/lib/date-range";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
@@ -411,6 +412,13 @@ function TeacherExams() {
           defaultValue: "Indica la fecha de la actividad",
         }),
       );
+      return;
+    }
+    // Regla cross-form (goal #10): la fecha/hora de fin no puede ser
+    // anterior a la de inicio (iguales OK). Solo aplica al examen en
+    // línea — el externo no tiene ventana de fin (end = start).
+    if (!isExternal && !isValidDateRange(form.start_time, form.end_time)) {
+      toast.error(t("common.endDateBeforeStart"));
       return;
     }
     const courseIds = [...selectedCourseIds];
