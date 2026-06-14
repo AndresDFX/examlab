@@ -325,6 +325,8 @@ type ScheduledItem = {
   id: string;
   title: string;
   due: string;
+  /** Sesión asociada por el docente (attendance_session_id). null = General. */
+  sessionId: string | null;
 };
 
 /** Destino de la subida: material general del curso o una sesión (clase). */
@@ -448,19 +450,19 @@ function CourseBoardPage() {
           .is("deleted_at", null)
           .or(`course_id.eq.${courseId},course_id.is.null`),
         db.from("content_course_assignments").select("content_id").eq("course_id", courseId),
-        supabase
+        (supabase as any)
           .from("exams")
-          .select("id, title, end_time")
+          .select("id, title, end_time, attendance_session_id")
           .eq("course_id", courseId)
           .is("deleted_at", null),
-        supabase
+        (supabase as any)
           .from("workshops")
-          .select("id, title, due_date")
+          .select("id, title, due_date, attendance_session_id")
           .eq("course_id", courseId)
           .is("deleted_at", null),
-        supabase
+        (supabase as any)
           .from("projects")
-          .select("id, title, due_date")
+          .select("id, title, due_date, attendance_session_id")
           .eq("course_id", courseId)
           .is("deleted_at", null),
       ]);
@@ -511,15 +513,33 @@ function CourseBoardPage() {
       const items: ScheduledItem[] = [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const e of (examsRes.data ?? []) as any[]) {
-        if (e.end_time) items.push({ kind: "exam", id: e.id, title: e.title, due: e.end_time });
+        items.push({
+          kind: "exam",
+          id: e.id,
+          title: e.title,
+          due: e.end_time ?? "",
+          sessionId: e.attendance_session_id ?? null,
+        });
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const w of (wsRes.data ?? []) as any[]) {
-        if (w.due_date) items.push({ kind: "workshop", id: w.id, title: w.title, due: w.due_date });
+        items.push({
+          kind: "workshop",
+          id: w.id,
+          title: w.title,
+          due: w.due_date ?? "",
+          sessionId: w.attendance_session_id ?? null,
+        });
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const p of (projRes.data ?? []) as any[]) {
-        if (p.due_date) items.push({ kind: "project", id: p.id, title: p.title, due: p.due_date });
+        items.push({
+          kind: "project",
+          id: p.id,
+          title: p.title,
+          due: p.due_date ?? "",
+          sessionId: p.attendance_session_id ?? null,
+        });
       }
       setScheduled(items);
       setLoading(false);
@@ -530,15 +550,16 @@ function CourseBoardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId, reloadNonce]);
 
-  /** Items vinculados a una sesión: dentro de ±3 días de la fecha.
-   *  Misma heurística que el tablero del estudiante. */
-  const itemsForSession = (s: SessionRow): ScheduledItem[] => {
-    const sessTs = new Date(s.session_date + "T12:00:00").getTime();
-    return scheduled.filter((it) => {
-      const dueTs = new Date(it.due).getTime();
-      return Math.abs(dueTs - sessTs) <= 3 * 24 * 60 * 60 * 1000;
-    });
-  };
+  /** Items asociados EXPLÍCITAMENTE por el docente a esta sesión. */
+  const itemsForSession = (s: SessionRow): ScheduledItem[] =>
+    scheduled.filter((it) => it.sessionId === s.id);
+
+  /** Items del curso SIN sesión asociada (o cuya sesión ya no existe) →
+   *  sección "General del curso". */
+  const generalScheduled = (() => {
+    const ids = new Set(sessions.map((s) => s.id));
+    return scheduled.filter((it) => !it.sessionId || !ids.has(it.sessionId));
+  })();
 
   const uploadToasts = (res: BoardUploadResult) => {
     if (res.error) {
@@ -1443,6 +1464,37 @@ function CourseBoardPage() {
             );
           })}
         </div>
+      )}
+
+      {/* Actividades GENERALES del curso — sin sesión asociada. Aparecen aquí
+          (y en "Actividades generales" del tablero del estudiante) para que no
+          queden escondidas. */}
+      {generalScheduled.length > 0 && (
+        <Card>
+          <CardContent className="p-4 space-y-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t("courseBoard.generalActivities", { defaultValue: "Actividades generales" })}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {generalScheduled.map((it) => (
+                <Badge
+                  key={`${it.kind}-${it.id}`}
+                  variant="outline"
+                  className="text-[10px] flex items-center gap-1"
+                >
+                  {it.kind === "exam" ? (
+                    <FileText className="h-3 w-3" />
+                  ) : it.kind === "workshop" ? (
+                    <Hammer className="h-3 w-3" />
+                  ) : (
+                    <FolderKanban className="h-3 w-3" />
+                  )}
+                  {it.title}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Dialog de subida con DESTINO: general del curso o clase específica. */}
