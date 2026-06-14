@@ -491,26 +491,55 @@ export function AdminCourses() {
   const canManage = isAdmin || isTeacher;
 
   const load = async () => {
+    // Docente actuando como tal (ROL ACTIVO = Docente): ve SOLO los cursos
+    // donde es docente (course_teachers). Un Admin/SuperAdmin —o un usuario
+    // multi-rol que cambió el switcher a Admin— ve todos los de su tenant via
+    // RLS. La RLS de `courses` deja ver todo el tenant (para matrícula/gestión),
+    // así que el scoping del docente es un filtro de UI por ROL ACTIVO (mismo
+    // patrón que el resto de páginas compartidas Admin/Docente). Reporte:
+    // "como docente veo cursos de los que no soy docente".
+    let teacherCourseIds: string[] | null = null;
+    if (activeRole === "Docente" && !isSuperAdminCaller && user) {
+      const { data: ctRows } = await supabase
+        .from("course_teachers")
+        .select("course_id")
+        .eq("user_id", user.id);
+      teacherCourseIds = [
+        ...new Set(((ctRows ?? []) as Array<{ course_id: string }>).map((r) => r.course_id)),
+      ];
+    }
+
     // SuperAdmin con filtro de institución activo: aplicamos
     // `.eq('tenant_id', X)` a la query principal. Para Admin normal el
     // filtro no se renderiza (solo ve su tenant via RLS), así que
     // tenantFilter queda en 'all' y la query no se restringe.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let q: any = supabase
-      .from("courses")
-      .select("*")
-      // Excluir cursos en papelera. Visibles desde /app/trash hasta
-      // que el cron de purga (30 días) los borre físicamente.
-      .is("deleted_at", null)
-      .order("period", { ascending: false, nullsFirst: false })
-      .order("name");
-    if (isSuperAdminCaller && tenantFilter !== "all") {
-      q = q.eq("tenant_id", tenantFilter);
-    }
-    const { data, error } = await q;
-    if (error) {
-      setLoadError(friendlyError(error, t("hc_routesAppAdminCourses.loadErrorMessage")));
-      return;
+    let data: any[] = [];
+    // Docente sin cursos asignados → lista vacía SIN pegarle a `courses`
+    // (un `.in("id", [])` en PostgREST devuelve TODOS los rows, no ninguno).
+    if (!(teacherCourseIds && teacherCourseIds.length === 0)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q: any = supabase
+        .from("courses")
+        .select("*")
+        // Excluir cursos en papelera. Visibles desde /app/trash hasta
+        // que el cron de purga (30 días) los borre físicamente.
+        .is("deleted_at", null)
+        .order("period", { ascending: false, nullsFirst: false })
+        .order("name");
+      if (isSuperAdminCaller && tenantFilter !== "all") {
+        q = q.eq("tenant_id", tenantFilter);
+      }
+      // Scoping del docente: solo sus cursos.
+      if (teacherCourseIds && teacherCourseIds.length > 0) {
+        q = q.in("id", teacherCourseIds);
+      }
+      const res = await q;
+      if (res.error) {
+        setLoadError(friendlyError(res.error, t("hc_routesAppAdminCourses.loadErrorMessage")));
+        return;
+      }
+      data = res.data ?? [];
     }
     setLoadError(null);
     // Cargar programas activos (best-effort — si falla, el dropdown
@@ -650,9 +679,11 @@ export function AdminCourses() {
     // SuperAdmin: recargamos cuando cambia el filtro de institución para
     // aplicar `.eq('tenant_id', X)` a la query principal. Para Admin
     // normal tenantFilter queda en 'all' permanente y este effect corre
-    // solo al montar.
+    // solo al montar. `activeRole` en deps: si el usuario multi-rol cambia
+    // entre Admin y Docente con el switcher, re-cargamos para re-aplicar (o
+    // quitar) el scoping de "solo mis cursos" del docente.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantFilter]);
+  }, [tenantFilter, activeRole]);
 
   // Si el admin viene del flujo "Crear curso desde esta asignatura"
   // (via /admin/asignaturas), pre-abrimos el dialog con los campos
