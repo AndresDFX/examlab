@@ -60,6 +60,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatCard } from "@/components/ui/stat-card";
 import {
@@ -79,6 +80,7 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
+  Search,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -215,6 +217,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
   // Filtros.
   const [statusFilter, setStatusFilter] = useState<"active" | "all" | Status>("active");
   const [sourceFilter, setSourceFilter] = useState<"all" | Source>("all");
+  const [search, setSearch] = useState("");
   const [tenantFilter, setTenantFilter] = useState<string>("all");
   const [tenants, setTenants] = useState<Array<{ id: string; name: string }>>([]);
 
@@ -721,8 +724,34 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
     } else if (statusFilter !== "all") {
       out = out.filter((j) => j.status === statusFilter);
     }
+    // Búsqueda libre: matchea contra título, curso, estudiante/solicitante,
+    // tipo, estado e identificadores (id del job + target). Case-insensitive.
+    const q = search.trim().toLowerCase();
+    if (q) {
+      out = out.filter((j) =>
+        [
+          j.label,
+          j.subtitle,
+          j.courseLabel,
+          j.submitterName,
+          j.submitterEmail,
+          j.enqueuedByName,
+          j.enqueuedByEmail,
+          j.kind,
+          j.status,
+          j.source,
+          j.id,
+          j.target_table,
+          j.target_row_id,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(q),
+      );
+    }
     return out;
-  }, [jobs, sourceFilter, statusFilter]);
+  }, [jobs, sourceFilter, statusFilter, search]);
 
   // Multi-select: solo jobs cancelables (pending/processing/failed).
   const selectableJobs = useMemo(
@@ -1091,6 +1120,30 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
             </Badge>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Buscador de la cola: filtra por título, curso, estudiante,
+                tipo, estado e id (job/target). Mismo patrón visual que
+                ListFilters (ícono lupa + Input pl-8), tamaño compacto h-8
+                para alinear con los Selects del toolbar. */}
+            <div className="relative min-w-[180px] sm:w-56">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t("unifiedAiQueue.searchPlaceholder")}
+                className="h-8 pl-8 pr-8 text-xs"
+                aria-label={t("unifiedAiQueue.searchPlaceholder")}
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={t("unifiedAiQueue.clearSearch")}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
             {isSuperAdminCaller && tenants.length > 0 && (
               <Select value={tenantFilter} onValueChange={setTenantFilter}>
                 <SelectTrigger className="h-8 w-48 text-xs">

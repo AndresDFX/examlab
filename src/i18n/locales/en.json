@@ -3443,6 +3443,8 @@
     "btnActivateAi": "Activate AI",
     "actionCancel": "Cancel",
     "cardTitle": "Unified AI queue",
+    "searchPlaceholder": "Search by title, course, student, type or id…",
+    "clearSearch": "Clear search",
     "tenantPlaceholder": "Filter by institution…",
     "allTenants": "All institutions",
     "filterAllTypes": "Grading + Generation",

@@ -3443,6 +3443,8 @@
     "btnActivateAi": "Activar IA",
     "actionCancel": "Cancelar",
     "cardTitle": "Cola IA unificada",
+    "searchPlaceholder": "Buscar por título, curso, estudiante, tipo o id…",
+    "clearSearch": "Limpiar búsqueda",
     "tenantPlaceholder": "Filtrar por institución…",
     "allTenants": "Todas las instituciones",
     "filterAllTypes": "Calificación + Generación",
