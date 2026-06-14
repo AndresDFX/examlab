@@ -430,6 +430,9 @@
     "boardContentRemoveBody": "Removing \"{{name}}\" from the course will hide it from the student board. It goes to the Trash and you can restore it within 30 days.",
     "boardContentRemoveTitle": "Remove this content from the course?",
     "boardContentRemoved": "Content removed from the course",
+    "boardContentUnassignTitle": "Remove this content from this course?",
+    "boardContentUnassignBody": "\"{{name}}\" will be removed from this course. The content stays available in its original course and in any other courses it is assigned to.",
+    "boardContentUnassigned": "Content removed from this course",
     "status": {
       "borrador": "Draft",
       "en_curso": "In progress",
@@ -1191,6 +1194,7 @@
     "materializeCreatedToast_one": "{{count}} assessment created from content",
     "materializeCreatedToast_other": "{{count}} assessments created from content",
     "assignToSessions": "Assign to course sessions",
+    "manageCoursesAction": "Assign to courses",
     "assignDialogTitle": "Assign content to sessions",
     "assignDialogSubtitle": "Map each content class to an attendance session. Students will see the material on the course board, on the session date.",
     "assignNone": "No content",
@@ -1279,6 +1283,14 @@
     "calendarOpenedToast": "Google Calendar opened in a new tab — confirm the subscription there.",
     "calendarUrlError": "Could not build calendar URL. Try logging out and back in.",
     "attendanceSummary": "Attendance: {{attended}}/{{total}} sessions ({{pct}}%)"
+  },
+  "manageCourses": {
+    "title": "Assign to courses",
+    "desc": "Choose which courses show \"{{name}}\" on the board. The same material is shared across the selected courses.",
+    "noCourses": "You have no courses available to assign.",
+    "noChanges": "No changes",
+    "saved": "Courses updated ({{added}} added, {{removed}} removed)",
+    "anchorBadge": "Original course"
   },
   "integrity": {
     "title": "Fraud analysis",

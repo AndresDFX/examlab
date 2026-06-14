@@ -430,6 +430,9 @@
     "boardContentRemoveBody": "Se quitará \"{{name}}\" del curso y dejará de verse en el tablero del estudiante. Queda en la Papelera y puedes restaurarlo dentro de 30 días.",
     "boardContentRemoveTitle": "¿Quitar este contenido del curso?",
     "boardContentRemoved": "Contenido quitado del curso",
+    "boardContentUnassignTitle": "¿Quitar este contenido de este curso?",
+    "boardContentUnassignBody": "Se quitará \"{{name}}\" de este curso. El contenido sigue disponible en su curso original y en los demás cursos donde esté asignado.",
+    "boardContentUnassigned": "Contenido quitado de este curso",
     "status": {
       "borrador": "Borrador",
       "en_curso": "En curso",
@@ -1191,6 +1194,7 @@
     "materializeCreatedToast_one": "{{count}} evaluación creada desde el contenido",
     "materializeCreatedToast_other": "{{count}} evaluaciones creadas desde el contenido",
     "assignToSessions": "Asignar a sesiones del curso",
+    "manageCoursesAction": "Asignar a cursos",
     "assignDialogTitle": "Asignar contenido a sesiones",
     "assignDialogSubtitle": "Mapea cada clase del contenido a una sesión de asistencia. El estudiante verá el material en el tablero del curso, en la fecha de la sesión.",
     "assignNone": "Sin contenido",
@@ -1279,6 +1283,14 @@
     "calendarOpenedToast": "Google Calendar abierto en una nueva pestaña — confirma la suscripción ahí.",
     "calendarUrlError": "No se pudo generar el URL del calendario. Intenta cerrar sesión y volver a entrar.",
     "attendanceSummary": "Asistencia: {{attended}}/{{total}} sesiones ({{pct}}%)"
+  },
+  "manageCourses": {
+    "title": "Asignar a cursos",
+    "desc": "Elige en qué cursos aparece \"{{name}}\" en el tablero. Se comparte el mismo material entre los cursos seleccionados.",
+    "noCourses": "No tienes cursos disponibles para asignar.",
+    "noChanges": "No hubo cambios",
+    "saved": "Cursos actualizados ({{added}} agregado(s), {{removed}} quitado(s))",
+    "anchorBadge": "Curso original"
   },
   "integrity": {
     "title": "Análisis de fraude",

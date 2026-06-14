@@ -221,7 +221,11 @@ export function GenerateSessionsDialog({
         const extracted =
           content && cls != null ? extractClassTitle(files, cls) : null;
         const title = content
-          ? (extracted ?? (cls != null ? `Clase ${cls}` : content.topic))
+          ? // Fallback al NOMBRE del contenido (display_name), no al tema de
+            // generación (topic) — coherente con que el tablero etiqueta con
+            // display_name (#17). Cae a topic solo si display_name vacío.
+            (extracted ??
+            (cls != null ? `Clase ${cls}` : content.display_name?.trim() || content.topic))
           : `Sesión ${i + 1}`;
         const base: Record<string, unknown> = {
           course_id: effectiveCourseId,

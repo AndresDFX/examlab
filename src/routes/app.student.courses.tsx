@@ -116,6 +116,10 @@ type ContentFileEntry = {
 type ContentRow = {
   id: string;
   topic: string;
+  /** Nombre humano del contenido. Es lo que se muestra como label en el
+   *  tablero (#17) — el `topic` es el tema de generación de IA. Fallback a
+   *  `topic` si vacío. */
+  display_name: string | null;
   mode: "curso_completo" | "material_individual";
   duration_minutes: number | null;
   modality: "teorica" | "practica" | "teorico_practica" | null;
@@ -123,6 +127,11 @@ type ContentRow = {
   /** Si TRUE, los archivos solo son visibles desde la fecha de la sesión asignada. */
   release_after_session_date: boolean;
 };
+
+/** Label visible de un contenido en el tablero: su `display_name` (nombre
+ *  humano), con fallback al `topic` (tema de generación) si está vacío (#17). */
+const contentLabel = (c: { display_name?: string | null; topic: string }): string =>
+  c.display_name?.trim() || c.topic;
 
 type BrandRow = {
   university_name: string;
@@ -429,7 +438,9 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       if (allContentIds.length > 0) {
         const { data: cs } = await db
           .from("generated_contents")
-          .select("id, topic, mode, duration_minutes, modality, files, release_after_session_date")
+          .select(
+            "id, topic, display_name, mode, duration_minutes, modality, files, release_after_session_date",
+          )
           .in("id", allContentIds)
           .is("deleted_at", null);
         for (const c of (cs ?? []) as ContentRow[]) map[c.id] = c;
@@ -735,14 +746,14 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
                   <div key={c.id} className="space-y-1.5">
                     <div className="text-xs text-muted-foreground flex items-center gap-1">
                       <FileText className="h-3 w-3" />
-                      {c.topic}
+                      {contentLabel(c)}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {visible.map((f) => (
                         <ContentFileChip
                           key={f.path}
                           file={f}
-                          topic={c.topic}
+                          topic={contentLabel(c)}
                           onDownload={downloadFile}
                           onPreview={setPreviewFile}
                           onRunCode={setRunCodeFile}
@@ -959,7 +970,7 @@ function SessionGroup({
                     {content && (
                       <div className="text-xs text-muted-foreground flex items-center gap-1">
                         <Sparkles className="h-3 w-3" />
-                        {content.topic}
+                        {contentLabel(content)}
                         {s.content_class_index != null && (
                           <span className="font-medium">
                             {" "}
@@ -1008,7 +1019,11 @@ function SessionGroup({
                       <ContentFileChip
                         key={f.path}
                         file={f}
-                        topic={content?.topic ?? s.title ?? t("hc_routesAppStudentCourses.materialFallback")}
+                        topic={
+                          (content ? contentLabel(content) : null) ??
+                          s.title ??
+                          t("hc_routesAppStudentCourses.materialFallback")
+                        }
                         onDownload={onDownload}
                         onPreview={onPreview}
                         onRunCode={onRunCode}

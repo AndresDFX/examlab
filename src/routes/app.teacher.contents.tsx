@@ -75,11 +75,13 @@ import {
   MessageSquareText,
   Upload,
   Copy,
+  Layers,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { UploadExternalContentDialog } from "@/modules/contents/UploadExternalContentDialog";
 import { EditExternalContentDialog } from "@/modules/contents/EditExternalContentDialog";
+import { ManageContentCoursesDialog } from "@/modules/contents/ManageContentCoursesDialog";
 import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDialog";
 import { MarkdownEditorDialog } from "@/modules/contents/MarkdownEditorDialog";
 import { PptxViewerDialog } from "@/modules/contents/PptxViewerDialog";
@@ -396,6 +398,10 @@ function TeacherContents() {
   // "Duplicar contenido": copia metadata + (opcional) archivos de storage +
   // (opcional) cursos asociados. Abre el DuplicateOptionsDialog.
   const [duplicateFor, setDuplicateFor] = useState<GeneratedContent | null>(null);
+  // "Asignar a cursos": gestiona la membresía multi-curso (tabla N-N
+  // content_course_assignments) de un contenido YA existente sin re-subirlo.
+  // El mismo material aparece en el tablero de cada curso seleccionado (#16).
+  const [manageCoursesFor, setManageCoursesFor] = useState<GeneratedContent | null>(null);
 
   // Form
   // `displayName` es el nombre único que el docente le pone a este
@@ -1474,6 +1480,19 @@ function TeacherContents() {
                                 onClick: () => setAssignFor(it),
                               }
                             : null,
+                          // "Asignar a cursos": gestiona en qué cursos
+                          // aparece este contenido a nivel de tablero
+                          // (multi-curso, #16). Solo para contenido listo —
+                          // sin archivos no hay nada que compartir.
+                          it.status === "done"
+                            ? {
+                                label: t("contents.manageCoursesAction", {
+                                  defaultValue: "Asignar a cursos",
+                                }),
+                                icon: Layers,
+                                onClick: () => setManageCoursesFor(it),
+                              }
+                            : null,
                           // "Ver error completo" solo aparece cuando la
                           // generación falló. El campo `error` puede ser
                           // largo (HTML del gateway, stack trace, etc.)
@@ -1962,6 +1981,24 @@ function TeacherContents() {
       <EditExternalContentDialog
         content={editExternalFor}
         onOpenChange={(o) => !o && setEditExternalFor(null)}
+        onSaved={() => void load()}
+      />
+
+      {/* Dialog "Asignar a cursos" — gestiona la membresía multi-curso del
+          contenido (tabla N-N). El mismo material aparece en el tablero de
+          cada curso seleccionado (#16). El curso ancla queda fijado. */}
+      <ManageContentCoursesDialog
+        target={
+          manageCoursesFor
+            ? {
+                id: manageCoursesFor.id,
+                label: manageCoursesFor.display_name?.trim() || manageCoursesFor.topic,
+                anchorCourseId: manageCoursesFor.course_id,
+              }
+            : null
+        }
+        courses={courses}
+        onClose={() => setManageCoursesFor(null)}
         onSaved={() => void load()}
       />
 
@@ -3507,7 +3544,7 @@ function FilesByClassDialog({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
-              {content.topic}
+              {content.display_name?.trim() || content.topic}
             </DialogTitle>
             <DialogDescription>
               {isCourse

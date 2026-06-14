@@ -61,6 +61,7 @@ import {
   Upload,
   Download,
   Video,
+  Layers,
 } from "lucide-react";
 import { LinkCalendarEventsDialog } from "@/modules/calendar/LinkCalendarEventsDialog";
 import {
@@ -76,6 +77,7 @@ import { classNumberFromFilename, isTeacherOnlyFile } from "@/modules/contents/c
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { RowAction } from "@/components/ui/row-action";
 import { DatePicker } from "@/components/ui/date-picker";
+import { ManageContentCoursesDialog } from "@/modules/contents/ManageContentCoursesDialog";
 import { useTranslation } from "react-i18next";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -113,11 +115,23 @@ interface BoardContentItem {
   createdAt: string | null;
   isPublished: boolean;
   fileCount: number;
+  /** true = el contenido está anclado a ESTE curso (`generated_contents.course_id`).
+   *  false = aparece sólo por content_course_assignments (su ancla es OTRO
+   *  curso). Determina si "Quitar del curso" borra el contenido (anclado) o
+   *  sólo desasocia la fila cca (multi-curso). */
+  isAnchored: boolean;
+  /** Curso ancla (`generated_contents.course_id`). null = contenido genérico
+   *  sin curso. Usado por "Asignar a cursos" para fijar el ancla. */
+  anchorCourseId: string | null;
 }
 
 interface AvailableContent {
   id: string;
   topic: string;
+  /** Nombre humano único del contenido (`display_name`). Es lo que se muestra
+   *  en el Select de asociación y en las tarjetas — el `topic` (tema de
+   *  generación de IA) ya NO es el label visible. Fallback a `topic` si vacío. */
+  displayName: string;
   mode: "curso_completo" | "material_individual";
   classes: number[];
   /** Archivos del contenido (name + path) para elegir un subconjunto a
@@ -250,7 +264,7 @@ function ContentAssignmentSelector({
           <SelectItem value="__none">{t("contents.assignNone")}</SelectItem>
           {contents.map((c) => (
             <SelectItem key={c.id} value={c.id}>
-              {c.topic}
+              {c.displayName}
             </SelectItem>
           ))}
         </SelectContent>
@@ -349,6 +363,12 @@ function CourseBoardPage() {
   // material "general del curso" visible al estudiante aunque no esté
   // asignado a una sesión (badge del grid).
   const [assignedToCourse, setAssignedToCourse] = useState<Set<string>>(new Set());
+  // Todos los cursos visibles para el docente — para "Asignar a cursos"
+  // (gestionar la membresía multi-curso del contenido, #16). La RLS de
+  // `courses` ya recorta al tenant del docente.
+  const [allCourses, setAllCourses] = useState<{ id: string; name: string }[]>([]);
+  // Contenido cuyo destino multi-curso se está gestionando (null = cerrado).
+  const [manageCoursesFor, setManageCoursesFor] = useState<BoardContentItem | null>(null);
   const [uploadingContent, setUploadingContent] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadDest, setUploadDest] = useState<UploadDest>("global");
@@ -428,10 +448,23 @@ function CourseBoardPage() {
         return;
       }
       setCourse(c as { id: string; name: string });
+      // Asignaciones del contenido a ESTE curso (junction N-N). Se carga
+      // PRIMERO porque la query de contenidos las incluye: un contenido
+      // anclado a OTRO curso pero asignado a éste vía cca debe aparecer en
+      // el selector del tablero (#16 — multi-curso a nivel de tablero).
+      const { data: ccaRows } = await db
+        .from("content_course_assignments")
+        .select("content_id")
+        .eq("course_id", courseId);
+      if (cancelled) return;
+      const ccaIds = Array.from(
+        new Set(((ccaRows ?? []) as Array<{ content_id: string }>).map((r) => r.content_id)),
+      );
+
       // Sesiones del curso + contenidos del docente disponibles + items
-      // (exams/workshops/projects) calendarizados + asignaciones al curso
-      // — en paralelo.
-      const [sesRes, contentsRes, ccaRes, examsRes, wsRes, projRes] = await Promise.all([
+      // (exams/workshops/projects) calendarizados + cursos visibles (para
+      // "Asignar a cursos") — en paralelo.
+      const [sesRes, contentsRes, examsRes, wsRes, projRes, coursesRes] = await Promise.all([
         db
           .from("attendance_sessions")
           .select(
@@ -441,15 +474,20 @@ function CourseBoardPage() {
           .is("deleted_at", null)
           .order("session_date", { ascending: true }),
         // status='done' del propio docente; "available" se filtra por
-        // RLS al teacher_id. Incluimos contenidos del curso O sin curso
-        // asociado (genéricos reutilizables).
+        // RLS al teacher_id. Incluimos contenidos anclados a este curso O
+        // sin curso (genéricos reutilizables) O asignados a este curso vía
+        // content_course_assignments (multi-curso: el ancla puede ser OTRO
+        // curso, pero el material aparece igual en este tablero).
         db
           .from("generated_contents")
           .select("id, topic, mode, course_id, files, display_name, created_at, is_published")
           .eq("status", "done")
           .is("deleted_at", null)
-          .or(`course_id.eq.${courseId},course_id.is.null`),
-        db.from("content_course_assignments").select("content_id").eq("course_id", courseId),
+          .or(
+            `course_id.eq.${courseId},course_id.is.null${
+              ccaIds.length > 0 ? `,id.in.(${ccaIds.join(",")})` : ""
+            }`,
+          ),
         (supabase as any)
           .from("exams")
           .select("id, title, end_time, attendance_session_id")
@@ -465,10 +503,15 @@ function CourseBoardPage() {
           .select("id, title, due_date, attendance_session_id")
           .eq("course_id", courseId)
           .is("deleted_at", null),
+        // Cursos visibles para el docente (RLS recorta al tenant). Para el
+        // dialog "Asignar a cursos" del grid de contenidos.
+        db.from("courses").select("id, name").is("deleted_at", null).order("name"),
       ]);
       if (cancelled) return;
 
       setSessions((sesRes.data ?? []) as SessionRow[]);
+      setAllCourses((coursesRes.data ?? []) as { id: string; name: string }[]);
+      const ccaIdSet = new Set(ccaIds);
       // Aplana files[] → classes[] para no recalcular regex en cada Select.
       setContents(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -482,31 +525,36 @@ function CourseBoardPage() {
           return {
             id: g.id,
             topic: g.topic,
+            // Label visible = display_name; fallback al topic si vacío (#17).
+            displayName: ((g.display_name as string) ?? "").trim() || (g.topic as string),
             mode: g.mode,
             classes: Array.from(set).sort((a, b) => a - b),
             files: files.map((f) => ({ name: f.name, path: f.path ?? f.name })),
           };
         }),
       );
-      // Grid "Contenidos del curso": solo los anclados a ESTE curso (los
-      // genéricos sin curso quedan fuera). Incluye los subidos desde el
+      // Grid "Contenidos del curso": material visible en ESTE curso — anclado
+      // a él (course_id) O asignado vía content_course_assignments (multi-curso,
+      // #16). Los genéricos sin curso quedan fuera. Incluye los subidos desde el
       // tablero. Orden por fecha desc (lo más nuevo arriba).
       setBoardContents(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ((contentsRes.data ?? []) as any[])
-          .filter((g) => g.course_id === courseId)
+          .filter((g) => g.course_id === courseId || ccaIdSet.has(g.id as string))
           .map((g) => ({
             id: g.id as string,
-            displayName: (g.display_name as string) ?? (g.topic as string),
+            displayName: ((g.display_name as string) ?? "").trim() || (g.topic as string),
             createdAt: (g.created_at as string) ?? null,
             isPublished: !!g.is_published,
             fileCount: Array.isArray(g.files) ? g.files.length : 0,
+            isAnchored: g.course_id === courseId,
+            anchorCourseId: (g.course_id as string | null) ?? null,
           }))
           .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "")),
       );
       setAssignedToCourse(
         new Set(
-          ((ccaRes.data ?? []) as Array<{ content_id: string }>).map((r) => r.content_id),
+          ((ccaRows ?? []) as Array<{ content_id: string }>).map((r) => r.content_id),
         ),
       );
 
@@ -913,31 +961,74 @@ function CourseBoardPage() {
     toast.success(t("course.boardSessionDeleted"));
   };
 
-  /** Quita un contenido del curso desde el tablero. Mismo soft-delete que el
-   *  módulo de Contenidos (`generated_contents.deleted_at` → Papelera): al
-   *  quitarlo deja de verse en el tablero del docente Y en el del estudiante
-   *  (y en el módulo de Contenidos) — coherente en TODOS los lugares. Es
-   *  reversible: queda en la Papelera y se puede restaurar dentro de 30 días,
-   *  así que el material no se pierde. */
+  /** Quita un contenido del curso desde el tablero. Dos comportamientos según
+   *  cómo aparece el contenido en este tablero:
+   *   - ANCLADO (`generated_contents.course_id === courseId`): soft-delete del
+   *     contenido (→ Papelera). Deja de verse en el tablero del docente Y del
+   *     estudiante Y en el módulo de Contenidos — coherente en todos lados.
+   *     Reversible: restaurable dentro de 30 días.
+   *   - MULTI-CURSO (asignado vía content_course_assignments, su ancla es OTRO
+   *     curso): SOLO se borra la fila cca de ESTE curso. El contenido y su curso
+   *     ancla quedan intactos — quitarlo de un curso no debe afectar a los
+   *     demás cursos que lo comparten. */
   const removeBoardContent = async (c: BoardContentItem) => {
+    if (c.isAnchored) {
+      const ok = await confirm({
+        title: t("course.boardContentRemoveTitle", {
+          defaultValue: "¿Quitar este contenido del curso?",
+        }),
+        description: t("course.boardContentRemoveBody", {
+          defaultValue:
+            'Se quitará "{{name}}" del curso y dejará de verse en el tablero del estudiante. Queda en la Papelera y puedes restaurarlo dentro de 30 días.',
+          name: c.displayName,
+        }),
+        confirmLabel: t("common.remove", { defaultValue: "Quitar" }),
+        tone: "destructive",
+      });
+      if (!ok) return;
+      const { error } = await softDelete("generated_contents", c.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      setBoardContents((prev) => prev.filter((x) => x.id !== c.id));
+      toast.success(
+        t("course.boardContentRemoved", { defaultValue: "Contenido quitado del curso" }),
+      );
+      return;
+    }
+    // Multi-curso: desasociar solo de ESTE curso (no tocar el contenido).
     const ok = await confirm({
-      title: t("course.boardContentRemoveTitle", { defaultValue: "¿Quitar este contenido del curso?" }),
-      description: t("course.boardContentRemoveBody", {
+      title: t("course.boardContentUnassignTitle", {
+        defaultValue: "¿Quitar este contenido de este curso?",
+      }),
+      description: t("course.boardContentUnassignBody", {
         defaultValue:
-          'Se quitará "{{name}}" del curso y dejará de verse en el tablero del estudiante. Queda en la Papelera y puedes restaurarlo dentro de 30 días.',
+          'Se quitará "{{name}}" de este curso. El contenido sigue disponible en su curso original y en los demás cursos donde esté asignado.',
         name: c.displayName,
       }),
       confirmLabel: t("common.remove", { defaultValue: "Quitar" }),
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await softDelete("generated_contents", c.id);
+    const { error } = await db
+      .from("content_course_assignments")
+      .delete()
+      .eq("content_id", c.id)
+      .eq("course_id", courseId);
     if (error) {
       toast.error(friendlyError(error));
       return;
     }
     setBoardContents((prev) => prev.filter((x) => x.id !== c.id));
-    toast.success(t("course.boardContentRemoved", { defaultValue: "Contenido quitado del curso" }));
+    setAssignedToCourse((prev) => {
+      const next = new Set(prev);
+      next.delete(c.id);
+      return next;
+    });
+    toast.success(
+      t("course.boardContentUnassigned", { defaultValue: "Contenido quitado de este curso" }),
+    );
   };
 
   /** Badge de visibilidad de un contenido del grid: a qué clase(s) está
@@ -1223,6 +1314,11 @@ function CourseBoardPage() {
                 <span className="hidden sm:block text-[10px] text-muted-foreground shrink-0">
                   <DateCell value={c.createdAt} variant="auto" />
                 </span>
+                <RowAction
+                  icon={Layers}
+                  label={t("contents.manageCoursesAction", { defaultValue: "Asignar a cursos" })}
+                  onClick={() => setManageCoursesFor(c)}
+                />
                 <RowAction
                   icon={Trash2}
                   label={t("course.boardContentRemove", { defaultValue: "Quitar del curso" })}
@@ -1618,6 +1714,24 @@ function CourseBoardPage() {
         onOpenChange={setCalendarOpen}
         courseId={course.id}
         onLinked={() => setReloadNonce((n) => n + 1)}
+      />
+
+      {/* "Asignar a cursos" — gestiona la membresía multi-curso del contenido
+          del grid sin salir del tablero (#16). Al guardar recargamos para
+          reflejar el badge de visibilidad. */}
+      <ManageContentCoursesDialog
+        target={
+          manageCoursesFor
+            ? {
+                id: manageCoursesFor.id,
+                label: manageCoursesFor.displayName,
+                anchorCourseId: manageCoursesFor.anchorCourseId,
+              }
+            : null
+        }
+        courses={allCourses}
+        onClose={() => setManageCoursesFor(null)}
+        onSaved={() => setReloadNonce((n) => n + 1)}
       />
     </div>
   );
