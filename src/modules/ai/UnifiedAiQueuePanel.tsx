@@ -81,6 +81,8 @@ import {
   ChevronRight,
   Copy,
   Search,
+  RotateCcw,
+  Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -115,6 +117,9 @@ interface UnifiedJob {
   status: Status;
   attempts: number;
   created_at: string;
+  /** Cuándo el worker reclamó el job (status → processing). Para detectar
+   *  atascos: un job lleva (now - started_at) en proceso. */
+  started_at: string | null;
   completed_at: string | null;
   last_error: string | null;
   course_id: string | null;
@@ -199,6 +204,18 @@ function relativeAge(iso: string): string {
   const diffH = Math.floor(diffMin / 60);
   if (diffH < 24) return `${diffH}h`;
   return `${Math.floor(diffH / 24)}d`;
+}
+
+// Un job sano se procesa en segundos; si lleva más de esto en 'processing'
+// es muy probable que esté ATASCADO (el worker murió a mitad). Coincide con
+// el umbral de release del worker (release_stuck_processing_jobs, 3 min).
+const STUCK_PROCESSING_MIN = 3;
+
+/** Minutos que un job lleva en 'processing'. null si no hay started_at o el
+ *  reloj aún no inicializó (nowMs=0 antes del primer tick post-mount). */
+function processingAgeMin(startedIso: string | null, nowMs: number): number | null {
+  if (!startedIso || nowMs <= 0) return null;
+  return Math.floor((nowMs - new Date(startedIso).getTime()) / 60_000);
 }
 
 export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
@@ -302,7 +319,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
           db
             .from("ai_grading_queue")
             .select(
-              "id, kind, status, target_table, target_row_id, course_id, created_by, created_at, completed_at, attempts, last_error, rejection_reason, rejected_by, rejected_at, acknowledged_at",
+              "id, kind, status, target_table, target_row_id, course_id, created_by, created_at, started_at, completed_at, attempts, last_error, rejection_reason, rejected_by, rejected_at, acknowledged_at",
             )
             .order("created_at", { ascending: false })
             .limit(100),
@@ -311,7 +328,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
           db
             .from("ai_generation_queue")
             .select(
-              "id, kind, status, source_table, source_id, course_id, created_by, created_at, completed_at, attempts, last_error, body",
+              "id, kind, status, source_table, source_id, course_id, created_by, created_at, started_at, completed_at, attempts, last_error, body",
             )
             .order("created_at", { ascending: false })
             .limit(100),
@@ -590,6 +607,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
             status: r.status as Status,
             attempts: r.attempts ?? 0,
             created_at: r.created_at,
+            started_at: r.started_at ?? null,
             completed_at: r.completed_at,
             last_error: r.last_error,
             course_id: r.course_id,
@@ -636,6 +654,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
             status: r.status as Status,
             attempts: r.attempts ?? 0,
             created_at: r.created_at,
+            started_at: r.started_at ?? null,
             completed_at: r.completed_at,
             last_error: r.last_error,
             course_id: r.course_id,
@@ -695,6 +714,16 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       void supabase.removeChannel(ch).catch(() => {});
     };
   }, [load]);
+
+  // Reloj en vivo para la edad "en proceso". Solo tickea (cada 20s) cuando
+  // hay jobs en proceso; si no, queda quieto para no re-renderizar.
+  useEffect(() => {
+    setNowMs(Date.now());
+    const hasProcessing = jobs.some((j) => j.status === "processing");
+    if (!hasProcessing) return;
+    const id = setInterval(() => setNowMs(Date.now()), 20_000);
+    return () => clearInterval(id);
+  }, [jobs]);
 
   // Counts agregados (ambos sources).
   const counts = useMemo(() => {
@@ -764,7 +793,15 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
     [filteredJobs],
   );
   const multi = useMultiSelect(selectableJobs);
+  // bulkOpen → dialog de ELIMINAR (borrado físico). El re-encolado ("Volver a
+  // la cola") no abre dialog: usa un confirm liviano porque no es destructivo.
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [requeuing, setRequeuing] = useState(false);
+  const [releasing, setReleasing] = useState(false);
+  // Reloj para la edad "en proceso" en vivo. Init determinístico a 0 (regla
+  // de hidratación) → se setea post-mount y solo tickea si hay jobs en
+  // proceso, para no re-renderizar el panel sin necesidad.
+  const [nowMs, setNowMs] = useState(0);
   const selectedItems = useMemo(
     () =>
       selectableJobs
@@ -936,31 +973,93 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       const g = gradingRes.data as any;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const gn = genRes.data as any;
-      const procG = g?.processed ?? 0;
-      const procGn = gn?.processed ?? 0;
+      const procTotal = (g?.processed ?? 0) + (gn?.processed ?? 0);
       const failG = (g?.failed ?? 0) + (gn?.failed ?? 0);
-      const failedSuffix =
+      // El worker de calificación ahora procesa UNO A UNO con presupuesto de
+      // tiempo y reporta cuántos quedan pendientes + por qué paró. Si quedan
+      // pendientes, avisamos al usuario que espere y reintente (no quedan
+      // jobs colgados en "en proceso" — los no procesados siguen pendientes).
+      const remaining = g?.remainingPending ?? 0;
+      const stopped = g?.stopped as string | undefined;
+      const failPart =
         failG > 0
-          ? i18n.t("toast.modules_ai_UnifiedAiQueuePanel.drainedFailedSuffix", {
-              defaultValue: " — {{failed}} fallaron",
+          ? i18n.t("toast.modules_ai_UnifiedAiQueuePanel.drainFailPart", {
+              defaultValue: " ({{failed}} con error, quedan listos para reintentar)",
               failed: failG,
             })
           : "";
-      toast.success(
-        i18n.t("toast.modules_ai_UnifiedAiQueuePanel.drained", {
-          defaultValue:
-            "Drenado: {{total}} job(s) ({{grading}} grading + {{generation}} generación){{failedSuffix}}",
-          total: procG + procGn,
-          grading: procG,
-          generation: procGn,
-          failedSuffix,
-        }),
-      );
+      if (remaining > 0) {
+        toast.warning(
+          i18n.t("toast.modules_ai_UnifiedAiQueuePanel.drainPartial", {
+            defaultValue:
+              "Procesados {{n}}{{failPart}}. Quedan {{remaining}} pendientes — espera ~1 min y vuelve a pulsar «Procesar todos» (o el sistema los procesa solo dentro de la próxima hora).",
+            n: procTotal,
+            remaining,
+            failPart,
+            stopped,
+          }),
+          { duration: 12000 },
+        );
+      } else {
+        toast.success(
+          i18n.t("toast.modules_ai_UnifiedAiQueuePanel.drainDone", {
+            defaultValue: "Listo: procesados {{n}}{{failPart}}. No quedan jobs pendientes.",
+            n: procTotal,
+            failPart,
+          }),
+        );
+      }
       await load();
     } catch (e) {
       toast.error(friendlyError(e, t("hc_modulesAiUnifiedAiQueuePanel.errDrainQueue")));
     } finally {
       setDraining(false);
+    }
+  };
+
+  // "Liberar atascados": un clic global (Admin/SA) que devuelve a la cola los
+  // jobs colgados en 'processing' por más del umbral. Atajo del "Volver a la
+  // cola" cuando NO se quiere seleccionar uno a uno. La autorización vive en
+  // el RPC admin_release_stuck_ai_jobs (es global/cross-tenant).
+  const releaseStuck = async () => {
+    if (releasing) return;
+    setReleasing(true);
+    try {
+      const { data, error } = await db.rpc("admin_release_stuck_ai_jobs", {
+        _threshold_minutes: STUCK_PROCESSING_MIN,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      const toPending = row?.released_to_pending ?? 0;
+      const toFailed = row?.released_to_failed ?? 0;
+      if (toPending === 0 && toFailed === 0) {
+        toast.info(
+          i18n.t("toast.modules_ai_UnifiedAiQueuePanel.releaseNone", {
+            defaultValue: "No había jobs atascados para liberar.",
+          }),
+        );
+      } else {
+        toast.success(
+          i18n.t("toast.modules_ai_UnifiedAiQueuePanel.released", {
+            defaultValue:
+              "{{pending}} job(s) devuelto(s) a la cola{{failedPart}}. Espera unos minutos o pulsa «Procesar todos».",
+            pending: toPending,
+            failedPart:
+              toFailed > 0
+                ? i18n.t("toast.modules_ai_UnifiedAiQueuePanel.releasedFailedPart", {
+                    defaultValue: " · {{n}} marcados como fallidos (agotaron reintentos)",
+                    n: toFailed,
+                  })
+                : "",
+          }),
+          { duration: 9000 },
+        );
+      }
+      await load();
+    } catch (e) {
+      toast.error(friendlyError(e, t("unifiedAiQueue.releaseError", { defaultValue: "No se pudieron liberar los jobs atascados" })));
+    } finally {
+      setReleasing(false);
     }
   };
 
@@ -1019,34 +1118,140 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
   };
 
   // Bulk cancel — usa el dispatch correcto por source.
-  const bulkCancel = async (ids: string[]) => {
+  // "Volver a la cola": devuelve los jobs seleccionados a 'pending' para que el
+  // worker los reintente. NO los borra. Los que ya están 'pending' se omiten
+  // (ya están en cola). Usa un confirm liviano (no destructivo) en vez de
+  // dialog con lista. Sirve sobre todo para rescatar jobs atascados en proceso.
+  const bulkRequeue = async () => {
+    if (requeuing) return;
+    const targets = jobs.filter(
+      (j) => multi.isSelected(j.id) && j.status !== "pending",
+    );
+    const alreadyQueued = multi.count - targets.length;
+    if (targets.length === 0) {
+      toast.info(
+        i18n.t("toast.modules_ai_UnifiedAiQueuePanel.requeueNoneNeeded", {
+          defaultValue: "Los jobs seleccionados ya están en la cola.",
+        }),
+      );
+      return;
+    }
+    const ok = await confirm({
+      title: t("unifiedAiQueue.bulkRequeueTitle", {
+        defaultValue: "Volver a la cola",
+      }),
+      description: t("unifiedAiQueue.bulkRequeueDesc", {
+        defaultValue:
+          "Se devolverán {{count}} job(s) a la cola como pendientes para que la IA los reintente. No se borra nada.",
+        count: targets.length,
+      }),
+      tone: "warning",
+      confirmLabel: t("unifiedAiQueue.bulkRequeueConfirm", {
+        defaultValue: "Volver a la cola",
+      }),
+    });
+    if (!ok) return;
+    setRequeuing(true);
+    try {
+      const results = await Promise.allSettled(
+        targets.map((j) => {
+          if (j.source === "grading") {
+            return db.rpc("requeue_ai_grading_job", { _job_id: j.id });
+          }
+          return db
+            .from("ai_generation_queue")
+            .update({
+              status: "pending",
+              started_at: null,
+              completed_at: null,
+              last_error: null,
+            })
+            .eq("id", j.id);
+        }),
+      );
+      const failures = results
+        .map((r, i) => ({ r, j: targets[i] }))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter(({ r }) => r.status === "rejected" || (r.status === "fulfilled" && (r.value as any)?.error));
+      const okCount = targets.length - failures.length;
+      if (failures.length > 0) {
+        const first = failures[0];
+        const err =
+          first.r.status === "rejected"
+            ? first.r.reason
+            : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (first.r.value as any)?.error;
+        toast.error(
+          i18n.t("toast.modules_ai_UnifiedAiQueuePanel.bulkRequeuePartial", {
+            defaultValue:
+              "{{ok}} devuelto(s) a la cola, {{failed}} con error. Primero: «{{label}}» — {{reason}}",
+            ok: okCount,
+            failed: failures.length,
+            label: first.j?.label ?? "",
+            reason: friendlyError(err),
+          }),
+          { duration: 12000 },
+        );
+      } else {
+        toast.success(
+          i18n.t("toast.modules_ai_UnifiedAiQueuePanel.bulkRequeued", {
+            defaultValue:
+              "{{count}} job(s) devuelto(s) a la cola{{skipped}}. Espera unos minutos a que la IA los procese o pulsa «Procesar todos».",
+            count: okCount,
+            skipped:
+              alreadyQueued > 0
+                ? i18n.t("toast.modules_ai_UnifiedAiQueuePanel.requeueSkippedSuffix", {
+                    defaultValue: " ({{n}} ya estaban en cola)",
+                    n: alreadyQueued,
+                  })
+                : "",
+          }),
+          { duration: 9000 },
+        );
+      }
+      multi.clear();
+      await load();
+    } finally {
+      setRequeuing(false);
+    }
+  };
+
+  // "Eliminar": borra FÍSICAMENTE las filas de la cola (acción destructiva).
+  const bulkDelete = async (ids: string[]) => {
     const targets = jobs.filter((j) => ids.includes(j.id));
     const results = await Promise.allSettled(
       targets.map((j) => {
         if (j.source === "grading") {
-          return db.rpc("cancel_ai_grading_job", { _job_id: j.id });
+          return db.rpc("delete_ai_grading_job", { _job_id: j.id });
         }
-        return db
-          .from("ai_generation_queue")
-          .update({ status: "cancelled", completed_at: new Date().toISOString() })
-          .eq("id", j.id);
+        return db.from("ai_generation_queue").delete().eq("id", j.id);
       }),
     );
-    const failures = results.filter(
+    const failures = results
+      .map((r, i) => ({ r, j: targets[i] }))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (r) => r.status === "rejected" || (r.status === "fulfilled" && (r.value as any)?.error),
-    );
+      .filter(({ r }) => r.status === "rejected" || (r.status === "fulfilled" && (r.value as any)?.error));
     if (failures.length > 0) {
+      const first = failures[0];
+      const err =
+        first.r.status === "rejected"
+          ? first.r.reason
+          : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (first.r.value as any)?.error;
       throw new Error(
-        t("hc_modulesAiUnifiedAiQueuePanel.errBulkCancel", {
+        i18n.t("toast.modules_ai_UnifiedAiQueuePanel.bulkDeletePartial", {
+          defaultValue:
+            "{{ok}} eliminado(s), {{failed}} con error. Primero: «{{label}}» — {{reason}}",
+          ok: targets.length - failures.length,
           failed: failures.length,
-          total: ids.length,
+          label: first.j?.label ?? "",
+          reason: friendlyError(err),
         }),
       );
     }
     toast.success(
-      i18n.t("toast.modules_ai_UnifiedAiQueuePanel.bulkCancelled", {
-        defaultValue: "{{count}} job(s) cancelado(s)",
+      i18n.t("toast.modules_ai_UnifiedAiQueuePanel.bulkDeleted", {
+        defaultValue: "{{count}} job(s) eliminado(s)",
         count: ids.length,
       }),
     );
@@ -1104,15 +1309,24 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         </div>
       )}
 
-      {/* Bulk cancel toolbar */}
+      {/* Bulk toolbar: "Volver a la cola" (re-encolar, no destructivo) +
+          "Eliminar" (borrado físico, destructivo). */}
       <MultiSelectToolbar
         count={multi.count}
         onClear={multi.clear}
         onDelete={() => setBulkOpen(true)}
         entityNameSingular="job"
         entityNamePlural="jobs"
-        actionLabel={t("unifiedAiQueue.actionCancel")}
-        actionIcon={X}
+        actionLabel={t("unifiedAiQueue.actionDelete", { defaultValue: "Eliminar" })}
+        actionIcon={Trash2}
+        extraActions={[
+          {
+            key: "requeue",
+            label: t("unifiedAiQueue.actionRequeue", { defaultValue: "Volver a la cola" }),
+            icon: RotateCcw,
+            onClick: () => void bulkRequeue(),
+          },
+        ]}
       />
 
       <Card>
@@ -1211,6 +1425,26 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                 {t("unifiedAiQueue.btnProcessAll")}
               </Button>
             )}
+            {isAdmin && counts.processing > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                onClick={() => void releaseStuck()}
+                disabled={releasing}
+                title={t("unifiedAiQueue.releaseStuckTooltip", {
+                  defaultValue:
+                    "Devuelve a la cola los jobs colgados en proceso por más de unos minutos.",
+                })}
+              >
+                {releasing ? (
+                  <Spinner size="xs" className="mr-1" />
+                ) : (
+                  <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                )}
+                {t("unifiedAiQueue.btnReleaseStuck", { defaultValue: "Liberar atascados" })}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -1258,6 +1492,11 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                   j.status === "pending" ||
                   j.status === "processing" ||
                   j.status === "failed";
+                const procMins =
+                  j.status === "processing"
+                    ? processingAgeMin(j.started_at, nowMs)
+                    : null;
+                const procStuck = procMins !== null && procMins >= STUCK_PROCESSING_MIN;
                 const expanded = expandedId === j.id;
                 return (
                   <div key={j.id} className="text-sm">
@@ -1335,6 +1574,34 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                             >
                               {STATUS_LABELS[j.status]}
                             </Badge>
+                            {/* Edad "en proceso" en vivo — herramienta de
+                                seguimiento de atascos. Ámbar/destructive
+                                cuando supera el umbral (probable atasco). */}
+                            {procMins !== null && (
+                              <Badge
+                                variant={procStuck ? "destructive" : "secondary"}
+                                className="text-[10px] shrink-0 gap-0.5"
+                                title={
+                                  procStuck
+                                    ? t("unifiedAiQueue.processingStuckHint", {
+                                        defaultValue:
+                                          "Lleva mucho en proceso — probable atasco. Selecciónalo y usa «Volver a la cola».",
+                                      })
+                                    : undefined
+                                }
+                              >
+                                <Clock className="h-3 w-3" />
+                                {procStuck
+                                  ? t("unifiedAiQueue.processingStuck", {
+                                      defaultValue: "atascado {{mins}}m",
+                                      mins: procMins,
+                                    })
+                                  : t("unifiedAiQueue.processingFor", {
+                                      defaultValue: "en proceso {{mins}}m",
+                                      mins: procMins,
+                                    })}
+                              </Badge>
+                            )}
                           </div>
                           {j.subtitle && (
                             <div className="text-xs text-muted-foreground truncate">
@@ -1650,11 +1917,14 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         items={selectedItems}
         entityNameSingular="job"
         entityNamePlural="jobs"
-        actionLabel={t("unifiedAiQueue.actionCancel")}
-        actionIcon={X}
+        actionLabel={t("unifiedAiQueue.actionDelete", { defaultValue: "Eliminar" })}
+        actionIcon={Trash2}
         dismissLabel={t("unifiedAiQueue.btnBack")}
-        extraWarning={t("unifiedAiQueue.bulkCancelWarning")}
-        onConfirm={bulkCancel}
+        extraWarning={t("unifiedAiQueue.bulkDeleteWarning", {
+          defaultValue:
+            "Se eliminarán permanentemente los jobs seleccionados de la cola. Si querías reintentarlos, usa «Volver a la cola» en su lugar.",
+        })}
+        onConfirm={bulkDelete}
       />
 
       {/* Override IA — docente. */}

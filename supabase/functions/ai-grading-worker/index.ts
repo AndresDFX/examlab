@@ -1,22 +1,23 @@
 /**
- * ai-grading-worker — drena la cola `ai_grading_queue` periódicamente.
+ * ai-grading-worker — drena la cola `ai_grading_queue`.
  *
- * Diseño:
- *   1. Llamada por pg_cron cada hora (ver migración 20260603100800 para
- *      el schedule). Puede llamarse ad-hoc también desde el panel admin
- *      con un botón "Procesar ahora".
- *   2. Reclama hasta MAX_PER_RUN jobs `pending` vía RPC atómica
- *      `claim_pending_ai_grading` — usa FOR UPDATE SKIP LOCKED para
- *      ser seguro ante invocaciones concurrentes.
- *   3. Para cada job: invoca el edge function destino (típicamente
- *      `ai-grade-submission`) con el body original, espera la respuesta
- *      y persiste el resultado en `target_table.target_row_id` con los
- *      fields mapeados (`field_grade`, `field_feedback`, etc.).
- *   4. Marca el job como `done` o `failed` según corresponda.
+ * Diseño (revisado 2026-06):
+ *   - Modo DRENADO (sin `jobId`, cron + botón "Procesar todos"): procesa los
+ *     jobs UNO A UNO dentro de un PRESUPUESTO de tiempo (BUDGET_MS),
+ *     reclamando 1 a la vez. Así en cualquier momento hay a lo sumo 1 job en
+ *     `processing` y NUNCA quedan huérfanos en `processing` si el edge se
+ *     queda sin tiempo (los no reclamados siguen `pending` = "listo para
+ *     procesar"). Si un job FALLA, el drenado se DETIENE ahí; el resto queda
+ *     pending y el resultado avisa al caller (la UI le pide al usuario que
+ *     espere y reintente). Antes reclamaba 25 de golpe y, al exceder el
+ *     timeout del edge, dejaba ~19 jobs colgados en `processing`.
+ *   - Al inicio del drenado libera jobs colgados en `processing` (>3 min) de
+ *     vuelta a `pending` (rescate de orfanatos de timeouts anteriores).
+ *   - Modo INDIVIDUAL (con `jobId`): reclama y procesa solo ese job (botón
+ *     "Procesar este job"). Fits en el timeout porque es 1 solo.
  *
- * No hace retry automático — un job que falla queda en `failed` para
- * inspección manual. El admin puede re-encolar con un UPDATE manual a
- * `status='pending'` y `attempts=0`.
+ * Retry: `complete_ai_grading` reintenta errores transitorios (re-pending);
+ * errores no transitorios quedan `failed` para inspección.
  */
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 
@@ -25,7 +26,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const MAX_PER_RUN = 25;
+// Presupuesto de tiempo para el drenado. El edge tiene un wall-clock límite
+// (~150s en Supabase); dejamos de reclamar nuevos jobs al superar el
+// presupuesto para terminar limpio (el último job en vuelo puede sumar
+// ~30-40s). Conservador a propósito — el caller puede re-invocar para seguir.
+const BUDGET_MS = 80_000;
+// Backstop por invocación: aunque sobre tiempo, no procesar más de esto de un
+// tirón (evita una corrida larga ante una cola enorme; el caller re-invoca).
+const MAX_DRAIN = 40;
 
 interface QueueJob {
   id: string;
@@ -60,13 +68,6 @@ Deno.serve(async (req) => {
   //     / "Procesar este job" del módulo Cron.
   // Sin ninguno de los dos → 401. Sin esto, con verify_jwt off, cualquiera
   // podría drenar la cola y disparar calificación IA (costo).
-  //
-  // Además guardamos el Bearer entrante en `incomingAuth` para REENVIARLO
-  // al invocar `ai-grade-submission` más abajo. Esto evita que el gateway
-  // de esa edge rebote con UNAUTHORIZED_INVALID_JWT_FORMAT cuando el
-  // service_role_key del proyecto NO está en formato JWT (proyectos con
-  // las keys nuevas `sb_secret_*`). Cuando el caller es un usuario, su
-  // JWT SIEMPRE es válido y atraviesa el gateway sin problemas.
   const incomingAuth = req.headers.get("Authorization") ?? "";
   {
     const bearer = incomingAuth.replace(/^Bearer\s+/i, "").trim();
@@ -98,49 +99,23 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Body opcional con `jobId` — para procesamiento individual desde el
-  // widget. Si viene, procesamos SOLO ese job. Si no, drenamos el batch
-  // como siempre (modo cron + botón "Procesar ahora" admin).
+  // Body opcional con `jobId` — procesamiento individual desde el widget.
   let singleJobId: string | undefined;
   if (req.method === "POST") {
     try {
       const body = await req.json();
-      if (body && typeof body.jobId === "string") {
-        singleJobId = body.jobId;
-      }
+      if (body && typeof body.jobId === "string") singleJobId = body.jobId;
     } catch {
-      /* body vacío o no-JSON — ignorar, modo batch */
+      /* body vacío o no-JSON — modo drenado */
     }
   }
 
-  // Reclama: si vino jobId, usa claim_one_ai_grading (procesa 1).
-  // Si no, claim_pending_ai_grading (procesa hasta MAX_PER_RUN, oldest-first).
-  const { data: jobs, error: claimErr } = singleJobId
-    ? await adminClient.rpc("claim_one_ai_grading", { _job_id: singleJobId })
-    : await adminClient.rpc("claim_pending_ai_grading", { _limit: MAX_PER_RUN });
-  if (claimErr) {
-    console.error("[ai-grading-worker] claim failed", claimErr);
-    return new Response(JSON.stringify({ ok: false, error: claimErr.message }), {
-      status: 500,
+  const json = (payload: unknown, status = 200) =>
+    new Response(JSON.stringify(payload), {
+      status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  }
 
-  const claimed = (jobs ?? []) as QueueJob[];
-  if (claimed.length === 0) {
-    return new Response(
-      JSON.stringify({ ok: true, processed: 0, message: "Sin jobs pendientes" }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
-  }
-
-  console.log(`[ai-grading-worker] procesando ${claimed.length} job(s)`);
-
-  // Helper de auditoría. Llamamos via `log_audit_event` RPC (SECURITY
-  // DEFINER). Con service_role auth.uid() es null → actor_id=null,
-  // lo que la UI interpreta como "sistema/cron". Fire-and-forget: la
-  // RPC ya tiene `EXCEPTION WHEN OTHERS THEN NULL` para no romper el
-  // flujo principal si audit_logs está caído.
   const auditJob = (
     action: string,
     severity: "info" | "warning" | "error",
@@ -166,19 +141,13 @@ Deno.serve(async (req) => {
     });
   };
 
-  // Procesamos en serie para no saturar Gemini/OpenAI con N llamadas
-  // concurrentes que podrían disparar rate limit. La cola está pensada
-  // para latencia "dentro de la próxima hora", no para tiempo real.
-  let ok = 0;
-  let failed = 0;
-  for (const job of claimed) {
+  // Procesa UN job ya reclamado (status=processing). Devuelve el desenlace.
+  // NO relanza: siempre deja el job en done/failed/cancelled.
+  const runJob = async (job: QueueJob): Promise<"ok" | "failed" | "skipped"> => {
     try {
       // Guard: si el target de TALLER/PROYECTO ya está CALIFICADO, el job
-      // quedó obsoleto — la re-calificación de taller/proyecto es SYNC
-      // (nunca se encola), así que un job encolado apuntando a una entrega
-      // ya finalizada significa que se calificó por otra vía. Lo cancelamos
-      // SIN gastar IA. (Exámenes NO entran: su re-calificación puede
-      // encolarse async y debe correr aunque exista una nota previa.)
+      // quedó obsoleto — lo cancelamos SIN gastar IA. (Exámenes NO entran:
+      // su re-calificación puede encolarse async y debe correr.)
       if (
         job.target_table === "workshop_submissions" ||
         job.target_table === "project_submissions"
@@ -200,29 +169,18 @@ Deno.serve(async (req) => {
           await auditJob("ai_grading.job_skipped_already_graded", "info", job, {
             reason: "target_already_graded",
           });
-          continue;
+          return "skipped";
         }
       }
 
-      // Invocar la edge function destino. Reusa el mismo flujo que
-      // sync, solo que ahora corre server-side.
-      //
-      // Forwardamos el Authorization entrante: si el worker fue invocado
-      // por un usuario (botón "Procesar este job" del módulo Cron), su
-      // JWT es válido y el gateway de ai-grade-submission lo acepta
-      // siempre. Si vino del cron con el service_role_key, lo pasamos
-      // tal cual — esa ruta sí puede rebotar 401 si el key no es JWT,
-      // pero al menos la ruta de usuario queda blindada sin depender
-      // del config.toml.
+      // Invocar la edge function destino, reenviando el Authorization
+      // entrante (un user JWT atraviesa el gateway de ai-grade-submission).
       const targetUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/${job.invoke_target}`;
       const forwardedAuth =
         incomingAuth || `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""}`;
       const aiRes = await fetch(targetUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: forwardedAuth,
-        },
+        headers: { "Content-Type": "application/json", Authorization: forwardedAuth },
         body: JSON.stringify(job.body),
       });
 
@@ -235,44 +193,23 @@ Deno.serve(async (req) => {
         throw new Error(String(aiData.error).slice(0, 300));
       }
 
-      // Re-check de cancelación antes de persistir. Mientras Gemini
-      // procesaba (puede tardar decenas de segundos en exam_full), el
-      // user pudo haber cancelado el job desde el módulo Cron. Si fue
-      // así NO escribimos al target_table — el usuario explícitamente
-      // decidió descartar el resultado. `complete_ai_grading` también
-      // es idempotente ante `cancelled` (ver migración 20260603160000)
-      // pero releer acá ahorra el UPDATE redundante al target.
+      // Re-check de cancelación antes de persistir (el user pudo cancelar
+      // mientras Gemini procesaba).
       const { data: statusRow } = await adminClient
         .from("ai_grading_queue")
         .select("status")
         .eq("id", job.id)
         .maybeSingle();
       if (statusRow?.status === "cancelled") {
-        console.log(
-          `[ai-grading-worker] job ${job.id} cancelado durante el procesamiento — descartando resultado`,
-        );
         await auditJob("ai_grading.job_discarded_cancelled", "warning", job, {
           reason: "user_cancelled_mid_flight",
         });
-        continue;
+        return "skipped";
       }
 
-      // Persistencia del resultado.
-      //
-      // Caso A: la edge function YA escribió en target_table durante su
-      // ejecución (típicamente exam_full, que escribe submissions.answers
-      // JSONB con notas por pregunta + ai_grade/ai_detected_score
-      // agregados). En ese caso devuelve `persistedInternally: true` y
-      // el worker NO debe sobreescribir — bastaría con marcar done.
-      //
-      // Caso B: la edge devuelve `{ grade, feedback, ai_likelihood,
-      // ai_reasons, ... }` sin persistir. El worker hace el UPDATE
-      // mapeando a las columnas configuradas en el job. Default para
-      // workshops/projects.
-      //
-      // Antes el worker SIEMPRE escribía, lo que en exam_full causaba
-      // doble UPDATE redundante y, si la tabla no tenía `ai_feedback`,
-      // un error de columna inexistente.
+      // Persistencia. Caso A: la edge ya escribió (persistedInternally) →
+      // solo marcar done. Caso B: la edge devolvió {grade, feedback,...} →
+      // el worker mapea a las columnas configuradas del job.
       if (aiData?.persistedInternally !== true) {
         // deno-lint-ignore no-explicit-any
         const updatePayload: Record<string, any> = {};
@@ -294,38 +231,96 @@ Deno.serve(async (req) => {
         }
       }
 
-      await adminClient.rpc("complete_ai_grading", {
-        _job_id: job.id,
-        _ok: true,
-        _error: null,
-      });
+      await adminClient.rpc("complete_ai_grading", { _job_id: job.id, _ok: true, _error: null });
       await auditJob("ai_grading.job_completed", "info", job, {
         ai_grade: typeof aiData?.grade === "number" ? aiData.grade : null,
         persisted_internally: aiData?.persistedInternally === true,
       });
-      ok++;
+      return "ok";
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn(`[ai-grading-worker] job ${job.id} failed:`, msg);
-      await adminClient.rpc("complete_ai_grading", {
-        _job_id: job.id,
-        _ok: false,
-        _error: msg,
-      });
-      await auditJob("ai_grading.job_failed", "error", job, {
-        error_message: msg.slice(0, 500),
-      });
+      // complete_ai_grading reintenta transitorios (re-pending); el resto → failed.
+      await adminClient.rpc("complete_ai_grading", { _job_id: job.id, _ok: false, _error: msg });
+      await auditJob("ai_grading.job_failed", "error", job, { error_message: msg.slice(0, 500) });
+      return "failed";
+    }
+  };
+
+  // ── Modo INDIVIDUAL ───────────────────────────────────────────────────
+  if (singleJobId) {
+    const { data: jobs, error: claimErr } = await adminClient.rpc("claim_one_ai_grading", {
+      _job_id: singleJobId,
+    });
+    if (claimErr) return json({ ok: false, error: claimErr.message }, 500);
+    const job = (jobs ?? [])[0] as QueueJob | undefined;
+    if (!job) {
+      return json({ ok: true, mode: "single", processed: 0, message: "Job no disponible (ya procesado o cancelado)." });
+    }
+    const r = await runJob(job);
+    return json({
+      ok: true,
+      mode: "single",
+      processed: r === "ok" ? 1 : 0,
+      succeeded: r === "ok" ? 1 : 0,
+      failed: r === "failed" ? 1 : 0,
+      skipped: r === "skipped" ? 1 : 0,
+    });
+  }
+
+  // ── Modo DRENADO ──────────────────────────────────────────────────────
+  // 1) Rescatar orfanatos colgados en `processing` (>3 min) → `pending`.
+  //    Recupera jobs que un drenado anterior dejó si el edge se quedó sin
+  //    tiempo. Best-effort: si falla, seguimos igual.
+  try {
+    await adminClient.rpc("release_stuck_processing_jobs", { _threshold_minutes: 3, _max_attempts: 3 });
+  } catch (_e) {
+    /* best-effort */
+  }
+
+  // 2) Procesar UNO A UNO dentro del presupuesto. Solo el job en vuelo está
+  //    en `processing`; los no reclamados siguen `pending`.
+  const startTs = Date.now();
+  let processed = 0,
+    failed = 0,
+    skipped = 0;
+  let stopped: "done" | "failure" | "budget" = "budget";
+  while (Date.now() - startTs < BUDGET_MS && processed + failed + skipped < MAX_DRAIN) {
+    const { data: jobs, error: claimErr } = await adminClient.rpc("claim_pending_ai_grading", {
+      _limit: 1,
+    });
+    if (claimErr) {
+      stopped = "failure";
+      break;
+    }
+    const job = (jobs ?? [])[0] as QueueJob | undefined;
+    if (!job) {
+      stopped = "done";
+      break;
+    }
+    const r = await runJob(job);
+    if (r === "ok") processed++;
+    else if (r === "skipped") skipped++;
+    else {
       failed++;
+      stopped = "failure"; // si falla alguno, hasta ahí llega
+      break;
     }
   }
 
-  return new Response(
-    JSON.stringify({
-      ok: true,
-      processed: claimed.length,
-      succeeded: ok,
-      failed,
-    }),
-    { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-  );
+  // 3) ¿Cuántos quedan pendientes? (para que la UI avise al usuario).
+  const { count: remaining } = await adminClient
+    .from("ai_grading_queue")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pending");
+
+  return json({
+    ok: true,
+    mode: "drain",
+    processed,
+    failed,
+    skipped,
+    remainingPending: remaining ?? 0,
+    stopped,
+  });
 });
