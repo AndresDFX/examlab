@@ -281,6 +281,10 @@ function AdminDashboard() {
               .select("id", { count: "exact", head: true })
               .eq("status", "entregado")
               .is("final_grade", null)
+              // Sólo "por calificar" REAL: excluye las ya calificadas por IA que
+              // esperan SUSTENTACIÓN (submission_grade ya seteado → la nota base
+              // existe, falta el factor de sustentación, no la calificación).
+              .is("submission_grade", null)
               .in("project_id", projectIds)
           : Promise.resolve({ count: 0 }),
         // Threads abiertos a nivel plataforma (Admin RLS = sin filtro).
@@ -696,6 +700,9 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                   .select("project_id")
                   .eq("status", "entregado")
                   .is("final_grade", null)
+                  // Excluye las ya calificadas por IA que esperan sustentación
+                  // (submission_grade seteado) — no son "por calificar".
+                  .is("submission_grade", null)
                   .in("project_id", projectIds)
               : Promise.resolve({ data: [] }),
           ]);
