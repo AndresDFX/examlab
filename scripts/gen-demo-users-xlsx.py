@@ -29,13 +29,9 @@ NOTAS = (
 
 HEADERS = ["#", "Nombre", "Email (usuario)", "Contraseña", "Rol", "Institución",
            "URL de ingreso", "Entregado a", "Fecha entrega", "Notas"]
-USERS = [
-    ["Docente Demo 1", "docente1@demo-examlab.co"],
-    ["Docente Demo 2", "docente2@demo-examlab.co"],
-    ["Docente Demo 3", "docente3@demo-examlab.co"],
-    ["Docente Demo 4", "docente4@demo-examlab.co"],
-    ["Docente Demo 5", "docente5@demo-examlab.co"],
-]
+# 50 cuentas demo (docente1..50@demo-examlab.co) para repartir. Todas con la
+# misma contraseña genérica + rol Docente+Estudiante en el tenant "ExamLab Demo".
+USERS = [[f"Docente Demo {n}", f"docente{n}@demo-examlab.co"] for n in range(1, 51)]
 rows = [HEADERS]
 for i, (name, email) in enumerate(USERS, 1):
     rows.append([str(i), name, email, PWD, "Docente + Estudiante", TENANT, URL, "", "", NOTAS])
