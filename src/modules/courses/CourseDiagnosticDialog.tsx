@@ -48,12 +48,13 @@ import { Spinner } from "@/components/ui/spinner";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { SearchInput } from "@/components/ui/search-input";
-import { Stethoscope, AlertTriangle, MessageSquare, CheckCircle2, RefreshCw, ExternalLink, Lock, ClipboardList, CalendarCheck, FileText, Hammer, FolderKanban, Gavel, Sparkles, Users } from "lucide-react";
+import { Stethoscope, AlertTriangle, MessageSquare, CheckCircle2, RefreshCw, ExternalLink, Lock, ClipboardList, CalendarCheck, FileText, Hammer, FolderKanban, Gavel, Sparkles, Users, Scale, CalendarCheck2 } from "lucide-react";
 import {
   summarizePendingGrades,
   summarizeMatrix,
   summarizeAttendance,
   summarizeCohortCoverage,
+  summarizeWeightCoverage,
   diagCellSeverity,
   type DiagItem,
   type DiagStudent,
@@ -61,6 +62,11 @@ import {
   type DiagPendingRow,
   type DiagAttendanceSession,
   type DiagCohortCoverage,
+  type DiagWeightCoverage,
+  type DiagCut,
+  type DiagWeightedItem,
+  type DiagBucketKind,
+  type DiagCutCoverage,
 } from "@/modules/courses/diagnostic";
 import { enqueueAiGradeForSubmission } from "@/modules/ai/grade-submission";
 
@@ -142,6 +148,18 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
     gaps: [],
   });
 
+  // Cobertura de pesos de evaluación: % del 100% del curso sin asignar
+  // (a nivel curso y por bucket dentro de cada corte).
+  const [weightCoverage, setWeightCoverage] = useState<DiagWeightCoverage>({
+    hasCuts: false,
+    courseTotalAssigned: 0,
+    courseTotalGap: 0,
+    courseCutsNotHundred: false,
+    cuts: [],
+    orphanItems: { exam: 0, workshop: 0, project: 0 },
+    hasGaps: false,
+  });
+
   const loadAll = useCallback(async () => {
     if (!courseId) return;
     setLoading(true);
@@ -174,46 +192,84 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
 
       // 2) Exámenes / talleres / proyectos del curso (excluyendo papelera).
       // Talleres y proyectos son M:N → vamos por workshop_courses / project_courses.
+      // Traemos también weight + cut_id para la cobertura de pesos. OJO: el
+      // peso/corte canónico por curso vive en exams.cut_id/weight directo,
+      // pero en workshop_courses.{cut_id,weight} / project_courses.{cut_id,weight}
+      // para talleres/proyectos (NO en la tabla global) — ver gradebook.
       const [{ data: exams }, { data: wcRows }, { data: pcRows }] = await Promise.all([
         db
           .from("exams")
-          .select("id, title")
+          .select("id, title, weight, cut_id")
           .eq("course_id", courseId)
           .is("deleted_at", null)
           .is("parent_exam_id", null),
         db
           .from("workshop_courses")
-          .select("workshop:workshops(id, title, deleted_at)")
+          .select("weight, cut_id, workshop:workshops(id, title, deleted_at, weight)")
           .eq("course_id", courseId),
         db
           .from("project_courses")
-          .select("project:projects(id, title, deleted_at)")
+          .select("weight, cut_id, project:projects(id, title, deleted_at)")
           .eq("course_id", courseId),
       ]);
 
-      const examItems: DiagItem[] = ((exams ?? []) as Array<{ id: string; title: string }>).map(
-        (e) => ({ id: e.id, title: e.title, kind: "exam" as const }),
-      );
+      // Items con peso/corte para la cobertura (paralelo a allItems).
+      const weightedItems: DiagWeightedItem[] = [];
+
+      const examItems: DiagItem[] = ((exams ?? []) as Array<{
+        id: string;
+        title: string;
+        weight: number | null;
+        cut_id: string | null;
+      }>).map((e) => {
+        weightedItems.push({ kind: "exam", cut_id: e.cut_id, weight: e.weight });
+        return { id: e.id, title: e.title, kind: "exam" as const };
+      });
       const workshopItems: DiagItem[] = ((wcRows ?? []) as Array<{
-        workshop: { id: string; title: string; deleted_at: string | null } | null;
+        weight: number | null;
+        cut_id: string | null;
+        workshop: { id: string; title: string; deleted_at: string | null; weight: number | null } | null;
       }>)
         .filter((r) => r.workshop && !r.workshop.deleted_at)
-        .map((r) => ({
-          id: r.workshop!.id,
-          title: r.workshop!.title,
-          kind: "workshop" as const,
-        }));
+        .map((r) => {
+          // workshop_courses.weight es el canónico; si es NULL cae al legacy
+          // workshops.weight (curso primario).
+          const w = r.weight != null ? r.weight : r.workshop!.weight;
+          weightedItems.push({ kind: "workshop", cut_id: r.cut_id, weight: w });
+          return {
+            id: r.workshop!.id,
+            title: r.workshop!.title,
+            kind: "workshop" as const,
+          };
+        });
       const projectItems: DiagItem[] = ((pcRows ?? []) as Array<{
+        weight: number | null;
+        cut_id: string | null;
         project: { id: string; title: string; deleted_at: string | null } | null;
       }>)
         .filter((r) => r.project && !r.project.deleted_at)
-        .map((r) => ({
-          id: r.project!.id,
-          title: r.project!.title,
-          kind: "project" as const,
-        }));
+        .map((r) => {
+          weightedItems.push({ kind: "project", cut_id: r.cut_id, weight: r.weight });
+          return {
+            id: r.project!.id,
+            title: r.project!.title,
+            kind: "project" as const,
+          };
+        });
       const allItems: DiagItem[] = [...examItems, ...workshopItems, ...projectItems];
       setItems(allItems);
+
+      // 2b) Cortes del curso (con sus 4 buckets) → cobertura de pesos.
+      const { data: cutsData } = await db
+        .from("grade_cuts")
+        .select(
+          "id, name, weight, workshop_weight, exam_weight, project_weight, attendance_weight",
+        )
+        .eq("course_id", courseId)
+        .order("position");
+      setWeightCoverage(
+        summarizeWeightCoverage((cutsData ?? []) as DiagCut[], weightedItems),
+      );
 
       // 3) Submissions de cada tipo.
       const examIds = examItems.map((e) => e.id);
@@ -505,6 +561,15 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
       setOpenThreads([]);
       setAttendanceRows([]);
       setCohortCoverage({ hasCohorts: false, cohorts: [], gaps: [] });
+      setWeightCoverage({
+        hasCuts: false,
+        courseTotalAssigned: 0,
+        courseTotalGap: 0,
+        courseCutsNotHundred: false,
+        cuts: [],
+        orphanItems: { exam: 0, workshop: 0, project: 0 },
+        hasGaps: false,
+      });
       setMatrixSearch("");
     }
   }, [open, courseId, loadAll]);
@@ -515,6 +580,20 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
     [students, submissions, items, aiFailedRefs],
   );
   const matrixSummary = useMemo(() => summarizeMatrix(matrixRows), [matrixRows]);
+
+  // Conteo de "huecos" de cobertura para el badge de la tab: gap de curso +
+  // cada bucket con gap + cada corte con intra-corte gap + items huérfanos.
+  const coverageGapCount = useMemo(() => {
+    const wc = weightCoverage;
+    let n = 0;
+    if (wc.courseTotalGap > 0 || wc.courseCutsNotHundred) n += 1;
+    for (const c of wc.cuts) {
+      if (c.intraCutGap > 0) n += 1;
+      for (const b of c.buckets) if (b.gap > 0) n += 1;
+    }
+    n += wc.orphanItems.exam + wc.orphanItems.workshop + wc.orphanItems.project;
+    return n;
+  }, [weightCoverage]);
 
   // Filtramos por search + ordenamos por severidad: errores y pendientes primero.
   const filteredMatrixRows = useMemo(() => {
@@ -719,6 +798,19 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
         ? t("courseDiagnostic.kindWorkshop")
         : t("courseDiagnostic.kindProject");
 
+  // Label e ícono por bucket de cobertura (incluye asistencia, que no es
+  // un tipo de actividad de la matriz pero sí un bucket del corte).
+  const bucketLabel = (kind: DiagBucketKind) =>
+    kind === "attendance"
+      ? t("courseDiagnostic.bucketAttendance")
+      : kindLabel(kind === "workshop" ? "workshop" : kind === "exam" ? "exam" : "project");
+  const bucketIcon = (kind: DiagBucketKind) => {
+    if (kind === "exam") return <FileText className="h-3.5 w-3.5 text-blue-600" />;
+    if (kind === "workshop") return <Hammer className="h-3.5 w-3.5 text-amber-600" />;
+    if (kind === "project") return <FolderKanban className="h-3.5 w-3.5 text-violet-600" />;
+    return <CalendarCheck2 className="h-3.5 w-3.5 text-sky-600" />;
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-5xl max-h-[90dvh] flex flex-col gap-3 p-4 sm:p-6">
@@ -813,6 +905,20 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                       className="ml-1 text-[10px] px-1.5 py-0 h-4 leading-none"
                     >
                       {cohortCoverage.gaps.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              )}
+              {weightCoverage.hasCuts && (
+                <TabsTrigger value="coverage" className="gap-1.5">
+                  <Scale className="h-3.5 w-3.5" />
+                  {t("courseDiagnostic.tabCoverage")}
+                  {coverageGapCount > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="ml-1 text-[10px] px-1.5 py-0 h-4 leading-none"
+                    >
+                      {coverageGapCount}
                     </Badge>
                   )}
                 </TabsTrigger>
@@ -1269,6 +1375,88 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                   )}
                 </TabsContent>
               )}
+
+              {/* ── TAB 6: Cobertura de evaluación (solo con cortes) ───── */}
+              {weightCoverage.hasCuts && (
+                <TabsContent value="coverage" className="m-0 space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    {t("courseDiagnostic.coverageIntro")}
+                  </p>
+
+                  {/* Resumen a nivel curso */}
+                  {weightCoverage.courseTotalGap > 0 ? (
+                    <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900 p-3 text-sm text-amber-800 dark:text-amber-300">
+                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                      <span>
+                        {t("courseDiagnostic.coverageCourseGap", {
+                          assigned: formatPct(weightCoverage.courseTotalAssigned),
+                          gap: formatPct(weightCoverage.courseTotalGap),
+                        })}
+                      </span>
+                    </div>
+                  ) : weightCoverage.courseCutsNotHundred ? (
+                    <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50/50 dark:bg-red-950/20 dark:border-red-900 p-3 text-sm text-red-800 dark:text-red-300">
+                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                      <span>
+                        {t("courseDiagnostic.coverageCourseOver", {
+                          assigned: formatPct(weightCoverage.courseTotalAssigned),
+                        })}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20 dark:border-emerald-900 p-3 text-sm text-emerald-800 dark:text-emerald-300">
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      {t("courseDiagnostic.coverageCourseOk")}
+                    </div>
+                  )}
+
+                  {/* Items sin corte asignado (huérfanos). */}
+                  {weightCoverage.orphanItems.exam +
+                    weightCoverage.orphanItems.workshop +
+                    weightCoverage.orphanItems.project >
+                    0 && (
+                    <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900 p-3 text-sm text-amber-800 dark:text-amber-300">
+                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                      <span>
+                        {t("courseDiagnostic.coverageOrphans", {
+                          count:
+                            weightCoverage.orphanItems.exam +
+                            weightCoverage.orphanItems.workshop +
+                            weightCoverage.orphanItems.project,
+                        })}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Detalle por corte y por bucket. */}
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t("courseDiagnostic.colCut")}</TableHead>
+                        <TableHead>{t("courseDiagnostic.colBucket")}</TableHead>
+                        <TableHead className="text-right">
+                          {t("courseDiagnostic.colAssigned")}
+                        </TableHead>
+                        <TableHead className="text-right">
+                          {t("courseDiagnostic.colAvailable")}
+                        </TableHead>
+                        <TableHead>{t("courseDiagnostic.colStatus")}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {weightCoverage.cuts.map((c) => (
+                        <CutCoverageRows
+                          key={c.id}
+                          cut={c}
+                          bucketLabel={bucketLabel}
+                          bucketIcon={bucketIcon}
+                          t={t}
+                        />
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TabsContent>
+              )}
             </div>
           </Tabs>
         )}
@@ -1310,6 +1498,112 @@ function StatPill({
       </div>
     </div>
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Componente local: filas de cobertura de UN corte (cabecera + 4 buckets).
+// El intra-corte gap (los buckets no llenan el peso del corte) se muestra
+// en la fila cabecera del corte.
+// ─────────────────────────────────────────────────────────────────────
+function CutCoverageRows({
+  cut,
+  bucketLabel,
+  bucketIcon,
+  t,
+}: {
+  cut: DiagCutCoverage;
+  bucketLabel: (kind: DiagBucketKind) => string;
+  bucketIcon: (kind: DiagBucketKind) => React.ReactNode;
+  t: (key: string, opts?: Record<string, unknown>) => string;
+}) {
+  return (
+    <>
+      {/* Cabecera del corte. */}
+      <TableRow className="bg-muted/40">
+        <TableCell colSpan={2} className="text-xs font-medium">
+          {cut.name ?? t("courseDiagnostic.coverageUnnamedCut")}
+          <span className="ml-1 font-normal text-muted-foreground">
+            ({formatPct(cut.cutWeight)}%)
+          </span>
+        </TableCell>
+        <TableCell className="text-right text-xs tabular-nums">
+          {formatPct(cut.bucketsTotal)}%
+        </TableCell>
+        <TableCell className="text-right text-xs tabular-nums">
+          {formatPct(cut.cutWeight)}%
+        </TableCell>
+        <TableCell>
+          {cut.intraCutGap > 0 ? (
+            <Badge
+              variant="outline"
+              className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-300"
+            >
+              {t("courseDiagnostic.coverageGapBadge", { gap: formatPct(cut.intraCutGap) })}
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="text-[10px] border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+            >
+              {t("courseDiagnostic.coverageOkBadge")}
+            </Badge>
+          )}
+        </TableCell>
+      </TableRow>
+      {/* Una fila por bucket. */}
+      {cut.buckets.map((b) => {
+        // Buckets en 0 (sin peso) no aportan información — los ocultamos
+        // para que la tabla muestre solo los buckets activos del corte.
+        if (b.bucketWeight === 0) return null;
+        const hasGap = b.gap > 0;
+        return (
+          <TableRow
+            key={`${cut.id}-${b.kind}`}
+            className={hasGap ? "bg-amber-50/40 dark:bg-amber-950/10" : ""}
+          >
+            <TableCell />
+            <TableCell>
+              <span className="inline-flex items-center gap-1 text-xs">
+                {bucketIcon(b.kind)}
+                {bucketLabel(b.kind)}
+              </span>
+            </TableCell>
+            <TableCell className="text-right text-xs tabular-nums">
+              {formatPct(b.assignedToItems)}%
+            </TableCell>
+            <TableCell className="text-right text-xs tabular-nums">
+              {formatPct(b.bucketWeight)}%
+            </TableCell>
+            <TableCell>
+              {hasGap ? (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-300"
+                >
+                  {t("courseDiagnostic.coverageGapBadge", { gap: formatPct(b.gap) })}
+                </Badge>
+              ) : (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                >
+                  {t("courseDiagnostic.coverageOkBadge")}
+                </Badge>
+              )}
+            </TableCell>
+          </TableRow>
+        );
+      })}
+    </>
+  );
+}
+
+// Formatea un porcentaje del modelo de pesos (0..100, hasta 2 decimales)
+// con coma decimal es-CO y SIN ceros finales (5 → "5", 12.5 → "12,5").
+// Se usa solo para DISPLAY (la fn pura devuelve números crudos).
+function formatPct(n: number): string {
+  const rounded = Math.round(n * 100) / 100; // 2 decimales máx, mata ruido flotante
+  return new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 }).format(rounded);
 }
 
 // Helper: resolver item_id de un thread mirando la submission_id contra

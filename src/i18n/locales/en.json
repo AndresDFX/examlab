@@ -4147,7 +4147,21 @@
     "cohortsIntro": "The course groups students into {{count}} cohort(s): {{cohorts}}. Below, the activities not assigned to some cohort — those students will NOT see them (likely an assignment oversight).",
     "cohortsAllOk": "All activities are assigned to all cohorts.",
     "colMissingCohorts": "Unassigned cohorts",
-    "colAffected": "Affected students"
+    "colAffected": "Affected students",
+    "tabCoverage": "Weight coverage",
+    "coverageIntro": "Here you can see how much of the final grade's 100% is already allocated and what's left to assign — at the course level (sum of the cuts) and within each cut by type (workshops, exams, projects, attendance).",
+    "coverageCourseGap": "Assigned {{assigned}}% of 100% — {{gap}}% left to distribute across the cuts.",
+    "coverageCourseOver": "The cuts add up to {{assigned}}% (over 100%). Review the cut weights: they must add up to exactly 100%.",
+    "coverageCourseOk": "The full 100% of the final grade is distributed across the cuts. ✨",
+    "coverageOrphans": "{{count}} activity(ies) with no cut assigned — their weight does NOT count toward any cut until you assign them to one.",
+    "colCut": "Cut",
+    "colBucket": "Type",
+    "colAssigned": "Assigned",
+    "colAvailable": "Available",
+    "bucketAttendance": "Attendance",
+    "coverageGapBadge": "Missing {{gap}}%",
+    "coverageOkBadge": "Complete",
+    "coverageUnnamedCut": "Unnamed cut"
   },
   "activitySession": {
     "label": "Link to session (optional)",

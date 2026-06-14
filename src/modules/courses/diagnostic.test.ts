@@ -11,11 +11,14 @@ import {
   summarizeMatrix,
   summarizeAttendance,
   summarizeCohortCoverage,
+  summarizeWeightCoverage,
   diagCellSeverity,
   diagCellStatusLabel,
   type DiagItem,
   type DiagStudent,
   type DiagSubmission,
+  type DiagCut,
+  type DiagWeightedItem,
 } from "./diagnostic";
 
 // ── Fixtures compartidas ──────────────────────────────────────────────
@@ -464,5 +467,207 @@ describe("summarizeCohortCoverage", () => {
     expect(r.cohorts).toEqual(["2024-1"]);
     // u-z no aparece en affectedStudents.
     expect(r.gaps[0].affectedStudents).toBe(1);
+  });
+});
+
+// ── summarizeWeightCoverage ───────────────────────────────────────────
+describe("summarizeWeightCoverage", () => {
+  /** Helper: arma un corte con buckets explícitos. */
+  const cut = (
+    id: string,
+    name: string,
+    weight: number,
+    buckets: { ws?: number; ex?: number; pr?: number; at?: number } = {},
+  ): DiagCut => ({
+    id,
+    name,
+    weight,
+    workshop_weight: buckets.ws ?? 0,
+    exam_weight: buckets.ex ?? 0,
+    project_weight: buckets.pr ?? 0,
+    attendance_weight: buckets.at ?? 0,
+  });
+  const item = (
+    kind: "exam" | "workshop" | "project",
+    cut_id: string | null,
+    weight: number | null,
+  ): DiagWeightedItem => ({ kind, cut_id, weight });
+
+  it("sin cortes → hasCuts=false, courseTotalGap=100 (todo sin asignar)", () => {
+    const r = summarizeWeightCoverage([], []);
+    expect(r.hasCuts).toBe(false);
+    expect(r.courseTotalAssigned).toBe(0);
+    expect(r.courseTotalGap).toBe(100);
+    // Sin cortes no marcamos "no suma 100" (no aplica el chequeo de cortes).
+    expect(r.courseCutsNotHundred).toBe(false);
+    expect(r.cuts).toHaveLength(0);
+  });
+
+  it("curso completo (cortes suman 100, buckets llenos, items completos) → sin gaps", () => {
+    const cuts: DiagCut[] = [
+      cut("c1", "Corte 1", 50, { ws: 20, ex: 20, pr: 0, at: 10 }),
+      cut("c2", "Corte 2", 50, { ws: 0, ex: 30, pr: 20, at: 0 }),
+    ];
+    const items: DiagWeightedItem[] = [
+      // Corte 1: talleres 20 (12+8), exámenes 20 (un parcial).
+      item("workshop", "c1", 12),
+      item("workshop", "c1", 8),
+      item("exam", "c1", 20),
+      // Corte 2: exámenes 30, proyecto 20.
+      item("exam", "c2", 30),
+      item("project", "c2", 20),
+    ];
+    const r = summarizeWeightCoverage(cuts, items);
+    expect(r.hasCuts).toBe(true);
+    expect(r.courseTotalAssigned).toBe(100);
+    expect(r.courseTotalGap).toBe(0);
+    expect(r.courseCutsNotHundred).toBe(false);
+    expect(r.hasGaps).toBe(false);
+    // Cada bucket sin gap.
+    const c1 = r.cuts.find((c) => c.id === "c1")!;
+    expect(c1.intraCutGap).toBe(0);
+    expect(c1.buckets.find((b) => b.kind === "workshop")!.gap).toBe(0);
+    expect(c1.buckets.find((b) => b.kind === "exam")!.gap).toBe(0);
+    // Asistencia: assignedToItems == bucketWeight (10), gap 0.
+    const at = c1.buckets.find((b) => b.kind === "attendance")!;
+    expect(at.assignedToItems).toBe(10);
+    expect(at.gap).toBe(0);
+  });
+
+  it("curso 92% (cortes suman 92) → courseTotalGap 8, courseCutsNotHundred true", () => {
+    const cuts: DiagCut[] = [
+      cut("c1", "Corte 1", 50, { ws: 20, ex: 20, at: 10 }),
+      cut("c2", "Corte 2", 42, { ex: 42 }),
+    ];
+    const items: DiagWeightedItem[] = [
+      item("workshop", "c1", 20),
+      item("exam", "c1", 20),
+      item("exam", "c2", 42),
+    ];
+    const r = summarizeWeightCoverage(cuts, items);
+    expect(r.courseTotalAssigned).toBe(92);
+    expect(r.courseTotalGap).toBe(8);
+    expect(r.courseCutsNotHundred).toBe(true);
+    expect(r.hasGaps).toBe(true);
+  });
+
+  it("bucket de talleres con gap (12 de 20 asignados → falta 8)", () => {
+    const cuts: DiagCut[] = [cut("c1", "Corte 1", 100, { ws: 20, ex: 70, at: 10 })];
+    const items: DiagWeightedItem[] = [
+      // Talleres: solo 12 de los 20 del bucket → falta 8.
+      item("workshop", "c1", 12),
+      item("exam", "c1", 70),
+    ];
+    const r = summarizeWeightCoverage(cuts, items);
+    expect(r.courseTotalGap).toBe(0); // el corte sí suma 100
+    const c1 = r.cuts[0];
+    const ws = c1.buckets.find((b) => b.kind === "workshop")!;
+    expect(ws.bucketWeight).toBe(20);
+    expect(ws.assignedToItems).toBe(12);
+    expect(ws.gap).toBe(8);
+    // Exámenes completos (70 de 70).
+    const ex = c1.buckets.find((b) => b.kind === "exam")!;
+    expect(ex.gap).toBe(0);
+    expect(r.hasGaps).toBe(true);
+  });
+
+  it("attendance: bucket sin items → assignedToItems == bucketWeight, gap 0", () => {
+    const cuts: DiagCut[] = [cut("c1", "Corte 1", 100, { ex: 80, at: 20 })];
+    const items: DiagWeightedItem[] = [item("exam", "c1", 80)];
+    const r = summarizeWeightCoverage(cuts, items);
+    const at = r.cuts[0].buckets.find((b) => b.kind === "attendance")!;
+    expect(at.bucketWeight).toBe(20);
+    expect(at.assignedToItems).toBe(20);
+    expect(at.gap).toBe(0);
+    // Sin huecos: el corte suma 100, exámenes completos, asistencia directa.
+    expect(r.hasGaps).toBe(false);
+  });
+
+  it("pesos null/0 se tratan como 0", () => {
+    const cuts: DiagCut[] = [
+      {
+        id: "c1",
+        name: "Corte 1",
+        weight: null, // peso del corte sin definir
+        workshop_weight: null,
+        exam_weight: null,
+        project_weight: null,
+        attendance_weight: null,
+      },
+    ];
+    const items: DiagWeightedItem[] = [item("workshop", "c1", null)];
+    const r = summarizeWeightCoverage(cuts, items);
+    expect(r.courseTotalAssigned).toBe(0);
+    expect(r.courseTotalGap).toBe(100);
+    const c1 = r.cuts[0];
+    expect(c1.cutWeight).toBe(0);
+    expect(c1.bucketsTotal).toBe(0);
+    expect(c1.intraCutGap).toBe(0); // cutWeight 0 - buckets 0
+    // El item con weight null suma 0 al bucket de talleres.
+    expect(c1.buckets.find((b) => b.kind === "workshop")!.assignedToItems).toBe(0);
+  });
+
+  it("item sin corte (cut_id null) → cuenta como huérfano, no en ningún bucket", () => {
+    const cuts: DiagCut[] = [cut("c1", "Corte 1", 100, { ws: 50, ex: 50 })];
+    const items: DiagWeightedItem[] = [
+      item("workshop", "c1", 50),
+      item("exam", "c1", 50),
+      // Taller SIN corte asignado → huérfano.
+      item("workshop", null, 10),
+      item("project", null, 5),
+    ];
+    const r = summarizeWeightCoverage(cuts, items);
+    expect(r.orphanItems.workshop).toBe(1);
+    expect(r.orphanItems.project).toBe(1);
+    expect(r.orphanItems.exam).toBe(0);
+    // El huérfano NO infla el bucket de talleres del corte (sigue en 50).
+    const ws = r.cuts[0].buckets.find((b) => b.kind === "workshop")!;
+    expect(ws.assignedToItems).toBe(50);
+    expect(ws.gap).toBe(0);
+    // Hay huecos porque hay huérfanos (aunque los buckets cuadren).
+    expect(r.hasGaps).toBe(true);
+  });
+
+  it("intra-corte gap: los buckets no llenan el peso del corte", () => {
+    // Corte vale 50 pero los buckets suman solo 40 → 10% del corte sin repartir.
+    const cuts: DiagCut[] = [cut("c1", "Corte 1", 50, { ws: 20, ex: 20 })];
+    const r = summarizeWeightCoverage(cuts, []);
+    const c1 = r.cuts[0];
+    expect(c1.cutWeight).toBe(50);
+    expect(c1.bucketsTotal).toBe(40);
+    expect(c1.intraCutGap).toBe(10);
+    expect(r.hasGaps).toBe(true);
+  });
+
+  it("cortes que SUPERAN 100 → courseCutsNotHundred true, gap 0 (clamp)", () => {
+    const cuts: DiagCut[] = [
+      cut("c1", "Corte 1", 60, { ex: 60 }),
+      cut("c2", "Corte 2", 60, { ex: 60 }),
+    ];
+    const items: DiagWeightedItem[] = [item("exam", "c1", 60), item("exam", "c2", 60)];
+    const r = summarizeWeightCoverage(cuts, items);
+    expect(r.courseTotalAssigned).toBe(120);
+    expect(r.courseTotalGap).toBe(0); // clamp a >= 0
+    expect(r.courseCutsNotHundred).toBe(true);
+    expect(r.hasGaps).toBe(true);
+  });
+
+  it("tolerancia flotante: 33.33+33.33+33.34 ≈ 100 NO marca gap", () => {
+    const cuts: DiagCut[] = [
+      cut("c1", "C1", 33.33, { ex: 33.33 }),
+      cut("c2", "C2", 33.33, { ex: 33.33 }),
+      cut("c3", "C3", 33.34, { ex: 33.34 }),
+    ];
+    const items: DiagWeightedItem[] = [
+      item("exam", "c1", 33.33),
+      item("exam", "c2", 33.33),
+      item("exam", "c3", 33.34),
+    ];
+    const r = summarizeWeightCoverage(cuts, items);
+    expect(r.courseTotalGap).toBe(0);
+    expect(r.courseCutsNotHundred).toBe(false);
+    // Cada bucket de exámenes cuadra dentro de la tolerancia.
+    expect(r.cuts.every((c) => c.buckets.find((b) => b.kind === "exam")!.gap === 0)).toBe(true);
+    expect(r.hasGaps).toBe(false);
   });
 });

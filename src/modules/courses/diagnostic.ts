@@ -339,6 +339,214 @@ export function summarizeCohortCoverage(
   return { hasCohorts: true, cohorts, gaps };
 }
 
+// ── Cobertura de pesos de evaluación ──────────────────────────────────
+//
+// Detecta qué % del 100% de la nota final del curso quedó SIN ASIGNAR,
+// a dos niveles:
+//   (a) curso: la suma de los pesos de los cortes (cut.weight) debería dar
+//       100. Si da 92, faltó 8% por repartir entre cortes.
+//   (b) bucket dentro de cada corte: cada corte reparte su peso en 4
+//       buckets (talleres/exámenes/proyectos/asistencia). Para talleres/
+//       exámenes/proyectos, los ITEMS reales (cada taller/examen/proyecto
+//       con su weight) deben sumar el bucket. Si el bucket de talleres es
+//       20 pero solo hay talleres por 12, faltan 8% de talleres por asignar.
+//
+// La asistencia NO tiene items con weight: su "asignado" ES el propio
+// attendance_weight (es directo, no se reparte entre items), así que su
+// gap es siempre 0 — no hay nada que "olvidar asignar".
+//
+// REGLA del modelo (confirmada en la validación del form de cortes):
+//   workshop_weight + exam_weight + project_weight + attendance_weight
+//   = cut.weight (NO 100). Cada peso es % de la nota FINAL del curso.
+
+/** Tolerancia para comparaciones de punto flotante (mismo TOL del form). */
+const WEIGHT_TOL = 0.01;
+
+/** Un corte con su peso total y los 4 buckets. */
+export type DiagCut = {
+  id: string;
+  name: string | null;
+  weight: number | null;
+  workshop_weight: number | null;
+  exam_weight: number | null;
+  project_weight: number | null;
+  attendance_weight: number | null;
+};
+
+/** Un item evaluativo con su peso y el corte al que pertenece. */
+export type DiagWeightedItem = {
+  kind: "exam" | "workshop" | "project";
+  /** Corte al que está asignado el item; null = sin corte (huérfano). */
+  cut_id: string | null;
+  /** Peso del item (% de la nota final). null/0 = sin peso asignado. */
+  weight: number | null;
+};
+
+/** Tipos de bucket que SÍ se llenan con items (la asistencia es directa). */
+export type DiagBucketKind = "workshop" | "exam" | "project" | "attendance";
+
+/** Cobertura de un bucket dentro de un corte. */
+export type DiagBucketCoverage = {
+  kind: DiagBucketKind;
+  /** Peso del bucket dentro del corte (% de la nota final). */
+  bucketWeight: number;
+  /** Suma de los pesos de los items de ese tipo en ese corte. Para
+   *  asistencia es igual a bucketWeight (no tiene items que sumar). */
+  assignedToItems: number;
+  /** bucketWeight - assignedToItems, clamp a >= 0. > 0 = falta repartir. */
+  gap: number;
+};
+
+/** Cobertura de pesos de un corte. */
+export type DiagCutCoverage = {
+  id: string;
+  name: string | null;
+  /** Peso total del corte (% de la nota final). */
+  cutWeight: number;
+  /** Suma de los 4 buckets del corte. */
+  bucketsTotal: number;
+  /** cutWeight - bucketsTotal, clamp a >= 0. > 0 = los buckets no llenan
+   *  el peso del corte (hay % del corte sin repartir en ningún bucket). */
+  intraCutGap: number;
+  /** Cobertura por bucket (workshop/exam/project/attendance). */
+  buckets: DiagBucketCoverage[];
+};
+
+export type DiagWeightCoverage = {
+  /** El curso usa cortes (hay ≥1 corte definido). */
+  hasCuts: boolean;
+  /** Suma de cut.weight de todos los cortes. */
+  courseTotalAssigned: number;
+  /** 100 - courseTotalAssigned, clamp a >= 0. > 0 = falta peso por repartir. */
+  courseTotalGap: number;
+  /** true cuando la suma de cortes NO es exactamente 100 (por exceso o
+   *  por defecto) — incluye el caso "supera 100" (over-allocated). */
+  courseCutsNotHundred: boolean;
+  /** Cobertura por corte. */
+  cuts: DiagCutCoverage[];
+  /** Items con cut_id null (no caen en ningún bucket → huérfanos). Su peso
+   *  no se contabiliza en ningún corte. Conteo por tipo para reportarlo. */
+  orphanItems: { exam: number; workshop: number; project: number };
+  /** ¿Hay AL MENOS un hueco accionable? (gap de curso, gap intra-corte, o
+   *  gap de algún bucket, o items huérfanos). Útil para el badge de la tab. */
+  hasGaps: boolean;
+};
+
+/** Suma defensiva de un valor numérico posiblemente null. */
+function num(v: number | null | undefined): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : 0;
+}
+
+/** Clampea a >= 0 y limpia ruido de punto flotante (< TOL → 0). */
+function clampGap(v: number): number {
+  if (v < WEIGHT_TOL) return 0;
+  return v;
+}
+
+/**
+ * Resume la cobertura de pesos de evaluación de un curso con cortes.
+ *
+ * @param cuts  cortes del curso con su weight + los 4 buckets.
+ * @param items items (examen/taller/proyecto) con su weight y cut_id.
+ *              El peso por curso/corte vive en exams.weight / cut_id directo,
+ *              y en workshop_courses.weight / project_courses.weight para los
+ *              talleres/proyectos (el caller resuelve la fuente correcta).
+ *
+ * PURO: sin Date.now / Math.random / React / Supabase. Devuelve números
+ * (la coma decimal es solo presentación de la UI).
+ */
+export function summarizeWeightCoverage(
+  cuts: DiagCut[],
+  items: DiagWeightedItem[],
+): DiagWeightCoverage {
+  const hasCuts = cuts.length > 0;
+
+  // Suma de pesos de items por (cut_id, kind). Solo cuentan los items con
+  // cut_id no-null (los huérfanos se reportan aparte).
+  const itemsByCutKind = new Map<string, number>();
+  const orphanItems = { exam: 0, workshop: 0, project: 0 };
+  for (const it of items) {
+    const w = num(it.weight);
+    if (!it.cut_id) {
+      orphanItems[it.kind] += 1;
+      continue;
+    }
+    const key = `${it.cut_id}::${it.kind}`;
+    itemsByCutKind.set(key, num(itemsByCutKind.get(key)) + w);
+  }
+
+  const courseTotalAssigned = cuts.reduce((acc, c) => acc + num(c.weight), 0);
+  const courseTotalGap = clampGap(100 - courseTotalAssigned);
+  const courseCutsNotHundred = hasCuts && Math.abs(courseTotalAssigned - 100) >= WEIGHT_TOL;
+
+  const cutCoverages: DiagCutCoverage[] = cuts.map((c) => {
+    const cutWeight = num(c.weight);
+    const wsBucket = num(c.workshop_weight);
+    const exBucket = num(c.exam_weight);
+    const prBucket = num(c.project_weight);
+    const atBucket = num(c.attendance_weight);
+    const bucketsTotal = wsBucket + exBucket + prBucket + atBucket;
+
+    const wsItems = num(itemsByCutKind.get(`${c.id}::workshop`));
+    const exItems = num(itemsByCutKind.get(`${c.id}::exam`));
+    const prItems = num(itemsByCutKind.get(`${c.id}::project`));
+
+    const buckets: DiagBucketCoverage[] = [
+      {
+        kind: "workshop",
+        bucketWeight: wsBucket,
+        assignedToItems: wsItems,
+        gap: clampGap(wsBucket - wsItems),
+      },
+      {
+        kind: "exam",
+        bucketWeight: exBucket,
+        assignedToItems: exItems,
+        gap: clampGap(exBucket - exItems),
+      },
+      {
+        kind: "project",
+        bucketWeight: prBucket,
+        assignedToItems: prItems,
+        gap: clampGap(prBucket - prItems),
+      },
+      {
+        // La asistencia no tiene items que sumar: su "asignado" ES el bucket.
+        kind: "attendance",
+        bucketWeight: atBucket,
+        assignedToItems: atBucket,
+        gap: 0,
+      },
+    ];
+
+    return {
+      id: c.id,
+      name: c.name,
+      cutWeight,
+      bucketsTotal,
+      intraCutGap: clampGap(cutWeight - bucketsTotal),
+      buckets,
+    };
+  });
+
+  const hasOrphans =
+    orphanItems.exam > 0 || orphanItems.workshop > 0 || orphanItems.project > 0;
+  const hasBucketGaps = cutCoverages.some(
+    (c) => c.intraCutGap > 0 || c.buckets.some((b) => b.gap > 0),
+  );
+  const hasGaps = courseTotalGap > 0 || courseCutsNotHundred || hasBucketGaps || hasOrphans;
+
+  return {
+    hasCuts,
+    courseTotalAssigned,
+    courseTotalGap,
+    courseCutsNotHundred,
+    cuts: cutCoverages,
+    orphanItems,
+    hasGaps,
+  };
+}
+
 /** Devuelve la "severidad" para ordenar la matriz: los errores y
  *  pendientes deben aparecer ANTES de las calificadas para que el
  *  docente vea lo accionable primero sin scrollear. */

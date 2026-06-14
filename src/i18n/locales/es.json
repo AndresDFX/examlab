@@ -4147,7 +4147,21 @@
     "cohortsIntro": "El curso agrupa estudiantes en {{count}} cohorte(s): {{cohorts}}. Abajo, las actividades que no se asignaron a alguna cohorte — esos estudiantes NO las verán (probable olvido al asignar).",
     "cohortsAllOk": "Todas las actividades están asignadas a todas las cohortes.",
     "colMissingCohorts": "Cohortes sin asignar",
-    "colAffected": "Estudiantes afectados"
+    "colAffected": "Estudiantes afectados",
+    "tabCoverage": "Cobertura de pesos",
+    "coverageIntro": "Acá ves cuánto del 100% de la nota final ya repartiste y qué falta por asignar — a nivel del curso (suma de los cortes) y dentro de cada corte por tipo (talleres, exámenes, proyectos, asistencia).",
+    "coverageCourseGap": "Asignado {{assigned}}% de 100% — falta {{gap}}% por repartir entre los cortes.",
+    "coverageCourseOver": "Los cortes suman {{assigned}}% (más de 100%). Revisá los pesos de los cortes: deben sumar exactamente 100%.",
+    "coverageCourseOk": "El 100% de la nota final está repartido entre los cortes. ✨",
+    "coverageOrphans": "{{count}} actividad(es) sin corte asignado — su peso NO cuenta en ningún corte hasta que las asignes a uno.",
+    "colCut": "Corte",
+    "colBucket": "Tipo",
+    "colAssigned": "Asignado",
+    "colAvailable": "Disponible",
+    "bucketAttendance": "Asistencia",
+    "coverageGapBadge": "Falta {{gap}}%",
+    "coverageOkBadge": "Completo",
+    "coverageUnnamedCut": "Corte sin nombre"
   },
   "activitySession": {
     "label": "Asociar a sesión (opcional)",
