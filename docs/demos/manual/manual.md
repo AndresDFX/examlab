@@ -8,6 +8,8 @@ Este manual está organizado por **rol**. Abre el que corresponda a tu perfil:
 - 👩‍🏫 **[Docente](manual-docente.md)** — crea cursos y evaluaciones (con ayuda de la IA), califica, lleva asistencia y consolida notas.
 - 🎓 **[Estudiante](manual-estudiante.md)** — presenta exámenes, talleres y proyectos, consulta sus notas y usa el tutor de IA.
 
+> **SuperAdmin (dueño de la plataforma):** este rol opera **cross-tenant** (gestiona varias instituciones desde una sola consola) y, por su naturaleza interna, no tiene un manual público en este paquete. Su operación se documenta en los runbooks internos del equipo de plataforma. Si necesitas la guía SuperAdmin, contáctanos por el canal de **Soporte**.
+
 ---
 
 ## Cómo ingresar

@@ -140,6 +140,7 @@ Vista unificada de los certificados emitidos en la institución.
 
 - Busca, ordena y filtra los certificados emitidos.
 - Descarga el PDF de cualquier certificado y copia su **enlace de verificación** pública.
+- **Revocar** un certificado desde el menú de acciones de la fila: la página de verificación pasa a mostrar "Revocado" (con la fecha) y el PDF deja de poder usarse como constancia válida. Es útil cuando se emite por error o se detecta fraude posterior.
 - La configuración de la plantilla de certificado se ajusta desde Configuración → Institución.
 
 ![Certificaciones](screenshots/administrador/14-certificates.png)
@@ -194,6 +195,14 @@ Define el armazón institucional: carreras (programas), asignaturas y periodos a
 - Esta estructura organiza los cursos y aporta contexto a los reportes.
 
 ![Estructura académica](screenshots/administrador/18-admin_academic.png)
+
+### Mensajes (encabezado superior)
+
+La mensajería con docentes y estudiantes vive en el **ícono de mensajes** del encabezado (junto a la campana), no en el menú lateral. Como Admin puedes conversar con cualquier miembro del tenant para dar soporte interno.
+
+- **Chat 1-a-1** con cualquier persona de la institución, con adjuntos, edición/borrado de tus mensajes y búsqueda dentro de la conversación.
+- **Difusión a curso(s)** y **programar envíos** disponibles igual que para el docente.
+- Para **PQRS hacia el equipo de plataforma** usa el módulo **Soporte** del menú lateral (los SuperAdmin no son contactables por mensajes directos: el canal correcto es Soporte).
 
 ### Soporte
 

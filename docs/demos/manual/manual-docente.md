@@ -57,6 +57,7 @@ El centro de tu actividad: aquí están tus cursos y, dentro de cada uno, el **T
 
 - Abre un curso para ver sus cortes, pesos de evaluación y el tablero de sesiones (clases, material, pizarras y código asociado).
 - Desde aquí gestionas la estructura del curso que alimenta exámenes, talleres, proyectos y calificaciones.
+- **Foros del curso**: dentro de cada curso puedes abrir **foros de discusión** con ventana de fechas (apertura/cierre) para que los estudiantes participen en hilos asincrónicos. Tú moderas, fijas o cierras hilos cuando corresponda.
 
 ![Cursos (y Tablero)](screenshots/docente/06-teacher_courses.png)
 
@@ -111,6 +112,8 @@ Entregas más grandes con **sustentación**, link al repositorio y entrega de c�
 
 - **🤖 Genera los archivos/criterios del proyecto con IA.** El estudiante entrega un link `https://...` obligatorio y, si aplica, un ZIP con su código (la **IA lo descomprime y califica**).
 - La nota final = nota de entrega × **factor de sustentación**: tú registras la sustentación en el panel de calificación. Soporta trabajo en grupo y detección de plagio.
+- **Editar la nota de entrega** (override de la nota ponderada por IA): si necesitas ajustar la nota base antes o después de la sustentación, puedes editarla manualmente en el panel del estudiante — el sistema recalcula la nota final aplicando el factor de sustentación que registres.
+- **Importar sustentaciones en lote (CSV)**: desde el módulo de Proyectos puedes subir un CSV con los factores y observaciones de sustentación de muchos estudiantes a la vez, en lugar de uno por uno. Útil al terminar una jornada de sustentaciones presenciales.
 
 ![Proyectos](screenshots/docente/12-teacher_projects.png)
 
@@ -176,6 +179,22 @@ Crea encuestas, votaciones tipo Doodle (slots de horario) y juegos **Kahoot** en
 - Revisa los resultados por opción (con nombres de quien votó) y duplica una encuesta para reutilizar su estructura.
 
 ![Encuestas](screenshots/docente/19-teacher_polls.png)
+
+### Mensajes (encabezado superior)
+
+La mensajería con estudiantes y otros docentes vive en el **ícono de mensajes** del encabezado (junto a la campana de notificaciones), no en el menú lateral. Te muestra un badge con los no leídos.
+
+- **Chat 1-a-1**: abre una conversación con cualquier persona habilitada (estudiantes de tus cursos, otros docentes y administradores). Soporta adjuntos, edición y borrado de tus mensajes, y búsqueda dentro de la conversación.
+- **Etiquetar contenido con `#`**: dentro del mensaje, escribe `#` y elige un examen, taller, proyecto o archivo para insertarlo como **enlace clicable**. Es la forma rápida de mandar al estudiante directo a la actividad.
+- **Difusión a curso(s)**: con el botón **Difundir a curso** envías el mismo mensaje a **todos los estudiantes** de uno o varios cursos. Cada alumno lo recibe como **notificación**, **correo** y **mensaje 1-a-1** (sin duplicados, aunque esté en varios cursos).
+- **Programar envío**: tanto la difusión como un mensaje directo pueden **programarse a futuro** (la plataforma los despacha sola al llegar la hora). Desde el botón **Programados** puedes ver y cancelar los pendientes.
+
+### Tutor IA (cómo lo perciben tus estudiantes)
+
+El estudiante tiene un **Tutor IA por curso** que responde sus dudas usando el **material real** que tú publicaste en *Contenidos* — incluyendo el texto extraído de `.docx`, `.pptx`, notebooks `.ipynb`, código fuente y notas en markdown. No es un chatbot genérico: cuanto más material subas, mejor responde.
+
+- El estudiante puede **referenciar un archivo con `#`** dentro del chat del tutor para concentrar la respuesta en ese material.
+- Si quieres mejorar las respuestas del tutor de tu curso, sube material adicional o ajusta las instrucciones de la IA desde **Prompts de IA por curso**.
 
 ### Auditoría
 

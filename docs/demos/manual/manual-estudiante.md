@@ -123,3 +123,18 @@ Participa en encuestas y votaciones del curso, incluida la reserva de horarios t
 - También puedes llegar directo a una encuesta mediante el enlace que comparta el docente.
 
 ![Encuestas](screenshots/estudiante/12-student_polls.png)
+
+### Mensajes (encabezado superior)
+
+La mensajería con tus docentes y compañeros vive en el **ícono de mensajes** del encabezado, junto a la campana de notificaciones. El badge te marca los no leídos.
+
+- **Chat 1-a-1** con tus docentes (y, según permisos, con compañeros): puedes escribir, adjuntar archivos y buscar dentro de la conversación.
+- **Avisos del docente**: cuando un profesor envía una difusión a todo el curso, te llega como **notificación**, **correo** y un mensaje en tu conversación con él (así puedes responderle directo si tienes dudas).
+- Tu profesor a veces incluye enlaces con `#` a un examen, taller o archivo del curso; al tocarlos te llevan directo a esa actividad.
+
+### Foros del curso
+
+Cuando tu docente abre un **foro de discusión** dentro de un curso, lo verás desde el tablero del curso. Sirven para debate asincrónico — preguntas, hilos colaborativos, discusión guiada por una pregunta del profesor.
+
+- Cada foro tiene una **ventana** (apertura y cierre): solo puedes participar mientras esté abierto.
+- Abre un hilo (o responde uno existente) y revisa las respuestas. Las notificaciones te avisan cuando alguien responde en un hilo donde participaste.
