@@ -216,7 +216,12 @@ function AdminDashboard() {
         const { data: courseRows } = await dbAny
           .from("courses")
           .select("id")
-          .eq("tenant_id", adminTenantId);
+          .eq("tenant_id", adminTenantId)
+          // Excluir cursos en PAPELERA: sus exámenes/talleres/proyectos NO
+          // deben contar como "por calificar" (regla universal soft-delete).
+          // Bug: el curso "Pruebas" (soft-deleted) inflaba el conteo con 2
+          // entregas de prueba aunque el detalle por curso mostraba 0.
+          .is("deleted_at", null);
         if (cancelled) return;
         const courseIds = ((courseRows ?? []) as Array<{ id: string }>).map((r) => r.id);
         if (courseIds.length > 0) {
@@ -252,7 +257,9 @@ function AdminDashboard() {
         recentEventsRes,
       ] = await Promise.all([
         // courses: RLS filtra al tenant del Admin (la tabla SÍ tiene tenant_id).
-        dbAny.from("courses").select("id", { count: "exact", head: true }),
+        // Excluye cursos en papelera (deleted_at) — la stat "Cursos" cuenta
+        // sólo cursos vigentes, igual que el grid de Cursos.
+        dbAny.from("courses").select("id", { count: "exact", head: true }).is("deleted_at", null),
         // profiles: misma idea.
         dbAny.from("profiles").select("id", { count: "exact", head: true }),
         // submissions (exámenes): status `en_progreso|completado|sospechoso`,
@@ -302,10 +309,11 @@ function AdminDashboard() {
         // Threads abiertos a nivel plataforma (Admin RLS = sin filtro).
         // Los usamos para calcular cuántos esperan respuesta de un docente.
         dbAny.from("feedback_threads").select("id").eq("closed", false),
-        // Cursos recientes (institución), max 8.
+        // Cursos recientes (institución), max 8. Excluye papelera.
         dbAny
           .from("courses")
           .select("id, name, period, created_at")
+          .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .limit(8),
         // Eventos recientes (audit_logs del tenant, max 8). RLS los
