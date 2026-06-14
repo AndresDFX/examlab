@@ -10,6 +10,13 @@ import {
   type ActiveModel,
   type AiProvider,
 } from "../_shared/ai-model.ts";
+import {
+  isNotebook,
+  isOfficeDoc,
+  notebookToReadableText,
+  docxXmlToText,
+  pptxSlideXmlToText,
+} from "./material-extract.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -139,6 +146,257 @@ async function resolveSystemPrompt(
     console.warn("[ai_prompts] resolve failed, using fallback:", e);
     return fallback;
   }
+}
+
+// ── Extracción del CONTENIDO del curso para generación de Kahoot (Goal #18) ──
+// Mismo patrón que `tutor-chat`: lee `generated_contents.files[]` y extrae el
+// TEXTO real (inline / notebook / docx-pptx vía unzip + cache-back). Permite
+// generar preguntas Kahoot a partir del material del curso (una sesión o todo)
+// en vez de pedirle al docente que escriba los temas a mano.
+const MATERIAL_PER_DOC_CHARS = 6000;
+const MATERIAL_TOTAL_CHARS = 22000;
+const MAX_STORAGE_EXTRACTIONS = 18; // cota de descargas por request (latencia)
+const CONTENTS_BUCKET = "generated-contents";
+
+type MaterialFile = { name?: string; path?: string; kind?: string; body?: string };
+type MaterialRow = {
+  id: string;
+  topic: string;
+  display_name: string;
+  files: MaterialFile[] | null;
+};
+
+/** Descomprime un docx/pptx (ZIP) y extrae su texto interno. Best-effort.
+ *  Copia del helper homónimo de `tutor-chat/index.ts`. */
+async function extractOfficeText(buf: Uint8Array, ext: string): Promise<string> {
+  const fflate = await import("npm:fflate@0.8.2");
+  const files = await new Promise<Record<string, Uint8Array>>((resolve, reject) =>
+    fflate.unzip(buf, (err: Error | null, f: Record<string, Uint8Array>) =>
+      err ? reject(err) : resolve(f),
+    ),
+  );
+  const dec = new TextDecoder();
+  if (ext === "docx") {
+    const xml = files["word/document.xml"];
+    return xml ? docxXmlToText(dec.decode(xml)) : "";
+  }
+  const slideNames = Object.keys(files)
+    .filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))
+    .sort((a, b) => {
+      const na = parseInt(a.match(/slide(\d+)\.xml/)![1], 10);
+      const nb = parseInt(b.match(/slide(\d+)\.xml/)![1], 10);
+      return na - nb;
+    });
+  const parts = slideNames
+    .map((n, i) => {
+      const t = pptxSlideXmlToText(dec.decode(files[n]));
+      return t ? `(Diapositiva ${i + 1})\n${t}` : "";
+    })
+    .filter(Boolean);
+  return parts.join("\n\n");
+}
+
+/** Texto legible de UN archivo (inline o extraído de Storage). */
+async function readMaterialFileText(
+  f: MaterialFile,
+): Promise<{ text: string; extracted: boolean }> {
+  const name = String(f.name ?? "");
+  if (typeof f.body === "string" && f.body.trim()) {
+    const text = isNotebook(name) ? notebookToReadableText(f.body) : f.body.trim();
+    return { text, extracted: false };
+  }
+  if (isOfficeDoc(name) && f.path) {
+    try {
+      const dl = await adminClient.storage.from(CONTENTS_BUCKET).download(f.path);
+      if (dl.data) {
+        const buf = new Uint8Array(await dl.data.arrayBuffer());
+        const ext = name.toLowerCase().endsWith(".pptx") ? "pptx" : "docx";
+        const text = await extractOfficeText(buf, ext);
+        return { text, extracted: text.length > 0 };
+      }
+    } catch {
+      /* best-effort: si falla la descarga/descompresión, se omite el archivo */
+    }
+  }
+  return { text: "", extracted: false };
+}
+
+/**
+ * Concatena el texto extraído de todas las filas de contenido provistas,
+ * respetando topes per-doc / globales. Cachea de vuelta el texto extraído de
+ * archivos Office en `files[].body` (self-healing, como tutor-chat). Opcional
+ * `allowedPaths`: si viene, solo considera archivos cuyo `path` esté en el set
+ * (lo usa el scope de sesión cuando el docente eligió un subconjunto explícito).
+ */
+async function buildCourseMaterial(
+  rows: MaterialRow[],
+  allowedPaths: Set<string> | null,
+): Promise<string> {
+  type Entry = { docTitle: string; fileName: string; text: string };
+  const entries: Entry[] = [];
+  let extractions = 0;
+
+  for (const row of rows) {
+    const files = Array.isArray(row.files) ? row.files : [];
+    const docTitle = (row.display_name || row.topic || "(sin título)").trim();
+    let rowDirty = false;
+    for (const f of files) {
+      if (!f || !f.name) continue;
+      if (allowedPaths && (!f.path || !allowedPaths.has(f.path))) continue;
+      const name = String(f.name);
+      const hasInline = typeof f.body === "string" && f.body.trim().length > 0;
+      const needsExtraction = !hasInline && isOfficeDoc(name) && !!f.path;
+      if (needsExtraction && extractions >= MAX_STORAGE_EXTRACTIONS) continue;
+      if (needsExtraction) extractions++;
+      const { text, extracted } = await readMaterialFileText(f);
+      if (extracted) {
+        f.body = text.slice(0, MATERIAL_PER_DOC_CHARS * 2);
+        rowDirty = true;
+      }
+      if (!text.trim()) continue;
+      entries.push({ docTitle, fileName: name, text: text.trim() });
+    }
+    if (rowDirty) {
+      try {
+        await adminClient.from("generated_contents").update({ files }).eq("id", row.id);
+      } catch {
+        /* el cache-back es opcional; si falla, la próxima vez se re-extrae */
+      }
+    }
+  }
+
+  let acc = "";
+  for (const e of entries) {
+    if (acc.length >= MATERIAL_TOTAL_CHARS) break;
+    const excerpt =
+      e.text.length > MATERIAL_PER_DOC_CHARS
+        ? e.text.slice(0, MATERIAL_PER_DOC_CHARS).trimEnd() + " …"
+        : e.text;
+    const header = `\n\n### ${e.docTitle} — ${e.fileName}\n`;
+    const block = header + excerpt;
+    if (acc.length + block.length > MATERIAL_TOTAL_CHARS) {
+      acc += block.slice(0, MATERIAL_TOTAL_CHARS - acc.length);
+      break;
+    }
+    acc += block;
+  }
+  return acc.trim();
+}
+
+/**
+ * Resuelve el material del curso para el modo Kahoot según el scope pedido.
+ *
+ *  - scope "course": todo el material `done` del curso (mismo query que el
+ *    tutor IA).
+ *  - scope "session": solo el material de la sesión `sessionId` — se lee su
+ *    `content_id` (+ `content_file_paths` para acotar a un subconjunto, o
+ *    `content_class_index` para una clase del curso_completo).
+ *
+ * Devuelve `{ material, error }`. `error` (string) cuando la sesión no tiene
+ * contenido o el material extraído queda vacío, para que el handler devuelva
+ * un mensaje accionable en vez de generar sin contexto.
+ */
+async function resolveKahootMaterial(
+  scope: "session" | "course",
+  courseId: string | null,
+  sessionId: string | null,
+): Promise<{ material: string; error: string | null }> {
+  if (scope === "course") {
+    if (!courseId) return { material: "", error: "courseId requerido para leer el material del curso" };
+    const { data: rows } = await adminClient
+      .from("generated_contents")
+      .select("id, topic, display_name, files")
+      .eq("course_id", courseId)
+      .eq("status", "done")
+      .is("deleted_at", null)
+      .order("updated_at", { ascending: false })
+      .limit(30);
+    const material = await buildCourseMaterial((rows ?? []) as MaterialRow[], null);
+    if (!material.trim()) {
+      return {
+        material: "",
+        error:
+          "El curso no tiene material legible asociado. Genera o sube contenido, o genera el Kahoot por temas.",
+      };
+    }
+    return { material, error: null };
+  }
+  // scope === "session"
+  if (!sessionId) return { material: "", error: "sessionId requerido cuando la fuente es una sesión" };
+  const { data: session } = await adminClient
+    .from("attendance_sessions")
+    .select("content_id, content_class_index, content_file_paths")
+    .eq("id", sessionId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  // deno-lint-ignore no-explicit-any
+  const s = session as any;
+  if (!s || !s.content_id) {
+    return {
+      material: "",
+      error:
+        "La sesión no tiene material asociado. Asígnale un contenido en Asistencia o genera el Kahoot por temas.",
+    };
+  }
+  const { data: rows } = await adminClient
+    .from("generated_contents")
+    .select("id, topic, display_name, files")
+    .eq("id", s.content_id)
+    .is("deleted_at", null);
+  let materialRows = (rows ?? []) as MaterialRow[];
+  // Acotamiento por subconjunto explícito (content_file_paths) o por clase
+  // (content_class_index) — mismo orden de prioridad que `filesForSession`
+  // del estudiante (paths > class_index > todo).
+  let allowedPaths: Set<string> | null = null;
+  if (Array.isArray(s.content_file_paths)) {
+    allowedPaths = new Set(s.content_file_paths as string[]);
+  } else if (typeof s.content_class_index === "number") {
+    const classIdx = s.content_class_index as number;
+    const paths: string[] = [];
+    for (const row of materialRows) {
+      for (const f of Array.isArray(row.files) ? row.files : []) {
+        if (!f?.name || !f.path) continue;
+        if (classNumberFromFilename(f.name) === classIdx) paths.push(f.path);
+      }
+    }
+    // Solo aplicamos el filtro por clase si encontró archivos (si no, todo el
+    // contenido, igual que el fallback del estudiante).
+    if (paths.length > 0) allowedPaths = new Set(paths);
+  }
+  const material = await buildCourseMaterial(materialRows, allowedPaths);
+  if (!material.trim()) {
+    return {
+      material: "",
+      error:
+        "El material de la sesión está vacío o no es legible. Asígnale contenido con texto, o genera el Kahoot por temas.",
+    };
+  }
+  return { material, error: null };
+}
+
+/**
+ * Extrae el número de clase del nombre del archivo (sufijo CLASE_N, trailing
+ * _N, o leading N_). Copia mínima de `classNumberFromFilename`
+ * (`src/modules/contents/contents-extract.ts`) para acotar el material de una
+ * sesión a su `content_class_index` (curso_completo). Restringido a 1..100.
+ */
+function classNumberFromFilename(name: string): number | null {
+  const m1 = name.match(/(?:CLASE|CLASS|SESION|SESSION)[_\s-]*(\d+)/i);
+  if (m1) {
+    const n = Number(m1[1]);
+    if (Number.isFinite(n) && n > 0 && n <= 100) return n;
+  }
+  const m2 = name.match(/[_-](\d{1,3})(?:\.[A-Za-z0-9]+)?$/);
+  if (m2) {
+    const n = Number(m2[1]);
+    if (Number.isFinite(n) && n > 0 && n <= 100) return n;
+  }
+  const m3 = name.match(/^(\d{1,3})[_-]/);
+  if (m3) {
+    const n = Number(m3[1]);
+    if (Number.isFinite(n) && n > 0 && n <= 100) return n;
+  }
+  return null;
 }
 
 Deno.serve(async (req) => {
@@ -671,6 +929,20 @@ Idioma obligatorio: ${pfLangName}.`,
     }
 
     const { topics, type, count = 5, examId, language, targetTable } = body;
+    // Goal #18 — generar Kahoot LEYENDO el contenido del curso. Params
+    // opcionales del body (solo aplican al modo Kahoot; default = comportamiento
+    // anterior con `topics`):
+    //   materialScope: "none" (default, solo topics) | "session" | "course"
+    //   sessionId:     requerido cuando materialScope === "session"
+    //   courseId:      curso para el scope "course" (también lo usa el model hint)
+    const materialScope: "none" | "session" | "course" =
+      body.materialScope === "session" || body.materialScope === "course"
+        ? body.materialScope
+        : "none";
+    const materialSessionId: string | null =
+      typeof body.sessionId === "string" && body.sessionId.trim() ? body.sessionId.trim() : null;
+    const materialCourseId: string | null =
+      typeof body.courseId === "string" && body.courseId.trim() ? body.courseId.trim() : null;
     // targetTable: "questions" (default) | "workshop_questions" | "project_files"
     const isWorkshop = targetTable === "workshop_questions";
     const isProject = targetTable === "project_files";
@@ -707,7 +979,11 @@ Idioma obligatorio: ${pfLangName}.`,
       isProject && typeof body.projectDescription === "string" && body.projectDescription.trim()
         ? body.projectDescription.trim()
         : null;
-    if (!topics || !type || !targetId) {
+    // Kahoot desde el contenido del curso (Goal #18): cuando el docente pide
+    // leer el material, `topics` es opcional (el material lo sustituye). En el
+    // resto de los modos `topics` sigue siendo obligatorio.
+    const kahootFromMaterial = isKahoot && materialScope !== "none";
+    if ((!topics && !kahootFromMaterial) || !type || !targetId) {
       return new Response(
         JSON.stringify({ error: "topics, type y (examId|workshopId|projectId) requeridos" }),
         {
@@ -781,8 +1057,41 @@ Idioma obligatorio: ${pfLangName}.`,
     }
     const langName = courseLanguage === "en" ? "inglés (English)" : "español";
 
+    // ── Kahoot desde el contenido del curso (Goal #18) ──
+    // Si el docente pidió leer el material (una sesión o todo el curso), lo
+    // extraemos ACÁ y lo inyectamos como ÚNICA fuente del quiz. `courseId` lo
+    // tomamos del body o, si no vino, del poll (targetId = poll_id).
+    let kahootMaterial = "";
+    if (kahootFromMaterial) {
+      let courseIdForMaterial = materialCourseId;
+      if (!courseIdForMaterial && materialScope === "course") {
+        const { data: pollRow } = await admin0
+          .from("polls")
+          .select("course_id")
+          .eq("id", targetId)
+          .maybeSingle();
+        courseIdForMaterial = (pollRow as any)?.course_id ?? null;
+      }
+      const { material, error: matErr } = await resolveKahootMaterial(
+        materialScope,
+        courseIdForMaterial,
+        materialSessionId,
+      );
+      if (matErr) {
+        return new Response(JSON.stringify({ error: matErr }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      kahootMaterial = material;
+    }
+
     const systemPrompt = isKahoot
-      ? `Eres un diseñador de cuestionarios interactivos tipo Kahoot. Generas preguntas dinámicas, claras y sin ambigüedad para un quiz EN VIVO. Cada pregunta tiene entre 2 y 4 opciones CORTAS (deben caber en un botón). Una pregunta puede tener UNA sola respuesta correcta o VARIAS: pon multi_select=true SOLO cuando hay más de una opción correcta, e incluí en correct_indices TODOS los índices correctos (0-based). Cuando es de una sola respuesta, correct_indices tiene exactamente un índice y multi_select=false. Evita preguntas triviales o capciosas; varía la dificultad.
+      ? `Eres un diseñador de cuestionarios interactivos tipo Kahoot. Generas preguntas dinámicas, claras y sin ambigüedad para un quiz EN VIVO. Cada pregunta tiene entre 2 y 4 opciones CORTAS (deben caber en un botón). Una pregunta puede tener UNA sola respuesta correcta o VARIAS: pon multi_select=true SOLO cuando hay más de una opción correcta, e incluí en correct_indices TODOS los índices correctos (0-based). Cuando es de una sola respuesta, correct_indices tiene exactamente un índice y multi_select=false. Evita preguntas triviales o capciosas; varía la dificultad.${
+          kahootMaterial
+            ? "\nBASA las preguntas EXCLUSIVAMENTE en el material del curso que se te entrega en el mensaje del usuario; no inventes temas fuera de ese material."
+            : ""
+        }
 REGLA DE IDIOMA: Responde siempre en ${langName}. Todos los enunciados y opciones en ${langName}.`
       : `Eres un asistente experto en evaluación académica. Generas preguntas de examen claras, sin ambigüedad. Para cada pregunta incluyes una rúbrica de evaluación (qué debe contener una respuesta correcta).
 REGLA DE IDIOMA: Responde siempre en el idioma configurado para este curso: ${langName}. Todos los enunciados, opciones y rúbricas deben estar en ${langName}.`;
@@ -794,8 +1103,19 @@ REGLA DE IDIOMA: Responde siempre en el idioma configurado para este curso: ${la
       ? `Contexto global del proyecto (úsalo para que las preguntas generadas tengan sentido dentro de este proyecto, no como temas aislados):\n${projectDescription}\n\n`
       : "";
 
+    // Para Kahoot con material: el bloque de contenido va primero (fuente
+    // única) y `topics` —si vino— se usa como "enfócate en estos temas dentro
+    // del material". Sin material, comportamiento previo (solo temas).
+    const kahootUserPrompt = kahootMaterial
+      ? `Material del curso (ÚNICA fuente para las preguntas):\n<material>\n${kahootMaterial}\n</material>\n\nGenera ${count} preguntas para un quiz Kahoot a partir del material anterior.${
+          topics && topics.trim()
+            ? ` Dentro de ese material, enfócate especialmente en: ${topics.trim()}.`
+            : ""
+        } Cada pregunta: enunciado breve + entre 2 y 4 opciones cortas. Si una pregunta tiene naturalmente más de una respuesta correcta, márcala como múltiple (multi_select=true) e incluí TODOS los índices correctos; si no, una sola correcta (multi_select=false). Idioma de salida obligatorio: ${langName}.`
+      : `Genera ${count} preguntas para un quiz Kahoot sobre los siguientes temas: ${topics}. Cada pregunta: enunciado breve + entre 2 y 4 opciones cortas. Si una pregunta tiene naturalmente más de una respuesta correcta, márcala como múltiple (multi_select=true) e incluí TODOS los índices correctos; si no, una sola correcta (multi_select=false). Idioma de salida obligatorio: ${langName}.`;
+
     const userPrompt = isKahoot
-      ? `Genera ${count} preguntas para un quiz Kahoot sobre los siguientes temas: ${topics}. Cada pregunta: enunciado breve + entre 2 y 4 opciones cortas. Si una pregunta tiene naturalmente más de una respuesta correcta, márcala como múltiple (multi_select=true) e incluí TODOS los índices correctos; si no, una sola correcta (multi_select=false). Idioma de salida obligatorio: ${langName}.`
+      ? kahootUserPrompt
       : `${projectCtx}Genera ${count} preguntas de tipo "${type}" sobre los siguientes temas: ${topics}.
 ${type === "cerrada" ? "Cada pregunta debe tener 4 opciones (A, B, C, D) con UNA correcta." : ""}
 ${type === "codigo" ? `Las preguntas deben pedir escribir código en el lenguaje ${codeLanguage}. Indica claramente en el enunciado que la solución debe implementarse en ${codeLanguage}.` : ""}
