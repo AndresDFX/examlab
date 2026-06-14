@@ -173,6 +173,37 @@ Deno.serve(async (req) => {
   let failed = 0;
   for (const job of claimed) {
     try {
+      // Guard: si el target de TALLER/PROYECTO ya está CALIFICADO, el job
+      // quedó obsoleto — la re-calificación de taller/proyecto es SYNC
+      // (nunca se encola), así que un job encolado apuntando a una entrega
+      // ya finalizada significa que se calificó por otra vía. Lo cancelamos
+      // SIN gastar IA. (Exámenes NO entran: su re-calificación puede
+      // encolarse async y debe correr aunque exista una nota previa.)
+      if (
+        job.target_table === "workshop_submissions" ||
+        job.target_table === "project_submissions"
+      ) {
+        const { data: tgt } = await adminClient
+          .from(job.target_table)
+          .select("status")
+          .eq("id", job.target_row_id)
+          .maybeSingle();
+        if ((tgt as { status?: string } | null)?.status === "calificado") {
+          await adminClient
+            .from("ai_grading_queue")
+            .update({
+              status: "cancelled",
+              completed_at: new Date().toISOString(),
+              last_error: "Cancelado: la entrega ya estaba calificada (job obsoleto).",
+            })
+            .eq("id", job.id);
+          await auditJob("ai_grading.job_skipped_already_graded", "info", job, {
+            reason: "target_already_graded",
+          });
+          continue;
+        }
+      }
+
       // Invocar la edge function destino. Reusa el mismo flujo que
       // sync, solo que ahora corre server-side.
       //
