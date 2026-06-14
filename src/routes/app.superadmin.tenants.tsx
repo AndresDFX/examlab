@@ -913,7 +913,7 @@ function SuperAdminTenantsPage() {
               <Input
                 value={form.name}
                 onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                placeholder="SENA - Centro Bogotá"
+                placeholder={tl("hc_routesAppSuperadminTenants.namePlaceholder")}
               />
             </div>
             <div className="space-y-1.5">

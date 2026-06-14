@@ -7000,7 +7000,8 @@
     "entityNamePlural": "instituciones",
     "copyEmailTitle": "Copiar email",
     "copyPasswordTitle": "Copiar contraseña",
-    "copyAllText": "Email: {{email}}\nContraseña: {{password}}"
+    "copyAllText": "Email: {{email}}\nContraseña: {{password}}",
+    "namePlaceholder": "SENA - Centro Bogotá"
   },
   "hc_routesAppTeacherAiPrompts": {
     "moduleExams": "Exámenes",
