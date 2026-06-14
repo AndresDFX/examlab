@@ -2810,10 +2810,18 @@ export function AdminCourses() {
             </DialogTitle>
           </DialogHeader>
           <AssignSelector
-            // Un Docente no puede auto-asignarse: filtramos su propia
-            // fila del listado. La RLS lo bloquearía igual, esto solo
-            // evita ver un checkbox que se tropieza con error.
-            items={isAdmin ? teachers : teachers.filter((tch) => tch.id !== user?.id)}
+            // Un Docente no puede auto-asignarse: filtramos su propia fila del
+            // listado. Gate por ROL ACTIVO (no por roles poseídos): un usuario
+            // multi-rol Admin+Docente actuando COMO Docente tampoco debe poder
+            // auto-agregarse aquí. Sólo cuando actúa como Admin/SuperAdmin ve la
+            // lista completa (el Admin gestiona docentes, incluido él mismo).
+            // Para Docente puro, además, la RLS bloquea el self-insert
+            // (course_teachers_docente_manage_others: user_id <> auth.uid()).
+            items={
+              activeRole === "Admin" || activeRole === "SuperAdmin"
+                ? teachers
+                : teachers.filter((tch) => tch.id !== user?.id)
+            }
             selectedIds={assignedTeacherIds}
             onToggle={toggleTeacher}
             onSelectAll={assignTeachersMany}
