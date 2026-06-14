@@ -728,9 +728,14 @@
       "completed": "Completed",
       "unansweredMessages": "Unanswered messages",
       "todaySessions": "Sessions today",
+      "pendingGrading": "Pending grading",
       "pendingTeacherResponses": "Pending teacher replies",
       "pendingMyResponse": "Comments awaiting your reply",
       "conversationsPending": "Pending conversations"
+    },
+    "pendingGradingModal": {
+      "title": "Pending grading by course",
+      "empty": "You have no submissions pending grading. ✨"
     },
     "viewAudit": "View audit",
     "recentUsers": "Recent users",
@@ -3479,6 +3484,8 @@
     "clearSearch": "Clear search",
     "tenantPlaceholder": "Filter by institution…",
     "allTenants": "All institutions",
+    "coursePlaceholder": "Course",
+    "allCourses": "All courses",
     "filterAllTypes": "Grading + Generation",
     "filterGrading": "Grading only",
     "filterGeneration": "Generation only",

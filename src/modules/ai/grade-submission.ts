@@ -200,17 +200,20 @@ export async function enqueueAiGradeForSubmission(opts: {
         .from("submissions")
         .update({ ai_feedback: PENDING_AI_FEEDBACK, ai_grade: null })
         .eq("id", submissionId);
-      const r = await aiGradeOrEnqueue({
-        kind: "exam_full",
-        body: { submissionId },
-        target: {
-          table: "submissions",
-          rowId: submissionId,
-          fieldGrade: "ai_grade",
-          fieldFeedback: "ai_feedback",
-          courseId,
+      const r = await aiGradeOrEnqueue(
+        {
+          kind: "exam_full",
+          body: { submissionId },
+          target: {
+            table: "submissions",
+            rowId: submissionId,
+            fieldGrade: "ai_grade",
+            fieldFeedback: "ai_feedback",
+            courseId,
+          },
         },
-      });
+        { ignoreOverride: true },
+      );
       if (r.error) return { ok: false, enqueued: 0, error: r.error };
       return { ok: true, enqueued: 1 };
     }
@@ -232,11 +235,14 @@ export async function enqueueAiGradeForSubmission(opts: {
         (ans ?? []) as WorkshopAnswerRow[],
       );
       if (items.length === 0) return { ok: true, enqueued: 0 };
-      const r = await aiGradeOrEnqueue({
-        kind: "workshop_full",
-        body: { workshopFullGrading: true, submissionId, items, courseLanguage, courseId: courseId ?? undefined },
-        target: { table: "workshop_submissions", rowId: submissionId, courseId },
-      });
+      const r = await aiGradeOrEnqueue(
+        {
+          kind: "workshop_full",
+          body: { workshopFullGrading: true, submissionId, items, courseLanguage, courseId: courseId ?? undefined },
+          target: { table: "workshop_submissions", rowId: submissionId, courseId },
+        },
+        { ignoreOverride: true },
+      );
       if (r.error) return { ok: false, enqueued: 0, error: r.error };
       return { ok: true, enqueued: 1 };
     }
@@ -265,24 +271,27 @@ export async function enqueueAiGradeForSubmission(opts: {
     let firstError: string | undefined;
     // Batch no-ZIP.
     if (batchItems.length > 0) {
-      const r = await aiGradeOrEnqueue({
-        kind: "project_full",
-        body: {
-          projectFullGrading: true,
-          submissionId,
-          items: batchItems.map((it) => ({
-            qid: it.qid,
-            content: it.content,
-            rubric: it.rubric,
-            userAnswer: it.userAnswer,
-            maxPoints: it.maxPoints,
-          })),
-          courseLanguage,
-          courseId: courseId ?? undefined,
-          projectDescription: (proj?.description ?? null) as string | null,
+      const r = await aiGradeOrEnqueue(
+        {
+          kind: "project_full",
+          body: {
+            projectFullGrading: true,
+            submissionId,
+            items: batchItems.map((it) => ({
+              qid: it.qid,
+              content: it.content,
+              rubric: it.rubric,
+              userAnswer: it.userAnswer,
+              maxPoints: it.maxPoints,
+            })),
+            courseLanguage,
+            courseId: courseId ?? undefined,
+            projectDescription: (proj?.description ?? null) as string | null,
+          },
+          target: { table: "project_submissions", rowId: submissionId, courseId },
         },
-        target: { table: "project_submissions", rowId: submissionId, courseId },
-      });
+        { ignoreOverride: true },
+      );
       if (r.error) firstError ??= r.error;
       else enqueued += 1;
     }
@@ -297,19 +306,22 @@ export async function enqueueAiGradeForSubmission(opts: {
         .eq("file_id", zj.fileId)
         .maybeSingle();
       if (!rowId?.id) continue;
-      const r = await aiGradeOrEnqueue({
-        kind: "project_codigo_zip",
-        body: zj.body,
-        target: {
-          table: "project_submission_files",
-          rowId: rowId.id,
-          fieldGrade: "ai_grade",
-          fieldFeedback: "ai_feedback",
-          fieldLikelihood: "ai_likelihood",
-          fieldReasons: "ai_reasons",
-          courseId,
+      const r = await aiGradeOrEnqueue(
+        {
+          kind: "project_codigo_zip",
+          body: zj.body,
+          target: {
+            table: "project_submission_files",
+            rowId: rowId.id,
+            fieldGrade: "ai_grade",
+            fieldFeedback: "ai_feedback",
+            fieldLikelihood: "ai_likelihood",
+            fieldReasons: "ai_reasons",
+            courseId,
+          },
         },
-      });
+        { ignoreOverride: true },
+      );
       if (r.error) firstError ??= r.error;
       else enqueued += 1;
     }

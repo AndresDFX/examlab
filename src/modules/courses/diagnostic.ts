@@ -19,6 +19,10 @@ export type DiagStudent = {
   id: string;
   full_name: string | null;
   institutional_email: string | null;
+  /** Cohorte del estudiante (campo libre en profiles). Cuando el curso
+   *  agrupa por cohortes, se usa para detectar actividades que olvidaron
+   *  asignarse a alguna cohorte. */
+  cohorte?: string | null;
 };
 
 /** Una entrega (submission) genérica. Cubre las 3 tablas:
@@ -233,6 +237,80 @@ export function diagCellStatusLabel(status: DiagCellStatus): string {
     case "sin_sustentacion":
       return "Falta sustentación";
   }
+}
+
+/** Una actividad a la que le falta asignar al menos una cohorte. */
+export type DiagCohortGap = {
+  item: DiagItem;
+  /** Cohortes del curso sin NINGÚN estudiante asignado a esta actividad. */
+  missingCohorts: string[];
+  /** Cuántos estudiantes en total quedan fuera (suma de las cohortes faltantes). */
+  affectedStudents: number;
+};
+
+export type DiagCohortCoverage = {
+  /** El curso usa cohortes (hay ≥1 cohorte entre los matriculados). */
+  hasCohorts: boolean;
+  /** Cohortes distintas presentes entre los matriculados (ordenadas). */
+  cohorts: string[];
+  /** Actividades con al menos una cohorte sin asignar. Vacío = todo OK. */
+  gaps: DiagCohortGap[];
+};
+
+/**
+ * Detecta actividades (examen/taller/proyecto) que NO fueron asignadas a
+ * alguna cohorte del curso. Como la asignación es obligatoria (un estudiante
+ * solo ve lo que tiene en *_assignments), una cohorte sin ningún estudiante
+ * asignado a una actividad significa que esa cohorte NO la verá — casi
+ * siempre un olvido del docente al asignar.
+ *
+ * Helper PURO: el caller arma `assignedUserIdsByItemKey` (key = `${kind}::${id}`)
+ * desde exam_assignments / workshop_assignments / project_assignments.
+ *
+ * Una cohorte se considera "cubierta" si AL MENOS un estudiante suyo está
+ * asignado. La cobertura parcial dentro de una cohorte no se reporta acá
+ * (el foco es "la cohorte completa quedó fuera").
+ */
+export function summarizeCohortCoverage(
+  students: DiagStudent[],
+  items: DiagItem[],
+  assignedUserIdsByItemKey: Map<string, Set<string>>,
+): DiagCohortCoverage {
+  const cohorteOf = new Map<string, string>();
+  for (const s of students) cohorteOf.set(s.id, (s.cohorte ?? "").trim());
+
+  const studentsByCohort = new Map<string, string[]>();
+  for (const s of students) {
+    const c = cohorteOf.get(s.id) ?? "";
+    if (!c) continue; // estudiantes sin cohorte no entran al análisis por cohorte
+    const list = studentsByCohort.get(c);
+    if (list) list.push(s.id);
+    else studentsByCohort.set(c, [s.id]);
+  }
+  const cohorts = Array.from(studentsByCohort.keys()).sort((a, b) =>
+    a.localeCompare(b, "es-CO", { numeric: true }),
+  );
+  const hasCohorts = cohorts.length > 0;
+  if (!hasCohorts) return { hasCohorts: false, cohorts: [], gaps: [] };
+
+  const gaps: DiagCohortGap[] = [];
+  for (const item of items) {
+    const assigned = assignedUserIdsByItemKey.get(`${item.kind}::${item.id}`) ?? new Set<string>();
+    const missing: string[] = [];
+    let affected = 0;
+    for (const c of cohorts) {
+      const cohortStudents = studentsByCohort.get(c) ?? [];
+      const anyAssigned = cohortStudents.some((uid) => assigned.has(uid));
+      if (!anyAssigned) {
+        missing.push(c);
+        affected += cohortStudents.length;
+      }
+    }
+    if (missing.length > 0) {
+      gaps.push({ item, missingCohorts: missing, affectedStudents: affected });
+    }
+  }
+  return { hasCohorts: true, cohorts, gaps };
 }
 
 /** Devuelve la "severidad" para ordenar la matriz: los errores y

@@ -728,9 +728,14 @@
       "completed": "Completados",
       "unansweredMessages": "Mensajes pendientes sin responder",
       "todaySessions": "Sesiones hoy",
+      "pendingGrading": "Pendientes de calificación",
       "pendingTeacherResponses": "Pendientes docentes",
       "pendingMyResponse": "Comentarios pendientes por respuesta",
       "conversationsPending": "Conversaciones pendientes"
+    },
+    "pendingGradingModal": {
+      "title": "Pendientes de calificación por curso",
+      "empty": "No tienes entregas pendientes de calificación. ✨"
     },
     "viewAudit": "Ver auditoría",
     "recentUsers": "Usuarios recientes",
@@ -3479,6 +3484,8 @@
     "clearSearch": "Limpiar búsqueda",
     "tenantPlaceholder": "Filtrar por institución…",
     "allTenants": "Todas las instituciones",
+    "coursePlaceholder": "Curso",
+    "allCourses": "Todos los cursos",
     "filterAllTypes": "Calificación + Generación",
     "filterGrading": "Solo calificación",
     "filterGeneration": "Solo generación",

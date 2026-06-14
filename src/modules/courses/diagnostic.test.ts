@@ -10,6 +10,7 @@ import {
   summarizePendingGrades,
   summarizeMatrix,
   summarizeAttendance,
+  summarizeCohortCoverage,
   diagCellSeverity,
   diagCellStatusLabel,
   type DiagItem,
@@ -368,5 +369,61 @@ describe("summarizePendingGrades — sin_sustentacion", () => {
       diagCellSeverity("sin_sustentacion"),
     );
     expect(diagCellSeverity("sin_sustentacion")).toBeLessThan(diagCellSeverity("sin_entregar"));
+  });
+});
+
+// ── summarizeCohortCoverage ───────────────────────────────────────────
+describe("summarizeCohortCoverage", () => {
+  const anaC: DiagStudent = { id: "u-ana", full_name: "Ana", institutional_email: "a@u", cohorte: "2024-1" };
+  const betoC: DiagStudent = { id: "u-beto", full_name: "Beto", institutional_email: "b@u", cohorte: "2024-1" };
+  const cintC: DiagStudent = { id: "u-cint", full_name: "Cinthia", institutional_email: "c@u", cohorte: "2024-2" };
+
+  it("sin cohortes (todos null) → hasCohorts=false, sin gaps", () => {
+    const r = summarizeCohortCoverage(
+      [{ id: "x", full_name: "X", institutional_email: "x@u", cohorte: null }],
+      [examen],
+      new Map(),
+    );
+    expect(r.hasCohorts).toBe(false);
+    expect(r.gaps).toHaveLength(0);
+  });
+
+  it("detecta cohorte sin ningún estudiante asignado a la actividad", () => {
+    // examen asignado SOLO a la cohorte 2024-1 (ana) → falta 2024-2 (cinthia).
+    const r = summarizeCohortCoverage(
+      [anaC, betoC, cintC],
+      [examen],
+      new Map([["exam::ex-1", new Set(["u-ana"])]]),
+    );
+    expect(r.hasCohorts).toBe(true);
+    expect(r.cohorts).toEqual(["2024-1", "2024-2"]);
+    expect(r.gaps).toHaveLength(1);
+    expect(r.gaps[0].missingCohorts).toEqual(["2024-2"]);
+    expect(r.gaps[0].affectedStudents).toBe(1); // solo cinthia
+  });
+
+  it("cohorte cubierta si AL MENOS un estudiante suyo está asignado", () => {
+    const r = summarizeCohortCoverage(
+      [anaC, betoC, cintC],
+      [examen],
+      // 2024-1: solo ana (de 2). 2024-2: cinthia. Ambas cohortes cubiertas.
+      new Map([["exam::ex-1", new Set(["u-ana", "u-cint"])]]),
+    );
+    expect(r.gaps).toHaveLength(0);
+  });
+
+  it("actividad sin NINGUNA asignación → todas las cohortes faltan", () => {
+    const r = summarizeCohortCoverage([anaC, cintC], [taller], new Map());
+    expect(r.gaps).toHaveLength(1);
+    expect(r.gaps[0].missingCohorts).toEqual(["2024-1", "2024-2"]);
+    expect(r.gaps[0].affectedStudents).toBe(2);
+  });
+
+  it("estudiantes sin cohorte no entran al análisis", () => {
+    const sinCohorte: DiagStudent = { id: "u-z", full_name: "Z", institutional_email: "z@u", cohorte: "" };
+    const r = summarizeCohortCoverage([anaC, sinCohorte], [examen], new Map());
+    expect(r.cohorts).toEqual(["2024-1"]);
+    // u-z no aparece en affectedStudents.
+    expect(r.gaps[0].affectedStudents).toBe(1);
   });
 });

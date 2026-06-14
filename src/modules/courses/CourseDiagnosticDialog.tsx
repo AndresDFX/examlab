@@ -47,17 +47,19 @@ import { Spinner } from "@/components/ui/spinner";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { SearchInput } from "@/components/ui/search-input";
-import { Stethoscope, AlertTriangle, MessageSquare, CheckCircle2, RefreshCw, ExternalLink, Lock, ClipboardList, CalendarCheck, FileText, Hammer, FolderKanban, Gavel, Sparkles } from "lucide-react";
+import { Stethoscope, AlertTriangle, MessageSquare, CheckCircle2, RefreshCw, ExternalLink, Lock, ClipboardList, CalendarCheck, FileText, Hammer, FolderKanban, Gavel, Sparkles, Users } from "lucide-react";
 import {
   summarizePendingGrades,
   summarizeMatrix,
   summarizeAttendance,
+  summarizeCohortCoverage,
   diagCellSeverity,
   type DiagItem,
   type DiagStudent,
   type DiagSubmission,
   type DiagPendingRow,
   type DiagAttendanceSession,
+  type DiagCohortCoverage,
 } from "@/modules/courses/diagnostic";
 import { enqueueAiGradeForSubmission } from "@/modules/ai/grade-submission";
 
@@ -131,6 +133,13 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
   // Pestaña 4: asistencia.
   const [attendanceRows, setAttendanceRows] = useState<DiagAttendanceSession[]>([]);
 
+  // Cobertura por cohorte: actividades sin asignar a alguna cohorte del curso.
+  const [cohortCoverage, setCohortCoverage] = useState<DiagCohortCoverage>({
+    hasCohorts: false,
+    cohorts: [],
+    gaps: [],
+  });
+
   const loadAll = useCallback(async () => {
     if (!courseId) return;
     setLoading(true);
@@ -154,7 +163,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
       if (userIds.length) {
         const { data: profs } = await db
           .from("profiles")
-          .select("id, full_name, institutional_email")
+          .select("id, full_name, institutional_email, cohorte")
           .in("id", userIds)
           .order("full_name");
         studentsList = (profs ?? []) as DiagStudent[];
@@ -441,6 +450,39 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
         studentsList.length,
       );
       setAttendanceRows(attRows);
+
+      // 7) Cobertura por cohorte. Traemos las asignaciones de cada tipo y
+      // detectamos actividades que olvidaron asignarse a alguna cohorte.
+      const assignedByKey = new Map<string, Set<string>>();
+      const [examAsg, wsAsg, prjAsg] = await Promise.all([
+        examIds.length
+          ? db.from("exam_assignments").select("exam_id, user_id").in("exam_id", examIds)
+          : Promise.resolve({ data: [] }),
+        workshopIds.length
+          ? db
+              .from("workshop_assignments")
+              .select("workshop_id, user_id")
+              .in("workshop_id", workshopIds)
+          : Promise.resolve({ data: [] }),
+        projectIds.length
+          ? db
+              .from("project_assignments")
+              .select("project_id, user_id")
+              .in("project_id", projectIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+      const addAssign = (key: string, userId: string) => {
+        const set = assignedByKey.get(key);
+        if (set) set.add(userId);
+        else assignedByKey.set(key, new Set([userId]));
+      };
+      for (const a of (examAsg.data ?? []) as Array<{ exam_id: string; user_id: string }>)
+        addAssign(`exam::${a.exam_id}`, a.user_id);
+      for (const a of (wsAsg.data ?? []) as Array<{ workshop_id: string; user_id: string }>)
+        addAssign(`workshop::${a.workshop_id}`, a.user_id);
+      for (const a of (prjAsg.data ?? []) as Array<{ project_id: string; user_id: string }>)
+        addAssign(`project::${a.project_id}`, a.user_id);
+      setCohortCoverage(summarizeCohortCoverage(studentsList, allItems, assignedByKey));
     } catch (e) {
       setLoadError(friendlyError(e, "No se pudo cargar el diagnóstico del curso."));
     } finally {
@@ -460,6 +502,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
       setAiFailedJobs([]);
       setOpenThreads([]);
       setAttendanceRows([]);
+      setCohortCoverage({ hasCohorts: false, cohorts: [], gaps: [] });
       setMatrixSearch("");
     }
   }, [open, courseId, loadAll]);
@@ -743,6 +786,20 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                   </Badge>
                 )}
               </TabsTrigger>
+              {cohortCoverage.hasCohorts && (
+                <TabsTrigger value="cohorts" className="gap-1.5">
+                  <Users className="h-3.5 w-3.5" />
+                  Cohortes
+                  {cohortCoverage.gaps.length > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="ml-1 text-[10px] px-1.5 py-0 h-4 leading-none"
+                    >
+                      {cohortCoverage.gaps.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <div className="flex-1 min-h-0 overflow-y-auto mt-2">
@@ -1126,6 +1183,73 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                   </Table>
                 )}
               </TabsContent>
+
+              {/* ── TAB 5: Cohortes (solo si el curso usa cohortes) ────── */}
+              {cohortCoverage.hasCohorts && (
+                <TabsContent value="cohorts" className="m-0 space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    El curso agrupa estudiantes en {cohortCoverage.cohorts.length} cohorte(s):{" "}
+                    {cohortCoverage.cohorts.join(", ")}. Abajo, las actividades que{" "}
+                    <strong>no se asignaron a alguna cohorte</strong> — esos estudiantes NO las
+                    verán (probable olvido al asignar).
+                  </p>
+                  {cohortCoverage.gaps.length === 0 ? (
+                    <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20 dark:border-emerald-900 p-3 text-sm text-emerald-800 dark:text-emerald-300">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Todas las actividades están asignadas a todas las cohortes.
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Actividad</TableHead>
+                          <TableHead>Tipo</TableHead>
+                          <TableHead>Cohortes sin asignar</TableHead>
+                          <TableHead className="text-right">Estudiantes afectados</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {cohortCoverage.gaps.map((g) => (
+                          <TableRow
+                            key={`${g.item.kind}-${g.item.id}`}
+                            className="bg-amber-50/40 dark:bg-amber-950/10"
+                          >
+                            <TableCell className="text-xs truncate max-w-[200px]">
+                              {g.item.title}
+                            </TableCell>
+                            <TableCell>
+                              <span className="inline-flex items-center gap-1 text-xs">
+                                {itemKindIcon(g.item.kind)}
+                                {g.item.kind === "exam"
+                                  ? "Examen"
+                                  : g.item.kind === "workshop"
+                                    ? "Taller"
+                                    : "Proyecto"}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {g.missingCohorts.map((c) => (
+                                  <Badge
+                                    key={c}
+                                    variant="outline"
+                                    className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-300"
+                                  >
+                                    {c}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right text-xs tabular-nums">
+                              {g.affectedStudents}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </TabsContent>
+              )}
             </div>
           </Tabs>
         )}

@@ -45,7 +45,17 @@ import {
   BookOpen,
   ShieldCheck,
   Trophy,
+  ClipboardCheck,
+  Stethoscope,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { CourseDiagnosticDialog } from "@/modules/courses/CourseDiagnosticDialog";
+import { aggregatePendingGradingByCourse, type PendingGradingCourse } from "@/modules/courses/pending-grading";
 import {
   Select,
   SelectContent,
@@ -484,7 +494,13 @@ function AdminDashboard() {
 function TeacherDashboard({ userId }: { userId: string | undefined }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  void userId; // la lógica de stats es rol-based, no depende del user_id
+  // Pendientes de calificación cross-curso (reemplaza "Sesiones hoy").
+  const [pendingGradingTotal, setPendingGradingTotal] = useState(0);
+  const [pendingByCourse, setPendingByCourse] = useState<PendingGradingCourse[]>([]);
+  const [pendingGradingModalOpen, setPendingGradingModalOpen] = useState(false);
+  // Curso para el que se abre el Diagnóstico desde el modal (reusa el dialog
+  // existente, que tiene "Calificar todos con IA").
+  const [diagCourse, setDiagCourse] = useState<{ id: string; name: string } | null>(null);
   const [counts, setCounts] = useState({
     pendingExamNotes: 0,
     /** Conversaciones del módulo /app/messages cuyo último mensaje
@@ -600,6 +616,105 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         aiPendingJobs: pendingAiCount ?? 0,
       });
 
+      // Pendientes de calificación POR CURSO (cross-curso). Mismas reglas que
+      // el dashboard Admin: examen (completado/sospechoso + ai_grade null),
+      // taller/proyecto (entregado + final_grade null). Atribuimos cada
+      // entrega a un curso del docente (examen: course_id directo; taller/
+      // proyecto M:N: primer curso del docente que lo enlaza).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbAny2 = supabase as any;
+      if (userId) {
+        const { data: ctRows } = await dbAny2
+          .from("course_teachers")
+          .select("course_id")
+          .eq("user_id", userId);
+        const myCourseIds: string[] = ((ctRows ?? []) as any[]).map((r) => r.course_id);
+        if (!cancelled && myCourseIds.length) {
+          const { data: myCourses } = await dbAny2
+            .from("courses")
+            .select("id, name")
+            .in("id", myCourseIds)
+            .is("deleted_at", null);
+          const courseList = ((myCourses ?? []) as any[]).map((c) => ({ id: c.id, name: c.name }));
+          const liveCourseIds = courseList.map((c) => c.id);
+
+          // Actividad → curso (única). Exámenes: course_id directo.
+          const activityToCourse = new Map<string, string>();
+          const [exRows, wcRows, pcRows] = await Promise.all([
+            liveCourseIds.length
+              ? dbAny2
+                  .from("exams")
+                  .select("id, course_id")
+                  .in("course_id", liveCourseIds)
+                  .is("deleted_at", null)
+                  .is("parent_exam_id", null)
+              : Promise.resolve({ data: [] }),
+            liveCourseIds.length
+              ? dbAny2
+                  .from("workshop_courses")
+                  .select("workshop_id, course_id")
+                  .in("course_id", liveCourseIds)
+              : Promise.resolve({ data: [] }),
+            liveCourseIds.length
+              ? dbAny2
+                  .from("project_courses")
+                  .select("project_id, course_id")
+                  .in("course_id", liveCourseIds)
+              : Promise.resolve({ data: [] }),
+          ]);
+          for (const e of (exRows.data ?? []) as any[]) activityToCourse.set(e.id, e.course_id);
+          // M:N: primer curso del docente que enlaza el taller/proyecto.
+          for (const r of (wcRows.data ?? []) as any[])
+            if (!activityToCourse.has(r.workshop_id)) activityToCourse.set(r.workshop_id, r.course_id);
+          for (const r of (pcRows.data ?? []) as any[])
+            if (!activityToCourse.has(r.project_id)) activityToCourse.set(r.project_id, r.course_id);
+
+          const examIds = (exRows.data ?? []).map((e: any) => e.id);
+          const workshopIds = [...new Set(((wcRows.data ?? []) as any[]).map((r) => r.workshop_id))];
+          const projectIds = [...new Set(((pcRows.data ?? []) as any[]).map((r) => r.project_id))];
+
+          const [exSub, wsSub, prjSub] = await Promise.all([
+            examIds.length
+              ? dbAny2
+                  .from("submissions")
+                  .select("exam_id")
+                  .in("status", ["completado", "sospechoso"])
+                  .is("ai_grade", null)
+                  .in("exam_id", examIds)
+              : Promise.resolve({ data: [] }),
+            workshopIds.length
+              ? dbAny2
+                  .from("workshop_submissions")
+                  .select("workshop_id")
+                  .eq("status", "entregado")
+                  .is("final_grade", null)
+                  .in("workshop_id", workshopIds)
+              : Promise.resolve({ data: [] }),
+            projectIds.length
+              ? dbAny2
+                  .from("project_submissions")
+                  .select("project_id")
+                  .eq("status", "entregado")
+                  .is("final_grade", null)
+                  .in("project_id", projectIds)
+              : Promise.resolve({ data: [] }),
+          ]);
+          const pendingActivityIds: string[] = [
+            ...((exSub.data ?? []) as any[]).map((s) => s.exam_id),
+            ...((wsSub.data ?? []) as any[]).map((s) => s.workshop_id),
+            ...((prjSub.data ?? []) as any[]).map((s) => s.project_id),
+          ];
+          const agg = aggregatePendingGradingByCourse(courseList, activityToCourse, pendingActivityIds);
+          if (!cancelled) {
+            setPendingGradingTotal(agg.total);
+            setPendingByCourse(agg.byCourse);
+          }
+        } else if (!cancelled) {
+          setPendingGradingTotal(0);
+          setPendingByCourse([]);
+        }
+      }
+
       // Próximas clases: attendance_sessions del docente con
       // session_date >= hoy, ordenadas por fecha y hora. RLS recorta
       // a sus cursos.
@@ -638,7 +753,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [userId]);
 
   return (
     // Wrapper flex-col + flex-1 para que la fila de 4 cards de abajo
@@ -683,19 +798,18 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           color="text-rose-500 dark:text-rose-400"
           onClick={() => setPendingResponseModalOpen(true)}
         />
-        {/* Sesiones de asistencia HOY en mis cursos. Click → módulo
-            de asistencia para tomar la lista o cerrar el check-in.
-            "Comentarios abiertos" (metric) se removió: era redundante
-            con "Pendientes por respuesta" que es accionable; el modal
-            sigue accesible por click directo en la card de pendientes. */}
+        {/* Pendientes de calificación cross-curso (reemplaza "Sesiones hoy").
+            Entregas entregadas sin nota final, sumadas sobre TODOS mis
+            cursos. Click → modal con el detalle por curso; desde cada curso
+            se abre el Diagnóstico (que tiene "Calificar todos con IA"). */}
         <Stat
-          icon={CalendarClock}
-          label={t("dashboard.stats.todaySessions", {
-            defaultValue: "Sesiones hoy",
+          icon={ClipboardCheck}
+          label={t("dashboard.stats.pendingGrading", {
+            defaultValue: "Pendientes de calificación",
           })}
-          value={counts.todaySessions}
+          value={pendingGradingTotal}
           color="text-blue-500 dark:text-blue-400"
-          onClick={() => void navigate({ to: "/app/teacher/attendance" })}
+          onClick={() => setPendingGradingModalOpen(true)}
         />
       </div>
 
@@ -817,6 +931,61 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         onOpenChange={setPendingNotesModalOpen}
         onChange={refreshPendingExamNotes}
       />
+
+      {/* Pendientes de calificación — detalle por curso. Cada curso abre su
+          Diagnóstico (que incluye "Calificar todos con IA"). */}
+      <Dialog open={pendingGradingModalOpen} onOpenChange={setPendingGradingModalOpen}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5 text-blue-600" />
+              {t("dashboard.pendingGradingModal.title", {
+                defaultValue: "Pendientes de calificación por curso",
+              })}
+            </DialogTitle>
+          </DialogHeader>
+          {pendingByCourse.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">
+              {t("dashboard.pendingGradingModal.empty", {
+                defaultValue: "No tienes entregas pendientes de calificación. ✨",
+              })}
+            </p>
+          ) : (
+            <div className="divide-y max-h-[60dvh] overflow-y-auto">
+              {pendingByCourse.map((c) => (
+                <button
+                  key={c.courseId}
+                  type="button"
+                  onClick={() => {
+                    setPendingGradingModalOpen(false);
+                    setDiagCourse({ id: c.courseId, name: c.courseName });
+                  }}
+                  className="w-full flex items-center justify-between gap-3 px-2 py-2.5 text-left hover:bg-muted/50 rounded-md"
+                >
+                  <span className="text-sm font-medium truncate">{c.courseName}</span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    <Badge variant="destructive" className="text-[10px] tabular-nums">
+                      {c.count}
+                    </Badge>
+                    <Stethoscope className="h-4 w-4 text-emerald-600" />
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {diagCourse && (
+        <CourseDiagnosticDialog
+          open={!!diagCourse}
+          onOpenChange={(o) => {
+            if (!o) setDiagCourse(null);
+          }}
+          courseId={diagCourse.id}
+          courseName={diagCourse.name}
+        />
+      )}
     </div>
   );
 }

@@ -237,6 +237,10 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
   const [search, setSearch] = useState("");
   const [tenantFilter, setTenantFilter] = useState<string>("all");
   const [tenants, setTenants] = useState<Array<{ id: string; name: string }>>([]);
+  // Filtro por curso: Admin/SA → todos los cursos (del tenant); Docente →
+  // solo los cursos donde es docente (course_teachers).
+  const [courseFilter, setCourseFilter] = useState<string>("all");
+  const [courses, setCourses] = useState<Array<{ id: string; name: string }>>([]);
 
   // Estado de acciones in-flight (per-job).
   const [cancelling, setCancelling] = useState<Set<string>>(new Set());
@@ -275,6 +279,47 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       cancelled = true;
     };
   }, [isSuperAdminCaller]);
+
+  // Lista de cursos para el filtro. Admin/SA → cursos del tenant (RLS scopea;
+  // SA con tenant elegido → ese tenant). Docente → solo sus cursos.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      let list: Array<{ id: string; name: string }> = [];
+      if (isAdmin) {
+        let q = db.from("courses").select("id, name, tenant_id").is("deleted_at", null);
+        if (isSuperAdminCaller && tenantFilter !== "all") q = q.eq("tenant_id", tenantFilter);
+        const { data } = await q.order("name");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        list = ((data ?? []) as any[]).map((c) => ({ id: c.id, name: c.name }));
+      } else if (currentUserId) {
+        const { data: ct } = await db
+          .from("course_teachers")
+          .select("course_id")
+          .eq("user_id", currentUserId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ids = ((ct ?? []) as any[]).map((r) => r.course_id);
+        if (ids.length) {
+          const { data } = await db
+            .from("courses")
+            .select("id, name")
+            .in("id", ids)
+            .is("deleted_at", null)
+            .order("name");
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          list = ((data ?? []) as any[]).map((c) => ({ id: c.id, name: c.name }));
+        }
+      }
+      if (cancelled) return;
+      setCourses(list);
+      // Si el curso seleccionado ya no está en la lista (cambió de tenant),
+      // volvemos a "todos" para no dejar un filtro fantasma.
+      setCourseFilter((prev) => (prev !== "all" && !list.some((c) => c.id === prev) ? "all" : prev));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, isSuperAdminCaller, tenantFilter, currentUserId]);
 
   // Current user id (para detectar "este rechazo es para mí").
   useEffect(() => {
@@ -744,6 +789,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
   const filteredJobs = useMemo(() => {
     let out = jobs;
     if (sourceFilter !== "all") out = out.filter((j) => j.source === sourceFilter);
+    if (courseFilter !== "all") out = out.filter((j) => j.course_id === courseFilter);
     if (statusFilter === "active") {
       out = out.filter(
         (j) =>
@@ -782,7 +828,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       );
     }
     return out;
-  }, [jobs, sourceFilter, statusFilter, search]);
+  }, [jobs, sourceFilter, statusFilter, search, courseFilter]);
 
   // Multi-select: solo jobs cancelables (pending/processing/failed).
   const selectableJobs = useMemo(
@@ -1408,6 +1454,23 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                   {tenants.map((tn) => (
                     <SelectItem key={tn.id} value={tn.id}>
                       {tn.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {courses.length > 0 && (
+              <Select value={courseFilter} onValueChange={setCourseFilter}>
+                <SelectTrigger className="h-8 w-48 text-xs">
+                  <SelectValue placeholder={t("unifiedAiQueue.coursePlaceholder", { defaultValue: "Curso" })} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    {t("unifiedAiQueue.allCourses", { defaultValue: "Todos los cursos" })}
+                  </SelectItem>
+                  {courses.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

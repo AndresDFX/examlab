@@ -143,9 +143,20 @@ export interface AiGradeResult {
  *   `ai_grade=NULL` y `ai_feedback='Pendiente IA…'` para que el alumno
  *   vea el estado en la UI.
  */
-export async function aiGradeOrEnqueue(req: AiGradeRequest): Promise<AiGradeResult> {
+export async function aiGradeOrEnqueue(
+  req: AiGradeRequest,
+  opts?: {
+    /** Cuando true, IGNORA el override "IA inmediata" y respeta ESTRICTAMENTE
+     *  el `processing_mode` global: async → encola, sync → ejecuta inline.
+     *  Lo usa la calificación en lote ("Calificar todos"): el override está
+     *  pensado para calificaciones puntuales on-demand, no para forzar sync
+     *  un batch que debe ir a la cola. El único flujo siempre-sync es el
+     *  Tutor IA (que no pasa por acá). */
+    ignoreOverride?: boolean;
+  },
+): Promise<AiGradeResult> {
   const invokeTarget = req.invokeTarget ?? "ai-grade-submission";
-  const overrideExp = readOverrideExpiry();
+  const overrideExp = opts?.ignoreOverride ? null : readOverrideExpiry();
   const mode = await getProcessingMode();
 
   // Path SYNC explícito (admin puso processing_mode='sync'): bypass del
