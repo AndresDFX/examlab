@@ -30,7 +30,7 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
 import { Award, Save, Info, RotateCcw } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
-import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -80,6 +80,7 @@ export function CourseCertificateSettingsDialog({
   course: Course | null;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [draft, setDraft] = useState<CourseCertOverride | null>(null);
   const [effective, setEffective] = useState<EffectiveSettings | null>(null);
@@ -150,11 +151,7 @@ export function CourseCertificateSettingsDialog({
         entityName: course.name,
         metadata: { override: payload },
       });
-      toast.success(
-        i18n.t("toast.modules_certificates_CourseCertificateSettingsDialog.savedOk", {
-          defaultValue: "Configuración del curso guardada",
-        }),
-      );
+      toast.success(t("hc_modulesCertificatesCourseCertificateSettingsDialog.savedOk"));
       onClose();
     } finally {
       setSaving(false);
@@ -181,11 +178,7 @@ export function CourseCertificateSettingsDialog({
         entityId: course.id,
         entityName: course.name,
       });
-      toast.success(
-        i18n.t("toast.modules_certificates_CourseCertificateSettingsDialog.overrideRemoved", {
-          defaultValue: "Override eliminado — vuelve a usar la configuración global",
-        }),
-      );
+      toast.success(t("hc_modulesCertificatesCourseCertificateSettingsDialog.overrideRemoved"));
       onClose();
     } finally {
       setSaving(false);
@@ -197,7 +190,10 @@ export function CourseCertificateSettingsDialog({
   // Helper: muestra el placeholder con el valor efectivo (global) para que
   // el docente sepa qué se aplicaría sin tocar.
   const placeholderFor = (key: keyof EffectiveSettings, fallback: string) =>
-    effective?.[key] || `(global) ${fallback}`;
+    effective?.[key] ||
+    t("hc_modulesCertificatesCourseCertificateSettingsDialog.globalPlaceholderPrefix", {
+      fallback,
+    });
 
   return (
     <Dialog open={!!course} onOpenChange={(v) => !v && !saving && onClose()}>
@@ -205,85 +201,86 @@ export function CourseCertificateSettingsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Award className="h-4 w-4 text-amber-500" />
-            Configuración de certificaciones · {course.name}
+            {t("hc_modulesCertificatesCourseCertificateSettingsDialog.dialogTitle", {
+              course: course.name,
+            })}
           </DialogTitle>
           <DialogDescription>
-            Sobrescribe los valores globales solo para este curso. Los campos vacíos heredan del
-            Admin (Configuración → Certificaciones).
+            {t("hc_modulesCertificatesCourseCertificateSettingsDialog.dialogDescription")}
           </DialogDescription>
         </DialogHeader>
 
         {loading || !draft ? (
           <div className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-            <Spinner size="sm" /> Cargando…
+            <Spinner size="sm" /> {t("hc_modulesCertificatesCourseCertificateSettingsDialog.loading")}
           </div>
         ) : (
           <div className="space-y-4">
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                Los placeholders muestran lo que se aplicaría sin override (valor global o
-                fallback). Llena solo lo que quieras sobrescribir para este curso.
+                {t("hc_modulesCertificatesCourseCertificateSettingsDialog.alertPlaceholders")}
               </AlertDescription>
             </Alert>
 
             <div className="space-y-3">
-              <h3 className="text-sm font-medium">Institución</h3>
+              <h3 className="text-sm font-medium">{t("hc_modulesCertificatesCourseCertificateSettingsDialog.sectionInstitution")}</h3>
               <div>
-                <Label>Nombre institucional</Label>
+                <Label>{t("hc_modulesCertificatesCourseCertificateSettingsDialog.labelInstitutionName")}</Label>
                 <Input
                   value={draft.institution_name ?? ""}
                   onChange={(e) => setDraft({ ...draft, institution_name: e.target.value })}
-                  placeholder={placeholderFor("institution_name", "Sin nombre configurado")}
+                  placeholder={placeholderFor("institution_name", t("hc_modulesCertificatesCourseCertificateSettingsDialog.fallbackNoName"))}
                 />
               </div>
               <div>
-                <Label>URL del logo</Label>
+                <Label>{t("hc_modulesCertificatesCourseCertificateSettingsDialog.labelLogoUrl")}</Label>
                 <Input
                   value={draft.institution_logo_url ?? ""}
                   onChange={(e) => setDraft({ ...draft, institution_logo_url: e.target.value })}
-                  placeholder={placeholderFor("institution_logo_url", "Sin logo configurado")}
+                  placeholder={placeholderFor("institution_logo_url", t("hc_modulesCertificatesCourseCertificateSettingsDialog.fallbackNoLogo"))}
                 />
               </div>
             </div>
 
             <div className="space-y-3 pt-2 border-t">
-              <h3 className="text-sm font-medium">Firma</h3>
+              <h3 className="text-sm font-medium">{t("hc_modulesCertificatesCourseCertificateSettingsDialog.sectionSignature")}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Label>Nombre</Label>
+                  <Label>{t("hc_modulesCertificatesCourseCertificateSettingsDialog.labelName")}</Label>
                   <Input
                     value={draft.signature_name ?? ""}
                     onChange={(e) => setDraft({ ...draft, signature_name: e.target.value })}
-                    placeholder={placeholderFor("signature_name", "Sin firma configurada")}
+                    placeholder={placeholderFor("signature_name", t("hc_modulesCertificatesCourseCertificateSettingsDialog.fallbackNoSignature"))}
                   />
                 </div>
                 <div>
-                  <Label>Cargo</Label>
+                  <Label>{t("hc_modulesCertificatesCourseCertificateSettingsDialog.labelTitle")}</Label>
                   <Input
                     value={draft.signature_title ?? ""}
                     onChange={(e) => setDraft({ ...draft, signature_title: e.target.value })}
-                    placeholder={placeholderFor("signature_title", "Sin cargo")}
+                    placeholder={placeholderFor("signature_title", t("hc_modulesCertificatesCourseCertificateSettingsDialog.fallbackNoTitle"))}
                   />
                 </div>
               </div>
               <div>
-                <Label>URL de la imagen de la firma</Label>
+                <Label>{t("hc_modulesCertificatesCourseCertificateSettingsDialog.labelSignatureImageUrl")}</Label>
                 <Input
                   value={draft.signature_image_url ?? ""}
                   onChange={(e) => setDraft({ ...draft, signature_image_url: e.target.value })}
-                  placeholder={placeholderFor("signature_image_url", "Sin imagen")}
+                  placeholder={placeholderFor("signature_image_url", t("hc_modulesCertificatesCourseCertificateSettingsDialog.fallbackNoImage"))}
                 />
               </div>
             </div>
 
             <div className="space-y-3 pt-2 border-t">
-              <h3 className="text-sm font-medium">Texto</h3>
+              <h3 className="text-sm font-medium">{t("hc_modulesCertificatesCourseCertificateSettingsDialog.sectionText")}</h3>
               <div>
                 <Label>
-                  Mensaje principal{" "}
+                  {t("hc_modulesCertificatesCourseCertificateSettingsDialog.labelMainMessage")}{" "}
                   <HelpHint>
-                    Placeholders disponibles: <code>{"{student}"}</code>, <code>{"{course}"}</code>,{" "}
+                    {t("hc_modulesCertificatesCourseCertificateSettingsDialog.helpPlaceholdersIntro")}{" "}
+                    <code>{"{student}"}</code>, <code>{"{course}"}</code>,{" "}
                     <code>{"{grade}"}</code>, <code>{"{period}"}</code>, <code>{"{teacher}"}</code>,{" "}
                     <code>{"{date}"}</code>.
                   </HelpHint>
@@ -292,15 +289,15 @@ export function CourseCertificateSettingsDialog({
                   value={draft.certificate_message ?? ""}
                   onChange={(e) => setDraft({ ...draft, certificate_message: e.target.value })}
                   rows={4}
-                  placeholder={placeholderFor("certificate_message", "Mensaje por defecto")}
+                  placeholder={placeholderFor("certificate_message", t("hc_modulesCertificatesCourseCertificateSettingsDialog.fallbackDefaultMessage"))}
                 />
               </div>
               <div>
-                <Label>Pie de página</Label>
+                <Label>{t("hc_modulesCertificatesCourseCertificateSettingsDialog.labelFooter")}</Label>
                 <Input
                   value={draft.footer_text ?? ""}
                   onChange={(e) => setDraft({ ...draft, footer_text: e.target.value })}
-                  placeholder={placeholderFor("footer_text", "Sin pie de página")}
+                  placeholder={placeholderFor("footer_text", t("hc_modulesCertificatesCourseCertificateSettingsDialog.fallbackNoFooter"))}
                 />
               </div>
             </div>
@@ -317,15 +314,15 @@ export function CourseCertificateSettingsDialog({
               className="mr-auto text-destructive hover:text-destructive"
             >
               <RotateCcw className="h-4 w-4 mr-1" />
-              Volver a la configuración global
+              {t("hc_modulesCertificatesCourseCertificateSettingsDialog.backToGlobal")}
             </Button>
           )}
           <Button variant="outline" onClick={onClose} disabled={saving}>
-            Cancelar
+            {t("hc_modulesCertificatesCourseCertificateSettingsDialog.cancel")}
           </Button>
           <Button onClick={() => void handleSave()} disabled={saving || loading}>
             {saving ? <Spinner size="sm" className="mr-1" /> : <Save className="h-4 w-4 mr-1" />}
-            Guardar override
+            {t("hc_modulesCertificatesCourseCertificateSettingsDialog.saveOverride")}
           </Button>
         </DialogFooter>
       </DialogContent>

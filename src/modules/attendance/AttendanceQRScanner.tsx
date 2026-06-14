@@ -14,6 +14,7 @@
  *   - Al cerrarse / desmontar: stop + clear (libera la cámara)
  */
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
@@ -49,6 +50,7 @@ function parsePayload(text: string): { sessionId: string; code: string } | null 
 }
 
 export function AttendanceQRScanner({ onDetected, onClose }: Props) {
+  const { t } = useTranslation();
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(true);
@@ -90,7 +92,9 @@ export function AttendanceQRScanner({ onDetected, onClose }: Props) {
       } catch (e: unknown) {
         if (!cancelled) {
           const message =
-            e instanceof Error ? e.message : "No se pudo acceder a la cámara";
+            e instanceof Error
+              ? e.message
+              : t("hc_modulesAttendanceAttendanceQRScanner.cameraAccessError");
           setError(message);
           setStarting(false);
         }
@@ -118,10 +122,12 @@ export function AttendanceQRScanner({ onDetected, onClose }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div className="text-sm font-medium">Escanea el QR proyectado</div>
+        <div className="text-sm font-medium">
+          {t("hc_modulesAttendanceAttendanceQRScanner.scanProjectedQr")}
+        </div>
         <Button variant="ghost" size="sm" onClick={onClose}>
           <X className="h-4 w-4 mr-1" />
-          Cerrar
+          {t("hc_modulesAttendanceAttendanceQRScanner.close")}
         </Button>
       </div>
       <div className="rounded-lg overflow-hidden border bg-muted relative">
@@ -129,7 +135,7 @@ export function AttendanceQRScanner({ onDetected, onClose }: Props) {
         {starting && !error && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground bg-background/60 backdrop-blur-sm">
             <Spinner size="md" className="mr-2" />
-            Activando cámara…
+            {t("hc_modulesAttendanceAttendanceQRScanner.activatingCamera")}
           </div>
         )}
         {error && (
@@ -139,8 +145,7 @@ export function AttendanceQRScanner({ onDetected, onClose }: Props) {
         )}
       </div>
       <p className="text-xs text-muted-foreground">
-        Apunta el celular al QR proyectado por el docente. Al detectar, te
-        marcaremos presente automáticamente.
+        {t("hc_modulesAttendanceAttendanceQRScanner.instructions")}
       </p>
     </div>
   );

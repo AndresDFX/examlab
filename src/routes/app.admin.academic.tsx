@@ -46,15 +46,15 @@ function AdminAcademic() {
     roles.includes("SuperAdmin") && activeRole === "SuperAdmin" && readTenantOverride() === null;
 
   if (authLoading) return null;
-  if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
+  if (!isAdmin) return <p className="text-muted-foreground">{t("hc_routesAppAdminAcademic.needAdminRole")}</p>;
 
   if (isSuperAdminCrossTenant) {
     return (
       <div className="space-y-5">
         <PageHeader
           icon={<GraduationCap className="h-6 w-6 text-indigo-500" />}
-          title="Académico"
-          subtitle="Estructura académica por institución."
+          title={t("hc_routesAppAdminAcademic.title")}
+          subtitle={t("hc_routesAppAdminAcademic.subtitleByInstitution")}
         />
         <Card>
           <CardContent className="p-6 text-center space-y-3">
@@ -78,27 +78,27 @@ function AdminAcademic() {
     <div className="space-y-5">
       <PageHeader
         icon={<GraduationCap className="h-6 w-6 text-indigo-500" />}
-        title="Académico"
-        subtitle="Carreras, asignaturas y periodos de tu institución."
+        title={t("hc_routesAppAdminAcademic.title")}
+        subtitle={t("hc_routesAppAdminAcademic.subtitleProgramsSubjectsPeriods")}
       />
 
       <Tabs defaultValue="overview">
         <TabsList className="flex flex-wrap h-auto justify-start gap-1">
           <TabsTrigger value="overview" className="gap-1.5">
             <LayoutList className="h-3.5 w-3.5" />
-            Resumen
+            {t("hc_routesAppAdminAcademic.tabOverview")}
           </TabsTrigger>
           <TabsTrigger value="programs" className="gap-1.5">
             <Layers className="h-3.5 w-3.5" />
-            Carreras
+            {t("hc_routesAppAdminAcademic.tabPrograms")}
           </TabsTrigger>
           <TabsTrigger value="subjects" className="gap-1.5">
             <BookMarked className="h-3.5 w-3.5" />
-            Asignaturas
+            {t("hc_routesAppAdminAcademic.tabSubjects")}
           </TabsTrigger>
           <TabsTrigger value="periods" className="gap-1.5">
             <CalendarRange className="h-3.5 w-3.5" />
-            Periodos
+            {t("hc_routesAppAdminAcademic.tabPeriods")}
           </TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="space-y-4 mt-4">

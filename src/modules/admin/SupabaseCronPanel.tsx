@@ -52,6 +52,7 @@ import {
   FileText,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
@@ -78,13 +79,13 @@ function describeSchedule(s: string): string {
   const t = s.trim();
   if (t.startsWith("@")) {
     const map: Record<string, string> = {
-      "@hourly": "Cada hora",
-      "@daily": "Cada día a medianoche",
-      "@weekly": "Cada lunes a medianoche",
-      "@monthly": "Día 1 de cada mes",
-      "@yearly": "Cada 1 de enero",
-      "@annually": "Cada 1 de enero",
-      "@reboot": "Al iniciar el servidor",
+      "@hourly": i18n.t("hc_modulesAdminSupabaseCronPanel.aliasHourly"),
+      "@daily": i18n.t("hc_modulesAdminSupabaseCronPanel.aliasDaily"),
+      "@weekly": i18n.t("hc_modulesAdminSupabaseCronPanel.aliasWeekly"),
+      "@monthly": i18n.t("hc_modulesAdminSupabaseCronPanel.aliasMonthly"),
+      "@yearly": i18n.t("hc_modulesAdminSupabaseCronPanel.aliasYearly"),
+      "@annually": i18n.t("hc_modulesAdminSupabaseCronPanel.aliasYearly"),
+      "@reboot": i18n.t("hc_modulesAdminSupabaseCronPanel.aliasReboot"),
     };
     return map[t] ?? t;
   }
@@ -92,26 +93,36 @@ function describeSchedule(s: string): string {
   if (parts.length < 5) return t;
   const [m, h, dom, mon, dow] = parts;
   // Patrones comunes
-  if (m === "*" && h === "*" && dom === "*" && mon === "*" && dow === "*") return "Cada minuto";
+  if (m === "*" && h === "*" && dom === "*" && mon === "*" && dow === "*")
+    return i18n.t("hc_modulesAdminSupabaseCronPanel.everyMinute");
   if (/^\*\/\d+$/.test(m) && h === "*" && dom === "*" && mon === "*" && dow === "*") {
-    return `Cada ${m.slice(2)} minutos`;
+    return i18n.t("hc_modulesAdminSupabaseCronPanel.everyNMinutes", { n: m.slice(2) });
   }
   if (/^\d+$/.test(m) && h === "*" && dom === "*" && mon === "*" && dow === "*") {
-    return `Cada hora en el minuto ${m}`;
+    return i18n.t("hc_modulesAdminSupabaseCronPanel.everyHourAtMinute", { minute: m });
   }
   if (h.startsWith("*/") && dom === "*" && mon === "*" && dow === "*") {
-    return `Cada ${h.slice(2)} horas en el minuto ${m}`;
+    return i18n.t("hc_modulesAdminSupabaseCronPanel.everyNHoursAtMinute", {
+      n: h.slice(2),
+      minute: m,
+    });
   }
   if (/^\d+$/.test(m) && /^\d+$/.test(h) && dom === "*" && mon === "*" && dow === "*") {
-    return `Diario a las ${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")} UTC`;
+    return i18n.t("hc_modulesAdminSupabaseCronPanel.dailyAt", {
+      time: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+    });
   }
   if (/^\d+$/.test(m) && /^\d+$/.test(h) && /^\d+$/.test(dom) && mon === "*" && dow === "*") {
-    return `Día ${dom} de cada mes a las ${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")} UTC`;
+    return i18n.t("hc_modulesAdminSupabaseCronPanel.monthlyOnDayAt", {
+      day: dom,
+      time: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+    });
   }
   return t;
 }
 
 export function SupabaseCronPanel() {
+  const { t } = useTranslation();
   const [jobs, setJobs] = useState<CronJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [unavailable, setUnavailable] = useState(false);
@@ -136,7 +147,7 @@ export function SupabaseCronPanel() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).rpc("admin_list_cron_jobs");
       if (error) {
-        toast.error(friendlyError(error, "Error cargando cron jobs"));
+        toast.error(friendlyError(error, t("hc_modulesAdminSupabaseCronPanel.errLoadingJobs")));
         setUnavailable(true);
         setJobs([]);
         return;
@@ -174,7 +185,7 @@ export function SupabaseCronPanel() {
         setJobs((prev) =>
           prev.map((j) => (j.jobid === job.jobid ? { ...j, active: previous } : j)),
         );
-        toast.error(friendlyError(error, "No se pudo cambiar el estado"));
+        toast.error(friendlyError(error, t("hc_modulesAdminSupabaseCronPanel.errToggleState")));
         return;
       }
       toast.success(
@@ -228,7 +239,9 @@ export function SupabaseCronPanel() {
         _description: trimmed,
       });
       if (error) {
-        toast.error(friendlyError(error, "No se pudo actualizar la descripción"));
+        toast.error(
+          friendlyError(error, t("hc_modulesAdminSupabaseCronPanel.errUpdateDescription")),
+        );
         return;
       }
       toast.success(
@@ -259,7 +272,9 @@ export function SupabaseCronPanel() {
         _schedule: trimmed,
       });
       if (error) {
-        toast.error(friendlyError(error, "No se pudo actualizar la frecuencia"));
+        toast.error(
+          friendlyError(error, t("hc_modulesAdminSupabaseCronPanel.errUpdateSchedule")),
+        );
         return;
       }
       toast.success(
@@ -283,14 +298,13 @@ export function SupabaseCronPanel() {
           <div>
             <CardTitle className="text-base flex items-center gap-2">
               <CalendarClock className="h-4 w-4 text-indigo-500" />
-              Tareas programadas
+              {t("hc_modulesAdminSupabaseCronPanel.cardTitle")}
             </CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Pausa, reanuda o cambia la frecuencia de los jobs programados. El SQL que ejecuta
-              cada job es de solo lectura — para modificarlo, usa una migración. Las horas están
-              en UTC. <strong>Los cambios se aplican inmediatamente</strong> a la tabla{" "}
-              <code>cron.job</code>; el scheduler de pg_cron los respeta en su próximo tick (hasta
-              ~1 minuto).
+              {t("hc_modulesAdminSupabaseCronPanel.cardDescPart1")}{" "}
+              <strong>{t("hc_modulesAdminSupabaseCronPanel.cardDescBold")}</strong>{" "}
+              {t("hc_modulesAdminSupabaseCronPanel.cardDescPart2")} <code>cron.job</code>
+              {t("hc_modulesAdminSupabaseCronPanel.cardDescPart3")}
             </p>
           </div>
           <Button
@@ -298,7 +312,7 @@ export function SupabaseCronPanel() {
             size="icon"
             className="h-8 w-8 shrink-0"
             onClick={() => void load()}
-            title="Refrescar"
+            title={t("hc_modulesAdminSupabaseCronPanel.refresh")}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
           </Button>
@@ -306,19 +320,19 @@ export function SupabaseCronPanel() {
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">
-              <Spinner size="sm" /> Cargando…
+              <Spinner size="sm" /> {t("hc_modulesAdminSupabaseCronPanel.loading")}
             </div>
           ) : unavailable ? (
             <ErrorState
-              message="No se pudo acceder a pg_cron"
-              hint="Revisa que las migraciones 20260603104000 + 20260825000000 estén aplicadas y que tengas rol SuperAdmin (pg_cron es infra cross-tenant)."
+              message={t("hc_modulesAdminSupabaseCronPanel.pgCronUnavailableTitle")}
+              hint={t("hc_modulesAdminSupabaseCronPanel.pgCronUnavailableHint")}
               onRetry={() => void load()}
             />
           ) : jobs.length === 0 ? (
             <TableEmpty
               icon={CalendarClock}
-              title="No hay tareas programadas todavía"
-              description="La extensión pg_cron no está habilitada en este proyecto Supabase, o las migraciones que registran los jobs (ej. db-backup-weekly, ai-grading-worker-hourly) no se han publicado. Las tareas se programan vía migraciones SQL; no se crean desde esta UI."
+              title={t("hc_modulesAdminSupabaseCronPanel.emptyTitle")}
+              description={t("hc_modulesAdminSupabaseCronPanel.emptyDescription")}
             />
           ) : (
             <div className="divide-y">
@@ -335,7 +349,11 @@ export function SupabaseCronPanel() {
                         type="button"
                         onClick={() => setExpandedId(expanded ? null : job.jobid)}
                         className="flex items-center gap-2 flex-1 min-w-0 text-left"
-                        title={expanded ? "Ocultar detalle" : "Ver detalle"}
+                        title={
+                          expanded
+                            ? t("hc_modulesAdminSupabaseCronPanel.hideDetail")
+                            : t("hc_modulesAdminSupabaseCronPanel.showDetail")
+                        }
                       >
                         {expanded ? (
                           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -347,12 +365,14 @@ export function SupabaseCronPanel() {
                             <span className="font-medium truncate">{job.jobname}</span>
                             {!job.active && (
                               <Badge variant="secondary" className="text-[10px] shrink-0">
-                                Pausado
+                                {t("hc_modulesAdminSupabaseCronPanel.paused")}
                               </Badge>
                             )}
                             {lastFailed && (
                               <Badge variant="destructive" className="text-[10px] shrink-0">
-                                Último: {job.last_status}
+                                {t("hc_modulesAdminSupabaseCronPanel.lastStatusBadge", {
+                                  status: job.last_status,
+                                })}
                               </Badge>
                             )}
                           </div>
@@ -369,7 +389,7 @@ export function SupabaseCronPanel() {
                             </div>
                           ) : (
                             <div className="text-xs text-muted-foreground/70 italic mt-0.5">
-                              Sin descripción — pulsa el ícono de texto para agregar una.
+                              {t("hc_modulesAdminSupabaseCronPanel.noDescriptionRow")}
                             </div>
                           )}
                         </div>
@@ -379,7 +399,7 @@ export function SupabaseCronPanel() {
                         variant="ghost"
                         className="h-7 w-7 shrink-0"
                         onClick={() => openEditDesc(job)}
-                        title="Editar descripción"
+                        title={t("hc_modulesAdminSupabaseCronPanel.editDescriptionTitle")}
                       >
                         <FileText className="h-3.5 w-3.5" />
                       </Button>
@@ -388,7 +408,7 @@ export function SupabaseCronPanel() {
                         variant="ghost"
                         className="h-7 w-7 shrink-0"
                         onClick={() => openEdit(job)}
-                        title="Editar frecuencia"
+                        title={t("hc_modulesAdminSupabaseCronPanel.editScheduleTitle")}
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
@@ -399,7 +419,11 @@ export function SupabaseCronPanel() {
                           <Switch
                             checked={job.active}
                             onCheckedChange={() => void toggleActive(job)}
-                            aria-label={job.active ? "Pausar" : "Activar"}
+                            aria-label={
+                              job.active
+                                ? t("hc_modulesAdminSupabaseCronPanel.pauseAction")
+                                : t("hc_modulesAdminSupabaseCronPanel.activateAction")
+                            }
                           />
                         )}
                       </div>
@@ -412,35 +436,62 @@ export function SupabaseCronPanel() {
                             soportar textos largos sin overflow lateral. */}
                         {job.description ? (
                           <div className="pt-2">
-                            <div className="text-muted-foreground mb-0.5">Descripción</div>
+                            <div className="text-muted-foreground mb-0.5">
+                              {t("hc_modulesAdminSupabaseCronPanel.descriptionLabel")}
+                            </div>
                             <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap">
                               {job.description}
                             </p>
                           </div>
                         ) : (
                           <div className="pt-2 text-muted-foreground italic">
-                            Sin descripción configurada — pulsa el ícono{" "}
-                            <FileText className="inline h-3 w-3 align-text-bottom" /> en la fila
-                            para agregar una.
+                            {t("hc_modulesAdminSupabaseCronPanel.noDescriptionDetailPrefix")}{" "}
+                            <FileText className="inline h-3 w-3 align-text-bottom" />{" "}
+                            {t("hc_modulesAdminSupabaseCronPanel.noDescriptionDetailSuffix")}
                           </div>
                         )}
-                        <DetailRow k="Job ID" v={String(job.jobid)} mono />
-                        <DetailRow k="Estado" v={job.active ? "Activo" : "Pausado"} />
-                        <DetailRow k="Frecuencia" v={job.schedule} mono />
-                        {showsHuman && <DetailRow k="Equivale a" v={human} />}
+                        <DetailRow
+                          k={t("hc_modulesAdminSupabaseCronPanel.detailJobId")}
+                          v={String(job.jobid)}
+                          mono
+                        />
+                        <DetailRow
+                          k={t("hc_modulesAdminSupabaseCronPanel.detailState")}
+                          v={
+                            job.active
+                              ? t("hc_modulesAdminSupabaseCronPanel.stateActive")
+                              : t("hc_modulesAdminSupabaseCronPanel.statePaused")
+                          }
+                        />
+                        <DetailRow
+                          k={t("hc_modulesAdminSupabaseCronPanel.detailSchedule")}
+                          v={job.schedule}
+                          mono
+                        />
+                        {showsHuman && (
+                          <DetailRow
+                            k={t("hc_modulesAdminSupabaseCronPanel.detailEquivalent")}
+                            v={human}
+                          />
+                        )}
                         {job.last_run_at && (
-                          <DetailRow k="Última ejecución" v={formatDateTime(job.last_run_at)} />
+                          <DetailRow
+                            k={t("hc_modulesAdminSupabaseCronPanel.detailLastRun")}
+                            v={formatDateTime(job.last_run_at)}
+                          />
                         )}
                         {job.last_status && (
                           <DetailRow
-                            k="Último estado"
+                            k={t("hc_modulesAdminSupabaseCronPanel.detailLastStatus")}
                             v={job.last_status}
                             highlight={lastFailed ? "destructive" : "success"}
                           />
                         )}
                         {job.last_message && (
                           <div>
-                            <div className="text-muted-foreground mb-0.5">Último mensaje</div>
+                            <div className="text-muted-foreground mb-0.5">
+                              {t("hc_modulesAdminSupabaseCronPanel.lastMessageLabel")}
+                            </div>
                             <pre
                               className={`text-[11px] rounded p-2 whitespace-pre-wrap break-all border ${
                                 lastFailed
@@ -454,7 +505,7 @@ export function SupabaseCronPanel() {
                         )}
                         <div>
                           <div className="text-muted-foreground mb-0.5">
-                            Comando (solo lectura)
+                            {t("hc_modulesAdminSupabaseCronPanel.commandReadOnly")}
                           </div>
                           <pre className="text-[11px] bg-muted/40 border border-muted-foreground/20 rounded p-2 whitespace-pre-wrap break-all font-mono">
                             {job.command}
@@ -478,17 +529,21 @@ export function SupabaseCronPanel() {
       >
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Editar frecuencia</DialogTitle>
+            <DialogTitle>{t("hc_modulesAdminSupabaseCronPanel.editScheduleDialogTitle")}</DialogTitle>
             <DialogDescription>
-              Job <strong>{editingJob?.jobname}</strong>. Acepta el formato cron clásico de 5
-              campos (<code>m h dom mon dow</code>) o un alias <code>@hourly</code>,{" "}
-              <code>@daily</code>, etc.
+              {t("hc_modulesAdminSupabaseCronPanel.dialogJobLabel")}{" "}
+              <strong>{editingJob?.jobname}</strong>
+              {t("hc_modulesAdminSupabaseCronPanel.scheduleDialogDescPart1")}{" "}
+              <code>m h dom mon dow</code>
+              {t("hc_modulesAdminSupabaseCronPanel.scheduleDialogDescPart2")}{" "}
+              <code>@hourly</code>, <code>@daily</code>
+              {t("hc_modulesAdminSupabaseCronPanel.scheduleDialogDescPart3")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
               <Label htmlFor="cron-schedule" required>
-                Expresión cron
+                {t("hc_modulesAdminSupabaseCronPanel.cronExpressionLabel")}
               </Label>
               <Input
                 id="cron-schedule"
@@ -506,19 +561,19 @@ export function SupabaseCronPanel() {
               )}
             </div>
             <div className="text-xs text-muted-foreground space-y-1">
-              <p className="font-medium">Ejemplos:</p>
+              <p className="font-medium">{t("hc_modulesAdminSupabaseCronPanel.examplesLabel")}</p>
               <ul className="list-disc list-inside space-y-0.5 ml-1">
                 <li>
-                  <code>*/15 * * * *</code> — cada 15 minutos
+                  <code>*/15 * * * *</code> {t("hc_modulesAdminSupabaseCronPanel.example15min")}
                 </li>
                 <li>
-                  <code>0 7 * * *</code> — todos los días a las 07:00 UTC
+                  <code>0 7 * * *</code> {t("hc_modulesAdminSupabaseCronPanel.exampleDaily7")}
                 </li>
                 <li>
-                  <code>5 * * * *</code> — cada hora en el minuto 5
+                  <code>5 * * * *</code> {t("hc_modulesAdminSupabaseCronPanel.exampleHourlyMin5")}
                 </li>
                 <li>
-                  <code>@hourly</code> — alias por hora exacta
+                  <code>@hourly</code> {t("hc_modulesAdminSupabaseCronPanel.exampleHourlyAlias")}
                 </li>
               </ul>
             </div>
@@ -529,11 +584,11 @@ export function SupabaseCronPanel() {
               onClick={() => setEditingJob(null)}
               disabled={savingSchedule}
             >
-              Cancelar
+              {t("hc_modulesAdminSupabaseCronPanel.cancel")}
             </Button>
             <Button onClick={() => void saveSchedule()} disabled={savingSchedule}>
               {savingSchedule && <Spinner size="sm" className="mr-1" />}
-              Guardar
+              {t("hc_modulesAdminSupabaseCronPanel.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -552,34 +607,38 @@ export function SupabaseCronPanel() {
       >
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Editar descripción</DialogTitle>
+            <DialogTitle>
+              {t("hc_modulesAdminSupabaseCronPanel.editDescriptionDialogTitle")}
+            </DialogTitle>
             <DialogDescription>
-              Job <strong>{editingDesc?.jobname}</strong>. La descripción ayuda a futuros admins
-              (o a ti mismo en seis meses) a saber QUÉ hace el job y qué impacto tiene pausarlo,
-              sin tener que leer el SQL.
+              {t("hc_modulesAdminSupabaseCronPanel.dialogJobLabel")}{" "}
+              <strong>{editingDesc?.jobname}</strong>
+              {t("hc_modulesAdminSupabaseCronPanel.descDialogDescSuffix")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">
-            <Label htmlFor="cron-desc">Descripción</Label>
+            <Label htmlFor="cron-desc">
+              {t("hc_modulesAdminSupabaseCronPanel.descriptionLabel")}
+            </Label>
             <Textarea
               id="cron-desc"
               value={editDescText}
               onChange={(e) => setEditDescText(e.target.value)}
-              placeholder="Ej. Cada hora drena la cola ai_grading_queue y aplica las calificaciones IA."
+              placeholder={t("hc_modulesAdminSupabaseCronPanel.descPlaceholder")}
               rows={6}
               autoFocus
             />
             <p className="text-xs text-muted-foreground">
-              Idealmente: qué hace, con qué frecuencia, y qué pasa si se pausa.
+              {t("hc_modulesAdminSupabaseCronPanel.descHelper")}
             </p>
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setEditingDesc(null)} disabled={savingDesc}>
-              Cancelar
+              {t("hc_modulesAdminSupabaseCronPanel.cancel")}
             </Button>
             <Button onClick={() => void saveDesc()} disabled={savingDesc}>
               {savingDesc && <Spinner size="sm" className="mr-1" />}
-              Guardar
+              {t("hc_modulesAdminSupabaseCronPanel.save")}
             </Button>
           </DialogFooter>
         </DialogContent>

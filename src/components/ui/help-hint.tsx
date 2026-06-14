@@ -1,5 +1,6 @@
 import * as React from "react";
 import { HelpCircle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/shared/lib/utils";
 
@@ -29,13 +30,14 @@ export function HelpHint({
   side?: "top" | "right" | "bottom" | "left";
   align?: "start" | "center" | "end";
 }) {
+  const { t } = useTranslation();
   return (
     <Popover>
       <PopoverTrigger asChild>
         <button
           type="button"
           tabIndex={0}
-          aria-label="Más información"
+          aria-label={t("hc_componentsUiHelpHint.moreInfo")}
           // stopPropagation: si el HelpHint vive dentro de un <Label
           // htmlFor=…>, el click "burbujea" hasta el input asociado y
           // hace toggle (caso típico: HelpHint en Label de Switch — al

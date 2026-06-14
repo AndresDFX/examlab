@@ -9,6 +9,7 @@
  *    aviso rápido y accesos.
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -18,6 +19,7 @@ import { MessageSquare, CheckCheck, ArrowRight, Inbox } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 
 export function MessagesBell() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
@@ -71,7 +73,7 @@ export function MessagesBell() {
           variant="ghost"
           size="icon"
           className="relative h-8 w-8"
-          aria-label={`Mensajes (${unread} sin leer)`}
+          aria-label={t("hc_modulesMessagingMessagesBell.bellAriaLabel", { count: unread })}
         >
           <MessageSquare className="h-4 w-4" />
           {unread > 0 && (
@@ -90,7 +92,7 @@ export function MessagesBell() {
         <div className="flex items-center justify-between px-3 py-2 border-b">
           <span className="text-sm font-medium flex items-center gap-1.5">
             <Inbox className="h-3.5 w-3.5" />
-            Bandeja de mensajes
+            {t("hc_modulesMessagingMessagesBell.inboxTitle")}
           </span>
           {unread > 0 && (
             <Button
@@ -101,19 +103,19 @@ export function MessagesBell() {
               disabled={marking}
             >
               <CheckCheck className="h-3 w-3" />
-              {marking ? "Marcando…" : "Marcar todo"}
+              {marking ? t("hc_modulesMessagingMessagesBell.marking") : t("hc_modulesMessagingMessagesBell.markAll")}
             </Button>
           )}
         </div>
         <div className="px-3 py-3 text-sm text-muted-foreground">
           {unread === 0 ? (
-            <span>No tienes mensajes sin responder.</span>
+            <span>{t("hc_modulesMessagingMessagesBell.noUnanswered")}</span>
           ) : (
             <span>
               <strong className="text-foreground">{unread}</strong>{" "}
               {unread === 1
-                ? "conversación pendiente por responder."
-                : "conversaciones pendientes por responder."}
+                ? t("hc_modulesMessagingMessagesBell.pendingOne")
+                : t("hc_modulesMessagingMessagesBell.pendingMany")}
             </span>
           )}
         </div>
@@ -122,7 +124,7 @@ export function MessagesBell() {
           onClick={() => setOpen(false)}
           className="flex items-center justify-between gap-2 px-3 py-2.5 border-t hover:bg-muted/50 transition-colors text-sm"
         >
-          <span>Abrir bandeja completa</span>
+          <span>{t("hc_modulesMessagingMessagesBell.openFullInbox")}</span>
           <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
         </Link>
       </PopoverContent>

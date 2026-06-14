@@ -285,7 +285,11 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
         const map: Record<string, string> = {};
         for (const q of (qData ?? []) as any[]) {
           const label =
-            (q.position != null ? `Pregunta ${Number(q.position) + 1}` : "Pregunta") +
+            (q.position != null
+              ? i18n.t("hc_modulesExamsFraudPanel.questionNumbered", {
+                  number: Number(q.position) + 1,
+                })
+              : i18n.t("hc_modulesExamsFraudPanel.question")) +
             (q[titleColumn] ? `: ${String(q[titleColumn]).slice(0, 80)}` : "");
           map[q.id as string] = label;
         }
@@ -396,7 +400,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
       });
       if (error) {
         const detail = await extractEdgeError(error, data);
-        throw new Error(detail || "Error en detección de plagio");
+        throw new Error(detail || i18n.t("hc_modulesExamsFraudPanel.plagiarismDetectionError"));
       }
       const summary = data as { pairs?: unknown[]; groups_compared?: number; message?: string };
       const found = Array.isArray(summary?.pairs) ? summary.pairs.length : 0;
@@ -409,7 +413,11 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
         metadata: { pairs_found: found },
       });
       if (found > 0) {
-        const pairsLabel = `${found} par${found === 1 ? "" : "es"} sospechoso${found === 1 ? "" : "s"}`;
+        const pairsLabel = i18n.t("hc_modulesExamsFraudPanel.suspiciousPairsLabel", {
+          count: found,
+          plural: found === 1 ? "" : "es",
+          pluralAdj: found === 1 ? "" : "s",
+        });
         toast.success(
           i18n.t("toast.modules_exams_FraudPanel.detectionDoneWithPairs", {
             defaultValue: "Detección completada: {{pairsLabel}}.",
@@ -417,8 +425,8 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
           }),
         );
       } else {
-        toast.message("Detección completada", {
-          description: summary?.message ?? "No se encontraron coincidencias relevantes.",
+        toast.message(i18n.t("hc_modulesExamsFraudPanel.detectionDone"), {
+          description: summary?.message ?? i18n.t("hc_modulesExamsFraudPanel.noRelevantMatches"),
         });
       }
       await load();
@@ -478,10 +486,17 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
       : null;
 
   const aiSummaryLabel = useMemo(() => {
-    if (!hasAi) return "Sin señales de IA";
+    if (!hasAi) return t("hc_modulesExamsFraudPanel.noAiSignals");
     const high = aiSignals.filter((s) => s.score >= 0.85).length;
-    return `${aiSignals.length} entrega${aiSignals.length === 1 ? "" : "s"} marcada${aiSignals.length === 1 ? "" : "s"}${high ? ` · ${high} con alta probabilidad` : ""}`;
-  }, [aiSignals, hasAi]);
+    const highSuffix = high
+      ? t("hc_modulesExamsFraudPanel.highProbabilitySuffix", { high })
+      : "";
+    return t("hc_modulesExamsFraudPanel.markedSubmissionsSummary", {
+      count: aiSignals.length,
+      plural: aiSignals.length === 1 ? "" : "s",
+      highSuffix,
+    });
+  }, [aiSignals, hasAi, t]);
 
   /**
    * Vista por estudiante de la sección de copia: cada usuario que
@@ -624,12 +639,12 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
         return;
       }
       const ok = await confirm({
-        title: "Aplicar sugerencia en lote",
-        description:
-          `Vas a aplicar la sugerencia a ${applicable.length} estudiante` +
-          `${applicable.length === 1 ? "" : "s"}. La nota actual se reemplaza por la sugerida. ` +
-          `Esta acción no se puede deshacer.`,
-        confirmLabel: "Aplicar",
+        title: i18n.t("hc_modulesExamsFraudPanel.bulkApplyTitle"),
+        description: i18n.t("hc_modulesExamsFraudPanel.bulkApplyDescription", {
+          count: applicable.length,
+          plural: applicable.length === 1 ? "" : "s",
+        }),
+        confirmLabel: i18n.t("hc_modulesExamsFraudPanel.apply"),
         tone: "warning",
       });
       if (!ok) return;
@@ -668,7 +683,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-primary" />
-            Análisis de fraude
+            {t("hc_modulesExamsFraudPanel.fraudAnalysis")}
           </CardTitle>
           <Button
             size="sm"
@@ -682,7 +697,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
             ) : (
               <Search className="h-3.5 w-3.5 mr-1.5" />
             )}
-            Detectar copias
+            {t("hc_modulesExamsFraudPanel.detectCopies")}
           </Button>
         </div>
       </CardHeader>
@@ -691,7 +706,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium">
             <Bot className="h-4 w-4 text-muted-foreground" />
-            Probabilidad de respuesta generada por IA
+            {t("hc_modulesExamsFraudPanel.aiGeneratedProbability")}
             <Badge variant="outline" className="ml-auto text-[11px]">
               {aiSummaryLabel}
             </Badge>
@@ -714,39 +729,38 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                     }),
                   )
                 }
-                title="Aplica la sugerencia a todas las filas con score ≥ umbral"
+                title={t("hc_modulesExamsFraudPanel.applyAllAboveThresholdTitle")}
               >
                 {bulkApplying ? (
                   <Spinner size="sm" className="mr-1" />
                 ) : (
                   <Save className="h-3 w-3 mr-1" />
                 )}
-                Aplicar a todos
+                {t("hc_modulesExamsFraudPanel.applyToAll")}
               </Button>
             )}
           </div>
           {!hasAi ? (
             <p className="text-xs text-muted-foreground">
-              Ninguna entrega supera el umbral del 60% de probabilidad de IA. Las señales se
-              actualizan automáticamente al calificar con IA.
+              {t("hc_modulesExamsFraudPanel.noAiSignalsHint")}
             </p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="min-w-32">Estudiante</TableHead>
-                    <TableHead className="w-28">Probabilidad</TableHead>
-                    <TableHead className="min-w-40 hidden md:table-cell">Razones</TableHead>
-                    <TableHead className="w-24 text-right">Nota actual</TableHead>
+                    <TableHead className="min-w-32">{t("hc_modulesExamsFraudPanel.student")}</TableHead>
+                    <TableHead className="w-28">{t("hc_modulesExamsFraudPanel.probability")}</TableHead>
+                    <TableHead className="min-w-40 hidden md:table-cell">{t("hc_modulesExamsFraudPanel.reasons")}</TableHead>
+                    <TableHead className="w-24 text-right">{t("hc_modulesExamsFraudPanel.currentGrade")}</TableHead>
                     <TableHead className="w-24 text-right">
                       <span className="inline-flex items-center gap-1 justify-end">
-                        Sugerida
+                        {t("hc_modulesExamsFraudPanel.suggested")}
                         <HelpHint>{t("help.gradeInputScale")}</HelpHint>
                       </span>
                     </TableHead>
-                    <TableHead className="w-28 text-right">Aplicar</TableHead>
-                    <TableHead className="w-32 text-right">Revisión</TableHead>
+                    <TableHead className="w-28 text-right">{t("hc_modulesExamsFraudPanel.apply")}</TableHead>
+                    <TableHead className="w-32 text-right">{t("hc_modulesExamsFraudPanel.review")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -784,7 +798,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                             }
                             placeholder="—"
                             className="h-7 w-20 ml-auto text-xs text-right font-semibold text-amber-700 dark:text-amber-300"
-                            aria-label="Nota sugerida editable"
+                            aria-label={t("hc_modulesExamsFraudPanel.editableSuggestedGrade")}
                           />
                         </TableCell>
                         <TableCell className="text-right">
@@ -796,8 +810,10 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                             onClick={() => applyPenalty(row.userId, suggested)}
                             title={
                               canApply
-                                ? `Aplica nota ${suggested?.toFixed(2)} a la entrega`
-                                : "Sin nota previa, severidad < 60%, o nota inválida"
+                                ? t("hc_modulesExamsFraudPanel.applyGradeToSubmission", {
+                                    grade: suggested?.toFixed(2),
+                                  })
+                                : t("hc_modulesExamsFraudPanel.cannotApplyReason")
                             }
                           >
                             {busy ? (
@@ -805,7 +821,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                             ) : (
                               <Check className="h-3 w-3 mr-1" />
                             )}
-                            Aplicar
+                            {t("hc_modulesExamsFraudPanel.apply")}
                           </Button>
                         </TableCell>
                         <TableCell className="text-right">
@@ -816,14 +832,14 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                                 className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                               >
                                 <Check className="h-3 w-3 mr-1" />
-                                Revisada
+                                {t("hc_modulesExamsFraudPanel.reviewed")}
                               </Badge>
                               <button
                                 type="button"
                                 className="text-[10px] text-muted-foreground hover:text-foreground underline"
                                 onClick={() => toggleAiReviewed(row.submissionId, true)}
                               >
-                                Reabrir
+                                {t("hc_modulesExamsFraudPanel.reopen")}
                               </button>
                             </div>
                           ) : (
@@ -834,7 +850,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                               onClick={() => toggleAiReviewed(row.submissionId, false)}
                             >
                               <Check className="h-3 w-3 mr-1" />
-                              Marcar revisada
+                              {t("hc_modulesExamsFraudPanel.markReviewed")}
                             </Button>
                           )}
                         </TableCell>
@@ -851,17 +867,19 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium">
             <Users className="h-4 w-4 text-muted-foreground" />
-            Posibles copias entre estudiantes
+            {t("hc_modulesExamsFraudPanel.possibleCopiesBetweenStudents")}
             <Badge variant="outline" className="ml-auto text-[11px]">
               {hasPairs
-                ? `${groupedPairs.length} par${groupedPairs.length === 1 ? "" : "es"} de estudiantes`
-                : "Sin pares detectados"}
+                ? t("hc_modulesExamsFraudPanel.studentPairsCount", {
+                    count: groupedPairs.length,
+                    plural: groupedPairs.length === 1 ? "" : "es",
+                  })
+                : t("hc_modulesExamsFraudPanel.noPairsDetected")}
             </Badge>
           </div>
           {!hasPairs ? (
             <p className="text-xs text-muted-foreground">
-              Ejecuta "Detectar copias" para comparar las entregas con Gemini. Solo se muestran
-              pares con similitud ≥ 60%.
+              {t("hc_modulesExamsFraudPanel.noPairsHint")}
             </p>
           ) : (
             <>
@@ -869,12 +887,12 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="min-w-32">Estudiante A</TableHead>
-                      <TableHead className="min-w-32">Estudiante B</TableHead>
-                      <TableHead className="w-32">Similitud máx</TableHead>
-                      <TableHead className="w-24 hidden sm:table-cell">Preguntas</TableHead>
-                      <TableHead className="w-32 text-right">Revisión</TableHead>
-                      <TableHead className="text-right">Detalle</TableHead>
+                      <TableHead className="min-w-32">{t("hc_modulesExamsFraudPanel.studentA")}</TableHead>
+                      <TableHead className="min-w-32">{t("hc_modulesExamsFraudPanel.studentB")}</TableHead>
+                      <TableHead className="w-32">{t("hc_modulesExamsFraudPanel.maxSimilarity")}</TableHead>
+                      <TableHead className="w-24 hidden sm:table-cell">{t("hc_modulesExamsFraudPanel.questions")}</TableHead>
+                      <TableHead className="w-32 text-right">{t("hc_modulesExamsFraudPanel.review")}</TableHead>
+                      <TableHead className="text-right">{t("hc_modulesExamsFraudPanel.detail")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -918,14 +936,14 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                                   className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                                 >
                                   <Check className="h-3 w-3 mr-1" />
-                                  Revisada
+                                  {t("hc_modulesExamsFraudPanel.reviewed")}
                                 </Badge>
                                 <button
                                   type="button"
                                   className="text-[10px] text-muted-foreground hover:text-foreground underline"
                                   onClick={markAll}
                                 >
-                                  Reabrir
+                                  {t("hc_modulesExamsFraudPanel.reopen")}
                                 </button>
                               </div>
                             ) : (
@@ -936,20 +954,25 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                                 onClick={markAll}
                                 title={
                                   someReviewed
-                                    ? `${reviewedCount}/${g.pairs.length} ya revisado(s) — marcar el resto`
-                                    : "Marca todos los pares como revisados"
+                                    ? t("hc_modulesExamsFraudPanel.markRestTitle", {
+                                        reviewed: reviewedCount,
+                                        total: g.pairs.length,
+                                      })
+                                    : t("hc_modulesExamsFraudPanel.markAllPairsReviewedTitle")
                                 }
                               >
                                 <Check className="h-3 w-3 mr-1" />
                                 {someReviewed
-                                  ? `Revisar resto (${g.pairs.length - reviewedCount})`
-                                  : "Marcar revisada"}
+                                  ? t("hc_modulesExamsFraudPanel.reviewRest", {
+                                      remaining: g.pairs.length - reviewedCount,
+                                    })
+                                  : t("hc_modulesExamsFraudPanel.markReviewed")}
                               </Button>
                             )}
                           </TableCell>
                           <TableCell className="text-right">
                             <RowAction
-                              label="Ver preguntas con posible copia"
+                              label={t("hc_modulesExamsFraudPanel.viewPossibleCopyQuestions")}
                               icon={Eye}
                               onClick={() => setDetailOpen({ a: g.userA, b: g.userB })}
                             />
@@ -967,7 +990,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
               <div className="pt-3 border-t">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="text-xs font-medium text-muted-foreground">
-                    Penalización sugerida por estudiante (severidad = similitud máxima)
+                    {t("hc_modulesExamsFraudPanel.suggestedPenaltyPerStudent")}
                   </div>
                   {plagiarismByStudent.length > 0 && (
                     <Button
@@ -992,14 +1015,14 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                           }),
                         )
                       }
-                      title="Aplica la sugerencia a todos los estudiantes con similitud ≥ umbral"
+                      title={t("hc_modulesExamsFraudPanel.applyAllStudentsAboveThresholdTitle")}
                     >
                       {bulkApplying ? (
                         <Spinner size="sm" className="mr-1" />
                       ) : (
                         <Save className="h-3 w-3 mr-1" />
                       )}
-                      Aplicar a todos
+                      {t("hc_modulesExamsFraudPanel.applyToAll")}
                     </Button>
                   )}
                 </div>
@@ -1007,19 +1030,19 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="min-w-32">Estudiante</TableHead>
-                        <TableHead className="w-28">Similitud máx</TableHead>
+                        <TableHead className="min-w-32">{t("hc_modulesExamsFraudPanel.student")}</TableHead>
+                        <TableHead className="w-28">{t("hc_modulesExamsFraudPanel.maxSimilarity")}</TableHead>
                         <TableHead className="min-w-40 hidden md:table-cell">
-                          Coincide con
+                          {t("hc_modulesExamsFraudPanel.matchesWith")}
                         </TableHead>
-                        <TableHead className="w-24 text-right">Nota actual</TableHead>
+                        <TableHead className="w-24 text-right">{t("hc_modulesExamsFraudPanel.currentGrade")}</TableHead>
                         <TableHead className="w-24 text-right">
                           <span className="inline-flex items-center gap-1 justify-end">
-                            Sugerida
+                            {t("hc_modulesExamsFraudPanel.suggested")}
                             <HelpHint>{t("help.gradeInputScaleDeep")}</HelpHint>
                           </span>
                         </TableHead>
-                        <TableHead className="w-28 text-right">Aplicar</TableHead>
+                        <TableHead className="w-28 text-right">{t("hc_modulesExamsFraudPanel.apply")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1064,7 +1087,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                                 }
                                 placeholder="—"
                                 className="h-7 w-20 ml-auto text-xs text-right font-semibold text-amber-700 dark:text-amber-300"
-                                aria-label="Nota sugerida editable"
+                                aria-label={t("hc_modulesExamsFraudPanel.editableSuggestedGrade")}
                               />
                             </TableCell>
                             <TableCell className="text-right">
@@ -1076,8 +1099,10 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                                 onClick={() => applyPenalty(s.userId, suggested)}
                                 title={
                                   canApply
-                                    ? `Aplica nota ${suggested?.toFixed(2)} a la entrega`
-                                    : "Sin nota previa, severidad < 60%, o nota inválida"
+                                    ? t("hc_modulesExamsFraudPanel.applyGradeToSubmission", {
+                                        grade: suggested?.toFixed(2),
+                                      })
+                                    : t("hc_modulesExamsFraudPanel.cannotApplyReason")
                                 }
                               >
                                 {busy ? (
@@ -1085,7 +1110,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                                 ) : (
                                   <Check className="h-3 w-3 mr-1" />
                                 )}
-                                Aplicar
+                                {t("hc_modulesExamsFraudPanel.apply")}
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -1106,11 +1131,12 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Detalle: {shortName(detailOpen?.a ?? "", userNames)} ↔{" "}
+              {t("hc_modulesExamsFraudPanel.detailPrefix")}{" "}
+              {shortName(detailOpen?.a ?? "", userNames)} ↔{" "}
               {shortName(detailOpen?.b ?? "", userNames)}
             </DialogTitle>
             <DialogDescription>
-              Preguntas donde Gemini marcó coincidencias con score ≥ 60%.
+              {t("hc_modulesExamsFraudPanel.detailDialogDescription")}
             </DialogDescription>
           </DialogHeader>
           {detailGroup && (
@@ -1120,8 +1146,8 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                 .sort((a, b) => b.score - a.score)
                 .map((p) => {
                   const label = p.question_id
-                    ? (questionLabels[p.question_id] ?? "Pregunta")
-                    : "Entrega general";
+                    ? (questionLabels[p.question_id] ?? t("hc_modulesExamsFraudPanel.question"))
+                    : t("hc_modulesExamsFraudPanel.generalSubmission");
                   return (
                     <div key={p.id} className="rounded-md border p-3 space-y-1.5">
                       <div className="flex items-start justify-between gap-2">
@@ -1129,7 +1155,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                         <Badge variant={scoreVariant(p.score)}>{formatScore(p.score)}</Badge>
                       </div>
                       <div className="text-xs text-muted-foreground whitespace-pre-wrap">
-                        {p.reasons ?? "(sin razón)"}
+                        {p.reasons ?? t("hc_modulesExamsFraudPanel.noReason")}
                       </div>
                     </div>
                   );

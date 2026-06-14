@@ -24,6 +24,7 @@
  * (botón "Volver al global"), borramos la key del JSONB.
  */
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -64,36 +65,33 @@ interface UseCaseMeta {
 const USE_CASE_META: UseCaseMeta[] = [
   {
     key: "content_generation",
-    label: "Prompt orquestador",
-    description:
-      "System prompt principal que define el rol del modelo y el contrato de marcadores [INICIO_ARCHIVO]/[FIN_ARCHIVO]. Acepta placeholders {{topic}}, {{primary_color}}, etc.",
+    label: i18n.t("hc_modulesContentsContentPromptsOverridesDialog.useCaseOrchestratorLabel"),
+    description: i18n.t("hc_modulesContentsContentPromptsOverridesDialog.useCaseOrchestratorDesc"),
   },
   {
     key: "content.presentacion",
-    label: "Presentación (PPTX)",
-    description:
-      "Sub-prompt para PRESENTACION_CLASE_<N>.PPTX cuando el tag 'teorico' está activo.",
+    label: i18n.t("hc_modulesContentsContentPromptsOverridesDialog.useCasePresentationLabel"),
+    description: i18n.t("hc_modulesContentsContentPromptsOverridesDialog.useCasePresentationDesc"),
   },
   {
     key: "content.guia_docente",
-    label: "Guía docente (MD)",
-    description: "Sub-prompt para GUIA_DOCENTE_CLASE_<N>.MD (tag 'teorico').",
+    label: i18n.t("hc_modulesContentsContentPromptsOverridesDialog.useCaseTeacherGuideLabel"),
+    description: i18n.t("hc_modulesContentsContentPromptsOverridesDialog.useCaseTeacherGuideDesc"),
   },
   {
     key: "content.taller_practico",
-    label: "Taller práctico (MD)",
-    description: "Sub-prompt para TALLER_PRACTICO_CLASE_<N>.MD (tag 'practico').",
+    label: i18n.t("hc_modulesContentsContentPromptsOverridesDialog.useCaseWorkshopLabel"),
+    description: i18n.t("hc_modulesContentsContentPromptsOverridesDialog.useCaseWorkshopDesc"),
   },
   {
     key: "content.ejercicio",
-    label: "Ejercicio + solución (MD)",
-    description: "Sub-prompt para EJERCICIO_ESTUDIANTE + EJERCICIO_SOLUCION (tag 'practico').",
+    label: i18n.t("hc_modulesContentsContentPromptsOverridesDialog.useCaseExerciseLabel"),
+    description: i18n.t("hc_modulesContentsContentPromptsOverridesDialog.useCaseExerciseDesc"),
   },
   {
     key: "content.examen",
-    label: "Examen por sesión (MD)",
-    description:
-      "Sub-prompt para EXAMEN_CLASE_<N>.MD (tag 'examen'). Solo docente — el estudiante nunca lo ve.",
+    label: i18n.t("hc_modulesContentsContentPromptsOverridesDialog.useCaseExamLabel"),
+    description: i18n.t("hc_modulesContentsContentPromptsOverridesDialog.useCaseExamDesc"),
   },
 ];
 
@@ -116,6 +114,7 @@ export function ContentPromptsOverridesDialog({
   onClose,
   onSaved,
 }: ContentPromptsOverridesDialogProps) {
+  const { t } = useTranslation();
   const [state, setState] = useState<GlobalsState>({
     globals: {},
     overrides: {},
@@ -215,7 +214,7 @@ export function ContentPromptsOverridesDialog({
       }
       setState((s) => ({ ...s, overrides: payload }));
       setDrafts(payload);
-      toast.success(i18n.t("toast.modules_contents_ContentPromptsOverridesDialog.savedOk", { defaultValue: "Prompts personalizados guardados" }));
+      toast.success(t("hc_modulesContentsContentPromptsOverridesDialog.savedOk"));
       onSaved?.();
       onClose();
     } finally {
@@ -227,17 +226,15 @@ export function ContentPromptsOverridesDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[85dvh] overflow-y-auto" hideCloseButton>
         <DialogHeader>
-          <DialogTitle>Personalizar prompts de este contenido</DialogTitle>
+          <DialogTitle>{t("hc_modulesContentsContentPromptsOverridesDialog.dialogTitle")}</DialogTitle>
           <DialogDescription>
-            Sobrescribe los prompts globales SOLO para este contenido. Útil para parametrizar el
-            mismo tema para diferentes audiencias (universidad, idioma, estilo). Si dejas un prompt
-            en "Global", se usa el del módulo de Prompts.
+            {t("hc_modulesContentsContentPromptsOverridesDialog.dialogDescription")}
           </DialogDescription>
         </DialogHeader>
 
         {!state.loaded ? (
           <div className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-            <Spinner size="sm" /> Cargando prompts…
+            <Spinner size="sm" /> {t("hc_modulesContentsContentPromptsOverridesDialog.loading")}
           </div>
         ) : (
           <div className="space-y-3">
@@ -255,7 +252,7 @@ export function ContentPromptsOverridesDialog({
                           className="text-[10px] bg-indigo-500/15 text-indigo-700 border-indigo-500/25 dark:bg-indigo-400/15 dark:text-indigo-300 dark:border-indigo-400/25"
                           data-testid={`badge-customized-${meta.key}`}
                         >
-                          Personalizado
+                          {t("hc_modulesContentsContentPromptsOverridesDialog.badgeCustomized")}
                         </Badge>
                       ) : (
                         <Badge
@@ -263,7 +260,7 @@ export function ContentPromptsOverridesDialog({
                           className="text-[10px]"
                           data-testid={`badge-global-${meta.key}`}
                         >
-                          Global
+                          {t("hc_modulesContentsContentPromptsOverridesDialog.badgeGlobal")}
                         </Badge>
                       )}
                       <HelpHint>{meta.description}</HelpHint>
@@ -280,7 +277,7 @@ export function ContentPromptsOverridesDialog({
                           }
                           className="font-mono text-xs leading-relaxed"
                           placeholder={globalText}
-                          aria-label={`Prompt ${meta.label}`}
+                          aria-label={t("hc_modulesContentsContentPromptsOverridesDialog.promptAriaLabel", { label: meta.label })}
                         />
                         <div className="flex justify-end">
                           <Button
@@ -289,21 +286,21 @@ export function ContentPromptsOverridesDialog({
                             onClick={() => handleRevertToGlobal(meta.key)}
                           >
                             <RotateCcw className="h-4 w-4 mr-1" />
-                            Volver al global
+                            {t("hc_modulesContentsContentPromptsOverridesDialog.revertToGlobal")}
                           </Button>
                         </div>
                       </>
                     ) : (
                       <div className="flex items-start justify-between gap-3">
                         <p className="text-xs text-muted-foreground italic line-clamp-3 flex-1">
-                          {globalText || "(sin prompt global configurado)"}
+                          {globalText || t("hc_modulesContentsContentPromptsOverridesDialog.noGlobalPrompt")}
                         </p>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleCustomize(meta.key)}
                         >
-                          Personalizar
+                          {t("hc_modulesContentsContentPromptsOverridesDialog.customize")}
                         </Button>
                       </div>
                     )}
@@ -316,7 +313,7 @@ export function ContentPromptsOverridesDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={saving}>
-            Cancelar
+            {t("hc_modulesContentsContentPromptsOverridesDialog.cancel")}
           </Button>
           <Button onClick={handleSave} disabled={!dirty || saving}>
             {saving ? (
@@ -324,7 +321,7 @@ export function ContentPromptsOverridesDialog({
             ) : (
               <Save className="h-4 w-4 mr-1" />
             )}
-            Guardar overrides
+            {t("hc_modulesContentsContentPromptsOverridesDialog.saveOverrides")}
           </Button>
         </DialogFooter>
       </DialogContent>

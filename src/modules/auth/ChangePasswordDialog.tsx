@@ -17,6 +17,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { logEvent } from "@/shared/lib/audit";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 interface ChangePasswordDialogProps {
   open: boolean;
@@ -24,6 +25,7 @@ interface ChangePasswordDialogProps {
 }
 
 export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialogProps) {
+  const { t } = useTranslation();
   // El form ya no pide "contraseña actual" — Supabase Auth no la requiere
   // para auth.updateUser({password}) sobre la sesión activa. State y
   // toggle de visibilidad de ese input quedaron como código muerto.
@@ -98,7 +100,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <KeyRound className="h-5 w-5 text-primary" />
-            Cambiar contraseña
+            {t("hc_modulesAuthChangePasswordDialog.title")}
           </DialogTitle>
         </DialogHeader>
         {/* Envolvemos en <form> semántico para que los password managers
@@ -125,28 +127,28 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
             aria-hidden="true"
           />
           <div>
-            <Label required>Nueva contraseña</Label>
+            <Label required>{t("hc_modulesAuthChangePasswordDialog.newPasswordLabel")}</Label>
             <PasswordInput
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Mínimo 8 caracteres"
+              placeholder={t("hc_modulesAuthChangePasswordDialog.newPasswordPlaceholder")}
               wrapperClassName="mt-1"
               autoComplete="new-password"
               name="new-password"
             />
           </div>
           <div>
-            <Label required>Confirmar contraseña</Label>
+            <Label required>{t("hc_modulesAuthChangePasswordDialog.confirmPasswordLabel")}</Label>
             <PasswordInput
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Repite la nueva contraseña"
+              placeholder={t("hc_modulesAuthChangePasswordDialog.confirmPasswordPlaceholder")}
               wrapperClassName="mt-1"
               autoComplete="new-password"
               name="confirm-password"
             />
             {confirmPassword && newPassword !== confirmPassword && (
-              <p className="text-xs text-destructive mt-1">Las contraseñas no coinciden</p>
+              <p className="text-xs text-destructive mt-1">{t("hc_modulesAuthChangePasswordDialog.passwordsDoNotMatch")}</p>
             )}
           </div>
           <DialogFooter>
@@ -156,14 +158,14 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
               onClick={() => onOpenChange(false)}
               disabled={saving}
             >
-              Cancelar
+              {t("hc_modulesAuthChangePasswordDialog.cancel")}
             </Button>
             <Button
               type="submit"
               disabled={saving || !newPassword || !confirmPassword || newPassword !== confirmPassword}
             >
               {saving && <Spinner size="md" className="mr-1" />}
-              Guardar
+              {t("hc_modulesAuthChangePasswordDialog.save")}
             </Button>
           </DialogFooter>
         </form>

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -170,7 +171,7 @@ function StudentCourses() {
         .eq("user_id", user.id);
       if (cancelled) return;
       if (enrErr) {
-        setLoadError(friendlyError(enrErr, "No pudimos cargar tus cursos."));
+        setLoadError(friendlyError(enrErr, t("hc_routesAppStudentCourses.loadCoursesError")));
         setLoading(false);
         return;
       }
@@ -243,7 +244,7 @@ function StudentCourses() {
   });
 
   if (loading) {
-    return <SectionLoader text="Cargando cursos…" />;
+    return <SectionLoader text={t("hc_routesAppStudentCourses.loadingCourses")} />;
   }
 
   if (loadError) {
@@ -251,7 +252,7 @@ function StudentCourses() {
       <div className="space-y-5">
         <PageHeader icon={<Calendar className="h-6 w-6" />} title={t("nav.studentCourses")} />
         <ErrorState
-          message="No pudimos cargar tus cursos"
+          message={t("hc_routesAppStudentCourses.loadCoursesErrorTitle")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -280,7 +281,7 @@ function StudentCourses() {
           <SearchInput
             value={search}
             onChange={setSearch}
-            placeholder="Buscar por nombre o período…"
+            placeholder={t("hc_routesAppStudentCourses.searchPlaceholder")}
           />
         </div>
         {/* Selector de orden: período (default), nombre A→Z / Z→A, inicio.
@@ -291,16 +292,16 @@ function StudentCourses() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="period_desc" className="text-xs">
-              Período (más reciente)
+              {t("hc_routesAppStudentCourses.sortPeriodDesc")}
             </SelectItem>
             <SelectItem value="start_desc" className="text-xs">
-              Inicio (más reciente)
+              {t("hc_routesAppStudentCourses.sortStartDesc")}
             </SelectItem>
             <SelectItem value="name_asc" className="text-xs">
-              Nombre (A → Z)
+              {t("hc_routesAppStudentCourses.sortNameAsc")}
             </SelectItem>
             <SelectItem value="name_desc" className="text-xs">
-              Nombre (Z → A)
+              {t("hc_routesAppStudentCourses.sortNameDesc")}
             </SelectItem>
           </SelectContent>
         </Select>
@@ -310,12 +311,12 @@ function StudentCourses() {
         <EmptyState
           text={
             search.trim() && courses.length > 0
-              ? "Sin coincidencias"
+              ? t("hc_routesAppStudentCourses.noMatches")
               : t("courseBoard.noEnrollments")
           }
           hint={
             search.trim() && courses.length > 0
-              ? "Ajusta el buscador para ver más resultados."
+              ? t("hc_routesAppStudentCourses.noMatchesHint")
               : undefined
           }
           icon={Calendar}
@@ -349,7 +350,10 @@ function StudentCourses() {
               </button>
             ))}
           </div>
-          <DataPagination state={pagination} entityNamePlural="cursos" />
+          <DataPagination
+            state={pagination}
+            entityNamePlural={t("hc_routesAppStudentCourses.entityCourses")}
+          />
         </>
       )}
     </div>
@@ -609,7 +613,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
   }, [pastSessions, attendance]);
 
   if (loading) {
-    return <SectionLoader text="Cargando cursos…" />;
+    return <SectionLoader text={t("hc_routesAppStudentCourses.loadingCourses")} />;
   }
 
   return (
@@ -673,13 +677,13 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
               <Button size="sm" variant="outline" asChild>
                 <Link to="/app/student/tutor/$courseId" params={{ courseId: course.id }}>
                   <Sparkles className="h-4 w-4 mr-1" />
-                  Tutor IA
+                  {t("hc_routesAppStudentCourses.tutorAi")}
                 </Link>
               </Button>
               <Button size="sm" variant="outline" asChild>
                 <Link to="/app/forum/$courseId" params={{ courseId: course.id }}>
                   <MessageSquareText className="h-4 w-4 mr-1" />
-                  Foro
+                  {t("hc_routesAppStudentCourses.forum")}
                 </Link>
               </Button>
               <SubscribeCalendarButton />
@@ -959,7 +963,7 @@ function SessionGroup({
                       <ContentFileChip
                         key={f.path}
                         file={f}
-                        topic={content?.topic ?? s.title ?? "Material"}
+                        topic={content?.topic ?? s.title ?? t("hc_routesAppStudentCourses.materialFallback")}
                         onDownload={onDownload}
                         onPreview={onPreview}
                         onRunCode={onRunCode}
@@ -1073,8 +1077,8 @@ function ContentFileChip({
           type="button"
           onClick={() => onOpenNotebook(f)}
           className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
-          title={`${f.name} — Abrir y ejecutar notebook`}
-          aria-label={`${f.name} — Abrir y ejecutar notebook`}
+          title={`${f.name} — ${t("hc_routesAppStudentCourses.openRunNotebook")}`}
+          aria-label={`${f.name} — ${t("hc_routesAppStudentCourses.openRunNotebook")}`}
         >
           <NotebookPen className="h-3.5 w-3.5 text-orange-500" />
           <span className="truncate max-w-[120px]">{f.name}</span>
@@ -1090,8 +1094,8 @@ function ContentFileChip({
           type="button"
           onClick={() => onRunCode(f)}
           className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
-          title={`${f.name} — Ver y ejecutar`}
-          aria-label={`${f.name} — Ver y ejecutar`}
+          title={`${f.name} — ${t("hc_routesAppStudentCourses.viewRun")}`}
+          aria-label={`${f.name} — ${t("hc_routesAppStudentCourses.viewRun")}`}
         >
           <Play className="h-3.5 w-3.5 text-indigo-500" />
           <span className="truncate max-w-[120px]">{f.name}</span>
@@ -1196,15 +1200,18 @@ function AttendanceBadge({ status }: { status: AttendanceStatus | undefined }) {
 }
 
 function humanLabelForFile(f: ContentFileEntry): string {
-  if (f.kind === "pptx-source") return "Presentación";
+  if (f.kind === "pptx-source") return i18n.t("hc_routesAppStudentCourses.fileLabelPresentation");
   if (f.kind === "md") {
     const u = f.name.toUpperCase();
-    if (u.includes("SOLUCION") || u.includes("SOLUTION")) return "Ejercicio (con solución)";
-    if (u.includes("EJERCICIO")) return "Ejercicio (estudiante)";
-    if (u.includes("GUIA")) return "Guía docente";
-    if (u.includes("TALLER") || u.includes("PRACTICO")) return "Taller práctico";
-    if (u.includes("INTRO")) return "Introducción";
-    return "Material";
+    if (u.includes("SOLUCION") || u.includes("SOLUTION"))
+      return i18n.t("hc_routesAppStudentCourses.fileLabelExerciseSolution");
+    if (u.includes("EJERCICIO"))
+      return i18n.t("hc_routesAppStudentCourses.fileLabelExerciseStudent");
+    if (u.includes("GUIA")) return i18n.t("hc_routesAppStudentCourses.fileLabelTeacherGuide");
+    if (u.includes("TALLER") || u.includes("PRACTICO"))
+      return i18n.t("hc_routesAppStudentCourses.fileLabelPracticalWorkshop");
+    if (u.includes("INTRO")) return i18n.t("hc_routesAppStudentCourses.fileLabelIntro");
+    return i18n.t("hc_routesAppStudentCourses.materialFallback");
   }
   return f.name;
 }

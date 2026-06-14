@@ -167,7 +167,9 @@ function AdminStatistics() {
       ]);
       if (cancelled) return;
       if (coursesRes.error) {
-        setLoadError(friendlyError(coursesRes.error, "No pudimos cargar las estadísticas."));
+        setLoadError(
+          friendlyError(coursesRes.error, t("hc_routesAppAdminStatistics.loadErrorFallback")),
+        );
         setLoading(false);
         return;
       }
@@ -282,7 +284,7 @@ function AdminStatistics() {
       .catch((e) => {
         if (cancelled) return;
         console.error("loadCourseDataset failed:", e);
-        toast.error(friendlyError(e, "No pudimos cargar los datos del curso"));
+        toast.error(friendlyError(e, t("hc_routesAppAdminStatistics.loadCourseDataError")));
         setDrillDataset(null);
       })
       .finally(() => {
@@ -334,15 +336,18 @@ function AdminStatistics() {
     totals.enrollmentSum === 0 ? 0 : Math.round(totals.weightedAttendance / totals.enrollmentSum);
 
   if (!isAdmin) {
-    return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
+    return <p className="text-muted-foreground">{t("hc_routesAppAdminStatistics.needAdminRole")}</p>;
   }
 
   if (loadError) {
     return (
       <div className="space-y-5">
-        <PageHeader icon={<BarChart3 className="h-6 w-6" />} title="Estadísticas" />
+        <PageHeader
+          icon={<BarChart3 className="h-6 w-6" />}
+          title={t("hc_routesAppAdminStatistics.statisticsTitle")}
+        />
         <ErrorState
-          message="No pudimos cargar las estadísticas"
+          message={t("hc_routesAppAdminStatistics.loadErrorMessage")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -357,10 +362,10 @@ function AdminStatistics() {
       <div className="space-y-5">
         <PageHeader
           onBack={() => setDrillCourseId(null)}
-          backLabel="Volver al global"
+          backLabel={t("hc_routesAppAdminStatistics.backToGlobal")}
           title={
             <span>
-              {summary?.course.name ?? "Curso"}
+              {summary?.course.name ?? t("hc_routesAppAdminStatistics.courseFallback")}
               {summary?.course.period && (
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
                   ({summary.course.period})
@@ -378,17 +383,17 @@ function AdminStatistics() {
     <div className="space-y-5">
       <PageHeader
         icon={<BarChart3 className="h-6 w-6" />}
-        title="Estadísticas globales"
-        subtitle="Vista agregada de todos los cursos. Click en una fila para ver el detalle."
+        title={t("hc_routesAppAdminStatistics.globalStatisticsTitle")}
+        subtitle={t("hc_routesAppAdminStatistics.globalStatisticsSubtitle")}
       />
 
       {loading ? (
-        <SectionLoader text="Calculando estadísticas de todos los cursos…" />
+        <SectionLoader text={t("hc_routesAppAdminStatistics.calculatingStats")} />
       ) : summaries.length === 0 ? (
         <EmptyState
           icon={BarChart3}
-          text="Aún no hay cursos creados"
-          hint="Crea cursos desde la sección de gestión para que aparezcan estadísticas aquí."
+          text={t("hc_routesAppAdminStatistics.noCoursesYet")}
+          hint={t("hc_routesAppAdminStatistics.noCoursesHint")}
         />
       ) : (
         <>
@@ -396,34 +401,37 @@ function AdminStatistics() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
             <KpiCard
               icon={BookOpenLikeIcon}
-              label="Cursos"
+              label={t("hc_routesAppAdminStatistics.kpiCourses")}
               value={totals.courses}
               accent="text-fuchsia-500"
             />
             <KpiCard
               icon={Users}
-              label="Estudiantes"
+              label={t("hc_routesAppAdminStatistics.kpiStudents")}
               value={totals.students}
               accent="text-sky-500"
             />
             <KpiCard
               icon={CheckCircle2}
-              label="% Aprobación global"
+              label={t("hc_routesAppAdminStatistics.kpiGlobalApproval")}
               value={`${globalApproval}%`}
-              subline="Ponderado por matrícula"
+              subline={t("hc_routesAppAdminStatistics.kpiWeightedByEnrollment")}
               accent="text-emerald-500"
             />
             <KpiCard
               icon={CalendarCheck}
-              label="Asistencia promedio"
+              label={t("hc_routesAppAdminStatistics.kpiAvgAttendance")}
               value={`${globalAttendance}%`}
               accent="text-cyan-500"
             />
             <KpiCard
               icon={AlertTriangle}
-              label="Alertas integridad"
+              label={t("hc_routesAppAdminStatistics.kpiIntegrityAlerts")}
               value={totals.aiSuspect + totals.plagiarismPairs}
-              subline={`${totals.aiSuspect} IA · ${totals.plagiarismPairs} copia`}
+              subline={t("hc_routesAppAdminStatistics.kpiIntegrityAlertsSubline", {
+                aiSuspect: totals.aiSuspect,
+                plagiarismPairs: totals.plagiarismPairs,
+              })}
               accent="text-amber-500"
             />
           </div>
@@ -461,13 +469,17 @@ function AdminStatistics() {
                 </div>
               )}
               <div className="flex-1 space-y-1">
-                <label className="text-xs text-muted-foreground">Programa</label>
+                <label className="text-xs text-muted-foreground">
+                  {t("hc_routesAppAdminStatistics.programLabel")}
+                </label>
                 <Select value={programFilter} onValueChange={setProgramFilter}>
                   <SelectTrigger className="h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos los programas</SelectItem>
+                    <SelectItem value="all">
+                      {t("hc_routesAppAdminStatistics.allPrograms")}
+                    </SelectItem>
                     {programs.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
                         {p.name}
@@ -477,16 +489,20 @@ function AdminStatistics() {
                 </Select>
               </div>
               <div className="flex-1 space-y-1">
-                <label className="text-xs text-muted-foreground">Periodo</label>
+                <label className="text-xs text-muted-foreground">
+                  {t("hc_routesAppAdminStatistics.periodLabel")}
+                </label>
                 <Select value={periodFilter} onValueChange={setPeriodFilter}>
                   <SelectTrigger className="h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos los periodos</SelectItem>
+                    <SelectItem value="all">
+                      {t("hc_routesAppAdminStatistics.allPeriods")}
+                    </SelectItem>
                     {periods.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.code} {p.status === "cerrado" ? "(cerrado)" : ""}
+                        {p.code} {p.status === "cerrado" ? t("hc_routesAppAdminStatistics.closedSuffix") : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -498,13 +514,17 @@ function AdminStatistics() {
                   `visibleSubjects`; con "Todos" se muestran todas. */}
               {subjects.length > 0 && (
                 <div className="flex-1 space-y-1">
-                  <label className="text-xs text-muted-foreground">Asignatura</label>
+                  <label className="text-xs text-muted-foreground">
+                    {t("hc_routesAppAdminStatistics.subjectLabel")}
+                  </label>
                   <Select value={subjectFilter} onValueChange={setSubjectFilter}>
                     <SelectTrigger className="h-9">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas las asignaturas</SelectItem>
+                      <SelectItem value="all">
+                        {t("hc_routesAppAdminStatistics.allSubjects")}
+                      </SelectItem>
                       {visibleSubjects.map((s) => (
                         <SelectItem key={s.id} value={s.id}>
                           {s.name}
@@ -530,7 +550,7 @@ function AdminStatistics() {
                       setSubjectFilter("all");
                     }}
                   >
-                    Limpiar filtros
+                    {t("hc_routesAppAdminStatistics.clearFilters")}
                   </Button>
                 </div>
               )}
@@ -542,10 +562,10 @@ function AdminStatistics() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-primary" />
-                Comparativa entre cursos
+                {t("hc_routesAppAdminStatistics.courseComparison")}
               </CardTitle>
               <CardDescription>
-                % de aprobación, asistencia promedio y alertas de integridad por curso.
+                {t("hc_routesAppAdminStatistics.courseComparisonDescription")}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -556,21 +576,39 @@ function AdminStatistics() {
           {/* Tabla con drill-down */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Detalle por curso</CardTitle>
-              <CardDescription>Click en un curso para ver su dashboard completo.</CardDescription>
+              <CardTitle className="text-base">
+                {t("hc_routesAppAdminStatistics.detailByCourse")}
+              </CardTitle>
+              <CardDescription>
+                {t("hc_routesAppAdminStatistics.detailByCourseDescription")}
+              </CardDescription>
             </CardHeader>
             <CardContent className="p-0 overflow-x-auto">
               <Table fixed resizable>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Curso</TableHead>
-                    <TableHead className="hidden sm:table-cell w-32">Periodo</TableHead>
-                    <TableHead className="text-right w-28">Estudiantes</TableHead>
-                    <TableHead className="text-right w-28">Actividades</TableHead>
-                    <TableHead className="text-right w-32">% Aprobación</TableHead>
-                    <TableHead className="text-right hidden md:table-cell w-28">Asistencia</TableHead>
-                    <TableHead className="text-right hidden md:table-cell w-28">Alertas IA</TableHead>
-                    <TableHead className="text-right hidden lg:table-cell w-28">Pares copia</TableHead>
+                    <TableHead>{t("hc_routesAppAdminStatistics.colCourse")}</TableHead>
+                    <TableHead className="hidden sm:table-cell w-32">
+                      {t("hc_routesAppAdminStatistics.colPeriod")}
+                    </TableHead>
+                    <TableHead className="text-right w-28">
+                      {t("hc_routesAppAdminStatistics.colStudents")}
+                    </TableHead>
+                    <TableHead className="text-right w-28">
+                      {t("hc_routesAppAdminStatistics.colActivities")}
+                    </TableHead>
+                    <TableHead className="text-right w-32">
+                      {t("hc_routesAppAdminStatistics.colApproval")}
+                    </TableHead>
+                    <TableHead className="text-right hidden md:table-cell w-28">
+                      {t("hc_routesAppAdminStatistics.colAttendance")}
+                    </TableHead>
+                    <TableHead className="text-right hidden md:table-cell w-28">
+                      {t("hc_routesAppAdminStatistics.colAiAlerts")}
+                    </TableHead>
+                    <TableHead className="text-right hidden lg:table-cell w-28">
+                      {t("hc_routesAppAdminStatistics.colPlagiarismPairs")}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -580,7 +618,7 @@ function AdminStatistics() {
                         colSpan={8}
                         className="text-center text-sm text-muted-foreground py-6"
                       >
-                        Sin cursos que coincidan con los filtros.
+                        {t("hc_routesAppAdminStatistics.noCoursesMatchFilters")}
                       </TableCell>
                     </TableRow>
                   ) : null}
@@ -687,6 +725,7 @@ function BookOpenLikeIcon({ className }: { className?: string }) {
 }
 
 function CompareChart({ summaries }: { summaries: CourseSummary[] }) {
+  const { t } = useTranslation();
   const data = summaries.map((s) => ({
     course: s.course.name.length > 18 ? s.course.name.slice(0, 16) + "…" : s.course.name,
     fullName: s.course.name,
@@ -695,9 +734,12 @@ function CompareChart({ summaries }: { summaries: CourseSummary[] }) {
     alerts: s.aiSuspect + s.plagiarismPairs,
   }));
   const config: ChartConfig = {
-    approval: { label: "% Aprobación", color: "hsl(142 71% 45%)" },
-    attendance: { label: "% Asistencia", color: "hsl(189 94% 43%)" },
-    alerts: { label: "Alertas integridad", color: "hsl(45 93% 58%)" },
+    approval: { label: t("hc_routesAppAdminStatistics.chartApproval"), color: "hsl(142 71% 45%)" },
+    attendance: {
+      label: t("hc_routesAppAdminStatistics.chartAttendance"),
+      color: "hsl(189 94% 43%)",
+    },
+    alerts: { label: t("hc_routesAppAdminStatistics.chartAlerts"), color: "hsl(45 93% 58%)" },
   };
 
   return (

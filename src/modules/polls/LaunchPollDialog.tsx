@@ -176,7 +176,7 @@ export function LaunchPollDialog({
         .select("id")
         .single();
       if (pollErr || !pollRow) {
-        toast.error(friendlyError(pollErr, "No se pudo crear la encuesta"));
+        toast.error(friendlyError(pollErr, t("hc_modulesPollsLaunchPollDialog.errorCreatePoll")));
         return;
       }
       const optionsPayload = validOptions.map((o, idx) => ({
@@ -189,7 +189,7 @@ export function LaunchPollDialog({
       if (optsErr) {
         // Rollback: borrar poll huérfana.
         await db.from("polls").delete().eq("id", pollRow.id);
-        toast.error(friendlyError(optsErr, "No se pudieron crear las opciones"));
+        toast.error(friendlyError(optsErr, t("hc_modulesPollsLaunchPollDialog.errorCreateOptions")));
         return;
       }
       toast.success(
@@ -231,17 +231,16 @@ export function LaunchPollDialog({
                 <HelpHint side="right">
                   <div className="space-y-2 text-xs">
                     <p>
-                      <strong>Opción única:</strong> el alumno elige <em>una sola</em> opción
-                      (comprensión rápida, satisfacción).
+                      <strong>{t("hc_modulesPollsLaunchPollDialog.typeHintSingleTitle")}</strong>{" "}
+                      {t("hc_modulesPollsLaunchPollDialog.typeHintSingleBody")}
                     </p>
                     <p>
-                      <strong>Múltiple:</strong> el alumno puede marcar <em>varias</em>
-                      opciones a la vez.
+                      <strong>{t("hc_modulesPollsLaunchPollDialog.typeHintMultipleTitle")}</strong>{" "}
+                      {t("hc_modulesPollsLaunchPollDialog.typeHintMultipleBody")}
                     </p>
                     <p>
-                      <strong>Cupo por opción (Doodle):</strong> cada opción tiene un cupo limitado
-                      y se cierra al llenarse. Ideal para repartir fechas/turnos (ej. sustentaciones
-                      de proyecto).
+                      <strong>{t("hc_modulesPollsLaunchPollDialog.typeHintSlotTitle")}</strong>{" "}
+                      {t("hc_modulesPollsLaunchPollDialog.typeHintSlotBody")}
                     </p>
                   </div>
                 </HelpHint>
@@ -284,15 +283,16 @@ export function LaunchPollDialog({
                 <HelpHint side="left">
                   <div className="space-y-2 text-xs">
                     <p>
-                      <strong>Visibles al alumno:</strong> ve resultados parciales en cuanto vota.
+                      <strong>{t("hc_modulesPollsLaunchPollDialog.resultsHintAlwaysTitle")}</strong>{" "}
+                      {t("hc_modulesPollsLaunchPollDialog.resultsHintAlwaysBody")}
                     </p>
                     <p>
-                      <strong>Tras cerrar:</strong> los ve solo cuando cierras la encuesta. Evita el
-                      sesgo de "votar lo que ya va ganando".
+                      <strong>{t("hc_modulesPollsLaunchPollDialog.resultsHintAfterCloseTitle")}</strong>{" "}
+                      {t("hc_modulesPollsLaunchPollDialog.resultsHintAfterCloseBody")}
                     </p>
                     <p>
-                      <strong>Solo docente:</strong> los alumnos nunca ven resultados; útil para
-                      feedback honesto.
+                      <strong>{t("hc_modulesPollsLaunchPollDialog.resultsHintNeverTitle")}</strong>{" "}
+                      {t("hc_modulesPollsLaunchPollDialog.resultsHintNeverBody")}
                     </p>
                   </div>
                 </HelpHint>
@@ -359,12 +359,12 @@ export function LaunchPollDialog({
               {t("launchPollDialog.labelOptions")}{" "}
               <HelpHint side="right">
                 <div className="space-y-1 text-xs">
-                  <p>Mínimo 2 respuestas para que el alumno elija.</p>
+                  <p>{t("hc_modulesPollsLaunchPollDialog.optionsHintMin")}</p>
                   {type === "slot" && (
                     <p>
-                      <strong>Cupo:</strong> máximo de alumnos que pueden elegir esa opción. Ej. si
-                      cada opción es una fecha de sustentación y caben 5 estudiantes por día, pon{" "}
-                      <code>5</code> en cada cupo.
+                      <strong>{t("hc_modulesPollsLaunchPollDialog.optionsHintSlotTitle")}</strong>{" "}
+                      {t("hc_modulesPollsLaunchPollDialog.optionsHintSlotBefore")}{" "}
+                      <code>5</code> {t("hc_modulesPollsLaunchPollDialog.optionsHintSlotAfter")}
                     </p>
                   )}
                 </div>
@@ -395,7 +395,7 @@ export function LaunchPollDialog({
                       onChange={(e) => updateOption(idx, { max_responses: e.target.value })}
                       placeholder={t("launchPollDialog.placeholderSlotCapacity")}
                       className="w-20"
-                      title="Máximo de alumnos que pueden elegir esta opción"
+                      title={t("hc_modulesPollsLaunchPollDialog.slotCapacityTitle")}
                     />
                   )}
                   {options.length > 2 && (

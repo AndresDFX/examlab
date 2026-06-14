@@ -5,6 +5,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 
 import { Bell, CheckCheck, FileText, Hammer, Award, Info, AlertTriangle } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
+import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 
 const KIND_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   exam: FileText,
@@ -17,12 +19,12 @@ const KIND_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
 function timeAgo(date: string): string {
   const diff = Date.now() - new Date(date).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "ahora";
-  if (mins < 60) return `hace ${mins}m`;
+  if (mins < 1) return i18n.t("hc_modulesNotificationsNotificationBell.timeAgoNow");
+  if (mins < 60) return i18n.t("hc_modulesNotificationsNotificationBell.timeAgoMinutes", { mins });
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `hace ${hrs}h`;
+  if (hrs < 24) return i18n.t("hc_modulesNotificationsNotificationBell.timeAgoHours", { hrs });
   const days = Math.floor(hrs / 24);
-  return `hace ${days}d`;
+  return i18n.t("hc_modulesNotificationsNotificationBell.timeAgoDays", { days });
 }
 
 interface NotificationBellProps {
@@ -39,6 +41,7 @@ export function NotificationBell({
   variant = "default",
   viewerRole,
 }: NotificationBellProps) {
+  const { t } = useTranslation();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(
     userId,
     viewerRole,
@@ -90,16 +93,16 @@ export function NotificationBell({
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 p-0">
         <div className="flex items-center justify-between px-3 py-2 border-b">
-          <span className="text-sm font-medium">Notificaciones</span>
+          <span className="text-sm font-medium">{t("hc_modulesNotificationsNotificationBell.title")}</span>
           {unreadCount > 0 && (
             <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={markAllAsRead}>
-              <CheckCheck className="h-3 w-3" /> Marcar todo
+              <CheckCheck className="h-3 w-3" /> {t("hc_modulesNotificationsNotificationBell.markAll")}
             </Button>
           )}
         </div>
         <div className="max-h-80 overflow-y-auto overscroll-contain">
           {notifications.length === 0 ? (
-            <div className="py-4 sm:py-8 text-center text-sm text-muted-foreground">Sin notificaciones</div>
+            <div className="py-4 sm:py-8 text-center text-sm text-muted-foreground">{t("hc_modulesNotificationsNotificationBell.empty")}</div>
           ) : (
             <div className="divide-y">
               {notifications.map((n) => {

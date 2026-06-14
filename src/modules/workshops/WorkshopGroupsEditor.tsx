@@ -12,6 +12,7 @@
  * grupo del taller.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ interface Props {
 const UNASSIGNED = "__unassigned__";
 
 export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
+  const { t } = useTranslation();
   const confirm = useConfirm();
   const [students, setStudents] = useState<Student[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -153,12 +155,14 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
   const deleteGroup = async (g: Group) => {
     const memberCount = (studentsByGroup.get(g.id) ?? []).length;
     const ok = await confirm({
-      title: `Eliminar grupo "${g.name}"`,
+      title: t("hc_modulesWorkshopsWorkshopGroupsEditor.deleteGroupTitle", { name: g.name }),
       description:
         memberCount > 0
-          ? `Tiene ${memberCount} miembro(s). Quedarán sin grupo. La entrega del grupo (si existe) se mantiene pero perderá la asociación. Esta acción no se puede deshacer.`
-          : "Esta acción no se puede deshacer.",
-      confirmLabel: "Eliminar",
+          ? t("hc_modulesWorkshopsWorkshopGroupsEditor.deleteGroupDescWithMembers", {
+              count: memberCount,
+            })
+          : t("hc_modulesWorkshopsWorkshopGroupsEditor.deleteGroupDescEmpty"),
+      confirmLabel: t("hc_modulesWorkshopsWorkshopGroupsEditor.deleteConfirmLabel"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -245,15 +249,13 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Users className="h-4 w-4 text-primary" />
-            Grupos del taller
+            {t("hc_modulesWorkshopsWorkshopGroupsEditor.workshopGroupsTitle")}
             <Badge variant="secondary" className="text-[10px]">
               {groups.length}
             </Badge>
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Crea grupos y arrastra estudiantes. Pueden coexistir miembros con grupo (entregan en
-            grupo) y sin grupo (entregan individual) en el mismo taller. Cada estudiante puede
-            pertenecer a un solo grupo a la vez.
+            {t("hc_modulesWorkshopsWorkshopGroupsEditor.workshopGroupsHint")}
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -261,7 +263,7 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
             <Input
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
-              placeholder="Nombre del grupo (ej. Grupo 1)"
+              placeholder={t("hc_modulesWorkshopsWorkshopGroupsEditor.groupNamePlaceholder")}
               onKeyDown={(e) => e.key === "Enter" && void createGroup()}
               className="flex-1"
             />
@@ -271,7 +273,7 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
               ) : (
                 <Plus className="h-4 w-4 mr-1" />
               )}
-              Crear grupo
+              {t("hc_modulesWorkshopsWorkshopGroupsEditor.createGroup")}
             </Button>
           </div>
         </CardContent>
@@ -280,7 +282,7 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
       {loading ? (
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-            <Spinner size="md" /> Cargando…
+            <Spinner size="md" /> {t("hc_modulesWorkshopsWorkshopGroupsEditor.loading")}
           </CardContent>
         </Card>
       ) : (
@@ -298,20 +300,19 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
           >
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
-                Sin grupo (entrega individual)
+                {t("hc_modulesWorkshopsWorkshopGroupsEditor.unassignedTitle")}
                 <Badge variant="outline" className="text-[10px]">
                   {unassigned.length}
                 </Badge>
               </CardTitle>
               <p className="text-[10px] text-muted-foreground">
-                Estos estudiantes entregan el taller individualmente. Arrastra a un grupo para
-                cambiar.
+                {t("hc_modulesWorkshopsWorkshopGroupsEditor.unassignedHint")}
               </p>
             </CardHeader>
             <CardContent className="space-y-1.5 min-h-[80px]">
               {unassigned.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">
-                  Todos los estudiantes están en algún grupo.
+                  {t("hc_modulesWorkshopsWorkshopGroupsEditor.allStudentsAssigned")}
                 </p>
               ) : (
                 unassigned.map((s) => (
@@ -335,7 +336,7 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
             {groups.length === 0 && (
               <Card>
                 <CardContent className="p-6 text-sm text-muted-foreground text-center">
-                  Sin grupos creados. Empieza creando uno arriba y arrastra estudiantes.
+                  {t("hc_modulesWorkshopsWorkshopGroupsEditor.noGroupsCreated")}
                 </CardContent>
               </Card>
             )}
@@ -356,7 +357,9 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
                     <CardTitle className="text-sm flex items-center gap-2">
                       {g.name}
                       <Badge variant="outline" className="text-[10px]">
-                        {ms.length} miembro{ms.length === 1 ? "" : "s"}
+                        {t("hc_modulesWorkshopsWorkshopGroupsEditor.memberCount", {
+                          count: ms.length,
+                        })}
                       </Badge>
                     </CardTitle>
                     <Button
@@ -364,7 +367,7 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
                       size="icon"
                       className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
                       onClick={() => deleteGroup(g)}
-                      title="Eliminar grupo"
+                      title={t("hc_modulesWorkshopsWorkshopGroupsEditor.deleteGroupTooltip")}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -372,7 +375,7 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
                   <CardContent className="space-y-1.5 min-h-[60px]">
                     {ms.length === 0 ? (
                       <p className="text-xs text-muted-foreground italic">
-                        Arrastra estudiantes aquí.
+                        {t("hc_modulesWorkshopsWorkshopGroupsEditor.dragStudentsHere")}
                       </p>
                     ) : (
                       ms.map((s) => (
@@ -422,6 +425,7 @@ function DraggableStudent({
   currentGroupId: string | null;
   onMoveTo: (target: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       draggable
@@ -444,15 +448,15 @@ function DraggableStudent({
             variant="ghost"
             size="icon"
             className="h-7 w-7 shrink-0"
-            aria-label="Mover a otro grupo"
-            title="Mover a otro grupo"
+            aria-label={t("hc_modulesWorkshopsWorkshopGroupsEditor.moveToOtherGroup")}
+            title={t("hc_modulesWorkshopsWorkshopGroupsEditor.moveToOtherGroup")}
             onPointerDown={(e) => e.stopPropagation()}
           >
             <ArrowRightLeft className="h-3.5 w-3.5" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>Mover a…</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("hc_modulesWorkshopsWorkshopGroupsEditor.moveToLabel")}</DropdownMenuLabel>
           <DropdownMenuItem
             onClick={() => onMoveTo(UNASSIGNED)}
             disabled={currentGroupId === null}
@@ -462,7 +466,7 @@ function DraggableStudent({
             ) : (
               <span className="w-3.5 mr-2" />
             )}
-            Sin grupo
+            {t("hc_modulesWorkshopsWorkshopGroupsEditor.noGroup")}
           </DropdownMenuItem>
           {groups.length > 0 && <DropdownMenuSeparator />}
           {groups.map((g) => (

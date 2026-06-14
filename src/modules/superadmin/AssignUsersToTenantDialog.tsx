@@ -35,6 +35,7 @@ import { SectionLoader } from "@/components/ui/loaders";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { Save, Users } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -78,6 +79,7 @@ export function AssignUsersToTenantDialog({
   const [initialMembers, setInitialMembers] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const confirm = useConfirm();
+  const { t } = useTranslation();
 
   // Reset al abrir / cerrar.
   useEffect(() => {
@@ -92,7 +94,12 @@ export function AssignUsersToTenantDialog({
         .order("full_name");
       if (cancelled) return;
       if (error) {
-        toast.error(friendlyError(error, "No pudimos cargar usuarios"));
+        toast.error(
+          friendlyError(
+            error,
+            t("hc_modulesSuperadminAssignUsersToTenantDialog.loadUsersFailed"),
+          ),
+        );
         setProfiles([]);
         setDesiredMembers(new Set());
         setInitialMembers(new Set());
@@ -155,10 +162,15 @@ export function AssignUsersToTenantDialog({
 
     if (toRemove.length > 0) {
       const ok = await confirm({
-        title: `Quitar ${toRemove.length} usuario${toRemove.length === 1 ? "" : "s"} de ${tenant.name}`,
-        description: `Estos usuarios dejarán de pertenecer a la institución y quedarán sin tenant. Si tienen cursos activos en ${tenant.name}, el servidor rechazará el cambio.`,
+        title: t("hc_modulesSuperadminAssignUsersToTenantDialog.removeConfirmTitle", {
+          count: toRemove.length,
+          tenantName: tenant.name,
+        }),
+        description: t("hc_modulesSuperadminAssignUsersToTenantDialog.removeConfirmDescription", {
+          tenantName: tenant.name,
+        }),
         tone: "destructive",
-        confirmLabel: "Quitar",
+        confirmLabel: t("hc_modulesSuperadminAssignUsersToTenantDialog.removeConfirmLabel"),
       });
       if (!ok) return;
     }
@@ -256,26 +268,28 @@ export function AssignUsersToTenantDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-4 w-4 text-violet-500" />
-            Gestionar usuarios de {tenant.name}
+            {t("hc_modulesSuperadminAssignUsersToTenantDialog.dialogTitle", {
+              tenantName: tenant.name,
+            })}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Marca los usuarios que pertenecen a esta institución. Desmarca para quitarlos. El
-            trigger del servidor rechaza el cambio si el usuario tiene cursos activos en su
-            institución actual — en ese caso debe desmatricularse primero.
+            {t("hc_modulesSuperadminAssignUsersToTenantDialog.helpText")}
           </p>
 
           <SearchInput
             value={search}
             onChange={setSearch}
-            placeholder="Buscar por nombre o correo…"
+            placeholder={t("hc_modulesSuperadminAssignUsersToTenantDialog.searchPlaceholder")}
           />
 
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
             <span className="text-muted-foreground">
-              {filtered.length} usuario{filtered.length === 1 ? "" : "s"}
+              {t("hc_modulesSuperadminAssignUsersToTenantDialog.userCount", {
+                count: filtered.length,
+              })}
               {hasChanges && (
                 <>
                   {" · "}
@@ -297,17 +311,21 @@ export function AssignUsersToTenantDialog({
                 onClick={() => setDesiredMembers(new Set(initialMembers))}
                 disabled={saving}
               >
-                Descartar cambios
+                {t("hc_modulesSuperadminAssignUsersToTenantDialog.discardChanges")}
               </Button>
             )}
           </div>
 
           <div className="max-h-[50dvh] overflow-y-auto rounded-md border divide-y">
             {loading ? (
-              <SectionLoader text="Cargando usuarios…" />
+              <SectionLoader
+                text={t("hc_modulesSuperadminAssignUsersToTenantDialog.loadingUsers")}
+              />
             ) : filtered.length === 0 ? (
               <p className="p-6 text-center text-sm text-muted-foreground">
-                {search ? "Sin coincidencias." : "No hay usuarios."}
+                {search
+                  ? t("hc_modulesSuperadminAssignUsersToTenantDialog.noMatches")
+                  : t("hc_modulesSuperadminAssignUsersToTenantDialog.noUsers")}
               </p>
             ) : (
               filtered.map((p) => {
@@ -316,7 +334,8 @@ export function AssignUsersToTenantDialog({
                 const willChange = isMember !== wasMember;
                 const otherTenant =
                   p.tenant_id && p.tenant_id !== tenant.id
-                    ? (tenantNameById.get(p.tenant_id) ?? "otra institución")
+                    ? (tenantNameById.get(p.tenant_id) ??
+                      t("hc_modulesSuperadminAssignUsersToTenantDialog.otherInstitution"))
                     : null;
                 return (
                   <label
@@ -335,7 +354,7 @@ export function AssignUsersToTenantDialog({
                         variant="outline"
                         className="text-[10px] shrink-0 border-emerald-500/50 text-emerald-600 dark:text-emerald-400"
                       >
-                        Agregar
+                        {t("hc_modulesSuperadminAssignUsersToTenantDialog.badgeAdd")}
                       </Badge>
                     )}
                     {willChange && !isMember && (
@@ -343,12 +362,12 @@ export function AssignUsersToTenantDialog({
                         variant="outline"
                         className="text-[10px] shrink-0 border-destructive/50 text-destructive"
                       >
-                        Quitar
+                        {t("hc_modulesSuperadminAssignUsersToTenantDialog.badgeRemove")}
                       </Badge>
                     )}
                     {!willChange && wasMember && (
                       <Badge variant="secondary" className="text-[10px] shrink-0">
-                        Miembro
+                        {t("hc_modulesSuperadminAssignUsersToTenantDialog.badgeMember")}
                       </Badge>
                     )}
                     {!willChange && !wasMember && otherTenant && (
@@ -358,7 +377,7 @@ export function AssignUsersToTenantDialog({
                     )}
                     {!willChange && !wasMember && !otherTenant && (
                       <Badge variant="outline" className="text-[10px] shrink-0">
-                        sin institución
+                        {t("hc_modulesSuperadminAssignUsersToTenantDialog.badgeNoInstitution")}
                       </Badge>
                     )}
                   </label>
@@ -370,11 +389,11 @@ export function AssignUsersToTenantDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancelar
+            {t("hc_modulesSuperadminAssignUsersToTenantDialog.cancel")}
           </Button>
           <Button onClick={save} disabled={saving || !hasChanges}>
             {saving ? <Spinner size="sm" className="mr-1" /> : <Save className="h-4 w-4 mr-1" />}
-            Guardar
+            {t("hc_modulesSuperadminAssignUsersToTenantDialog.save")}
             {hasChanges && ` (${toAdd.length + toRemove.length})`}
           </Button>
         </DialogFooter>

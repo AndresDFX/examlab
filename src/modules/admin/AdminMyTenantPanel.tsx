@@ -169,7 +169,7 @@ export function AdminMyTenantPanel() {
         .from("tenant-logos")
         .upload(path, finalFile, { upsert: true, contentType: finalFile.type });
       if (upErr) {
-        toast.error(friendlyError(upErr, "No se pudo subir el logo"));
+        toast.error(friendlyError(upErr, t("hc_modulesAdminAdminMyTenantPanel.logoUploadFailed")));
         return;
       }
       setForm((p) => ({ ...p, logo_path: path, logo_url: "" }));
@@ -206,7 +206,7 @@ export function AdminMyTenantPanel() {
     );
   };
 
-  if (loading) return <SectionLoader text="Cargando datos de la institución…" />;
+  if (loading) return <SectionLoader text={t("hc_modulesAdminAdminMyTenantPanel.loadingTenant")} />;
   // SuperAdmin cross-tenant (rol activo SuperAdmin sin override "ver como X"):
   // NO tiene una institución propia que editar — opera cross-tenant. El
   // form de branding aplica solo a tenants reales; mostramos placeholder
@@ -232,11 +232,11 @@ export function AdminMyTenantPanel() {
   if (error || !tenant) {
     return (
       <ErrorState
-        message="No pudimos cargar la institución"
+        message={t("hc_modulesAdminAdminMyTenantPanel.loadErrorTitle")}
         hint={
           error === "missing_tenant"
-            ? "Tu usuario no tiene institución asignada. Contacta al SuperAdmin."
-            : "Reintenta en unos segundos."
+            ? t("hc_modulesAdminAdminMyTenantPanel.loadErrorMissingTenant")
+            : t("hc_modulesAdminAdminMyTenantPanel.loadErrorRetry")
         }
         onRetry={refresh}
       />
@@ -265,7 +265,7 @@ export function AdminMyTenantPanel() {
     });
     setSaving(false);
     if (rpcErr) {
-      toast.error(friendlyError(rpcErr, "No se pudo guardar"));
+      toast.error(friendlyError(rpcErr, t("hc_modulesAdminAdminMyTenantPanel.saveFailed")));
       return;
     }
     toast.success(
@@ -281,30 +281,29 @@ export function AdminMyTenantPanel() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Building2 className="h-4 w-4 text-violet-500" />
-          Mi institución
+          {t("hc_modulesAdminAdminMyTenantPanel.cardTitle")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div>
-          <Label className="text-xs">Identificador (URL)</Label>
+          <Label className="text-xs">{t("hc_modulesAdminAdminMyTenantPanel.slugLabel")}</Label>
           <Input value={tenant.slug} disabled className="font-mono text-xs" />
           <p className="text-[11px] text-muted-foreground mt-1">
-            El slug es la URL canónica de tu institución y no es editable. Solo el SuperAdmin lo
-            puede cambiar.
+            {t("hc_modulesAdminAdminMyTenantPanel.slugHint")}
           </p>
         </div>
 
         <div>
-          <Label required>Nombre</Label>
+          <Label required>{t("hc_modulesAdminAdminMyTenantPanel.nameLabel")}</Label>
           <Input
             value={form.name}
             onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-            placeholder="Universidad / Instituto / Colegio…"
+            placeholder={t("hc_modulesAdminAdminMyTenantPanel.namePlaceholder")}
           />
         </div>
 
         <div>
-          <Label>Logo institucional</Label>
+          <Label>{t("hc_modulesAdminAdminMyTenantPanel.logoLabel")}</Label>
           <div className="flex items-center gap-3 mt-1">
             {/* Preview del logo guardado (resuelto via Storage) o
                 placeholder si no hay todavía. */}
@@ -324,7 +323,7 @@ export function AdminMyTenantPanel() {
               </div>
             ) : (
               <div className="h-16 w-16 rounded-lg border border-dashed bg-muted/30 flex items-center justify-center text-[10px] text-muted-foreground shrink-0">
-                Sin logo
+                {t("hc_modulesAdminAdminMyTenantPanel.noLogo")}
               </div>
             )}
             <div className="flex-1 min-w-0">
@@ -346,7 +345,9 @@ export function AdminMyTenantPanel() {
                   disabled={uploadingLogo}
                 >
                   <Upload className="h-3.5 w-3.5 mr-1" />
-                  {uploadingLogo ? "Subiendo…" : "Subir logo"}
+                  {uploadingLogo
+                    ? t("hc_modulesAdminAdminMyTenantPanel.uploadingLogo")
+                    : t("hc_modulesAdminAdminMyTenantPanel.uploadLogo")}
                 </Button>
                 {(currentLogoUrl || form.logo_path) && (
                   <Button
@@ -356,13 +357,12 @@ export function AdminMyTenantPanel() {
                     onClick={removeLogo}
                   >
                     <Trash2 className="h-3.5 w-3.5 mr-1" />
-                    Quitar
+                    {t("hc_modulesAdminAdminMyTenantPanel.removeLogoButton")}
                   </Button>
                 )}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5">
-                PNG, JPG, SVG o WebP · máximo 2 MB. Aparece en el header de la app y en el login
-                para usuarios de tu institución.
+                {t("hc_modulesAdminAdminMyTenantPanel.logoHint")}
               </p>
             </div>
           </div>
@@ -370,65 +370,64 @@ export function AdminMyTenantPanel() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <Label>Color primario (hex)</Label>
+            <Label>{t("hc_modulesAdminAdminMyTenantPanel.primaryColorLabel")}</Label>
             <HexColorInput
               value={form.primary_color}
               onChange={(v) => setForm((p) => ({ ...p, primary_color: v }))}
               placeholder="#3B82F6"
-              ariaLabel="Color primario"
+              ariaLabel={t("hc_modulesAdminAdminMyTenantPanel.primaryColorAria")}
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              Color principal de la marca. Aplica en acentos / botones primarios. Click en el swatch
-              para abrir el selector visual.
+              {t("hc_modulesAdminAdminMyTenantPanel.primaryColorHint")}
             </p>
           </div>
           <div>
-            <Label>Color secundario (hex)</Label>
+            <Label>{t("hc_modulesAdminAdminMyTenantPanel.secondaryColorLabel")}</Label>
             <HexColorInput
               value={form.secondary_color}
               onChange={(v) => setForm((p) => ({ ...p, secondary_color: v }))}
               placeholder="#8B5CF6"
-              ariaLabel="Color secundario"
+              ariaLabel={t("hc_modulesAdminAdminMyTenantPanel.secondaryColorAria")}
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              Color de acento opcional. Usado en hovers y badges secundarios.
+              {t("hc_modulesAdminAdminMyTenantPanel.secondaryColorHint")}
             </p>
           </div>
           <div>
-            <Label>Color de letra sobre el primario (hex)</Label>
+            <Label>{t("hc_modulesAdminAdminMyTenantPanel.textColorLabel")}</Label>
             <HexColorInput
               value={form.text_color}
               onChange={(v) => setForm((p) => ({ ...p, text_color: v }))}
               placeholder="#FFFFFF"
-              ariaLabel="Color de letra sobre el primario"
+              ariaLabel={t("hc_modulesAdminAdminMyTenantPanel.textColorAria")}
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              Override del texto sobre el sidebar y botones primarios. Vacío = auto.
+              {t("hc_modulesAdminAdminMyTenantPanel.textColorHint")}
             </p>
           </div>
           <div>
-            <Label>Color de íconos del sidebar (hex)</Label>
+            <Label>{t("hc_modulesAdminAdminMyTenantPanel.iconColorLabel")}</Label>
             <HexColorInput
               value={form.icon_color}
               onChange={(v) => setForm((p) => ({ ...p, icon_color: v }))}
               placeholder="#FFFFFF"
-              ariaLabel="Color de íconos del sidebar"
+              ariaLabel={t("hc_modulesAdminAdminMyTenantPanel.iconColorAria")}
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              Override de los íconos del menú lateral. Vacío = heredan el color de letra.
+              {t("hc_modulesAdminAdminMyTenantPanel.iconColorHint")}
             </p>
           </div>
         </div>
 
         <div>
-          <Label>Dominio email (opcional)</Label>
+          <Label>{t("hc_modulesAdminAdminMyTenantPanel.emailDomainLabel")}</Label>
           <Input
             value={form.email_domain}
             onChange={(e) => setForm((p) => ({ ...p, email_domain: e.target.value }))}
-            placeholder="miuniversidad.edu.co"
+            placeholder={t("hc_modulesAdminAdminMyTenantPanel.emailDomainPlaceholder")}
           />
           <p className="text-[11px] text-muted-foreground mt-1">
-            Reservado para asignación automática de usuarios por dominio en versiones futuras.
+            {t("hc_modulesAdminAdminMyTenantPanel.emailDomainHint")}
           </p>
         </div>
 
@@ -438,17 +437,18 @@ export function AdminMyTenantPanel() {
             usuarios para que el Admin vea cuanto le queda antes de
             crear uno nuevo. */}
         <div className="pt-2 border-t">
-          <TenantQuotaCard compact title="Licencias de usuarios" />
+          <TenantQuotaCard compact title={t("hc_modulesAdminAdminMyTenantPanel.quotaCardTitle")} />
           <p className="text-[11px] text-muted-foreground mt-2">
-            Definidas por el SuperAdmin de la plataforma. Para ajustar estos topes, contacta al
-            equipo de ExamLab.
+            {t("hc_modulesAdminAdminMyTenantPanel.quotaHint")}
           </p>
         </div>
 
         <div className="flex justify-end pt-2">
           <Button onClick={save} disabled={saving}>
             <Save className="h-4 w-4 mr-1" />
-            {saving ? "Guardando…" : "Guardar"}
+            {saving
+              ? t("hc_modulesAdminAdminMyTenantPanel.saving")
+              : t("hc_modulesAdminAdminMyTenantPanel.save")}
           </Button>
         </div>
       </CardContent>

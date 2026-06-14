@@ -13,6 +13,7 @@
  * cliente. Eso evita una llamada a server por cada rotación.
  */
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,7 @@ function formatRemaining(ms: number): string {
 }
 
 export function AttendanceCheckInProjector({ state, onClose }: Props) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const [code, setCode] = useState("------");
   const [secondsToRotation, setSecondsToRotation] = useState(state.rotationSeconds);
@@ -238,13 +240,13 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
       <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2 sm:py-3 border-b">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           <div className="hidden sm:block text-sm sm:text-base font-medium truncate">
-            Check-in de asistencia
+            {t("hc_modulesAttendanceAttendanceCheckInProjector.title")}
             {state.sessionLabel && (
               <span className="text-muted-foreground"> — {state.sessionLabel}</span>
             )}
           </div>
           <Badge variant="secondary" className="text-xs whitespace-nowrap">
-            Cierra en {formatRemaining(msToClose)}
+            {t("hc_modulesAttendanceAttendanceCheckInProjector.closesIn", { time: formatRemaining(msToClose) })}
           </Badge>
         </div>
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
@@ -253,20 +255,20 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
               variant="ghost"
               size="sm"
               onClick={() => void exitFullscreen()}
-              aria-label="Salir pantalla completa"
+              aria-label={t("hc_modulesAttendanceAttendanceCheckInProjector.exitFullscreen")}
             >
               <Minimize2 className="h-4 w-4 sm:mr-1" />
-              <span className="hidden sm:inline">Salir pantalla completa</span>
+              <span className="hidden sm:inline">{t("hc_modulesAttendanceAttendanceCheckInProjector.exitFullscreen")}</span>
             </Button>
           ) : (
             <Button
               variant="ghost"
               size="sm"
               onClick={() => void requestFullscreen()}
-              aria-label="Pantalla completa"
+              aria-label={t("hc_modulesAttendanceAttendanceCheckInProjector.enterFullscreen")}
             >
               <Maximize2 className="h-4 w-4 sm:mr-1" />
-              <span className="hidden sm:inline">Pantalla completa</span>
+              <span className="hidden sm:inline">{t("hc_modulesAttendanceAttendanceCheckInProjector.enterFullscreen")}</span>
             </Button>
           )}
           <Button
@@ -274,14 +276,14 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
             size="sm"
             onClick={handleCloseCheckIn}
             disabled={closing}
-            aria-label="Cerrar check-in"
+            aria-label={t("hc_modulesAttendanceAttendanceCheckInProjector.closeCheckIn")}
           >
             {closing ? (
               <Spinner size="md" className="sm:mr-1" />
             ) : (
               <X className="h-4 w-4 sm:mr-1" />
             )}
-            <span className="hidden sm:inline">Cerrar check-in</span>
+            <span className="hidden sm:inline">{t("hc_modulesAttendanceAttendanceCheckInProjector.closeCheckIn")}</span>
           </Button>
         </div>
       </div>
@@ -307,15 +309,14 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
             />
           </div>
           <p className="text-xs sm:text-sm text-muted-foreground text-center max-w-md px-2">
-            Escanea desde la app del estudiante (Asistencia → Escanear QR)
-            o con la cámara nativa del celular.
+            {t("hc_modulesAttendanceAttendanceCheckInProjector.scanHint")}
           </p>
         </div>
 
         <div className="flex flex-col gap-4 sm:gap-6 items-center lg:items-start min-w-0 sm:min-w-[260px] w-full sm:w-auto">
           <div className="flex flex-col items-center lg:items-start gap-1 w-full">
             <div className="text-xs uppercase tracking-wider text-muted-foreground">
-              Código manual
+              {t("hc_modulesAttendanceAttendanceCheckInProjector.manualCode")}
             </div>
             <div className="font-mono font-bold tabular-nums text-4xl sm:text-7xl tracking-wider">
               {codePretty}
@@ -329,14 +330,14 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
                 />
               </div>
               <div className="text-[11px] text-muted-foreground mt-1 tabular-nums">
-                Rota en {secondsToRotation}s
+                {t("hc_modulesAttendanceAttendanceCheckInProjector.rotatesIn", { seconds: secondsToRotation })}
               </div>
             </div>
           </div>
 
           <div className="flex flex-col items-center lg:items-start gap-1">
             <div className="text-xs uppercase tracking-wider text-muted-foreground">
-              Presentes
+              {t("hc_modulesAttendanceAttendanceCheckInProjector.present")}
             </div>
             <div className="text-4xl sm:text-7xl font-semibold tabular-nums">
               {presentCount}

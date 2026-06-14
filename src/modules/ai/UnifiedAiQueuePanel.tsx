@@ -159,31 +159,31 @@ interface Props {
 }
 
 const GRADING_KIND_LABELS: Record<string, string> = {
-  exam_submission: "Examen",
-  exam_question: "Pregunta de examen",
-  workshop_submission: "Taller",
-  workshop_question: "Pregunta de taller",
-  workshop_full: "Taller (batch)",
-  project_submission: "Proyecto",
-  project_file: "Archivo de proyecto",
-  project_full: "Proyecto (batch)",
-  project_codigo_zip: "Código ZIP de proyecto",
+  exam_submission: i18n.t("hc_modulesAiUnifiedAiQueuePanel.gradingKindExamSubmission"),
+  exam_question: i18n.t("hc_modulesAiUnifiedAiQueuePanel.gradingKindExamQuestion"),
+  workshop_submission: i18n.t("hc_modulesAiUnifiedAiQueuePanel.gradingKindWorkshopSubmission"),
+  workshop_question: i18n.t("hc_modulesAiUnifiedAiQueuePanel.gradingKindWorkshopQuestion"),
+  workshop_full: i18n.t("hc_modulesAiUnifiedAiQueuePanel.gradingKindWorkshopFull"),
+  project_submission: i18n.t("hc_modulesAiUnifiedAiQueuePanel.gradingKindProjectSubmission"),
+  project_file: i18n.t("hc_modulesAiUnifiedAiQueuePanel.gradingKindProjectFile"),
+  project_full: i18n.t("hc_modulesAiUnifiedAiQueuePanel.gradingKindProjectFull"),
+  project_codigo_zip: i18n.t("hc_modulesAiUnifiedAiQueuePanel.gradingKindProjectCodigoZip"),
 };
 
 const GENERATION_KIND_LABELS: Record<string, string> = {
-  workshop_questions: "Preguntas de taller",
-  exam_questions: "Preguntas de examen",
-  project_files: "Archivos de proyecto",
-  content_generation: "Contenido didáctico",
+  workshop_questions: i18n.t("hc_modulesAiUnifiedAiQueuePanel.generationKindWorkshopQuestions"),
+  exam_questions: i18n.t("hc_modulesAiUnifiedAiQueuePanel.generationKindExamQuestions"),
+  project_files: i18n.t("hc_modulesAiUnifiedAiQueuePanel.generationKindProjectFiles"),
+  content_generation: i18n.t("hc_modulesAiUnifiedAiQueuePanel.generationKindContentGeneration"),
 };
 
 const STATUS_LABELS: Record<Status, string> = {
-  pending: "Pendiente",
-  processing: "En proceso",
-  failed: "Fallado",
-  done: "Completado",
-  cancelled: "Cancelado",
-  rejected: "Rechazado",
+  pending: i18n.t("hc_modulesAiUnifiedAiQueuePanel.statusPending"),
+  processing: i18n.t("hc_modulesAiUnifiedAiQueuePanel.statusProcessing"),
+  failed: i18n.t("hc_modulesAiUnifiedAiQueuePanel.statusFailed"),
+  done: i18n.t("hc_modulesAiUnifiedAiQueuePanel.statusDone"),
+  cancelled: i18n.t("hc_modulesAiUnifiedAiQueuePanel.statusCancelled"),
+  rejected: i18n.t("hc_modulesAiUnifiedAiQueuePanel.statusRejected"),
 };
 
 function kindLabelFor(j: UnifiedJob): string {
@@ -194,7 +194,7 @@ function kindLabelFor(j: UnifiedJob): string {
 function relativeAge(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const diffMin = Math.floor(diffMs / 60_000);
-  if (diffMin < 1) return "ahora";
+  if (diffMin < 1) return i18n.t("hc_modulesAiUnifiedAiQueuePanel.ageNow");
   if (diffMin < 60) return `${diffMin}m`;
   const diffH = Math.floor(diffMin / 60);
   if (diffH < 24) return `${diffH}h`;
@@ -320,7 +320,9 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
 
       if (gradingRes.error || genRes.error) {
         const err = gradingRes.error ?? genRes.error;
-        setLoadError(friendlyError(err, "No pudimos cargar la cola."));
+        setLoadError(
+          friendlyError(err, t("hc_modulesAiUnifiedAiQueuePanel.errLoadQueue")),
+        );
         return;
       }
 
@@ -655,7 +657,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       unified.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
       setJobs(unified);
     } catch (e) {
-      setLoadError(friendlyError(e, "No pudimos cargar la cola."));
+      setLoadError(friendlyError(e, t("hc_modulesAiUnifiedAiQueuePanel.errLoadQueue")));
     } finally {
       setLoading(false);
     }
@@ -777,12 +779,12 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
     if (cancelling.has(job.id)) return;
     const isProcessingNow = job.status === "processing";
     const ok = await confirm({
-      title: "¿Cancelar este job de IA?",
+      title: t("hc_modulesAiUnifiedAiQueuePanel.cancelConfirmTitle"),
       description: isProcessingNow
-        ? `"${job.label}" — el job ya está siendo procesado. La llamada IA está en vuelo (el costo no se recupera), pero el resultado NO se persistirá.`
-        : `"${job.label}" — el job no se procesará. Si la entrega necesita nota IA después, deberás encolarla manualmente.`,
+        ? t("hc_modulesAiUnifiedAiQueuePanel.cancelConfirmDescProcessing", { label: job.label })
+        : t("hc_modulesAiUnifiedAiQueuePanel.cancelConfirmDescPending", { label: job.label }),
       tone: "destructive",
-      confirmLabel: "Cancelar job",
+      confirmLabel: t("hc_modulesAiUnifiedAiQueuePanel.cancelConfirmLabel"),
     });
     if (!ok) return;
     setCancelling((p) => new Set(p).add(job.id));
@@ -816,7 +818,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       });
       await load();
     } catch (e) {
-      toast.error(friendlyError(e, "No se pudo cancelar el job"));
+      toast.error(friendlyError(e, t("hc_modulesAiUnifiedAiQueuePanel.errCancelJob")));
     } finally {
       setCancelling((p) => {
         const n = new Set(p);
@@ -847,7 +849,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       );
       await load();
     } catch (e) {
-      toast.error(friendlyError(e, "No se pudo re-encolar"));
+      toast.error(friendlyError(e, t("hc_modulesAiUnifiedAiQueuePanel.errRequeue")));
     } finally {
       setRetrying((p) => {
         const n = new Set(p);
@@ -886,7 +888,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       const d = data as any;
       if (error || d?.ok === false) {
         const detail = await extractEdgeError(error, data);
-        toast.error(detail || "Error procesando el job");
+        toast.error(detail || t("hc_modulesAiUnifiedAiQueuePanel.errProcessJob"));
         return;
       }
       if (d?.processed === 0) {
@@ -911,7 +913,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       }
       await load();
     } catch (e) {
-      toast.error(friendlyError(e, "Error procesando el job"));
+      toast.error(friendlyError(e, t("hc_modulesAiUnifiedAiQueuePanel.errProcessJob")));
     } finally {
       setProcessing((p) => {
         const n = new Set(p);
@@ -956,7 +958,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       );
       await load();
     } catch (e) {
-      toast.error(friendlyError(e, "No se pudo drenar la cola"));
+      toast.error(friendlyError(e, t("hc_modulesAiUnifiedAiQueuePanel.errDrainQueue")));
     } finally {
       setDraining(false);
     }
@@ -992,7 +994,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       setRejectTarget(null);
       await load();
     } catch (e) {
-      toast.error(friendlyError(e, "No se pudo rechazar el job"));
+      toast.error(friendlyError(e, t("hc_modulesAiUnifiedAiQueuePanel.errRejectJob")));
     } finally {
       setRejecting(false);
     }
@@ -1012,7 +1014,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       );
       await load();
     } catch (e) {
-      toast.error(friendlyError(e, "No se pudo cerrar el rechazo"));
+      toast.error(friendlyError(e, t("hc_modulesAiUnifiedAiQueuePanel.errCloseRejection")));
     }
   };
 
@@ -1036,7 +1038,10 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
     );
     if (failures.length > 0) {
       throw new Error(
-        `No se pudieron cancelar ${failures.length} de ${ids.length} jobs. Reintentá.`,
+        t("hc_modulesAiUnifiedAiQueuePanel.errBulkCancel", {
+          failed: failures.length,
+          total: ids.length,
+        }),
       );
     }
     toast.success(
@@ -1196,7 +1201,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                 className="h-8 text-xs"
                 onClick={() => void drainAll()}
                 disabled={draining}
-                title="Drena las dos colas invocando ambos workers"
+                title={t("hc_modulesAiUnifiedAiQueuePanel.drainAllTooltip")}
               >
                 {draining ? (
                   <Spinner size="xs" className="mr-1" />
@@ -1211,7 +1216,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
               size="icon"
               className="h-8 w-8"
               onClick={() => setRetryNonce((n) => n + 1)}
-              title="Refrescar"
+              title={t("hc_modulesAiUnifiedAiQueuePanel.refreshTooltip")}
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             </Button>

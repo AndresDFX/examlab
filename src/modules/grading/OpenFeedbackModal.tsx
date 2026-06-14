@@ -17,6 +17,7 @@
  * schema cache).
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -86,6 +87,7 @@ interface Props {
 type GroupBy = "type" | "student";
 
 export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Props) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [threads, setThreads] = useState<ThreadRow[]>([]);
@@ -295,7 +297,7 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
           lastComment: lastC
             ? {
                 created_at: lastC.created_at,
-                authorName: nameById.get(lastC.user_id) ?? "Usuario",
+                authorName: nameById.get(lastC.user_id) ?? t("hc_modulesGradingOpenFeedbackModal.userFallback"),
                 userId: lastC.user_id,
                 authorRole: lastC.author_role,
               }
@@ -362,7 +364,7 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
       })
       .eq("id", t.id);
     if (error) {
-      toast.error(friendlyError(error, "No se pudo cerrar la conversación"));
+      toast.error(friendlyError(error, i18n.t("hc_modulesGradingOpenFeedbackModal.closeError")));
       return;
     }
     // Optimistic: sacamos del state.
@@ -437,7 +439,7 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
   const studentGroupsMap = new Map<string, { name: string; threads: ThreadRow[] }>();
   threads.forEach((t) => {
     const key = t.studentUserId ?? "__unknown__";
-    const name = t.studentName ?? "Estudiante desconocido";
+    const name = t.studentName ?? i18n.t("hc_modulesGradingOpenFeedbackModal.unknownStudent");
     const g = studentGroupsMap.get(key);
     if (g) g.threads.push(t);
     else studentGroupsMap.set(key, { name, threads: [t] });
@@ -457,10 +459,10 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
               <MessageSquareText className="h-5 w-5" />
             )}
             {filterMode === "needsMyResponse"
-              ? "Comentarios pendientes por respuesta"
+              ? t("hc_modulesGradingOpenFeedbackModal.titleNeedsMyResponse")
               : filterMode === "studentNeedsResponse"
-                ? "Conversaciones pendientes"
-                : "Comentarios abiertos"}
+                ? t("hc_modulesGradingOpenFeedbackModal.titleStudentNeedsResponse")
+                : t("hc_modulesGradingOpenFeedbackModal.titleOpen")}
             {!loading && (
               <Badge variant="secondary" className="text-[10px]">
                 {threads.length}
@@ -471,28 +473,28 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
 
         {loading ? (
           <div className="py-8 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
-            <Spinner size="md" /> Cargando…
+            <Spinner size="md" /> {t("hc_modulesGradingOpenFeedbackModal.loading")}
           </div>
         ) : threads.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             {filterMode === "needsMyResponse"
-              ? "Ningún estudiante está esperando respuesta tuya 🎉"
+              ? t("hc_modulesGradingOpenFeedbackModal.emptyNeedsMyResponse")
               : filterMode === "studentNeedsResponse"
-                ? "No tienes conversaciones pendientes por responder 🎉"
-                : "No hay comentarios abiertos 🎉"}
+                ? t("hc_modulesGradingOpenFeedbackModal.emptyStudentNeedsResponse")
+                : t("hc_modulesGradingOpenFeedbackModal.emptyOpen")}
           </p>
         ) : (
           <div className="space-y-4 min-w-0">
             {/* Toggle de agrupación */}
             <div className="flex items-center gap-1 text-xs">
-              <span className="text-muted-foreground mr-1">Agrupar por:</span>
+              <span className="text-muted-foreground mr-1">{t("hc_modulesGradingOpenFeedbackModal.groupBy")}</span>
               <Button
                 size="sm"
                 variant={groupBy === "type" ? "secondary" : "ghost"}
                 className="h-7 px-2"
                 onClick={() => setGroupBy("type")}
               >
-                Tipo
+                {t("hc_modulesGradingOpenFeedbackModal.groupByType")}
               </Button>
               <Button
                 size="sm"
@@ -500,7 +502,7 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
                 className="h-7 px-2"
                 onClick={() => setGroupBy("student")}
               >
-                Estudiante
+                {t("hc_modulesGradingOpenFeedbackModal.groupByStudent")}
               </Button>
             </div>
 
@@ -509,7 +511,7 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
                 {groupsByType.exam.length > 0 && (
                   <Section
                     icon={FileText}
-                    title="Exámenes"
+                    title={t("hc_modulesGradingOpenFeedbackModal.sectionExams")}
                     color="text-violet-500 dark:text-violet-400"
                     count={groupsByType.exam.length}
                   >
@@ -526,7 +528,7 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
                 {groupsByType.workshop.length > 0 && (
                   <Section
                     icon={Hammer}
-                    title="Talleres"
+                    title={t("hc_modulesGradingOpenFeedbackModal.sectionWorkshops")}
                     color="text-amber-500 dark:text-amber-400"
                     count={groupsByType.workshop.length}
                   >
@@ -543,7 +545,7 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
                 {groupsByType.project.length > 0 && (
                   <Section
                     icon={FolderKanban}
-                    title="Proyectos"
+                    title={t("hc_modulesGradingOpenFeedbackModal.sectionProjects")}
                     color="text-rose-500 dark:text-rose-400"
                     count={groupsByType.project.length}
                   >
@@ -627,16 +629,17 @@ function ThreadRowItem({
   onClose?: () => void;
   hideStudent?: boolean;
 }) {
+  const { t } = useTranslation();
   const lastWhen = thread.lastComment?.created_at ?? thread.created_at;
   const lastAuthor = thread.lastComment?.authorName;
   // En el modo "Por estudiante" el nombre ya es el header de la sección,
   // así que el título de la fila pasa a ser el ref (examen/taller/proyecto).
   const primary = hideStudent
-    ? (thread.refTitle ?? "(eliminado)")
-    : (thread.studentName ?? "Estudiante");
+    ? (thread.refTitle ?? t("hc_modulesGradingOpenFeedbackModal.deleted"))
+    : (thread.studentName ?? t("hc_modulesGradingOpenFeedbackModal.student"));
   const secondary = hideStudent
     ? thread.courseName ?? ""
-    : `${thread.courseName ? `${thread.courseName} · ` : ""}${thread.refTitle ?? "(eliminado)"}`;
+    : `${thread.courseName ? `${thread.courseName} · ` : ""}${thread.refTitle ?? t("hc_modulesGradingOpenFeedbackModal.deleted")}`;
   return (
     <div className="flex w-full min-w-0 items-center gap-2 rounded-md border p-2.5">
       <div className="min-w-0 flex-1 space-y-0.5 overflow-hidden">
@@ -648,7 +651,7 @@ function ThreadRowItem({
           </div>
         )}
         <div className="text-[10px] text-muted-foreground/70 truncate tabular-nums">
-          {lastAuthor ? `Último: ${lastAuthor} · ` : ""}
+          {lastAuthor ? t("hc_modulesGradingOpenFeedbackModal.lastAuthor", { author: lastAuthor }) : ""}
           {formatDateTime(lastWhen)}
         </div>
       </div>
@@ -662,14 +665,14 @@ function ThreadRowItem({
             variant="ghost"
             className="h-8 w-8 p-0"
             onClick={onClose}
-            aria-label="Cerrar conversación"
-            title="Cerrar conversación"
+            aria-label={t("hc_modulesGradingOpenFeedbackModal.closeConversation")}
+            title={t("hc_modulesGradingOpenFeedbackModal.closeConversation")}
           >
             <Lock className="h-3.5 w-3.5" />
           </Button>
         )}
         <Button size="sm" variant="outline" onClick={onGo}>
-          Ir <ArrowRight className="h-3 w-3 ml-1" />
+          {t("hc_modulesGradingOpenFeedbackModal.go")} <ArrowRight className="h-3 w-3 ml-1" />
         </Button>
       </div>
     </div>

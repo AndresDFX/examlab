@@ -6,6 +6,7 @@
  * contra `project_groups` y `project_group_members`.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,6 @@ import { Plus, Trash2, GripVertical, Users, ArrowRightLeft, Check } from "lucide
 import { Spinner } from "@/components/ui/spinner";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
-import i18n from "@/i18n";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +43,7 @@ interface Props {
 const UNASSIGNED = "__unassigned__";
 
 export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
+  const { t } = useTranslation();
   const confirm = useConfirm();
   const [students, setStudents] = useState<Student[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -124,11 +125,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
   const createGroup = async () => {
     const name = newGroupName.trim();
     if (!name) {
-      toast.error(
-        i18n.t("toast.modules_projects_ProjectGroupsEditor.groupNameRequired", {
-          defaultValue: "Ponle un nombre al grupo",
-        }),
-      );
+      toast.error(t("hc_modulesProjectsProjectGroupsEditor.groupNameRequired"));
       return;
     }
     setCreating(true);
@@ -148,12 +145,14 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
   const deleteGroup = async (g: Group) => {
     const memberCount = (studentsByGroup.get(g.id) ?? []).length;
     const ok = await confirm({
-      title: `Eliminar grupo "${g.name}"`,
+      title: t("hc_modulesProjectsProjectGroupsEditor.deleteGroupTitle", { name: g.name }),
       description:
         memberCount > 0
-          ? `Tiene ${memberCount} miembro(s). Quedarán sin grupo. La entrega del grupo (si existe) se mantiene pero perderá la asociación. Esta acción no se puede deshacer.`
-          : "Esta acción no se puede deshacer.",
-      confirmLabel: "Eliminar",
+          ? t("hc_modulesProjectsProjectGroupsEditor.deleteGroupDescWithMembers", {
+              count: memberCount,
+            })
+          : t("hc_modulesProjectsProjectGroupsEditor.deleteGroupDescEmpty"),
+      confirmLabel: t("hc_modulesProjectsProjectGroupsEditor.delete"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -233,15 +232,13 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Users className="h-4 w-4 text-primary" />
-            Grupos del proyecto
+            {t("hc_modulesProjectsProjectGroupsEditor.projectGroupsTitle")}
             <Badge variant="secondary" className="text-[10px]">
               {groups.length}
             </Badge>
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Crea grupos y arrastra estudiantes. Pueden coexistir miembros con grupo (entregan en
-            grupo) y sin grupo (entregan individual) en el mismo proyecto. Cada estudiante puede
-            pertenecer a un solo grupo a la vez.
+            {t("hc_modulesProjectsProjectGroupsEditor.projectGroupsHelp")}
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -249,7 +246,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
             <Input
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
-              placeholder="Nombre del grupo (ej. Grupo 1)"
+              placeholder={t("hc_modulesProjectsProjectGroupsEditor.groupNamePlaceholder")}
               onKeyDown={(e) => e.key === "Enter" && void createGroup()}
               className="flex-1"
             />
@@ -259,7 +256,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
               ) : (
                 <Plus className="h-4 w-4 mr-1" />
               )}
-              Crear grupo
+              {t("hc_modulesProjectsProjectGroupsEditor.createGroup")}
             </Button>
           </div>
         </CardContent>
@@ -268,7 +265,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
       {loading ? (
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-            <Spinner size="md" /> Cargando…
+            <Spinner size="md" /> {t("hc_modulesProjectsProjectGroupsEditor.loading")}
           </CardContent>
         </Card>
       ) : (
@@ -285,20 +282,19 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
           >
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
-                Sin grupo (entrega individual)
+                {t("hc_modulesProjectsProjectGroupsEditor.unassignedTitle")}
                 <Badge variant="outline" className="text-[10px]">
                   {unassigned.length}
                 </Badge>
               </CardTitle>
               <p className="text-[10px] text-muted-foreground">
-                Estos estudiantes entregan el proyecto individualmente. Arrastra a un grupo para
-                cambiar.
+                {t("hc_modulesProjectsProjectGroupsEditor.unassignedHelp")}
               </p>
             </CardHeader>
             <CardContent className="space-y-1.5 min-h-[80px]">
               {unassigned.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">
-                  Todos los estudiantes están en algún grupo.
+                  {t("hc_modulesProjectsProjectGroupsEditor.allStudentsInGroups")}
                 </p>
               ) : (
                 unassigned.map((s) => (
@@ -321,7 +317,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
             {groups.length === 0 && (
               <Card>
                 <CardContent className="p-6 text-sm text-muted-foreground text-center">
-                  Sin grupos creados. Empieza creando uno arriba y arrastra estudiantes.
+                  {t("hc_modulesProjectsProjectGroupsEditor.noGroupsCreated")}
                 </CardContent>
               </Card>
             )}
@@ -340,7 +336,9 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
                     <CardTitle className="text-sm flex items-center gap-2">
                       {g.name}
                       <Badge variant="outline" className="text-[10px]">
-                        {ms.length} miembro{ms.length === 1 ? "" : "s"}
+                        {t("hc_modulesProjectsProjectGroupsEditor.memberCount", {
+                          count: ms.length,
+                        })}
                       </Badge>
                     </CardTitle>
                     <Button
@@ -348,7 +346,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
                       size="icon"
                       className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
                       onClick={() => deleteGroup(g)}
-                      title="Eliminar grupo"
+                      title={t("hc_modulesProjectsProjectGroupsEditor.deleteGroupTooltip")}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -356,7 +354,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
                   <CardContent className="space-y-1.5 min-h-[60px]">
                     {ms.length === 0 ? (
                       <p className="text-xs text-muted-foreground italic">
-                        Arrastra estudiantes aquí.
+                        {t("hc_modulesProjectsProjectGroupsEditor.dragStudentsHere")}
                       </p>
                     ) : (
                       ms.map((s) => (
@@ -410,6 +408,7 @@ function DraggableStudent({
   currentGroupId: string | null;
   onMoveTo: (target: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       draggable
@@ -432,8 +431,8 @@ function DraggableStudent({
             variant="ghost"
             size="icon"
             className="h-7 w-7 shrink-0"
-            aria-label="Mover a otro grupo"
-            title="Mover a otro grupo"
+            aria-label={t("hc_modulesProjectsProjectGroupsEditor.moveToOtherGroup")}
+            title={t("hc_modulesProjectsProjectGroupsEditor.moveToOtherGroup")}
             // Evita que el drag se dispare al pulsar el botón.
             onPointerDown={(e) => e.stopPropagation()}
           >
@@ -441,7 +440,7 @@ function DraggableStudent({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>Mover a…</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("hc_modulesProjectsProjectGroupsEditor.moveTo")}</DropdownMenuLabel>
           <DropdownMenuItem
             onClick={() => onMoveTo(UNASSIGNED)}
             disabled={currentGroupId === null}
@@ -451,7 +450,7 @@ function DraggableStudent({
             ) : (
               <span className="w-3.5 mr-2" />
             )}
-            Sin grupo
+            {t("hc_modulesProjectsProjectGroupsEditor.noGroup")}
           </DropdownMenuItem>
           {groups.length > 0 && <DropdownMenuSeparator />}
           {groups.map((g) => (

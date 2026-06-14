@@ -155,7 +155,7 @@ function ForumThreads() {
     ]);
     if (cErr || fErr || tErr) {
       setLoadError(
-        friendlyError(cErr ?? fErr ?? tErr, "No pudimos cargar este foro."),
+        friendlyError(cErr ?? fErr ?? tErr, t("hc_routesAppForumCourseIdForumId.loadForumError")),
       );
       setLoading(false);
       return;
@@ -380,7 +380,7 @@ function ForumThreads() {
               <Input
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="¿Cuál es tu duda? Sé concreto."
+                placeholder={t("hc_routesAppForumCourseIdForumId.titlePlaceholder")}
                 maxLength={200}
               />
             </div>
@@ -389,7 +389,7 @@ function ForumThreads() {
               <Textarea
                 value={newBody}
                 onChange={(e) => setNewBody(e.target.value)}
-                placeholder="Describe tu pregunta. Soporta Markdown."
+                placeholder={t("hc_routesAppForumCourseIdForumId.bodyPlaceholder")}
                 rows={8}
                 maxLength={20000}
                 className="font-mono text-sm"
@@ -400,7 +400,7 @@ function ForumThreads() {
               <Input
                 value={newTagsRaw}
                 onChange={(e) => setNewTagsRaw(e.target.value)}
-                placeholder="recursividad, parcial1, java"
+                placeholder={t("hc_routesAppForumCourseIdForumId.tagsPlaceholder")}
               />
             </div>
           </div>

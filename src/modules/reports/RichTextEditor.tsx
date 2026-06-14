@@ -15,6 +15,7 @@
  * vía ref (inserta el `{{placeholder}}` como texto en el cursor).
  */
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/shared/lib/utils";
 import {
@@ -46,6 +47,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, Props>(function R
   { value, onChange, className, placeholder },
   ref,
 ) {
+  const { t } = useTranslation();
   const elRef = useRef<HTMLDivElement>(null);
   // Última selección dentro del editor — para que el insert del catálogo
   // (que ocurre tras hacer click en el sidebar y perder el foco del editor)
@@ -132,19 +134,19 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, Props>(function R
   return (
     <div className={cn("rounded-md border", className)}>
       <div className="flex flex-wrap items-center gap-0.5 border-b bg-muted/30 px-1 py-1">
-        <ToolbarBtn icon={Bold} label="Negrita" onClick={() => exec("bold")} />
-        <ToolbarBtn icon={Italic} label="Itálica" onClick={() => exec("italic")} />
-        <ToolbarBtn icon={UnderlineIcon} label="Subrayado" onClick={() => exec("underline")} />
+        <ToolbarBtn icon={Bold} label={t("hc_modulesReportsRichTextEditor.bold")} onClick={() => exec("bold")} />
+        <ToolbarBtn icon={Italic} label={t("hc_modulesReportsRichTextEditor.italic")} onClick={() => exec("italic")} />
+        <ToolbarBtn icon={UnderlineIcon} label={t("hc_modulesReportsRichTextEditor.underline")} onClick={() => exec("underline")} />
         <span className="mx-1 h-4 w-px bg-border" />
-        <ToolbarBtn icon={Heading1} label="Título 1" onClick={() => exec("formatBlock", "h1")} />
-        <ToolbarBtn icon={Heading2} label="Título 2" onClick={() => exec("formatBlock", "h2")} />
-        <ToolbarBtn icon={Heading3} label="Título 3" onClick={() => exec("formatBlock", "h3")} />
-        <ToolbarBtn icon={Pilcrow} label="Párrafo" onClick={() => exec("formatBlock", "p")} />
+        <ToolbarBtn icon={Heading1} label={t("hc_modulesReportsRichTextEditor.heading1")} onClick={() => exec("formatBlock", "h1")} />
+        <ToolbarBtn icon={Heading2} label={t("hc_modulesReportsRichTextEditor.heading2")} onClick={() => exec("formatBlock", "h2")} />
+        <ToolbarBtn icon={Heading3} label={t("hc_modulesReportsRichTextEditor.heading3")} onClick={() => exec("formatBlock", "h3")} />
+        <ToolbarBtn icon={Pilcrow} label={t("hc_modulesReportsRichTextEditor.paragraph")} onClick={() => exec("formatBlock", "p")} />
         <span className="mx-1 h-4 w-px bg-border" />
-        <ToolbarBtn icon={List} label="Lista con viñetas" onClick={() => exec("insertUnorderedList")} />
-        <ToolbarBtn icon={ListOrdered} label="Lista numerada" onClick={() => exec("insertOrderedList")} />
+        <ToolbarBtn icon={List} label={t("hc_modulesReportsRichTextEditor.bulletList")} onClick={() => exec("insertUnorderedList")} />
+        <ToolbarBtn icon={ListOrdered} label={t("hc_modulesReportsRichTextEditor.numberedList")} onClick={() => exec("insertOrderedList")} />
         <span className="mx-1 h-4 w-px bg-border" />
-        <ToolbarBtn icon={Eraser} label="Quitar formato" onClick={() => exec("removeFormat")} />
+        <ToolbarBtn icon={Eraser} label={t("hc_modulesReportsRichTextEditor.clearFormat")} onClick={() => exec("removeFormat")} />
       </div>
       <div
         ref={elRef}

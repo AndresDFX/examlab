@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { useNotifications } from "@/hooks/use-notifications";
@@ -59,7 +60,7 @@ import { useKahootCourseLeaderboard } from "@/modules/polls/use-kahoot-course-le
  *  concepto puramente UI. */
 function relativeAge(iso: string): string {
   const diffMin = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (diffMin < 1) return "ahora";
+  if (diffMin < 1) return i18n.t("hc_routesAppIndex.relativeNow");
   if (diffMin < 60) return `${diffMin}m`;
   const diffH = Math.floor(diffMin / 60);
   if (diffH < 24) return `${diffH}h`;
@@ -390,13 +391,13 @@ function AdminDashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <BookOpen className="h-4 w-4 text-fuchsia-500 dark:text-fuchsia-400" />
-              Cursos recientes
+              {t("hc_routesAppIndex.recentCourses")}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
             <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
               {recentCourses.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">Sin cursos creados todavía.</p>
+                <p className="text-sm text-muted-foreground py-2">{t("hc_routesAppIndex.noCoursesYet")}</p>
               ) : (
                 recentCourses.map((c) => (
                   <EventRow
@@ -410,7 +411,7 @@ function AdminDashboard() {
             </div>
             <Link to="/app/admin/courses" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs mt-1">
-                Ver todos <ArrowRight className="h-3 w-3 ml-1" />
+                {t("hc_routesAppIndex.viewAll")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
           </CardContent>
@@ -422,14 +423,14 @@ function AdminDashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <CircleCheck className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-              Actividad reciente
+              {t("hc_routesAppIndex.recentActivity")}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
             <div className="flex-1 overflow-y-auto min-h-0 pr-1">
               {recentEvents.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
-                  Sin eventos registrados todavía.
+                  {t("hc_routesAppIndex.noEventsYet")}
                 </p>
               ) : (
                 <ul className="space-y-1.5">
@@ -451,7 +452,7 @@ function AdminDashboard() {
                             {ev.action}
                           </div>
                           <div className="text-[11px] text-muted-foreground truncate">
-                            {ev.actor_email ?? "sistema"}
+                            {ev.actor_email ?? t("hc_routesAppIndex.system")}
                             {ev.entity_name ? ` · ${ev.entity_name}` : ""} ·{" "}
                             {relativeAge(ev.created_at)}
                           </div>
@@ -664,7 +665,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
             o activar la ventana sincrónica con un código override. */}
         <Stat
           icon={ListOrdered}
-          label="Cola (pendientes)"
+          label={t("hc_routesAppIndex.queuePending")}
           value={counts.aiPendingJobs}
           color="text-indigo-500 dark:text-indigo-400"
           onClick={() => void navigate({ to: "/app/teacher/ai-cron" })}
@@ -1366,6 +1367,7 @@ function EventRow({
  * a "Ver como" o a editar.
  */
 function SuperAdminDashboard() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [stats, setStats] = useState({
     tenantsActive: 0,
@@ -1521,34 +1523,34 @@ function SuperAdminDashboard() {
           dashboards (Admin/Teacher/Student) los mantienen. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat
-          label="Instituciones"
+          label={t("hc_routesAppIndex.institutions")}
           value={loading ? "—" : stats.tenantsActive}
           sub={
             stats.tenantsInactive > 0
-              ? `${stats.tenantsInactive} pausada${stats.tenantsInactive === 1 ? "" : "s"}`
-              : "todas activas"
+              ? t("hc_routesAppIndex.tenantsPaused", { count: stats.tenantsInactive })
+              : t("hc_routesAppIndex.allActive")
           }
           onClick={() => void navigate({ to: "/app/superadmin/tenants" })}
         />
         <Stat
-          label="Usuarios"
+          label={t("hc_routesAppIndex.users")}
           value={loading ? "—" : stats.usersTotal}
-          sub="cross-tenant"
+          sub={t("hc_routesAppIndex.crossTenant")}
           onClick={() => void navigate({ to: "/app/admin/users" })}
         />
         <Stat
-          label="Cursos"
+          label={t("hc_routesAppIndex.courses")}
           value={loading ? "—" : stats.coursesTotal}
-          sub="cross-tenant"
+          sub={t("hc_routesAppIndex.crossTenant")}
           onClick={() => void navigate({ to: "/app/admin/courses" })}
         />
         <Stat
-          label="Cola IA"
+          label={t("hc_routesAppIndex.aiQueue")}
           value={loading ? "—" : stats.aiJobsPending}
           sub={
             stats.aiJobsFailed > 0
-              ? `${stats.aiJobsFailed} fallido${stats.aiJobsFailed === 1 ? "" : "s"}`
-              : "sin fallidos"
+              ? t("hc_routesAppIndex.aiQueueFailedCount", { count: stats.aiJobsFailed })
+              : t("hc_routesAppIndex.noFailed")
           }
           onClick={() => void navigate({ to: "/app/admin/ai-cron" })}
         />
@@ -1561,21 +1563,21 @@ function SuperAdminDashboard() {
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Building2 className="h-4 w-4 text-violet-500 dark:text-violet-400" />
-              Instituciones
+              {t("hc_routesAppIndex.institutions")}
             </CardTitle>
             <Link to="/app/superadmin/tenants">
               <Button variant="ghost" size="sm" className="h-7 text-xs">
-                Gestionar <ArrowRight className="h-3 w-3 ml-1" />
+                {t("hc_routesAppIndex.manage")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
             <div className="flex-1 overflow-y-auto min-h-0 pr-1">
               {loading ? (
-                <p className="text-sm text-muted-foreground py-2">Cargando…</p>
+                <p className="text-sm text-muted-foreground py-2">{t("hc_routesAppIndex.loading")}</p>
               ) : tenantStats.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
-                  Sin instituciones todavía. Crea la primera desde el panel.
+                  {t("hc_routesAppIndex.noInstitutionsYet")}
                 </p>
               ) : (
                 <ul className="space-y-1.5">
@@ -1589,7 +1591,7 @@ function SuperAdminDashboard() {
                           {tt.name}
                           {!tt.is_active && (
                             <Badge variant="outline" className="text-[10px] shrink-0">
-                              Pausada
+                              {t("hc_routesAppIndex.paused")}
                             </Badge>
                           )}
                         </div>
@@ -1598,12 +1600,8 @@ function SuperAdminDashboard() {
                             localStorage. Mostrar esa ruta era engañoso. */}
                       </div>
                       <div className="text-[11px] text-muted-foreground text-right shrink-0 tabular-nums">
-                        <div>
-                          {tt.userCount} usuario{tt.userCount === 1 ? "" : "s"}
-                        </div>
-                        <div>
-                          {tt.courseCount} curso{tt.courseCount === 1 ? "" : "s"}
-                        </div>
+                        <div>{t("hc_routesAppIndex.userCount", { count: tt.userCount })}</div>
+                        <div>{t("hc_routesAppIndex.courseCount", { count: tt.courseCount })}</div>
                       </div>
                     </li>
                   ))}
@@ -1612,8 +1610,7 @@ function SuperAdminDashboard() {
             </div>
             {stats.newTenants30d > 0 && !loading && (
               <p className="text-[11px] text-muted-foreground">
-                {stats.newTenants30d} nueva{stats.newTenants30d === 1 ? "" : "s"} en los últimos 30
-                días.
+                {t("hc_routesAppIndex.newTenants30d", { count: stats.newTenants30d })}
               </p>
             )}
           </CardContent>
@@ -1624,39 +1621,39 @@ function SuperAdminDashboard() {
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-              Salud del sistema
+              {t("hc_routesAppIndex.systemHealth")}
             </CardTitle>
             <Link to="/app/admin/audit-logs">
               <Button variant="ghost" size="sm" className="h-7 text-xs">
-                Auditoría <ArrowRight className="h-3 w-3 ml-1" />
+                {t("hc_routesAppIndex.audit")} <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
             <HealthRow
               icon={AlertTriangle}
-              label="Errores (24h)"
+              label={t("hc_routesAppIndex.errors24h")}
               value={loading ? "—" : stats.errors24h}
               tone={stats.errors24h > 0 ? "bad" : "good"}
               onClick={() => void navigate({ to: "/app/admin/audit-logs" })}
             />
             <HealthRow
               icon={ListOrdered}
-              label="Cola IA fallida"
+              label={t("hc_routesAppIndex.aiQueueFailed")}
               value={loading ? "—" : stats.aiJobsFailed}
               tone={stats.aiJobsFailed > 0 ? "warn" : "good"}
               onClick={() => void navigate({ to: "/app/admin/ai-cron" })}
             />
             <HealthRow
               icon={ListOrdered}
-              label="Cola IA pendiente"
+              label={t("hc_routesAppIndex.aiQueuePendingLabel")}
               value={loading ? "—" : stats.aiJobsPending}
               tone="neutral"
               onClick={() => void navigate({ to: "/app/admin/ai-cron" })}
             />
             <HealthRow
               icon={Send}
-              label="Entregas hoy"
+              label={t("hc_routesAppIndex.submissionsToday")}
               value={loading ? "—" : stats.submissionsToday}
               tone="neutral"
             />

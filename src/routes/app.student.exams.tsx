@@ -143,7 +143,7 @@ function StudentExams() {
         )
         .eq("user_id", user.id);
       if (asgErr) {
-        setLoadError(friendlyError(asgErr, "No pudimos cargar tus exámenes."));
+        setLoadError(friendlyError(asgErr, t("hc_routesAppStudentExams.loadErrorFallback")));
         return;
       }
       setLoadError(null);
@@ -333,7 +333,7 @@ function StudentExams() {
       <div className="space-y-5">
         <PageHeader icon={<FileText className="h-6 w-6" />} title={t("exam.title")} />
         <ErrorState
-          message="No pudimos cargar tus exámenes"
+          message={t("hc_routesAppStudentExams.loadErrorTitle")}
           hint={loadError}
           onRetry={() => void loadExams()}
         />
@@ -353,24 +353,32 @@ function StudentExams() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard
           icon={Play}
-          label="Disponibles"
+          label={t("hc_routesAppStudentExams.statAvailable")}
           value={stats.available}
           tone={stats.available > 0 ? "success" : "default"}
         />
         <StatCard
           icon={Clock}
-          label="En progreso"
+          label={t("hc_routesAppStudentExams.statInProgress")}
           value={stats.inProgress}
           tone={stats.inProgress > 0 ? "warning" : "default"}
         />
-        <StatCard icon={CheckCircle2} label="Completados" value={stats.completed} />
-        <StatCard icon={FileText} label="Próximos" value={stats.upcoming} />
+        <StatCard
+          icon={CheckCircle2}
+          label={t("hc_routesAppStudentExams.statCompleted")}
+          value={stats.completed}
+        />
+        <StatCard
+          icon={FileText}
+          label={t("hc_routesAppStudentExams.statUpcoming")}
+          value={stats.upcoming}
+        />
       </div>
 
       <ListFilters
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Buscar por examen o curso…"
+        searchPlaceholder={t("hc_routesAppStudentExams.searchPlaceholder")}
         courseId={courseFilter}
         onCourseChange={setCourseFilter}
         courses={availableCourses}
@@ -390,30 +398,56 @@ function StudentExams() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="available">Disponible</SelectItem>
-                <SelectItem value="upcoming">Próximo</SelectItem>
-                <SelectItem value="in_progress">En progreso</SelectItem>
-                <SelectItem value="completed">Completado</SelectItem>
-                <SelectItem value="closed">Cerrado</SelectItem>
+                <SelectItem value="all">{t("hc_routesAppStudentExams.filterAllStatuses")}</SelectItem>
+                <SelectItem value="available">
+                  {t("hc_routesAppStudentExams.filterAvailable")}
+                </SelectItem>
+                <SelectItem value="upcoming">
+                  {t("hc_routesAppStudentExams.filterUpcoming")}
+                </SelectItem>
+                <SelectItem value="in_progress">
+                  {t("hc_routesAppStudentExams.filterInProgress")}
+                </SelectItem>
+                <SelectItem value="completed">
+                  {t("hc_routesAppStudentExams.filterCompleted")}
+                </SelectItem>
+                <SelectItem value="closed">
+                  {t("hc_routesAppStudentExams.filterClosed")}
+                </SelectItem>
               </SelectContent>
             </Select>
             <div className="w-full sm:w-44">
-              <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Desde…" />
+              <DatePicker
+                value={dateFrom}
+                onChange={setDateFrom}
+                placeholder={t("hc_routesAppStudentExams.dateFromPlaceholder")}
+              />
             </div>
             <div className="w-full sm:w-44">
-              <DatePicker value={dateTo} onChange={setDateTo} placeholder="Hasta…" />
+              <DatePicker
+                value={dateTo}
+                onChange={setDateTo}
+                placeholder={t("hc_routesAppStudentExams.dateToPlaceholder")}
+              />
             </div>
             <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
               <SelectTrigger className="w-full sm:w-60">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="due_asc">Próximos primero (fecha)</SelectItem>
-                <SelectItem value="due_desc">Más lejanos primero</SelectItem>
-                <SelectItem value="start_asc">Inicio: ascendente</SelectItem>
-                <SelectItem value="start_desc">Inicio: descendente</SelectItem>
-                <SelectItem value="title_asc">Título A→Z</SelectItem>
+                <SelectItem value="due_asc">{t("hc_routesAppStudentExams.sortDueAsc")}</SelectItem>
+                <SelectItem value="due_desc">
+                  {t("hc_routesAppStudentExams.sortDueDesc")}
+                </SelectItem>
+                <SelectItem value="start_asc">
+                  {t("hc_routesAppStudentExams.sortStartAsc")}
+                </SelectItem>
+                <SelectItem value="start_desc">
+                  {t("hc_routesAppStudentExams.sortStartDesc")}
+                </SelectItem>
+                <SelectItem value="title_asc">
+                  {t("hc_routesAppStudentExams.sortTitleAsc")}
+                </SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -425,7 +459,7 @@ function StudentExams() {
           <div className="md:col-span-2 rounded-md border border-dashed bg-muted/20 p-6 text-center">
             <p className="text-sm text-muted-foreground">
               {hasActiveFilters
-                ? "Sin coincidencias con los filtros actuales."
+                ? t("hc_routesAppStudentExams.noFilterMatches")
                 : t("exam.noExamsAvailable")}
             </p>
             {hasActiveFilters && (
@@ -442,7 +476,7 @@ function StudentExams() {
                   setSortBy("due_asc");
                 }}
               >
-                Limpiar filtros
+                {t("hc_routesAppStudentExams.clearFilters")}
               </Button>
             )}
           </div>
@@ -513,8 +547,10 @@ function StudentExams() {
                     <span>{t("exam.duration", { min: exam.time_limit_minutes })}</span>
                     {maxAttempts > 1 && (
                       <Badge variant="outline" className="text-[10px] py-0 px-1.5">
-                        Intento {Math.min(attemptsUsed + (completed ? 0 : 1), maxAttempts)} de{" "}
-                        {maxAttempts}
+                        {t("hc_routesAppStudentExams.attemptCount", {
+                          current: Math.min(attemptsUsed + (completed ? 0 : 1), maxAttempts),
+                          max: maxAttempts,
+                        })}
                       </Badge>
                     )}
                   </div>
@@ -522,8 +558,10 @@ function StudentExams() {
                     <div className="flex items-center gap-1 mt-0.5">
                       <ShieldAlert className="h-3 w-3 text-destructive" />
                       <span className="text-destructive font-medium">
-                        {submission.focus_warnings}/{(exam as any).max_warnings ?? MAX_WARNINGS}{" "}
-                        strikes registrados
+                        {t("hc_routesAppStudentExams.strikesRegistered", {
+                          warnings: submission.focus_warnings,
+                          max: (exam as any).max_warnings ?? MAX_WARNINGS,
+                        })}
                       </span>
                     </div>
                   )}
@@ -542,7 +580,7 @@ function StudentExams() {
                     <Link to="/app/student/take/$examId" params={{ examId: exam.id }}>
                       <Button size="sm" className="w-full">
                         <Play className="h-4 w-4 mr-1" />
-                        Reintentar examen
+                        {t("hc_routesAppStudentExams.retryExam")}
                       </Button>
                     </Link>
                     <Link to="/app/student/review/$examId" params={{ examId: reviewExamId }}>
@@ -577,10 +615,10 @@ function StudentExams() {
                   <div className="space-y-2">
                     <Button size="sm" disabled variant="outline" className="w-full">
                       <Play className="h-4 w-4 mr-1" />
-                      Sin intentos disponibles
+                      {t("hc_routesAppStudentExams.noAttemptsLeft")}
                     </Button>
                     <p className="text-[11px] text-center text-muted-foreground leading-snug">
-                      Has agotado los {maxAttempts} intento(s) permitidos para este examen.
+                      {t("hc_routesAppStudentExams.noAttemptsLeftHelp", { max: maxAttempts })}
                     </p>
                   </div>
                 ) : isOpen &&
@@ -590,10 +628,10 @@ function StudentExams() {
                   <div className="space-y-2">
                     <Button size="sm" disabled variant="outline" className="w-full">
                       <ShieldAlert className="h-4 w-4 mr-1" />
-                      Examen suspendido
+                      {t("hc_routesAppStudentExams.examSuspended")}
                     </Button>
                     <p className="text-[11px] text-center text-muted-foreground leading-snug">
-                      Alcanzaste el máximo de advertencias. El docente puede revisar tu caso.
+                      {t("hc_routesAppStudentExams.examSuspendedHelp")}
                     </p>
                   </div>
                 ) : isOpen ? (
@@ -607,20 +645,20 @@ function StudentExams() {
                   <div className="space-y-2">
                     <Button size="sm" disabled variant="outline" className="w-full">
                       <Play className="h-4 w-4 mr-1" />
-                      Aún no disponible
+                      {t("hc_routesAppStudentExams.notYetAvailable")}
                     </Button>
                     <p className="text-[11px] text-center text-muted-foreground leading-snug">
-                      Este examen está próximo a empezar. Podrás acceder cuando abra la ventana.
+                      {t("hc_routesAppStudentExams.notYetAvailableHelp")}
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     <Button size="sm" disabled variant="outline" className="w-full">
                       <Play className="h-4 w-4 mr-1" />
-                      Examen cerrado
+                      {t("hc_routesAppStudentExams.examClosed")}
                     </Button>
                     <p className="text-[11px] text-center text-muted-foreground leading-snug">
-                      El periodo de este examen ya finalizó.
+                      {t("hc_routesAppStudentExams.examClosedHelp")}
                     </p>
                   </div>
                 )}
@@ -633,7 +671,10 @@ function StudentExams() {
       {/* Pagination — vive fuera del grid de cards. Visible cuando hay
           al menos un item; se oculta sola si totalItems=0. */}
       <div className="px-1">
-        <DataPagination state={pagination} entityNamePlural="exámenes" />
+        <DataPagination
+          state={pagination}
+          entityNamePlural={t("hc_routesAppStudentExams.entityNamePlural")}
+        />
       </div>
     </div>
   );

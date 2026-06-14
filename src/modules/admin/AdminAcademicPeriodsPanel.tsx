@@ -114,7 +114,7 @@ export function AdminAcademicPeriodsPanel() {
       .select("id, code, name, start_date, end_date, status, closed_at")
       .order("code", { ascending: false });
     if (error) {
-      setLoadError(friendlyError(error, "No pudimos cargar los periodos."));
+      setLoadError(friendlyError(error, t("hc_modulesAdminAdminAcademicPeriodsPanel.loadFallback")));
       setLoading(false);
       return;
     }
@@ -199,7 +199,7 @@ export function AdminAcademicPeriodsPanel() {
       : await db.from("academic_periods").insert(payload);
     setSaving(false);
     if (error) {
-      toast.error(friendlyError(error, "No se pudo guardar el periodo"));
+      toast.error(friendlyError(error, t("hc_modulesAdminAdminAcademicPeriodsPanel.saveFallback")));
       return;
     }
     void logEvent({
@@ -401,7 +401,7 @@ export function AdminAcademicPeriodsPanel() {
               <Input
                 value={draft.code}
                 onChange={(e) => setDraft({ ...draft, code: e.target.value })}
-                placeholder="Ej: 2026-1, 2026-T2, 2026"
+                placeholder={t("hc_modulesAdminAdminAcademicPeriodsPanel.codePlaceholder")}
               />
             </div>
             <div className="space-y-1">
@@ -409,7 +409,7 @@ export function AdminAcademicPeriodsPanel() {
               <Input
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                placeholder="Ej: Primer semestre 2026, Trimestre II, Año lectivo 2026"
+                placeholder={t("hc_modulesAdminAdminAcademicPeriodsPanel.namePlaceholder")}
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

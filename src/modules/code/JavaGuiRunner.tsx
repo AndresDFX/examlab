@@ -24,7 +24,8 @@
  * preguntas de tipo "código".
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useTranslation, Trans } from "react-i18next";
+import i18n from "@/i18n";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -89,7 +90,10 @@ function loadToolsJar(): Promise<Uint8Array> {
   if (window.__toolsJarLoading) return window.__toolsJarLoading;
   const p = (async () => {
     const r = await fetch(TOOLS_JAR_URL);
-    if (!r.ok) throw new Error(`No se pudo descargar tools.jar (${r.status})`);
+    if (!r.ok)
+      throw new Error(
+        i18n.t("hc_modulesCodeJavaGuiRunner.errToolsJarDownload", { status: r.status }),
+      );
     const buf = await r.arrayBuffer();
     const bytes = new Uint8Array(buf);
     window.__toolsJarBytes = bytes;
@@ -182,7 +186,7 @@ function loadCheerpJ(): Promise<void> {
     const ready = async () => {
       try {
         if (typeof window.cheerpjInit !== "function") {
-          throw new Error("CheerpJ no expuso cheerpjInit");
+          throw new Error(i18n.t("hc_modulesCodeJavaGuiRunner.errCheerpNoInit"));
         }
         await window.cheerpjInit({ status: "none" });
         window.__cheerpjReady = true;
@@ -195,16 +199,20 @@ function loadCheerpJ(): Promise<void> {
     if (existing) {
       if (window.cheerpjInit) void ready();
       else existing.addEventListener("load", ready, { once: true });
-      existing.addEventListener("error", () => reject(new Error("No se pudo cargar CheerpJ")), {
-        once: true,
-      });
+      existing.addEventListener(
+        "error",
+        () => reject(new Error(i18n.t("hc_modulesCodeJavaGuiRunner.errCheerpLoad"))),
+        {
+          once: true,
+        },
+      );
       return;
     }
     const s = document.createElement("script");
     s.src = CHEERPJ_SRC;
     s.async = true;
     s.onload = ready;
-    s.onerror = () => reject(new Error("No se pudo cargar CheerpJ"));
+    s.onerror = () => reject(new Error(i18n.t("hc_modulesCodeJavaGuiRunner.errCheerpLoad")));
     document.head.appendChild(s);
   });
   // No envenenar el cache si la primera carga falla: el siguiente
@@ -408,12 +416,12 @@ export function JavaGuiRunner({
       if (signal.aborted) return;
       if (invokeErr || data?.error) {
         const detail = await extractEdgeError(invokeErr, data);
-        throw new Error(detail || "Error generando captura");
+        throw new Error(detail || t("hc_modulesCodeJavaGuiRunner.errCaptureGenerate"));
       }
       if (!data?.screenshotBase64) {
         throw new Error(
           (data?.stderr as string)?.trim() ||
-            "El runner no devolvió captura. Revisa que tu código compile y abra al menos una ventana visible.",
+            t("hc_modulesCodeJavaGuiRunner.errNoCapture"),
         );
       }
       setScreenshotData({
@@ -430,7 +438,7 @@ export function JavaGuiRunner({
       const msg = e instanceof Error ? e.message : "";
       if (msg === "__cancelled__") return;
       console.error("[JavaGuiRunner:screenshot]", e);
-      setError(e instanceof Error ? e.message : "Error ejecutando Java");
+      setError(e instanceof Error ? e.message : t("hc_modulesCodeJavaGuiRunner.errJavaRun"));
     } finally {
       // Solo desreferenciamos si el controller sigue siendo el nuestro
       // — si cancelRun ya lo borró o un nuevo run lo sobrescribió, no
@@ -455,7 +463,7 @@ export function JavaGuiRunner({
       await loadCheerpJ();
       setLoadingCJ(false);
       if (!displayRef.current || !consoleRef.current) {
-        throw new Error("Contenedor de visualización no disponible");
+        throw new Error(t("hc_modulesCodeJavaGuiRunner.errDisplayUnavailable"));
       }
 
       consoleRef.current.id = "console";
@@ -483,10 +491,10 @@ export function JavaGuiRunner({
       // qué nada funcionaba. Mejor un mensaje claro arriba.
       const addFile = window.cheerpOSAddStringFile ?? window.cheerpjAddStringFile;
       if (typeof addFile !== "function") {
-        throw new Error("CheerpJ no expone AddStringFile (carga incompleta)");
+        throw new Error(t("hc_modulesCodeJavaGuiRunner.errCheerpNoAddFile"));
       }
       if (typeof window.cheerpjRunMain !== "function") {
-        throw new Error("CheerpJ no expone runMain (carga incompleta)");
+        throw new Error(t("hc_modulesCodeJavaGuiRunner.errCheerpNoRunMain"));
       }
       addFile(sourcePath, enc.encode(source));
 
@@ -502,9 +510,7 @@ export function JavaGuiRunner({
         "/files/",
       );
       if (compileExit !== 0) {
-        throw new Error(
-          `Errores de compilación (revisa la consola). Asegúrate que la clase pública se llame ${className} y el código compile.`,
-        );
+        throw new Error(t("hc_modulesCodeJavaGuiRunner.errCompile", { className }));
       }
       // Antes ignorábamos el exit code del run: si la JVM lanzaba una
       // excepción no capturada en main (NullPointerException, etc.),
@@ -516,8 +522,8 @@ export function JavaGuiRunner({
         const runtimeLog = consoleRef.current?.textContent ?? "";
         throw new Error(
           runtimeLog.trim()
-            ? `Excepción en ejecución (exit ${runExit}). Revisa la consola.`
-            : `La JVM terminó con exit ${runExit} sin mensaje. ¿Tu main se ejecuta hasta el final?`,
+            ? t("hc_modulesCodeJavaGuiRunner.errRuntimeException", { runExit })
+            : t("hc_modulesCodeJavaGuiRunner.errJvmExitNoMessage", { runExit }),
         );
       }
       setHasRun(true);
@@ -525,7 +531,7 @@ export function JavaGuiRunner({
       const msg = e instanceof Error ? e.message : "";
       if (msg === "__cancelled__") return;
       console.error("[JavaGuiRunner]", e);
-      setError(e instanceof Error ? e.message : "Error ejecutando Java");
+      setError(e instanceof Error ? e.message : t("hc_modulesCodeJavaGuiRunner.errJavaRun"));
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
       setRunning(false);
@@ -742,10 +748,7 @@ export function JavaGuiRunner({
                           screenshotData.exitCode === 0 &&
                           screenshotData.pngBytes > 0 &&
                           screenshotData.pngBytes < 4000
-                            ? "\n[hint] La captura quedó vacía. Probablemente tu main terminó antes\n" +
-                              "       de que Swing pintara la ventana. Agrega al final de main:\n" +
-                              "         Thread.sleep(5000);  // o más, hasta que veas la ventana\n" +
-                              "       O usa SwingUtilities.invokeAndWait(...) en lugar de invokeLater."
+                            ? t("hc_modulesCodeJavaGuiRunner.consoleEmptyHint")
                             : "",
                         ]
                           .filter(Boolean)
@@ -793,7 +796,7 @@ export function JavaGuiRunner({
                       <>
                         <img
                           src={`data:image/png;base64,${screenshotData.png}`}
-                          alt="Captura de la ventana Swing renderizada en el servidor"
+                          alt={t("hc_modulesCodeJavaGuiRunner.captureAlt")}
                           className="max-w-full max-h-full object-contain"
                         />
                         {/* Banner inferior cuando el PNG es prácticamente
@@ -813,14 +816,15 @@ export function JavaGuiRunner({
                                 {t("javaGuiRunner.emptyPngTitle")}
                               </p>
                               <p className="text-amber-900 dark:text-amber-200 mt-0.5">
-                                Tu <code className="font-mono">main</code> terminó antes de que
-                                Swing pintara. Agrega{" "}
-                                <code className="font-mono">Thread.sleep(5000);</code> al final de{" "}
-                                <code className="font-mono">main</code> (con{" "}
-                                <code className="font-mono">throws Exception</code> en la firma), o
-                                envuelve la creación del JFrame en{" "}
-                                <code className="font-mono">SwingUtilities.invokeAndWait(...)</code>
-                                .
+                                <Trans
+                                  i18nKey="hc_modulesCodeJavaGuiRunner.emptyPngBody"
+                                  components={{
+                                    main: <code className="font-mono" />,
+                                    sleep: <code className="font-mono" />,
+                                    throws: <code className="font-mono" />,
+                                    invokeAndWait: <code className="font-mono" />,
+                                  }}
+                                />
                               </p>
                             </div>
                           )}

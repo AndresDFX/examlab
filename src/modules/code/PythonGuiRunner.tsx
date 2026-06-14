@@ -161,12 +161,12 @@ export function PythonGuiRunner({
       if (signal.aborted) return;
       if (invokeErr || data?.error) {
         const detail = await extractEdgeError(invokeErr, data);
-        throw new Error(detail || "Error generando captura");
+        throw new Error(detail || t("hc_modulesCodePythonGuiRunner.errCapture"));
       }
       if (!data?.screenshotBase64) {
         throw new Error(
           (data?.stderr as string)?.trim() ||
-            "El runner no devolvió captura. Revisa que tu código ejecute sin errores y abra al menos una ventana visible.",
+            t("hc_modulesCodePythonGuiRunner.errNoCapture"),
         );
       }
       setScreenshotData({
@@ -182,7 +182,7 @@ export function PythonGuiRunner({
       const msg = e instanceof Error ? e.message : "";
       if (msg === "__cancelled__") return;
       console.error("[PythonGuiRunner:screenshot]", e);
-      setError(e instanceof Error ? e.message : "Error ejecutando Python");
+      setError(e instanceof Error ? e.message : t("hc_modulesCodePythonGuiRunner.errRunning"));
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
       setRunning(false);
@@ -298,10 +298,7 @@ export function PythonGuiRunner({
                         screenshotData.exitCode === 0 &&
                         screenshotData.pngBytes > 0 &&
                         screenshotData.pngBytes < 4000
-                          ? "\n[hint] La captura quedó vacía. Probablemente tu script terminó antes\n" +
-                            "       de que tkinter pintara. Asegúrate de llamar `root.mainloop()`\n" +
-                            "       al final del código — el runner lo deja correr unos segundos\n" +
-                            "       y luego cierra la ventana automáticamente."
+                          ? "\n" + t("hc_modulesCodePythonGuiRunner.consoleEmptyHint")
                           : "",
                       ]
                         .filter(Boolean)
@@ -326,7 +323,7 @@ export function PythonGuiRunner({
                     <>
                       <img
                         src={`data:image/png;base64,${screenshotData.png}`}
-                        alt="Captura de la ventana tkinter renderizada en el servidor"
+                        alt={t("hc_modulesCodePythonGuiRunner.captureAlt")}
                         className="max-w-full max-h-full object-contain"
                       />
                       {/* Banner cuando el PNG es prácticamente vacío. Mismo
@@ -341,11 +338,11 @@ export function PythonGuiRunner({
                               {t("pythonGuiRunner.emptyPngTitle")}
                             </p>
                             <p className="text-amber-900 dark:text-amber-200 mt-0.5">
-                              Tu script terminó antes de que tkinter rendereara. Llama{" "}
-                              <code className="font-mono">root.mainloop()</code> al final — el
-                              runner cierra la ventana automáticamente unos segundos después, así
-                              que no necesitas un <code className="font-mono">destroy()</code>{" "}
-                              manual.
+                              {t("hc_modulesCodePythonGuiRunner.emptyPngBodyPre")}{" "}
+                              <code className="font-mono">root.mainloop()</code>{" "}
+                              {t("hc_modulesCodePythonGuiRunner.emptyPngBodyMid")}{" "}
+                              <code className="font-mono">destroy()</code>{" "}
+                              {t("hc_modulesCodePythonGuiRunner.emptyPngBodyPost")}
                             </p>
                           </div>
                         )}

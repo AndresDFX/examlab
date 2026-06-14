@@ -9,6 +9,7 @@
  * compilador / consola), no solo el código fuente.
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, AlertTriangle, Terminal } from "lucide-react";
@@ -33,6 +34,7 @@ type Execution = {
 };
 
 export function CodeRunOutput({ submissionId, questionId, userId }: Props) {
+  const { t } = useTranslation();
   const [exec, setExec] = useState<Execution | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -61,13 +63,13 @@ export function CodeRunOutput({ submissionId, questionId, userId }: Props) {
   }, [submissionId, questionId, userId]);
 
   if (loading) {
-    return <div className="text-[11px] text-muted-foreground italic">Cargando consola…</div>;
+    return <div className="text-[11px] text-muted-foreground italic">{t("hc_modulesCodeCodeRunOutput.loadingConsole")}</div>;
   }
   if (!exec) {
     return (
       <div className="text-[11px] text-muted-foreground italic flex items-center gap-1.5">
         <Terminal className="h-3 w-3" />
-        Sin ejecuciones registradas.
+        {t("hc_modulesCodeCodeRunOutput.noExecutions")}
       </div>
     );
   }
@@ -77,7 +79,7 @@ export function CodeRunOutput({ submissionId, questionId, userId }: Props) {
     <div className="space-y-1.5">
       <div className="flex items-center gap-2 text-[11px]">
         <Terminal className="h-3 w-3 text-muted-foreground" />
-        <span className="text-muted-foreground">Última ejecución</span>
+        <span className="text-muted-foreground">{t("hc_modulesCodeCodeRunOutput.lastExecution")}</span>
         {exec.language && (
           <Badge variant="outline" className="text-[9px]">
             {exec.language}
@@ -108,7 +110,7 @@ export function CodeRunOutput({ submissionId, questionId, userId }: Props) {
         </pre>
       )}
       {!exec.stdout?.trim() && !exec.stderr?.trim() && (
-        <p className="text-[10px] text-muted-foreground italic">(Sin salida en consola)</p>
+        <p className="text-[10px] text-muted-foreground italic">{t("hc_modulesCodeCodeRunOutput.noConsoleOutput")}</p>
       )}
     </div>
   );

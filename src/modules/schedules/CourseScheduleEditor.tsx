@@ -12,6 +12,7 @@
  * mismo día si así lo decide la institución).
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -36,7 +37,6 @@ import {
 import { toast } from "sonner";
 import { Plus, Trash2, CalendarClock, AlertTriangle } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
-import i18n from "@/i18n";
 import { logEvent } from "@/shared/lib/audit";
 import {
   blocksOverlap,
@@ -79,6 +79,7 @@ function newBlock(): Draft {
 }
 
 export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName }: Props) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [blocks, setBlocks] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(false);
@@ -97,7 +98,9 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
         .order("start_time");
       if (cancelled) return;
       if (error) {
-        toast.error(friendlyError(error, "No pudimos cargar el horario"));
+        toast.error(
+          friendlyError(error, t("hc_modulesSchedulesCourseScheduleEditor.loadScheduleError")),
+        );
         setLoading(false);
         return;
       }
@@ -152,8 +155,7 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
     for (const b of visible) {
       if (b.end_time <= b.start_time) {
         toast.error(
-          i18n.t("toast.modules_schedules_CourseScheduleEditor.endTimeAfterStart", {
-            defaultValue: "{{day}}: la hora de fin debe ser posterior a la de inicio.",
+          t("hc_modulesSchedulesCourseScheduleEditor.endTimeAfterStart", {
             day: DAY_LABELS[b.day_of_week],
           }),
         );
@@ -194,14 +196,12 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
         courseName,
         metadata: { blocks: visible.length },
       });
-      toast.success(
-        i18n.t("toast.modules_schedules_CourseScheduleEditor.scheduleSaved", {
-          defaultValue: "Horario guardado",
-        }),
-      );
+      toast.success(t("hc_modulesSchedulesCourseScheduleEditor.scheduleSaved"));
       onOpenChange(false);
     } catch (e) {
-      toast.error(friendlyError(e, "No se pudo guardar el horario"));
+      toast.error(
+        friendlyError(e, t("hc_modulesSchedulesCourseScheduleEditor.saveScheduleError")),
+      );
     } finally {
       setSaving(false);
     }
@@ -213,23 +213,22 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarClock className="h-5 w-5 text-cyan-500" />
-            Horario de {courseName}
+            {t("hc_modulesSchedulesCourseScheduleEditor.dialogTitle", { courseName })}
           </DialogTitle>
           <DialogDescription>
-            Bloques semanales recurrentes. Múltiples bloques permitidos. El curso se dicta cada
-            semana del periodo en los horarios definidos.
+            {t("hc_modulesSchedulesCourseScheduleEditor.dialogDescription")}
           </DialogDescription>
         </DialogHeader>
 
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
-            <Spinner size="sm" /> Cargando…
+            <Spinner size="sm" /> {t("hc_modulesSchedulesCourseScheduleEditor.loading")}
           </div>
         ) : (
           <div className="space-y-3">
             {visible.length === 0 ? (
               <div className="text-sm text-muted-foreground text-center py-6 border rounded-md border-dashed">
-                Aún no has definido bloques para este curso.
+                {t("hc_modulesSchedulesCourseScheduleEditor.emptyBlocks")}
               </div>
             ) : (
               <div className="space-y-2">
@@ -244,7 +243,7 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
                   >
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                        Día
+                        {t("hc_modulesSchedulesCourseScheduleEditor.labelDay")}
                       </Label>
                       <Select
                         value={String(b.day_of_week)}
@@ -266,7 +265,7 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
                     </div>
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                        Inicio
+                        {t("hc_modulesSchedulesCourseScheduleEditor.labelStart")}
                       </Label>
                       <Input
                         type="time"
@@ -277,7 +276,7 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
                     </div>
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                        Fin
+                        {t("hc_modulesSchedulesCourseScheduleEditor.labelEnd")}
                       </Label>
                       <Input
                         type="time"
@@ -288,7 +287,7 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
                     </div>
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                        Modalidad
+                        {t("hc_modulesSchedulesCourseScheduleEditor.labelModality")}
                       </Label>
                       <Select
                         value={b.modalidad}
@@ -298,20 +297,26 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="presencial">Presencial</SelectItem>
-                          <SelectItem value="virtual">Virtual</SelectItem>
-                          <SelectItem value="hibrida">Híbrida</SelectItem>
+                          <SelectItem value="presencial">
+                            {t("hc_modulesSchedulesCourseScheduleEditor.modalityPresencial")}
+                          </SelectItem>
+                          <SelectItem value="virtual">
+                            {t("hc_modulesSchedulesCourseScheduleEditor.modalityVirtual")}
+                          </SelectItem>
+                          <SelectItem value="hibrida">
+                            {t("hc_modulesSchedulesCourseScheduleEditor.modalityHibrida")}
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1 col-span-2 sm:col-span-1">
                       <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                        Aula / link
+                        {t("hc_modulesSchedulesCourseScheduleEditor.labelRoom")}
                       </Label>
                       <Input
                         value={b.aula ?? ""}
                         onChange={(e) => updateBlock(b._key, { aula: e.target.value })}
-                        placeholder="Aula 301 / Zoom link"
+                        placeholder={t("hc_modulesSchedulesCourseScheduleEditor.roomPlaceholder")}
                         className="h-8"
                       />
                     </div>
@@ -322,7 +327,7 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
                         variant="ghost"
                         className="h-8 w-8"
                         onClick={() => removeBlock(b._key)}
-                        title="Eliminar bloque"
+                        title={t("hc_modulesSchedulesCourseScheduleEditor.deleteBlock")}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -335,23 +340,25 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
             {overlapKeys.size > 0 && (
               <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                Algunos bloques se solapan en horario. Revisa antes de guardar (no es bloqueante).
+                {t("hc_modulesSchedulesCourseScheduleEditor.overlapWarning")}
               </div>
             )}
 
             <Button type="button" variant="outline" size="sm" onClick={addBlock}>
               <Plus className="h-3.5 w-3.5 mr-1" />
-              Agregar bloque
+              {t("hc_modulesSchedulesCourseScheduleEditor.addBlock")}
             </Button>
           </div>
         )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancelar
+            {t("hc_modulesSchedulesCourseScheduleEditor.cancel")}
           </Button>
           <Button onClick={() => void save()} disabled={saving || loading}>
-            {saving ? "Guardando…" : "Guardar horario"}
+            {saving
+              ? t("hc_modulesSchedulesCourseScheduleEditor.saving")
+              : t("hc_modulesSchedulesCourseScheduleEditor.saveSchedule")}
           </Button>
         </DialogFooter>
       </DialogContent>

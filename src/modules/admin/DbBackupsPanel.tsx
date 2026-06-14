@@ -126,7 +126,7 @@ export function DbBackupsPanel() {
       .order("created_at", { ascending: false })
       .limit(100);
     if (error) {
-      setLoadError(friendlyError(error, "No pudimos cargar los backups."));
+      setLoadError(friendlyError(error, t("hc_modulesAdminDbBackupsPanel.loadBackupsError")));
       setLoading(false);
       return;
     }
@@ -179,7 +179,7 @@ export function DbBackupsPanel() {
     const { data, error } = await db.rpc("admin_list_backupable_tables");
     setLoadingTables(false);
     if (error) {
-      toast.error(friendlyError(error, "No pudimos cargar las tablas disponibles."));
+      toast.error(friendlyError(error, t("hc_modulesAdminDbBackupsPanel.loadTablesError")));
       return;
     }
     const infos = (data ?? []) as TableInfo[];
@@ -237,7 +237,9 @@ export function DbBackupsPanel() {
           if (invErr || (invData as { error?: string })?.error) {
             const detail = await extractEdgeError(invErr, invData);
             toast.error(
-              friendlyError(invErr ?? new Error(detail || "No se pudo iniciar el backup")),
+              friendlyError(
+                invErr ?? new Error(detail || t("hc_modulesAdminDbBackupsPanel.backupStartFailed")),
+              ),
             );
           }
         });
@@ -273,7 +275,7 @@ export function DbBackupsPanel() {
       .from("db-backups")
       .createSignedUrl(row.file_path, 300);
     if (error || !data?.signedUrl) {
-      toast.error(friendlyError(error, "No se pudo generar la URL de descarga."));
+      toast.error(friendlyError(error, t("hc_modulesAdminDbBackupsPanel.signedUrlError")));
       return;
     }
     // Forzamos la descarga con `download` attr — sin esto el browser
@@ -289,12 +291,12 @@ export function DbBackupsPanel() {
   // ─── Borrar backup ──────────────────────────────────────────────────
   const deleteBackup = async (row: BackupRow) => {
     const ok = await confirm({
-      title: `¿Borrar este backup?`,
+      title: t("hc_modulesAdminDbBackupsPanel.deleteConfirmTitle"),
       description: row.file_path
-        ? `Se eliminará el archivo del bucket y la fila de control. Esta acción no se puede deshacer.`
-        : `Se eliminará la fila de control. Esta acción no se puede deshacer.`,
+        ? t("hc_modulesAdminDbBackupsPanel.deleteConfirmDescWithFile")
+        : t("hc_modulesAdminDbBackupsPanel.deleteConfirmDescNoFile"),
       tone: "destructive",
-      confirmLabel: "Borrar",
+      confirmLabel: t("hc_modulesAdminDbBackupsPanel.deleteConfirmLabel"),
     });
     if (!ok) return;
     const { error } = await db.rpc("admin_delete_db_backup", { _id: row.id });
@@ -319,7 +321,9 @@ export function DbBackupsPanel() {
     });
     if (error || (data as { error?: string })?.error) {
       const detail = await extractEdgeError(error, data);
-      toast.error(friendlyError(error ?? new Error(detail || "Falló el backup")));
+      toast.error(
+        friendlyError(error ?? new Error(detail || t("hc_modulesAdminDbBackupsPanel.backupFailed"))),
+      );
       return;
     }
     toast.success(
@@ -334,7 +338,7 @@ export function DbBackupsPanel() {
   if (loadError) {
     return (
       <ErrorState
-        message="No pudimos cargar los backups"
+        message={t("hc_modulesAdminDbBackupsPanel.loadBackupsErrorTitle")}
         hint={loadError}
         onRetry={() => setRetryNonce((n) => n + 1)}
       />
@@ -347,14 +351,14 @@ export function DbBackupsPanel() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Database className="h-4 w-4 text-indigo-500" />
-            Backups de la base de datos
+            {t("hc_modulesAdminDbBackupsPanel.cardTitle")}
             <HelpHint>{t("help.backupSnapshotsExplanation")}</HelpHint>
             <Button
               variant="ghost"
               size="icon"
               className="h-6 w-6 ml-auto"
               onClick={() => void load()}
-              title="Refrescar"
+              title={t("hc_modulesAdminDbBackupsPanel.refresh")}
             >
               <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
             </Button>
@@ -364,25 +368,25 @@ export function DbBackupsPanel() {
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <Stat
-              label="Total backups"
+              label={t("hc_modulesAdminDbBackupsPanel.statTotal")}
               value={String(stats.total)}
               color="text-foreground"
               bg="bg-muted/30"
             />
             <Stat
-              label="Exitosos"
+              label={t("hc_modulesAdminDbBackupsPanel.statSuccessful")}
               value={String(stats.successful)}
               color="text-emerald-600 dark:text-emerald-400"
               bg="bg-emerald-500/10"
             />
             <Stat
-              label="Espacio usado"
+              label={t("hc_modulesAdminDbBackupsPanel.statUsedSpace")}
               value={formatBytes(stats.totalBytes)}
               color="text-sky-600 dark:text-sky-400"
               bg="bg-sky-500/10"
             />
             <Stat
-              label="Último exitoso"
+              label={t("hc_modulesAdminDbBackupsPanel.statLastSuccessful")}
               value={stats.lastDoneAt ? formatDateTime(stats.lastDoneAt) : "—"}
               color="text-foreground"
               bg="bg-muted/30"
@@ -393,19 +397,17 @@ export function DbBackupsPanel() {
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" onClick={() => void openCreateDialog()}>
               <Plus className="h-3.5 w-3.5 mr-1" />
-              Crear backup
+              {t("hc_modulesAdminDbBackupsPanel.createBackup")}
             </Button>
             <span className="text-[11px] text-muted-foreground">
-              El cron semanal corre cada domingo 03:05 UTC.
+              {t("hc_modulesAdminDbBackupsPanel.weeklyCronHint")}
             </span>
           </div>
 
           <Alert className="bg-amber-500/5 border-amber-500/30">
             <Info className="h-4 w-4 text-amber-500" />
             <AlertDescription className="text-xs">
-              Los snapshots viven en el mismo proyecto Supabase. Si lo que se rompe es el
-              proyecto entero, descargá los ZIP críticos a tu máquina o cloud externo
-              periódicamente.
+              {t("hc_modulesAdminDbBackupsPanel.snapshotWarning")}
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -415,7 +417,7 @@ export function DbBackupsPanel() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <HardDrive className="h-4 w-4 text-muted-foreground" />
-            Histórico
+            {t("hc_modulesAdminDbBackupsPanel.history")}
             <Badge variant="secondary" className="text-[10px]">
               {backups.length}
             </Badge>
@@ -428,14 +430,14 @@ export function DbBackupsPanel() {
             <Table fixed resizable>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-44">Fecha</TableHead>
-                  <TableHead>Etiqueta</TableHead>
-                  <TableHead className="hidden sm:table-cell w-24">Origen</TableHead>
-                  <TableHead className="hidden md:table-cell text-right w-20">Tablas</TableHead>
-                  <TableHead className="hidden md:table-cell text-right w-24">Filas</TableHead>
-                  <TableHead className="text-right w-24">Tamaño</TableHead>
-                  <TableHead className="w-28">Estado</TableHead>
-                  <TableHead className="text-right w-32">Acciones</TableHead>
+                  <TableHead className="w-44">{t("hc_modulesAdminDbBackupsPanel.colDate")}</TableHead>
+                  <TableHead>{t("hc_modulesAdminDbBackupsPanel.colLabel")}</TableHead>
+                  <TableHead className="hidden sm:table-cell w-24">{t("hc_modulesAdminDbBackupsPanel.colSource")}</TableHead>
+                  <TableHead className="hidden md:table-cell text-right w-20">{t("hc_modulesAdminDbBackupsPanel.colTables")}</TableHead>
+                  <TableHead className="hidden md:table-cell text-right w-24">{t("hc_modulesAdminDbBackupsPanel.colRows")}</TableHead>
+                  <TableHead className="text-right w-24">{t("hc_modulesAdminDbBackupsPanel.colSize")}</TableHead>
+                  <TableHead className="w-28">{t("hc_modulesAdminDbBackupsPanel.colStatus")}</TableHead>
+                  <TableHead className="text-right w-32">{t("hc_modulesAdminDbBackupsPanel.colActions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -443,8 +445,8 @@ export function DbBackupsPanel() {
                   <TableEmpty
                     colSpan={8}
                     icon={Database}
-                    text="Sin backups todavía."
-                    hint="Creá uno con el botón “Crear backup” o esperá al cron semanal."
+                    text={t("hc_modulesAdminDbBackupsPanel.emptyText")}
+                    hint={t("hc_modulesAdminDbBackupsPanel.emptyHint")}
                   />
                 ) : (
                   backups.map((b) => (
@@ -460,7 +462,9 @@ export function DbBackupsPanel() {
                           variant="outline"
                           className="text-[10px]"
                         >
-                          {b.source === "cron" ? "Auto" : "Manual"}
+                          {b.source === "cron"
+                            ? t("hc_modulesAdminDbBackupsPanel.sourceAuto")
+                            : t("hc_modulesAdminDbBackupsPanel.sourceManual")}
                         </Badge>
                       </TableCell>
                       <TableCell
@@ -482,20 +486,20 @@ export function DbBackupsPanel() {
                         <div className="flex items-center justify-end gap-0.5">
                           {b.status === "queued" && (
                             <RowAction
-                              label="Procesar ahora"
+                              label={t("hc_modulesAdminDbBackupsPanel.actionProcessNow")}
                               icon={Cpu}
                               onClick={() => void processQueued(b.id)}
                             />
                           )}
                           {b.status === "done" && b.file_path && (
                             <RowAction
-                              label="Descargar"
+                              label={t("hc_modulesAdminDbBackupsPanel.actionDownload")}
                               icon={Download}
                               onClick={() => void downloadBackup(b)}
                             />
                           )}
                           <RowAction
-                            label="Borrar"
+                            label={t("hc_modulesAdminDbBackupsPanel.actionDelete")}
                             icon={Trash2}
                             tone="destructive"
                             onClick={() => void deleteBackup(b)}
@@ -517,25 +521,26 @@ export function DbBackupsPanel() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Database className="h-4 w-4 text-indigo-500" />
-              Crear backup manual
+              {t("hc_modulesAdminDbBackupsPanel.dialogTitle")}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Elegí las tablas a exportar. El edge function genera un ZIP con un{" "}
-              <code className="text-[10px] bg-muted px-1 py-0.5 rounded">.json</code> por
-              tabla más un <code className="text-[10px] bg-muted px-1 py-0.5 rounded">
+              {t("hc_modulesAdminDbBackupsPanel.dialogDescPart1")}{" "}
+              <code className="text-[10px] bg-muted px-1 py-0.5 rounded">.json</code>{" "}
+              {t("hc_modulesAdminDbBackupsPanel.dialogDescPart2")}{" "}
+              <code className="text-[10px] bg-muted px-1 py-0.5 rounded">
                 metadata.json
               </code>{" "}
-              con el resumen.
+              {t("hc_modulesAdminDbBackupsPanel.dialogDescPart3")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div>
-              <Label className="text-[11px]">Etiqueta (opcional)</Label>
+              <Label className="text-[11px]">{t("hc_modulesAdminDbBackupsPanel.labelOptional")}</Label>
               <Input
                 value={newLabel}
                 onChange={(e) => setNewLabel(e.target.value)}
-                placeholder="Ej. Pre-deploy migración cortes"
+                placeholder={t("hc_modulesAdminDbBackupsPanel.labelPlaceholder")}
                 maxLength={200}
               />
             </div>
@@ -543,9 +548,12 @@ export function DbBackupsPanel() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label className="text-[11px]">
-                  Tablas a respaldar
+                  {t("hc_modulesAdminDbBackupsPanel.tablesToBackup")}
                   <span className="text-muted-foreground ml-1">
-                    ({selectedTables.size} de {tableInfos.length})
+                    {t("hc_modulesAdminDbBackupsPanel.tablesCount", {
+                      selected: selectedTables.size,
+                      total: tableInfos.length,
+                    })}
                   </span>
                 </Label>
                 <div className="flex items-center gap-1">
@@ -557,7 +565,7 @@ export function DbBackupsPanel() {
                     onClick={selectAllTables}
                     disabled={loadingTables}
                   >
-                    Todas
+                    {t("hc_modulesAdminDbBackupsPanel.selectAll")}
                   </Button>
                   <Button
                     type="button"
@@ -567,13 +575,13 @@ export function DbBackupsPanel() {
                     onClick={selectNoneTables}
                     disabled={loadingTables}
                   >
-                    Ninguna
+                    {t("hc_modulesAdminDbBackupsPanel.selectNone")}
                   </Button>
                 </div>
               </div>
               {loadingTables ? (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground py-4">
-                  <Spinner size="sm" /> Cargando tablas…
+                  <Spinner size="sm" /> {t("hc_modulesAdminDbBackupsPanel.loadingTables")}
                 </div>
               ) : (
                 <div className="border rounded-md max-h-64 overflow-y-auto">
@@ -607,11 +615,11 @@ export function DbBackupsPanel() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>
-              Cancelar
+              {t("hc_modulesAdminDbBackupsPanel.cancel")}
             </Button>
             <Button onClick={() => void createBackup()} disabled={creating || loadingTables}>
               {creating ? <Spinner size="sm" className="mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
-              Crear backup
+              {t("hc_modulesAdminDbBackupsPanel.createBackup")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -648,12 +656,13 @@ function Stat({
 }
 
 function StatusBadge({ status, error }: { status: BackupRow["status"]; error: string | null }) {
+  const { t } = useTranslation();
   const map: Record<BackupRow["status"], { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ComponentType<{ className?: string }> }> = {
-    queued: { label: "En cola", variant: "outline", icon: Clock },
-    running: { label: "Procesando", variant: "secondary", icon: Cpu },
-    done: { label: "OK", variant: "default", icon: CheckCircle2 },
-    failed: { label: "Falló", variant: "destructive", icon: AlertTriangle },
-    cancelled: { label: "Cancelado", variant: "outline", icon: AlertTriangle },
+    queued: { label: t("hc_modulesAdminDbBackupsPanel.statusQueued"), variant: "outline", icon: Clock },
+    running: { label: t("hc_modulesAdminDbBackupsPanel.statusRunning"), variant: "secondary", icon: Cpu },
+    done: { label: t("hc_modulesAdminDbBackupsPanel.statusDone"), variant: "default", icon: CheckCircle2 },
+    failed: { label: t("hc_modulesAdminDbBackupsPanel.statusFailed"), variant: "destructive", icon: AlertTriangle },
+    cancelled: { label: t("hc_modulesAdminDbBackupsPanel.statusCancelled"), variant: "outline", icon: AlertTriangle },
   };
   const m = map[status];
   const Icon = m.icon;

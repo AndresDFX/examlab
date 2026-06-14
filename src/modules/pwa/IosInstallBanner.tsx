@@ -21,6 +21,7 @@
  *     el usuario (localStorage).
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Share, Plus, X } from "lucide-react";
 
 const STORAGE_KEY = "examlab_ios_install_dismissed_at";
@@ -64,6 +65,7 @@ function wasRecentlyDismissed(): boolean {
 }
 
 export function IosInstallBanner() {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -96,30 +98,29 @@ export function IosInstallBanner() {
       className="fixed inset-x-3 bottom-24 z-[60] rounded-lg border border-primary/30 bg-background/95 backdrop-blur shadow-lg p-3 sm:bottom-3 sm:max-w-md sm:left-auto sm:right-3"
       style={{ marginBottom: "env(safe-area-inset-bottom)" }}
       role="dialog"
-      aria-label="Instalar ExamLab en iPhone"
+      aria-label={t("hc_modulesPwaIosInstallBanner.dialogLabel")}
     >
       <div className="flex items-start gap-3">
         <div className="shrink-0 h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center">
           <Plus className="h-5 w-5 text-primary" />
         </div>
         <div className="flex-1 min-w-0 space-y-1">
-          <p className="text-sm font-medium">Instala ExamLab en tu iPhone</p>
+          <p className="text-sm font-medium">{t("hc_modulesPwaIosInstallBanner.title")}</p>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Toca{" "}
+            {t("hc_modulesPwaIosInstallBanner.tapPrefix")}{" "}
             <span className="inline-flex items-center gap-0.5 rounded bg-muted px-1 py-0.5">
               <Share className="h-3 w-3" />
-              Compartir
+              {t("hc_modulesPwaIosInstallBanner.share")}
             </span>{" "}
-            y luego{" "}
-            <span className="font-medium">"Añadir a pantalla de inicio"</span>. Necesario para
-            recibir notificaciones cuando la app esté cerrada.
+            {t("hc_modulesPwaIosInstallBanner.andThen")}{" "}
+            <span className="font-medium">{t("hc_modulesPwaIosInstallBanner.addToHomeScreen")}</span>{t("hc_modulesPwaIosInstallBanner.notificationsNote")}
           </p>
         </div>
         <button
           type="button"
           onClick={dismiss}
           className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted"
-          aria-label="Cerrar"
+          aria-label={t("hc_modulesPwaIosInstallBanner.close")}
         >
           <X className="h-4 w-4" />
         </button>

@@ -33,7 +33,7 @@ function AdminEmailSettings() {
   if (!roles.includes("Admin") && !roles.includes("SuperAdmin")) {
     return (
       <div className="container mx-auto p-6">
-        <p className="text-muted-foreground">Necesitas rol Admin.</p>
+        <p className="text-muted-foreground">{t("hc_routesAppAdminEmailSettings.needAdminRole")}</p>
       </div>
     );
   }
@@ -43,8 +43,8 @@ function AdminEmailSettings() {
       <div className="container mx-auto space-y-6 p-4 sm:p-6">
         <PageHeader
           icon={<Mail className="h-6 w-6" />}
-          title="Configuración de correos"
-          subtitle="Toggles por categoría de email."
+          title={t("hc_routesAppAdminEmailSettings.title")}
+          subtitle={t("hc_routesAppAdminEmailSettings.subtitleToggles")}
         />
         <Card>
           <CardContent className="p-6 text-center space-y-3">
@@ -68,8 +68,8 @@ function AdminEmailSettings() {
     <div className="container mx-auto space-y-6 p-4 sm:p-6">
       <PageHeader
         icon={<Mail className="h-6 w-6" />}
-        title="Configuración de correos"
-        subtitle="Activa o desactiva el envío de correos por categoría."
+        title={t("hc_routesAppAdminEmailSettings.title")}
+        subtitle={t("hc_routesAppAdminEmailSettings.subtitleToggle")}
       />
       <AdminEmailSettingsPanel />
     </div>

@@ -61,7 +61,7 @@ function AdminSettings() {
     roles.includes("SuperAdmin") && activeRole === "SuperAdmin" && readTenantOverride() === null;
 
   if (authLoading) return null;
-  if (!isAdmin) return <p className="text-muted-foreground">Necesitas rol Admin.</p>;
+  if (!isAdmin) return <p className="text-muted-foreground">{t("hc_routesAppAdminSettings.needAdminRole")}</p>;
 
   // SuperAdmin cross-tenant: en lugar de bloquear toda la página, mostramos
   // SOLO las tabs que son verdaderamente PLATAFORMA-GLOBAL (las tablas no
@@ -82,18 +82,16 @@ function AdminSettings() {
       <div className="space-y-5">
         <PageHeader
           icon={<Settings className="h-6 w-6 text-indigo-500" />}
-          title="Configuración"
-          subtitle="Configuración global de la plataforma."
+          title={t("hc_routesAppAdminSettings.pageTitle")}
+          subtitle={t("hc_routesAppAdminSettings.platformGlobalSubtitle")}
         />
 
         <Card>
           <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex-1 min-w-0 space-y-1">
-              <p className="text-sm font-medium">Configuración por institución</p>
+              <p className="text-sm font-medium">{t("hc_routesAppAdminSettings.perInstitutionTitle")}</p>
               <p className="text-xs text-muted-foreground">
-                Branding, correos, modelo IA y otros ajustes son por institución. Entrá a una
-                institución con "Ver como esta institución" para configurarlos. Acá solo aparece la
-                configuración global de la plataforma.
+                {t("hc_routesAppAdminSettings.perInstitutionDescription")}
               </p>
             </div>
             <Link
@@ -109,15 +107,15 @@ function AdminSettings() {
           <TabsList className="flex flex-wrap h-auto justify-start gap-1">
             <TabsTrigger value="modules" className="gap-1.5">
               <Layers className="h-3.5 w-3.5" />
-              Módulos
+              {t("hc_routesAppAdminSettings.tabModules")}
             </TabsTrigger>
             <TabsTrigger value="compiler" className="gap-1.5">
               <Code2 className="h-3.5 w-3.5" />
-              Compilador
+              {t("hc_routesAppAdminSettings.tabCompiler")}
             </TabsTrigger>
             <TabsTrigger value="audit" className="gap-1.5">
               <ScrollText className="h-3.5 w-3.5" />
-              Auditoría
+              {t("hc_routesAppAdminSettings.tabAudit")}
             </TabsTrigger>
           </TabsList>
           <TabsContent value="modules" className="space-y-4 mt-4">
@@ -138,8 +136,8 @@ function AdminSettings() {
     <div className="space-y-5">
       <PageHeader
         icon={<Settings className="h-6 w-6 text-indigo-500" />}
-        title="Configuración"
-        subtitle="Parámetros operativos de tu institución."
+        title={t("hc_routesAppAdminSettings.pageTitle")}
+        subtitle={t("hc_routesAppAdminSettings.operationalSubtitle")}
       />
 
       <Tabs defaultValue="general">
@@ -148,7 +146,7 @@ function AdminSettings() {
         <TabsList className="flex flex-wrap h-auto justify-start gap-1">
           <TabsTrigger value="general" className="gap-1.5">
             <Sliders className="h-3.5 w-3.5" />
-            Generales
+            {t("hc_routesAppAdminSettings.tabGeneral")}
           </TabsTrigger>
           {/* "Institución" agrupa toda la configuración educativa:
               programas/niveles, asignaturas, periodos, certificaciones.
@@ -157,30 +155,30 @@ function AdminSettings() {
               flexible (todos los campos son opcionales). */}
           <TabsTrigger value="institution" className="gap-1.5">
             <GraduationCap className="h-3.5 w-3.5" />
-            Institución
+            {t("hc_routesAppAdminSettings.tabInstitution")}
           </TabsTrigger>
           <TabsTrigger value="email" className="gap-1.5" data-tour-id="settings-email-tab">
             <Mail className="h-3.5 w-3.5" />
-            Correos
+            {t("hc_routesAppAdminSettings.tabEmail")}
           </TabsTrigger>
           <TabsTrigger value="compiler" className="gap-1.5">
             <Code2 className="h-3.5 w-3.5" />
-            Compilador
+            {t("hc_routesAppAdminSettings.tabCompiler")}
           </TabsTrigger>
           <TabsTrigger value="ai-model" className="gap-1.5" data-tour-id="settings-ai-tab">
             <Cpu className="h-3.5 w-3.5" />
-            Modelo IA
+            {t("hc_routesAppAdminSettings.tabAiModel")}
           </TabsTrigger>
           {/* La tab 'Cola IA' (sync/async + códigos override) se movió al
               módulo Cron del sidebar. Ahí se centralizan todas las colas
               (IA + procesamiento de mensajes) en un solo lugar. */}
           <TabsTrigger value="audit" className="gap-1.5">
             <ScrollText className="h-3.5 w-3.5" />
-            Auditoría
+            {t("hc_routesAppAdminSettings.tabAudit")}
           </TabsTrigger>
           <TabsTrigger value="modules" className="gap-1.5">
             <Layers className="h-3.5 w-3.5" />
-            Módulos
+            {t("hc_routesAppAdminSettings.tabModules")}
           </TabsTrigger>
         </TabsList>
         <TabsContent value="general" className="space-y-4 mt-4">

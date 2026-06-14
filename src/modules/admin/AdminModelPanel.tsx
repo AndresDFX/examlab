@@ -277,7 +277,7 @@ export function AdminModelPanel() {
     return (
       <Card>
         <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-          <Spinner size="md" /> Cargando configuración…
+          <Spinner size="md" /> {t("hc_modulesAdminAdminModelPanel.loadingConfig")}
         </CardContent>
       </Card>
     );
@@ -286,7 +286,7 @@ export function AdminModelPanel() {
   if (loadError) {
     return (
       <ErrorState
-        message="No pudimos cargar la configuración del modelo"
+        message={t("hc_modulesAdminAdminModelPanel.loadErrorMessage")}
         hint={loadError}
         onRetry={() => setRetryNonce((n) => n + 1)}
       />
@@ -352,7 +352,7 @@ export function AdminModelPanel() {
       <CardContent className="space-y-3">
         <div>
           <Label>
-            Proveedor{" "}
+            {t("hc_modulesAdminAdminModelPanel.providerLabel")}{" "}
             <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.providerComparison") }} /></HelpHint>
           </Label>
           <Select value={draftProvider} onValueChange={(v) => handleProviderChange(v as Provider)}>
@@ -368,30 +368,26 @@ export function AdminModelPanel() {
 
         <div>
           <Label>
-            Modelo{" "}
+            {t("hc_modulesAdminAdminModelPanel.modelLabel")}{" "}
             <HelpHint>
               <div className="space-y-1.5">
+                <p>{t("hc_modulesAdminAdminModelPanel.modelHelpIntro")}</p>
                 <p>
-                  Identificador exacto del modelo, tal como lo acepta la API del provider — un typo
-                  y la calificación falla en runtime.
-                </p>
-                <p>
-                  <strong>Ejemplos por provider:</strong>
+                  <strong>{t("hc_modulesAdminAdminModelPanel.modelHelpExamplesTitle")}</strong>
                 </p>
                 <ul className="list-disc pl-4 space-y-0.5">
                   <li>
-                    <strong>OpenAI:</strong> <code>gpt-4o-mini</code> (default barato),{" "}
+                    <strong>{t("hc_modulesAdminAdminModelPanel.modelHelpOpenaiLabel")}</strong>{" "}
+                    <code>gpt-4o-mini</code> {t("hc_modulesAdminAdminModelPanel.modelHelpOpenaiCheap")},{" "}
                     <code>gpt-4o</code>, <code>gpt-4.1</code>.
                   </li>
                   <li>
-                    <strong>Gemini directo:</strong> <code>gemini-2.5-flash</code>,{" "}
+                    <strong>{t("hc_modulesAdminAdminModelPanel.modelHelpGeminiLabel")}</strong>{" "}
+                    <code>gemini-2.5-flash</code>,{" "}
                     <code>gemini-2.5-pro</code>.
                   </li>
                 </ul>
-                <p>
-                  El menú desplegable muestra las recomendaciones; el input acepta cualquier modelo
-                  nuevo que tu provider soporte.
-                </p>
+                <p>{t("hc_modulesAdminAdminModelPanel.modelHelpOutro")}</p>
               </div>
             </HelpHint>
           </Label>
@@ -419,25 +415,25 @@ export function AdminModelPanel() {
           <Info className="h-4 w-4" />
           <AlertDescription className="text-xs">
             {isGlobalScope ? (
-              <>
-                Esta key se usa para jobs internos de la plataforma. Si la dejás vacía, los jobs
-                caen al secret <code>{SECRET_NAME[draftProvider]}</code> en Supabase → Edge
-                Function Secrets como último fallback.
-              </>
+              <Trans
+                i18nKey="hc_modulesAdminAdminModelPanel.apiKeyAlertGlobal"
+                values={{ secret: SECRET_NAME[draftProvider] }}
+                defaults="Esta key se usa para jobs internos de la plataforma. Si la dejás vacía, los jobs caen al secret <code>{{secret}}</code> en Supabase → Edge Function Secrets como último fallback."
+                components={{ code: <code /> }}
+              />
             ) : (
-              <>
-                Cada institución usa su propia API key del provider activo (cobra a su cuenta).
-                <strong> La key es obligatoria</strong> — sin ella la IA no funciona en tu tenant.
-                La key se guarda cifrada en la DB y nunca se muestra completa (solo los últimos 4
-                caracteres).
-              </>
+              <Trans
+                i18nKey="hc_modulesAdminAdminModelPanel.apiKeyAlertTenant"
+                defaults="Cada institución usa su propia API key del provider activo (cobra a su cuenta).<strong> La key es obligatoria</strong> — sin ella la IA no funciona en tu tenant. La key se guarda cifrada en la DB y nunca se muestra completa (solo los últimos 4 caracteres)."
+                components={{ strong: <strong /> }}
+              />
             )}
           </AlertDescription>
         </Alert>
 
         {draftProvider === "openai" && (
           <ApiKeyInput
-            label="API key — OpenAI"
+            label={t("hc_modulesAdminAdminModelPanel.apiKeyLabelOpenai")}
             stored={activeRow?.openai_api_key ?? null}
             value={draftOpenaiKey}
             onChange={setDraftOpenaiKey}
@@ -452,29 +448,30 @@ export function AdminModelPanel() {
             helpHint={
               <div className="space-y-1">
                 <p>
-                  Generala en{" "}
-                  <a
-                    href="https://platform.openai.com/api-keys"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline"
-                  >
-                    platform.openai.com/api-keys
-                  </a>
-                  .
+                  <Trans
+                    i18nKey="hc_modulesAdminAdminModelPanel.apiKeyHelpHintOpenaiGenerate"
+                    defaults="Generala en <link>platform.openai.com/api-keys</link>."
+                    components={{
+                      link: (
+                        <a
+                          href="https://platform.openai.com/api-keys"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline"
+                        />
+                      ),
+                    }}
+                  />
                 </p>
-                <p>
-                  Cobra a tu cuenta OpenAI. Restringí permisos del key a chat/completions y ponele
-                  un cap de uso mensual desde tu panel de OpenAI para no llevarte sorpresas.
-                </p>
+                <p>{t("hc_modulesAdminAdminModelPanel.apiKeyHelpHintOpenaiBilling")}</p>
               </div>
             }
-            help="Empieza con sk-… Pegala completa; la enmascaramos en pantalla y se guarda cifrada."
+            help={t("hc_modulesAdminAdminModelPanel.apiKeyHelpOpenai")}
           />
         )}
         {draftProvider === "gemini" && (
           <ApiKeyInput
-            label="API key — Google Gemini (directo)"
+            label={t("hc_modulesAdminAdminModelPanel.apiKeyLabelGemini")}
             stored={activeRow?.gemini_api_key ?? null}
             value={draftGeminiKey}
             onChange={setDraftGeminiKey}
@@ -489,24 +486,25 @@ export function AdminModelPanel() {
             helpHint={
               <div className="space-y-1">
                 <p>
-                  Generala en{" "}
-                  <a
-                    href="https://aistudio.google.com/apikey"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline"
-                  >
-                    aistudio.google.com/apikey
-                  </a>
-                  .
+                  <Trans
+                    i18nKey="hc_modulesAdminAdminModelPanel.apiKeyHelpHintGeminiGenerate"
+                    defaults="Generala en <link>aistudio.google.com/apikey</link>."
+                    components={{
+                      link: (
+                        <a
+                          href="https://aistudio.google.com/apikey"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline"
+                        />
+                      ),
+                    }}
+                  />
                 </p>
-                <p>
-                  Cobra a tu proyecto GCP (o queda en el tier gratuito si tu uso entra). Asociala a
-                  un proyecto con cuotas configuradas para controlar costos.
-                </p>
+                <p>{t("hc_modulesAdminAdminModelPanel.apiKeyHelpHintGeminiBilling")}</p>
               </div>
             }
-            help="Empieza con AIza… Pegala completa; la enmascaramos en pantalla y se guarda cifrada."
+            help={t("hc_modulesAdminAdminModelPanel.apiKeyHelpGemini")}
           />
         )}
 
@@ -537,12 +535,12 @@ export function AdminModelPanel() {
               }}
               disabled={saving}
             >
-              Cancelar
+              {t("hc_modulesAdminAdminModelPanel.cancel")}
             </Button>
           )}
           <Button size="sm" onClick={handleSave} disabled={saving || !dirty || tenantNeedsKey}>
             {saving ? <Spinner size="md" className="mr-1" /> : <Save className="h-4 w-4 mr-1" />}
-            Guardar configuración
+            {t("hc_modulesAdminAdminModelPanel.saveConfig")}
           </Button>
         </div>
       </CardContent>
@@ -590,6 +588,7 @@ function ApiKeyInput({
   /** Placeholder traducido para scope tenant cuando no hay key guardada. */
   placeholderEmptyTenant: string;
 }) {
+  const { t } = useTranslation();
   const isKeep = value === "__keep";
   const masked = maskFn(stored);
   // Placeholder distinto según scope: en tenant scope, la key es
@@ -612,7 +611,7 @@ function ApiKeyInput({
         />
         {!isKeep && (
           <Button variant="ghost" size="sm" onClick={() => onChange("__keep")}>
-            Cancelar
+            {t("hc_modulesAdminAdminModelPanel.cancel")}
           </Button>
         )}
         {/* Borrar key: solo en scope global. En scope tenant la key es
@@ -622,9 +621,9 @@ function ApiKeyInput({
             variant="ghost"
             size="sm"
             onClick={() => onChange("")}
-            title="Borrar y caer al env secret"
+            title={t("hc_modulesAdminAdminModelPanel.deleteKeyTitle")}
           >
-            Borrar
+            {t("hc_modulesAdminAdminModelPanel.delete")}
           </Button>
         )}
       </div>

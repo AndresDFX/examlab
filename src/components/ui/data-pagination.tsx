@@ -27,6 +27,7 @@
  * 47 items" → cambiar a 10/página para ver 5 páginas).
  */
 import { type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -75,6 +76,7 @@ export function DataPagination<T>({
   showPageSize = true,
   className = "px-3 py-2",
 }: DataPaginationProps<T>) {
+  const { t } = useTranslation();
   const {
     currentPage,
     setCurrentPage,
@@ -99,15 +101,16 @@ export function DataPagination<T>({
     <span className="text-xs text-muted-foreground tabular-nums">
       {pageSize > 0 ? (
         <>
-          Mostrando{" "}
+          {t("hc_componentsUiDataPagination.showing")}{" "}
           <strong className="text-foreground">{startIndex.toLocaleString("es-CO")}</strong>–
-          <strong className="text-foreground">{endIndex.toLocaleString("es-CO")}</strong> de{" "}
+          <strong className="text-foreground">{endIndex.toLocaleString("es-CO")}</strong>{" "}
+          {t("hc_componentsUiDataPagination.of")}{" "}
           <strong className="text-foreground">{totalItems.toLocaleString("es-CO")}</strong>{" "}
           {entityNamePlural}
         </>
       ) : (
         <>
-          Mostrando{" "}
+          {t("hc_componentsUiDataPagination.showing")}{" "}
           <strong className="text-foreground">{totalItems.toLocaleString("es-CO")}</strong>{" "}
           {entityNamePlural}
         </>
@@ -123,7 +126,7 @@ export function DataPagination<T>({
         {label}
         {showPageSize && pageSizes.length > 0 && (
           <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground hidden sm:inline">Por página:</span>
+            <span className="text-xs text-muted-foreground hidden sm:inline">{t("hc_componentsUiDataPagination.perPage")}</span>
             <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
               <SelectTrigger className="h-7 w-20 text-xs">
                 <SelectValue />
@@ -141,14 +144,14 @@ export function DataPagination<T>({
       </div>
 
       {totalPages > 1 && (
-        <nav role="navigation" aria-label="Paginación" className="flex items-center gap-1">
+        <nav role="navigation" aria-label={t("hc_componentsUiDataPagination.navAriaLabel")} className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8"
             disabled={currentPage <= 1}
             onClick={() => setCurrentPage(currentPage - 1)}
-            aria-label="Página anterior"
+            aria-label={t("hc_componentsUiDataPagination.previousPage")}
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
@@ -169,7 +172,7 @@ export function DataPagination<T>({
                 className="h-8 w-8 text-xs tabular-nums"
                 onClick={() => setCurrentPage(entry)}
                 aria-current={entry === currentPage ? "page" : undefined}
-                aria-label={`Ir a página ${entry}`}
+                aria-label={t("hc_componentsUiDataPagination.goToPage", { page: entry })}
               >
                 {entry}
               </Button>
@@ -181,7 +184,7 @@ export function DataPagination<T>({
             className="h-8 w-8"
             disabled={currentPage >= totalPages}
             onClick={() => setCurrentPage(currentPage + 1)}
-            aria-label="Página siguiente"
+            aria-label={t("hc_componentsUiDataPagination.nextPage")}
           >
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>

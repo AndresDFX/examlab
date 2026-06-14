@@ -361,7 +361,7 @@ function AdminUsers() {
       }
     }
     if (failed.length === ids.length) {
-      throw new Error("No se pudo eliminar ningún usuario");
+      throw new Error(t("hc_routesAppAdminUsers.bulkDeleteNoneError"));
     }
     void logEvent({
       action: "user.bulk_deleted",
@@ -419,7 +419,7 @@ function AdminUsers() {
       .maybeSingle();
     setViewPwLoading(false);
     if (error) {
-      toast.error(friendlyError(error, "No se pudo cargar la contraseña."));
+      toast.error(friendlyError(error, t("hc_routesAppAdminUsers.passwordLoadError")));
       return;
     }
     setViewPwValue((data as { password?: string } | null)?.password ?? null);
@@ -453,12 +453,9 @@ function AdminUsers() {
       return;
     }
     const ok = await confirm({
-      title: `¿Iniciar sesión como ${r.full_name}?`,
-      description:
-        "Vas a entrar a la plataforma con la cuenta de este usuario. Verás todo lo que él ve. " +
-        "Mientras estés impersonando, aparecerá un banner amarillo arriba con el botón 'Volver a mi cuenta'. " +
-        "La acción queda registrada en el log de auditoría.",
-      confirmLabel: "Iniciar como",
+      title: t("hc_routesAppAdminUsers.impersonateConfirmTitle", { name: r.full_name }),
+      description: t("hc_routesAppAdminUsers.impersonateConfirmDesc"),
+      confirmLabel: t("hc_routesAppAdminUsers.impersonateConfirmLabel"),
       tone: "warning",
     });
     if (!ok) return;
@@ -466,7 +463,7 @@ function AdminUsers() {
       await startImpersonate(r.id);
       // startImpersonate dispara window.location.href → no llegamos aquí.
     } catch (e) {
-      toast.error(friendlyError(e, "Error al iniciar la impersonación"));
+      toast.error(friendlyError(e, t("hc_routesAppAdminUsers.impersonateStartError")));
     }
   };
 
@@ -500,7 +497,7 @@ function AdminUsers() {
     const { data: profs, error: profsErr } = await q;
     if (loadEpochRef.current !== myEpoch) return; // stale — superado
     if (profsErr) {
-      setLoadError(friendlyError(profsErr, "No pudimos cargar la lista de usuarios."));
+      setLoadError(friendlyError(profsErr, t("hc_routesAppAdminUsers.usersLoadError")));
       setLoading(false);
       return;
     }
@@ -896,7 +893,7 @@ function AdminUsers() {
           );
           if (pwErr || pwRes?.error) {
             const detail = await extractEdgeError(pwErr, pwRes);
-            toast.error(detail || "Error al actualizar la contraseña");
+            toast.error(detail || t("hc_routesAppAdminUsers.passwordUpdateError"));
             return;
           }
         }
@@ -954,7 +951,7 @@ function AdminUsers() {
         });
         if (error) {
           const detail = await extractEdgeError(error, data);
-          toast.error(detail || "Error en importación");
+          toast.error(detail || t("hc_routesAppAdminUsers.importError"));
           return;
         }
         const result = (data?.result ?? [])[0];
@@ -968,7 +965,7 @@ function AdminUsers() {
               }),
             );
           } else {
-            toast.error(result?.error ?? result?.reason ?? "Error al crear usuario");
+            toast.error(result?.error ?? result?.reason ?? t("hc_routesAppAdminUsers.userCreateError"));
           }
           return;
         }
@@ -1081,7 +1078,7 @@ function AdminUsers() {
     if (edgeErr || respError) {
       // El primer respError es el mensaje friendly que viene de la edge.
       // Si no llegó, traducimos el error técnico del transport con friendlyError.
-      toast.error(respError ?? friendlyError(edgeErr, "No se pudo eliminar el usuario"));
+      toast.error(respError ?? friendlyError(edgeErr, t("hc_routesAppAdminUsers.userDeleteError")));
       return;
     }
     toast.success(t("users.deletedToast"));
@@ -1181,7 +1178,7 @@ function AdminUsers() {
       });
       if (error) {
         const detail = await extractEdgeError(error, data);
-        throw new Error(detail || "Error en importación masiva");
+        throw new Error(detail || t("hc_routesAppAdminUsers.bulkImportError"));
       }
       const results = (data.result ?? []) as Array<{
         email: string;
@@ -1213,10 +1210,17 @@ function AdminUsers() {
             duration: 12000,
             description:
               duplicates.length > 0
-                ? `Ya existían: ${duplicates
-                    .slice(0, 5)
-                    .map((d) => d.email)
-                    .join(", ")}${duplicates.length > 5 ? ` y ${duplicates.length - 5} más` : ""}`
+                ? t("hc_routesAppAdminUsers.importAlreadyExisted", {
+                    emails: duplicates
+                      .slice(0, 5)
+                      .map((d) => d.email)
+                      .join(", "),
+                  }) +
+                  (duplicates.length > 5
+                    ? t("hc_routesAppAdminUsers.importAndMore", {
+                        count: duplicates.length - 5,
+                      })
+                    : "")
                 : otherFails
                     .slice(0, 3)
                     .map((f) => `${f.email}: ${f.reason}`)
@@ -1287,7 +1291,7 @@ function AdminUsers() {
             >
               <SelectTrigger
                 className="h-8 max-w-[200px] hidden md:flex text-xs"
-                title="Curso para el bulk import (opcional). Solo aplica al importar CSV."
+                title={t("hc_routesAppAdminUsers.bulkImportCourseTitle")}
               >
                 <SelectValue placeholder={t("adminUsers.bulkImportCoursePlaceholder")} />
               </SelectTrigger>

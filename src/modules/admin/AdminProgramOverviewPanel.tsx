@@ -188,7 +188,7 @@ export function AdminProgramOverviewPanel() {
         enrRes.error ||
         teachRes.error;
       if (firstErr) {
-        setLoadError(friendlyError(firstErr, "No pudimos cargar los datos del resumen."));
+        setLoadError(friendlyError(firstErr, t("hc_modulesAdminAdminProgramOverviewPanel.loadDataError")));
         setLoading(false);
         return;
       }
@@ -243,7 +243,7 @@ export function AdminProgramOverviewPanel() {
       <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 flex-wrap">
         <CardTitle className="text-base flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-indigo-500" />
-          Resumen institucional
+          {t("hc_modulesAdminAdminProgramOverviewPanel.institutionalSummary")}
           <HelpHint>{t("help.programOverviewHelp")}</HelpHint>
         </CardTitle>
         <div className="w-full sm:w-44">
@@ -252,10 +252,10 @@ export function AdminProgramOverviewPanel() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos los periodos</SelectItem>
+              <SelectItem value="all">{t("hc_modulesAdminAdminProgramOverviewPanel.allPeriods")}</SelectItem>
               {periods.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
-                  {p.code} {p.status === "cerrado" ? "(cerrado)" : ""}
+                  {p.code} {p.status === "cerrado" ? t("hc_modulesAdminAdminProgramOverviewPanel.closedLabel") : ""}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -265,11 +265,11 @@ export function AdminProgramOverviewPanel() {
       <CardContent className="space-y-3">
         {loading ? (
           <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
-            <Spinner size="sm" /> Cargando…
+            <Spinner size="sm" /> {t("hc_modulesAdminAdminProgramOverviewPanel.loading")}
           </div>
         ) : loadError ? (
           <ErrorState
-            message="No pudimos cargar"
+            message={t("hc_modulesAdminAdminProgramOverviewPanel.loadFailed")}
             hint={loadError}
             onRetry={() => setRetryNonce((n) => n + 1)}
           />
@@ -281,25 +281,25 @@ export function AdminProgramOverviewPanel() {
                 dashboards. */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <StatTile
-                label="Programas / Niveles"
+                label={t("hc_modulesAdminAdminProgramOverviewPanel.statProgramsLevels")}
                 value={programs.filter((p) => p.active).length}
                 color="text-indigo-600 dark:text-indigo-400"
                 bg="bg-indigo-500/10"
               />
               <StatTile
-                label="Asignaturas"
+                label={t("hc_modulesAdminAdminProgramOverviewPanel.statSubjects")}
                 value={totals.subjects}
                 color="text-cyan-600 dark:text-cyan-400"
                 bg="bg-cyan-500/10"
               />
               <StatTile
-                label={showInPeriodColumn ? "Cursos · periodo" : "Cursos · histórico"}
+                label={showInPeriodColumn ? t("hc_modulesAdminAdminProgramOverviewPanel.statCoursesPeriod") : t("hc_modulesAdminAdminProgramOverviewPanel.statCoursesHistoric")}
                 value={showInPeriodColumn ? totals.coursesInPeriod : totals.courses}
                 color="text-violet-600 dark:text-violet-400"
                 bg="bg-violet-500/10"
               />
               <StatTile
-                label="Estudiantes únicos"
+                label={t("hc_modulesAdminAdminProgramOverviewPanel.statUniqueStudents")}
                 value={totals.students}
                 color="text-emerald-600 dark:text-emerald-400"
                 bg="bg-emerald-500/10"
@@ -310,15 +310,15 @@ export function AdminProgramOverviewPanel() {
               <Table fixed resizable>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="max-w-[260px]">Programa / Nivel</TableHead>
-                    <TableHead className="hidden md:table-cell">Área / Departamento</TableHead>
-                    <TableHead className="text-center w-24">Asignaturas</TableHead>
+                    <TableHead className="max-w-[260px]">{t("hc_modulesAdminAdminProgramOverviewPanel.colProgramLevel")}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t("hc_modulesAdminAdminProgramOverviewPanel.colAreaDepartment")}</TableHead>
+                    <TableHead className="text-center w-24">{t("hc_modulesAdminAdminProgramOverviewPanel.colSubjects")}</TableHead>
                     <TableHead className="text-center w-24">
-                      {showInPeriodColumn ? "Cursos · periodo" : "Cursos"}
+                      {showInPeriodColumn ? t("hc_modulesAdminAdminProgramOverviewPanel.statCoursesPeriod") : t("hc_modulesAdminAdminProgramOverviewPanel.colCourses")}
                     </TableHead>
-                    <TableHead className="text-center w-24">Estudiantes</TableHead>
+                    <TableHead className="text-center w-24">{t("hc_modulesAdminAdminProgramOverviewPanel.colStudents")}</TableHead>
                     <TableHead className="text-center w-24 hidden sm:table-cell">
-                      Docentes
+                      {t("hc_modulesAdminAdminProgramOverviewPanel.colTeachers")}
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -326,8 +326,8 @@ export function AdminProgramOverviewPanel() {
                   {programs.length === 0 ? (
                     <TableEmpty
                       colSpan={6}
-                      text="Sin programas registrados"
-                      hint="Crea programas desde la card de arriba."
+                      text={t("hc_modulesAdminAdminProgramOverviewPanel.emptyPrograms")}
+                      hint={t("hc_modulesAdminAdminProgramOverviewPanel.emptyProgramsHint")}
                     />
                   ) : (
                     programs.map((p) => {
@@ -339,7 +339,7 @@ export function AdminProgramOverviewPanel() {
                               {p.name}
                               {!p.active && (
                                 <Badge variant="outline" className="ml-2 text-[10px]">
-                                  inactivo
+                                  {t("hc_modulesAdminAdminProgramOverviewPanel.inactive")}
                                 </Badge>
                               )}
                             </div>

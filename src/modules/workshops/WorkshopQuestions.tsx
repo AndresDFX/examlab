@@ -384,9 +384,9 @@ export function TeacherWorkshopQuestionsEditor({
 
   const removeQ = async (id: string) => {
     const ok = await confirm({
-      title: "Eliminar pregunta",
-      description: "Se eliminará la pregunta del taller. Esta acción no se puede deshacer.",
-      confirmLabel: "Eliminar",
+      title: t("hc_modulesWorkshopsWorkshopQuestions.deleteQuestionTitle"),
+      description: t("hc_modulesWorkshopsWorkshopQuestions.deleteQuestionDescription"),
+      confirmLabel: t("hc_modulesWorkshopsWorkshopQuestions.deleteConfirmLabel"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -460,7 +460,9 @@ export function TeacherWorkshopQuestionsEditor({
       }));
       const { error: enqErr } = await dbAny3.from("ai_generation_queue").insert(rows);
       if (enqErr) {
-        toast.error(friendlyError(enqErr, "No se pudo encolar la generación"));
+        toast.error(
+          friendlyError(enqErr, t("hc_modulesWorkshopsWorkshopQuestions.couldNotQueueGeneration")),
+        );
         return;
       }
       toast.success(
@@ -526,7 +528,7 @@ export function TeacherWorkshopQuestionsEditor({
       }
       load();
     } catch (e: any) {
-      toast.error(friendlyError(e, "Error IA"));
+      toast.error(friendlyError(e, t("hc_modulesWorkshopsWorkshopQuestions.aiError")));
     } finally {
       setAiLoading(false);
     }
@@ -610,15 +612,18 @@ export function TeacherWorkshopQuestionsEditor({
             <div className="rounded-md border bg-muted/30 px-3 py-2">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs text-muted-foreground font-medium">
-                  {questions.length} pregunta{questions.length !== 1 ? "s" : ""} guardadas ·{" "}
-                  {questions.reduce((s, q) => s + (q.points ?? 0), 0)} pts totales
+                  {t("hc_modulesWorkshopsWorkshopQuestions.savedQuestionsSummary", {
+                    count: questions.length,
+                    plural: questions.length !== 1 ? "s" : "",
+                    points: questions.reduce((s, q) => s + (q.points ?? 0), 0),
+                  })}
                 </span>
                 <button
                   type="button"
                   className="text-xs text-primary hover:underline"
                   onClick={() => setActiveTab("list")}
                 >
-                  Ver lista
+                  {t("hc_modulesWorkshopsWorkshopQuestions.viewList")}
                 </button>
               </div>
               <div className="flex flex-wrap gap-1">
@@ -694,7 +699,9 @@ export function TeacherWorkshopQuestionsEditor({
                     onChange={(e) =>
                       setQChoices(qChoices.map((cc, j) => (j === i ? e.target.value : cc)))
                     }
-                    placeholder={`Opción ${String.fromCharCode(65 + i)}`}
+                    placeholder={t("hc_modulesWorkshopsWorkshopQuestions.optionPlaceholder", {
+                      letter: String.fromCharCode(65 + i),
+                    })}
                   />
                 </div>
               ))}
@@ -725,7 +732,9 @@ export function TeacherWorkshopQuestionsEditor({
                       onChange={(e) =>
                         setQChoices(qChoices.map((cc, j) => (j === i ? e.target.value : cc)))
                       }
-                      placeholder={`Opción ${String.fromCharCode(65 + i)}`}
+                      placeholder={t("hc_modulesWorkshopsWorkshopQuestions.optionPlaceholder", {
+                        letter: String.fromCharCode(65 + i),
+                      })}
                     />
                   </div>
                 ))}
@@ -802,7 +811,7 @@ export function TeacherWorkshopQuestionsEditor({
             <div className="space-y-3">
               <div>
                 <Label required className="flex items-center gap-1.5">
-                  Lenguaje
+                  {t("hc_modulesWorkshopsWorkshopQuestions.languageLabel")}
                   <HelpHint>{t("help.codigoZipLanguageWhitelist")}</HelpHint>
                 </Label>
                 <Select value={qLanguage} onValueChange={setQLanguage}>
@@ -1287,7 +1296,7 @@ export function StudentWorkshopTaker({
           // Extraemos el mensaje REAL del response body, no el genérico
           // "Edge Function returned a non-2xx status code".
           const real = await extractEdgeError(error, data);
-          throw new Error(real || "Error ejecutando código");
+          throw new Error(real || t("hc_modulesWorkshopsWorkshopQuestions.errorRunningCode"));
         }
         stdout = data?.stdout ?? "";
         stderr = data?.stderr ?? "";
@@ -1300,26 +1309,27 @@ export function StudentWorkshopTaker({
       if (opaqueRe.test(stdout)) stdout = "";
       if (opaqueRe.test(stderr)) stderr = "";
       if (!stdout.trim() && !stderr.trim()) {
-        stderr =
-          "El compilador remoto no devolvió detalle del error. Suele indicar un error " +
-          "de compilación (falta `;`, llaves desbalanceadas, import erróneo, nombre " +
-          "de clase incorrecto). Revisa tu código línea por línea y vuelve a intentar.";
+        stderr = t("hc_modulesWorkshopsWorkshopQuestions.remoteCompilerNoDetail");
       }
 
       // Combinar stdout + stderr en el orden natural de terminal.
       const parts: string[] = [];
       if (stdout.trimEnd()) parts.push(stdout.trimEnd());
       if (stderr.trimEnd()) parts.push(stderr.trimEnd());
-      const output = parts.join("\n") || "(sin salida)";
+      const output = parts.join("\n") || t("hc_modulesWorkshopsWorkshopQuestions.noOutput");
       setCodeOutputs((prev) => ({ ...prev, [questionId]: output }));
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Error ejecutando";
+      const msg =
+        e instanceof Error ? e.message : t("hc_modulesWorkshopsWorkshopQuestions.errorRunning");
       // Cancelación por el usuario: NO mostramos error ni loggeamos. La UI
       // ya quedó libre por cancelRun; aquí solo silenciamos el catch.
       if (msg === CANCELLED_SENTINEL) {
         return;
       }
-      setCodeOutputs((prev) => ({ ...prev, [questionId]: `Error: ${msg}` }));
+      setCodeOutputs((prev) => ({
+        ...prev,
+        [questionId]: t("hc_modulesWorkshopsWorkshopQuestions.errorPrefix", { msg }),
+      }));
       void logEvent({
         action: "code_execution_error",
         category: "workshop",
@@ -1420,21 +1430,24 @@ export function StudentWorkshopTaker({
     const unanswered = getUnansweredNumbers();
     if (unanswered.length > 0) {
       const ok = await confirm({
-        title: `${unanswered.length} pregunta${unanswered.length === 1 ? "" : "s"} sin responder`,
+        title: t("hc_modulesWorkshopsWorkshopQuestions.unansweredTitle", {
+          count: unanswered.length,
+          plural: unanswered.length === 1 ? "" : "s",
+        }),
         description: (
           <div className="space-y-1">
             <p>
-              Sin respuesta:{" "}
+              {t("hc_modulesWorkshopsWorkshopQuestions.unansweredListLabel")}{" "}
               <span className="font-medium text-foreground">
                 {unanswered.map((n) => `#${n}`).join(", ")}
               </span>
               .
             </p>
-            <p>Esas preguntas recibirán 0 puntos. ¿Quieres entregar el taller de todas formas?</p>
+            <p>{t("hc_modulesWorkshopsWorkshopQuestions.unansweredZeroPoints")}</p>
           </div>
         ),
-        confirmLabel: "Entregar de todas formas",
-        cancelLabel: "Seguir respondiendo",
+        confirmLabel: t("hc_modulesWorkshopsWorkshopQuestions.submitAnyway"),
+        cancelLabel: t("hc_modulesWorkshopsWorkshopQuestions.keepAnswering"),
         tone: "warning",
       });
       if (!ok) return;
@@ -1507,7 +1520,12 @@ export function StudentWorkshopTaker({
           .select("id")
           .single();
         if (error || !created) {
-          toast.error(friendlyError(error, "No se pudo crear la entrega"));
+          toast.error(
+            friendlyError(
+              error,
+              t("hc_modulesWorkshopsWorkshopQuestions.couldNotCreateSubmission"),
+            ),
+          );
           setSubmitting(false);
           return;
         }
@@ -1581,7 +1599,10 @@ export function StudentWorkshopTaker({
           const correctIdx = q.options?.correct_index;
           const got = String(raw) === String(correctIdx) ? Number(q.points) : 0;
           payload.ai_grade = got;
-          payload.ai_feedback = got > 0 ? "Respuesta correcta" : "Respuesta incorrecta";
+          payload.ai_feedback =
+            got > 0
+              ? t("hc_modulesWorkshopsWorkshopQuestions.feedbackCorrect")
+              : t("hc_modulesWorkshopsWorkshopQuestions.feedbackIncorrect");
           totalEarned += got;
           breakdown.push({
             qid: q.id,
@@ -1601,7 +1622,7 @@ export function StudentWorkshopTaker({
             const zipFile = raw instanceof File ? raw : null;
             if (!zipFile) {
               payload.ai_grade = 0;
-              payload.ai_feedback = "Sin archivo ZIP entregado";
+              payload.ai_feedback = t("hc_modulesWorkshopsWorkshopQuestions.noZipSubmitted");
               breakdown.push({
                 qid: q.id,
                 type: q.type,
@@ -1611,7 +1632,9 @@ export function StudentWorkshopTaker({
               });
             } else if (zipFile.size > MAX_CODE_FILES_TOTAL_BYTES) {
               payload.ai_grade = 0;
-              payload.ai_feedback = `El ZIP pesa ${formatFileSize(zipFile.size)} y supera el tope de 50 MB.`;
+              payload.ai_feedback = t("hc_modulesWorkshopsWorkshopQuestions.zipExceedsLimit", {
+                size: formatFileSize(zipFile.size),
+              });
               toast.error(payload.ai_feedback, { duration: 8000 });
               breakdown.push({
                 qid: q.id,
@@ -1640,7 +1663,10 @@ export function StudentWorkshopTaker({
                   .upload(zipPath, zipFile, { upsert: true, contentType: "application/zip" });
                 if (upErr) {
                   payload.ai_grade = 0;
-                  payload.ai_feedback = `Error al subir el ZIP: ${upErr.message}`;
+                  payload.ai_feedback = t(
+                    "hc_modulesWorkshopsWorkshopQuestions.errorUploadingZip",
+                    { message: upErr.message },
+                  );
                   toast.error(payload.ai_feedback, { duration: 8000 });
                   breakdown.push({
                     qid: q.id,
@@ -1679,7 +1705,8 @@ export function StudentWorkshopTaker({
                     if (aiErr || (aiData as any)?.error) {
                       const detail = await extractEdgeError(aiErr, aiData);
                       payload.ai_grade = 0;
-                      payload.ai_feedback = detail || "Error IA al calificar el ZIP";
+                      payload.ai_feedback =
+                        detail || t("hc_modulesWorkshopsWorkshopQuestions.aiErrorGradingZip");
                       toast.error(payload.ai_feedback, { duration: 8000 });
                       breakdown.push({
                         qid: q.id,
@@ -1693,7 +1720,9 @@ export function StudentWorkshopTaker({
                         0,
                         Math.min(Number(q.points) || 0, Number((aiData as any)?.grade) || 0),
                       );
-                      const fb = (aiData as any)?.feedback ?? "Sin retroalimentación";
+                      const fb =
+                        (aiData as any)?.feedback ??
+                        t("hc_modulesWorkshopsWorkshopQuestions.noFeedback");
                       payload.ai_grade = earned;
                       payload.ai_feedback = fb;
                       payload.ai_likelihood =
@@ -1729,7 +1758,7 @@ export function StudentWorkshopTaker({
                 : [];
             if (filesArr.length === 0) {
               payload.ai_grade = 0;
-              payload.ai_feedback = "Sin archivos de código entregados";
+              payload.ai_feedback = t("hc_modulesWorkshopsWorkshopQuestions.noCodeFilesSubmitted");
               breakdown.push({
                 qid: q.id,
                 type: q.type,
@@ -1747,10 +1776,18 @@ export function StudentWorkshopTaker({
                   .slice(0, 5)
                   .map((f) => f.name)
                   .join(", ");
-                const more = violations.length > 5 ? ` (+${violations.length - 5} más)` : "";
+                const more =
+                  violations.length > 5
+                    ? t("hc_modulesWorkshopsWorkshopQuestions.andMoreSuffix", {
+                        n: violations.length - 5,
+                      })
+                    : "";
                 const allowedLabel = (allowedExts ?? []).map((e) => `.${e}`).join(", ");
                 payload.ai_grade = 0;
-                payload.ai_feedback = `Archivos no permitidos: ${sample}${more}. Solo se aceptan ${allowedLabel}.`;
+                payload.ai_feedback = t(
+                  "hc_modulesWorkshopsWorkshopQuestions.filesNotAllowedFeedback",
+                  { sample, more, allowed: allowedLabel },
+                );
                 toast.error(payload.ai_feedback, { duration: 8000 });
                 breakdown.push({
                   qid: q.id,
@@ -1761,7 +1798,10 @@ export function StudentWorkshopTaker({
                 });
               } else if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
                 payload.ai_grade = 0;
-                payload.ai_feedback = `El total supera el tope de 50 MB (${formatFileSize(totalBytes)}).`;
+                payload.ai_feedback = t(
+                  "hc_modulesWorkshopsWorkshopQuestions.totalExceedsLimit",
+                  { size: formatFileSize(totalBytes) },
+                );
                 toast.error(payload.ai_feedback, { duration: 8000 });
                 breakdown.push({
                   qid: q.id,
@@ -1772,7 +1812,10 @@ export function StudentWorkshopTaker({
                 });
               } else if (filesArr.length > MAX_CODE_FILES_COUNT) {
                 payload.ai_grade = 0;
-                payload.ai_feedback = `Demasiados archivos (${filesArr.length}). Máximo: ${MAX_CODE_FILES_COUNT}.`;
+                payload.ai_feedback = t(
+                  "hc_modulesWorkshopsWorkshopQuestions.tooManyFilesFeedback",
+                  { count: filesArr.length, max: MAX_CODE_FILES_COUNT },
+                );
                 toast.error(payload.ai_feedback, { duration: 8000 });
                 breakdown.push({
                   qid: q.id,
@@ -1798,7 +1841,10 @@ export function StudentWorkshopTaker({
                 const upFailed = uploads.filter((u) => u.error);
                 if (upFailed.length > 0) {
                   payload.ai_grade = 0;
-                  payload.ai_feedback = `Error al subir ${upFailed.length} archivo(s): ${upFailed[0].error?.message ?? ""}`;
+                  payload.ai_feedback = t(
+                    "hc_modulesWorkshopsWorkshopQuestions.errorUploadingFiles",
+                    { count: upFailed.length, message: upFailed[0].error?.message ?? "" },
+                  );
                   toast.error(payload.ai_feedback, { duration: 8000 });
                   breakdown.push({
                     qid: q.id,
@@ -1838,7 +1884,8 @@ export function StudentWorkshopTaker({
                     if (aiErr || (aiData as any)?.error) {
                       const detail = await extractEdgeError(aiErr, aiData);
                       payload.ai_grade = 0;
-                      payload.ai_feedback = detail || "Error IA al calificar los archivos";
+                      payload.ai_feedback =
+                        detail || t("hc_modulesWorkshopsWorkshopQuestions.aiErrorGradingFiles");
                       toast.error(payload.ai_feedback, { duration: 8000 });
                       breakdown.push({
                         qid: q.id,
@@ -1852,7 +1899,9 @@ export function StudentWorkshopTaker({
                         0,
                         Math.min(Number(q.points) || 0, Number((aiData as any)?.grade) || 0),
                       );
-                      const fb = (aiData as any)?.feedback ?? "Sin retroalimentación";
+                      const fb =
+                        (aiData as any)?.feedback ??
+                        t("hc_modulesWorkshopsWorkshopQuestions.noFeedback");
                       payload.ai_grade = earned;
                       payload.ai_feedback = fb;
                       payload.ai_likelihood =
@@ -1885,12 +1934,19 @@ export function StudentWorkshopTaker({
           });
           payload.ai_grade = result.earned;
           payload.ai_feedback = result.exceededMax
-            ? `Marcaste más opciones de las permitidas (${(q.options as any)?.max_selections}).`
+            ? t("hc_modulesWorkshopsWorkshopQuestions.markedTooManyOptions", {
+                max: (q.options as any)?.max_selections,
+              })
             : result.belowMin
-              ? `Faltó marcar al menos ${(q.options as any)?.min_selections} opciones.`
+              ? t("hc_modulesWorkshopsWorkshopQuestions.markedTooFewOptions", {
+                  min: (q.options as any)?.min_selections,
+                })
               : selectedArr.length === 0
-                ? "Sin respuesta"
-                : `${result.earned} / ${q.points} pts`;
+                ? t("hc_modulesWorkshopsWorkshopQuestions.noAnswer")
+                : t("hc_modulesWorkshopsWorkshopQuestions.earnedOfPoints", {
+                    earned: result.earned,
+                    points: q.points,
+                  });
           totalEarned += result.earned;
           breakdown.push({
             qid: q.id,
@@ -1912,13 +1968,13 @@ export function StudentWorkshopTaker({
             !trimmedAnswer || (trimmedStarter !== "" && trimmedAnswer === trimmedStarter);
           if (isEmpty) {
             payload.ai_grade = 0;
-            payload.ai_feedback = "Sin respuesta";
+            payload.ai_feedback = t("hc_modulesWorkshopsWorkshopQuestions.noAnswer");
             breakdown.push({
               qid: q.id,
               type: q.type,
               points: q.points,
               earned: 0,
-              feedback: "Sin respuesta",
+              feedback: t("hc_modulesWorkshopsWorkshopQuestions.noAnswer"),
             });
           } else {
             // Abierta con respuesta → bucket para batch. NO empujamos a
@@ -1999,7 +2055,8 @@ export function StudentWorkshopTaker({
             if (r) {
               const earned = Math.max(0, Math.min(it.maxPoints, Number(r.score) || 0));
               payload.ai_grade = earned;
-              payload.ai_feedback = r.feedback || "Sin retroalimentación";
+              payload.ai_feedback =
+                r.feedback || t("hc_modulesWorkshopsWorkshopQuestions.noFeedback");
               totalEarned += earned;
               breakdown.push({
                 qid: it.qid,
@@ -2012,7 +2069,9 @@ export function StudentWorkshopTaker({
               // El batch respondió OK pero el modelo OMITIÓ esta pregunta.
               // No es un fallo de IA — queda en 0 con nota aclaratoria.
               payload.ai_grade = 0;
-              payload.ai_feedback = "El modelo no incluyó esta pregunta en su respuesta.";
+              payload.ai_feedback = t(
+                "hc_modulesWorkshopsWorkshopQuestions.modelOmittedQuestion",
+              );
               breakdown.push({
                 qid: it.qid,
                 type: it.type,
@@ -2169,7 +2228,9 @@ export function StudentWorkshopTaker({
           .update({
             ai_grade: finalGrade,
             final_grade: finalGrade,
-            ai_feedback: `Calificación automática inmediata sobre ${maxScore} pts.`,
+            ai_feedback: t("hc_modulesWorkshopsWorkshopQuestions.immediateAutoGrade", {
+              maxScore,
+            }),
             status: "calificado",
           })
           .eq("id", submissionId);
@@ -2192,20 +2253,27 @@ export function StudentWorkshopTaker({
   if (loading) {
     return (
       <p className="text-sm text-muted-foreground">
-        <Spinner size="xs" inline className="mr-1" /> Cargando preguntas…
+        <Spinner size="xs" inline className="mr-1" />{" "}
+        {t("hc_modulesWorkshopsWorkshopQuestions.loadingQuestions")}
       </p>
     );
   }
 
   if (!questions.length) {
-    return <p className="text-sm text-muted-foreground">Este taller aún no tiene preguntas.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        {t("hc_modulesWorkshopsWorkshopQuestions.workshopNoQuestionsYet")}
+      </p>
+    );
   }
 
   if (graded) {
     return (
       <Card className="border-primary/30 bg-primary/5">
         <CardHeader>
-          <CardTitle className="text-base">Resultado del taller</CardTitle>
+          <CardTitle className="text-base">
+            {t("hc_modulesWorkshopsWorkshopQuestions.workshopResultTitle")}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-2xl font-semibold tabular-nums">
@@ -2285,7 +2353,7 @@ export function StudentWorkshopTaker({
                 rows={4}
                 value={answers[q.id] ?? ""}
                 onChange={(e) => updateAnswer(q.id, e.target.value)}
-                placeholder="Escribe tu respuesta…"
+                placeholder={t("hc_modulesWorkshopsWorkshopQuestions.writeYourAnswer")}
               />
             )}
             {q.type === "cerrada" && q.options?.choices && (
@@ -2311,12 +2379,15 @@ export function StudentWorkshopTaker({
                   const maxS = (q.options as any)?.max_selections;
                   const hint =
                     typeof minS === "number" && typeof maxS === "number"
-                      ? `Marca entre ${minS} y ${maxS} opciones`
+                      ? t("hc_modulesWorkshopsWorkshopQuestions.hintBetween", {
+                          min: minS,
+                          max: maxS,
+                        })
                       : typeof minS === "number"
-                        ? `Marca al menos ${minS}`
+                        ? t("hc_modulesWorkshopsWorkshopQuestions.hintAtLeast", { min: minS })
                         : typeof maxS === "number"
-                          ? `Marca máximo ${maxS}`
-                          : "Marca todas las correctas";
+                          ? t("hc_modulesWorkshopsWorkshopQuestions.hintAtMost", { max: maxS })
+                          : t("hc_modulesWorkshopsWorkshopQuestions.hintAllCorrect");
                   return (
                     <>
                       <p className="text-xs text-muted-foreground">{hint}</p>
@@ -2340,7 +2411,9 @@ export function StudentWorkshopTaker({
                       })}
                       {typeof maxS === "number" && sel.length > maxS && (
                         <p className="text-xs text-destructive">
-                          Has marcado más de las permitidas ({maxS}).
+                          {t("hc_modulesWorkshopsWorkshopQuestions.markedMoreThanAllowed", {
+                            max: maxS,
+                          })}
                         </p>
                       )}
                     </>
@@ -2419,9 +2492,10 @@ export function StudentWorkshopTaker({
                 return (
                   <div className="space-y-2">
                     <div className="rounded-md border border-amber-400/40 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-300">
-                      <strong>Modo ZIP único:</strong> sube un archivo <code>.zip</code> con todo tu
-                      proyecto. El servidor lo descomprime y la IA califica todos los archivos
-                      juntos.
+                      <strong>{t("hc_modulesWorkshopsWorkshopQuestions.zipSingleModeLabel")}</strong>{" "}
+                      {t("hc_modulesWorkshopsWorkshopQuestions.zipSingleModeNotice1")}{" "}
+                      <code>.zip</code>{" "}
+                      {t("hc_modulesWorkshopsWorkshopQuestions.zipSingleModeNotice2")}
                     </div>
                     <input
                       type="file"
@@ -2464,8 +2538,9 @@ export function StudentWorkshopTaker({
                       className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Comprimí tu carpeta de proyecto en un único{" "}
-                      <span className="font-mono">.zip</span>. Tope: 50 MB.
+                      {t("hc_modulesWorkshopsWorkshopQuestions.compressFolderInto")}{" "}
+                      <span className="font-mono">.zip</span>.{" "}
+                      {t("hc_modulesWorkshopsWorkshopQuestions.limit50Mb")}
                     </p>
                     {currentZip && (
                       <div className="flex items-center justify-between gap-2 text-[11px]">
@@ -2476,7 +2551,9 @@ export function StudentWorkshopTaker({
                           </span>
                           <button
                             type="button"
-                            aria-label={`Quitar ${currentZip.name}`}
+                            aria-label={t("hc_modulesWorkshopsWorkshopQuestions.removeNamed", {
+                              name: currentZip.name,
+                            })}
                             className="ml-0.5 rounded hover:bg-muted-foreground/20 p-0.5"
                             onClick={() => updateAnswer(q.id, null)}
                           >
@@ -2498,7 +2575,7 @@ export function StudentWorkshopTaker({
                   : undefined;
                 const allowedLabel = allowedExts
                   ? allowedExts.map((e) => `.${e}`).join(", ")
-                  : "archivos de código fuente";
+                  : t("hc_modulesWorkshopsWorkshopQuestions.sourceCodeFiles");
                 const current: File[] = Array.isArray(answers[q.id])
                   ? (answers[q.id] as File[])
                   : answers[q.id] instanceof File
@@ -2520,7 +2597,12 @@ export function StudentWorkshopTaker({
                               .slice(0, 5)
                               .map((f) => f.name)
                               .join(", ");
-                            const more = bad.length > 5 ? ` (+${bad.length - 5} más)` : "";
+                            const more =
+                              bad.length > 5
+                                ? t("hc_modulesWorkshopsWorkshopQuestions.andMoreSuffix", {
+                                    n: bad.length - 5,
+                                  })
+                                : "";
                             toast.error(
                               i18n.t(
                                 "toast.modules_workshops_WorkshopQuestions.filesNotAllowed",
@@ -2591,23 +2673,28 @@ export function StudentWorkshopTaker({
                       className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Sube uno o varios archivos de código fuente — sin comprimir. Extensiones
-                      aceptadas: <span className="font-mono">{allowedLabel}</span>. Tope: 50 MB
-                      total y hasta {MAX_CODE_FILES_COUNT} archivos.
+                      {t("hc_modulesWorkshopsWorkshopQuestions.uploadSourceFilesIntro")}{" "}
+                      <span className="font-mono">{allowedLabel}</span>.{" "}
+                      {t("hc_modulesWorkshopsWorkshopQuestions.uploadSourceFilesLimit", {
+                        max: MAX_CODE_FILES_COUNT,
+                      })}
                     </p>
                     {current.length > 0 && (
                       <div className="space-y-1">
                         <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                           <span>
-                            {current.length} archivo{current.length === 1 ? "" : "s"} ·{" "}
-                            {formatFileSize(current.reduce((a, f) => a + f.size, 0))}
+                            {t("hc_modulesWorkshopsWorkshopQuestions.filesCountSummary", {
+                              count: current.length,
+                              plural: current.length === 1 ? "" : "s",
+                              size: formatFileSize(current.reduce((a, f) => a + f.size, 0)),
+                            })}
                           </span>
                           <button
                             type="button"
                             onClick={() => updateAnswer(q.id, [])}
                             className="text-destructive hover:underline"
                           >
-                            Quitar todos
+                            {t("hc_modulesWorkshopsWorkshopQuestions.removeAll")}
                           </button>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -2623,7 +2710,9 @@ export function StudentWorkshopTaker({
                               </span>
                               <button
                                 type="button"
-                                aria-label={`Quitar ${f.name}`}
+                                aria-label={t("hc_modulesWorkshopsWorkshopQuestions.removeNamed", {
+                                  name: f.name,
+                                })}
                                 className="ml-0.5 rounded hover:bg-muted-foreground/20 p-0.5"
                                 onClick={() =>
                                   updateAnswer(
@@ -2648,7 +2737,7 @@ export function StudentWorkshopTaker({
       <div className="sticky bottom-2 z-10 bg-background/80 backdrop-blur p-2 rounded-lg border">
         {videoGateBlocking && (
           <p className="text-[11px] text-amber-700 dark:text-amber-300 mb-1.5 text-center">
-            Termina de ver los videos introductorios para habilitar la entrega.
+            {t("hc_modulesWorkshopsWorkshopQuestions.finishWatchingVideos")}
           </p>
         )}
         {/* Intentos restantes color-coded (normal → ámbar 1 restante → rojo
@@ -2656,7 +2745,9 @@ export function StudentWorkshopTaker({
             (ProjectFiles): cuando no quedan intentos, el botón "Entregar" se
             deshabilita en vez de mostrarse habilitado y fallar al hacer clic. */}
         <div className="flex items-center justify-center gap-1.5 text-[11px] mb-1">
-          <span className="text-muted-foreground">Intentos restantes:</span>
+          <span className="text-muted-foreground">
+            {t("hc_modulesWorkshopsWorkshopQuestions.attemptsRemaining")}
+          </span>
           <span
             className={`tabular-nums font-medium ${
               attemptsExhausted
@@ -2671,13 +2762,13 @@ export function StudentWorkshopTaker({
         </div>
         {attemptsExhausted ? (
           <p className="text-[11px] text-destructive text-center mb-1.5">
-            Ya consumiste todos tus intentos. No puedes volver a entregar.
+            {t("hc_modulesWorkshopsWorkshopQuestions.allAttemptsUsed")}
           </p>
         ) : attemptsRemaining === 1 ? (
           <p className="text-[11px] text-amber-700 dark:text-amber-300 text-center font-medium mb-1.5">
             {effectiveMaxAttempts === 1
-              ? "Aviso: este taller admite UNA sola entrega — revisa todo antes de enviar."
-              : "Aviso: te queda 1 intento — revisa todo antes de enviar."}
+              ? t("hc_modulesWorkshopsWorkshopQuestions.warningSingleAttempt")
+              : t("hc_modulesWorkshopsWorkshopQuestions.warningOneAttemptLeft")}
           </p>
         ) : null}
         <Button

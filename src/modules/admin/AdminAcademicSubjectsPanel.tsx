@@ -161,7 +161,7 @@ export function AdminAcademicSubjectsPanel() {
       db.from("courses").select("subject_id"),
     ]);
     if (subRes.error) {
-      setLoadError(friendlyError(subRes.error, "No pudimos cargar las asignaturas."));
+      setLoadError(friendlyError(subRes.error, t("hc_modulesAdminAdminAcademicSubjectsPanel.loadErrorFallback")));
       setLoading(false);
       return;
     }
@@ -310,7 +310,7 @@ export function AdminAcademicSubjectsPanel() {
       : await db.from("academic_subjects").insert(payload);
     setSaving(false);
     if (error) {
-      toast.error(friendlyError(error, "No se pudo guardar la asignatura"));
+      toast.error(friendlyError(error, t("hc_modulesAdminAdminAcademicSubjectsPanel.saveErrorFallback")));
       return;
     }
     void logEvent({
@@ -591,7 +591,7 @@ export function AdminAcademicSubjectsPanel() {
               <Textarea
                 value={draft.description}
                 onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                placeholder="Resumen breve para mostrar en listados"
+                placeholder={t("hc_modulesAdminAdminAcademicSubjectsPanel.placeholderDescription")}
                 rows={2}
               />
             </div>
@@ -607,7 +607,7 @@ export function AdminAcademicSubjectsPanel() {
                 <Textarea
                   value={draft.objetivos}
                   onChange={(e) => setDraft({ ...draft, objetivos: e.target.value })}
-                  placeholder="Propósito general de la asignatura"
+                  placeholder={t("hc_modulesAdminAdminAcademicSubjectsPanel.placeholderObjetivos")}
                   rows={3}
                 />
               </div>
@@ -616,7 +616,7 @@ export function AdminAcademicSubjectsPanel() {
                 <Textarea
                   value={draft.contenidos}
                   onChange={(e) => setDraft({ ...draft, contenidos: e.target.value })}
-                  placeholder="Módulos o unidades temáticas (uno por línea)"
+                  placeholder={t("hc_modulesAdminAdminAcademicSubjectsPanel.placeholderContenidos")}
                   rows={4}
                 />
               </div>
@@ -625,7 +625,7 @@ export function AdminAcademicSubjectsPanel() {
                 <Textarea
                   value={draft.bibliografia}
                   onChange={(e) => setDraft({ ...draft, bibliografia: e.target.value })}
-                  placeholder="Referencias principales (una por línea)"
+                  placeholder={t("hc_modulesAdminAdminAcademicSubjectsPanel.placeholderBibliografia")}
                   rows={2}
                 />
               </div>
@@ -643,7 +643,7 @@ export function AdminAcademicSubjectsPanel() {
                         e.target.value === "" ? null : Number(e.target.value),
                     })
                   }
-                  placeholder="Ej: 4"
+                  placeholder={t("hc_modulesAdminAdminAcademicSubjectsPanel.placeholderIntensidad")}
                   className="w-32"
                 />
               </div>

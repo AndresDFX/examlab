@@ -172,7 +172,7 @@ function ForumsList() {
         .limit(60),
     ]);
     if (cErr || fErr) {
-      setLoadError(friendlyError(cErr ?? fErr, "No pudimos cargar los foros."));
+      setLoadError(friendlyError(cErr ?? fErr, t("hc_routesAppForumCourseId.loadForumsError")));
       setLoading(false);
       return;
     }
@@ -440,7 +440,7 @@ function ForumsList() {
               <Input
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="Ej: Dudas sobre el parcial 1"
+                placeholder={t("hc_routesAppForumCourseId.titlePlaceholder")}
                 maxLength={200}
               />
             </div>
@@ -449,7 +449,7 @@ function ForumsList() {
               <Textarea
                 value={newDescription}
                 onChange={(e) => setNewDescription(e.target.value)}
-                placeholder="Opcional. Reglas, temas a tratar, contexto…"
+                placeholder={t("hc_routesAppForumCourseId.descriptionPlaceholder")}
                 rows={3}
                 maxLength={5000}
               />
@@ -504,22 +504,22 @@ function ForumsList() {
       >
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Reabrir foro</DialogTitle>
+            <DialogTitle>{t("hc_routesAppForumCourseId.reopenDialogTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Nuevo cierre (plazo)</Label>
+              <Label>{t("hc_routesAppForumCourseId.reopenNewCloseLabel")}</Label>
               <DateTimePicker value={reopenClosesAt} onChange={setReopenClosesAt} />
               <p className="text-xs text-muted-foreground mt-1">
-                Déjalo vacío para sin cierre automático.
+                {t("hc_routesAppForumCourseId.reopenEmptyHint")}
               </p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setReopenForum(null)}>
-              Cancelar
+              {t("hc_routesAppForumCourseId.reopenCancel")}
             </Button>
-            <Button onClick={() => void confirmReopen()}>Reabrir</Button>
+            <Button onClick={() => void confirmReopen()}>{t("hc_routesAppForumCourseId.reopenConfirm")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

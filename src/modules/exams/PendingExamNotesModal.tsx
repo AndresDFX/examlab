@@ -19,6 +19,7 @@
  * schema cache stale).
  */
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -56,6 +57,7 @@ interface Props {
 }
 
 export function PendingExamNotesModal({ open, onOpenChange, onChange }: Props) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<ExamNoteRow[]>([]);
@@ -272,7 +274,7 @@ export function PendingExamNotesModal({ open, onOpenChange, onChange }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Notas de examen pendientes
+            {t("hc_modulesExamsPendingExamNotesModal.title")}
             {!loading && (
               <Badge variant="secondary" className="text-[10px]">
                 {rows.length}
@@ -283,11 +285,11 @@ export function PendingExamNotesModal({ open, onOpenChange, onChange }: Props) {
 
         {loading ? (
           <div className="py-8 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
-            <Spinner size="md" /> Cargando…
+            <Spinner size="md" /> {t("hc_modulesExamsPendingExamNotesModal.loading")}
           </div>
         ) : rows.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            No hay notas de apoyo pendientes 🎉
+            {t("hc_modulesExamsPendingExamNotesModal.empty")}
           </p>
         ) : (
           <div className="space-y-1.5 min-w-0">
@@ -336,22 +338,25 @@ function PendingNoteRow({
   onConfirmReject: () => void;
   onGo: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-md border p-2.5 space-y-2 min-w-0">
       <div className="flex w-full min-w-0 items-center gap-2">
         <div className="min-w-0 flex-1 space-y-0.5 overflow-hidden">
-          <div className="text-sm font-medium truncate">{note.studentName ?? "Estudiante"}</div>
+          <div className="text-sm font-medium truncate">
+            {note.studentName ?? t("hc_modulesExamsPendingExamNotesModal.studentFallback")}
+          </div>
           <div className="text-xs text-muted-foreground truncate">
             {note.courseName ? `${note.courseName} · ` : ""}
-            {note.examTitle ?? "(examen eliminado)"}
+            {note.examTitle ?? t("hc_modulesExamsPendingExamNotesModal.examDeleted")}
           </div>
           <div className="text-[10px] text-muted-foreground/70 tabular-nums truncate">
-            Subidas {formatDateTime(note.created_at)}
+            {t("hc_modulesExamsPendingExamNotesModal.uploadedAt", { date: formatDateTime(note.created_at) })}
           </div>
         </div>
         <div className="shrink-0 flex items-center gap-1.5">
-          <Button size="sm" variant="outline" onClick={onGo} title="Abrir el examen">
-            Ir <ArrowRight className="h-3 w-3 ml-1" />
+          <Button size="sm" variant="outline" onClick={onGo} title={t("hc_modulesExamsPendingExamNotesModal.openExamTitle")}>
+            {t("hc_modulesExamsPendingExamNotesModal.go")} <ArrowRight className="h-3 w-3 ml-1" />
           </Button>
         </div>
       </div>
@@ -365,7 +370,7 @@ function PendingNoteRow({
         <div className="space-y-1.5">
           <Textarea
             rows={2}
-            placeholder="Motivo del rechazo…"
+            placeholder={t("hc_modulesExamsPendingExamNotesModal.rejectReasonPlaceholder")}
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
             className="text-xs"
@@ -373,7 +378,7 @@ function PendingNoteRow({
           <div className="flex justify-end gap-1.5">
             <Button size="sm" variant="ghost" onClick={onCancelReject} disabled={busy}>
               <X className="h-3 w-3 mr-1" />
-              Cancelar
+              {t("hc_modulesExamsPendingExamNotesModal.cancel")}
             </Button>
             <Button
               size="sm"
@@ -386,7 +391,7 @@ function PendingNoteRow({
               ) : (
                 <>
                   <ThumbsDown className="h-3 w-3 mr-1" />
-                  Confirmar rechazo
+                  {t("hc_modulesExamsPendingExamNotesModal.confirmReject")}
                 </>
               )}
             </Button>
@@ -396,7 +401,7 @@ function PendingNoteRow({
         <div className="flex justify-end gap-1.5">
           <Button size="sm" variant="outline" onClick={onStartReject} disabled={busy}>
             <ThumbsDown className="h-3 w-3 mr-1" />
-            Rechazar
+            {t("hc_modulesExamsPendingExamNotesModal.reject")}
           </Button>
           <Button size="sm" onClick={onApprove} disabled={busy}>
             {busy ? (
@@ -404,7 +409,7 @@ function PendingNoteRow({
             ) : (
               <>
                 <CheckCircle2 className="h-3 w-3 mr-1" />
-                Aprobar
+                {t("hc_modulesExamsPendingExamNotesModal.approve")}
               </>
             )}
           </Button>

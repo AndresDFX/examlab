@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 
 import { cn } from "@/shared/lib/utils";
@@ -189,6 +190,7 @@ function useColumnResize(
 /** Handle de arrastre en el borde derecho de un `<th>`. Lo renderiza
  *  `TableHead` cuando la tabla es `resizable`. */
 function ColumnResizeHandle() {
+  const { t } = useTranslation();
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const handle = e.currentTarget;
     const th = handle.parentElement as HTMLTableCellElement | null;
@@ -246,8 +248,8 @@ function ColumnResizeHandle() {
     <div
       role="separator"
       aria-orientation="vertical"
-      aria-label="Redimensionar columna"
-      title="Arrastra para redimensionar · doble clic para restablecer"
+      aria-label={t("hc_componentsUiTable.resizeColumnAria")}
+      title={t("hc_componentsUiTable.resizeColumnTitle")}
       onPointerDown={onPointerDown}
       onDoubleClick={onDoubleClick}
       className={cn(
@@ -430,6 +432,7 @@ interface SortableHeadProps extends React.ThHTMLAttributes<HTMLTableCellElement>
 
 const SortableHead = React.forwardRef<HTMLTableCellElement, SortableHeadProps>(
   ({ sortKey, sort, children, className, ...props }, ref) => {
+    const { t } = useTranslation();
     const active = sort.sortKey === sortKey;
     const Icon = active ? (sort.sortDir === "asc" ? ChevronUp : ChevronDown) : ChevronsUpDown;
     return (
@@ -450,7 +453,7 @@ const SortableHead = React.forwardRef<HTMLTableCellElement, SortableHeadProps>(
             "transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
             active ? "text-foreground" : "text-muted-foreground",
           )}
-          title="Ordenar por esta columna"
+          title={t("hc_componentsUiTable.sortByColumn")}
         >
           <span className="truncate">{children}</span>
           <Icon className={cn("h-3.5 w-3.5 shrink-0", active ? "opacity-100" : "opacity-40")} />

@@ -39,7 +39,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
-import i18n from "@/i18n";
 import { toast } from "sonner";
 import {
   Plus,
@@ -55,6 +54,7 @@ import {
   Search,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
+import { useTranslation } from "react-i18next";
 import { WhiteboardEditor, type WhiteboardScene } from "@/modules/whiteboard/WhiteboardEditor";
 import { TextPageEditor } from "@/modules/whiteboard/TextPageEditor";
 import {
@@ -119,6 +119,7 @@ function writeStoredActivePage(whiteboardId: string, pageId: string | null) {
 }
 
 export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props) {
+  const { t } = useTranslation();
   const confirm = useConfirm();
   const [pages, setPages] = useState<WhiteboardPage[]>([]);
   const [activePageId, setActivePageId] = useState<string | null>(null);
@@ -146,7 +147,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
         .eq("whiteboard_id", whiteboardId)
         .order("position", { ascending: true });
       if (error) {
-        setLoadError(friendlyError(error, "No pudimos cargar las hojas de la pizarra."));
+        setLoadError(friendlyError(error, t("hc_modulesWhiteboardMultiPageWhiteboard.loadPagesError")));
         return;
       }
       let rows = (data ?? []) as WhiteboardPage[];
@@ -165,7 +166,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
           .select(PAGE_SELECT_COLS)
           .single();
         if (insErr || !created) {
-          setLoadError(friendlyError(insErr, "No pudimos inicializar la primera hoja."));
+          setLoadError(friendlyError(insErr, t("hc_modulesWhiteboardMultiPageWhiteboard.initFirstPageError")));
           return;
         }
         rows = [created as WhiteboardPage];
@@ -184,11 +185,11 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
         return rows[0]?.id ?? null;
       });
     } catch (e) {
-      setLoadError(friendlyError(e, "No pudimos cargar las hojas de la pizarra."));
+      setLoadError(friendlyError(e, t("hc_modulesWhiteboardMultiPageWhiteboard.loadPagesError")));
     } finally {
       setLoading(false);
     }
-  }, [whiteboardId, readOnly]);
+  }, [whiteboardId, readOnly, t]);
 
   useEffect(() => {
     void load();
@@ -205,12 +206,12 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
           .from("whiteboard_pages")
           .update({ scene_json: scene })
           .eq("id", activePageId);
-        if (error) toast.error(friendlyError(error, "No se pudo guardar la hoja"));
+        if (error) toast.error(friendlyError(error, t("hc_modulesWhiteboardMultiPageWhiteboard.savePageError")));
       } catch (e) {
-        toast.error(friendlyError(e, "No se pudo guardar la hoja"));
+        toast.error(friendlyError(e, t("hc_modulesWhiteboardMultiPageWhiteboard.savePageError")));
       }
     },
-    [activePageId],
+    [activePageId, t],
   );
 
   /** Persist de hoja TEXT — guarda en `text_content`. */
@@ -222,23 +223,19 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
           .from("whiteboard_pages")
           .update({ text_content: text })
           .eq("id", activePageId);
-        if (error) toast.error(friendlyError(error, "No se pudo guardar la hoja"));
+        if (error) toast.error(friendlyError(error, t("hc_modulesWhiteboardMultiPageWhiteboard.savePageError")));
       } catch (e) {
-        toast.error(friendlyError(e, "No se pudo guardar la hoja"));
+        toast.error(friendlyError(e, t("hc_modulesWhiteboardMultiPageWhiteboard.savePageError")));
       }
     },
-    [activePageId],
+    [activePageId, t],
   );
 
   const addPage = async (kind: PageType, name: string) => {
     if (busy) return;
     const trimmed = name.trim();
     if (!trimmed) {
-      toast.error(
-        i18n.t("toast.modules_whiteboard_MultiPageWhiteboard.nameRequired", {
-          defaultValue: "El nombre de la hoja es obligatorio.",
-        }),
-      );
+      toast.error(t("hc_modulesWhiteboardMultiPageWhiteboard.nameRequired"));
       return;
     }
     setBusy(true);
@@ -260,7 +257,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
         .select(PAGE_SELECT_COLS)
         .single();
       if (error || !data) {
-        toast.error(friendlyError(error, "No se pudo agregar la hoja"));
+        toast.error(friendlyError(error, t("hc_modulesWhiteboardMultiPageWhiteboard.addPageError")));
         return;
       }
       const newPage = data as WhiteboardPage;
@@ -269,7 +266,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
       setNewPageKind(null);
       setNewPageName("");
     } catch (e) {
-      toast.error(friendlyError(e, "No se pudo agregar la hoja"));
+      toast.error(friendlyError(e, t("hc_modulesWhiteboardMultiPageWhiteboard.addPageError")));
     } finally {
       setBusy(false);
     }
@@ -278,28 +275,24 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
   const deletePage = async (pageId: string) => {
     if (busy) return;
     if (pages.length <= 1) {
-      toast.info(
-        i18n.t("toast.modules_whiteboard_MultiPageWhiteboard.atLeastOnePage", {
-          defaultValue: "La pizarra debe tener al menos una hoja.",
-        }),
-      );
+      toast.info(t("hc_modulesWhiteboardMultiPageWhiteboard.atLeastOnePage"));
       return;
     }
     const page = pages.find((p) => p.id === pageId);
     if (!page) return;
-    const label = page.name ?? `Hoja ${page.position + 1}`;
+    const label = page.name ?? t("hc_modulesWhiteboardMultiPageWhiteboard.pageLabel", { n: page.position + 1 });
     const ok = await confirm({
-      title: `¿Eliminar "${label}"?`,
-      description: "Se elimina toda la hoja y su contenido. Esta acción no se puede deshacer.",
+      title: t("hc_modulesWhiteboardMultiPageWhiteboard.deleteConfirmTitle", { label }),
+      description: t("hc_modulesWhiteboardMultiPageWhiteboard.deleteConfirmDescription"),
       tone: "destructive",
-      confirmLabel: "Eliminar",
+      confirmLabel: t("hc_modulesWhiteboardMultiPageWhiteboard.deleteConfirmLabel"),
     });
     if (!ok) return;
     setBusy(true);
     try {
       const { error } = await db.from("whiteboard_pages").delete().eq("id", pageId);
       if (error) {
-        toast.error(friendlyError(error, "No se pudo eliminar la hoja"));
+        toast.error(friendlyError(error, t("hc_modulesWhiteboardMultiPageWhiteboard.deletePageError")));
         return;
       }
       const remaining = pages.filter((p) => p.id !== pageId);
@@ -307,13 +300,9 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
       if (activePageId === pageId) {
         setActivePageId(remaining[0]?.id ?? null);
       }
-      toast.success(
-        i18n.t("toast.modules_whiteboard_MultiPageWhiteboard.pageDeleted", {
-          defaultValue: "Hoja eliminada",
-        }),
-      );
+      toast.success(t("hc_modulesWhiteboardMultiPageWhiteboard.pageDeleted"));
     } catch (e) {
-      toast.error(friendlyError(e, "No se pudo eliminar la hoja"));
+      toast.error(friendlyError(e, t("hc_modulesWhiteboardMultiPageWhiteboard.deletePageError")));
     } finally {
       setBusy(false);
     }
@@ -337,7 +326,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
         .update({ name: newName || null })
         .eq("id", renamingId);
       if (error) {
-        toast.error(friendlyError(error, "No se pudo renombrar la hoja"));
+        toast.error(friendlyError(error, t("hc_modulesWhiteboardMultiPageWhiteboard.renamePageError")));
         return;
       }
       setPages((prev) =>
@@ -345,7 +334,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
       );
       cancelRename();
     } catch (e) {
-      toast.error(friendlyError(e, "No se pudo renombrar la hoja"));
+      toast.error(friendlyError(e, t("hc_modulesWhiteboardMultiPageWhiteboard.renamePageError")));
     } finally {
       setBusy(false);
     }
@@ -422,10 +411,12 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
     const q = pageListSearch.trim().toLowerCase();
     if (!q) return pages;
     return pages.filter((p) => {
-      const label = (p.name ?? `Hoja ${p.position + 1}`).toLowerCase();
+      const label = (
+        p.name ?? t("hc_modulesWhiteboardMultiPageWhiteboard.pageLabel", { n: p.position + 1 })
+      ).toLowerCase();
       return label.includes(q);
     });
-  }, [pages, pageListSearch]);
+  }, [pages, pageListSearch, t]);
 
   // ─── Render ────────────────────────────────────────────────────
   if (loading) {
@@ -436,7 +427,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
           className,
         )}
       >
-        <Spinner size="sm" /> Cargando hojas…
+        <Spinner size="sm" /> {t("hc_modulesWhiteboardMultiPageWhiteboard.loadingPages")}
       </div>
     );
   }
@@ -444,7 +435,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
     return (
       <div className={cn("flex items-center justify-center p-4", className)}>
         <ErrorState
-          message="No pudimos cargar las hojas"
+          message={t("hc_modulesWhiteboardMultiPageWhiteboard.loadPagesErrorTitle")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -459,7 +450,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
           className,
         )}
       >
-        Esta pizarra no tiene hojas todavía.
+        {t("hc_modulesWhiteboardMultiPageWhiteboard.noPagesYet")}
       </div>
     );
   }
@@ -479,7 +470,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
           onClick={() => scrollBy(-220)}
           disabled={!canScrollLeft}
           className={cn("h-8 w-8 p-0 shrink-0", !canScrollLeft && "invisible")}
-          aria-label="Desplazar hojas a la izquierda"
+          aria-label={t("hc_modulesWhiteboardMultiPageWhiteboard.scrollLeft")}
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
@@ -493,7 +484,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
             {pages.map((page) => {
               const isActive = page.id === activePageId;
               const isRenaming = renamingId === page.id;
-              const label = page.name ?? `Hoja ${page.position + 1}`;
+              const label = page.name ?? t("hc_modulesWhiteboardMultiPageWhiteboard.pageLabel", { n: page.position + 1 });
               const Icon = page.page_type === "text" ? FileText : Palette;
               return (
                 <div
@@ -516,7 +507,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                           if (e.key === "Escape") cancelRename();
                         }}
                         autoFocus
-                        placeholder={`Hoja ${page.position + 1}`}
+                        placeholder={t("hc_modulesWhiteboardMultiPageWhiteboard.pageLabel", { n: page.position + 1 })}
                         className="h-6 w-32 text-xs px-1.5"
                         disabled={busy}
                       />
@@ -525,8 +516,8 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                         onClick={() => void saveRename()}
                         disabled={busy}
                         className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
-                        aria-label="Guardar nombre"
-                        title="Guardar"
+                        aria-label={t("hc_modulesWhiteboardMultiPageWhiteboard.saveNameAria")}
+                        title={t("hc_modulesWhiteboardMultiPageWhiteboard.save")}
                       >
                         <Check className="h-3.5 w-3.5" />
                       </button>
@@ -535,8 +526,8 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                         onClick={cancelRename}
                         disabled={busy}
                         className="text-muted-foreground hover:text-foreground"
-                        aria-label="Cancelar"
-                        title="Cancelar"
+                        aria-label={t("hc_modulesWhiteboardMultiPageWhiteboard.cancel")}
+                        title={t("hc_modulesWhiteboardMultiPageWhiteboard.cancel")}
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -566,8 +557,8 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                             type="button"
                             onClick={() => startRename(page)}
                             className="text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100"
-                            aria-label="Renombrar hoja"
-                            title="Renombrar"
+                            aria-label={t("hc_modulesWhiteboardMultiPageWhiteboard.renamePageAria")}
+                            title={t("hc_modulesWhiteboardMultiPageWhiteboard.rename")}
                             disabled={busy}
                           >
                             <Pencil className="h-3 w-3" />
@@ -576,8 +567,8 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                             type="button"
                             onClick={() => void deletePage(page.id)}
                             className="text-muted-foreground hover:text-destructive opacity-70 hover:opacity-100"
-                            aria-label="Eliminar hoja"
-                            title="Eliminar hoja"
+                            aria-label={t("hc_modulesWhiteboardMultiPageWhiteboard.deletePageAria")}
+                            title={t("hc_modulesWhiteboardMultiPageWhiteboard.deletePageAria")}
                             disabled={busy || pages.length <= 1}
                           >
                             <Trash2 className="h-3 w-3" />
@@ -599,7 +590,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
           onClick={() => scrollBy(220)}
           disabled={!canScrollRight}
           className={cn("h-8 w-8 p-0 shrink-0", !canScrollRight && "invisible")}
-          aria-label="Desplazar hojas a la derecha"
+          aria-label={t("hc_modulesWhiteboardMultiPageWhiteboard.scrollRight")}
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
@@ -616,17 +607,17 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
               variant="ghost"
               size="sm"
               className="h-7 text-xs shrink-0 px-2"
-              title="Ver todas las hojas"
+              title={t("hc_modulesWhiteboardMultiPageWhiteboard.viewAllPages")}
             >
               <ListIcon className="h-3.5 w-3.5 mr-1" />
-              <span className="hidden sm:inline">Lista</span>
+              <span className="hidden sm:inline">{t("hc_modulesWhiteboardMultiPageWhiteboard.list")}</span>
               <span className="ml-1 text-muted-foreground tabular-nums">({pages.length})</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-72 max-h-[400px] overflow-y-auto">
             <DropdownMenuLabel className="flex items-center gap-2">
               <ListIcon className="h-3.5 w-3.5" />
-              Todas las hojas ({pages.length})
+              {t("hc_modulesWhiteboardMultiPageWhiteboard.allPages", { count: pages.length })}
             </DropdownMenuLabel>
             {/* Búsqueda interna — útil cuando hay decenas de hojas. */}
             {pages.length > 8 && (
@@ -636,7 +627,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                   <Input
                     value={pageListSearch}
                     onChange={(e) => setPageListSearch(e.target.value)}
-                    placeholder="Buscar hoja…"
+                    placeholder={t("hc_modulesWhiteboardMultiPageWhiteboard.searchPagePlaceholder")}
                     className="h-7 pl-7 text-xs"
                   />
                 </div>
@@ -645,12 +636,12 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
             <DropdownMenuSeparator />
             {filteredPagesForList.length === 0 ? (
               <div className="px-2 py-3 text-xs text-muted-foreground text-center">
-                Sin coincidencias.
+                {t("hc_modulesWhiteboardMultiPageWhiteboard.noMatches")}
               </div>
             ) : (
               filteredPagesForList.map((page) => {
                 const isActive = page.id === activePageId;
-                const label = page.name ?? `Hoja ${page.position + 1}`;
+                const label = page.name ?? t("hc_modulesWhiteboardMultiPageWhiteboard.pageLabel", { n: page.position + 1 });
                 const Icon = page.page_type === "text" ? FileText : Palette;
                 return (
                   <DropdownMenuItem
@@ -691,14 +682,14 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                 size="sm"
                 disabled={busy}
                 className="h-7 text-xs shrink-0 px-2"
-                title="Agregar nueva hoja"
+                title={t("hc_modulesWhiteboardMultiPageWhiteboard.addPageTitle")}
               >
                 <Plus className="h-3.5 w-3.5 mr-1" />
-                <span className="hidden sm:inline">Agregar</span>
+                <span className="hidden sm:inline">{t("hc_modulesWhiteboardMultiPageWhiteboard.add")}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Tipo de hoja nueva</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("hc_modulesWhiteboardMultiPageWhiteboard.newPageType")}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onSelect={() => {
@@ -708,9 +699,9 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
               >
                 <Palette className="h-4 w-4 mr-2 text-violet-500" />
                 <div className="flex flex-col">
-                  <span className="text-sm">Hoja de dibujo</span>
+                  <span className="text-sm">{t("hc_modulesWhiteboardMultiPageWhiteboard.drawingPage")}</span>
                   <span className="text-[11px] text-muted-foreground">
-                    Canvas Excalidraw para dibujar, anotar y diagramar
+                    {t("hc_modulesWhiteboardMultiPageWhiteboard.drawingPageHint")}
                   </span>
                 </div>
               </DropdownMenuItem>
@@ -722,9 +713,9 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
               >
                 <FileText className="h-4 w-4 mr-2 text-sky-500" />
                 <div className="flex flex-col">
-                  <span className="text-sm">Hoja de texto</span>
+                  <span className="text-sm">{t("hc_modulesWhiteboardMultiPageWhiteboard.textPage")}</span>
                   <span className="text-[11px] text-muted-foreground">
-                    Editor markdown con vista previa
+                    {t("hc_modulesWhiteboardMultiPageWhiteboard.textPageHint")}
                   </span>
                 </div>
               </DropdownMenuItem>
@@ -781,13 +772,15 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
               ) : (
                 <Palette className="h-5 w-5 text-violet-500" />
               )}
-              {newPageKind === "text" ? "Nueva hoja de texto" : "Nueva hoja de dibujo"}
+              {newPageKind === "text"
+                ? t("hc_modulesWhiteboardMultiPageWhiteboard.newTextPageTitle")
+                : t("hc_modulesWhiteboardMultiPageWhiteboard.newDrawingPageTitle")}
             </DialogTitle>
-            <DialogDescription>Ponle un nombre a la hoja para identificarla.</DialogDescription>
+            <DialogDescription>{t("hc_modulesWhiteboardMultiPageWhiteboard.namePageDescription")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
             <Label htmlFor="new-page-name" required>
-              Nombre de la hoja
+              {t("hc_modulesWhiteboardMultiPageWhiteboard.pageNameLabel")}
             </Label>
             <Input
               id="new-page-name"
@@ -800,7 +793,11 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
               }}
               autoFocus
               maxLength={120}
-              placeholder={newPageKind === "text" ? "Ej: Notas de la clase" : "Ej: Diagrama de flujo"}
+              placeholder={
+                newPageKind === "text"
+                  ? t("hc_modulesWhiteboardMultiPageWhiteboard.textPagePlaceholder")
+                  : t("hc_modulesWhiteboardMultiPageWhiteboard.drawingPagePlaceholder")
+              }
             />
           </div>
           <DialogFooter>
@@ -812,14 +809,14 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
               }}
               disabled={busy}
             >
-              Cancelar
+              {t("hc_modulesWhiteboardMultiPageWhiteboard.cancel")}
             </Button>
             <Button
               onClick={() => newPageKind && void addPage(newPageKind, newPageName)}
               disabled={busy || !newPageName.trim()}
             >
               {busy ? <Spinner size="sm" className="mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
-              Crear hoja
+              {t("hc_modulesWhiteboardMultiPageWhiteboard.createPage")}
             </Button>
           </DialogFooter>
         </DialogContent>

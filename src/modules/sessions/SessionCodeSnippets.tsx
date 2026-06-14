@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -128,6 +129,7 @@ function filesFromLegacy(row: {
 }
 
 export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
+  const { t } = useTranslation();
   const confirm = useConfirm();
   const [snippets, setSnippets] = useState<SnippetRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -162,7 +164,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
         .eq("session_id", sessionId)
         .order("position", { ascending: true });
       if (error) {
-        setLoadError(friendlyError(error, "No pudimos cargar los snippets."));
+        setLoadError(friendlyError(error, t("hc_modulesSessionsSessionCodeSnippets.loadSnippetsFailed")));
         setLoading(false);
         return;
       }
@@ -177,7 +179,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
           .in("snippet_id", snippetIds)
           .order("position", { ascending: true });
         if (fileErr) {
-          setLoadError(friendlyError(fileErr, "No pudimos cargar los archivos."));
+          setLoadError(friendlyError(fileErr, t("hc_modulesSessionsSessionCodeSnippets.loadFilesFailed")));
           setLoading(false);
           return;
         }
@@ -206,10 +208,10 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
       setSnippets(withFiles);
       setLoading(false);
     } catch (e) {
-      setLoadError(friendlyError(e, "No pudimos cargar los snippets."));
+      setLoadError(friendlyError(e, t("hc_modulesSessionsSessionCodeSnippets.loadSnippetsFailed")));
       setLoading(false);
     }
-  }, [sessionId]);
+  }, [sessionId, t]);
 
   useEffect(() => {
     void load();
@@ -256,7 +258,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
       })
       .eq("id", row.id);
     if (error) {
-      toast.error(friendlyError(error, "No se pudo guardar el snippet"));
+      toast.error(friendlyError(error, t("hc_modulesSessionsSessionCodeSnippets.saveSnippetFailed")));
     }
   };
 
@@ -278,7 +280,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
       .select("id, filename, content, position")
       .single();
     if (error || !data) {
-      toast.error(friendlyError(error, "No se pudo guardar el archivo"));
+      toast.error(friendlyError(error, t("hc_modulesSessionsSessionCodeSnippets.saveFileFailed")));
       return file;
     }
     return { id: data.id, filename: data.filename, content: data.content, position: data.position };
@@ -337,7 +339,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
       .update({ filename: file.filename, content: file.content })
       .eq("id", file.id);
     if (error) {
-      toast.error(friendlyError(error, "No se pudo guardar el archivo"));
+      toast.error(friendlyError(error, t("hc_modulesSessionsSessionCodeSnippets.saveFileFailed")));
       return;
     }
     if (fileIdx === 0) await syncLegacySourceCode(snippet.id, file.content);
@@ -367,7 +369,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
         .select(SELECT_COLS)
         .single();
       if (error || !data) {
-        toast.error(friendlyError(error, "No se pudo crear el snippet"));
+        toast.error(friendlyError(error, t("hc_modulesSessionsSessionCodeSnippets.createSnippetFailed")));
         return;
       }
       // Crear el primer archivo real para el snippet nuevo.
@@ -401,9 +403,9 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
   const deleteSnippet = async (id: string) => {
     if (readOnly) return;
     const ok = await confirm({
-      title: "¿Eliminar este snippet?",
-      description: "Se eliminarán todos sus archivos. Esta acción no se puede deshacer.",
-      confirmLabel: "Eliminar",
+      title: t("hc_modulesSessionsSessionCodeSnippets.deleteSnippetTitle"),
+      description: t("hc_modulesSessionsSessionCodeSnippets.deleteSnippetDescription"),
+      confirmLabel: t("hc_modulesSessionsSessionCodeSnippets.deleteConfirmLabel"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -412,7 +414,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
       // session_snippet_files se borran por ON DELETE CASCADE.
       const { error } = await db.from("session_code_snippets").delete().eq("id", id);
       if (error) {
-        toast.error(friendlyError(error, "No se pudo eliminar"));
+        toast.error(friendlyError(error, t("hc_modulesSessionsSessionCodeSnippets.deleteSnippetFailed")));
         return;
       }
       setSnippets((prev) => prev.filter((s) => s.id !== id));
@@ -440,7 +442,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
       .select("id, filename, content, position")
       .single();
     if (error || !data) {
-      toast.error(friendlyError(error, "No se pudo agregar el archivo"));
+      toast.error(friendlyError(error, t("hc_modulesSessionsSessionCodeSnippets.addFileFailed")));
       return;
     }
     setSnippets((prev) =>
@@ -471,9 +473,9 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
     if (!snippet || snippet.files.length <= 1) return;
     const file = snippet.files[fileIdx];
     const ok = await confirm({
-      title: "¿Eliminar este archivo?",
-      description: `Se eliminará "${file.filename}". Esta acción no se puede deshacer.`,
-      confirmLabel: "Eliminar",
+      title: t("hc_modulesSessionsSessionCodeSnippets.deleteFileTitle"),
+      description: t("hc_modulesSessionsSessionCodeSnippets.deleteFileDescription", { filename: file.filename }),
+      confirmLabel: t("hc_modulesSessionsSessionCodeSnippets.deleteConfirmLabel"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -481,7 +483,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
     if (!file.id.startsWith("legacy:")) {
       const { error } = await db.from("session_snippet_files").delete().eq("id", file.id);
       if (error) {
-        toast.error(friendlyError(error, "No se pudo eliminar el archivo"));
+        toast.error(friendlyError(error, t("hc_modulesSessionsSessionCodeSnippets.deleteFileFailed")));
         return;
       }
     }
@@ -521,7 +523,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
         },
       });
       if (error || data?.error) {
-        toast.error(friendlyError(error ?? data?.error, "Error ejecutando el snippet"));
+        toast.error(friendlyError(error ?? data?.error, t("hc_modulesSessionsSessionCodeSnippets.runSnippetFailed")));
         return;
       }
       const stdout = (data?.stdout as string) ?? "";
@@ -592,7 +594,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
-        <Spinner size="sm" /> Cargando snippets…
+        <Spinner size="sm" /> {t("hc_modulesSessionsSessionCodeSnippets.loadingSnippets")}
       </div>
     );
   }
@@ -609,7 +611,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
         <Code2 className="h-8 w-8 opacity-40" />
-        <p>El docente todavía no agregó código a esta sesión.</p>
+        <p>{t("hc_modulesSessionsSessionCodeSnippets.studentEmptyState")}</p>
       </div>
     );
   }
@@ -619,7 +621,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-1.5 text-sm font-medium">
           <Code2 className="h-4 w-4 text-indigo-500" />
-          Snippets de código
+          {t("hc_modulesSessionsSessionCodeSnippets.heading")}
           {snippets.length > 0 && (
             <Badge variant="secondary" className="text-[10px] ml-1">
               {snippets.length}
@@ -629,14 +631,14 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
         {!readOnly && (
           <Button size="sm" variant="outline" onClick={() => void addSnippet()} disabled={busy}>
             {busy ? <Spinner size="xs" className="mr-1" /> : <Plus className="h-3 w-3 mr-1" />}
-            Agregar snippet
+            {t("hc_modulesSessionsSessionCodeSnippets.addSnippet")}
           </Button>
         )}
       </div>
 
       {snippets.length === 0 && !readOnly && (
         <p className="text-xs text-muted-foreground italic">
-          Sin snippets todavía. Click "Agregar snippet" para crear el primero.
+          {t("hc_modulesSessionsSessionCodeSnippets.teacherEmptyState")}
         </p>
       )}
 
@@ -650,7 +652,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                 exitCode: snippet.last_exit_code ?? 0,
               }
             : undefined;
-        const placeholderTitle = `Snippet ${idx + 1}`;
+        const placeholderTitle = t("hc_modulesSessionsSessionCodeSnippets.snippetPlaceholderTitle", { number: idx + 1 });
         const activeFile = snippet.files[snippet.activeFileIdx] ?? snippet.files[0];
         return (
           <Card key={snippet.id} className="border-l-4 border-l-indigo-500/50">
@@ -694,7 +696,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                   variant="ghost"
                   className="h-7 px-2 text-xs"
                   onClick={() => void copyToClipboard(snippet)}
-                  title="Copiar archivo activo al portapapeles"
+                  title={t("hc_modulesSessionsSessionCodeSnippets.copyActiveFileTitle")}
                 >
                   {copiedId === snippet.id ? (
                     <Check className="h-3 w-3" />
@@ -708,7 +710,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                     variant="ghost"
                     className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
                     onClick={() => void deleteSnippet(snippet.id)}
-                    title="Eliminar snippet"
+                    title={t("hc_modulesSessionsSessionCodeSnippets.deleteSnippetTitleAttr")}
                     disabled={busy}
                   >
                     <Trash2 className="h-3 w-3" />
@@ -736,7 +738,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                           onClick={() => setActiveFile(snippet.id, fileIdx)}
                           title={file.filename}
                         >
-                          {file.filename || `archivo ${fileIdx + 1}`}
+                          {file.filename || t("hc_modulesSessionsSessionCodeSnippets.fileFallbackName", { number: fileIdx + 1 })}
                         </button>
                       ) : active ? (
                         <Input
@@ -754,7 +756,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                           onClick={() => setActiveFile(snippet.id, fileIdx)}
                           title={file.filename}
                         >
-                          {file.filename || `archivo ${fileIdx + 1}`}
+                          {file.filename || t("hc_modulesSessionsSessionCodeSnippets.fileFallbackName", { number: fileIdx + 1 })}
                         </button>
                       )}
                       {!readOnly && snippet.files.length > 1 && (
@@ -762,8 +764,8 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                           type="button"
                           className="opacity-50 hover:opacity-100 hover:text-destructive"
                           onClick={() => void deleteFile(snippet.id, fileIdx)}
-                          title="Eliminar archivo"
-                          aria-label={`Eliminar archivo ${file.filename}`}
+                          title={t("hc_modulesSessionsSessionCodeSnippets.deleteFileTitleAttr")}
+                          aria-label={t("hc_modulesSessionsSessionCodeSnippets.deleteFileAriaLabel", { filename: file.filename })}
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -777,10 +779,10 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                     variant="ghost"
                     className="h-6 px-1.5 text-[11px]"
                     onClick={() => void addFile(snippet.id)}
-                    title="Agregar archivo"
+                    title={t("hc_modulesSessionsSessionCodeSnippets.addFileTitle")}
                   >
                     <Plus className="h-3 w-3 mr-0.5" />
-                    Archivo
+                    {t("hc_modulesSessionsSessionCodeSnippets.fileButton")}
                   </Button>
                 )}
               </div>
@@ -814,7 +816,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                   exit {output.exitCode}
                   {!readOnly && snippet.last_executed_at && (
                     <span className="ml-2">
-                      • Último run: {formatTime(snippet.last_executed_at)}
+                      • {t("hc_modulesSessionsSessionCodeSnippets.lastRun", { time: formatTime(snippet.last_executed_at) })}
                     </span>
                   )}
                 </div>

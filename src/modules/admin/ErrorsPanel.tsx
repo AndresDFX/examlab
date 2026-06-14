@@ -66,6 +66,7 @@ import { DataPagination } from "@/components/ui/data-pagination";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
   ChevronDown,
@@ -116,25 +117,25 @@ const STATUS_CFG: Record<
   }
 > = {
   nuevo: {
-    label: "Nuevo",
+    label: i18n.t("hc_modulesAdminErrorsPanel.statusNuevo"),
     badge: "destructive",
     color: "text-rose-500 dark:text-rose-400",
     icon: Circle,
   },
   revisando: {
-    label: "Revisando",
+    label: i18n.t("hc_modulesAdminErrorsPanel.statusRevisando"),
     badge: "default",
     color: "text-amber-500 dark:text-amber-400",
     icon: Eye,
   },
   resuelto: {
-    label: "Resuelto",
+    label: i18n.t("hc_modulesAdminErrorsPanel.statusResuelto"),
     badge: "secondary",
     color: "text-emerald-500 dark:text-emerald-400",
     icon: CheckCircle2,
   },
   ignorado: {
-    label: "Ignorado",
+    label: i18n.t("hc_modulesAdminErrorsPanel.statusIgnorado"),
     badge: "outline",
     color: "text-muted-foreground",
     icon: XCircle,
@@ -149,6 +150,7 @@ interface Props {
 }
 
 export function ErrorsPanel({ embedded = false }: Props) {
+  const { t } = useTranslation();
   const { roles } = useAuth();
   const activeRole = useActiveRole();
   const isSuperAdmin = activeRole === "SuperAdmin" && roles.includes("SuperAdmin");
@@ -204,7 +206,7 @@ export function ErrorsPanel({ embedded = false }: Props) {
       ]);
       if (cancelled) return;
       if (listRes.error) {
-        setLoadError(friendlyError(listRes.error, "No pudimos cargar los errores."));
+        setLoadError(friendlyError(listRes.error, t("hc_modulesAdminErrorsPanel.loadErrorFallback")));
       } else {
         setEvents((listRes.data ?? []) as ErrorEvent[]);
       }
@@ -237,9 +239,9 @@ export function ErrorsPanel({ embedded = false }: Props) {
         const names = Array.from(
           new Set(g.events.map((e) => e.tenant_name).filter((n): n is string => Boolean(n))),
         );
-        if (names.length === 0) return "— sistema —";
+        if (names.length === 0) return t("hc_modulesAdminErrorsPanel.systemTenant");
         if (names.length === 1) return names[0];
-        return `${names.length} instituciones`;
+        return t("hc_modulesAdminErrorsPanel.nInstitutions", { count: names.length });
       },
       count: (g) => g.count,
       status: (g) => aggregateGroupStatus(g.statusCounts),
@@ -330,7 +332,7 @@ export function ErrorsPanel({ embedded = false }: Props) {
   };
 
   if (!isAdmin && !isSuperAdmin) {
-    return <p className="text-muted-foreground p-6">Necesitas rol Admin o SuperAdmin.</p>;
+    return <p className="text-muted-foreground p-6">{t("hc_modulesAdminErrorsPanel.needAdminRole")}</p>;
   }
 
   const colSpan = isSuperAdmin ? 8 : 7;
@@ -339,17 +341,17 @@ export function ErrorsPanel({ embedded = false }: Props) {
     <div className="space-y-5">
       {!embedded && (
         <PageHeader
-          title="Errores"
+          title={t("hc_modulesAdminErrorsPanel.pageTitle")}
           subtitle={
             isSuperAdmin
-              ? "Errores de toda la plataforma. Agrupados por tipo; expandí un grupo para ver sus eventos."
-              : "Errores de tu institución. Agrupados por tipo; expandí un grupo para ver sus eventos."
+              ? t("hc_modulesAdminErrorsPanel.subtitleSuperAdmin")
+              : t("hc_modulesAdminErrorsPanel.subtitleAdmin")
           }
           icon={<AlertTriangle className="h-6 w-6 text-rose-500" />}
           actions={
             <Button variant="outline" size="sm" onClick={() => setRetryNonce((n) => n + 1)}>
               <RefreshCw className="h-4 w-4 mr-1" />
-              Actualizar
+              {t("hc_modulesAdminErrorsPanel.refresh")}
             </Button>
           }
         />
@@ -360,7 +362,7 @@ export function ErrorsPanel({ embedded = false }: Props) {
           también cuentan eventos (un grupo puede tener N eventos). */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <CountTile
-          label="Total"
+          label={t("hc_modulesAdminErrorsPanel.total")}
           value={total}
           active={statusFilter === "all"}
           onClick={() => setStatusFilter("all")}
@@ -384,10 +386,10 @@ export function ErrorsPanel({ embedded = false }: Props) {
         {isSuperAdmin && tenants.length > 0 && (
           <Select value={tenantFilter} onValueChange={setTenantFilter}>
             <SelectTrigger className="w-full sm:w-64 h-9 text-xs">
-              <SelectValue placeholder="Institución" />
+              <SelectValue placeholder={t("hc_modulesAdminErrorsPanel.institution")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas las instituciones</SelectItem>
+              <SelectItem value="all">{t("hc_modulesAdminErrorsPanel.allInstitutions")}</SelectItem>
               {tenants.map((t) => (
                 <SelectItem key={t.id} value={t.id}>
                   {t.name}
@@ -404,7 +406,7 @@ export function ErrorsPanel({ embedded = false }: Props) {
             className="ml-auto"
           >
             <RefreshCw className="h-4 w-4 mr-1" />
-            Actualizar
+            {t("hc_modulesAdminErrorsPanel.refresh")}
           </Button>
         )}
       </div>
@@ -412,10 +414,11 @@ export function ErrorsPanel({ embedded = false }: Props) {
       {sel.count > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 p-2">
           <span className="text-sm text-muted-foreground">
-            {sel.count} evento{sel.count === 1 ? "" : "s"} seleccionado
-            {sel.count === 1 ? "" : "s"}
+            {t("hc_modulesAdminErrorsPanel.eventsSelected", { count: sel.count })}
           </span>
-          <span className="text-sm text-muted-foreground">· marcar como</span>
+          <span className="text-sm text-muted-foreground">
+            {t("hc_modulesAdminErrorsPanel.markAsLabel")}
+          </span>
           <Select value={bulkStatus} onValueChange={(v) => setBulkStatus(v as ErrStatus)}>
             <SelectTrigger className="w-40 h-8 text-xs">
               <SelectValue />
@@ -430,21 +433,21 @@ export function ErrorsPanel({ embedded = false }: Props) {
           </Select>
           <Button size="sm" onClick={() => void applyBulk()} disabled={applying}>
             {applying && <Spinner size="sm" className="mr-1" />}
-            Aplicar
+            {t("hc_modulesAdminErrorsPanel.apply")}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => sel.clear()}>
-            Limpiar
+            {t("hc_modulesAdminErrorsPanel.clear")}
           </Button>
         </div>
       )}
 
       {loading ? (
         <div className="p-4 sm:p-8 flex items-center justify-center text-sm text-muted-foreground">
-          <Spinner size="sm" className="mr-2" /> Cargando…
+          <Spinner size="sm" className="mr-2" /> {t("hc_modulesAdminErrorsPanel.loading")}
         </div>
       ) : loadError ? (
         <ErrorState
-          message="No pudimos cargar los errores"
+          message={t("hc_modulesAdminErrorsPanel.loadErrorTitle")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -459,10 +462,10 @@ export function ErrorsPanel({ embedded = false }: Props) {
                   </TableHead>
                   <TableHead className="w-8" />
                   <SortableHead sortKey="action" sort={sort} className="min-w-36 sm:min-w-48">
-                    Error
+                    {t("hc_modulesAdminErrorsPanel.colError")}
                   </SortableHead>
                   <SortableHead sortKey="category" sort={sort} className="hidden md:table-cell w-28">
-                    Categoría
+                    {t("hc_modulesAdminErrorsPanel.colCategory")}
                   </SortableHead>
                   {isSuperAdmin && (
                     <SortableHead
@@ -470,14 +473,14 @@ export function ErrorsPanel({ embedded = false }: Props) {
                       sort={sort}
                       className="hidden lg:table-cell w-40"
                     >
-                      Institución
+                      {t("hc_modulesAdminErrorsPanel.colInstitution")}
                     </SortableHead>
                   )}
                   <SortableHead sortKey="count" sort={sort} className="w-24">
-                    Eventos
+                    {t("hc_modulesAdminErrorsPanel.colEvents")}
                   </SortableHead>
                   <SortableHead sortKey="status" sort={sort} className="w-28">
-                    Estado
+                    {t("hc_modulesAdminErrorsPanel.colStatus")}
                   </SortableHead>
                   <TableHead className="w-12 text-right" />
                 </TableRow>
@@ -487,11 +490,11 @@ export function ErrorsPanel({ embedded = false }: Props) {
                   <TableEmpty
                     colSpan={colSpan}
                     icon={AlertTriangle}
-                    title="Sin errores"
+                    title={t("hc_modulesAdminErrorsPanel.emptyTitle")}
                     description={
                       statusFilter !== "all"
-                        ? "No hay errores con ese estado/filtro."
-                        : "No se han registrado errores. 🎉"
+                        ? t("hc_modulesAdminErrorsPanel.emptyFiltered")
+                        : t("hc_modulesAdminErrorsPanel.emptyAll")
                     }
                   />
                 ) : (
@@ -508,10 +511,12 @@ export function ErrorsPanel({ embedded = false }: Props) {
                     );
                     const tenantLabel =
                       tenantNames.length === 0
-                        ? "— sistema —"
+                        ? t("hc_modulesAdminErrorsPanel.systemTenant")
                         : tenantNames.length === 1
                           ? tenantNames[0]
-                          : `${tenantNames.length} instituciones`;
+                          : t("hc_modulesAdminErrorsPanel.nInstitutions", {
+                              count: tenantNames.length,
+                            });
                     const isGroupBusy = applyingGroup === g.fingerprint;
                     return (
                       <Fragment key={g.fingerprint}>
@@ -524,7 +529,7 @@ export function ErrorsPanel({ embedded = false }: Props) {
                             <Checkbox
                               checked={allSelected ? true : someSelected ? "indeterminate" : false}
                               onCheckedChange={() => toggleGroupSelection(g)}
-                              aria-label="Seleccionar grupo"
+                              aria-label={t("hc_modulesAdminErrorsPanel.selectGroupAria")}
                             />
                           </TableCell>
                           <TableCell className="w-8">
@@ -532,7 +537,11 @@ export function ErrorsPanel({ embedded = false }: Props) {
                               type="button"
                               onClick={() => toggleExpand(g.fingerprint)}
                               className="text-muted-foreground hover:text-foreground"
-                              aria-label={isOpen ? "Colapsar grupo" : "Expandir grupo"}
+                              aria-label={
+                                isOpen
+                                  ? t("hc_modulesAdminErrorsPanel.collapseGroupAria")
+                                  : t("hc_modulesAdminErrorsPanel.expandGroupAria")
+                              }
                             >
                               {isOpen ? (
                                 <ChevronDown className="h-4 w-4" />
@@ -554,7 +563,8 @@ export function ErrorsPanel({ embedded = false }: Props) {
                               </div>
                             )}
                             <div className="text-[10px] text-muted-foreground mt-0.5">
-                              Último: <DateCell value={g.lastSeen} variant="datetime" />
+                              {t("hc_modulesAdminErrorsPanel.lastSeenLabel")}{" "}
+                              <DateCell value={g.lastSeen} variant="datetime" />
                             </div>
                           </TableCell>
                           <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
@@ -567,7 +577,7 @@ export function ErrorsPanel({ embedded = false }: Props) {
                           )}
                           <TableCell className="text-xs tabular-nums">
                             <Badge variant="outline" className="text-[10px]">
-                              {g.count} {g.count === 1 ? "evento" : "eventos"}
+                              {t("hc_modulesAdminErrorsPanel.eventCount", { count: g.count })}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -581,7 +591,9 @@ export function ErrorsPanel({ embedded = false }: Props) {
                             ) : (
                               <RowActionsMenu
                                 actions={ERROR_STATUSES.map((s) => ({
-                                  label: `Marcar todos como ${STATUS_CFG[s].label}`,
+                                  label: t("hc_modulesAdminErrorsPanel.markAllAs", {
+                                    status: STATUS_CFG[s].label,
+                                  }),
                                   icon: STATUS_CFG[s].icon,
                                   onClick: () => void applyGroupStatus(g, s),
                                   disabled: s === aggStatus && g.count === g.statusCounts[s],
@@ -659,6 +671,7 @@ function EventDetailBlock({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sel: any;
 }) {
+  const { t } = useTranslation();
   const cfg = STATUS_CFG[ev.status];
   const msg = errorMessage(ev.metadata);
   return (
@@ -683,15 +696,22 @@ function EventDetailBlock({
           {msg && <div className="text-destructive break-words">{msg}</div>}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-0.5 text-muted-foreground">
             {ev.entity_name && (
-              <DetailRow k="Entidad" v={`${ev.entity_type ?? ""} ${ev.entity_name}`.trim()} />
+              <DetailRow
+                k={t("hc_modulesAdminErrorsPanel.detailEntity")}
+                v={`${ev.entity_type ?? ""} ${ev.entity_name}`.trim()}
+              />
             )}
-            {ev.course_name && <DetailRow k="Curso" v={ev.course_name} />}
-            {ev.reviewed_at && <DetailRow k="Revisado" v={ev.reviewed_at} />}
-            <DetailRow k="ID" v={ev.id} mono />
+            {ev.course_name && (
+              <DetailRow k={t("hc_modulesAdminErrorsPanel.detailCourse")} v={ev.course_name} />
+            )}
+            {ev.reviewed_at && (
+              <DetailRow k={t("hc_modulesAdminErrorsPanel.detailReviewed")} v={ev.reviewed_at} />
+            )}
+            <DetailRow k={t("hc_modulesAdminErrorsPanel.detailId")} v={ev.id} mono />
           </div>
           <details className="mt-1">
             <summary className="cursor-pointer text-[10px] uppercase tracking-wide text-muted-foreground hover:text-foreground">
-              Metadata
+              {t("hc_modulesAdminErrorsPanel.metadata")}
             </summary>
             <pre className="text-[11px] whitespace-pre-wrap break-all bg-muted rounded p-2 mt-1 max-h-40 overflow-y-auto">
               {JSON.stringify(ev.metadata, null, 2)}

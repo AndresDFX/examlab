@@ -28,6 +28,7 @@ import { friendlyError } from "@/shared/lib/db-errors";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 export const Route = createFileRoute("/app/student/certificates")({
   component: StudentCertificates,
@@ -68,6 +69,7 @@ interface CertificateRow {
 type CertSortMode = "issued_desc" | "issued_asc" | "course_asc" | "course_desc";
 
 function StudentCertificates() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [items, setItems] = useState<CertificateRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,7 +90,7 @@ function StudentCertificates() {
         .order("issued_at", { ascending: false });
       if (cancelled) return;
       if (error) {
-        setLoadError(friendlyError(error, "No pudimos cargar tus certificados."));
+        setLoadError(friendlyError(error, t("hc_routesAppStudentCertificates.loadErrorFallback")));
       } else {
         setItems((data ?? []) as CertificateRow[]);
       }
@@ -149,7 +151,7 @@ function StudentCertificates() {
         revokedAt: cert.revoked_at,
       });
     } catch (e) {
-      toast.error(friendlyError(e, "Error generando PDF"));
+      toast.error(friendlyError(e, t("hc_routesAppStudentCertificates.pdfGenerationError")));
     }
   };
 
@@ -198,19 +200,19 @@ function StudentCertificates() {
     <div className="container mx-auto space-y-6 p-4 sm:p-6">
       <PageHeader
         icon={<Award className="h-6 w-6 text-amber-500" />}
-        title="Certificaciones"
-        subtitle="Descarga el PDF firmado o comparte el link de verificación pública."
+        title={t("hc_routesAppStudentCertificates.pageTitle")}
+        subtitle={t("hc_routesAppStudentCertificates.pageSubtitle")}
       />
 
       {loading ? (
         <Card>
           <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
-            <Spinner size="md" /> Cargando…
+            <Spinner size="md" /> {t("hc_routesAppStudentCertificates.loading")}
           </CardContent>
         </Card>
       ) : loadError ? (
         <ErrorState
-          message="No pudimos cargar tus certificados"
+          message={t("hc_routesAppStudentCertificates.loadErrorTitle")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -218,8 +220,8 @@ function StudentCertificates() {
         <Card>
           <CardContent className="p-0">
             <TableEmpty
-              title="Aún no tienes certificados"
-              description="Tu docente emite el certificado cuando apruebas el curso. Volverás a ver esta pantalla cuando esté disponible."
+              title={t("hc_routesAppStudentCertificates.emptyTitle")}
+              description={t("hc_routesAppStudentCertificates.emptyDescription")}
               icon={Award}
             />
           </CardContent>
@@ -235,16 +237,16 @@ function StudentCertificates() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="issued_desc" className="text-xs">
-                  Emisión (más reciente)
+                  {t("hc_routesAppStudentCertificates.sortIssuedDesc")}
                 </SelectItem>
                 <SelectItem value="issued_asc" className="text-xs">
-                  Emisión (más antigua)
+                  {t("hc_routesAppStudentCertificates.sortIssuedAsc")}
                 </SelectItem>
                 <SelectItem value="course_asc" className="text-xs">
-                  Curso (A → Z)
+                  {t("hc_routesAppStudentCertificates.sortCourseAsc")}
                 </SelectItem>
                 <SelectItem value="course_desc" className="text-xs">
-                  Curso (Z → A)
+                  {t("hc_routesAppStudentCertificates.sortCourseDesc")}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -262,14 +264,14 @@ function StudentCertificates() {
                         <h3 className="font-semibold text-base truncate">{cert.course_name}</h3>
                         {cert.revoked_at ? (
                           <Badge variant="destructive" className="text-[10px]">
-                            Revocado
+                            {t("hc_routesAppStudentCertificates.badgeRevoked")}
                           </Badge>
                         ) : (
                           <Badge
                             variant="outline"
                             className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
                           >
-                            Válido
+                            {t("hc_routesAppStudentCertificates.badgeValid")}
                           </Badge>
                         )}
                         {cert.course_period && (
@@ -282,7 +284,11 @@ function StudentCertificates() {
                         <Hash className="h-3 w-3" />
                         <code className="font-mono">{cert.short_code}</code>
                         <span className="mx-1">·</span>
-                        <span>Emitido el {formatDateLong(new Date(cert.issued_at))}</span>
+                        <span>
+                          {t("hc_routesAppStudentCertificates.issuedOn", {
+                            date: formatDateLong(new Date(cert.issued_at)),
+                          })}
+                        </span>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
@@ -297,7 +303,7 @@ function StudentCertificates() {
 
                   {cert.revoked_at && cert.revoke_reason && (
                     <div className="text-xs rounded border border-destructive/30 bg-background p-2.5">
-                      <span className="font-medium">Motivo: </span>
+                      <span className="font-medium">{t("hc_routesAppStudentCertificates.revokeReasonLabel")}</span>
                       {cert.revoke_reason}
                     </div>
                   )}
@@ -311,8 +317,9 @@ function StudentCertificates() {
                     <div className="flex items-center gap-2 rounded-md border border-amber-300/60 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 px-3 py-2 text-xs">
                       <Lock className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300 shrink-0" />
                       <span className="text-amber-900 dark:text-amber-200">
-                        Disponible para descarga desde el{" "}
-                        <strong>{formatDateOnly(cert.course.end_date)}</strong> (fin del curso).
+                        {t("hc_routesAppStudentCertificates.availableFromPrefix")}{" "}
+                        <strong>{formatDateOnly(cert.course.end_date)}</strong>{" "}
+                        {t("hc_routesAppStudentCertificates.availableFromSuffix")}
                       </span>
                     </div>
                   )}
@@ -320,7 +327,7 @@ function StudentCertificates() {
                   <div className="flex flex-wrap gap-2 justify-end pt-1">
                     <Button size="sm" variant="outline" onClick={() => handleCopyLink(cert)}>
                       <Copy className="h-3.5 w-3.5 mr-1" />
-                      Copiar link de verificación
+                      {t("hc_routesAppStudentCertificates.copyVerifyLink")}
                     </Button>
                     <Button size="sm" variant="outline" asChild>
                       <a
@@ -329,7 +336,7 @@ function StudentCertificates() {
                         rel="noopener noreferrer"
                       >
                         <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                        Abrir verificación
+                        {t("hc_routesAppStudentCertificates.openVerification")}
                       </a>
                     </Button>
                     {(() => {
@@ -337,7 +344,9 @@ function StudentCertificates() {
                       const disabled = !!cert.revoked_at || !unlocked;
                       const lockedTooltip =
                         !cert.revoked_at && !unlocked && cert.course?.end_date
-                          ? `Disponible desde el ${formatDateOnly(cert.course.end_date)}`
+                          ? t("hc_routesAppStudentCertificates.availableFromTooltip", {
+                              date: formatDateOnly(cert.course.end_date),
+                            })
                           : undefined;
                       return (
                         <Button
@@ -351,7 +360,7 @@ function StudentCertificates() {
                           ) : (
                             <Download className="h-3.5 w-3.5 mr-1" />
                           )}
-                          Descargar PDF
+                          {t("hc_routesAppStudentCertificates.downloadPdf")}
                         </Button>
                       );
                     })()}
@@ -360,7 +369,10 @@ function StudentCertificates() {
               </Card>
             ))}
           </div>
-          <DataPagination state={pagination} entityNamePlural="certificados" />
+          <DataPagination
+            state={pagination}
+            entityNamePlural={t("hc_routesAppStudentCertificates.entityNamePlural")}
+          />
         </>
       )}
     </div>

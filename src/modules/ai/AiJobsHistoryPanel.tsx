@@ -120,21 +120,21 @@ interface HistoryJob {
 }
 
 const KIND_LABELS: Record<string, string> = {
-  exam_submission: "Examen",
-  exam_question: "Pregunta de examen",
-  workshop_submission: "Taller",
-  workshop_question: "Pregunta de taller",
-  workshop_full: "Taller (batch)",
-  project_submission: "Proyecto",
-  project_file: "Archivo de proyecto",
-  project_full: "Proyecto (batch)",
-  project_codigo_zip: "Código ZIP de proyecto",
+  exam_submission: i18n.t("hc_modulesAiAiJobsHistoryPanel.kindExamSubmission"),
+  exam_question: i18n.t("hc_modulesAiAiJobsHistoryPanel.kindExamQuestion"),
+  workshop_submission: i18n.t("hc_modulesAiAiJobsHistoryPanel.kindWorkshopSubmission"),
+  workshop_question: i18n.t("hc_modulesAiAiJobsHistoryPanel.kindWorkshopQuestion"),
+  workshop_full: i18n.t("hc_modulesAiAiJobsHistoryPanel.kindWorkshopFull"),
+  project_submission: i18n.t("hc_modulesAiAiJobsHistoryPanel.kindProjectSubmission"),
+  project_file: i18n.t("hc_modulesAiAiJobsHistoryPanel.kindProjectFile"),
+  project_full: i18n.t("hc_modulesAiAiJobsHistoryPanel.kindProjectFull"),
+  project_codigo_zip: i18n.t("hc_modulesAiAiJobsHistoryPanel.kindProjectCodigoZip"),
 };
 
 const STATUS_LABELS: Record<HistoryStatus, string> = {
-  done: "Completado",
-  cancelled: "Cancelado",
-  rejected: "Rechazado (cerrado)",
+  done: i18n.t("hc_modulesAiAiJobsHistoryPanel.statusDone"),
+  cancelled: i18n.t("hc_modulesAiAiJobsHistoryPanel.statusCancelled"),
+  rejected: i18n.t("hc_modulesAiAiJobsHistoryPanel.statusRejected"),
 };
 
 /** Tope amplio de carga. La UI scrollea internamente. */
@@ -249,7 +249,9 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
 
       const { data: rows, error } = await query;
       if (error) {
-        setLoadError(friendlyError(error, "No pudimos cargar el historial de IA."));
+        setLoadError(
+          friendlyError(error, t("hc_modulesAiAiJobsHistoryPanel.loadErrorFallback")),
+        );
         return;
       }
       const baseJobs = ((rows ?? []) as HistoryJob[]).map((r) => ({ ...r }));
@@ -440,11 +442,11 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
       });
       setJobs(enriched);
     } catch (e) {
-      setLoadError(friendlyError(e, "No pudimos cargar el historial de IA."));
+      setLoadError(friendlyError(e, t("hc_modulesAiAiJobsHistoryPanel.loadErrorFallback")));
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, isSuperAdminCaller, tenantFilter, dateFrom, dateTo]);
+  }, [statusFilter, isSuperAdminCaller, tenantFilter, dateFrom, dateTo, t]);
 
   useEffect(() => {
     void load();
@@ -524,15 +526,17 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
     const label = job.examTitle ?? job.projectTitle ?? job.workshopTitle ?? job.kind;
     const fromRejected = job.status === "rejected";
     const ok = await confirm({
-      title: fromRejected ? "¿Reanudar trabajo rechazado?" : "¿Reanudar trabajo cancelado?",
+      title: fromRejected
+        ? t("hc_modulesAiAiJobsHistoryPanel.requeueConfirmTitleRejected")
+        : t("hc_modulesAiAiJobsHistoryPanel.requeueConfirmTitleCancelled"),
       description:
-        `"${label}" volverá a la cola pendiente para reintento.` +
+        t("hc_modulesAiAiJobsHistoryPanel.requeueConfirmDescriptionBase", { label }) +
         (fromRejected
-          ? " La razón del rechazo y el acuse de recibo se borrarán — el job arranca de cero."
+          ? t("hc_modulesAiAiJobsHistoryPanel.requeueConfirmDescriptionRejected")
           : "") +
-        " El worker lo procesará en su próximo tick (o puedes ejecutar 'Procesar este job ahora' desde el tab IA).",
+        t("hc_modulesAiAiJobsHistoryPanel.requeueConfirmDescriptionTail"),
       tone: "warning",
-      confirmLabel: "Reanudar",
+      confirmLabel: t("hc_modulesAiAiJobsHistoryPanel.requeueConfirmLabel"),
     });
     if (!ok) return;
     setRequeueing((prev) => new Set(prev).add(job.id));
@@ -542,7 +546,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
         _job_id: job.id,
       });
       if (error) {
-        toast.error(friendlyError(error, "No se pudo reanudar el job"));
+        toast.error(friendlyError(error, t("hc_modulesAiAiJobsHistoryPanel.requeueErrorFallback")));
         return;
       }
       toast.success(
@@ -579,7 +583,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground flex items-center gap-1">
-              <Archive className="h-3 w-3" /> Total
+              <Archive className="h-3 w-3" /> {t("hc_modulesAiAiJobsHistoryPanel.statTotal")}
             </div>
             <div className="text-2xl font-semibold tabular-nums mt-1">{stats.total}</div>
           </CardContent>
@@ -587,7 +591,8 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground flex items-center gap-1">
-              <CheckCircle2 className="h-3 w-3 text-emerald-500" /> Completados
+              <CheckCircle2 className="h-3 w-3 text-emerald-500" />{" "}
+              {t("hc_modulesAiAiJobsHistoryPanel.statCompleted")}
             </div>
             <div className="text-2xl font-semibold tabular-nums mt-1 text-emerald-600 dark:text-emerald-400">
               {stats.done}
@@ -597,7 +602,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground flex items-center gap-1">
-              <XCircle className="h-3 w-3" /> Cancelados
+              <XCircle className="h-3 w-3" /> {t("hc_modulesAiAiJobsHistoryPanel.statCancelled")}
             </div>
             <div className="text-2xl font-semibold tabular-nums mt-1 text-muted-foreground">
               {stats.cancelled}
@@ -607,7 +612,8 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground flex items-center gap-1">
-              <Ban className="h-3 w-3 text-orange-500" /> Rechazados (cerrados)
+              <Ban className="h-3 w-3 text-orange-500" />{" "}
+              {t("hc_modulesAiAiJobsHistoryPanel.statRejected")}
             </div>
             <div className="text-2xl font-semibold tabular-nums mt-1 text-orange-600 dark:text-orange-400">
               {stats.rejected}
@@ -624,18 +630,19 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
         <Filter className="h-3 w-3 shrink-0" />
         {isAdmin ? (
           <span>
-            Estás viendo el historial completo de jobs IA{" "}
+            {t("hc_modulesAiAiJobsHistoryPanel.scopeAdminPrefix")}{" "}
             {isSuperAdminCaller && tenantFilter !== "all"
-              ? "de la institución seleccionada"
+              ? t("hc_modulesAiAiJobsHistoryPanel.scopeSelectedTenant")
               : isSuperAdminCaller
-                ? "de todas las instituciones"
-                : "de tu institución"}
-            . Incluye lo que encolaron todos los docentes.
+                ? t("hc_modulesAiAiJobsHistoryPanel.scopeAllTenants")
+                : t("hc_modulesAiAiJobsHistoryPanel.scopeMyTenant")}
+            {t("hc_modulesAiAiJobsHistoryPanel.scopeAdminSuffix")}
           </span>
         ) : (
           <span>
-            Estás viendo los jobs IA que <strong>tú</strong> encolaste o que pertenecen a tus
-            cursos. Los jobs de otros docentes no son visibles desde acá.
+            {t("hc_modulesAiAiJobsHistoryPanel.scopeTeacherPrefix")}{" "}
+            <strong>{t("hc_modulesAiAiJobsHistoryPanel.scopeTeacherYou")}</strong>{" "}
+            {t("hc_modulesAiAiJobsHistoryPanel.scopeTeacherSuffix")}
           </span>
         )}
       </div>
@@ -646,7 +653,9 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2">
               <Archive className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-base">Historial</CardTitle>
+              <CardTitle className="text-base">
+                {t("hc_modulesAiAiJobsHistoryPanel.cardTitle")}
+              </CardTitle>
               <Badge variant="secondary" className="text-[10px]">
                 {filteredJobs.length}
                 {filteredJobs.length !== jobs.length && (
@@ -661,10 +670,10 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
                   size="sm"
                   className="h-8 text-xs"
                   onClick={clearFilters}
-                  title="Limpiar todos los filtros"
+                  title={t("hc_modulesAiAiJobsHistoryPanel.clearFiltersTitle")}
                 >
                   <X className="h-3.5 w-3.5 mr-1" />
-                  Limpiar
+                  {t("hc_modulesAiAiJobsHistoryPanel.clearFilters")}
                 </Button>
               )}
               <Button
@@ -672,7 +681,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
                 size="icon"
                 className="h-8 w-8"
                 onClick={() => void load()}
-                title="Refrescar"
+                title={t("hc_modulesAiAiJobsHistoryPanel.refresh")}
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
               </Button>
@@ -687,7 +696,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por título, estudiante o curso…"
+                placeholder={t("hc_modulesAiAiJobsHistoryPanel.searchPlaceholder")}
                 className="h-8 pl-7 text-xs"
               />
             </div>
@@ -716,10 +725,18 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los cerrados</SelectItem>
-                <SelectItem value="done">Solo completados</SelectItem>
-                <SelectItem value="cancelled">Solo cancelados</SelectItem>
-                <SelectItem value="rejected">Solo rechazos cerrados</SelectItem>
+                <SelectItem value="all">
+                  {t("hc_modulesAiAiJobsHistoryPanel.filterAllClosed")}
+                </SelectItem>
+                <SelectItem value="done">
+                  {t("hc_modulesAiAiJobsHistoryPanel.filterOnlyDone")}
+                </SelectItem>
+                <SelectItem value="cancelled">
+                  {t("hc_modulesAiAiJobsHistoryPanel.filterOnlyCancelled")}
+                </SelectItem>
+                <SelectItem value="rejected">
+                  {t("hc_modulesAiAiJobsHistoryPanel.filterOnlyRejected")}
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -731,7 +748,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
               <DatePicker
                 value={dateFrom}
                 onChange={setDateFrom}
-                placeholder="Desde…"
+                placeholder={t("hc_modulesAiAiJobsHistoryPanel.dateFromPlaceholder")}
                 className="h-8 text-xs"
               />
             </div>
@@ -739,7 +756,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
               <DatePicker
                 value={dateTo}
                 onChange={setDateTo}
-                placeholder="Hasta…"
+                placeholder={t("hc_modulesAiAiJobsHistoryPanel.dateToPlaceholder")}
                 className="h-8 text-xs"
               />
             </div>
@@ -748,24 +765,24 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">
-              <Spinner size="sm" /> Cargando…
+              <Spinner size="sm" /> {t("hc_modulesAiAiJobsHistoryPanel.loading")}
             </div>
           ) : loadError ? (
             <ErrorState
-              message="No pudimos cargar el historial"
+              message={t("hc_modulesAiAiJobsHistoryPanel.errorStateMessage")}
               hint={loadError}
               onRetry={() => setRetryNonce((n) => n + 1)}
             />
           ) : filteredJobs.length === 0 ? (
             <TableEmpty
               icon={Archive}
-              title="Sin jobs en el historial"
+              title={t("hc_modulesAiAiJobsHistoryPanel.emptyTitle")}
               description={
                 hasActiveFilters
-                  ? "Ningún job cerrado coincide con los filtros aplicados. Ajusta los criterios o limpia los filtros."
+                  ? t("hc_modulesAiAiJobsHistoryPanel.emptyFiltered")
                   : isAdmin
-                    ? "Aún no hay jobs cerrados en esta institución. Cuando se completen o cancelen jobs IA, aparecerán acá."
-                    : "Aún no tienes jobs cerrados. Cuando se completen o cancelen tus jobs IA, aparecerán acá."
+                    ? t("hc_modulesAiAiJobsHistoryPanel.emptyAdmin")
+                    : t("hc_modulesAiAiJobsHistoryPanel.emptyTeacher")
               }
             />
           ) : (
@@ -792,7 +809,11 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
                         type="button"
                         onClick={() => setExpandedId(expanded ? null : j.id)}
                         className="flex items-center gap-2 flex-1 min-w-0 text-left"
-                        title={expanded ? "Ocultar detalle" : "Ver detalle"}
+                        title={
+                          expanded
+                            ? t("hc_modulesAiAiJobsHistoryPanel.hideDetail")
+                            : t("hc_modulesAiAiJobsHistoryPanel.showDetail")
+                        }
                       >
                         {expanded ? (
                           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -844,8 +865,8 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
                           onClick={() => void requeueJob(j)}
                           title={
                             j.status === "rejected"
-                              ? "Reanudar (limpia rechazo y vuelve a la cola)"
-                              : "Re-encolar (vuelve a la cola)"
+                              ? t("hc_modulesAiAiJobsHistoryPanel.requeueTitleRejected")
+                              : t("hc_modulesAiAiJobsHistoryPanel.requeueTitleCancelled")
                           }
                         >
                           {isRequeueing ? (
@@ -858,26 +879,73 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
                     </div>
                     {expanded && (
                       <div className="px-8 pr-3 pb-3 text-xs space-y-1 bg-muted/20 border-t">
-                        <DetailRow k="ID" v={j.id} mono />
-                        <DetailRow k="Tipo" v={kindLabel} />
-                        <DetailRow k="Estado" v={STATUS_LABELS[j.status]} />
-                        <DetailRow k="Tabla destino" v={j.target_table} mono />
-                        <DetailRow k="ID destino" v={j.target_row_id} mono />
-                        {j.courseName && <DetailRow k="Curso" v={j.courseName} />}
-                        {j.studentName && <DetailRow k="Estudiante" v={j.studentName} />}
-                        {j.examTitle && <DetailRow k="Examen" v={j.examTitle} />}
-                        {j.projectTitle && <DetailRow k="Proyecto" v={j.projectTitle} />}
-                        {j.workshopTitle && <DetailRow k="Taller" v={j.workshopTitle} />}
-                        <DetailRow k="Creado" v={formatDateTime(j.created_at)} />
+                        <DetailRow k={t("hc_modulesAiAiJobsHistoryPanel.detailId")} v={j.id} mono />
+                        <DetailRow k={t("hc_modulesAiAiJobsHistoryPanel.detailType")} v={kindLabel} />
+                        <DetailRow
+                          k={t("hc_modulesAiAiJobsHistoryPanel.detailStatus")}
+                          v={STATUS_LABELS[j.status]}
+                        />
+                        <DetailRow
+                          k={t("hc_modulesAiAiJobsHistoryPanel.detailTargetTable")}
+                          v={j.target_table}
+                          mono
+                        />
+                        <DetailRow
+                          k={t("hc_modulesAiAiJobsHistoryPanel.detailTargetId")}
+                          v={j.target_row_id}
+                          mono
+                        />
+                        {j.courseName && (
+                          <DetailRow
+                            k={t("hc_modulesAiAiJobsHistoryPanel.detailCourse")}
+                            v={j.courseName}
+                          />
+                        )}
+                        {j.studentName && (
+                          <DetailRow
+                            k={t("hc_modulesAiAiJobsHistoryPanel.detailStudent")}
+                            v={j.studentName}
+                          />
+                        )}
+                        {j.examTitle && (
+                          <DetailRow
+                            k={t("hc_modulesAiAiJobsHistoryPanel.detailExam")}
+                            v={j.examTitle}
+                          />
+                        )}
+                        {j.projectTitle && (
+                          <DetailRow
+                            k={t("hc_modulesAiAiJobsHistoryPanel.detailProject")}
+                            v={j.projectTitle}
+                          />
+                        )}
+                        {j.workshopTitle && (
+                          <DetailRow
+                            k={t("hc_modulesAiAiJobsHistoryPanel.detailWorkshop")}
+                            v={j.workshopTitle}
+                          />
+                        )}
+                        <DetailRow
+                          k={t("hc_modulesAiAiJobsHistoryPanel.detailCreated")}
+                          v={formatDateTime(j.created_at)}
+                        />
                         {j.completed_at && (
-                          <DetailRow k="Finalizado" v={formatDateTime(j.completed_at)} />
+                          <DetailRow
+                            k={t("hc_modulesAiAiJobsHistoryPanel.detailCompleted")}
+                            v={formatDateTime(j.completed_at)}
+                          />
                         )}
                         {typeof j.attempts === "number" && (
-                          <DetailRow k="Intentos" v={String(j.attempts)} />
+                          <DetailRow
+                            k={t("hc_modulesAiAiJobsHistoryPanel.detailAttempts")}
+                            v={String(j.attempts)}
+                          />
                         )}
                         {j.last_error && (
                           <div className="pt-1">
-                            <div className="text-muted-foreground mb-0.5">Último error</div>
+                            <div className="text-muted-foreground mb-0.5">
+                              {t("hc_modulesAiAiJobsHistoryPanel.detailLastError")}
+                            </div>
                             <pre className="text-[11px] bg-destructive/10 text-destructive border border-destructive/30 rounded p-2 whitespace-pre-wrap break-all">
                               {j.last_error}
                             </pre>
@@ -885,15 +953,23 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
                         )}
                         {j.status === "rejected" && j.rejection_reason && (
                           <div className="pt-1">
-                            <div className="text-muted-foreground mb-0.5">Razón del rechazo</div>
+                            <div className="text-muted-foreground mb-0.5">
+                              {t("hc_modulesAiAiJobsHistoryPanel.detailRejectionReason")}
+                            </div>
                             <pre className="text-[11px] bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-500/30 rounded p-2 whitespace-pre-wrap break-words">
                               {j.rejection_reason}
                             </pre>
                             {j.rejected_at && (
-                              <DetailRow k="Rechazado" v={formatDateTime(j.rejected_at)} />
+                              <DetailRow
+                                k={t("hc_modulesAiAiJobsHistoryPanel.detailRejectedAt")}
+                                v={formatDateTime(j.rejected_at)}
+                              />
                             )}
                             {j.acknowledged_at && (
-                              <DetailRow k="Acusado" v={formatDateTime(j.acknowledged_at)} />
+                              <DetailRow
+                                k={t("hc_modulesAiAiJobsHistoryPanel.detailAcknowledgedAt")}
+                                v={formatDateTime(j.acknowledged_at)}
+                              />
                             )}
                           </div>
                         )}
@@ -910,8 +986,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
 
       {jobs.length === PAGE_LIMIT && (
         <p className="text-[11px] text-muted-foreground text-center">
-          Cargados los últimos {PAGE_LIMIT} jobs desde el servidor. Usa el rango de fechas para
-          acotar más atrás si necesitas ver jobs anteriores.
+          {t("hc_modulesAiAiJobsHistoryPanel.pageLimitNote", { limit: PAGE_LIMIT })}
         </p>
       )}
     </div>

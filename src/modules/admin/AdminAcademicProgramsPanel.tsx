@@ -93,7 +93,7 @@ export function AdminAcademicProgramsPanel() {
       .select("id, name, code, faculty, active, created_at")
       .order("name");
     if (error) {
-      setLoadError(friendlyError(error, "No pudimos cargar los programas académicos."));
+      setLoadError(friendlyError(error, t("hc_modulesAdminAdminAcademicProgramsPanel.errLoad")));
       setLoading(false);
       return;
     }
@@ -159,7 +159,7 @@ export function AdminAcademicProgramsPanel() {
       : await db.from("academic_programs").insert(payload);
     setSaving(false);
     if (error) {
-      toast.error(friendlyError(error, "No se pudo guardar el programa"));
+      toast.error(friendlyError(error, t("hc_modulesAdminAdminAcademicProgramsPanel.errSave")));
       return;
     }
     void logEvent({
@@ -342,7 +342,7 @@ export function AdminAcademicProgramsPanel() {
               <Input
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                placeholder="Ej: Ingeniería de Sistemas, Bachillerato, Auxiliar Contable"
+                placeholder={t("hc_modulesAdminAdminAcademicProgramsPanel.placeholderName")}
               />
             </div>
             <div className="space-y-1">
@@ -350,7 +350,7 @@ export function AdminAcademicProgramsPanel() {
               <Input
                 value={draft.code}
                 onChange={(e) => setDraft({ ...draft, code: e.target.value })}
-                placeholder="Ej: IS, BTC, AUX-CON"
+                placeholder={t("hc_modulesAdminAdminAcademicProgramsPanel.placeholderCode")}
               />
             </div>
             <div className="space-y-1">
@@ -358,7 +358,7 @@ export function AdminAcademicProgramsPanel() {
               <Input
                 value={draft.faculty}
                 onChange={(e) => setDraft({ ...draft, faculty: e.target.value })}
-                placeholder="Ej: Facultad de Ingeniería, Sección Bachillerato, Área Técnica"
+                placeholder={t("hc_modulesAdminAdminAcademicProgramsPanel.placeholderFaculty")}
               />
             </div>
             <div className="flex items-center gap-2 pt-1">

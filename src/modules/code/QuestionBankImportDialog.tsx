@@ -42,6 +42,7 @@ import { toast } from "sonner";
 import { Search, Library, Inbox } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -72,14 +73,14 @@ interface BankRow {
 }
 
 const TYPE_LABEL: Record<QuestionType, string> = {
-  cerrada: "Selección única",
-  cerrada_multi: "Opción múltiple",
-  codigo: "Código",
-  codigo_zip: "Código ZIP",
-  abierta: "Abierta",
-  diagrama: "Diagrama",
-  java_gui: "Java GUI",
-  python_gui: "Python GUI (tkinter)",
+  cerrada: i18n.t("hc_modulesCodeQuestionBankImportDialog.typeCerrada"),
+  cerrada_multi: i18n.t("hc_modulesCodeQuestionBankImportDialog.typeCerradaMulti"),
+  codigo: i18n.t("hc_modulesCodeQuestionBankImportDialog.typeCodigo"),
+  codigo_zip: i18n.t("hc_modulesCodeQuestionBankImportDialog.typeCodigoZip"),
+  abierta: i18n.t("hc_modulesCodeQuestionBankImportDialog.typeAbierta"),
+  diagrama: i18n.t("hc_modulesCodeQuestionBankImportDialog.typeDiagrama"),
+  java_gui: i18n.t("hc_modulesCodeQuestionBankImportDialog.typeJavaGui"),
+  python_gui: i18n.t("hc_modulesCodeQuestionBankImportDialog.typePythonGui"),
 };
 
 type ImportTarget = "exam" | "workshop" | "project" | "kahoot";
@@ -133,6 +134,7 @@ export function QuestionBankImportDialog({
   targetId,
   onImported,
 }: Props) {
+  const { t } = useTranslation();
   const [rows, setRows] = useState<BankRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -259,18 +261,18 @@ export function QuestionBankImportDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Library className="h-4 w-4 text-indigo-500" />
-            Importar del banco de preguntas
+            {t("hc_modulesCodeQuestionBankImportDialog.dialogTitle")}
           </DialogTitle>
           <DialogDescription>
-            Selecciona preguntas del banco del curso. Se clonarán al{" "}
+            {t("hc_modulesCodeQuestionBankImportDialog.dialogDescriptionLead")}{" "}
             {target === "exam"
-              ? "examen"
+              ? t("hc_modulesCodeQuestionBankImportDialog.targetExam")
               : target === "workshop"
-                ? "taller"
+                ? t("hc_modulesCodeQuestionBankImportDialog.targetWorkshop")
                 : target === "kahoot"
-                  ? "Kahoot"
-                  : "proyecto"}
-            ; los cambios futuros en el banco no afectarán las copias.
+                  ? t("hc_modulesCodeQuestionBankImportDialog.targetKahoot")
+                  : t("hc_modulesCodeQuestionBankImportDialog.targetProject")}
+            {t("hc_modulesCodeQuestionBankImportDialog.dialogDescriptionTrail")}
           </DialogDescription>
         </DialogHeader>
 
@@ -281,7 +283,7 @@ export function QuestionBankImportDialog({
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar enunciado, tema, tag…"
+              placeholder={t("hc_modulesCodeQuestionBankImportDialog.searchPlaceholder")}
               className="pl-7"
             />
           </div>
@@ -290,7 +292,7 @@ export function QuestionBankImportDialog({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos los tipos</SelectItem>
+              <SelectItem value="all">{t("hc_modulesCodeQuestionBankImportDialog.allTypes")}</SelectItem>
               {acceptedTypes.map((t) => (
                 <SelectItem key={t} value={t}>
                   {TYPE_LABEL[t]}
@@ -303,12 +305,12 @@ export function QuestionBankImportDialog({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Toda dificultad</SelectItem>
-              <SelectItem value="1">1 — muy fácil</SelectItem>
-              <SelectItem value="2">2 — fácil</SelectItem>
-              <SelectItem value="3">3 — media</SelectItem>
-              <SelectItem value="4">4 — difícil</SelectItem>
-              <SelectItem value="5">5 — muy difícil</SelectItem>
+              <SelectItem value="all">{t("hc_modulesCodeQuestionBankImportDialog.allDifficulty")}</SelectItem>
+              <SelectItem value="1">{t("hc_modulesCodeQuestionBankImportDialog.difficulty1")}</SelectItem>
+              <SelectItem value="2">{t("hc_modulesCodeQuestionBankImportDialog.difficulty2")}</SelectItem>
+              <SelectItem value="3">{t("hc_modulesCodeQuestionBankImportDialog.difficulty3")}</SelectItem>
+              <SelectItem value="4">{t("hc_modulesCodeQuestionBankImportDialog.difficulty4")}</SelectItem>
+              <SelectItem value="5">{t("hc_modulesCodeQuestionBankImportDialog.difficulty5")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -317,16 +319,16 @@ export function QuestionBankImportDialog({
         <ScrollArea className="flex-1 -mx-1 px-1">
           {loading ? (
             <div className="p-4 sm:p-8 text-center text-muted-foreground">
-              <Spinner size="md" /> Cargando banco…
+              <Spinner size="md" /> {t("hc_modulesCodeQuestionBankImportDialog.loadingBank")}
             </div>
           ) : filtered.length === 0 ? (
             <EmptyState
               icon={Inbox}
-              text="Sin preguntas en el banco"
+              text={t("hc_modulesCodeQuestionBankImportDialog.emptyText")}
               hint={
                 rows.length === 0
-                  ? "El banco de este curso está vacío. Crea preguntas desde el menú lateral."
-                  : "Ningún resultado para los filtros actuales."
+                  ? t("hc_modulesCodeQuestionBankImportDialog.emptyHintBankEmpty")
+                  : t("hc_modulesCodeQuestionBankImportDialog.emptyHintNoResults")
               }
             />
           ) : (
@@ -339,11 +341,14 @@ export function QuestionBankImportDialog({
                   className="hover:text-foreground transition-colors"
                 >
                   {filtered.every((r) => selectedIds.has(r.id))
-                    ? "Deseleccionar todas las visibles"
-                    : `Seleccionar las ${filtered.length} visibles`}
+                    ? t("hc_modulesCodeQuestionBankImportDialog.deselectAllVisible")
+                    : t("hc_modulesCodeQuestionBankImportDialog.selectAllVisible", {
+                        count: filtered.length,
+                      })}
                 </button>
                 <span>
-                  Seleccionadas: <strong className="text-foreground">{selectedIds.size}</strong>
+                  {t("hc_modulesCodeQuestionBankImportDialog.selectedLabel")}{" "}
+                  <strong className="text-foreground">{selectedIds.size}</strong>
                 </span>
               </div>
 
@@ -373,7 +378,7 @@ export function QuestionBankImportDialog({
                             className="text-[10px] gap-0.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
                           >
                             <Library className="h-2.5 w-2.5" />
-                            Compartida
+                            {t("hc_modulesCodeQuestionBankImportDialog.sharedBadge")}
                           </Badge>
                         )}
                         {r.topic && (
@@ -383,12 +388,16 @@ export function QuestionBankImportDialog({
                         )}
                         {r.difficulty != null && (
                           <Badge variant="outline" className="text-[10px]">
-                            Dif. {r.difficulty}
+                            {t("hc_modulesCodeQuestionBankImportDialog.difficultyBadge", {
+                              difficulty: r.difficulty,
+                            })}
                           </Badge>
                         )}
                         {r.times_used > 0 && (
                           <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                            Usada {r.times_used}×
+                            {t("hc_modulesCodeQuestionBankImportDialog.timesUsedBadge", {
+                              count: r.times_used,
+                            })}
                           </Badge>
                         )}
                       </div>
@@ -409,7 +418,7 @@ export function QuestionBankImportDialog({
                     {/* Override de puntos solo si está seleccionada */}
                     {checked && (
                       <div className="shrink-0 w-24" onClick={(e) => e.preventDefault()}>
-                        <Label className="text-[10px]">Puntos</Label>
+                        <Label className="text-[10px]">{t("hc_modulesCodeQuestionBankImportDialog.pointsLabel")}</Label>
                         <Input
                           type="number"
                           min={0}
@@ -432,11 +441,11 @@ export function QuestionBankImportDialog({
 
         <DialogFooter className="shrink-0">
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={importing}>
-            Cancelar
+            {t("hc_modulesCodeQuestionBankImportDialog.cancel")}
           </Button>
           <Button onClick={() => void submit()} disabled={importing || selectedIds.size === 0}>
             {importing ? <Spinner size="sm" className="mr-1" /> : null}
-            Añadir {selectedIds.size} pregunta{selectedIds.size === 1 ? "" : "s"}
+            {t("hc_modulesCodeQuestionBankImportDialog.addQuestions", { count: selectedIds.size })}
           </Button>
         </DialogFooter>
       </DialogContent>

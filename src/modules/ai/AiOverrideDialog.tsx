@@ -14,6 +14,7 @@
  * se muestra el estado y la fecha de expiración.
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,7 @@ interface OverrideStatus {
 }
 
 export function AiOverrideDialog({ open, onOpenChange }: Props) {
+  const { t } = useTranslation();
   const [code, setCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [activeExpiry, setActiveExpiry] = useState<Date | null>(null);
@@ -99,9 +101,9 @@ export function AiOverrideDialog({ open, onOpenChange }: Props) {
       | { ok: false; error: string };
     if (!res.ok) {
       const map: Record<string, string> = {
-        invalid_code: "Código inválido.",
-        expired: "El código expiró.",
-        exhausted: "El código ya no tiene usos disponibles.",
+        invalid_code: t("hc_modulesAiAiOverrideDialog.errorInvalidCode"),
+        expired: t("hc_modulesAiAiOverrideDialog.errorExpired"),
+        exhausted: t("hc_modulesAiAiOverrideDialog.errorExhausted"),
       };
       toast.error(map[res.error] ?? res.error);
       return;
@@ -144,7 +146,7 @@ export function AiOverrideDialog({ open, onOpenChange }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-amber-500" />
-            IA inmediata
+            {t("hc_modulesAiAiOverrideDialog.title")}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
@@ -153,47 +155,51 @@ export function AiOverrideDialog({ open, onOpenChange }: Props) {
               <div className="flex flex-wrap items-center gap-2">
                 <Check className="h-4 w-4 text-amber-700 dark:text-amber-300" />
                 <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
-                  Ventana activa
+                  {t("hc_modulesAiAiOverrideDialog.windowActive")}
                 </span>
                 <Badge variant="outline" className="text-[10px] ml-auto">
-                  {minutesLeft} min restantes
+                  {t("hc_modulesAiAiOverrideDialog.minutesLeft", { minutes: minutesLeft })}
                 </Badge>
                 {status?.cap != null && (
                   <Badge variant="outline" className="text-[10px]">
-                    {status.remaining ?? 0}/{status.cap} mensajes
+                    {t("hc_modulesAiAiOverrideDialog.messagesCount", {
+                      remaining: status.remaining ?? 0,
+                      cap: status.cap,
+                    })}
                   </Badge>
                 )}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Tus llamadas IA corren sincrónicas hasta{" "}
+                {t("hc_modulesAiAiOverrideDialog.syncUntil")}{" "}
                 <strong>{formatDateTime(activeExpiry)}</strong>
                 {status?.cap != null ? (
                   <>
                     {" "}
-                    o hasta consumir <strong>{status.cap}</strong> mensajes (lo que ocurra
-                    primero)
+                    {t("hc_modulesAiAiOverrideDialog.orUntilConsumePrefix")}{" "}
+                    <strong>{status.cap}</strong>{" "}
+                    {t("hc_modulesAiAiOverrideDialog.orUntilConsumeSuffix")}
                   </>
                 ) : null}
-                . Después, vuelve al modo en cola.
+                {t("hc_modulesAiAiOverrideDialog.thenBackToQueue")}
               </p>
               <Button size="sm" variant="outline" onClick={deactivate}>
                 <Clock className="h-3.5 w-3.5 mr-1" />
-                Cerrar ventana ahora
+                {t("hc_modulesAiAiOverrideDialog.closeWindowNow")}
               </Button>
             </div>
           ) : (
             <>
               <p className="text-xs text-muted-foreground">
-                Si necesitas calificar con IA <strong>ya</strong> en vez de esperar al worker en
-                cola, pega el código que te dio el administrador. La ventana sincrónica dura los
-                minutos que el admin haya configurado al generarlo.
+                {t("hc_modulesAiAiOverrideDialog.helpPrefix")}{" "}
+                <strong>{t("hc_modulesAiAiOverrideDialog.helpEmphasis")}</strong>{" "}
+                {t("hc_modulesAiAiOverrideDialog.helpSuffix")}
               </p>
               <div>
-                <Label>Código</Label>
+                <Label>{t("hc_modulesAiAiOverrideDialog.codeLabel")}</Label>
                 <Input
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  placeholder="Ej. ABCDEF12"
+                  placeholder={t("hc_modulesAiAiOverrideDialog.codePlaceholder")}
                   className="font-mono uppercase tracking-widest"
                   maxLength={32}
                   autoFocus
@@ -209,12 +215,12 @@ export function AiOverrideDialog({ open, onOpenChange }: Props) {
          *  hay scroll posible, así que sticky no aporta y solo molesta. */}
         <DialogFooter className="static">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cerrar
+            {t("hc_modulesAiAiOverrideDialog.close")}
           </Button>
           {!activeExpiry && (
             <Button onClick={() => void activate()} disabled={submitting}>
               {submitting ? <Spinner size="sm" className="mr-1" /> : null}
-              Activar
+              {t("hc_modulesAiAiOverrideDialog.activate")}
             </Button>
           )}
         </DialogFooter>

@@ -157,7 +157,7 @@ function CertificatesAdmin() {
       const { data, error } = await q;
       if (cancelled) return;
       if (error) {
-        setLoadError(friendlyError(error, "No pudimos cargar los certificados."));
+        setLoadError(friendlyError(error, t("hc_routesAppCertificates.loadError")));
       } else {
         setItems((data ?? []) as CertificateRow[]);
       }
@@ -240,7 +240,7 @@ function CertificatesAdmin() {
         revokedAt: cert.revoked_at,
       });
     } catch (e) {
-      toast.error(friendlyError(e, "Error generando PDF"));
+      toast.error(friendlyError(e, t("hc_routesAppCertificates.pdfError")));
     }
   };
 
@@ -250,17 +250,17 @@ function CertificatesAdmin() {
   };
 
   if (!isAdmin && !isDocente) {
-    return <p className="text-muted-foreground p-6">Necesitas rol Docente o Admin.</p>;
+    return <p className="text-muted-foreground p-6">{t("hc_routesAppCertificates.needRole")}</p>;
   }
 
   return (
     <div className="container mx-auto space-y-6 p-4 sm:p-6">
       <PageHeader
-        title="Certificaciones"
+        title={t("hc_routesAppCertificates.pageTitle")}
         subtitle={
           isAdmin
-            ? "Todos los certificados emitidos en la plataforma."
-            : "Certificados emitidos en los cursos que dictas."
+            ? t("hc_routesAppCertificates.subtitleAdmin")
+            : t("hc_routesAppCertificates.subtitleDocente")
         }
         icon={<Award className="h-6 w-6 text-amber-500" />}
       />
@@ -271,7 +271,7 @@ function CertificatesAdmin() {
           <SearchInput
             value={search}
             onChange={setSearch}
-            placeholder="Buscar por nombre, código, identificación…"
+            placeholder={t("hc_routesAppCertificates.searchPlaceholder")}
             className="w-full sm:w-72"
           />
           {/* Filtro de institución (solo SuperAdmin con >1 tenant).
@@ -306,7 +306,7 @@ function CertificatesAdmin() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all">Todos los cursos</SelectItem>
+              <SelectItem value="__all">{t("hc_routesAppCertificates.allCourses")}</SelectItem>
               {courseOptions.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
                   {c.name}
@@ -319,7 +319,9 @@ function CertificatesAdmin() {
             size="sm"
             onClick={() => setShowRevoked((v) => !v)}
           >
-            {showRevoked ? "Ocultar revocados" : "Mostrar revocados"}
+            {showRevoked
+              ? t("hc_routesAppCertificates.hideRevoked")
+              : t("hc_routesAppCertificates.showRevoked")}
           </Button>
           {(filterCourseId || search || showRevoked) && (
             <Button
@@ -331,7 +333,7 @@ function CertificatesAdmin() {
                 setShowRevoked(false);
               }}
             >
-              Limpiar
+              {t("hc_routesAppCertificates.clear")}
             </Button>
           )}
           <span className="text-[11px] text-muted-foreground ml-auto">
@@ -342,29 +344,29 @@ function CertificatesAdmin() {
 
       {loading ? (
         <div className="p-4 sm:p-8 flex items-center justify-center text-sm text-muted-foreground">
-          <Spinner size="sm" className="mr-2" /> Cargando…
+          <Spinner size="sm" className="mr-2" /> {t("hc_routesAppCertificates.loading")}
         </div>
       ) : loadError ? (
         <ErrorState
-          message="No pudimos cargar los certificados"
+          message={t("hc_routesAppCertificates.loadErrorTitle")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
       ) : items.length === 0 ? (
         <TableEmpty
           icon={Award}
-          title="Sin certificados"
+          title={t("hc_routesAppCertificates.emptyTitle")}
           description={
             isAdmin
-              ? "Aún no se han emitido certificados en la plataforma. Se generan desde Libro de notas → curso → 'Emitir certificado' cuando un alumno aprueba."
-              : "Aún no hay certificados emitidos en tus cursos. Se generan desde Libro de notas cuando apruebas a un estudiante."
+              ? t("hc_routesAppCertificates.emptyDescAdmin")
+              : t("hc_routesAppCertificates.emptyDescDocente")
           }
         />
       ) : filtered.length === 0 ? (
         <TableEmpty
           icon={Award}
-          title="Sin resultados con esos filtros"
-          description="Ajusta el curso, la búsqueda o limpia los filtros para ver el resto."
+          title={t("hc_routesAppCertificates.noResultsTitle")}
+          description={t("hc_routesAppCertificates.noResultsDesc")}
         />
       ) : (
         <Card>
@@ -373,29 +375,29 @@ function CertificatesAdmin() {
               <TableHeader>
                 <TableRow>
                   <SortableHead sortKey="student" sort={sort} className="min-w-40">
-                    Estudiante
+                    {t("hc_routesAppCertificates.colStudent")}
                   </SortableHead>
                   <SortableHead sortKey="course" sort={sort} className="hidden md:table-cell w-56">
-                    Curso
+                    {t("hc_routesAppCertificates.colCourse")}
                   </SortableHead>
                   <SortableHead
                     sortKey="grade"
                     sort={sort}
                     className="text-right hidden sm:table-cell w-24"
                   >
-                    Nota
+                    {t("hc_routesAppCertificates.colGrade")}
                   </SortableHead>
                   <SortableHead sortKey="issued_at" sort={sort} className="hidden sm:table-cell w-28">
-                    Emitido
+                    {t("hc_routesAppCertificates.colIssued")}
                   </SortableHead>
                   <SortableHead
                     sortKey="short_code"
                     sort={sort}
                     className="hidden lg:table-cell w-32"
                   >
-                    Código
+                    {t("hc_routesAppCertificates.colCode")}
                   </SortableHead>
-                  <TableHead className="text-right w-12">Acciones</TableHead>
+                  <TableHead className="text-right w-12">{t("hc_routesAppCertificates.colActions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -403,8 +405,8 @@ function CertificatesAdmin() {
                   <TableEmpty
                     colSpan={6}
                     icon={Award}
-                    title="Sin resultados con esos filtros"
-                    description="Ajusta el curso, la búsqueda o limpia los filtros para ver el resto."
+                    title={t("hc_routesAppCertificates.noResultsTitle")}
+                    description={t("hc_routesAppCertificates.noResultsDesc")}
                   />
                 ) : (
                   pagination.paginatedItems.map((c) => (
@@ -421,7 +423,7 @@ function CertificatesAdmin() {
                             </span>
                             {c.revoked_at && (
                               <Badge variant="destructive" className="text-[10px]">
-                                Revocado
+                                {t("hc_routesAppCertificates.revokedBadge")}
                               </Badge>
                             )}
                           </div>
@@ -434,7 +436,7 @@ function CertificatesAdmin() {
                           </div>
                           {c.revoked_at && c.revoke_reason && (
                             <div className="text-[11px] text-destructive">
-                              Motivo: {c.revoke_reason}
+                              {t("hc_routesAppCertificates.reasonLabel")} {c.revoke_reason}
                             </div>
                           )}
                         </div>
@@ -463,17 +465,17 @@ function CertificatesAdmin() {
                         <RowActionsMenu
                           actions={[
                             {
-                              label: "Descargar PDF",
+                              label: t("hc_routesAppCertificates.actionDownloadPdf"),
                               icon: Download,
                               onClick: () => void handleDownload(c),
                             },
                             {
-                              label: "Copiar link de verificación",
+                              label: t("hc_routesAppCertificates.actionCopyVerifyLink"),
                               icon: Copy,
                               onClick: () => handleCopyLink(c),
                             },
                             {
-                              label: "Abrir verificación pública",
+                              label: t("hc_routesAppCertificates.actionOpenPublicVerify"),
                               icon: ExternalLink,
                               href: buildVerifyUrl(c.short_code),
                             },
@@ -485,7 +487,7 @@ function CertificatesAdmin() {
                 )}
               </TableBody>
             </Table>
-            <DataPagination state={pagination} entityNamePlural="certificados" />
+            <DataPagination state={pagination} entityNamePlural={t("hc_routesAppCertificates.entityPlural")} />
           </CardContent>
         </Card>
       )}

@@ -115,12 +115,12 @@ export function ActasManager({ onPrintActa }: Props) {
       db.from("courses").select("id, name").order("name"),
     ]);
     if (aErr) {
-      setLoadError(friendlyError(aErr, "No pudimos cargar las actas."));
+      setLoadError(friendlyError(aErr, t("hc_modulesReportsActasManager.errorLoadActas")));
       setLoading(false);
       return;
     }
     if (cErr) {
-      setLoadError(friendlyError(cErr, "No pudimos cargar tus cursos."));
+      setLoadError(friendlyError(cErr, t("hc_modulesReportsActasManager.errorLoadCourses")));
       setLoading(false);
       return;
     }
@@ -151,7 +151,7 @@ export function ActasManager({ onPrintActa }: Props) {
     const { data, error } = await db.rpc("generate_course_acta", { p_course_id: genCourseId });
     setGenerating(false);
     if (error) {
-      toast.error(friendlyError(error, "No se pudo generar el acta"));
+      toast.error(friendlyError(error, t("hc_modulesReportsActasManager.errorGenerateActa")));
       return;
     }
     // Acta es registro institucional — `warning` para que destaque en
@@ -163,7 +163,7 @@ export function ActasManager({ onPrintActa }: Props) {
       severity: "warning",
       entityType: "course_acta",
       entityId: String(data),
-      entityName: course?.name ?? "Acta",
+      entityName: course?.name ?? t("hc_modulesReportsActasManager.actaEntityName"),
       courseId: genCourseId,
       courseName: course?.name ?? null,
     });
@@ -179,12 +179,9 @@ export function ActasManager({ onPrintActa }: Props) {
 
   const handleDelete = async (acta: Acta) => {
     const ok = await confirm({
-      title: `¿Eliminar el acta de "${acta.curso_nombre}"?`,
-      description:
-        "El acta es un registro oficial. Elimínala solo si fue generada por error. " +
-        "Para producir una nueva tras corregir notas, primero borra esta y luego genérala. " +
-        "Esta acción no se puede deshacer.",
-      confirmLabel: "Eliminar acta",
+      title: t("hc_modulesReportsActasManager.deleteConfirmTitle", { curso: acta.curso_nombre }),
+      description: t("hc_modulesReportsActasManager.deleteConfirmDescription"),
+      confirmLabel: t("hc_modulesReportsActasManager.deleteConfirmLabel"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -218,14 +215,14 @@ export function ActasManager({ onPrintActa }: Props) {
     <Card>
       {generating && (
         <LoadingOverlay
-          title="Generando acta oficial…"
-          subtitle="Estamos consolidando la cohorte de estudiantes matriculados y calculando notas finales. Puede tardar varios segundos según el tamaño del curso. No cierres esta pestaña."
+          title={t("hc_modulesReportsActasManager.generatingTitle")}
+          subtitle={t("hc_modulesReportsActasManager.generatingSubtitle")}
         />
       )}
       <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
         <CardTitle className="text-base flex items-center gap-2">
           <Stamp className="h-4 w-4 text-amber-500" />
-          Actas oficiales
+          {t("hc_modulesReportsActasManager.officialActas")}
           <HelpHint>{t("help.actaImmutableRegistry")}</HelpHint>
         </CardTitle>
         <Button
@@ -234,22 +231,22 @@ export function ActasManager({ onPrintActa }: Props) {
           disabled={coursesWithoutActa.length === 0}
           title={
             coursesWithoutActa.length === 0
-              ? "Todos tus cursos ya tienen acta. Para regenerar, borra la actual primero."
+              ? t("hc_modulesReportsActasManager.allCoursesHaveActa")
               : undefined
           }
         >
           <Plus className="h-3.5 w-3.5 mr-1" />
-          Generar acta
+          {t("hc_modulesReportsActasManager.generateActa")}
         </Button>
       </CardHeader>
       <CardContent>
         {loading ? (
           <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
-            <Spinner size="sm" /> Cargando…
+            <Spinner size="sm" /> {t("hc_modulesReportsActasManager.loading")}
           </div>
         ) : loadError ? (
           <ErrorState
-            message="No pudimos cargar"
+            message={t("hc_modulesReportsActasManager.couldNotLoad")}
             hint={loadError}
             onRetry={() => setRetryNonce((n) => n + 1)}
           />
@@ -258,12 +255,12 @@ export function ActasManager({ onPrintActa }: Props) {
             <Table fixed resizable>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="max-w-[260px]">Curso</TableHead>
-                  <TableHead className="hidden sm:table-cell w-28">Periodo</TableHead>
-                  <TableHead className="hidden md:table-cell">Docente</TableHead>
-                  <TableHead className="w-24 text-center">Estud.</TableHead>
-                  <TableHead className="hidden sm:table-cell w-24 text-center">% Aprob.</TableHead>
-                  <TableHead className="hidden sm:table-cell w-32">Generada</TableHead>
+                  <TableHead className="max-w-[260px]">{t("hc_modulesReportsActasManager.colCourse")}</TableHead>
+                  <TableHead className="hidden sm:table-cell w-28">{t("hc_modulesReportsActasManager.colPeriod")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("hc_modulesReportsActasManager.colTeacher")}</TableHead>
+                  <TableHead className="w-24 text-center">{t("hc_modulesReportsActasManager.colStudents")}</TableHead>
+                  <TableHead className="hidden sm:table-cell w-24 text-center">{t("hc_modulesReportsActasManager.colPassRate")}</TableHead>
+                  <TableHead className="hidden sm:table-cell w-32">{t("hc_modulesReportsActasManager.colGenerated")}</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
@@ -271,8 +268,8 @@ export function ActasManager({ onPrintActa }: Props) {
                 {actas.length === 0 ? (
                   <TableEmpty
                     colSpan={7}
-                    text="Sin actas"
-                    hint="Cuando cierres el curso, genera el acta oficial desde aquí."
+                    text={t("hc_modulesReportsActasManager.emptyText")}
+                    hint={t("hc_modulesReportsActasManager.emptyHint")}
                   />
                 ) : (
                   actas.map((a) => (
@@ -317,12 +314,12 @@ export function ActasManager({ onPrintActa }: Props) {
                         <RowActionsMenu
                           actions={[
                             {
-                              label: "Imprimir acta",
+                              label: t("hc_modulesReportsActasManager.printActa"),
                               icon: FileText,
                               onClick: () => onPrintActa(a),
                             },
                             {
-                              label: "Eliminar acta",
+                              label: t("hc_modulesReportsActasManager.deleteActa"),
                               icon: Trash2,
                               tone: "destructive",
                               separatorBefore: true,
@@ -343,18 +340,16 @@ export function ActasManager({ onPrintActa }: Props) {
       <Dialog open={genOpen} onOpenChange={setGenOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Generar acta oficial</DialogTitle>
+            <DialogTitle>{t("hc_modulesReportsActasManager.generateDialogTitle")}</DialogTitle>
             <DialogDescription>
-              Se creará un registro inmutable con la cohorte de estudiantes matriculados al curso
-              en este momento. Si necesitas modificar notas después, borra el acta y genera una
-              nueva.
+              {t("hc_modulesReportsActasManager.generateDialogDescription")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Curso</label>
+            <label className="text-sm font-medium">{t("hc_modulesReportsActasManager.courseLabel")}</label>
             <Select value={genCourseId} onValueChange={setGenCourseId}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecciona un curso" />
+                <SelectValue placeholder={t("hc_modulesReportsActasManager.selectCoursePlaceholder")} />
               </SelectTrigger>
               <SelectContent>
                 {coursesWithoutActa.map((c) => (
@@ -367,10 +362,10 @@ export function ActasManager({ onPrintActa }: Props) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setGenOpen(false)} disabled={generating}>
-              Cancelar
+              {t("hc_modulesReportsActasManager.cancel")}
             </Button>
             <Button onClick={() => void handleGenerate()} disabled={generating || !genCourseId}>
-              {generating ? "Generando…" : "Generar"}
+              {generating ? t("hc_modulesReportsActasManager.generating") : t("hc_modulesReportsActasManager.generate")}
             </Button>
           </DialogFooter>
         </DialogContent>

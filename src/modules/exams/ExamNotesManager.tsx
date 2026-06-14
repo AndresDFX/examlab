@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { notifyExamNoteReviewed } from "@/modules/exams/exam-notes-notify";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -45,6 +46,7 @@ export type ExamNote = {
  * Workflow: pendiente → aprobada (visible during take) | rechazada (motivo + re-subir).
  */
 export function StudentExamNotes({ examId, userId }: { examId: string; userId: string }) {
+  const { t } = useTranslation();
   const [note, setNote] = useState<ExamNote | null>(null);
   const [content, setContent] = useState("");
   const [busy, setBusy] = useState(false);
@@ -143,15 +145,15 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
     >
       {isApproved ? (
         <>
-          <CheckCircle2 className="h-3 w-3 mr-0.5" /> Aprobada
+          <CheckCircle2 className="h-3 w-3 mr-0.5" /> {t("hc_modulesExamsExamNotesManager.statusApproved")}
         </>
       ) : isRejected ? (
         <>
-          <XCircle className="h-3 w-3 mr-0.5" /> Rechazada
+          <XCircle className="h-3 w-3 mr-0.5" /> {t("hc_modulesExamsExamNotesManager.statusRejected")}
         </>
       ) : (
         <>
-          <Clock className="h-3 w-3 mr-0.5" /> En revisión
+          <Clock className="h-3 w-3 mr-0.5" /> {t("hc_modulesExamsExamNotesManager.statusUnderReview")}
         </>
       )}
     </Badge>
@@ -167,7 +169,9 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
             className="inline-flex items-center gap-1.5 text-primary hover:underline font-medium"
           >
             <FileText className="h-3.5 w-3.5" />
-            {note ? "Ver / editar mis notas de apoyo" : "Subir notas de apoyo"}
+            {note
+              ? t("hc_modulesExamsExamNotesManager.viewEditMyNotes")
+              : t("hc_modulesExamsExamNotesManager.uploadNotes")}
           </button>
           {statusBadge}
         </div>
@@ -179,7 +183,8 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
           <div className="flex items-start gap-1.5 text-[11px] text-destructive border-l-2 border-destructive/40 pl-2">
             <XCircle className="h-3 w-3 mt-0.5 shrink-0" />
             <span className="line-clamp-2" title={note.rejection_reason}>
-              <strong>Motivo:</strong> {note.rejection_reason}
+              <strong>{t("hc_modulesExamsExamNotesManager.reasonLabel")}</strong>{" "}
+              {note.rejection_reason}
             </span>
           </div>
         )}
@@ -188,22 +193,22 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg" hideCloseButton>
           <DialogHeader>
-            <DialogTitle>Notas de apoyo</DialogTitle>
+            <DialogTitle>{t("hc_modulesExamsExamNotesManager.supportNotesTitle")}</DialogTitle>
             <DialogDescription>
-              Sube un texto plano (resumen / chuleta) que tu docente debe aprobar antes del examen.
+              {t("hc_modulesExamsExamNotesManager.supportNotesDescription")}
             </DialogDescription>
           </DialogHeader>
           {isRejected && note?.rejection_reason && (
             <div className="rounded border border-destructive/40 bg-destructive/5 p-3 space-y-1">
               <div className="flex items-center gap-1.5 text-xs font-medium text-destructive">
                 <XCircle className="h-3.5 w-3.5" />
-                Motivo del último rechazo
+                {t("hc_modulesExamsExamNotesManager.lastRejectionReason")}
               </div>
               <p className="text-[12px] text-destructive whitespace-pre-wrap break-words">
                 {note.rejection_reason}
               </p>
               <p className="text-[10px] text-muted-foreground pt-1">
-                Corrige el contenido abajo y reenvía a revisión.
+                {t("hc_modulesExamsExamNotesManager.fixAndResend")}
               </p>
             </div>
           )}
@@ -214,7 +219,7 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
           ) : (
             <Textarea
               rows={8}
-              placeholder="Escribe el texto plano que quieres tener disponible durante el examen…"
+              placeholder={t("hc_modulesExamsExamNotesManager.notesPlaceholder")}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               className="text-sm"
@@ -223,17 +228,19 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
           )}
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>
-              Cerrar
+              {t("hc_modulesExamsExamNotesManager.close")}
             </Button>
             {!isApproved && !isPending && (
               <Button onClick={submit} disabled={busy}>
                 <Upload className="h-3.5 w-3.5 mr-1" />
-                {note ? "Reenviar a revisión" : "Enviar a revisión"}
+                {note
+                  ? t("hc_modulesExamsExamNotesManager.resendForReview")
+                  : t("hc_modulesExamsExamNotesManager.sendForReview")}
               </Button>
             )}
             {isPending && (
               <span className="text-[11px] text-muted-foreground self-center">
-                Tu docente debe aprobarlas.
+                {t("hc_modulesExamsExamNotesManager.teacherMustApprove")}
               </span>
             )}
           </DialogFooter>
@@ -253,6 +260,7 @@ type TeacherExamNoteRow = ExamNote & {
  * approve or reject (with mandatory reason) each one.
  */
 export function TeacherExamNotes({ examId }: { examId: string }) {
+  const { t } = useTranslation();
   const [notes, setNotes] = useState<TeacherExamNoteRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [rejectDialog, setRejectDialog] = useState<{ open: boolean; noteId: string | null }>({
@@ -403,12 +411,17 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
     void load();
   };
 
-  if (loading) return <p className="text-sm text-muted-foreground">Cargando notas…</p>;
+  if (loading)
+    return (
+      <p className="text-sm text-muted-foreground">
+        {t("hc_modulesExamsExamNotesManager.loadingNotes")}
+      </p>
+    );
 
   if (notes.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Aún no hay estudiantes que hayan subido notas para este examen.
+        {t("hc_modulesExamsExamNotesManager.noStudentsUploaded")}
       </p>
     );
   }
@@ -420,9 +433,15 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Badge variant="secondary">{pending.length} pendientes</Badge>
-        <Badge variant="default">{approved.length} aprobadas</Badge>
-        <Badge variant="destructive">{rejected.length} rechazadas</Badge>
+        <Badge variant="secondary">
+          {t("hc_modulesExamsExamNotesManager.countPending", { count: pending.length })}
+        </Badge>
+        <Badge variant="default">
+          {t("hc_modulesExamsExamNotesManager.countApproved", { count: approved.length })}
+        </Badge>
+        <Badge variant="destructive">
+          {t("hc_modulesExamsExamNotesManager.countRejected", { count: rejected.length })}
+        </Badge>
       </div>
 
       {notes.map((n) => {
@@ -430,17 +449,17 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
           n.status === "aprobada" ? (
             <Badge variant="default" className="text-[10px]">
               <CheckCircle2 className="h-3 w-3 mr-0.5" />
-              Aprobada
+              {t("hc_modulesExamsExamNotesManager.statusApproved")}
             </Badge>
           ) : n.status === "rechazada" ? (
             <Badge variant="destructive" className="text-[10px]">
               <XCircle className="h-3 w-3 mr-0.5" />
-              Rechazada
+              {t("hc_modulesExamsExamNotesManager.statusRejected")}
             </Badge>
           ) : (
             <Badge variant="secondary" className="text-[10px]">
               <Clock className="h-3 w-3 mr-0.5" />
-              Pendiente
+              {t("hc_modulesExamsExamNotesManager.statusPending")}
             </Badge>
           );
         return (
@@ -451,7 +470,7 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
                   <User className="h-4 w-4 text-muted-foreground shrink-0" />
                   <div className="min-w-0">
                     <div className="text-sm font-medium truncate">
-                      {n.profile?.full_name ?? "Estudiante"}
+                      {n.profile?.full_name ?? t("hc_modulesExamsExamNotesManager.studentFallback")}
                     </div>
                     <div className="text-[11px] text-muted-foreground truncate">
                       {n.profile?.institutional_email ?? n.user_id}
@@ -462,7 +481,8 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
               </div>
               {n.status === "rechazada" && n.rejection_reason && (
                 <div className="text-[11px] rounded border border-destructive/40 bg-destructive/5 p-2 text-destructive">
-                  <strong>Motivo previo:</strong> {n.rejection_reason}
+                  <strong>{t("hc_modulesExamsExamNotesManager.previousReasonLabel")}</strong>{" "}
+                  {n.rejection_reason}
                 </div>
               )}
               <pre className="whitespace-pre-wrap text-xs bg-muted/40 rounded p-2 max-h-48 overflow-y-auto">
@@ -477,22 +497,22 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
                     disabled={busy}
                   >
                     <ThumbsDown className="h-3.5 w-3.5 mr-1" />
-                    Rechazar
+                    {t("hc_modulesExamsExamNotesManager.reject")}
                   </Button>
                   <Button size="sm" onClick={() => approve(n.id)} disabled={busy}>
                     <ThumbsUp className="h-3.5 w-3.5 mr-1" />
-                    Aprobar
+                    {t("hc_modulesExamsExamNotesManager.approve")}
                   </Button>
                 </div>
               )}
               {n.status === "rechazada" && (
                 <div className="flex justify-between items-center gap-2">
                   <span className="text-[11px] text-muted-foreground">
-                    El estudiante puede subir una nueva versión.
+                    {t("hc_modulesExamsExamNotesManager.studentCanUploadNew")}
                   </span>
                   <Button size="sm" onClick={() => approve(n.id)} disabled={busy}>
                     <ThumbsUp className="h-3.5 w-3.5 mr-1" />
-                    Aprobar de todos modos
+                    {t("hc_modulesExamsExamNotesManager.approveAnyway")}
                   </Button>
                 </div>
               )}
@@ -505,7 +525,7 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
                     disabled={busy}
                   >
                     <ThumbsDown className="h-3.5 w-3.5 mr-1" />
-                    Revocar / rechazar
+                    {t("hc_modulesExamsExamNotesManager.revokeReject")}
                   </Button>
                 </div>
               )}
@@ -520,15 +540,14 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
       >
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Rechazar notas de apoyo</DialogTitle>
+            <DialogTitle>{t("hc_modulesExamsExamNotesManager.rejectDialogTitle")}</DialogTitle>
             <DialogDescription>
-              Indica el motivo del rechazo. El estudiante podrá ver tu razón y subir una nueva
-              versión.
+              {t("hc_modulesExamsExamNotesManager.rejectDialogDescription")}
             </DialogDescription>
           </DialogHeader>
           <Textarea
             rows={4}
-            placeholder="Ej: contiene fragmentos completos de respuestas, no es un resumen…"
+            placeholder={t("hc_modulesExamsExamNotesManager.rejectReasonPlaceholder")}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
           />
@@ -537,10 +556,10 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
               variant="outline"
               onClick={() => setRejectDialog({ open: false, noteId: null })}
             >
-              Cancelar
+              {t("hc_modulesExamsExamNotesManager.cancel")}
             </Button>
             <Button onClick={confirmReject} disabled={busy || !reason.trim()}>
-              Rechazar
+              {t("hc_modulesExamsExamNotesManager.reject")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -58,6 +58,7 @@ import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   open: boolean;
@@ -115,6 +116,7 @@ function defaultRange(): { from: string; to: string } {
 }
 
 export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinked }: Props) {
+  const { t } = useTranslation();
   const initial = useMemo(() => defaultRange(), []);
   const [fromDate, setFromDate] = useState<string>(initial.from);
   const [toDate, setToDate] = useState<string>(initial.to);
@@ -154,7 +156,9 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
         .order("session_date", { ascending: true });
       if (cancelled) return;
       if (error) {
-        toast.error(friendlyError(error, "No pudimos cargar las sesiones del curso"));
+        toast.error(
+          friendlyError(error, t("hc_modulesCalendarLinkCalendarEventsDialog.loadSessionsFailed")),
+        );
         setSessions([]);
       } else {
         setSessions((data ?? []) as Session[]);
@@ -234,7 +238,7 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
       }
       return evs;
     } catch (e) {
-      toast.error(friendlyError(e, "Error consultando Google Calendar"));
+      toast.error(friendlyError(e, t("hc_modulesCalendarLinkCalendarEventsDialog.queryCalendarError")));
       return [];
     } finally {
       setLoadingEvents(false);
@@ -287,7 +291,7 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
       );
       onLinked?.();
     } catch (e) {
-      toast.error(friendlyError(e, "Error resincronizando grabaciones"));
+      toast.error(friendlyError(e, t("hc_modulesCalendarLinkCalendarEventsDialog.resyncRecordingsError")));
     } finally {
       setApplying(false);
     }
@@ -366,13 +370,20 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
         return;
       }
       toast.success(
-        `${d.linked} vinculado(s) · ${d.unlinked} desvinculado(s)` +
-          (d.failed > 0 ? ` · ${d.failed} fallaron` : ""),
+        t("hc_modulesCalendarLinkCalendarEventsDialog.linkResult", {
+          linked: d.linked,
+          unlinked: d.unlinked,
+        }) +
+          (d.failed > 0
+            ? t("hc_modulesCalendarLinkCalendarEventsDialog.linkResultFailed", {
+                failed: d.failed,
+              })
+            : ""),
       );
       onLinked?.();
       onOpenChange(false);
     } catch (e) {
-      toast.error(friendlyError(e, "Error aplicando los cambios"));
+      toast.error(friendlyError(e, t("hc_modulesCalendarLinkCalendarEventsDialog.applyChangesError")));
     } finally {
       setApplying(false);
     }
@@ -384,43 +395,45 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="h-5 w-5 text-primary" />
-            Vincular sesiones desde Google Calendar
+            {t("hc_modulesCalendarLinkCalendarEventsDialog.title")}
           </DialogTitle>
           <DialogDescription>
-            Asocia las sesiones de este curso con eventos que ya existen en tu calendario. ExamLab
-            heredará el link de Meet/Zoom de cada evento y, si el evento ya tiene una{" "}
-            <strong>grabación</strong> o <strong>notas de reunión</strong>, también las vinculará. No
-            se crean eventos nuevos — para eso usá <em>Sincronizar curso</em> en la pantalla
-            principal.
+            {t("hc_modulesCalendarLinkCalendarEventsDialog.descriptionPart1")}{" "}
+            <strong>{t("hc_modulesCalendarLinkCalendarEventsDialog.descriptionRecording")}</strong>{" "}
+            {t("hc_modulesCalendarLinkCalendarEventsDialog.descriptionOr")}{" "}
+            <strong>{t("hc_modulesCalendarLinkCalendarEventsDialog.descriptionNotes")}</strong>
+            {t("hc_modulesCalendarLinkCalendarEventsDialog.descriptionPart2")}{" "}
+            <em>{t("hc_modulesCalendarLinkCalendarEventsDialog.descriptionSyncCourse")}</em>{" "}
+            {t("hc_modulesCalendarLinkCalendarEventsDialog.descriptionPart3")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           {/* Paso 1: rango de fechas + cargar eventos */}
           <div className="rounded-md border p-3 space-y-3">
-            <p className="text-sm font-medium">1. Rango de fechas del calendario</p>
+            <p className="text-sm font-medium">{t("hc_modulesCalendarLinkCalendarEventsDialog.step1Title")}</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <Label className="text-xs">Desde</Label>
+                <Label className="text-xs">{t("hc_modulesCalendarLinkCalendarEventsDialog.fromLabel")}</Label>
                 <DatePicker value={fromDate} onChange={setFromDate} />
               </div>
               <div>
-                <Label className="text-xs">Hasta</Label>
+                <Label className="text-xs">{t("hc_modulesCalendarLinkCalendarEventsDialog.toLabel")}</Label>
                 <DatePicker value={toDate} onChange={setToDate} />
               </div>
               <div className="flex items-end">
                 <Button onClick={() => void loadEvents()} disabled={loadingEvents} className="w-full">
                   {loadingEvents ? <Spinner size="sm" className="mr-2" /> : null}
-                  Cargar eventos
+                  {t("hc_modulesCalendarLinkCalendarEventsDialog.loadEventsButton")}
                 </Button>
               </div>
             </div>
             {events.length > 0 && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Badge variant="secondary" className="text-[10px]">
-                  {events.length} evento(s)
+                  {t("hc_modulesCalendarLinkCalendarEventsDialog.eventCountBadge", { count: events.length })}
                 </Badge>
-                <span>Cargados — abajo asignás cada uno a una sesión.</span>
+                <span>{t("hc_modulesCalendarLinkCalendarEventsDialog.eventsLoadedHint")}</span>
               </div>
             )}
           </div>
@@ -429,33 +442,33 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
           {events.length > 0 && (
             <div className="rounded-md border p-3 space-y-3">
               <div className="flex items-center justify-between gap-2 flex-wrap">
-                <p className="text-sm font-medium">2. Asignar evento por sesión</p>
+                <p className="text-sm font-medium">{t("hc_modulesCalendarLinkCalendarEventsDialog.step2Title")}</p>
                 <div className="relative w-full sm:w-64">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                   <Input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Buscar evento por título…"
+                    placeholder={t("hc_modulesCalendarLinkCalendarEventsDialog.searchPlaceholder")}
                     className="pl-8 h-8 text-xs"
                   />
                 </div>
               </div>
               {loadingSessions ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
-                  <Spinner size="sm" /> Cargando sesiones…
+                  <Spinner size="sm" /> {t("hc_modulesCalendarLinkCalendarEventsDialog.loadingSessions")}
                 </div>
               ) : sessions.length === 0 ? (
                 <TableEmpty
-                  text="El curso no tiene sesiones todavía"
-                  hint="Creá las sesiones en /app/teacher/attendance antes de vincular."
+                  text={t("hc_modulesCalendarLinkCalendarEventsDialog.noSessionsText")}
+                  hint={t("hc_modulesCalendarLinkCalendarEventsDialog.noSessionsHint")}
                 />
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="min-w-32">Sesión</TableHead>
-                      <TableHead className="hidden sm:table-cell w-32">Fecha</TableHead>
-                      <TableHead className="min-w-36 sm:min-w-48">Evento del calendario</TableHead>
+                      <TableHead className="min-w-32">{t("hc_modulesCalendarLinkCalendarEventsDialog.colSession")}</TableHead>
+                      <TableHead className="hidden sm:table-cell w-32">{t("hc_modulesCalendarLinkCalendarEventsDialog.colDate")}</TableHead>
+                      <TableHead className="min-w-36 sm:min-w-48">{t("hc_modulesCalendarLinkCalendarEventsDialog.colCalendarEvent")}</TableHead>
                       <TableHead className="w-8" />
                     </TableRow>
                   </TableHeader>
@@ -473,7 +486,7 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
                       return (
                         <TableRow key={s.id} className={isDirty ? "bg-primary/5" : undefined}>
                           <TableCell className="font-medium text-sm">
-                            <div className="truncate">{s.title ?? "Sin título"}</div>
+                            <div className="truncate">{s.title ?? t("hc_modulesCalendarLinkCalendarEventsDialog.untitledSession")}</div>
                             {s.meeting_url && !isDirty && (
                               <div className="text-[10px] text-muted-foreground truncate">
                                 {s.meeting_url}
@@ -494,14 +507,14 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
                               }
                             >
                               <SelectTrigger className="h-8 text-xs">
-                                <SelectValue placeholder="Sin vincular" />
+                                <SelectValue placeholder={t("hc_modulesCalendarLinkCalendarEventsDialog.unlinkedPlaceholder")} />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="__none__">— Sin vincular —</SelectItem>
+                                <SelectItem value="__none__">{t("hc_modulesCalendarLinkCalendarEventsDialog.unlinkedOption")}</SelectItem>
                                 {filteredEvents.map((e) => {
                                   const startStr = e.start
                                     ? formatDateTime(e.start)
-                                    : "(sin fecha)";
+                                    : t("hc_modulesCalendarLinkCalendarEventsDialog.noDate");
                                   return (
                                     <SelectItem key={e.id} value={e.id}>
                                       <span className="truncate">
@@ -518,12 +531,12 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
                               return (
                                 <div className="mt-1 space-y-0.5">
                                   <div className="text-[10px] text-muted-foreground truncate">
-                                    {ev.hangoutLink ?? ev.htmlLink ?? "(sin link Meet)"}
+                                    {ev.hangoutLink ?? ev.htmlLink ?? t("hc_modulesCalendarLinkCalendarEventsDialog.noMeetLink")}
                                   </div>
                                   {ev.recordingUrl && (
                                     <div className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400">
                                       <Video className="h-3 w-3 shrink-0" />
-                                      <span className="truncate">Grabación disponible — se vinculará</span>
+                                      <span className="truncate">{t("hc_modulesCalendarLinkCalendarEventsDialog.recordingAvailable")}</span>
                                     </div>
                                   )}
                                   {ev.notesUrl && (
@@ -570,25 +583,27 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
             variant="outline"
             onClick={() => void resyncRecordings()}
             disabled={applying || loadingEvents}
-            title="Actualiza las grabaciones/notas de las sesiones ya vinculadas en el rango"
+            title={t("hc_modulesCalendarLinkCalendarEventsDialog.resyncButtonTitle")}
           >
             {applying || loadingEvents ? (
               <Spinner size="sm" className="mr-2" />
             ) : (
               <RefreshCw className="h-4 w-4 mr-1" />
             )}
-            Resincronizar grabaciones
+            {t("hc_modulesCalendarLinkCalendarEventsDialog.resyncButton")}
           </Button>
           <div className="flex gap-2">
             <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={applying}>
-              Cancelar
+              {t("hc_modulesCalendarLinkCalendarEventsDialog.cancel")}
             </Button>
             <Button
               onClick={() => void applyChanges()}
               disabled={applying || pendingChanges === 0}
             >
               {applying ? <Spinner size="sm" className="mr-2" /> : null}
-              Aplicar {pendingChanges > 0 ? `${pendingChanges} cambio${pendingChanges === 1 ? "" : "s"}` : "cambios"}
+              {pendingChanges > 0
+                ? t("hc_modulesCalendarLinkCalendarEventsDialog.applyChangesCount", { count: pendingChanges })
+                : t("hc_modulesCalendarLinkCalendarEventsDialog.applyChanges")}
             </Button>
           </div>
         </DialogFooter>

@@ -384,7 +384,7 @@ export function UploadExternalContentDialog({
           }),
         );
       } else {
-        toast.error(friendlyError(insErr, "No se pudo crear el contenido"));
+        toast.error(friendlyError(insErr, t("hc_modulesContentsUploadExternalContentDialog.createContentFailed")));
       }
       setSaving(false);
       return;
@@ -504,8 +504,15 @@ export function UploadExternalContentDialog({
 
     const successMsg =
       failed.length === 0
-        ? `Contenido subido (${uploaded.length} archivo(s), ${courseIdsArr.length} curso(s)).`
-        : `Subidos ${uploaded.length}/${files.length}; falló: ${failed.join(", ")}`;
+        ? t("hc_modulesContentsUploadExternalContentDialog.uploadSuccess", {
+            count: uploaded.length,
+            courses: courseIdsArr.length,
+          })
+        : t("hc_modulesContentsUploadExternalContentDialog.uploadPartial", {
+            uploaded: uploaded.length,
+            total: files.length,
+            failed: failed.join(", "),
+          });
     toast.success(successMsg);
     onCreated(contentId);
     onOpenChange(false);
@@ -536,13 +543,13 @@ export function UploadExternalContentDialog({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label required>
-                Nombre del contenido
+                {t("hc_modulesContentsUploadExternalContentDialog.contentName")}
                 <HelpHint>{t("help.contentDisplayNameHint", { defaultValue: "Nombre único que verás en la lista. Distinto del tema." })}</HelpHint>
               </Label>
               <Input
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder='Ej. "Semana 5 — Bucles"'
+                placeholder={t("hc_modulesContentsUploadExternalContentDialog.contentNamePlaceholder")}
                 maxLength={120}
                 disabled={saving}
               />
@@ -742,7 +749,7 @@ export function UploadExternalContentDialog({
               className="text-sm font-medium inline-flex items-center gap-1.5 cursor-pointer min-w-0"
             >
               <span className="truncate">
-                Liberar al estudiante solo desde la fecha de sesión
+                {t("hc_modulesContentsUploadExternalContentDialog.releaseAfterSessionLabel")}
               </span>
               <HelpHint>
                 {t("help.contentReleaseAfterSessionHint", {
@@ -778,8 +785,7 @@ export function UploadExternalContentDialog({
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription className="text-xs">
-                  No tienes cursos disponibles. Asociate como docente de al menos un curso antes
-                  de subir contenido.
+                  {t("hc_modulesContentsUploadExternalContentDialog.noCoursesAvailable")}
                 </AlertDescription>
               </Alert>
             ) : (
@@ -804,7 +810,9 @@ export function UploadExternalContentDialog({
             )}
             {selectedCourseIds.size > 0 && (
               <p className="text-[11px] text-muted-foreground">
-                {selectedCourseIds.size} curso(s) seleccionado(s).
+                {t("hc_modulesContentsUploadExternalContentDialog.coursesSelected", {
+                  count: selectedCourseIds.size,
+                })}
               </p>
             )}
           </div>
@@ -815,10 +823,12 @@ export function UploadExternalContentDialog({
               {t("contents.files", { defaultValue: "Archivos" })}
               <HelpHint>
                 {mode === "material_individual"
-                  ? "Modo individual: 1 archivo (se reemplaza si seleccionas otro)."
-                  : "Modo curso completo: puedes subir varios archivos (idealmente 1 por clase)."}{" "}
-                Formatos: PDF, PPTX, DOCX, XLSX, MD, TXT, CSV, ZIP, PNG, JPG, WEBP, SVG. Máximo
-                {` ${MAX_FILE_SIZE_MB} MB por archivo, ${MAX_TOTAL_SIZE_MB} MB en total.`}
+                  ? t("hc_modulesContentsUploadExternalContentDialog.filesHintIndividual")
+                  : t("hc_modulesContentsUploadExternalContentDialog.filesHintFull")}{" "}
+                {t("hc_modulesContentsUploadExternalContentDialog.filesHintFormats", {
+                  maxFileMb: MAX_FILE_SIZE_MB,
+                  maxTotalMb: MAX_TOTAL_SIZE_MB,
+                })}
               </HelpHint>
             </Label>
             <label
@@ -831,8 +841,8 @@ export function UploadExternalContentDialog({
               <FileUp className="h-5 w-5 text-muted-foreground" />
               <span className="text-muted-foreground text-xs">
                 {mode === "material_individual"
-                  ? "Click para elegir un archivo"
-                  : "Click para elegir archivos o arrastra aquí"}
+                  ? t("hc_modulesContentsUploadExternalContentDialog.pickerSingle")
+                  : t("hc_modulesContentsUploadExternalContentDialog.pickerMulti")}
               </span>
               <input
                 type="file"
@@ -859,7 +869,7 @@ export function UploadExternalContentDialog({
                       onClick={() => removeFile(idx)}
                       disabled={saving}
                       className="text-muted-foreground hover:text-destructive"
-                      aria-label="Quitar archivo"
+                      aria-label={t("hc_modulesContentsUploadExternalContentDialog.removeFile")}
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -873,7 +883,10 @@ export function UploadExternalContentDialog({
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                Subiendo {progress.done} / {progress.total} archivo(s)…
+                {t("hc_modulesContentsUploadExternalContentDialog.uploading", {
+                  done: progress.done,
+                  total: progress.total,
+                })}
               </AlertDescription>
             </Alert>
           )}

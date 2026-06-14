@@ -58,11 +58,11 @@ interface CalendarEvent {
   link?: string | null;
 }
 
-const KIND_LABEL: Record<CalendarEvent["kind"], string> = {
-  exam: "Examen",
-  workshop: "Taller",
-  project: "Proyecto",
-  session: "Clase",
+const KIND_LABEL_KEY: Record<CalendarEvent["kind"], string> = {
+  exam: "hc_routesAppStudentCalendar.kindExam",
+  workshop: "hc_routesAppStudentCalendar.kindWorkshop",
+  project: "hc_routesAppStudentCalendar.kindProject",
+  session: "hc_routesAppStudentCalendar.kindSession",
 };
 
 const KIND_ICON: Record<CalendarEvent["kind"], React.ComponentType<{ className?: string }>> = {
@@ -135,7 +135,7 @@ function StudentCalendar() {
 
       const firstError = examsRes.error ?? wsRes.error ?? pjRes.error ?? sessRes.error;
       if (firstError) {
-        setLoadError(friendlyError(firstError, "No pudimos cargar el calendario."));
+        setLoadError(friendlyError(firstError, t("hc_routesAppStudentCalendar.loadError")));
         setLoading(false);
         return;
       }
@@ -157,7 +157,7 @@ function StudentCalendar() {
           id: `exam-${e.id}`,
           kind: "exam",
           title: e.title,
-          courseName: e.courses?.name ?? "Curso",
+          courseName: e.courses?.name ?? t("hc_routesAppStudentCalendar.courseFallback"),
           start: new Date(e.start_time),
           end,
           allDay: false,
@@ -224,7 +224,7 @@ function StudentCalendar() {
           evs.push({
             id: `session-${s.id}`,
             kind: "session",
-            title: s.title ? s.title : `Clase del curso`,
+            title: s.title ? s.title : t("hc_routesAppStudentCalendar.sessionDefaultTitle"),
             courseName: c.name,
             start,
             allDay: !timeStr,
@@ -340,8 +340,8 @@ function StudentCalendar() {
     <div className="container mx-auto space-y-6 p-4 sm:p-6">
       <PageHeader
         icon={<CalendarIcon className="h-6 w-6 text-blue-500" />}
-        title="Calendario"
-        subtitle="Vista unificada de exámenes, talleres, proyectos y sesiones. Suscríbete desde tu calendario favorito."
+        title={t("hc_routesAppStudentCalendar.pageTitle")}
+        subtitle={t("hc_routesAppStudentCalendar.pageSubtitle")}
       />
 
       {/* Vista mensual (overview visual). Reusa el componente del dashboard;
@@ -353,18 +353,17 @@ function StudentCalendar() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <CalendarIcon className="h-4 w-4 text-blue-500" />
-            Suscribir a calendario externo
+            {t("hc_routesAppStudentCalendar.subscribeTitle")}
             <HelpHint>{t("help.privateUrlWarning")}</HelpHint>
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Pega esta URL en Google Calendar (Otros calendarios → Agregar → De URL), Apple
-            Calendar (Archivo → Nueva suscripción) o Outlook (Suscribirse desde web).
+            {t("hc_routesAppStudentCalendar.subscribeHint")}
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
           {tokenLoading ? (
             <div className="text-sm text-muted-foreground flex items-center gap-2">
-              <Spinner size="sm" inline /> Generando URL…
+              <Spinner size="sm" inline /> {t("hc_routesAppStudentCalendar.generatingUrl")}
             </div>
           ) : icsUrl ? (
             <>
@@ -372,13 +371,13 @@ function StudentCalendar() {
                 <Input value={icsUrl} readOnly className="font-mono text-xs flex-1 min-w-[180px] sm:min-w-64" />
                 <Button size="sm" variant="outline" onClick={handleCopy}>
                   <Copy className="h-3.5 w-3.5 mr-1" />
-                  Copiar
+                  {t("hc_routesAppStudentCalendar.copy")}
                 </Button>
                 {webcalUrl && (
                   <Button size="sm" variant="outline" asChild>
                     <a href={webcalUrl}>
                       <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                      Abrir en mi calendario
+                      {t("hc_routesAppStudentCalendar.openInMyCalendar")}
                     </a>
                   </Button>
                 )}
@@ -394,20 +393,19 @@ function StudentCalendar() {
                   ) : (
                     <RefreshCw className="h-3.5 w-3.5 mr-1" />
                   )}
-                  Regenerar URL
+                  {t("hc_routesAppStudentCalendar.regenerateUrl")}
                 </Button>
               </div>
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription className="text-xs">
-                  Los calendarios externos refrescan cada 1–24h (depende del cliente). Para ver
-                  cambios al instante usa esta página directamente.
+                  {t("hc_routesAppStudentCalendar.refreshNotice")}
                 </AlertDescription>
               </Alert>
             </>
           ) : (
             <p className="text-sm text-muted-foreground">
-              No se pudo generar la URL. Intenta recargar la página.
+              {t("hc_routesAppStudentCalendar.urlGenerateFailed")}
             </p>
           )}
         </CardContent>
@@ -422,7 +420,7 @@ function StudentCalendar() {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por título o curso…"
+                placeholder={t("hc_routesAppStudentCalendar.searchPlaceholder")}
                 className="pl-8"
               />
             </div>
@@ -431,7 +429,9 @@ function StudentCalendar() {
               variant={showPast ? "default" : "outline"}
               onClick={() => setShowPast((v) => !v)}
             >
-              {showPast ? "Mostrando todos" : "Solo próximos"}
+              {showPast
+                ? t("hc_routesAppStudentCalendar.showingAll")
+                : t("hc_routesAppStudentCalendar.onlyUpcoming")}
             </Button>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -447,7 +447,7 @@ function StudentCalendar() {
                   className="h-7 text-[11px]"
                 >
                   <Icon className="h-3 w-3 mr-1" />
-                  {KIND_LABEL[k]}
+                  {t(KIND_LABEL_KEY[k])}
                 </Button>
               );
             })}
@@ -459,12 +459,12 @@ function StudentCalendar() {
       {loading ? (
         <Card>
           <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
-            <Spinner size="md" /> Cargando eventos…
+            <Spinner size="md" /> {t("hc_routesAppStudentCalendar.loadingEvents")}
           </CardContent>
         </Card>
       ) : loadError ? (
         <ErrorState
-          message="No pudimos cargar el calendario"
+          message={t("hc_routesAppStudentCalendar.errorStateMessage")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -472,11 +472,11 @@ function StudentCalendar() {
         <Card>
           <CardContent className="p-0">
             <TableEmpty
-              title="Sin eventos para mostrar"
+              title={t("hc_routesAppStudentCalendar.emptyTitle")}
               description={
                 showPast
-                  ? "Ajusta los filtros o escribe en el buscador."
-                  : "No tienes eventos próximos con los filtros actuales. Activa 'Mostrando todos' para ver los pasados."
+                  ? t("hc_routesAppStudentCalendar.emptyDescriptionAll")
+                  : t("hc_routesAppStudentCalendar.emptyDescriptionUpcoming")
               }
               icon={CalendarIcon}
             />
@@ -503,6 +503,7 @@ function StudentCalendar() {
 }
 
 function EventRow({ event }: { event: CalendarEvent }) {
+  const { t } = useTranslation();
   const Icon = KIND_ICON[event.kind];
   // El contenido principal (ícono + título + fecha) es clickeable y navega
   // al módulo del recurso (SPA, sin recarga). El link de "Reunión" externo
@@ -516,16 +517,18 @@ function EventRow({ event }: { event: CalendarEvent }) {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium truncate">{event.title}</span>
           <Badge variant="outline" className="text-[10px]">
-            {KIND_LABEL[event.kind]}
+            {t(KIND_LABEL_KEY[event.kind])}
           </Badge>
         </div>
         <div className="text-xs text-muted-foreground mt-0.5">{event.courseName}</div>
         <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
           <span>{event.allDay ? formatWeekday(event.start) : formatDateTime(event.start)}</span>
-          {event.end && !event.allDay && <span>Fin: {formatDateTime(event.end)}</span>}
+          {event.end && !event.allDay && (
+            <span>{t("hc_routesAppStudentCalendar.end", { time: formatDateTime(event.end) })}</span>
+          )}
           {event.allDay && (
             <Badge variant="secondary" className="text-[9px]">
-              Todo el día
+              {t("hc_routesAppStudentCalendar.allDay")}
             </Badge>
           )}
         </div>
@@ -555,12 +558,12 @@ function EventRow({ event }: { event: CalendarEvent }) {
               className="text-[11px] text-primary hover:underline inline-flex items-center gap-1"
             >
               <ExternalLink className="h-3 w-3" />
-              Reunión
+              {t("hc_routesAppStudentCalendar.meeting")}
             </a>
           )}
           {event.link && (
             <Link to={event.link} className="text-[11px] text-muted-foreground hover:underline">
-              Ir →
+              {t("hc_routesAppStudentCalendar.goTo")}
             </Link>
           )}
         </div>

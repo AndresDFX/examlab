@@ -1,5 +1,6 @@
 import { createRouter, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routeTree } from "./routeTree.gen";
@@ -47,6 +48,7 @@ function reloadOnceForStaleChunk(): void {
  * no exponer detalles técnicos al usuario final.
  */
 function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const chunkError = isChunkLoadError(error);
 
@@ -60,7 +62,7 @@ function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => vo
   if (chunkError) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-        Actualizando…
+        {t("hc_router.updating")}
       </div>
     );
   }
@@ -72,9 +74,9 @@ function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => vo
           <AlertTriangle className="h-8 w-8 text-destructive" />
         </div>
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">Algo salió mal</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t("hc_router.errorTitle")}</h1>
           <p className="text-sm text-muted-foreground">
-            Ocurrió un error inesperado. Por favor intenta de nuevo.
+            {t("hc_router.errorDescription")}
           </p>
         </div>
         {import.meta.env.DEV && error.message && (
@@ -89,10 +91,10 @@ function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => vo
               reset();
             }}
           >
-            Reintentar
+            {t("hc_router.retry")}
           </Button>
           <Button variant="outline" asChild>
-            <a href="/">Ir al inicio</a>
+            <a href="/">{t("hc_router.goHome")}</a>
           </Button>
         </div>
       </div>

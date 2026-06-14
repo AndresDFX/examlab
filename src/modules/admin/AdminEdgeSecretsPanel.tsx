@@ -80,7 +80,7 @@ export function AdminEdgeSecretsPanel() {
     setLoading(false);
     if (error || data?.error) {
       const detail = await extractEdgeError(error, data);
-      setConfigError(detail || "Error desconocido");
+      setConfigError(detail || t("hc_modulesAdminAdminEdgeSecretsPanel.unknownError"));
       return;
     }
     setSecrets((data?.secrets ?? []) as SecretRow[]);
@@ -122,25 +122,27 @@ export function AdminEdgeSecretsPanel() {
     setSaving(false);
     if (error || data?.error) {
       const detail = await extractEdgeError(error, data);
-      toast.error(detail || "Error al guardar");
+      toast.error(detail || t("hc_modulesAdminAdminEdgeSecretsPanel.saveError"));
       return;
     }
-    toast.success(editorIsEdit ? "Secret actualizada" : "Secret creada", {
-      description:
-        "Los edge functions verán el nuevo valor en ~15 min (cuando recicle el container actual) " +
-        "o inmediato si redespliegas los edge functions.",
-      duration: 8000,
-    });
+    toast.success(
+      editorIsEdit
+        ? t("hc_modulesAdminAdminEdgeSecretsPanel.secretUpdated")
+        : t("hc_modulesAdminAdminEdgeSecretsPanel.secretCreated"),
+      {
+        description: t("hc_modulesAdminAdminEdgeSecretsPanel.secretSavedDescription"),
+        duration: 8000,
+      },
+    );
     setEditorOpen(false);
     void load();
   };
 
   const remove = async (s: SecretRow) => {
     const ok = await confirm({
-      title: `¿Borrar secret "${s.name}"?`,
-      description:
-        "Los edge functions que dependen de este secret dejarán de funcionar inmediatamente. Esta acción no se puede deshacer.",
-      confirmLabel: "Borrar",
+      title: t("hc_modulesAdminAdminEdgeSecretsPanel.deleteSecretTitle", { name: s.name }),
+      description: t("hc_modulesAdminAdminEdgeSecretsPanel.deleteSecretDescription"),
+      confirmLabel: t("hc_modulesAdminAdminEdgeSecretsPanel.deleteLabel"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -149,7 +151,7 @@ export function AdminEdgeSecretsPanel() {
     });
     if (error || data?.error) {
       const detail = await extractEdgeError(error, data);
-      toast.error(detail || "Error al borrar");
+      toast.error(detail || t("hc_modulesAdminAdminEdgeSecretsPanel.deleteError"));
       return;
     }
     toast.success(
@@ -171,10 +173,7 @@ export function AdminEdgeSecretsPanel() {
             <HelpHint>{t("help.edgeFunctionSecretsDescription")}</HelpHint>
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Los valores nunca se muestran en claro — Supabase Management API los enmascara para
-            evitar leaks. Solo verás "configurado" + length + fecha. Para ver el valor real,
-            recupéralo de la fuente original (consola de AWS, dashboard de Gemini, etc.) o crea uno
-            nuevo.
+            {t("hc_modulesAdminAdminEdgeSecretsPanel.maskedValuesNote")}
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -183,14 +182,17 @@ export function AdminEdgeSecretsPanel() {
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription className="text-xs space-y-2">
                 <p>
-                  <strong>No se pudo cargar secrets:</strong> {configError}
+                  <strong>{t("hc_modulesAdminAdminEdgeSecretsPanel.loadSecretsError")}</strong>{" "}
+                  {configError}
                 </p>
                 {configError.includes("MANAGEMENT_PAT") && (
                   <div className="text-xs">
-                    <p className="mt-1 font-medium">Setup (una sola vez):</p>
+                    <p className="mt-1 font-medium">
+                      {t("hc_modulesAdminAdminEdgeSecretsPanel.setupOnce")}
+                    </p>
                     <ol className="list-decimal list-inside space-y-0.5 mt-1">
                       <li>
-                        Genera un Personal Access Token en{" "}
+                        {t("hc_modulesAdminAdminEdgeSecretsPanel.setupGenerateToken")}{" "}
                         <a
                           href="https://supabase.com/dashboard/account/tokens"
                           target="_blank"
@@ -200,12 +202,14 @@ export function AdminEdgeSecretsPanel() {
                           supabase.com/dashboard/account/tokens
                         </a>
                       </li>
-                      <li>Ve a Supabase Dashboard → Project Settings → Edge Functions → Secrets</li>
+                      <li>{t("hc_modulesAdminAdminEdgeSecretsPanel.setupGoToDashboard")}</li>
                       <li>
-                        Agrega <code className="text-[11px]">MANAGEMENT_PAT</code> con el
-                        valor del token (empieza con <code>sbp_</code>)
+                        {t("hc_modulesAdminAdminEdgeSecretsPanel.setupAddSecret")}{" "}
+                        <code className="text-[11px]">MANAGEMENT_PAT</code>{" "}
+                        {t("hc_modulesAdminAdminEdgeSecretsPanel.setupAddSecretSuffix")}{" "}
+                        <code>sbp_</code>)
                       </li>
-                      <li>Recarga esta pantalla</li>
+                      <li>{t("hc_modulesAdminAdminEdgeSecretsPanel.setupReload")}</li>
                     </ol>
                   </div>
                 )}
@@ -215,7 +219,11 @@ export function AdminEdgeSecretsPanel() {
             <>
               <div className="flex items-center justify-between">
                 <p className="text-xs text-muted-foreground">
-                  {loading ? "Cargando…" : `${secrets.length} secret(s) configurado(s).`}
+                  {loading
+                    ? t("hc_modulesAdminAdminEdgeSecretsPanel.loading")
+                    : t("hc_modulesAdminAdminEdgeSecretsPanel.secretsCount", {
+                        count: secrets.length,
+                      })}
                 </p>
                 <div className="flex items-center gap-1.5">
                   <Button
@@ -225,22 +233,22 @@ export function AdminEdgeSecretsPanel() {
                     disabled={loading}
                   >
                     <RefreshCcw className={`h-3.5 w-3.5 mr-1 ${loading ? "animate-spin" : ""}`} />
-                    Recargar
+                    {t("hc_modulesAdminAdminEdgeSecretsPanel.reload")}
                   </Button>
                   <Button size="sm" onClick={openCreate} disabled={loading}>
                     <Plus className="h-3.5 w-3.5 mr-1" />
-                    Nueva
+                    {t("hc_modulesAdminAdminEdgeSecretsPanel.new")}
                   </Button>
                 </div>
               </div>
 
               {loading ? (
                 <div className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-                  <Spinner size="sm" /> Cargando secrets…
+                  <Spinner size="sm" /> {t("hc_modulesAdminAdminEdgeSecretsPanel.loadingSecrets")}
                 </div>
               ) : secrets.length === 0 ? (
                 <div className="p-6 text-center text-sm text-muted-foreground border rounded-md">
-                  No hay secrets configurados. Crea uno con el botón "Nueva".
+                  {t("hc_modulesAdminAdminEdgeSecretsPanel.noSecrets")}
                 </div>
               ) : (
                 <div className="border rounded-md divide-y">
@@ -252,24 +260,34 @@ export function AdminEdgeSecretsPanel() {
                       <div className="flex-1 min-w-0">
                         <div className="font-mono text-xs font-medium truncate">{s.name}</div>
                         <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
-                          <span className="font-mono">{s.value_masked || "(vacío)"}</span>
+                          <span className="font-mono">
+                            {s.value_masked || t("hc_modulesAdminAdminEdgeSecretsPanel.empty")}
+                          </span>
                           <span>·</span>
-                          <span>{s.length} chars</span>
+                          <span>
+                            {t("hc_modulesAdminAdminEdgeSecretsPanel.chars", { count: s.length })}
+                          </span>
                           {s.updated_at && (
                             <>
                               <span>·</span>
                               <span>
-                                Modificado {formatDate(s.updated_at)}
+                                {t("hc_modulesAdminAdminEdgeSecretsPanel.modified", {
+                                  date: formatDate(s.updated_at),
+                                })}
                               </span>
                             </>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
-                        <RowAction icon={Save} label="Editar" onClick={() => openEdit(s)} />
+                        <RowAction
+                          icon={Save}
+                          label={t("hc_modulesAdminAdminEdgeSecretsPanel.edit")}
+                          onClick={() => openEdit(s)}
+                        />
                         <RowAction
                           icon={Trash2}
-                          label="Borrar"
+                          label={t("hc_modulesAdminAdminEdgeSecretsPanel.delete")}
                           tone="destructive"
                           onClick={() => void remove(s)}
                         />
@@ -282,9 +300,9 @@ export function AdminEdgeSecretsPanel() {
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription className="text-xs">
-                  Secrets reservados (<code>SUPABASE_URL</code>,{" "}
-                  <code>SUPABASE_SERVICE_ROLE_KEY</code>, etc.) se filtran automáticamente y no se
-                  pueden modificar desde aquí — son inyectados por la plataforma.
+                  {t("hc_modulesAdminAdminEdgeSecretsPanel.reservedPrefix")} (
+                  <code>SUPABASE_URL</code>, <code>SUPABASE_SERVICE_ROLE_KEY</code>
+                  {t("hc_modulesAdminAdminEdgeSecretsPanel.reservedSuffix")}
                 </AlertDescription>
               </Alert>
             </>
@@ -295,16 +313,20 @@ export function AdminEdgeSecretsPanel() {
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{editorIsEdit ? `Editar ${editorName}` : "Nueva secret"}</DialogTitle>
+            <DialogTitle>
+              {editorIsEdit
+                ? t("hc_modulesAdminAdminEdgeSecretsPanel.editTitle", { name: editorName })
+                : t("hc_modulesAdminAdminEdgeSecretsPanel.newSecretTitle")}
+            </DialogTitle>
             <DialogDescription className="text-xs">
               {editorIsEdit
-                ? "Sobreescribe el valor actual. Los edge functions usarán el nuevo valor en la próxima invocación."
-                : "Crea una nueva variable de entorno disponible para todas las edge functions."}
+                ? t("hc_modulesAdminAdminEdgeSecretsPanel.editDescription")
+                : t("hc_modulesAdminAdminEdgeSecretsPanel.createDescription")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Nombre</Label>
+              <Label>{t("hc_modulesAdminAdminEdgeSecretsPanel.nameLabel")}</Label>
               <Input
                 value={editorName}
                 onChange={(e) => setEditorName(e.target.value.toUpperCase())}
@@ -314,12 +336,12 @@ export function AdminEdgeSecretsPanel() {
               />
               {!editorIsEdit && (
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  MAYÚSCULAS_CON_GUIONES_BAJOS. No puede empezar con <code>SUPABASE_</code>.
+                  {t("hc_modulesAdminAdminEdgeSecretsPanel.nameHint")} <code>SUPABASE_</code>.
                 </p>
               )}
             </div>
             <div>
-              <Label>Valor</Label>
+              <Label>{t("hc_modulesAdminAdminEdgeSecretsPanel.valueLabel")}</Label>
               {/* Toggle de visibilidad ABSOLUTO dentro del input (patrón
                   estándar de password fields). Antes era un Button al
                   lado en flex-row: con `max-w-md` el botón quedaba pegado
@@ -330,13 +352,21 @@ export function AdminEdgeSecretsPanel() {
                   type={showValue ? "text" : "password"}
                   value={editorValue}
                   onChange={(e) => setEditorValue(e.target.value)}
-                  placeholder={editorIsEdit ? "(escribe el nuevo valor)" : "Valor del secret"}
+                  placeholder={
+                    editorIsEdit
+                      ? t("hc_modulesAdminAdminEdgeSecretsPanel.valuePlaceholderEdit")
+                      : t("hc_modulesAdminAdminEdgeSecretsPanel.valuePlaceholderNew")
+                  }
                   className="font-mono text-sm pr-10"
                   autoComplete="off"
                 />
                 <button
                   type="button"
-                  aria-label={showValue ? "Ocultar valor" : "Mostrar valor"}
+                  aria-label={
+                    showValue
+                      ? t("hc_modulesAdminAdminEdgeSecretsPanel.hideValue")
+                      : t("hc_modulesAdminAdminEdgeSecretsPanel.showValue")
+                  }
                   onClick={() => setShowValue((v) => !v)}
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
@@ -347,11 +377,11 @@ export function AdminEdgeSecretsPanel() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setEditorOpen(false)} disabled={saving}>
-              Cancelar
+              {t("hc_modulesAdminAdminEdgeSecretsPanel.cancel")}
             </Button>
             <Button onClick={() => void save()} disabled={saving}>
               {saving ? <Spinner size="sm" className="mr-1" /> : <Save className="h-4 w-4 mr-1" />}
-              Guardar
+              {t("hc_modulesAdminAdminEdgeSecretsPanel.save")}
             </Button>
           </DialogFooter>
         </DialogContent>

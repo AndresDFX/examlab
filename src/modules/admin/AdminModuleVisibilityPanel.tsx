@@ -332,7 +332,12 @@ export function AdminModuleVisibilityPanel() {
     }
     const { data, error } = await q;
     if (error) {
-      setLoadError(friendlyError(error, "No pudimos cargar la visibilidad de módulos."));
+      setLoadError(
+        friendlyError(
+          error,
+          t("hc_modulesAdminAdminModuleVisibilityPanel.loadError"),
+        ),
+      );
       setLoading(false);
       return;
     }
@@ -611,11 +616,11 @@ export function AdminModuleVisibilityPanel() {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Layers className="h-4 w-4 text-violet-500" />
-          Visibilidad y orden de módulos
+          {t("hc_modulesAdminAdminModuleVisibilityPanel.title")}
           <HelpHint>{t("help.moduleVisibilityHelp")}</HelpHint>
         </CardTitle>
         <p className="text-xs text-muted-foreground mt-1">
-          Admin siempre ve todo (override). Tras un cambio los usuarios deben recargar para verlo.
+          {t("hc_modulesAdminAdminModuleVisibilityPanel.adminAlwaysSeesAll")}
         </p>
         {/* Indicador de scope: el panel ahora opera en dos modos. El
             SuperAdmin (cross-tenant) edita el DEFAULT global de toda la
@@ -656,11 +661,11 @@ export function AdminModuleVisibilityPanel() {
       <CardContent className="space-y-3">
         {loading ? (
           <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
-            <Spinner size="sm" /> Cargando matriz…
+            <Spinner size="sm" /> {t("hc_modulesAdminAdminModuleVisibilityPanel.loadingMatrix")}
           </div>
         ) : loadError ? (
           <ErrorState
-            message="No pudimos cargar la matriz"
+            message={t("hc_modulesAdminAdminModuleVisibilityPanel.loadMatrixError")}
             hint={loadError}
             onRetry={() => setRetryNonce((n) => n + 1)}
           />
@@ -676,7 +681,9 @@ export function AdminModuleVisibilityPanel() {
                 ocultos confunde — el usuario primero saca el filtro,
                 reordena, y vuelve a previsualizar. */}
             <div className="flex flex-wrap items-center gap-2 pb-2">
-              <Label className="text-xs text-muted-foreground mr-1">Ver rol:</Label>
+              <Label className="text-xs text-muted-foreground mr-1">
+                {t("hc_modulesAdminAdminModuleVisibilityPanel.viewRole")}
+              </Label>
               <Select
                 value={roleFilter}
                 onValueChange={(v) => setRoleFilter(v as ModuleRoleKey | "all")}
@@ -685,7 +692,9 @@ export function AdminModuleVisibilityPanel() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos los roles</SelectItem>
+                  <SelectItem value="all">
+                    {t("hc_modulesAdminAdminModuleVisibilityPanel.allRoles")}
+                  </SelectItem>
                   {visibleRoles.map((r) => (
                     <SelectItem key={r.key} value={r.key}>
                       {r.label}
@@ -699,12 +708,17 @@ export function AdminModuleVisibilityPanel() {
                     checked={hideDisabledInFilter}
                     onCheckedChange={(v) => setHideDisabledInFilter(v === true)}
                   />
-                  <span className="text-muted-foreground">Solo habilitados</span>
+                  <span className="text-muted-foreground">
+                    {t("hc_modulesAdminAdminModuleVisibilityPanel.onlyEnabled")}
+                  </span>
                 </label>
               )}
               {roleFilter !== "all" && (
                 <span className="text-[10px] text-muted-foreground italic ml-auto">
-                  Vista previa: {displayedModuleKeys.length} ítems visibles para {roleFilter}.
+                  {t("hc_modulesAdminAdminModuleVisibilityPanel.previewVisibleItems", {
+                    count: displayedModuleKeys.length,
+                    role: roleFilter,
+                  })}
                 </span>
               )}
             </div>
@@ -718,7 +732,7 @@ export function AdminModuleVisibilityPanel() {
               <div className="min-w-[480px]">
                 {/* Header con etiquetas de los switches a la derecha */}
                 <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-2 pb-1 text-[10px] uppercase font-medium text-muted-foreground tracking-wide">
-                  <span>Módulo</span>
+                  <span>{t("hc_modulesAdminAdminModuleVisibilityPanel.columnModule")}</span>
                   <div className="flex gap-2">
                     {displayRoles.map((r) => (
                       // w-20 (antes w-16): "SuperAdmin" (10 chars) no entra
@@ -731,7 +745,9 @@ export function AdminModuleVisibilityPanel() {
                       </span>
                     ))}
                   </div>
-                  <span className="w-16 text-right">Posición</span>
+                  <span className="w-16 text-right">
+                    {t("hc_modulesAdminAdminModuleVisibilityPanel.columnPosition")}
+                  </span>
                 </div>
 
                 <div className="border rounded-md divide-y bg-card">
@@ -775,8 +791,8 @@ export function AdminModuleVisibilityPanel() {
                             }`}
                             title={
                               reorderDisabled
-                                ? "Quita 'Solo habilitados' para reordenar"
-                                : "Arrastra para reordenar"
+                                ? t("hc_modulesAdminAdminModuleVisibilityPanel.dragDisabledHint")
+                                : t("hc_modulesAdminAdminModuleVisibilityPanel.dragToReorder")
                             }
                           >
                             <GripVertical className="h-4 w-4" />
@@ -810,13 +826,13 @@ export function AdminModuleVisibilityPanel() {
                         </div>
                         <div className="w-16 flex items-center justify-end gap-0.5">
                           <RowAction
-                            label="Subir"
+                            label={t("hc_modulesAdminAdminModuleVisibilityPanel.moveUp")}
                             icon={ChevronUp}
                             disabled={reorderDisabled || realIdx <= 0}
                             onClick={() => moveModule(realIdx, realIdx - 1)}
                           />
                           <RowAction
-                            label="Bajar"
+                            label={t("hc_modulesAdminAdminModuleVisibilityPanel.moveDown")}
                             icon={ChevronDown}
                             disabled={reorderDisabled || realIdx >= localOrder.length - 1}
                             onClick={() => moveModule(realIdx, realIdx + 1)}
@@ -827,7 +843,7 @@ export function AdminModuleVisibilityPanel() {
                   })}
                   {displayedModuleKeys.length === 0 && (
                     <div className="py-6 text-center text-xs text-muted-foreground">
-                      Este rol no tiene módulos habilitados con los filtros actuales.
+                      {t("hc_modulesAdminAdminModuleVisibilityPanel.noModulesForFilter")}
                     </div>
                   )}
                 </div>
@@ -839,13 +855,13 @@ export function AdminModuleVisibilityPanel() {
             <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
               {orderDirty && (
                 <span className="text-xs text-amber-700 dark:text-amber-400 mr-auto">
-                  Tienes cambios de orden sin guardar.
+                  {t("hc_modulesAdminAdminModuleVisibilityPanel.unsavedOrderChanges")}
                 </span>
               )}
               {orderDirty && (
                 <Button variant="outline" size="sm" onClick={discardOrder} disabled={savingOrder}>
                   <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                  Descartar
+                  {t("hc_modulesAdminAdminModuleVisibilityPanel.discard")}
                 </Button>
               )}
               <Button
@@ -858,7 +874,7 @@ export function AdminModuleVisibilityPanel() {
                 ) : (
                   <Save className="h-3.5 w-3.5 mr-1" />
                 )}
-                Guardar orden
+                {t("hc_modulesAdminAdminModuleVisibilityPanel.saveOrder")}
               </Button>
             </div>
           </>

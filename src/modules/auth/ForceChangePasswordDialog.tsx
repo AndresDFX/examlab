@@ -13,6 +13,7 @@
  *   - Ofrece "Cerrar sesión" como única salida alternativa.
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ interface Props {
 }
 
 export function ForceChangePasswordDialog({ userId, onChanged, onSignOut }: Props) {
+  const { t } = useTranslation();
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
@@ -117,7 +119,7 @@ export function ForceChangePasswordDialog({ userId, onChanged, onSignOut }: Prop
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShieldAlert className="h-5 w-5 text-amber-500" />
-            Cambia tu contraseña
+            {t("hc_modulesAuthForceChangePasswordDialog.title")}
           </DialogTitle>
         </DialogHeader>
         {/* <form> + hidden username + autocomplete=new-password permite
@@ -140,14 +142,14 @@ export function ForceChangePasswordDialog({ userId, onChanged, onSignOut }: Prop
             aria-hidden="true"
           />
           <p className="text-sm text-muted-foreground">
-            Por seguridad, debes cambiar la contraseña temporal antes de continuar.
+            {t("hc_modulesAuthForceChangePasswordDialog.securityNotice")}
           </p>
           <div>
-            <Label required>Nueva contraseña</Label>
+            <Label required>{t("hc_modulesAuthForceChangePasswordDialog.newPasswordLabel")}</Label>
             <PasswordInput
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Mínimo 8 caracteres"
+              placeholder={t("hc_modulesAuthForceChangePasswordDialog.newPasswordPlaceholder")}
               wrapperClassName="mt-1"
               autoFocus
               autoComplete="new-password"
@@ -155,22 +157,22 @@ export function ForceChangePasswordDialog({ userId, onChanged, onSignOut }: Prop
             />
           </div>
           <div>
-            <Label required>Confirmar contraseña</Label>
+            <Label required>{t("hc_modulesAuthForceChangePasswordDialog.confirmPasswordLabel")}</Label>
             <PasswordInput
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Repite la nueva contraseña"
+              placeholder={t("hc_modulesAuthForceChangePasswordDialog.confirmPasswordPlaceholder")}
               wrapperClassName="mt-1"
               autoComplete="new-password"
               name="confirm-password"
             />
             {confirmPassword && newPassword !== confirmPassword && (
-              <p className="text-xs text-destructive mt-1">Las contraseñas no coinciden.</p>
+              <p className="text-xs text-destructive mt-1">{t("hc_modulesAuthForceChangePasswordDialog.passwordsDoNotMatch")}</p>
             )}
           </div>
           <div className="flex items-center justify-between gap-2 pt-2">
             <Button type="button" variant="ghost" size="sm" onClick={onSignOut} disabled={saving}>
-              Cerrar sesión
+              {t("hc_modulesAuthForceChangePasswordDialog.signOut")}
             </Button>
             <Button
               type="submit"
@@ -181,7 +183,7 @@ export function ForceChangePasswordDialog({ userId, onChanged, onSignOut }: Prop
               ) : (
                 <KeyRound className="h-4 w-4 mr-1" />
               )}
-              Guardar y continuar
+              {t("hc_modulesAuthForceChangePasswordDialog.saveAndContinue")}
             </Button>
           </div>
         </form>

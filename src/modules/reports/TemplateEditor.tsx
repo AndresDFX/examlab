@@ -121,16 +121,16 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
           <Card>
             <CardContent className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label required>Nombre</Label>
+                <Label required>{t("hc_modulesReportsTemplateEditor.labelName")}</Label>
                 <Input
                   value={value.name}
                   onChange={(e) => onChange({ ...value, name: e.target.value })}
-                  placeholder="Boletín de notas"
+                  placeholder={t("hc_modulesReportsTemplateEditor.placeholderName")}
                 />
               </div>
               <div className="space-y-1">
                 <Label>
-                  Tipo de informe{" "}
+                  {t("hc_modulesReportsTemplateEditor.labelReportType")}{" "}
                   <HelpHint>{t("help.reportScopeHelp")}</HelpHint>
                 </Label>
                 <Select
@@ -141,21 +141,21 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="estudiante">Por estudiante (individual)</SelectItem>
-                    <SelectItem value="curso">Por curso (consolidado)</SelectItem>
+                    <SelectItem value="estudiante">{t("hc_modulesReportsTemplateEditor.scopeStudent")}</SelectItem>
+                    <SelectItem value="curso">{t("hc_modulesReportsTemplateEditor.scopeCourse")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1 sm:col-span-2">
-                <Label>Descripción</Label>
+                <Label>{t("hc_modulesReportsTemplateEditor.labelDescription")}</Label>
                 <Input
                   value={value.description}
                   onChange={(e) => onChange({ ...value, description: e.target.value })}
-                  placeholder="Breve descripción de cuándo usar esta plantilla"
+                  placeholder={t("hc_modulesReportsTemplateEditor.placeholderDescription")}
                 />
               </div>
               <div className="space-y-1">
-                <Label>Orientación</Label>
+                <Label>{t("hc_modulesReportsTemplateEditor.labelOrientation")}</Label>
                 <Select
                   value={value.page_orientation}
                   onValueChange={(v) =>
@@ -166,13 +166,13 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="portrait">Vertical</SelectItem>
-                    <SelectItem value="landscape">Horizontal</SelectItem>
+                    <SelectItem value="portrait">{t("hc_modulesReportsTemplateEditor.orientationPortrait")}</SelectItem>
+                    <SelectItem value="landscape">{t("hc_modulesReportsTemplateEditor.orientationLandscape")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label>Tamaño</Label>
+                <Label>{t("hc_modulesReportsTemplateEditor.labelSize")}</Label>
                 <Select
                   value={value.page_size}
                   onValueChange={(v) => onChange({ ...value, page_size: v as "A4" | "letter" })}
@@ -182,7 +182,7 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="A4">A4</SelectItem>
-                    <SelectItem value="letter">Carta</SelectItem>
+                    <SelectItem value="letter">{t("hc_modulesReportsTemplateEditor.sizeLetter")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -196,14 +196,14 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
               <TabsList>
                 <TabsTrigger value="body">
                   <Code2 className="h-3.5 w-3.5 mr-1" />
-                  Cuerpo
+                  {t("hc_modulesReportsTemplateEditor.tabBody")}
                 </TabsTrigger>
-                <TabsTrigger value="header">Encabezado</TabsTrigger>
-                <TabsTrigger value="footer">Pie</TabsTrigger>
+                <TabsTrigger value="header">{t("hc_modulesReportsTemplateEditor.tabHeader")}</TabsTrigger>
+                <TabsTrigger value="footer">{t("hc_modulesReportsTemplateEditor.tabFooter")}</TabsTrigger>
                 <TabsTrigger value="css">CSS</TabsTrigger>
                 <TabsTrigger value="preview">
                   <Eye className="h-3.5 w-3.5 mr-1" />
-                  Vista previa
+                  {t("hc_modulesReportsTemplateEditor.tabPreview")}
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="body" className="mt-2 space-y-2">
@@ -220,7 +220,7 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
                     onClick={() => setBodyMode("visual")}
                   >
                     <Eye className="h-3.5 w-3.5 mr-1" />
-                    Visual
+                    {t("hc_modulesReportsTemplateEditor.modeVisual")}
                   </Button>
                   <Button
                     type="button"
@@ -238,7 +238,7 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
                     ref={richRef}
                     value={value.body_html}
                     onChange={(html) => onChange({ ...value, body_html: html })}
-                    placeholder="Escribe el informe… usa la barra para dar formato y el panel derecho para insertar variables."
+                    placeholder={t("hc_modulesReportsTemplateEditor.placeholderBodyVisual")}
                   />
                 ) : (
                   <Textarea
@@ -246,7 +246,7 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
                     value={value.body_html}
                     onChange={(e) => onChange({ ...value, body_html: e.target.value })}
                     className="font-mono text-sm min-h-[400px]"
-                    placeholder="<h1>Boletín de {{estudiante.nombre}}</h1>…"
+                    placeholder={t("hc_modulesReportsTemplateEditor.placeholderBodyHtml")}
                     spellCheck={false}
                   />
                 )}
@@ -257,7 +257,7 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
                   value={value.header_html}
                   onChange={(e) => onChange({ ...value, header_html: e.target.value })}
                   className="font-mono text-sm min-h-[200px]"
-                  placeholder="Aparece en cada página (impresión)"
+                  placeholder={t("hc_modulesReportsTemplateEditor.placeholderHeader")}
                   spellCheck={false}
                 />
               </TabsContent>
@@ -267,7 +267,7 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
                   value={value.footer_html}
                   onChange={(e) => onChange({ ...value, footer_html: e.target.value })}
                   className="font-mono text-sm min-h-[200px]"
-                  placeholder="Aparece en cada página al final (impresión)"
+                  placeholder={t("hc_modulesReportsTemplateEditor.placeholderFooter")}
                   spellCheck={false}
                 />
               </TabsContent>
@@ -277,7 +277,7 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
                   value={value.css}
                   onChange={(e) => onChange({ ...value, css: e.target.value })}
                   className="font-mono text-sm min-h-[200px]"
-                  placeholder="Estilos del informe (h1 { font-size: 18pt; })"
+                  placeholder={t("hc_modulesReportsTemplateEditor.placeholderCss")}
                   spellCheck={false}
                 />
               </TabsContent>
@@ -288,16 +288,16 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
                   scripts (seguro para HTML de plantilla). */}
               <TabsContent value="preview" className="mt-2">
                 <p className="text-[11px] text-muted-foreground mb-1.5">
-                  Así se verá el informe. Los{" "}
+                  {t("hc_modulesReportsTemplateEditor.previewNoteBefore")}{" "}
                   <span className="font-mono bg-amber-100 text-amber-800 rounded px-1">
                     {"{{campos}}"}
                   </span>{" "}
-                  resaltados se reemplazan por los datos reales al Generar.
+                  {t("hc_modulesReportsTemplateEditor.previewNoteAfter")}
                 </p>
                 <iframe
                   srcDoc={previewHtml}
                   sandbox=""
-                  title="Vista previa del informe"
+                  title={t("hc_modulesReportsTemplateEditor.previewIframeTitle")}
                   className="w-full min-h-[440px] border rounded bg-white"
                 />
               </TabsContent>
@@ -310,10 +310,10 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
         <Card className="lg:sticky lg:top-4">
           <CardContent className="p-3 space-y-1 max-h-[80dvh] overflow-y-auto">
             <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium pb-1">
-              Variables disponibles
+              {t("hc_modulesReportsTemplateEditor.availableVariables")}
             </p>
             <p className="text-[11px] text-muted-foreground pb-2">
-              Click → inserta en la pestaña activa.
+              {t("hc_modulesReportsTemplateEditor.clickToInsert")}
             </p>
             {effectiveCatalog.map((node) => (
               <CatalogNode key={node.path} node={node} onInsert={insertAtCursor} />
