@@ -20,6 +20,7 @@
  *   - Mobile-friendly (max-w calc + dvh + flex-col).
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -102,6 +103,7 @@ type OpenThread = {
 };
 
 export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseName }: Props) {
+  const { t } = useTranslation();
   const { roles } = useAuth();
   const navigate = useNavigate();
   const confirm = useConfirm();
@@ -484,7 +486,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
         addAssign(`project::${a.project_id}`, a.user_id);
       setCohortCoverage(summarizeCohortCoverage(studentsList, allItems, assignedByKey));
     } catch (e) {
-      setLoadError(friendlyError(e, "No se pudo cargar el diagnóstico del curso."));
+      setLoadError(friendlyError(e, t("courseDiagnostic.loadError")));
     } finally {
       setLoading(false);
     }
@@ -550,13 +552,13 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
         (r.status === "entregado_sin_calificar" || r.status === "error_ia") && r.submissionId,
     );
     if (targets.length === 0) {
-      toast.info("No hay entregas pendientes de calificar con IA.");
+      toast.info(t("courseDiagnostic.gradeAllNone"));
       return;
     }
     const ok = await confirm({
-      title: "Calificar todos con IA",
-      description: `Se enviarán ${targets.length} entrega(s) a calificación con IA. Según la configuración del curso se procesan al instante o quedan en la cola de IA. Las cerradas se califican solas y no consumen IA.`,
-      confirmLabel: "Calificar todos",
+      title: t("courseDiagnostic.gradeAllTitle"),
+      description: t("courseDiagnostic.gradeAllConfirmDesc", { count: targets.length }),
+      confirmLabel: t("courseDiagnostic.gradeAllConfirm"),
       tone: "default",
     });
     if (!ok) return;
@@ -584,12 +586,17 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
       }
       if (failCount > 0) {
         toast.warning(
-          `${okCount} entrega(s) procesadas (${enqueued} job(s) de IA), ${failCount} con error. Primero: ${friendlyError(firstError ?? "")}`,
+          t("courseDiagnostic.gradeAllPartial", {
+            ok: okCount,
+            enqueued,
+            failed: failCount,
+            reason: friendlyError(firstError ?? ""),
+          }),
           { duration: 12000 },
         );
       } else {
         toast.success(
-          `${okCount} entrega(s) enviadas a calificación con IA (${enqueued} job(s)). Revisa la Cola IA para el progreso.`,
+          t("courseDiagnostic.gradeAllDone", { ok: okCount, enqueued }),
           { duration: 8000 },
         );
       }
@@ -604,11 +611,11 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
     try {
       const { error } = await db.rpc("requeue_ai_grading_job", { _job_id: jobId });
       if (error) throw error;
-      toast.success("Job re-encolado. La IA lo procesará en el próximo tick.");
+      toast.success(t("courseDiagnostic.jobRequeued"));
       // Refresh para que la fila desaparezca de la lista de failed.
       void loadAll();
     } catch (e) {
-      toast.error(friendlyError(e, "No se pudo re-encolar el job."));
+      toast.error(friendlyError(e, t("courseDiagnostic.jobRequeueError")));
     } finally {
       setRetryingJobIds((prev) => {
         const next = new Set(prev);
@@ -620,10 +627,9 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
 
   const closeThread = async (threadId: string) => {
     const ok = await confirm({
-      title: "Cerrar conversación",
-      description:
-        "La conversación quedará marcada como cerrada. El estudiante NO podrá responder hasta que la reabras.",
-      confirmLabel: "Cerrar conversación",
+      title: t("courseDiagnostic.closeThreadTitle"),
+      description: t("courseDiagnostic.closeThreadDesc"),
+      confirmLabel: t("courseDiagnostic.closeThreadConfirm"),
       tone: "warning",
     });
     if (!ok) return;
@@ -634,10 +640,10 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
         .update({ closed: true, closed_at: new Date().toISOString() })
         .eq("id", threadId);
       if (error) throw error;
-      toast.success("Conversación cerrada.");
-      setOpenThreads((prev) => prev.filter((t) => t.id !== threadId));
+      toast.success(t("courseDiagnostic.threadClosed"));
+      setOpenThreads((prev) => prev.filter((th) => th.id !== threadId));
     } catch (e) {
-      toast.error(friendlyError(e, "No se pudo cerrar la conversación."));
+      toast.error(friendlyError(e, t("courseDiagnostic.threadCloseError")));
     } finally {
       setClosingThreadIds((prev) => {
         const next = new Set(prev);
@@ -663,7 +669,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
     userId?: string | null,
   ) => {
     if (!canNavigateTeacherRoutes) {
-      toast.error("No tenés permisos para navegar a este módulo.");
+      toast.error(t("courseDiagnostic.noNavPermission"));
       return;
     }
     const submission = submissionId ?? undefined;
@@ -705,6 +711,13 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
     if (kind === "workshop") return <Hammer className="h-3.5 w-3.5 text-amber-600" />;
     return <FolderKanban className="h-3.5 w-3.5 text-violet-600" />;
   };
+  // Label por tipo de actividad (i18n).
+  const kindLabel = (kind: "exam" | "workshop" | "project") =>
+    kind === "exam"
+      ? t("courseDiagnostic.kindExam")
+      : kind === "workshop"
+        ? t("courseDiagnostic.kindWorkshop")
+        : t("courseDiagnostic.kindProject");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -712,7 +725,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Stethoscope className="h-5 w-5 text-emerald-600" />
-            Diagnóstico del curso
+            {t("courseDiagnostic.title")}
             <span className="text-sm font-normal text-muted-foreground truncate">
               · {courseName}
             </span>
@@ -722,7 +735,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
         {loading && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Spinner size="md" />
-            Escaneando el curso...
+            {t("courseDiagnostic.scanning")}
           </div>
         )}
         {loadError && !loading && (
@@ -734,7 +747,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
               className="ml-2"
               onClick={() => void loadAll()}
             >
-              <RefreshCw className="h-3.5 w-3.5 mr-1" /> Reintentar
+              <RefreshCw className="h-3.5 w-3.5 mr-1" /> {t("courseDiagnostic.retry")}
             </Button>
           </div>
         )}
@@ -744,7 +757,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
             <TabsList className="self-start flex-wrap h-auto">
               <TabsTrigger value="grades" className="gap-1.5">
                 <ClipboardList className="h-3.5 w-3.5" />
-                Calificaciones
+                {t("courseDiagnostic.tabGrades")}
                 {matrixSummary.entregadoSinCalificar + matrixSummary.errorIa > 0 && (
                   <Badge
                     variant="destructive"
@@ -756,7 +769,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
               </TabsTrigger>
               <TabsTrigger value="ai" className="gap-1.5">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                Errores IA
+                {t("courseDiagnostic.tabAiErrors")}
                 {aiFailedJobs.length > 0 && (
                   <Badge
                     variant="destructive"
@@ -768,7 +781,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
               </TabsTrigger>
               <TabsTrigger value="threads" className="gap-1.5">
                 <MessageSquare className="h-3.5 w-3.5" />
-                Conversaciones
+                {t("courseDiagnostic.tabThreads")}
                 {openThreads.length > 0 && (
                   <Badge
                     variant="secondary"
@@ -780,7 +793,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
               </TabsTrigger>
               <TabsTrigger value="attendance" className="gap-1.5">
                 <CalendarCheck className="h-3.5 w-3.5" />
-                Asistencia
+                {t("courseDiagnostic.tabAttendance")}
                 {attendanceRows.length > 0 && (
                   <Badge
                     variant="outline"
@@ -793,7 +806,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
               {cohortCoverage.hasCohorts && (
                 <TabsTrigger value="cohorts" className="gap-1.5">
                   <Users className="h-3.5 w-3.5" />
-                  Cohortes
+                  {t("courseDiagnostic.tabCohorts")}
                   {cohortCoverage.gaps.length > 0 && (
                     <Badge
                       variant="destructive"
@@ -814,31 +827,31 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                   <StatPill
                     color="emerald"
                     icon={<CheckCircle2 className="h-3.5 w-3.5" />}
-                    label="Calificadas"
+                    label={t("courseDiagnostic.statGraded")}
                     value={matrixSummary.calificado}
                   />
                   <StatPill
                     color="amber"
                     icon={<ClipboardList className="h-3.5 w-3.5" />}
-                    label="Sin calificar"
+                    label={t("courseDiagnostic.statUngraded")}
                     value={matrixSummary.entregadoSinCalificar}
                   />
                   <StatPill
                     color="red"
                     icon={<AlertTriangle className="h-3.5 w-3.5" />}
-                    label="Errores IA"
+                    label={t("courseDiagnostic.statAiErrors")}
                     value={matrixSummary.errorIa}
                   />
                   <StatPill
                     color="violet"
                     icon={<Gavel className="h-3.5 w-3.5" />}
-                    label="Falta sustentación"
+                    label={t("courseDiagnostic.statNoDefense")}
                     value={matrixSummary.sinSustentacion}
                   />
                   <StatPill
                     color="slate"
                     icon={<ClipboardList className="h-3.5 w-3.5" />}
-                    label="Sin entregar"
+                    label={t("courseDiagnostic.statNotSubmitted")}
                     value={matrixSummary.sinEntregar}
                   />
                 </div>
@@ -848,7 +861,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                     <SearchInput
                       value={matrixSearch}
                       onChange={setMatrixSearch}
-                      placeholder="Buscar estudiante o actividad..."
+                      placeholder={t("courseDiagnostic.searchPlaceholder")}
                     />
                   </div>
                   {(matrixSummary.entregadoSinCalificar + matrixSummary.errorIa > 0) && (
@@ -863,34 +876,35 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                       ) : (
                         <Sparkles className="h-3.5 w-3.5 mr-1" />
                       )}
-                      Calificar todos con IA (
-                      {matrixSummary.entregadoSinCalificar + matrixSummary.errorIa})
+                      {t("courseDiagnostic.gradeAllBtn", {
+                        count: matrixSummary.entregadoSinCalificar + matrixSummary.errorIa,
+                      })}
                     </Button>
                   )}
                 </div>
 
                 {items.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-6 text-center">
-                    Este curso no tiene actividades evaluativas activas todavía.
+                    {t("courseDiagnostic.noActivities")}
                   </p>
                 ) : students.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-6 text-center">
-                    Este curso no tiene estudiantes matriculados.
+                    {t("courseDiagnostic.noStudents")}
                   </p>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Estudiante</TableHead>
-                        <TableHead>Actividad</TableHead>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead>Estado</TableHead>
-                        <TableHead className="text-right">Acciones</TableHead>
+                        <TableHead>{t("courseDiagnostic.colStudent")}</TableHead>
+                        <TableHead>{t("courseDiagnostic.colActivity")}</TableHead>
+                        <TableHead>{t("courseDiagnostic.colType")}</TableHead>
+                        <TableHead>{t("courseDiagnostic.colStatus")}</TableHead>
+                        <TableHead className="text-right">{t("courseDiagnostic.colActions")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredMatrixRows.length === 0 ? (
-                        <TableEmpty colSpan={5} text="Sin resultados." />
+                        <TableEmpty colSpan={5} text={t("courseDiagnostic.noResults")} />
                       ) : (
                         filteredMatrixRows.slice(0, 200).map((r, idx) => (
                           <TableRow
@@ -919,37 +933,33 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                             <TableCell>
                               <span className="inline-flex items-center gap-1 text-xs">
                                 {itemKindIcon(r.item.kind)}
-                                {r.item.kind === "exam"
-                                  ? "Examen"
-                                  : r.item.kind === "workshop"
-                                    ? "Taller"
-                                    : "Proyecto"}
+                                {kindLabel(r.item.kind)}
                               </span>
                             </TableCell>
                             <TableCell>
                               {r.status === "calificado" && (
                                 <Badge variant="secondary" className="text-[10px]">
-                                  <CheckCircle2 className="h-3 w-3 mr-0.5" /> Calificado
+                                  <CheckCircle2 className="h-3 w-3 mr-0.5" /> {t("courseDiagnostic.stCalificado")}
                                 </Badge>
                               )}
                               {r.status === "entregado_sin_calificar" && (
                                 <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-300">
-                                  Entregado · sin calificar
+                                  {t("courseDiagnostic.stUngraded")}
                                 </Badge>
                               )}
                               {r.status === "error_ia" && (
                                 <Badge variant="destructive" className="text-[10px]">
-                                  <AlertTriangle className="h-3 w-3 mr-0.5" /> Error IA
+                                  <AlertTriangle className="h-3 w-3 mr-0.5" /> {t("courseDiagnostic.stAiError")}
                                 </Badge>
                               )}
                               {r.status === "sin_sustentacion" && (
                                 <Badge variant="outline" className="text-[10px] border-violet-500/40 text-violet-700 dark:text-violet-300">
-                                  <Gavel className="h-3 w-3 mr-0.5" /> Falta sustentación
+                                  <Gavel className="h-3 w-3 mr-0.5" /> {t("courseDiagnostic.stNoDefense")}
                                 </Badge>
                               )}
                               {r.status === "sin_entregar" && (
                                 <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                                  Sin entregar
+                                  {t("courseDiagnostic.stNotSubmitted")}
                                 </Badge>
                               )}
                             </TableCell>
@@ -969,7 +979,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                                     )
                                   }
                                 >
-                                  Calificar
+                                  {t("courseDiagnostic.btnGrade")}
                                 </Button>
                               )}
                               {r.status === "sin_sustentacion" && (
@@ -986,7 +996,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                                     )
                                   }
                                 >
-                                  <Gavel className="h-3 w-3 mr-1" /> Sustentar
+                                  <Gavel className="h-3 w-3 mr-1" /> {t("courseDiagnostic.btnDefend")}
                                 </Button>
                               )}
                             </TableCell>
@@ -998,8 +1008,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                 )}
                 {filteredMatrixRows.length > 200 && (
                   <p className="text-xs text-muted-foreground text-center">
-                    Mostrando 200 filas (de {filteredMatrixRows.length}). Refiná la búsqueda para
-                    ver menos.
+                    {t("courseDiagnostic.showingCapped", { total: filteredMatrixRows.length })}
                   </p>
                 )}
               </TabsContent>
@@ -1008,18 +1017,18 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
               <TabsContent value="ai" className="m-0 space-y-3">
                 {aiFailedJobs.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-6 text-center">
-                    No hay jobs de IA con errores en este curso. ✨
+                    {t("courseDiagnostic.noAiErrors")}
                   </p>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Entrega</TableHead>
-                        <TableHead>Estudiante</TableHead>
-                        <TableHead>Error</TableHead>
-                        <TableHead>Intentos</TableHead>
-                        <TableHead>Creado</TableHead>
-                        <TableHead className="text-right">Acciones</TableHead>
+                        <TableHead>{t("courseDiagnostic.colSubmission")}</TableHead>
+                        <TableHead>{t("courseDiagnostic.colStudent")}</TableHead>
+                        <TableHead>{t("courseDiagnostic.colError")}</TableHead>
+                        <TableHead>{t("courseDiagnostic.colAttempts")}</TableHead>
+                        <TableHead>{t("courseDiagnostic.colCreated")}</TableHead>
+                        <TableHead className="text-right">{t("courseDiagnostic.colActions")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1058,7 +1067,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                               ) : (
                                 <RefreshCw className="h-3 w-3 mr-1" />
                               )}
-                              Reintentar
+                              {t("courseDiagnostic.btnRetry")}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -1072,68 +1081,64 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
               <TabsContent value="threads" className="m-0 space-y-3">
                 {openThreads.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-6 text-center">
-                    No hay conversaciones abiertas en este curso.
+                    {t("courseDiagnostic.noThreads")}
                   </p>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Estudiante</TableHead>
-                        <TableHead>Actividad</TableHead>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead>Mensajes</TableHead>
-                        <TableHead>Iniciada</TableHead>
-                        <TableHead className="text-right">Acciones</TableHead>
+                        <TableHead>{t("courseDiagnostic.colStudent")}</TableHead>
+                        <TableHead>{t("courseDiagnostic.colActivity")}</TableHead>
+                        <TableHead>{t("courseDiagnostic.colType")}</TableHead>
+                        <TableHead>{t("courseDiagnostic.colMessages")}</TableHead>
+                        <TableHead>{t("courseDiagnostic.colStarted")}</TableHead>
+                        <TableHead className="text-right">{t("courseDiagnostic.colActions")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {openThreads.map((t) => (
-                        <TableRow key={t.id}>
+                      {openThreads.map((th) => (
+                        <TableRow key={th.id}>
                           <TableCell className="text-xs truncate max-w-[160px]">
-                            {t.studentLabel ?? "—"}
+                            {th.studentLabel ?? "—"}
                           </TableCell>
                           <TableCell className="text-xs truncate max-w-[180px]">
-                            {t.parentLabel ?? "—"}
+                            {th.parentLabel ?? "—"}
                           </TableCell>
                           <TableCell>
                             <span className="inline-flex items-center gap-1 text-xs">
-                              {itemKindIcon(t.parent_kind)}
-                              {t.parent_kind === "exam"
-                                ? "Examen"
-                                : t.parent_kind === "workshop"
-                                  ? "Taller"
-                                  : "Proyecto"}
+                              {itemKindIcon(th.parent_kind)}
+                              {kindLabel(th.parent_kind)}
                             </span>
                           </TableCell>
                           <TableCell className="text-xs tabular-nums">
-                            {t.commentCount ?? 0}
+                            {th.commentCount ?? 0}
                           </TableCell>
                           <TableCell>
-                            <DateCell value={t.created_at} variant="datetime" />
+                            <DateCell value={th.created_at} variant="datetime" />
                           </TableCell>
                           <TableCell className="text-right space-x-1 whitespace-nowrap">
                             <Button
                               size="sm"
                               variant="outline"
                               className="h-7 text-xs"
-                              onClick={() => goToSubmissionContext(t.parent_kind, getItemIdForThread(t, items), t.submission_id)}
+                              onClick={() => goToSubmissionContext(th.parent_kind, getItemIdForThread(th, items), th.submission_id)}
                             >
                               <ExternalLink className="h-3 w-3 mr-1" />
-                              Ver
+                              {t("courseDiagnostic.btnView")}
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
                               className="h-7 text-xs"
-                              disabled={closingThreadIds.has(t.id)}
-                              onClick={() => void closeThread(t.id)}
+                              disabled={closingThreadIds.has(th.id)}
+                              onClick={() => void closeThread(th.id)}
                             >
-                              {closingThreadIds.has(t.id) ? (
+                              {closingThreadIds.has(th.id) ? (
                                 <Spinner size="xs" className="mr-1" />
                               ) : (
                                 <Lock className="h-3 w-3 mr-1" />
                               )}
-                              Cerrar
+                              {t("courseDiagnostic.btnClose")}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -1147,17 +1152,17 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
               <TabsContent value="attendance" className="m-0 space-y-3">
                 {attendanceRows.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-6 text-center">
-                    Este curso no tiene sesiones de asistencia registradas.
+                    {t("courseDiagnostic.noAttendance")}
                   </p>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Fecha</TableHead>
-                        <TableHead>Sesión</TableHead>
-                        <TableHead className="text-right">Presentes</TableHead>
-                        <TableHead className="text-right">Ausentes</TableHead>
-                        <TableHead className="text-right">Pendientes</TableHead>
+                        <TableHead>{t("courseDiagnostic.colDate")}</TableHead>
+                        <TableHead>{t("courseDiagnostic.colSession")}</TableHead>
+                        <TableHead className="text-right">{t("courseDiagnostic.colPresent")}</TableHead>
+                        <TableHead className="text-right">{t("courseDiagnostic.colAbsent")}</TableHead>
+                        <TableHead className="text-right">{t("courseDiagnostic.colPending")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1206,24 +1211,24 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
               {cohortCoverage.hasCohorts && (
                 <TabsContent value="cohorts" className="m-0 space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    El curso agrupa estudiantes en {cohortCoverage.cohorts.length} cohorte(s):{" "}
-                    {cohortCoverage.cohorts.join(", ")}. Abajo, las actividades que{" "}
-                    <strong>no se asignaron a alguna cohorte</strong> — esos estudiantes NO las
-                    verán (probable olvido al asignar).
+                    {t("courseDiagnostic.cohortsIntro", {
+                      count: cohortCoverage.cohorts.length,
+                      cohorts: cohortCoverage.cohorts.join(", "),
+                    })}
                   </p>
                   {cohortCoverage.gaps.length === 0 ? (
                     <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20 dark:border-emerald-900 p-3 text-sm text-emerald-800 dark:text-emerald-300">
                       <CheckCircle2 className="h-4 w-4" />
-                      Todas las actividades están asignadas a todas las cohortes.
+                      {t("courseDiagnostic.cohortsAllOk")}
                     </div>
                   ) : (
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Actividad</TableHead>
-                          <TableHead>Tipo</TableHead>
-                          <TableHead>Cohortes sin asignar</TableHead>
-                          <TableHead className="text-right">Estudiantes afectados</TableHead>
+                          <TableHead>{t("courseDiagnostic.colActivity")}</TableHead>
+                          <TableHead>{t("courseDiagnostic.colType")}</TableHead>
+                          <TableHead>{t("courseDiagnostic.colMissingCohorts")}</TableHead>
+                          <TableHead className="text-right">{t("courseDiagnostic.colAffected")}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1238,11 +1243,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                             <TableCell>
                               <span className="inline-flex items-center gap-1 text-xs">
                                 {itemKindIcon(g.item.kind)}
-                                {g.item.kind === "exam"
-                                  ? "Examen"
-                                  : g.item.kind === "workshop"
-                                    ? "Taller"
-                                    : "Proyecto"}
+                                {kindLabel(g.item.kind)}
                               </span>
                             </TableCell>
                             <TableCell>
