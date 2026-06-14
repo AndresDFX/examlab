@@ -29,7 +29,7 @@ Centraliza el seguimiento de todo el trabajo que la **IA** hace en segundo plano
 Controla **cómo se comporta la IA** en toda la institución: define las instrucciones (prompts) y elige el modelo.
 
 - En la pestaña **Prompts** editas los textos base que guían a la IA en calificación de talleres, proyectos y exámenes; puedes restaurar el valor por defecto.
-- En la pestaña **Modelo** eliges el proveedor (Gemini, OpenAI o Lovable) y el modelo específico.
+- En la pestaña **Modelo** eliges el proveedor (Gemini u OpenAI) y el modelo específico.
 - Aquí también decides el **modo de la cola**: *sync* (la IA responde al instante) o *async* (se encola para controlar el gasto).
 
 ![Prompts de IA + modelo](screenshots/administrador/03-admin_ai_prompts.png)

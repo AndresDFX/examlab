@@ -2,6 +2,8 @@
 
 Bienvenido a ExamLab. Como estudiante, aquí aprendes con el material de tus cursos, presentas tus evaluaciones (exámenes, talleres y proyectos), registras tu asistencia y haces seguimiento a tus notas y certificados. Esta guía recorre, módulo por módulo, qué hace cada sección y cómo usarla en el día a día. Varias funciones se apoyan en **inteligencia artificial**: un tutor que responde con base en el material de tu curso, la calificación automática de tus entregas y la detección de fraude — todo se resalta a lo largo del manual.
 
+---
+
 ### Panel
 
 Es tu pantalla de inicio: un vistazo rápido a lo que tienes pendiente y lo que viene.
