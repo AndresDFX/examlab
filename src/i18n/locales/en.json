@@ -429,7 +429,25 @@
     "boardContentRemove": "Remove from course",
     "boardContentRemoveBody": "Removing \"{{name}}\" from the course will hide it from the student board. It goes to the Trash and you can restore it within 30 days.",
     "boardContentRemoveTitle": "Remove this content from the course?",
-    "boardContentRemoved": "Content removed from the course"
+    "boardContentRemoved": "Content removed from the course",
+    "status": {
+      "borrador": "Draft",
+      "en_curso": "In progress",
+      "proximo": "Upcoming",
+      "finalizado": "Finished"
+    },
+    "actionPublish": "Publish (set in progress)",
+    "actionPublishConfirmTitle": "Publish course?",
+    "actionPublishConfirmBody": "The course will move to In progress and show as active.",
+    "actionFinalize": "Finish course",
+    "actionFinalizeConfirmTitle": "Finish course?",
+    "actionFinalizeConfirmBody": "The course will be marked as Finished. You can reopen it later if needed.",
+    "actionReopen": "Reopen course",
+    "actionReopenConfirmTitle": "Reopen course?",
+    "actionReopenConfirmBody": "The course will return to In progress. If its end date has passed, the automatic finalization will close it again the next day unless you update the end date.",
+    "actionMoveToDraft": "Move to draft",
+    "statusFormLabel": "Course status",
+    "statusFormHint": "Finalization is automatic when the end date passes, or manual from the actions menu."
   },
   "users": {
     "title": "Users",
@@ -2691,7 +2709,8 @@
       "courseDuplicated": "Course duplicated successfully{{suffix}}",
       "coursesSentToTrash": "{{count}} course(s) sent to trash",
       "duplicateStudentsSuffix": " ({{count}} student(s) copied)",
-      "copyBoardFailed": "Could not copy the board: {{error}}"
+      "copyBoardFailed": "Could not copy the board: {{error}}",
+      "statusChanged": "Course status updated"
     },
     "routes_app_admin_support": {
       "noTenantAssigned": "Your account has no institution assigned. Contact the SuperAdmin.",
@@ -6815,7 +6834,10 @@
     "copyTeachersTitle": "Assigned teachers",
     "copyTeachersHint": "Off by default — enable to also clone the teaching team",
     "duplicateButton": "Duplicate",
-    "bulkDeleteWarning": "All associated exams, workshops, projects, enrollments, terms and attendance records will also be deleted (cascade)."
+    "bulkDeleteWarning": "All associated exams, workshops, projects, enrollments, terms and attendance records will also be deleted (cascade).",
+    "statusColumn": "Status",
+    "statDraft": "Draft",
+    "statFinalized": "Finished"
   },
   "hc_routesAppMessages": {
     "pageTitle": "Messages",

@@ -13,6 +13,15 @@ const STATUS_MAP: Record<string, { es: string; en: string }> = {
   closed: { es: "Cerrado", en: "Closed" },
   archived: { es: "Archivado", en: "Archived" },
 
+  // Ciclo de vida del curso (+ derivado 'proximo'). 'draft' ya mapea a
+  // Borrador/Draft, pero agregamos 'borrador' explícito para no depender
+  // del fallback snake-case y para distinguir el valor del curso del
+  // 'draft' de exam/workshop.
+  borrador: { es: "Borrador", en: "Draft" },
+  en_curso: { es: "En curso", en: "In progress" },
+  proximo: { es: "Próximo", en: "Upcoming" },
+  finalizado: { es: "Finalizado", en: "Finished" },
+
   // Estados de submissions (exam, workshop, project)
   en_progreso: { es: "En progreso", en: "In progress" },
   entregado: { es: "Entregado", en: "Submitted" },

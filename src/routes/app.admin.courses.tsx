@@ -16,7 +16,12 @@ import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { DateCell } from "@/components/ui/date-cell";
+import {
+  deriveCourseDisplayState,
+  summarizeCourses,
+} from "@/modules/courses/course-status";
 import {
   nextBoardContentName,
   uploadBoardContent,
@@ -73,6 +78,8 @@ import {
   Video,
   RefreshCw,
   Stethoscope,
+  Play,
+  CheckCircle2,
 } from "lucide-react";
 import { CourseCertificateSettingsDialog } from "@/modules/certificates/CourseCertificateSettingsDialog";
 import { CourseDiagnosticDialog } from "@/modules/courses/CourseDiagnosticDialog";
@@ -154,6 +161,11 @@ type Course = {
   project_weight: number;
   passing_grade: number;
   max_exam_attempts: number;
+  /** Ciclo de vida del curso (col agregada en mig 20260964000000;
+   *  types.ts se regenera en Publish). 'borrador' | 'en_curso' |
+   *  'finalizado'. Puede venir undefined en entornos pre-migración. */
+  status?: string | null;
+  finalized_at?: string | null;
 };
 
 type DraftCut = {
@@ -295,6 +307,9 @@ export function AdminCourses() {
     columns: {
       name: (c) => c.name,
       period: (c) => c.period,
+      // Orden por estado de DISPLAY (string): borrador < en_curso <
+      // finalizado < proximo. El orden alfabético es aceptable acá.
+      status: (c) => deriveCourseDisplayState(c, Date.now()),
       scale: (c) => c.grade_scale_max,
       start_date: (c) => c.start_date,
       end_date: (c) => c.end_date,
@@ -310,32 +325,14 @@ export function AdminCourses() {
   const sel = useMultiSelect(sort.sorted);
 
   // Stats compactas arriba del listado — mismo patrón que el resto de
-  // listados (proyectos / talleres / etc). Para cursos los estados
-  // conceptuales son: total, activos (fecha actual entre start_date y
-  // end_date), próximos (start_date en el futuro), terminados
-  // (end_date en el pasado). Si las fechas no están seteadas, el curso
-  // cuenta como "activo" (interpretamos "sin límite" como abierto).
+  // listados (proyectos / talleres / etc). Ahora derivadas del ciclo de
+  // vida EXPLÍCITO del curso (status) vía el helper puro: borrador,
+  // activos (display 'en_curso'), próximos (publicado sin empezar),
+  // finalizados. Ver src/modules/courses/course-status.ts.
   // Nombre `coursesSummary` (no `courseStats`) para no colisionar con
   // el `courseStats: Map<string, CourseStats>` ya declarado arriba —
   // ese guarda counts por curso (entregas, alumnos), distinto concepto.
-  const coursesSummary = useMemo(() => {
-    const now = Date.now();
-    let active = 0;
-    let upcoming = 0;
-    let ended = 0;
-    for (const c of courses) {
-      const startMs = c.start_date ? new Date(c.start_date).getTime() : null;
-      const endMs = c.end_date ? new Date(c.end_date).getTime() : null;
-      if (startMs != null && startMs > now) {
-        upcoming += 1;
-      } else if (endMs != null && endMs < now) {
-        ended += 1;
-      } else {
-        active += 1;
-      }
-    }
-    return { total: courses.length, active, upcoming, ended };
-  }, [courses]);
+  const coursesSummary = useMemo(() => summarizeCourses(courses, Date.now()), [courses]);
 
   // Paginación client-side. La RLS ya acota a lo que el caller puede
   // ver; partir en páginas evita renderizar 500 filas en tenants
@@ -1108,6 +1105,79 @@ export function AdminCourses() {
     load();
   };
 
+  // ── Transición de ciclo de vida del curso ────────────────
+  // El estado se escribe SIEMPRE por el RPC set_course_status (no por el
+  // UPDATE genérico de save()), así el form nunca cambia el estado en
+  // silencio. La autorización fina (docente del curso / Admin del tenant)
+  // la enforza el RPC server-side; el grid del docente ya lista solo sus
+  // cursos, así que no hace falta un gate extra en cliente.
+  const changeCourseStatus = async (course: Course, next: "borrador" | "en_curso" | "finalizado") => {
+    const { error } = await db.rpc("set_course_status", {
+      _course_id: course.id,
+      _status: next,
+    });
+    if (error) return toast.error(friendlyError(error));
+    toast.success(t("toast.routes_app_admin_courses.statusChanged"));
+    void logEvent({
+      action: "course.updated",
+      category: "course",
+      actorRole: roles[0],
+      entityType: "course",
+      entityId: course.id,
+      entityName: course.name,
+      metadata: { status: next },
+    });
+    load();
+  };
+
+  /** Publicar (borrador → en_curso). */
+  const publishCourse = async (course: Course) => {
+    const ok = await confirm({
+      title: t("course.actionPublishConfirmTitle"),
+      description: t("course.actionPublishConfirmBody"),
+      confirmLabel: t("course.actionPublish"),
+      tone: "default",
+    });
+    if (!ok) return;
+    await changeCourseStatus(course, "en_curso");
+  };
+
+  /** Finalizar (en_curso → finalizado). */
+  const finalizeCourse = async (course: Course) => {
+    const ok = await confirm({
+      title: t("course.actionFinalizeConfirmTitle"),
+      description: t("course.actionFinalizeConfirmBody"),
+      confirmLabel: t("course.actionFinalize"),
+      tone: "warning",
+    });
+    if (!ok) return;
+    await changeCourseStatus(course, "finalizado");
+  };
+
+  /** Reabrir (finalizado → en_curso). */
+  const reopenCourse = async (course: Course) => {
+    const ok = await confirm({
+      title: t("course.actionReopenConfirmTitle"),
+      description: t("course.actionReopenConfirmBody"),
+      confirmLabel: t("course.actionReopen"),
+      tone: "default",
+    });
+    if (!ok) return;
+    await changeCourseStatus(course, "en_curso");
+  };
+
+  /** Mover a borrador (despublicar — caso raro). */
+  const moveCourseToDraft = async (course: Course) => {
+    const ok = await confirm({
+      title: t("course.actionMoveToDraft"),
+      description: t("course.actionPublishConfirmBody"),
+      confirmLabel: t("course.actionMoveToDraft"),
+      tone: "warning",
+    });
+    if (!ok) return;
+    await changeCourseStatus(course, "borrador");
+  };
+
   // ── Student Enrollment ───────────────────────────────────
 
   const openEnroll = async (c: Course) => {
@@ -1584,15 +1654,19 @@ export function AdminCourses() {
         }
       />
 
-      {/* Stats 4-card — patrón compartido (Videos, Usuarios, etc.). El
-          gate `courses.length > 0` se quitó: un 0 es informativo y
-          mantiene consistencia visual con el resto de los módulos
-          incluso cuando el tenant no tiene cursos cargados todavía. */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* Stats — ahora 5 cards (se agregó Borrador con el ciclo de vida
+          explícito del curso). En mobile 2 columnas, desde md 5. El gate
+          `courses.length > 0` se mantiene quitado: un 0 es informativo. */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard
           icon={BookOpen}
           label={t("hc_routesAppAdminCourses.statTotal")}
           value={coursesSummary.total}
+        />
+        <StatCard
+          icon={FileText}
+          label={t("hc_routesAppAdminCourses.statDraft")}
+          value={coursesSummary.draft}
         />
         <StatCard
           icon={CalendarRange}
@@ -1607,8 +1681,8 @@ export function AdminCourses() {
         />
         <StatCard
           icon={Archive}
-          label={t("hc_routesAppAdminCourses.statEnded")}
-          value={coursesSummary.ended}
+          label={t("hc_routesAppAdminCourses.statFinalized")}
+          value={coursesSummary.finalized}
         />
       </div>
 
@@ -1752,6 +1826,9 @@ export function AdminCourses() {
                 <SortableHead sortKey="period" sort={sort} className="hidden sm:table-cell w-32">
                   {t("common.period")}
                 </SortableHead>
+                <SortableHead sortKey="status" sort={sort} className="hidden sm:table-cell w-28">
+                  {t("hc_routesAppAdminCourses.statusColumn")}
+                </SortableHead>
                 <SortableHead sortKey="scale" sort={sort} className="hidden sm:table-cell w-24">
                   {t("common.scale")}
                 </SortableHead>
@@ -1775,7 +1852,7 @@ export function AdminCourses() {
             <TableBody>
               {filteredCourses.length === 0 && (
                 <TableEmpty
-                  colSpan={8}
+                  colSpan={9}
                   icon={BookOpen}
                   text={
                     search.trim() && courses.length > 0
@@ -1816,11 +1893,16 @@ export function AdminCourses() {
                       >
                         {c.name}
                       </span>
-                      {c.period && (
-                        <Badge variant="outline" className="text-[10px] w-fit sm:hidden">
-                          {c.period}
-                        </Badge>
-                      )}
+                      <div className="flex flex-wrap items-center gap-1 sm:hidden">
+                        {c.period && (
+                          <Badge variant="outline" className="text-[10px] w-fit">
+                            {c.period}
+                          </Badge>
+                        )}
+                        {/* En mobile el estado se ve acá (la columna Estado
+                            está oculta en <sm). */}
+                        <StatusBadge status={deriveCourseDisplayState(c, Date.now())} />
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
@@ -1831,6 +1913,9 @@ export function AdminCourses() {
                     ) : (
                       <span className="text-muted-foreground text-xs">—</span>
                     )}
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    <StatusBadge status={deriveCourseDisplayState(c, Date.now())} />
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     <div className="text-xs tabular-nums">
@@ -1950,6 +2035,35 @@ export function AdminCourses() {
                           iconColor: "var(--brand-primary)",
                           onClick: () => setDiagnosticForCourse(c),
                           separatorBefore: true,
+                        },
+                        // ── Transiciones de ciclo de vida ──
+                        // Solo la transición relevante por estado se renderiza
+                        // (RowActionsMenu filtra los items nullish). Gateamos
+                        // por el `status` PERSISTIDO (null legacy = en_curso),
+                        // no por el display: un curso 'proximo' sigue siendo
+                        // status='en_curso' y debe poder finalizarse.
+                        (c.status ?? "en_curso") === "borrador" && {
+                          label: t("course.actionPublish"),
+                          icon: Play,
+                          onClick: () => publishCourse(c),
+                          separatorBefore: true,
+                        },
+                        (c.status ?? "en_curso") === "en_curso" && {
+                          label: t("course.actionFinalize"),
+                          icon: CheckCircle2,
+                          onClick: () => finalizeCourse(c),
+                          separatorBefore: true,
+                        },
+                        c.status === "finalizado" && {
+                          label: t("course.actionReopen"),
+                          icon: RefreshCw,
+                          onClick: () => reopenCourse(c),
+                          separatorBefore: true,
+                        },
+                        c.status === "finalizado" && {
+                          label: t("course.actionMoveToDraft"),
+                          icon: Pencil,
+                          onClick: () => moveCourseToDraft(c),
                         },
                         { label: t("common.edit"), icon: Pencil, onClick: () => openEdit(c) },
                         {
@@ -2238,6 +2352,48 @@ export function AdminCourses() {
                   />
                 </div>
               </div>
+              {/* Estado del ciclo de vida — SOLO en modo edición (los cursos
+                  nuevos siempre nacen 'borrador'). El cambio NO va al payload
+                  de save(): llama el RPC set_course_status directamente para
+                  que las transiciones sean explícitas. */}
+              {editing.id && (
+                <div>
+                  <Label>
+                    {t("course.statusFormLabel")}{" "}
+                    <HelpHint>{t("course.statusFormHint")}</HelpHint>
+                  </Label>
+                  <Select
+                    value={(editing.status as string | undefined) ?? "en_curso"}
+                    onValueChange={(v) => {
+                      const next = v as "borrador" | "en_curso" | "finalizado";
+                      // Reflejo optimista en el form; el RPC + load() refrescan
+                      // el grid (y finalized_at/by server-side).
+                      setEditing((prev) => (prev ? { ...prev, status: next } : prev));
+                      void (async () => {
+                        const { error } = await db.rpc("set_course_status", {
+                          _course_id: editing.id,
+                          _status: next,
+                        });
+                        if (error) {
+                          toast.error(friendlyError(error));
+                          return;
+                        }
+                        toast.success(t("toast.routes_app_admin_courses.statusChanged"));
+                        load();
+                      })();
+                    }}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="borrador">{t("course.status.borrador")}</SelectItem>
+                      <SelectItem value="en_curso">{t("course.status.en_curso")}</SelectItem>
+                      <SelectItem value="finalizado">{t("course.status.finalizado")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div>
                 <Label>{t("hc_routesAppAdminCourses.fieldDescription")}</Label>
                 <Textarea

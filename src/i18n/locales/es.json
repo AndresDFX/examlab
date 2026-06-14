@@ -429,7 +429,25 @@
     "boardContentRemove": "Quitar del curso",
     "boardContentRemoveBody": "Se quitará \"{{name}}\" del curso y dejará de verse en el tablero del estudiante. Queda en la Papelera y puedes restaurarlo dentro de 30 días.",
     "boardContentRemoveTitle": "¿Quitar este contenido del curso?",
-    "boardContentRemoved": "Contenido quitado del curso"
+    "boardContentRemoved": "Contenido quitado del curso",
+    "status": {
+      "borrador": "Borrador",
+      "en_curso": "En curso",
+      "proximo": "Próximo",
+      "finalizado": "Finalizado"
+    },
+    "actionPublish": "Publicar (poner en curso)",
+    "actionPublishConfirmTitle": "¿Publicar el curso?",
+    "actionPublishConfirmBody": "El curso pasará a En curso y será visible como activo.",
+    "actionFinalize": "Finalizar curso",
+    "actionFinalizeConfirmTitle": "¿Finalizar el curso?",
+    "actionFinalizeConfirmBody": "El curso quedará marcado como Finalizado. Podrás reabrirlo después si lo necesitas.",
+    "actionReopen": "Reabrir curso",
+    "actionReopenConfirmTitle": "¿Reabrir el curso?",
+    "actionReopenConfirmBody": "El curso volverá a En curso. Si su fecha de fin ya pasó, la finalización automática lo cerrará de nuevo al día siguiente salvo que actualices la fecha de fin.",
+    "actionMoveToDraft": "Mover a borrador",
+    "statusFormLabel": "Estado del curso",
+    "statusFormHint": "La finalización es automática cuando pasa la fecha de fin, o manual desde el menú de acciones."
   },
   "users": {
     "title": "Usuarios",
@@ -2691,7 +2709,8 @@
       "courseDuplicated": "Curso duplicado correctamente{{suffix}}",
       "coursesSentToTrash": "{{count}} curso(s) enviado(s) a papelera",
       "duplicateStudentsSuffix": " ({{count}} estudiante(s) copiado(s))",
-      "copyBoardFailed": "No se pudo copiar el tablero: {{error}}"
+      "copyBoardFailed": "No se pudo copiar el tablero: {{error}}",
+      "statusChanged": "Estado del curso actualizado"
     },
     "routes_app_admin_support": {
       "noTenantAssigned": "Tu cuenta no tiene institución asignada. Contacta al SuperAdmin.",
@@ -6815,7 +6834,10 @@
     "copyTeachersTitle": "Docentes asignados",
     "copyTeachersHint": "Por defecto desactivado — habilita para clonar también el equipo docente",
     "duplicateButton": "Duplicar",
-    "bulkDeleteWarning": "Se eliminarán también todos los exámenes, talleres, proyectos, matrículas, cortes y registros de asistencia asociados (cascade)."
+    "bulkDeleteWarning": "Se eliminarán también todos los exámenes, talleres, proyectos, matrículas, cortes y registros de asistencia asociados (cascade).",
+    "statusColumn": "Estado",
+    "statDraft": "Borrador",
+    "statFinalized": "Finalizados"
   },
   "hc_routesAppMessages": {
     "pageTitle": "Mensajes",

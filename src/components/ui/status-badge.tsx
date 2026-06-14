@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  CalendarClock,
   CheckCircle2,
   Clock,
   type LucideIcon,
@@ -40,6 +41,16 @@ const STATUS_META: Record<string, { variant: StatusVariant; icon?: LucideIcon }>
   published: { variant: "default" },
   closed: { variant: "secondary" },
   archived: { variant: "outline" },
+
+  // Ciclo de vida del curso (borrador → en_curso → finalizado) + el
+  // derivado 'proximo' (en_curso publicado pero sin empezar). Familias:
+  // borrador como placeholder neutro (igual que draft, sin ícono);
+  // en_curso como activo (Clock, familia de iniciado/en_progreso);
+  // proximo como agendado estable; finalizado como hito completado.
+  borrador: { variant: "outline" },
+  en_curso: { variant: "default", icon: Clock },
+  proximo: { variant: "secondary", icon: CalendarClock },
+  finalizado: { variant: "secondary", icon: CheckCircle2 },
 
   // Submissions
   iniciado: { variant: "default", icon: Clock },
