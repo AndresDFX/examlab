@@ -141,6 +141,7 @@ type Student = {
   full_name: string;
   institutional_email: string;
   personal_email: string | null;
+  cohorte: string | null;
 };
 type ExamSub = {
   id: string;
@@ -168,6 +169,10 @@ type GradeColumn = {
   parentExamId?: string | null;
   maxScore?: number;
   isExternal?: boolean;
+  /** Peso del item como % de la nota final (cap = su bucket en el corte).
+   *  Se muestra en los encabezados del export para que la columna sea tan
+   *  clara como el grid (igual que los cortes muestran su %). */
+  weight?: number | null;
 };
 
 /** Editable grade cell keyed by `${studentId}::${columnId}` */
@@ -317,7 +322,13 @@ function Gradebook() {
     // Build columns: original exams (no parent) + workshops + projects
     const examCols: GradeColumn[] = ((exams ?? []) as Exam[])
       .filter((e) => !e.parent_exam_id)
-      .map((e) => ({ id: e.id, title: e.title, kind: "exam" as const, parentExamId: null }));
+      .map((e) => ({
+        id: e.id,
+        title: e.title,
+        kind: "exam" as const,
+        parentExamId: null,
+        weight: e.weight ?? null,
+      }));
 
     const wsCols: GradeColumn[] = ((workshops ?? []) as Workshop[]).map((w) => ({
       id: w.id,
@@ -325,6 +336,7 @@ function Gradebook() {
       kind: "workshop" as const,
       maxScore: w.max_score,
       isExternal: !!w.is_external,
+      weight: w.weight ?? null,
     }));
 
     const prjCols: GradeColumn[] = ((projectsData ?? []) as Project[]).map((p) => ({
@@ -333,6 +345,7 @@ function Gradebook() {
       kind: "project" as const,
       maxScore: p.max_score,
       isExternal: !!p.is_external,
+      weight: p.weight ?? null,
     }));
 
     setColumns([...examCols, ...wsCols, ...prjCols]);
@@ -347,7 +360,7 @@ function Gradebook() {
     if (userIds.length) {
       const { data: profs } = await supabase
         .from("profiles")
-        .select("id, full_name, institutional_email, personal_email")
+        .select("id, full_name, institutional_email, personal_email, cohorte")
         .in("id", userIds)
         .order("full_name");
       setStudents((profs ?? []) as Student[]);
@@ -622,18 +635,46 @@ function Gradebook() {
     }
     const fmt = (n: number | null | undefined) => (n != null ? n.toFixed(2) : "");
 
-    const csvRows = students.map((s) => {
+    // ¿El curso usa cohortes? Si al menos un estudiante tiene cohorte,
+    // agregamos una columna "Cohorte" y AGRUPAMOS las filas por cohorte
+    // (orden es-CO; sin cohorte al final) para que el export sea legible
+    // por grupo. Si no hay cohortes, se mantiene el orden por nombre.
+    const anyCohort = students.some((s) => !!s.cohorte?.trim());
+    const cohortHeader = t("hc_routesAppTeacherGradebook.csvCohort", { defaultValue: "Cohorte" });
+    const exportStudents = anyCohort
+      ? [...students].sort((a, b) => {
+          const ca = (a.cohorte ?? "").trim();
+          const cb = (b.cohorte ?? "").trim();
+          if (ca !== cb) {
+            if (!ca) return 1; // sin cohorte al final
+            if (!cb) return -1;
+            return ca.localeCompare(cb, "es-CO", { numeric: true, sensitivity: "base" });
+          }
+          return a.full_name.localeCompare(b.full_name, "es-CO", {
+            numeric: true,
+            sensitivity: "base",
+          });
+        })
+      : students;
+
+    const csvRows = exportStudents.map((s) => {
       const row: Record<string, string> = {
         [t("hc_routesAppTeacherGradebook.csvName")]: s.full_name,
-        [t("hc_routesAppTeacherGradebook.csvInstitutionalEmail")]: s.institutional_email,
-        [t("hc_routesAppTeacherGradebook.csvPersonalEmail")]: s.personal_email ?? "",
       };
-      // Detalle item por item (exámenes y talleres con su nota cruda).
+      // Columna Cohorte (2ª, junto al nombre) sólo si el curso usa cohortes.
+      if (anyCohort) row[cohortHeader] = s.cohorte?.trim() ?? "";
+      row[t("hc_routesAppTeacherGradebook.csvInstitutionalEmail")] = s.institutional_email;
+      row[t("hc_routesAppTeacherGradebook.csvPersonalEmail")] = s.personal_email ?? "";
+      // Detalle item por item (exámenes y talleres con su nota cruda). El
+      // encabezado incluye el % del item (peso sobre la nota final) para que
+      // la columna sea tan clara como el grid — igual que los cortes muestran
+      // su % (ej. "Parcial 1 (15%)").
       columns.forEach((col) => {
         const g = getGrade(s.id, col);
         const prefix =
           col.kind === "workshop" ? t("hc_routesAppTeacherGradebook.csvWorkshopPrefix") : "";
-        const label = `${prefix}${col.title}`;
+        const pct = col.weight != null ? ` (${col.weight}%)` : "";
+        const label = `${prefix}${col.title}${pct}`;
         if (g.grade != null) {
           row[label] = `${g.grade}${
             g.isMakeup ? t("hc_routesAppTeacherGradebook.csvMakeupSuffix") : ""
