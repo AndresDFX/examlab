@@ -101,6 +101,7 @@ import { DecimalInput } from "@/components/ui/decimal-input";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { DateTimePicker } from "@/components/ui/date-picker";
+import { ActivitySessionSelect } from "@/modules/sessions/ActivitySessionSelect";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -931,6 +932,8 @@ function TeacherProjects() {
           ? Number(form.max_attempts)
           : null,
       status: form.status ?? "draft",
+      // Sesión asociada (opcional) — aparece bajo esa clase en el tablero.
+      attendance_session_id: (form as any).attendance_session_id ?? null,
     };
     if (isExternal) {
       payload.is_external = true;
@@ -2981,6 +2984,13 @@ function TeacherProjects() {
                 />
               </div>
             </div>
+            {!form.is_external && (
+              <ActivitySessionSelect
+                courseId={(form.course_id as string) ?? Object.keys(courseCuts)[0] ?? null}
+                value={(form as any).attendance_session_id ?? null}
+                onChange={(sid) => setForm((f) => ({ ...(f as any), attendance_session_id: sid }))}
+              />
+            )}
             {editing && !form.is_external && form.status === "closed" && (
               <ReopenClosedBanner
                 hint={t("hc_routesAppTeacherProjects.reopenClosedHint")}

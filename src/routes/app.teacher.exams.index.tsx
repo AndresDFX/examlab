@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DateTimePicker } from "@/components/ui/date-picker";
+import { ActivitySessionSelect } from "@/modules/sessions/ActivitySessionSelect";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -430,6 +431,8 @@ function TeacherExams() {
       end_time: endIso,
       parent_exam_id: form.parent_exam_id || null,
       created_by: user.id,
+      // Sesión asociada (opcional) — aparece bajo esa clase en el tablero.
+      attendance_session_id: (form as any).attendance_session_id ?? null,
       // Multi-course: cut_id+weight are set per-course in the loop.
       cut_id: isMultiCourse ? null : form.cut_id || null,
       is_external: isExternal,
@@ -1116,6 +1119,16 @@ function TeacherExams() {
                 </div>
               )}
             </div>
+            {!(form as any).is_external && (
+              <ActivitySessionSelect
+                courseId={
+                  (form.course_id as string) ??
+                  (selectedCourseIds.size === 1 ? [...selectedCourseIds][0] : null)
+                }
+                value={(form as any).attendance_session_id ?? null}
+                onChange={(sid) => setForm((f) => ({ ...(f as any), attendance_session_id: sid }))}
+              />
+            )}
             {!(form as any).is_external && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>

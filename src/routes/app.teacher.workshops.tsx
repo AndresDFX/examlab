@@ -112,6 +112,7 @@ import { computeIntegritySuggestion } from "@/modules/exams/integrity";
 import { computeWorkshopAlerts } from "@/modules/workshops/workshop-integrity-alerts";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DateTimePicker } from "@/components/ui/date-picker";
+import { ActivitySessionSelect } from "@/modules/sessions/ActivitySessionSelect";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import {
   Accordion,
@@ -880,6 +881,8 @@ function TeacherWorkshops() {
           : null,
       status: isExternal ? "closed" : (form.status ?? "draft"),
       rubric: form.rubric ?? null,
+      // Sesión asociada (opcional) — aparece bajo esa clase en el tablero.
+      attendance_session_id: (form as any).attendance_session_id ?? null,
       created_by: user.id,
       // Multi-course: cut_id+weight are set per-course in the loop below.
       cut_id: isMultiCourse ? null : form.cut_id || null,
@@ -3351,6 +3354,18 @@ function TeacherWorkshops() {
                   />
                 </div>
               </div>
+              {!(form as any).is_external && (
+                <ActivitySessionSelect
+                  courseId={
+                    (form.course_id as string) ??
+                    (selectedCourseIds.size === 1 ? [...selectedCourseIds][0] : null)
+                  }
+                  value={(form as any).attendance_session_id ?? null}
+                  onChange={(sid) =>
+                    setForm((f) => ({ ...(f as any), attendance_session_id: sid }))
+                  }
+                />
+              )}
             </div>
             {!(form as any).is_external && (form as any).id && form.status === "closed" && (
               <ReopenClosedBanner

@@ -144,6 +144,9 @@ type ScheduledItem = {
   id: string;
   title: string;
   due: string; // ISO date or datetime
+  /** Sesión a la que el docente asoció la actividad. null = aparece en
+   *  "General" del curso (no atada a una clase). */
+  sessionId: string | null;
 };
 
 type CourseSortMode = "period_desc" | "name_asc" | "name_desc" | "start_desc";
@@ -470,22 +473,26 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       // recolectamos.
       // Excluir drafts del schedule del estudiante: si el docente aún no
       // publicó la actividad, no debería aparecer en la vista del curso.
+      // db cast: attendance_session_id es columna nueva (puede no estar aún en
+      // types.ts). Selecciona el vínculo explícito de la actividad a una sesión.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
       const [examsRes, wsRes, projRes] = await Promise.all([
-        supabase
+        sb
           .from("exams")
-          .select("id, title, end_time, status")
+          .select("id, title, end_time, status, attendance_session_id")
           .eq("course_id", course.id)
           .is("deleted_at", null)
           .neq("status", "draft"),
-        supabase
+        sb
           .from("workshops")
-          .select("id, title, due_date, status")
+          .select("id, title, due_date, status, attendance_session_id")
           .eq("course_id", course.id)
           .is("deleted_at", null)
           .neq("status", "draft"),
-        supabase
+        sb
           .from("projects")
-          .select("id, title, due_date, status")
+          .select("id, title, due_date, status, attendance_session_id")
           .eq("course_id", course.id)
           .is("deleted_at", null)
           .neq("status", "draft"),
@@ -493,15 +500,33 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       const items: ScheduledItem[] = [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const e of (examsRes.data ?? []) as any[]) {
-        if (e.end_time) items.push({ kind: "exam", id: e.id, title: e.title, due: e.end_time });
+        items.push({
+          kind: "exam",
+          id: e.id,
+          title: e.title,
+          due: e.end_time ?? "",
+          sessionId: e.attendance_session_id ?? null,
+        });
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const w of (wsRes.data ?? []) as any[]) {
-        if (w.due_date) items.push({ kind: "workshop", id: w.id, title: w.title, due: w.due_date });
+        items.push({
+          kind: "workshop",
+          id: w.id,
+          title: w.title,
+          due: w.due_date ?? "",
+          sessionId: w.attendance_session_id ?? null,
+        });
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const p of (projRes.data ?? []) as any[]) {
-        if (p.due_date) items.push({ kind: "project", id: p.id, title: p.title, due: p.due_date });
+        items.push({
+          kind: "project",
+          id: p.id,
+          title: p.title,
+          due: p.due_date ?? "",
+          sessionId: p.attendance_session_id ?? null,
+        });
       }
       setScheduled(items);
       setLoading(false);
@@ -543,17 +568,17 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
     return byClass.length > 0 ? byClass : visible;
   };
 
-  /** Items "vinculados" a una sesión: due dentro de ±3 días de la fecha
-   *  de la sesión. Heurística simple pero suficiente para que el
-   *  estudiante vea qué se entrega cerca de esa clase. */
-  const itemsForSession = (s: SessionRow): ScheduledItem[] => {
-    const sessTs = new Date(s.session_date + "T12:00:00").getTime();
-    return scheduled.filter((it) => {
-      const dueTs = new Date(it.due).getTime();
-      const diff = Math.abs(dueTs - sessTs);
-      return diff <= 3 * 24 * 60 * 60 * 1000;
-    });
-  };
+  /** Items asociados EXPLÍCITAMENTE por el docente a esta sesión
+   *  (attendance_session_id). Lo que no se asocia va a "General". */
+  const itemsForSession = (s: SessionRow): ScheduledItem[] =>
+    scheduled.filter((it) => it.sessionId === s.id);
+
+  /** Items del curso SIN sesión asociada (o cuya sesión ya no existe) →
+   *  sección "General del curso" para que el estudiante igual los vea. */
+  const sessionIdSet = new Set(sessions.map((s) => s.id));
+  const generalItems = scheduled.filter(
+    (it) => !it.sessionId || !sessionIdSet.has(it.sessionId),
+  );
 
   const downloadFile = async (file: ContentFileEntry, topic: string) => {
     setDownloadingPath(file.path);
@@ -730,6 +755,26 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
                   </div>
                 );
               })}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Actividades GENERALES del curso — exámenes/talleres/proyectos que el
+          docente NO asoció a una sesión específica. Así el estudiante las ve
+          igual desde el tablero (no quedan "escondidas"). */}
+      {generalItems.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            {t("courseBoard.generalActivities", { defaultValue: "Actividades generales" })}
+          </h2>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex flex-wrap gap-2">
+                {generalItems.map((it) => (
+                  <ScheduledItemBadge key={`${it.kind}-${it.id}`} item={it} />
+                ))}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -977,38 +1022,9 @@ function SessionGroup({
 
                 {items.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-2 border-t">
-                    {items.map((it) => {
-                      const isPastDue = new Date(it.due).getTime() < Date.now();
-                      const icon =
-                        it.kind === "exam" ? (
-                          <FileText className="h-3 w-3" />
-                        ) : it.kind === "workshop" ? (
-                          <Hammer className="h-3 w-3" />
-                        ) : (
-                          <FolderKanban className="h-3 w-3" />
-                        );
-                      const href =
-                        it.kind === "workshop"
-                          ? `/app/student/workshop/${it.id}`
-                          : it.kind === "project"
-                            ? `/app/student/project/${it.id}`
-                            : `/app/student/exams`;
-                      return (
-                        <Link key={`${it.kind}-${it.id}`} to={href}>
-                          <Badge
-                            variant="outline"
-                            className={`text-[11px] flex items-center gap-1 cursor-pointer hover:bg-muted/60 transition-colors ${
-                              isPastDue
-                                ? "border-amber-400/60 bg-amber-50/40 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
-                                : ""
-                            }`}
-                          >
-                            {icon}
-                            {it.title}
-                          </Badge>
-                        </Link>
-                      );
-                    })}
+                    {items.map((it) => (
+                      <ScheduledItemBadge key={`${it.kind}-${it.id}`} item={it} />
+                    ))}
                   </div>
                 )}
               </CardContent>
@@ -1017,6 +1033,41 @@ function SessionGroup({
         })}
       </div>
     </div>
+  );
+}
+
+/** Badge clickeable de una actividad (examen/taller/proyecto) del cronograma.
+ *  Reusado bajo cada sesión y en la sección "General del curso". */
+function ScheduledItemBadge({ item }: { item: ScheduledItem }) {
+  const isPastDue = !!item.due && new Date(item.due).getTime() < Date.now();
+  const icon =
+    item.kind === "exam" ? (
+      <FileText className="h-3 w-3" />
+    ) : item.kind === "workshop" ? (
+      <Hammer className="h-3 w-3" />
+    ) : (
+      <FolderKanban className="h-3 w-3" />
+    );
+  const href =
+    item.kind === "workshop"
+      ? `/app/student/workshop/${item.id}`
+      : item.kind === "project"
+        ? `/app/student/project/${item.id}`
+        : `/app/student/exams`;
+  return (
+    <Link to={href}>
+      <Badge
+        variant="outline"
+        className={`text-[11px] flex items-center gap-1 cursor-pointer hover:bg-muted/60 transition-colors ${
+          isPastDue
+            ? "border-amber-400/60 bg-amber-50/40 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
+            : ""
+        }`}
+      >
+        {icon}
+        {item.title}
+      </Badge>
+    </Link>
   );
 }
 
