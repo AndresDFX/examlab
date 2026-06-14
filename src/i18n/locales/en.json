@@ -3651,7 +3651,7 @@
     "cutSingleNone": "No cut assigned",
     "cutSingleNoCuts": "This course has no cuts defined yet.",
     "weightLabel": "Workshop weight (% of the workshop bucket for the cut)",
-    "weightBucketDesc": "Workshop bucket for cut <strong>{{cutName}}</strong>: {{bucket}}%. Other workshops in the cut sum {{others}}%, you have <strong>{{max}}%</strong> available",
+    "weightBucketDesc": "Workshop bucket for cut {{cutName}}: {{bucket}}%. Other workshops in the cut sum {{others}}%, you have {{max}}% available",
     "weightCurrent": " (current weight: {{current}}%)",
     "weightFull": "The workshop bucket is full. Increase workshop_weight for the cut or reduce the weight of other workshops.",
     "weightNoCut": "Assign an evaluation cut above first to configure the weight.",

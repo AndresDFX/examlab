@@ -3651,7 +3651,7 @@
     "cutSingleNone": "Sin corte asignado",
     "cutSingleNoCuts": "Este curso aún no tiene cortes definidos.",
     "weightLabel": "Peso del taller (% del bucket de talleres del corte)",
-    "weightBucketDesc": "Bucket talleres del corte <strong>{{cutName}}</strong>: {{bucket}}%. Otros talleres del corte suman {{others}}%, te queda <strong>{{max}}%</strong> disponible",
+    "weightBucketDesc": "Bucket talleres del corte {{cutName}}: {{bucket}}%. Otros talleres del corte suman {{others}}%, te queda {{max}}% disponible",
     "weightCurrent": " (peso actual: {{current}}%)",
     "weightFull": "El bucket de talleres está lleno. Aumenta workshop_weight del corte o reduce el peso de otros talleres.",
     "weightNoCut": "Asigna primero un corte de evaluación arriba para poder configurar el peso.",
