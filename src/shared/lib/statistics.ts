@@ -114,18 +114,21 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
       .from("exams")
       .select("id, course_id, cut_id, max_score, is_external, status")
       .eq("course_id", courseId)
-      .neq("status", "draft"),
+      .neq("status", "draft")
+      .is("deleted_at", null),
     supabase
       .from("workshops")
       .select("id, course_id, cut_id, max_score, is_external, status")
       .eq("course_id", courseId)
-      .neq("status", "draft"),
+      .neq("status", "draft")
+      .is("deleted_at", null),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .from("projects")
       .select("id, course_id, cut_id, max_score, is_external, status")
       .eq("course_id", courseId)
-      .neq("status", "draft"),
+      .neq("status", "draft")
+      .is("deleted_at", null),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .from("grade_cuts")
@@ -139,7 +142,8 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
     (supabase as any)
       .from("attendance_sessions")
       .select("id, course_id, session_date, cut_id")
-      .eq("course_id", courseId),
+      .eq("course_id", courseId)
+      .is("deleted_at", null),
   ]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

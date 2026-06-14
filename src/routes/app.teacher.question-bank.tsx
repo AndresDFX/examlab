@@ -207,12 +207,17 @@ function QuestionBankPage() {
     (async () => {
       let query;
       if (isAdminLike) {
-        query = db.from("courses").select("id, name").order("name");
+        query = db
+          .from("courses")
+          .select("id, name")
+          .is("deleted_at", null)
+          .order("name");
       } else {
         query = db
           .from("courses")
           .select("id, name, course_teachers!inner(user_id)")
           .eq("course_teachers.user_id", user.id)
+          .is("deleted_at", null)
           .order("name");
       }
       const { data, error } = await query;

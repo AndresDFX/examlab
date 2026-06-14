@@ -191,6 +191,7 @@ function TeacherAIPrompts() {
       let q = db
         .from("courses")
         .select("id, name, period")
+        .is("deleted_at", null)
         .order("period", { ascending: false, nullsFirst: false })
         .order("name");
       if (roles.includes("Docente") && !roles.includes("Admin") && user) {

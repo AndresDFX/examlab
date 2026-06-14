@@ -660,6 +660,7 @@ function AdminUsers() {
       let q = (supabase as any)
         .from("courses")
         .select("id, name, period, tenant_id, program_id")
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       // Para SuperAdmin: si eligió tenant en el form, acotamos. Para
       // Admin: RLS ya filtra a su tenant.

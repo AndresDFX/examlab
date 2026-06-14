@@ -92,8 +92,8 @@ function GradingConfigPage() {
       supabase.from("courses").select("name").eq("id", courseId).single(),
       db.from("course_grading_config").select("*").eq("course_id", courseId).maybeSingle(),
       db.from("grade_cuts").select("*").eq("course_id", courseId).order("position"),
-      supabase.from("exams").select("id, title").eq("course_id", courseId),
-      supabase.from("workshops").select("id, title").eq("course_id", courseId),
+      supabase.from("exams").select("id, title").eq("course_id", courseId).is("deleted_at", null),
+      supabase.from("workshops").select("id, title").eq("course_id", courseId).is("deleted_at", null),
     ]);
     const firstErr = courseRes.error ?? cutsRes.error ?? examsRes.error ?? workshopsRes.error;
     if (firstErr) {

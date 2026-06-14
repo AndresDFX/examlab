@@ -148,6 +148,7 @@ export function GenerateSessionsDialog({
         .from("attendance_sessions")
         .select("id, session_date, title, content_id")
         .eq("course_id", effectiveCourseId)
+        .is("deleted_at", null)
         .order("session_date", { ascending: true });
       setExistingSessions((data ?? []) as ExistingSessionRow[]);
     })();

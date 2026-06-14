@@ -1658,7 +1658,9 @@ function SuperAdminDashboard() {
         // tenant_id de cada profile → total + conteo por institución.
         dbAny.from("profiles").select("tenant_id"),
         // tenant_id de cada curso → total + conteo por institución.
-        dbAny.from("courses").select("tenant_id"),
+        // Excluye cursos en papelera (deleted_at IS NOT NULL) para que no
+        // inflen coursesTotal ni el courseCount por institución (regla papelera).
+        dbAny.from("courses").select("tenant_id").is("deleted_at", null),
         dbAny
           .from("ai_grading_queue")
           .select("id", { count: "exact", head: true })

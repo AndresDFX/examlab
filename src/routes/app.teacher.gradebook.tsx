@@ -246,6 +246,7 @@ function Gradebook() {
       .select(
         "id, name, grade_scale_min, grade_scale_max, passing_grade, exam_weight, workshop_weight",
       )
+      .is("deleted_at", null)
       .order("name")
       .then(({ data, error }) => {
         if (error) {

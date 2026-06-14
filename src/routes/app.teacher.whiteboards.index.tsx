@@ -135,12 +135,22 @@ function TeacherWhiteboards() {
       try {
         const { data } = await db
           .from("course_teachers")
-          .select("course_id, courses(id, name)")
+          // deleted_at en el embed para saltar cursos en papelera en JS
+          // (PostgREST no filtra fácil en embeds anidados).
+          .select("course_id, courses(id, name, deleted_at)")
           .eq("user_id", user.id);
         if (cancelled) return;
-        const list = ((data ?? []) as Array<{ courses: { id: string; name: string } | null }>)
+        const list = (
+          (data ?? []) as Array<{
+            courses: { id: string; name: string; deleted_at: string | null } | null;
+          }>
+        )
           .map((r) => r.courses)
-          .filter((c): c is { id: string; name: string } => Boolean(c));
+          .filter(
+            (c): c is { id: string; name: string; deleted_at: string | null } =>
+              Boolean(c) && !c!.deleted_at,
+          )
+          .map((c) => ({ id: c.id, name: c.name }));
         setDraftCourses(list);
       } catch {
         /* silent — el draft sigue funcionando sin curso */
@@ -167,6 +177,8 @@ function TeacherWhiteboards() {
           .from("attendance_sessions")
           .select("id, session_date, title")
           .eq("course_id", draftCourseId)
+          // No listar sesiones en papelera en el selector de sesión.
+          .is("deleted_at", null)
           .order("session_date", { ascending: false });
         if (cancelled) return;
         setDraftSessions(

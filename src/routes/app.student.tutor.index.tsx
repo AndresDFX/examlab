@@ -31,6 +31,7 @@ interface CourseRow {
   name: string;
   period: string | null;
   description: string | null;
+  deleted_at: string | null;
 }
 
 function TutorIndex() {
@@ -49,7 +50,7 @@ function TutorIndex() {
       setLoadError(null);
       const { data: enroll, error } = await db
         .from("course_enrollments")
-        .select("course:courses(id, name, period, description)")
+        .select("course:courses(id, name, period, description, deleted_at)")
         .eq("user_id", user.id);
       if (cancelled) return;
       if (error) {
@@ -59,7 +60,7 @@ function TutorIndex() {
       }
       const list = ((enroll ?? []) as Array<{ course: CourseRow | null }>)
         .map((r) => r.course)
-        .filter((c): c is CourseRow => c != null);
+        .filter((c): c is CourseRow => c != null && !c.deleted_at);
       list.sort((a, b) => a.name.localeCompare(b.name));
       setCourses(list);
       setLoading(false);

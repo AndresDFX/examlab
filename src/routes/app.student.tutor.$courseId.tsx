@@ -95,7 +95,7 @@ function TutorChat() {
       setLoadError(null);
       try {
         const [{ data: c, error: cErr }, { data: s }, { data: contents }] = await Promise.all([
-          db.from("courses").select("id, name").eq("id", courseId).maybeSingle(),
+          db.from("courses").select("id, name").eq("id", courseId).is("deleted_at", null).maybeSingle(),
           db
             .from("tutor_chat_sessions")
             .select("id")

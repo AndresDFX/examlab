@@ -83,8 +83,14 @@ function WhiteboardEditorPage() {
             .from("whiteboards")
             .select("id, owner_id, name, description, scene_json, course_id, is_shared_with_course")
             .eq("id", id)
+            // Una pizarra en papelera no debe ser editable por deep-link/link
+            // stale: filtrar deleted_at para que el editor no la abra.
+            .is("deleted_at", null)
             .maybeSingle(),
-          db.from("course_teachers").select("course_id, courses(id, name)").eq("user_id", user.id),
+          db
+            .from("course_teachers")
+            .select("course_id, courses(id, name, deleted_at)")
+            .eq("user_id", user.id),
         ]);
         if (cancelled) return;
         if (wbErr || !wbData) {
@@ -98,10 +104,20 @@ function WhiteboardEditorPage() {
         setMetaCourse(row.course_id ?? "none");
         setMetaShared(row.is_shared_with_course);
         const myCourses: Array<{ id: string; name: string }> = (courseRows ?? [])
-          .map((r: { courses: { id: string; name: string } | null }) => r.courses)
-          .filter((c: { id: string; name: string } | null): c is { id: string; name: string } =>
-            Boolean(c),
-          );
+          .map(
+            (r: { courses: { id: string; name: string; deleted_at: string | null } | null }) =>
+              r.courses,
+          )
+          // El Select para re-vincular la pizarra a un curso no debe ofrecer
+          // cursos en papelera: saltar los que tengan deleted_at (PostgREST no
+          // filtra fácil en el embed anidado).
+          .filter(
+            (
+              c: { id: string; name: string; deleted_at: string | null } | null,
+            ): c is { id: string; name: string; deleted_at: string | null } =>
+              Boolean(c) && !c!.deleted_at,
+          )
+          .map((c: { id: string; name: string }) => ({ id: c.id, name: c.name }));
         setCourses(myCourses);
         setLoading(false);
       } catch (e) {

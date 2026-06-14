@@ -589,6 +589,8 @@ function TeacherWorkshops() {
       supabase
         .from("courses")
         .select("id, name, period, grade_scale_min, grade_scale_max, passing_grade")
+        // Ocultar cursos en papelera del Select de curso del form/filtro.
+        .is("deleted_at", null)
         .order("name"),
       supabase
         .from("workshops")

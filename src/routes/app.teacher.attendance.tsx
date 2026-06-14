@@ -292,6 +292,8 @@ function TeacherAttendance() {
     supabase
       .from("courses")
       .select("id, name, period")
+      // Ocultar cursos en papelera del Select de curso del tablero.
+      .is("deleted_at", null)
       .order("name")
       .then(({ data, error }) => {
         if (error) {
@@ -333,6 +335,8 @@ function TeacherAttendance() {
         .from("generated_contents")
         .select("id, display_name, topic, mode, course_id, files")
         .eq("status", "done")
+        // No ofrecer contenidos en papelera para asignar a sesiones.
+        .is("deleted_at", null)
         .or(`course_id.eq.${courseId},course_id.is.null`),
     ]);
     setSessions((sess ?? []) as Session[]);

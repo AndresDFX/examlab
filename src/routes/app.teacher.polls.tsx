@@ -264,7 +264,11 @@ function TeacherPolls() {
         // Cuando el SA elige una institución en el filtro, acotamos
         // server-side por tenant_id. "all" deja la RLS cross-tenant
         // (todos los cursos visibles para el SA).
-        let courseQuery = db.from("courses").select("id, name").order("name");
+        let courseQuery = db
+          .from("courses")
+          .select("id, name")
+          .is("deleted_at", null)
+          .order("name");
         if (tenantFilter !== "all") {
           courseQuery = courseQuery.eq("tenant_id", tenantFilter);
         }
@@ -1324,6 +1328,7 @@ function CreatePollDialog({
           .from("attendance_sessions")
           .select("id, title, session_date")
           .eq("course_id", anchorCourseIdLoaded)
+          .is("deleted_at", null)
           .order("session_date", { ascending: false })
           .limit(60);
         if (cancelled) return;

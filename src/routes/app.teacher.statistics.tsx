@@ -90,7 +90,11 @@ function TeacherStatistics() {
     let cancelled = false;
     (async () => {
       setLoadError(null);
-      let q = supabase.from("courses").select("id, name, period").order("name");
+      let q = supabase
+        .from("courses")
+        .select("id, name, period")
+        .is("deleted_at", null)
+        .order("name");
       if (!roles.includes("Admin")) {
         const { data: ct } = await supabase
           .from("course_teachers")

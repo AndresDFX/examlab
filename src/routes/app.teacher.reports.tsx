@@ -208,7 +208,7 @@ function Inner() {
           "id, name, description, scope, body_html, header_html, footer_html, css, page_orientation, page_size, owner_id, course_id, parent_id",
         )
         .order("name"),
-      db.from("courses").select("id, name").order("name"),
+      db.from("courses").select("id, name").is("deleted_at", null).order("name"),
     ]);
     if (tErr) {
       setLoadError(friendlyError(tErr, "No pudimos cargar las plantillas."));

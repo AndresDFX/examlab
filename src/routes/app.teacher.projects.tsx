@@ -551,6 +551,7 @@ function TeacherProjects() {
       const cs = await db
         .from("courses")
         .select("id, name, period, language, grade_scale_max")
+        .is("deleted_at", null)
         .order("name");
       if (cs.error) throw new Error(`courses: ${cs.error.message}`);
       setCourses((cs.data ?? []) as Course[]);

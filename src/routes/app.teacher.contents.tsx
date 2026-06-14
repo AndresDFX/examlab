@@ -488,7 +488,7 @@ function TeacherContents() {
         // por docente (en orgs chicas o cuando los cursos los crea Admin
         // sin asignación explícita queda vacía). Ahora pedimos `courses`
         // directo y dejamos que la RLS de la tabla recorte.
-        supabase.from("courses").select("id, name").order("name"),
+        supabase.from("courses").select("id, name").is("deleted_at", null).order("name"),
         // Tenants — solo el SuperAdmin ve >1. Para Admin/Docente la RLS
         // recorta al suyo y el array queda en 1 → el Select abajo no se
         // renderiza (`tenants.length > 0` gate).
@@ -521,10 +521,26 @@ function TeacherContents() {
       setDerived({});
     } else {
       const [sess, ex, ws, pj] = await Promise.all([
-        db.from("attendance_sessions").select("content_id").in("content_id", contentIds),
-        db.from("exams").select("source_content_id").in("source_content_id", contentIds),
-        db.from("workshops").select("source_content_id").in("source_content_id", contentIds),
-        db.from("projects").select("source_content_id").in("source_content_id", contentIds),
+        db
+          .from("attendance_sessions")
+          .select("content_id")
+          .in("content_id", contentIds)
+          .is("deleted_at", null),
+        db
+          .from("exams")
+          .select("source_content_id")
+          .in("source_content_id", contentIds)
+          .is("deleted_at", null),
+        db
+          .from("workshops")
+          .select("source_content_id")
+          .in("source_content_id", contentIds)
+          .is("deleted_at", null),
+        db
+          .from("projects")
+          .select("source_content_id")
+          .in("source_content_id", contentIds)
+          .is("deleted_at", null),
       ]);
       const next: Record<
         string,
@@ -2585,7 +2601,8 @@ function MaterializeCourseDialog({
           .from("attendance_sessions")
           .select("session_date, content_class_index")
           .eq("course_id", content.course_id)
-          .eq("content_id", content.id),
+          .eq("content_id", content.id)
+          .is("deleted_at", null),
       ]);
       setCuts((cs ?? []) as CutRow[]);
       setContentSessions(
@@ -2995,6 +3012,7 @@ function AssignToSessionsDialog({
         .from("attendance_sessions")
         .select("id, session_date, title, content_id, content_class_index")
         .eq("course_id", content.course_id)
+        .is("deleted_at", null)
         .order("session_date", { ascending: true });
       const rows = (data ?? []) as AttendanceSessionRow[];
       setSessions(rows);
@@ -3284,6 +3302,7 @@ function FilesByClassDialog({
         .select("session_date, title, content_class_index")
         .eq("course_id", content.course_id)
         .eq("content_id", content.id)
+        .is("deleted_at", null)
         .order("session_date", { ascending: true });
       const next: Record<number, { date: string; title: string | null }> = {};
       for (const r of (data ?? []) as Array<{

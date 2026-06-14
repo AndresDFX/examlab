@@ -288,7 +288,8 @@ function ExamEditor() {
     const { data: examsInCourseData } = await supabase
       .from("exams")
       .select("id, title, cut_id, weight, parent_exam_id")
-      .eq("course_id", courseId);
+      .eq("course_id", courseId)
+      .is("deleted_at", null);
     setExamsInCourse(
       ((examsInCourseData ?? []) as any[])
         .filter((x) => !x.parent_exam_id)
@@ -307,6 +308,7 @@ function ExamEditor() {
       .from("exams")
       .select("*, course:courses(max_exam_attempts, grade_scale_max)")
       .eq("id", examId)
+      .is("deleted_at", null)
       .single();
     if (eErr || !e) {
       setLoadError(friendlyError(eErr, "No se encontró el examen o no tienes acceso."));
@@ -321,10 +323,12 @@ function ExamEditor() {
       .order("position");
     setQuestions(qs ?? []);
     // Cursos a los que el docente puede mover el examen. RLS de courses
-    // ya filtra a sus cursos (o todos si es Admin); aquí solo ordenamos.
+    // ya filtra a sus cursos (o todos si es Admin); excluimos los que están
+    // en papelera para no ofrecerlos como destino.
     const { data: cs } = await supabase
       .from("courses")
       .select("id, name, period")
+      .is("deleted_at", null)
       .order("period", { ascending: false, nullsFirst: false })
       .order("name");
     setCourses((cs ?? []) as Array<{ id: string; name: string; period: string | null }>);

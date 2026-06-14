@@ -153,6 +153,7 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
           "id, session_date, title, start_time, duration_minutes, google_event_id, meeting_url",
         )
         .eq("course_id", courseId)
+        .is("deleted_at", null)
         .order("session_date", { ascending: true });
       if (cancelled) return;
       if (error) {

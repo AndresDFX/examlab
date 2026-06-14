@@ -486,6 +486,9 @@ async function handleSync(userId: string, body: SyncBody, provider: Provider) {
     .from("attendance_sessions")
     .select("id", { count: "exact", head: true })
     .eq("course_id", body.courseId)
+    // Papelera: no contar sesiones soft-deleted — una sesión borrada sin
+    // hora NO debe abortar el sync (ni va a pushearse al calendario).
+    .is("deleted_at", null)
     .is("start_time", null);
   if ((missingCount ?? 0) > 0) {
     return jsonError(`course_has_sessions_without_time:${missingCount}`, 400);
@@ -498,6 +501,9 @@ async function handleSync(userId: string, body: SyncBody, provider: Provider) {
       .from("attendance_sessions")
       .select("id, title, session_date, start_time, duration_minutes, google_event_id, meeting_url")
       .eq("course_id", body.courseId)
+      // Papelera: una sesión soft-deleted NO debe pushearse al Google
+      // Calendar / Microsoft Graph del docente ni de los alumnos.
+      .is("deleted_at", null)
       .order("session_date", { ascending: true }),
     adminClient.from("course_enrollments").select("user_id").eq("course_id", body.courseId),
   ]);
@@ -784,10 +790,12 @@ async function handleSyncPollToCalendar(
   // 1) Cargar la encuesta + validar que es de CUPO (slot).
   const { data: poll } = await adminClient
     .from("polls")
-    .select("id, title, poll_type, closes_at, course_id")
+    .select("id, title, poll_type, closes_at, course_id, deleted_at")
     .eq("id", body.pollId)
     .maybeSingle();
-  if (!poll) return jsonError("poll_not_found", 404);
+  // Papelera: una encuesta soft-deleted NO debe ser sincronizable al
+  // calendario externo de los alumnos. Se trata como inexistente.
+  if (!poll || poll.deleted_at) return jsonError("poll_not_found", 404);
   if (poll.poll_type !== "slot") return jsonError("poll_not_slot", 400);
 
   // 2) Cursos de la encuesta (junction multi-curso). Siempre incluye el
@@ -1386,6 +1394,9 @@ async function handleLinkEventsToSessions(
     .from("attendance_sessions")
     .select("id")
     .eq("course_id", body.courseId)
+    // Papelera: una sesión soft-deleted no debe poder re-vincularse a un
+    // evento de calendario hasta que se restaure.
+    .is("deleted_at", null)
     .in("id", sessionIds);
   const validIdSet = new Set(
     (validSessions ?? []).map((s: { id: string }) => s.id),

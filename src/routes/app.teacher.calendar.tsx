@@ -206,6 +206,7 @@ function CalendarPage() {
         .from("attendance_sessions")
         .select("course_id, start_time")
         .in("course_id", ids)
+        .is("deleted_at", null)
         .limit(10000);
       const totalByCourse = new Map<string, number>();
       const missingByCourse = new Map<string, number>();

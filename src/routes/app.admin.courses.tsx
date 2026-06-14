@@ -605,7 +605,11 @@ export function AdminCourses() {
               .select("course_id")
               .in("course_id", courseIds),
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (supabase as any).from("exams").select("course_id").in("course_id", courseIds),
+            (supabase as any)
+              .from("exams")
+              .select("course_id")
+              .in("course_id", courseIds)
+              .is("deleted_at", null),
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (supabase as any)
               .from("workshop_courses")
@@ -1374,7 +1378,8 @@ export function AdminCourses() {
         const { data: exams } = await supabase
           .from("exams")
           .select("*")
-          .eq("course_id", dupSource.id);
+          .eq("course_id", dupSource.id)
+          .is("deleted_at", null);
         for (const exam of exams ?? []) {
           const { data: newExam } = await supabase
             .from("exams")
@@ -1423,7 +1428,8 @@ export function AdminCourses() {
         const { data: ws } = await supabase
           .from("workshops")
           .select("*")
-          .eq("course_id", dupSource.id);
+          .eq("course_id", dupSource.id)
+          .is("deleted_at", null);
         if (ws?.length) {
           await supabase.from("workshops").insert(
             ws.map((w: any) => ({

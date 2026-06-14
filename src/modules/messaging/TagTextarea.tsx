@@ -107,9 +107,9 @@ export function TagTextarea({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dbAny = supabase as any;
     const [ws, ex, pj] = await Promise.all([
-      dbAny.from("workshops").select("id, title").order("title").limit(200),
-      dbAny.from("exams").select("id, title").order("title").limit(200),
-      dbAny.from("projects").select("id, title").order("title").limit(200),
+      dbAny.from("workshops").select("id, title").is("deleted_at", null).order("title").limit(200),
+      dbAny.from("exams").select("id, title").is("deleted_at", null).order("title").limit(200),
+      dbAny.from("projects").select("id, title").is("deleted_at", null).order("title").limit(200),
     ]);
     const out: ContentTag[] = [];
     for (const r of (ws.data ?? []) as Array<{ id: string; title: string | null }>)

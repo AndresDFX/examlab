@@ -112,7 +112,7 @@ export function ActasManager({ onPrintActa }: Props) {
           "id, course_id, curso_nombre, docente_nombre, periodo_codigo, total_estudiantes, total_aprobados, total_reprobados, generated_at, integrity_hash",
         )
         .order("generated_at", { ascending: false }),
-      db.from("courses").select("id, name").order("name"),
+      db.from("courses").select("id, name").is("deleted_at", null).order("name"),
     ]);
     if (aErr) {
       setLoadError(friendlyError(aErr, t("hc_modulesReportsActasManager.errorLoadActas")));

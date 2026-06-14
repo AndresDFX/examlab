@@ -149,6 +149,9 @@ Deno.serve(async (req: Request) => {
       .from("attendance_sessions")
       .select("id, course_id, session_date, start_time, duration_minutes, title, meeting_url")
       .in("course_id", courseIds)
+      // Papelera: una sesión en soft-delete NO debe aparecer como VEVENT en
+      // el calendario externo suscrito hasta que se restaure.
+      .is("deleted_at", null)
       .order("session_date", { ascending: true }),
   ]);
 

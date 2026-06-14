@@ -398,8 +398,9 @@ function ExamMonitor() {
       .from("exams")
       .select("*, course:courses(name, grade_scale_max, max_exam_attempts)")
       .eq("id", examId)
-      .single();
-    setExam(e);
+      .is("deleted_at", null)
+      .maybeSingle();
+    setExam(e ?? null);
 
     // extra_seconds aún no está en types.ts auto-generados; casteamos
     // a any para que el cliente lo selecte sin que el typing lo bloquee.

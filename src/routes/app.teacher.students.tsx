@@ -76,18 +76,23 @@ function TeacherStudentsInner() {
     // 1. Cursos del docente
     const { data: teacherCourses, error: tcErr } = await supabase
       .from("course_teachers")
-      .select("course_id, courses(id, name)")
+      .select("course_id, courses(id, name, deleted_at)")
       .eq("user_id", user.id);
     if (tcErr) {
       setLoadError(friendlyError(tcErr, "No pudimos cargar tus cursos."));
       setLoading(false);
       return;
     }
+    // PostgREST no filtra embeds anidados: saltar cursos en papelera en JS
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const myCourses: Course[] = (teacherCourses ?? []).map((r: any) => ({
-      id: r.courses?.id ?? r.course_id,
-      name: r.courses?.name ?? r.course_id,
-    }));
+    const myCourses: Course[] = (teacherCourses ?? [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((r: any) => !r.courses?.deleted_at)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((r: any) => ({
+        id: r.courses?.id ?? r.course_id,
+        name: r.courses?.name ?? r.course_id,
+      }));
     setCourses(myCourses);
     const courseIds = myCourses.map((c) => c.id);
     if (courseIds.length === 0) {
