@@ -86,6 +86,28 @@ export type DiagPendingRow = {
  * arma el caller buscando en `ai_grading_queue.status='failed'` del
  * curso). El helper no toca DB.
  */
+// Estados de submission que significan "el estudiante AÚN no entregó"
+// (borrador / en progreso). Una fila con uno de estos NO es una entrega real:
+// no debe contar como "pendiente de calificar". Los exámenes crean la fila al
+// INICIAR (status 'en_progreso') y sólo pasa a 'completado'/'sospechoso' al
+// entregar; talleres/proyectos sólo crean la fila al entregar ('entregado').
+const NOT_SUBMITTED_STATUSES = new Set([
+  "en_progreso",
+  "iniciado",
+  "borrador",
+  "draft",
+  "pendiente",
+  "no_entregado",
+]);
+
+/** ¿La submission representa una entrega REAL del estudiante? Falso para
+ *  borradores / en progreso. Status nulo/desconocido → true (no ocultar
+ *  pendientes legítimos por un estado inesperado). */
+export function isSubmittedStatus(status: string | null | undefined): boolean {
+  if (!status) return true;
+  return !NOT_SUBMITTED_STATUSES.has(status);
+}
+
 export function summarizePendingGrades(
   students: DiagStudent[],
   submissions: DiagSubmission[],
@@ -126,6 +148,10 @@ export function summarizePendingGrades(
           status = "sin_sustentacion";
         } else if (sub.has_final_grade) {
           status = "calificado";
+        } else if (!isSubmittedStatus(sub.status)) {
+          // Borrador / en progreso (ej. examen 'en_progreso'): el estudiante
+          // NO ha entregado → NO cuenta como pendiente de calificar.
+          status = "sin_entregar";
         } else {
           status = "entregado_sin_calificar";
         }

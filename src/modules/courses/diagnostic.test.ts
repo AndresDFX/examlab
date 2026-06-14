@@ -271,6 +271,45 @@ describe("diagCellSeverity / diagCellStatusLabel", () => {
   });
 });
 
+// ── entregas en progreso / borrador NO cuentan como pendientes ────────
+describe("summarizePendingGrades — entregas no enviadas", () => {
+  it("examen 'en_progreso' (no entregado) → sin_entregar, no entregado_sin_calificar", () => {
+    const sub: DiagSubmission = {
+      user_id: "u-ana",
+      item_id: "ex-1",
+      item_kind: "exam",
+      status: "en_progreso",
+      has_final_grade: false,
+      submission_id: "s1",
+    };
+    const rows = summarizePendingGrades([ana], [sub], [examen]);
+    expect(rows[0].status).toBe("sin_entregar");
+  });
+
+  it("examen 'completado' sin nota → entregado_sin_calificar", () => {
+    const sub: DiagSubmission = {
+      user_id: "u-ana",
+      item_id: "ex-1",
+      item_kind: "exam",
+      status: "completado",
+      has_final_grade: false,
+      submission_id: "s1",
+    };
+    const rows = summarizePendingGrades([ana], [sub], [examen]);
+    expect(rows[0].status).toBe("entregado_sin_calificar");
+  });
+
+  it("matrixSummary no cuenta los borradores en entregadoSinCalificar", () => {
+    const subs: DiagSubmission[] = [
+      { user_id: "u-ana", item_id: "ex-1", item_kind: "exam", status: "en_progreso", has_final_grade: false },
+      { user_id: "u-beto", item_id: "ex-1", item_kind: "exam", status: "completado", has_final_grade: false },
+    ];
+    const s = summarizeMatrix(summarizePendingGrades([ana, beto], subs, [examen]));
+    expect(s.entregadoSinCalificar).toBe(1); // solo beto
+    expect(s.sinEntregar).toBe(1); // ana (borrador)
+  });
+});
+
 // ── sin_sustentacion (proyectos sin sustentación) ─────────────────────
 describe("summarizePendingGrades — sin_sustentacion", () => {
   it("proyecto con defense_pending → sin_sustentacion (gana a calificado)", () => {
