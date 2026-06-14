@@ -135,7 +135,11 @@ function StudentProjects() {
   const [rows, setRows] = useState<ProjectRow[]>([]);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<ProjectDisplayStatus | "all">("all");
+  // Default a "available" (proyecto publicado, dentro del plazo y sin entregar):
+  // mostramos lo vigente/accionable primero; "Todos" y los estados cerrados
+  // siguen disponibles en el Select. Constante determinista (sin storage/URL)
+  // para no romper la hidratación.
+  const [statusFilter, setStatusFilter] = useState<ProjectDisplayStatus | "all">("available");
   // Filtros adicionales: rango de fechas (sobre `due_date`) y orden.
   // Defaults no afectan la UX vieja: dateFrom="" y dateTo="" no filtran
   // nada; sortBy="due_asc" replica el orden cronológico natural.

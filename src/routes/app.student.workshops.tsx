@@ -148,7 +148,11 @@ function StudentWorkshops() {
   const [rows, setRows] = useState<WorkshopRow[]>([]);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<WorkshopDisplayStatus | "all">("all");
+  // Default "available" (publicado, dentro de plazo, sin entregar) = "lo que
+  // está en curso/accionable ahora". El estudiante puede ver lo cerrado/vencido
+  // o todo cambiando el filtro a su opción o a "Todos". Valor determinista
+  // (no lee storage) → seguro para hidratación SSR.
+  const [statusFilter, setStatusFilter] = useState<WorkshopDisplayStatus | "all">("available");
   // Filtros adicionales: rango de fechas (sobre `due_date` del taller) y
   // orden. Defaults no afectan la UX vieja: dateFrom="" y dateTo="" no
   // filtran nada; sortBy="due_asc" replica el orden cronológico natural.

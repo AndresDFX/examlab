@@ -78,7 +78,7 @@ function AdminSupportPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
-  const [statusFilter, setStatusFilter] = useState<TicketStatus | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<TicketStatus | "active" | "all">("active");
   const [detailOpen, setDetailOpen] = useState(false);
   const [activeTicket, setActiveTicket] = useState<SupportTicket | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -153,6 +153,11 @@ function AdminSupportPage() {
 
   const filtered = useMemo(() => {
     if (statusFilter === "all") return tickets;
+    if (statusFilter === "active") {
+      return tickets.filter(
+        (t) => t.status === "open" || t.status === "in_progress" || t.status === "waiting_admin",
+      );
+    }
     return tickets.filter((t) => t.status === statusFilter);
   }, [tickets, statusFilter]);
 
@@ -445,6 +450,7 @@ function AdminSupportPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="active">{t("adminSupport.filterActive")}</SelectItem>
             <SelectItem value="all">{t("adminSupport.filterAll")}</SelectItem>
             {(Object.keys(STATUS_LABEL) as TicketStatus[]).map((s) => (
               <SelectItem key={s} value={s}>
@@ -464,14 +470,14 @@ function AdminSupportPage() {
           ) : filtered.length === 0 ? (
             <TableEmpty
               icon={LifeBuoy}
-              title={statusFilter === "all" ? t("adminSupport.emptyAll") : t("adminSupport.emptyFiltered")}
+              title={tickets.length === 0 ? t("adminSupport.emptyAll") : t("adminSupport.emptyFiltered")}
               description={
-                statusFilter === "all"
+                tickets.length === 0
                   ? t("adminSupport.emptyAllDesc")
                   : t("adminSupport.emptyFilteredDesc")
               }
               action={
-                statusFilter === "all" ? (
+                tickets.length === 0 ? (
                   <Button onClick={openCreate}>
                     <Plus className="h-4 w-4 mr-1" />
                     {t("adminSupport.createFirstBtn")}

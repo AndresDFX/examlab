@@ -109,7 +109,11 @@ function StudentExams() {
   const [now, setNow] = useState(Date.now());
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<ExamDisplayStatus | "all">("all");
+  // Default: "available" (ventana abierta = lo que el alumno puede tomar
+  // ahora). El alumno puede cambiar a "Todos" o a estados cerrados/
+  // completados con el Select. Constante determinista — NO leer storage
+  // en el initializer (regla hidratación React #418).
+  const [statusFilter, setStatusFilter] = useState<ExamDisplayStatus | "all">("available");
   // Filtros adicionales: rango de fechas (sobre la fecha relevante de
   // la entidad — end_time/start_time del examen) y orden. Defaults no
   // afectan la UX vieja: dateFrom="" y dateTo="" no filtran nada;

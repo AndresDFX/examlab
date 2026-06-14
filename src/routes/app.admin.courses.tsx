@@ -264,6 +264,14 @@ export function AdminCourses() {
   const [programFilterUi, setProgramFilterUi] = useState<string>("all");
   const [subjectFilterUi, setSubjectFilterUi] = useState<string>("all");
   const [periodFilterUi, setPeriodFilterUi] = useState<string>("all");
+  // Filtro por estado de ciclo de vida del curso. Default = "en_curso"
+  // (lo vigente/accionable ahora) en vez de "all": el docente/admin abre
+  // el listado y ve por defecto solo los cursos en curso, los borradores
+  // / próximos / finalizados se ven cambiando este filtro o eligiendo
+  // "Todos". Valor DETERMINISTA constante (no leer storage en el init —
+  // ver regla de hidratación React #418 en CLAUDE.md). Matchea contra el
+  // estado de DISPLAY derivado (borrador | proximo | en_curso | finalizado).
+  const [statusFilterUi, setStatusFilterUi] = useState<string>("en_curso");
 
   // Filtramos por nombre + período + descripción. Case-insensitive,
   // includes. El multi-select trabaja sobre la lista visible. Si hay
@@ -286,6 +294,13 @@ export function AdminCourses() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       result = result.filter((c: any) => c.period_id === periodFilterUi);
     }
+    if (statusFilterUi !== "all") {
+      // Comparamos contra el estado de DISPLAY derivado (no contra
+      // c.status crudo) para que "Próximo" — que es en_curso + fecha
+      // futura, no un valor persistido — sea filtrable por separado.
+      const now = Date.now();
+      result = result.filter((c) => deriveCourseDisplayState(c, now) === statusFilterUi);
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -296,7 +311,7 @@ export function AdminCourses() {
       );
     }
     return result;
-  }, [courses, search, subjectFilter, programFilterUi, subjectFilterUi, periodFilterUi]);
+  }, [courses, search, subjectFilter, programFilterUi, subjectFilterUi, periodFilterUi, statusFilterUi]);
 
   // Orden por columna (asc/desc clicando el encabezado). Va ENTRE el
   // filtro y la paginación: filtrar → ORDENAR → paginar. Las columnas con
@@ -342,7 +357,7 @@ export function AdminCourses() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:admin_courses",
-    resetKey: `${search}|${subjectFilter ?? ""}|${programFilterUi}|${subjectFilterUi}|${periodFilterUi}|${tenantFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${subjectFilter ?? ""}|${programFilterUi}|${subjectFilterUi}|${periodFilterUi}|${statusFilterUi}|${tenantFilter}|${sort.resetKey}`,
   });
 
   // Export del listado filtrado. No soportamos import porque cada curso
@@ -1694,6 +1709,21 @@ export function AdminCourses() {
             placeholder={t("hc_routesAppAdminCourses.searchPlaceholder")}
           />
         </div>
+        {/* Filtro por estado del curso. Default "en_curso" (lo vigente);
+            el usuario abre "Todos" o un estado puntual cuando lo necesita.
+            Opera sobre el estado de DISPLAY derivado (incluye "proximo"). */}
+        <Select value={statusFilterUi} onValueChange={setStatusFilterUi}>
+          <SelectTrigger className="w-full sm:w-44 h-9 text-xs">
+            <SelectValue placeholder={t("hc_routesAppAdminCourses.statusFilterPlaceholder")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("hc_routesAppAdminCourses.statusFilterAll")}</SelectItem>
+            <SelectItem value="en_curso">{t("hc_routesAppAdminCourses.statusFilterActive")}</SelectItem>
+            <SelectItem value="proximo">{t("hc_routesAppAdminCourses.statusFilterUpcoming")}</SelectItem>
+            <SelectItem value="borrador">{t("hc_routesAppAdminCourses.statusFilterDraft")}</SelectItem>
+            <SelectItem value="finalizado">{t("hc_routesAppAdminCourses.statusFilterFinalized")}</SelectItem>
+          </SelectContent>
+        </Select>
         {/* Filtro de institución (solo SuperAdmin con >1 tenant visible).
             Antes /app/admin/courses no tenía filtro funcional por tenant
             — el SuperAdmin veía cursos cross-tenant sin poder acotar a
@@ -1850,30 +1880,47 @@ export function AdminCourses() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredCourses.length === 0 && (
-                <TableEmpty
-                  colSpan={9}
-                  icon={BookOpen}
-                  text={
-                    search.trim() && courses.length > 0
-                      ? t("hc_routesAppAdminCourses.noMatches")
-                      : t("course.emptyTitle")
-                  }
-                  hint={
-                    search.trim() && courses.length > 0
-                      ? t("hc_routesAppAdminCourses.noMatchesHint")
-                      : t("course.emptyHint")
-                  }
-                  action={
-                    search.trim() && courses.length > 0 ? undefined : (
-                      <Button size="sm" onClick={openNew}>
-                        <Plus className="h-4 w-4 mr-1" />
-                        {t("course.createFirst")}
-                      </Button>
-                    )
-                  }
-                />
-              )}
+              {filteredCourses.length === 0 &&
+                (() => {
+                  // "Filtros activos" incluye el nuevo default de estado:
+                  // si hay cursos pero NINGUNO está "en_curso" (el default),
+                  // el listado sale vacío con texto accionable ("prueba el
+                  // filtro Todos") en vez del empty-state de "crea tu primer
+                  // curso", que confundiría (el curso existe, solo está
+                  // finalizado/borrador). search.trim(), statusFilterUi y los
+                  // filtros académicos cuentan como filtro activo.
+                  const hasActiveFilters =
+                    !!search.trim() ||
+                    statusFilterUi !== "all" ||
+                    programFilterUi !== "all" ||
+                    subjectFilterUi !== "all" ||
+                    periodFilterUi !== "all";
+                  const filteredEmpty = hasActiveFilters && courses.length > 0;
+                  return (
+                    <TableEmpty
+                      colSpan={9}
+                      icon={BookOpen}
+                      text={
+                        filteredEmpty
+                          ? t("hc_routesAppAdminCourses.noMatches")
+                          : t("course.emptyTitle")
+                      }
+                      hint={
+                        filteredEmpty
+                          ? t("hc_routesAppAdminCourses.noMatchesHint")
+                          : t("course.emptyHint")
+                      }
+                      action={
+                        filteredEmpty ? undefined : (
+                          <Button size="sm" onClick={openNew}>
+                            <Plus className="h-4 w-4 mr-1" />
+                            {t("course.createFirst")}
+                          </Button>
+                        )
+                      }
+                    />
+                  );
+                })()}
               {pagination.paginatedItems.map((c) => (
                 <TableRow key={c.id} data-state={sel.isSelected(c.id) ? "selected" : undefined}>
                   <TableCell className="w-10">

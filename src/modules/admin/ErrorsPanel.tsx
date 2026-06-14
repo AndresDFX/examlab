@@ -162,7 +162,11 @@ export function ErrorsPanel({ embedded = false }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
 
-  const [statusFilter, setStatusFilter] = useState<"all" | ErrStatus>("all");
+  // Default = "nuevo" (errores sin atender = lo accionable/vigente para el
+  // triage). El admin puede ver el resto clicando el tile "Total" (= "all")
+  // o cualquier otro estado. Constante determinista → sin riesgo de
+  // hydration mismatch (no leemos storage/URL en el initializer).
+  const [statusFilter, setStatusFilter] = useState<"all" | ErrStatus>("nuevo");
   const [tenantFilter, setTenantFilter] = useState<string>("all");
   const [tenants, setTenants] = useState<Array<{ id: string; name: string }>>([]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
