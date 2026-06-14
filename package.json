@@ -19,7 +19,8 @@
     "record:tour:admin": "node --experimental-strip-types scripts/record-tour.ts --role=admin",
     "record:tour:teacher": "node --experimental-strip-types scripts/record-tour.ts --role=teacher",
     "record:tour:student": "node --experimental-strip-types scripts/record-tour.ts --role=student",
-    "manual:pdf": "node scripts/gen-manual-pdfs.mjs"
+    "manual:pdf": "node scripts/gen-manual-pdfs.mjs",
+    "i18n:audit": "node scripts/i18n-audit.mjs"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",

@@ -71,7 +71,9 @@
     "duplicate": "Duplicar",
     "rename": "Renombrar",
     "register": "Registrar",
-    "register_action": "Registrar"
+    "register_action": "Registrar",
+    "clearSelection": "Limpiar selección",
+    "remove": "Quitar"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -422,7 +424,11 @@
     "boardNotesUrl": "Enlace de notas / minuta (opcional)",
     "boardRecording": "Grabación",
     "boardNotes": "Notas",
-    "boardSessionCode": "Código"
+    "boardSessionCode": "Código",
+    "boardContentRemove": "Quitar del curso",
+    "boardContentRemoveBody": "Se quitará \"{{name}}\" del curso y dejará de verse en el tablero del estudiante. Queda en la Papelera y puedes restaurarlo dentro de 30 días.",
+    "boardContentRemoveTitle": "¿Quitar este contenido del curso?",
+    "boardContentRemoved": "Contenido quitado del curso"
   },
   "users": {
     "title": "Usuarios",
@@ -776,7 +782,8 @@
       "relativeMins": "Hace {{min}} min",
       "relativeHours": "Hace {{hour}} h",
       "relativeYesterday": "Ayer"
-    }
+    },
+    "viewAll": "Ver todos"
   },
   "exam": {
     "title": "Exámenes",
@@ -1616,7 +1623,8 @@
     "confirmReopenLabel": "Reabrir",
     "confirmDeleteTitle": "¿Eliminar este foro?",
     "confirmDeleteDesc": "Se eliminarán \"{{title}}\" y TODOS sus hilos y respuestas ({{count}} hilos). Esta acción no se puede deshacer.",
-    "confirmDeleteLabel": "Eliminar"
+    "confirmDeleteLabel": "Eliminar",
+    "reopenFutureDate": "El nuevo cierre debe ser una fecha futura."
   },
   "forumThreads": {
     "defaultTitle": "Foro",
@@ -2257,7 +2265,10 @@
     "impersonateConfirmTitle": "¿Iniciar sesión como {{name}}?",
     "impersonateConfirmDesc": "Vas a entrar a la plataforma con la cuenta de este usuario. Verás todo lo que él ve. Mientras estés impersonando, aparecerá un banner amarillo arriba con el botón 'Volver a mi cuenta'. La acción queda registrada en el log de auditoría.",
     "impersonateConfirmLabel": "Iniciar como",
-    "impersonateError": "Error al iniciar la impersonación"
+    "impersonateError": "Error al iniciar la impersonación",
+    "bulkEntity": "estudiante",
+    "bulkEntityPlural": "estudiantes",
+    "bulkPasswordAction": "Cambiar contraseña"
   },
   "toast": {
     "modules_admin_AdminAcademicPeriodsPanel": {
@@ -2564,7 +2575,8 @@
     },
     "modules_whiteboard_MultiPageWhiteboard": {
       "atLeastOnePage": "La pizarra debe tener al menos una hoja.",
-      "pageDeleted": "Hoja eliminada"
+      "pageDeleted": "Hoja eliminada",
+      "nameRequired": "El nombre de la hoja es obligatorio."
     },
     "modules_whiteboard_SessionWhiteboardDialog": {
       "sharedEnabled": "Pizarra compartida activada",
@@ -2684,7 +2696,8 @@
       "enrollmentFailed": "Usuario creado, pero no se pudo inscribir al curso. Matricúlalo manualmente desde el curso.",
       "userCreated": "Usuario creado correctamente",
       "importSuccess": "Importados correctamente: {{count}}",
-      "importPartial": "Importados: {{ok}} · Duplicados: {{duplicates}} · Errores: {{errors}}"
+      "importPartial": "Importados: {{ok}} · Duplicados: {{duplicates}} · Errores: {{errors}}",
+      "emailChangeFailed": "No se pudo cambiar el correo de acceso"
     },
     "routes_app_certificates": {
       "verifyLinkCopied": "Link de verificación copiado"
@@ -3019,7 +3032,8 @@
       "invalidSlotDateTime": "Fecha u hora inválida",
       "slotAdded": "Slot agregado",
       "slotNeedsConfig": "Agregá al menos una fecha y una ventana horaria válida (inicio antes de fin) para generar los slots.",
-      "pollDuplicated": "Encuesta duplicada como borrador: \"{{title}} (copia)\""
+      "pollDuplicated": "Encuesta duplicada como borrador: \"{{title}} (copia)\"",
+      "cannotRemoveSlotWithVotes": "No puedes eliminar fechas con reservas: {{labels}}. Quítale primero la respuesta a esos estudiantes desde «Ver resultados»."
     },
     "routes_app_teacher_projects": {
       "bulkSentToTrash": "{{n}} proyecto(s) enviado(s) a papelera",
@@ -3053,14 +3067,19 @@
       "recomputedLocally": "Recalculado localmente (sin IA)",
       "fileRegradedWithAi": "Archivo recalificado con IA",
       "batchRegradeCompleted": "Recalificación batch completada ({{done}}/{{total}}).",
-      "submissionsDeleted": "{{n}} entregas eliminadas"
+      "submissionsDeleted": "{{n}} entregas eliminadas",
+      "notAuthenticated": "No autenticado",
+      "defenseVideoUploaded": "Video subido. Guarda la sustentación para registrarlo."
     },
     "routes_app_teacher_question_bank": {
       "writeStatement": "Escribe el enunciado",
       "selectType": "Selecciona un tipo",
       "questionUpdated": "Pregunta actualizada",
       "questionAddedToBank": "Pregunta agregada al banco",
-      "questionDeleted": "Pregunta eliminada"
+      "questionDeleted": "Pregunta eliminada",
+      "aiGenerated": "{{n}} pregunta(s) generada(s) y agregada(s) al banco",
+      "aiNeedTopics": "Escribe los temas para generar",
+      "aiQueued": "Generación encolada. Aparecerá en el banco al procesarse."
     },
     "routes_app_teacher_reports": {
       "nameRequired": "El nombre es obligatorio",
@@ -3729,7 +3748,8 @@
     "viewPwDescPrefix": "Contraseña asignada a",
     "viewPwDescSuffix": "Comunícasela de forma segura — el usuario deberá cambiarla en su primer inicio de sesión.",
     "viewPwEmptyPrefix": "No hay una contraseña guardada para este usuario. Probablemente ya la cambió, o fue creado por SSO / antes de esta función. Puedes asignarle una nueva desde",
-    "viewPwEmptySuffix": "."
+    "viewPwEmptySuffix": ".",
+    "bulkPasswordAction": "Cambiar contraseña"
   },
   "projectFiles": {
     "tabList": "Preguntas ({{count}})",
@@ -4731,7 +4751,11 @@
     "assignRemainingDesc": "Los estudiantes matriculados que aún NO han respondido se repartirán automáticamente en los cupos que queden libres (sin exceder la capacidad de cada uno). Quienes ya respondieron no se tocan.",
     "assignRemainingConfirm": "Asignar",
     "assignRemainingResult": "{{count}} estudiante(s) asignado(s) a cupos libres.",
-    "errAssignRemaining": "No se pudo asignar a los estudiantes restantes."
+    "errAssignRemaining": "No se pudo asignar a los estudiantes restantes.",
+    "slotEditWithVotesNote": "Puedes agregar nuevas fechas, ampliar el cupo y reabrir la encuesta (fija un cierre futuro). Las fechas que ya tienen reservas no se pueden eliminar.",
+    "slotHasReservations": "Esta fecha tiene reservas y no puede eliminarse",
+    "slotReservationsCount_one": "{{count}} reserva",
+    "slotReservationsCount_other": "{{count}} reservas"
   },
   "teacherAttendance": {
     "statusPresentShort": "P",
@@ -4828,5 +4852,28 @@
     "noContent": "Sin contenido",
     "contentPickerSearchPlaceholder": "Buscar por nombre o tema…",
     "noResults": "Sin resultados."
+  },
+  "privacy": {
+    "lastUpdated": "Última actualización: {{date}}",
+    "title": "Política de Privacidad"
+  },
+  "bulkPassword": {
+    "title": "Cambiar contraseña en bloque",
+    "desc_one": "Se asignará la misma contraseña a {{count}} estudiante seleccionado. Comunícale la contraseña que definas aquí.",
+    "desc_other": "Se asignará la misma contraseña a {{count}} estudiantes seleccionados. Comunícales la contraseña que definas aquí.",
+    "newPasswordLabel": "Nueva contraseña",
+    "placeholderMin": "Mínimo 8 caracteres",
+    "generate": "Generar",
+    "generateTitle": "Generar una contraseña aleatoria",
+    "minLength": "La contraseña debe tener al menos 8 caracteres.",
+    "requireChangeLabel": "Pedir cambio en el próximo inicio",
+    "requireChangeHelp": "Si está activo, cada estudiante deberá definir su propia contraseña la próxima vez que inicie sesión (recomendado para una contraseña temporal compartida). Si lo desactivas, la contraseña queda definitiva.",
+    "requireChangeHint": "Recomendado cuando repartes una contraseña temporal común.",
+    "apply_one": "Aplicar a {{count}} estudiante",
+    "apply_other": "Aplicar a {{count}} estudiantes",
+    "successUpdated_one": "Contraseña actualizada para {{count}} estudiante.",
+    "successUpdated_other": "Contraseña actualizada para {{count}} estudiantes.",
+    "partialFailure": "{{updated}} actualizada(s), {{failed}} con error. Primero: {{error}}",
+    "applyError": "No se pudo cambiar la contraseña."
   }
 }

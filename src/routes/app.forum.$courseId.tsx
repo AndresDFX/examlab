@@ -312,7 +312,7 @@ function ForumsList() {
     // Si el docente fijó un plazo, debe ser futuro: reabrir con una fecha
     // ya pasada re-cerraría el foro de inmediato (auto). Vacío = sin cierre.
     if (closesAt && new Date(closesAt).getTime() <= Date.now()) {
-      toast.error("El nuevo cierre debe ser una fecha futura.");
+      toast.error(i18n.t("forum.reopenFutureDate"));
       return;
     }
     try {

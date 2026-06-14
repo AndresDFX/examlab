@@ -71,7 +71,9 @@
     "duplicate": "Duplicate",
     "rename": "Rename",
     "register": "Register",
-    "register_action": "Register"
+    "register_action": "Register",
+    "clearSelection": "Clear selection",
+    "remove": "Remove"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -422,7 +424,11 @@
     "boardNotesUrl": "Notes / minutes link (optional)",
     "boardRecording": "Recording",
     "boardNotes": "Notes",
-    "boardSessionCode": "Code"
+    "boardSessionCode": "Code",
+    "boardContentRemove": "Remove from course",
+    "boardContentRemoveBody": "Removing \"{{name}}\" from the course will hide it from the student board. It goes to the Trash and you can restore it within 30 days.",
+    "boardContentRemoveTitle": "Remove this content from the course?",
+    "boardContentRemoved": "Content removed from the course"
   },
   "users": {
     "title": "Users",
@@ -776,7 +782,8 @@
       "relativeMins": "{{min}} min ago",
       "relativeHours": "{{hour}} h ago",
       "relativeYesterday": "Yesterday"
-    }
+    },
+    "viewAll": "View all"
   },
   "exam": {
     "title": "Exams",
@@ -1616,7 +1623,8 @@
     "confirmReopenLabel": "Reopen",
     "confirmDeleteTitle": "Delete this forum?",
     "confirmDeleteDesc": "\"{{title}}\" and ALL its threads and replies ({{count}} threads) will be deleted. This action cannot be undone.",
-    "confirmDeleteLabel": "Delete"
+    "confirmDeleteLabel": "Delete",
+    "reopenFutureDate": "The new close date must be in the future."
   },
   "forumThreads": {
     "defaultTitle": "Forum",
@@ -2257,7 +2265,10 @@
     "impersonateConfirmTitle": "Log in as {{name}}?",
     "impersonateConfirmDesc": "You will enter the platform with this user's account. You will see everything they see. While impersonating, a yellow banner will appear at the top with a 'Return to my account' button. The action is recorded in the audit log.",
     "impersonateConfirmLabel": "Log in as",
-    "impersonateError": "Error starting impersonation"
+    "impersonateError": "Error starting impersonation",
+    "bulkEntity": "student",
+    "bulkEntityPlural": "students",
+    "bulkPasswordAction": "Change password"
   },
   "toast": {
     "modules_admin_AdminAcademicPeriodsPanel": {
@@ -2564,7 +2575,8 @@
     },
     "modules_whiteboard_MultiPageWhiteboard": {
       "atLeastOnePage": "The whiteboard must have at least one page.",
-      "pageDeleted": "Page deleted"
+      "pageDeleted": "Page deleted",
+      "nameRequired": "The sheet name is required."
     },
     "modules_whiteboard_SessionWhiteboardDialog": {
       "sharedEnabled": "Shared whiteboard enabled",
@@ -2684,7 +2696,8 @@
       "enrollmentFailed": "User created, but could not be enrolled in the course. Enroll them manually from the course.",
       "userCreated": "User created successfully",
       "importSuccess": "Imported successfully: {{count}}",
-      "importPartial": "Imported: {{ok}} · Duplicates: {{duplicates}} · Errors: {{errors}}"
+      "importPartial": "Imported: {{ok}} · Duplicates: {{duplicates}} · Errors: {{errors}}",
+      "emailChangeFailed": "Couldn't change the login email"
     },
     "routes_app_certificates": {
       "verifyLinkCopied": "Verification link copied"
@@ -3019,7 +3032,8 @@
       "invalidSlotDateTime": "Invalid date or time",
       "slotAdded": "Slot added",
       "slotNeedsConfig": "Add at least one date and a valid time window (start before end) to generate the slots.",
-      "pollDuplicated": "Poll duplicated as a draft: \"{{title}} (copy)\""
+      "pollDuplicated": "Poll duplicated as a draft: \"{{title}} (copy)\"",
+      "cannotRemoveSlotWithVotes": "You can't delete dates with reservations: {{labels}}. Remove those students' responses first from \"View results\"."
     },
     "routes_app_teacher_projects": {
       "bulkSentToTrash": "{{n}} project(s) moved to trash",
@@ -3053,14 +3067,19 @@
       "recomputedLocally": "Recomputed locally (no AI)",
       "fileRegradedWithAi": "File regraded with AI",
       "batchRegradeCompleted": "Batch regrade completed ({{done}}/{{total}}).",
-      "submissionsDeleted": "{{n}} submissions deleted"
+      "submissionsDeleted": "{{n}} submissions deleted",
+      "notAuthenticated": "Not authenticated",
+      "defenseVideoUploaded": "Video uploaded. Save the defense to record it."
     },
     "routes_app_teacher_question_bank": {
       "writeStatement": "Write the question statement",
       "selectType": "Select a type",
       "questionUpdated": "Question updated",
       "questionAddedToBank": "Question added to the bank",
-      "questionDeleted": "Question deleted"
+      "questionDeleted": "Question deleted",
+      "aiGenerated": "{{n}} question(s) generated and added to the bank",
+      "aiNeedTopics": "Enter the topics to generate",
+      "aiQueued": "Generation queued. It'll appear in the bank once processed."
     },
     "routes_app_teacher_reports": {
       "nameRequired": "The name is required",
@@ -3729,7 +3748,8 @@
     "viewPwDescPrefix": "Password assigned to",
     "viewPwDescSuffix": "Share it securely — the user must change it on their first login.",
     "viewPwEmptyPrefix": "No saved password for this user. They probably already changed it, or were created via SSO / before this feature. You can assign a new one from",
-    "viewPwEmptySuffix": "."
+    "viewPwEmptySuffix": ".",
+    "bulkPasswordAction": "Change password"
   },
   "projectFiles": {
     "tabList": "Questions ({{count}})",
@@ -4731,7 +4751,11 @@
     "assignRemainingDesc": "Enrolled students who have NOT responded yet will be auto-distributed into the free slots (without exceeding each slot's capacity). Those who already responded are left untouched.",
     "assignRemainingConfirm": "Assign",
     "assignRemainingResult": "{{count}} student(s) assigned to free slots.",
-    "errAssignRemaining": "Couldn't assign the remaining students."
+    "errAssignRemaining": "Couldn't assign the remaining students.",
+    "slotEditWithVotesNote": "You can add new dates, increase capacity and reopen the poll (set a future close). Dates that already have reservations can't be deleted.",
+    "slotHasReservations": "This date has reservations and can't be deleted",
+    "slotReservationsCount_one": "{{count}} reservation",
+    "slotReservationsCount_other": "{{count}} reservations"
   },
   "teacherAttendance": {
     "statusPresentShort": "P",
@@ -4828,5 +4852,28 @@
     "noContent": "No content",
     "contentPickerSearchPlaceholder": "Search by name or topic…",
     "noResults": "No results."
+  },
+  "privacy": {
+    "lastUpdated": "Last updated: {{date}}",
+    "title": "Privacy Policy"
+  },
+  "bulkPassword": {
+    "title": "Bulk password change",
+    "desc_one": "The same password will be assigned to the {{count}} selected student. Share the password you set here with them.",
+    "desc_other": "The same password will be assigned to {{count}} selected students. Share the password you set here with them.",
+    "newPasswordLabel": "New password",
+    "placeholderMin": "At least 8 characters",
+    "generate": "Generate",
+    "generateTitle": "Generate a random password",
+    "minLength": "Password must be at least 8 characters.",
+    "requireChangeLabel": "Require change on next sign-in",
+    "requireChangeHelp": "If enabled, each student must set their own password the next time they sign in (recommended for a shared temporary password). If disabled, the password is final.",
+    "requireChangeHint": "Recommended when handing out a common temporary password.",
+    "apply_one": "Apply to {{count}} student",
+    "apply_other": "Apply to {{count}} students",
+    "successUpdated_one": "Password updated for {{count}} student.",
+    "successUpdated_other": "Password updated for {{count}} students.",
+    "partialFailure": "{{updated}} updated, {{failed}} failed. First: {{error}}",
+    "applyError": "Couldn’t change the password."
   }
 }

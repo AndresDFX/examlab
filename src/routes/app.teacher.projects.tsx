@@ -3627,7 +3627,7 @@ function DefensePanel({
     try {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) {
-        toast.error("No autenticado");
+        toast.error(i18n.t("toast.routes_app_teacher_projects.notAuthenticated"));
         return;
       }
       // Path bajo el uid del docente → permitido por la policy de INSERT
@@ -3642,7 +3642,7 @@ function DefensePanel({
         return;
       }
       setVideoUrl(path);
-      toast.success("Video subido. Guarda la sustentación para registrarlo.");
+      toast.success(i18n.t("toast.routes_app_teacher_projects.defenseVideoUploaded"));
     } finally {
       setUploadingVideo(false);
     }

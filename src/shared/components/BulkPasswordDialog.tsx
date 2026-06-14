@@ -9,6 +9,7 @@
  * cursos del docente (Docente) — defensa en profundidad server-side.
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +49,7 @@ function generatePassword(): string {
 }
 
 export function BulkPasswordDialog({ open, onOpenChange, userIds, onDone }: Props) {
+  const { t } = useTranslation();
   const [password, setPassword] = useState("");
   const [requireChange, setRequireChange] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -63,7 +65,7 @@ export function BulkPasswordDialog({ open, onOpenChange, userIds, onDone }: Prop
 
   const handleApply = async () => {
     if (password.length < 8) {
-      toast.error("La contraseña debe tener al menos 8 caracteres.");
+      toast.error(t("bulkPassword.minLength"));
       return;
     }
     if (count === 0) return;
@@ -75,7 +77,7 @@ export function BulkPasswordDialog({ open, onOpenChange, userIds, onDone }: Prop
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const edgeErr = error ?? (data as any)?.error;
       if (edgeErr) {
-        toast.error(friendlyError(edgeErr, "No se pudo cambiar la contraseña."));
+        toast.error(friendlyError(edgeErr, t("bulkPassword.applyError")));
         return;
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,17 +86,15 @@ export function BulkPasswordDialog({ open, onOpenChange, userIds, onDone }: Prop
       const failed = res.failed ?? [];
       if (failed.length > 0) {
         toast.warning(
-          `${updated} actualizada(s), ${failed.length} con error. Primero: ${friendlyError(
-            failed[0].error,
-          )}`,
+          t("bulkPassword.partialFailure", {
+            updated,
+            failed: failed.length,
+            error: friendlyError(failed[0].error),
+          }),
           { duration: 12000 },
         );
       } else {
-        toast.success(
-          updated === 1
-            ? "Contraseña actualizada para 1 estudiante."
-            : `Contraseña actualizada para ${updated} estudiantes.`,
-        );
+        toast.success(t("bulkPassword.successUpdated", { count: updated }));
       }
       onDone?.();
       onOpenChange(false);
@@ -116,28 +116,22 @@ export function BulkPasswordDialog({ open, onOpenChange, userIds, onDone }: Prop
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <KeyRound className="h-5 w-5 text-primary" />
-            Cambiar contraseña en bloque
+            {t("bulkPassword.title")}
           </DialogTitle>
-          <DialogDescription>
-            Se asignará la <strong>misma contraseña</strong> a{" "}
-            <strong>
-              {count} estudiante{count === 1 ? "" : "s"}
-            </strong>{" "}
-            seleccionado{count === 1 ? "" : "s"}. Comunícales la contraseña que definas aquí.
-          </DialogDescription>
+          <DialogDescription>{t("bulkPassword.desc", { count })}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="bulk-pwd" required>
-              Nueva contraseña
+              {t("bulkPassword.newPasswordLabel")}
             </Label>
             <div className="flex gap-2">
               <PasswordInput
                 id="bulk-pwd"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Mínimo 8 caracteres"
+                placeholder={t("bulkPassword.placeholderMin")}
                 wrapperClassName="flex-1"
                 autoComplete="new-password"
               />
@@ -145,29 +139,23 @@ export function BulkPasswordDialog({ open, onOpenChange, userIds, onDone }: Prop
                 type="button"
                 variant="outline"
                 onClick={() => setPassword(generatePassword())}
-                title="Generar una contraseña aleatoria"
+                title={t("bulkPassword.generateTitle")}
               >
                 <Wand2 className="h-4 w-4 mr-1" />
-                Generar
+                {t("bulkPassword.generate")}
               </Button>
             </div>
-            {tooShort && (
-              <p className="text-xs text-destructive">La contraseña debe tener al menos 8 caracteres.</p>
-            )}
+            {tooShort && <p className="text-xs text-destructive">{t("bulkPassword.minLength")}</p>}
           </div>
 
           <div className="flex items-start justify-between gap-3 rounded-md border p-3">
             <div className="space-y-0.5">
               <Label className="flex items-center gap-1.5">
-                Pedir cambio en el próximo inicio
-                <HelpHint>
-                  Si está activo, cada estudiante deberá definir su propia contraseña la próxima
-                  vez que inicie sesión (recomendado para una contraseña temporal compartida). Si
-                  lo desactivas, la contraseña queda definitiva.
-                </HelpHint>
+                {t("bulkPassword.requireChangeLabel")}
+                <HelpHint>{t("bulkPassword.requireChangeHelp")}</HelpHint>
               </Label>
               <p className="text-[11px] text-muted-foreground">
-                Recomendado cuando repartes una contraseña temporal común.
+                {t("bulkPassword.requireChangeHint")}
               </p>
             </div>
             <Switch checked={requireChange} onCheckedChange={setRequireChange} />
@@ -176,7 +164,7 @@ export function BulkPasswordDialog({ open, onOpenChange, userIds, onDone }: Prop
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancelar
+            {t("common.cancel")}
           </Button>
           <Button onClick={() => void handleApply()} disabled={saving || password.length < 8}>
             {saving ? (
@@ -184,7 +172,7 @@ export function BulkPasswordDialog({ open, onOpenChange, userIds, onDone }: Prop
             ) : (
               <KeyRound className="h-4 w-4 mr-1" />
             )}
-            Aplicar a {count} estudiante{count === 1 ? "" : "s"}
+            {t("bulkPassword.apply", { count })}
           </Button>
         </DialogFooter>
       </DialogContent>
