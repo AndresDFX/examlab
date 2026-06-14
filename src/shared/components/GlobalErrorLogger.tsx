@@ -87,7 +87,12 @@ export function GlobalErrorLogger() {
         (msg.includes("Lock") && msg.includes("was released because another request stole")) ||
         (msg.includes("sw.js") && msg.includes("load failed")) ||
         msg === "Script error." ||
-        msg === "Script error"
+        msg === "Script error" ||
+        // ResizeObserver loop limit / undelivered notifications: warning
+        // inofensivo del browser que dispara cuando un layout se
+        // redimensiona durante un commit de React. NO rompe la app pero
+        // spammea audit_logs. Reportado en `/app/teacher/attendance`.
+        msg.startsWith("ResizeObserver loop")
       );
     };
 
