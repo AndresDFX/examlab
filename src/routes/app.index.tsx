@@ -194,6 +194,17 @@ function AdminDashboard() {
       created_at: string;
     }>
   >([]);
+  // ── Diagnóstico de TODOS los cursos del tenant (espeja el modal
+  // "Pendientes de calificación" del Docente, pero sobre el set de
+  // cursos del tenant, no sólo los del docente). El Admin abre el modal
+  // desde la stat "Por calificar", elige un curso y se abre el
+  // CourseDiagnosticDialog (reusado, ya soporta Admin/SuperAdmin).
+  const [allCoursesModalOpen, setAllCoursesModalOpen] = useState(false);
+  const [diagCourse, setDiagCourse] = useState<{ id: string; name: string } | null>(null);
+  // Lista de cursos del tenant con su conteo de pendientes (count 0
+  // incluido, para poder diagnosticar CUALQUIER curso). Ordenada por
+  // count desc, luego nombre.
+  const [coursesDiagnostic, setCoursesDiagnostic] = useState<PendingGradingCourse[]>([]);
 
   useEffect(() => {
     // Guard contra navegación rápida: si el admin sale del dashboard
@@ -212,10 +223,16 @@ function AdminDashboard() {
       let examIds: string[] = [];
       let workshopIds: string[] = [];
       let projectIds: string[] = [];
+      // Cursos vivos del tenant (id+name) — usados tanto para acotar los
+      // counts de submissions como para listar los cursos en el modal de
+      // diagnóstico. Atribución actividad→curso y conteo por curso reusan
+      // este mismo set.
+      let tenantCourseList: { id: string; name: string }[] = [];
+      let tenantCourseIds: string[] = [];
       if (adminTenantId) {
         const { data: courseRows } = await dbAny
           .from("courses")
-          .select("id")
+          .select("id, name")
           .eq("tenant_id", adminTenantId)
           // Excluir cursos en PAPELERA: sus exámenes/talleres/proyectos NO
           // deben contar como "por calificar" (regla universal soft-delete).
@@ -223,7 +240,12 @@ function AdminDashboard() {
           // entregas de prueba aunque el detalle por curso mostraba 0.
           .is("deleted_at", null);
         if (cancelled) return;
-        const courseIds = ((courseRows ?? []) as Array<{ id: string }>).map((r) => r.id);
+        tenantCourseList = ((courseRows ?? []) as Array<{ id: string; name: string }>).map((r) => ({
+          id: r.id,
+          name: r.name,
+        }));
+        const courseIds = tenantCourseList.map((r) => r.id);
+        tenantCourseIds = courseIds;
         if (courseIds.length > 0) {
           const [examsRes, workshopsRes, projectsRes] = await Promise.all([
             dbAny.from("exams").select("id").in("course_id", courseIds).is("deleted_at", null),
@@ -360,6 +382,129 @@ function AdminDashboard() {
       });
       setRecentCourses((recentCoursesRes.data ?? []) as typeof recentCourses);
       setRecentEvents((recentEventsRes.data ?? []) as typeof recentEvents);
+
+      // ── Pendientes de calificación POR CURSO del tenant ──
+      // Espeja la agregación del TeacherDashboard, pero sobre el SET DE
+      // CURSOS DEL TENANT (no course_teachers). Mismas reglas de filtrado
+      // que la stat "Por calificar" arriba + atribución actividad→curso +
+      // filtro por matrícula vigente (igual que el diagnóstico). El modal
+      // lista TODOS los cursos del tenant (count 0 incluido) para poder
+      // diagnosticar cualquiera, no sólo los que tienen pendientes.
+      if (tenantCourseIds.length === 0) {
+        if (!cancelled) setCoursesDiagnostic([]);
+      } else {
+        // Actividad → curso (única). Exámenes: course_id directo.
+        // Talleres/proyectos M:N: primer curso del tenant que los enlaza.
+        const activityToCourse = new Map<string, string>();
+        const [exRows, wcRows, pcRows] = await Promise.all([
+          dbAny
+            .from("exams")
+            .select("id, course_id")
+            .in("course_id", tenantCourseIds)
+            .is("deleted_at", null)
+            .is("parent_exam_id", null),
+          dbAny
+            .from("workshop_courses")
+            .select("workshop_id, course_id")
+            .in("course_id", tenantCourseIds),
+          dbAny
+            .from("project_courses")
+            .select("project_id, course_id")
+            .in("course_id", tenantCourseIds),
+        ]);
+        if (cancelled) return;
+        for (const e of (exRows.data ?? []) as Array<{ id: string; course_id: string }>)
+          activityToCourse.set(e.id, e.course_id);
+        for (const r of (wcRows.data ?? []) as Array<{ workshop_id: string; course_id: string }>)
+          if (!activityToCourse.has(r.workshop_id)) activityToCourse.set(r.workshop_id, r.course_id);
+        for (const r of (pcRows.data ?? []) as Array<{ project_id: string; course_id: string }>)
+          if (!activityToCourse.has(r.project_id)) activityToCourse.set(r.project_id, r.course_id);
+
+        const diagExamIds = ((exRows.data ?? []) as Array<{ id: string }>).map((e) => e.id);
+        const diagWorkshopIds = [
+          ...new Set(((wcRows.data ?? []) as Array<{ workshop_id: string }>).map((r) => r.workshop_id)),
+        ];
+        const diagProjectIds = [
+          ...new Set(((pcRows.data ?? []) as Array<{ project_id: string }>).map((r) => r.project_id)),
+        ];
+
+        const [exSub, wsSub, prjSub, enrRows] = await Promise.all([
+          diagExamIds.length
+            ? dbAny
+                .from("submissions")
+                .select("exam_id, user_id")
+                .in("status", ["completado", "sospechoso"])
+                .is("ai_grade", null)
+                .is("final_override_grade", null)
+                .in("exam_id", diagExamIds)
+            : Promise.resolve({ data: [] }),
+          diagWorkshopIds.length
+            ? dbAny
+                .from("workshop_submissions")
+                .select("workshop_id, user_id")
+                .eq("status", "entregado")
+                .is("final_grade", null)
+                .is("ai_grade", null)
+                .in("workshop_id", diagWorkshopIds)
+            : Promise.resolve({ data: [] }),
+          diagProjectIds.length
+            ? dbAny
+                .from("project_submissions")
+                .select("project_id, user_id")
+                .eq("status", "entregado")
+                .is("final_grade", null)
+                .is("submission_grade", null)
+                .is("ai_grade", null)
+                .in("project_id", diagProjectIds)
+            : Promise.resolve({ data: [] }),
+          dbAny
+            .from("course_enrollments")
+            .select("course_id, user_id")
+            .in("course_id", tenantCourseIds),
+        ]);
+        if (cancelled) return;
+        // Set de matriculados por curso — no contar entregas de estudiantes
+        // que ya NO están en el curso (entrega huérfana). Coincide con el
+        // diagnóstico, que itera sólo sobre matriculados.
+        const enrolledByCourse = new Map<string, Set<string>>();
+        for (const e of (enrRows.data ?? []) as Array<{ course_id: string; user_id: string }>) {
+          const set = enrolledByCourse.get(e.course_id) ?? new Set<string>();
+          set.add(e.user_id);
+          enrolledByCourse.set(e.course_id, set);
+        }
+        const isEnrolled = (activityId: string, uid: string): boolean => {
+          const cid = activityToCourse.get(activityId);
+          return cid ? (enrolledByCourse.get(cid)?.has(uid) ?? false) : false;
+        };
+        const pendingActivityIds: string[] = [];
+        for (const s of (exSub.data ?? []) as Array<{ exam_id: string; user_id: string }>)
+          if (isEnrolled(s.exam_id, s.user_id)) pendingActivityIds.push(s.exam_id);
+        for (const s of (wsSub.data ?? []) as Array<{ workshop_id: string; user_id: string }>)
+          if (isEnrolled(s.workshop_id, s.user_id)) pendingActivityIds.push(s.workshop_id);
+        for (const s of (prjSub.data ?? []) as Array<{ project_id: string; user_id: string }>)
+          if (isEnrolled(s.project_id, s.user_id)) pendingActivityIds.push(s.project_id);
+
+        const agg = aggregatePendingGradingByCourse(
+          tenantCourseList,
+          activityToCourse,
+          pendingActivityIds,
+        );
+        // Fusionar con la lista completa de cursos del tenant para incluir
+        // también los que NO tienen pendientes (count 0) — el modal es de
+        // DIAGNÓSTICO de cualquier curso, no sólo de los pendientes.
+        // aggregatePendingGradingByCourse omite los count<=0, así que los
+        // agregamos acá. Orden: count desc, luego nombre (es-CO).
+        const countById = new Map(agg.byCourse.map((c) => [c.courseId, c.count]));
+        const merged: PendingGradingCourse[] = tenantCourseList.map((c) => ({
+          courseId: c.id,
+          courseName: c.name,
+          count: countById.get(c.id) ?? 0,
+        }));
+        merged.sort(
+          (a, b) => b.count - a.count || a.courseName.localeCompare(b.courseName, "es-CO"),
+        );
+        if (!cancelled) setCoursesDiagnostic(merged);
+      }
     })();
     return () => {
       cancelled = true;
@@ -405,6 +550,9 @@ function AdminDashboard() {
               ? "text-amber-500 dark:text-amber-400"
               : "text-emerald-500 dark:text-emerald-400"
           }
+          // Click → modal con TODOS los cursos del tenant; cada uno abre su
+          // Diagnóstico (espeja el flujo del Docente).
+          onClick={() => setAllCoursesModalOpen(true)}
         />
         <Stat
           icon={Reply}
@@ -508,6 +656,73 @@ function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Diagnóstico de cursos del tenant — detalle por curso. Espeja el
+          modal "Pendientes de calificación" del Docente, pero lista TODOS
+          los cursos del tenant (no sólo los del docente). Cada curso abre
+          su Diagnóstico (CourseDiagnosticDialog, que ya soporta Admin/SA). */}
+      <Dialog open={allCoursesModalOpen} onOpenChange={setAllCoursesModalOpen}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Stethoscope className="h-5 w-5 text-emerald-600" />
+              {t("dashboard.adminDiagnostic.title", {
+                defaultValue: "Diagnóstico de cursos",
+              })}
+            </DialogTitle>
+          </DialogHeader>
+          {coursesDiagnostic.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">
+              {t("dashboard.adminDiagnostic.empty", {
+                defaultValue: "No hay cursos en esta institución todavía.",
+              })}
+            </p>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                {t("dashboard.adminDiagnostic.openHint", {
+                  defaultValue:
+                    "Elige un curso para ver su diagnóstico completo (pendientes, errores IA, conversaciones, asistencia).",
+                })}
+              </p>
+              <div className="divide-y max-h-[60dvh] overflow-y-auto">
+                {coursesDiagnostic.map((c) => (
+                  <button
+                    key={c.courseId}
+                    type="button"
+                    onClick={() => {
+                      setAllCoursesModalOpen(false);
+                      setDiagCourse({ id: c.courseId, name: c.courseName });
+                    }}
+                    className="w-full flex items-center justify-between gap-3 px-2 py-2.5 text-left hover:bg-muted/50 rounded-md"
+                  >
+                    <span className="text-sm font-medium truncate">{c.courseName}</span>
+                    <span className="flex items-center gap-2 shrink-0">
+                      {c.count > 0 && (
+                        <Badge variant="destructive" className="text-[10px] tabular-nums">
+                          {c.count}
+                        </Badge>
+                      )}
+                      <Stethoscope className="h-4 w-4 text-emerald-600" />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {diagCourse && (
+        <CourseDiagnosticDialog
+          open={!!diagCourse}
+          onOpenChange={(o) => {
+            if (!o) setDiagCourse(null);
+          }}
+          courseId={diagCourse.id}
+          courseName={diagCourse.name}
+        />
+      )}
     </div>
   );
 }
