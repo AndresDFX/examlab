@@ -431,8 +431,29 @@ async function buildGradingSystemPrompt(
     resolveSystemPrompt(useCase, courseId, gradingFallback),
     resolveSystemPrompt("ai_content_detection", courseId, AI_CONTENT_DETECTION_FALLBACK),
   ]);
-  return `${grading}\n\n--- Detección de respuestas generadas por IA ---\n${aiDetection}`;
+  // Regla de FORMATO de salida, mecánica y siempre aplicada (no editable).
+  // El campo `feedback` se muestra como TEXTO PLANO en la UI (no se renderiza
+  // Markdown), así que pedirle al modelo que use Markdown deja la
+  // retroalimentación con `**`, `*`, `#`, backticks visibles. Esta regla va
+  // acá (en buildGradingSystemPrompt) para cubrir TODOS los casos de uso,
+  // tenants y cursos de una sola vez, sin depender de los prompts editables.
+  return (
+    `${grading}\n\n--- Detección de respuestas generadas por IA ---\n${aiDetection}` +
+    `\n\n--- Formato de la retroalimentación (OBLIGATORIO) ---\n${FEEDBACK_PLAINTEXT_RULE}`
+  );
 }
+
+/**
+ * Regla de formato del `feedback`: texto plano legible, SIN sintaxis Markdown.
+ * La UI no renderiza Markdown — mostraría los símbolos crudos.
+ */
+const FEEDBACK_PLAINTEXT_RULE =
+  "Escribe el campo `feedback` en TEXTO PLANO legible, SIN sintaxis Markdown: " +
+  "no uses asteriscos para negrita/cursiva (** o *), ni almohadillas (#) para títulos, " +
+  "ni backticks (`) ni bloques de código, ni viñetas con `*`/`-`. " +
+  "Para títulos de sección escribe la palabra seguida de dos puntos (ej. \"Fortalezas:\"). " +
+  "Para enumerar usa números seguidos de punto (ej. \"1. \") o simplemente párrafos. " +
+  "Para nombres de clases/métodos/archivos escríbelos tal cual, sin comillas invertidas.";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
