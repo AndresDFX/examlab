@@ -108,7 +108,7 @@ function VerifyPage() {
           </Card>
         ) : error ? (
           <Card className="border-destructive/50">
-            <CardContent className="p-8 text-center space-y-2">
+            <CardContent className="p-4 sm:p-8 text-center space-y-2">
               <AlertTriangle className="h-10 w-10 text-destructive mx-auto" />
               <p className="text-sm text-muted-foreground">{t("verifyCertificate.loadError")}</p>
               <p className="text-xs text-destructive">{error}</p>

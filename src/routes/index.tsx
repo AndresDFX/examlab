@@ -130,7 +130,7 @@ function Home() {
         </div>
       </section>
 
-      <section className="max-w-7xl mx-auto px-6 pb-24 grid md:grid-cols-3 gap-4">
+      <section className="max-w-7xl mx-auto px-6 pb-24 grid grid-cols-1 md:grid-cols-3 gap-4">
         {features.map(({ icon: Icon, titleKey, descKey }) => (
           <div
             key={titleKey}

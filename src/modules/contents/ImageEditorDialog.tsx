@@ -353,7 +353,7 @@ export function ImageEditorDialog({ file, contentId, onClose, onSaved }: Props) 
         </div>
 
         {/* Lienzo */}
-        <div className="flex-1 min-h-[40vh] overflow-auto rounded-md border bg-checkerboard flex items-center justify-center p-2">
+        <div className="flex-1 min-h-[40dvh] overflow-auto rounded-md border bg-checkerboard flex items-center justify-center p-2">
           {loading ? (
             <Spinner size="md" />
           ) : error ? (

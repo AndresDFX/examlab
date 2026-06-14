@@ -129,7 +129,7 @@ function KahootPlayer() {
       {/* ── ESPERANDO AL DOCENTE (host ausente) ── */}
       {hostAway && (
         <Card className="w-full max-w-md">
-          <CardContent className="p-8 text-center space-y-3">
+          <CardContent className="p-4 sm:p-8 text-center space-y-3">
             <Hourglass className="h-10 w-10 mx-auto text-amber-500 animate-pulse" />
             <h1 className="text-xl font-bold">{t("kahoot.hostAwayTitle")}</h1>
             <p className="text-muted-foreground text-sm">{t("kahoot.hostAwayBody")}</p>
@@ -141,7 +141,7 @@ function KahootPlayer() {
       {/* ── LOBBY ── */}
       {!hostAway && game.status === "lobby" && (
         <Card className="w-full max-w-md">
-          <CardContent className="p-8 text-center space-y-3">
+          <CardContent className="p-4 sm:p-8 text-center space-y-3">
             <Hourglass className="h-10 w-10 mx-auto text-primary animate-pulse" />
             <h1 className="text-xl font-bold">{t("kahoot.youAreIn")}</h1>
             <p className="text-muted-foreground text-sm">{t("kahoot.waitForHost")}</p>
@@ -165,7 +165,7 @@ function KahootPlayer() {
             // server confirma me.answered) deshabilitamos la grilla y mostramos
             // espera, sin aguardar el round-trip del auto-envío.
             <Card>
-              <CardContent className="p-8 text-center space-y-2">
+              <CardContent className="p-4 sm:p-8 text-center space-y-2">
                 {me?.answered ? (
                   <CheckCircle2 className="h-10 w-10 mx-auto text-emerald-500" />
                 ) : (
@@ -237,7 +237,7 @@ function KahootPlayer() {
             </>
           ) : (
             <Card>
-              <CardContent className="p-8 text-center text-sm text-muted-foreground">
+              <CardContent className="p-4 sm:p-8 text-center text-sm text-muted-foreground">
                 {t("kahoot.spectatorHint")}
               </CardContent>
             </Card>
@@ -248,7 +248,7 @@ function KahootPlayer() {
       {/* ── REVEAL (resultado de mi respuesta) ── */}
       {!hostAway && game.status === "reveal" && me && (
         <Card className="w-full max-w-md">
-          <CardContent className="p-8 text-center space-y-3">
+          <CardContent className="p-4 sm:p-8 text-center space-y-3">
             {me.my_is_correct === true ? (
               <>
                 <CheckCircle2 className="h-14 w-14 mx-auto text-emerald-500" />
@@ -283,7 +283,7 @@ function KahootPlayer() {
       {/* ── LEADERBOARD ── */}
       {!hostAway && game.status === "leaderboard" && me && (
         <Card className="w-full max-w-md">
-          <CardContent className="p-8 text-center space-y-3">
+          <CardContent className="p-4 sm:p-8 text-center space-y-3">
             <Trophy className="h-12 w-12 mx-auto text-amber-500" />
             <p className="text-sm text-muted-foreground">{t("kahoot.yourPosition")}</p>
             <p className="text-5xl font-black tabular-nums">#{me.rank}</p>
@@ -295,7 +295,7 @@ function KahootPlayer() {
       {/* ── PODIO / FIN ── */}
       {(game.status === "podium" || game.status === "ended") && (
         <Card className="w-full max-w-md">
-          <CardContent className="p-8 text-center space-y-3">
+          <CardContent className="p-4 sm:p-8 text-center space-y-3">
             {me && me.rank <= 3 ? (
               <Crown className="h-14 w-14 mx-auto text-amber-500" />
             ) : (

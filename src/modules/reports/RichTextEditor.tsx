@@ -119,7 +119,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, Props>(function R
       type="button"
       variant="ghost"
       size="sm"
-      className="h-7 w-7 p-0"
+      className="h-8 w-8 p-0"
       title={label}
       aria-label={label}
       // onMouseDown + preventDefault para NO perder la selección del editor

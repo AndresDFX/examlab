@@ -1699,7 +1699,7 @@ function MessagesPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="absolute right-1 top-2 h-7 w-7 p-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100"
+                                className="absolute right-1 top-2 h-8 w-8 p-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100"
                                 onClick={(e) => e.stopPropagation()}
                                 aria-label={t("hc_routesAppMessages.conversationActions")}
                               >

@@ -205,7 +205,7 @@ export function MediaViewerDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 min-h-[50vh] overflow-auto rounded-md border bg-muted/30 flex items-center justify-center">
+        <div className="flex-1 min-h-[50dvh] overflow-auto rounded-md border bg-muted/30 flex items-center justify-center">
           {loading ? (
             <Spinner size="md" />
           ) : error ? (
@@ -213,7 +213,7 @@ export function MediaViewerDialog({
           ) : !url ? (
             <p className="text-xs text-muted-foreground p-4">{t("mediaViewer.noPreview")}</p>
           ) : isPdf ? (
-            <iframe src={url} title={file?.name ?? "PDF"} className="w-full h-[70vh] border-0" />
+            <iframe src={url} title={file?.name ?? "PDF"} className="w-full h-[70dvh] border-0" />
           ) : (
             <img
               src={url}

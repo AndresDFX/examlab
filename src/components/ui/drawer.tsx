@@ -39,6 +39,8 @@ const DrawerContent = React.forwardRef<
       ref={ref}
       className={cn(
         "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background",
+        // Safe-area iOS: el contenido no debe quedar bajo el home indicator.
+        "pb-[max(env(safe-area-inset-bottom),0px)]",
         className,
       )}
       {...props}

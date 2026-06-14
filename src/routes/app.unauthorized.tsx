@@ -11,7 +11,7 @@ export const Route = createFileRoute("/app/unauthorized")({
 function UnauthorizedPage() {
   const { t } = useTranslation();
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
+    <div className="flex min-h-[60dvh] flex-col items-center justify-center gap-4 text-center">
       <ShieldAlert className="text-destructive h-14 w-14" />
       <h1 className="text-2xl font-semibold">{t("common.unauthorized")}</h1>
       <p className="text-muted-foreground max-w-md text-sm">{t("common.unauthorizedBody")}</p>

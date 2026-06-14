@@ -1868,7 +1868,7 @@ function TakeExam() {
             type="button"
             variant="ghost"
             size="icon"
-            className="h-7 w-7 shrink-0"
+            className="h-8 w-8 shrink-0"
             onClick={toggleMaximized}
             title={
               maximized
@@ -2138,7 +2138,7 @@ function TakeExam() {
        * AppLayout main); en desktop el max-w-3xl ya constriñe el
        * contenido al mismo ancho que el sticky.
        */}
-      <div className="sticky bottom-0 z-20 bg-background border-t mt-6 pt-3 pb-3 -mx-4 px-4 sm:-mx-6 sm:px-6 flex items-center justify-between gap-2">
+      <div className="sticky bottom-0 z-20 bg-background border-t mt-6 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] -mx-4 px-4 sm:-mx-6 sm:px-6 flex items-center justify-between gap-2">
         <Button
           variant="outline"
           // En navegación secuencial el alumno NO puede volver atrás

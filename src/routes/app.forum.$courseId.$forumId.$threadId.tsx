@@ -421,7 +421,7 @@ function ThreadDetail() {
     return (
       <div className="container mx-auto p-6">
         <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
+          <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
             <Spinner size="md" /> {t("forumThread.loading")}
           </CardContent>
         </Card>
@@ -445,7 +445,7 @@ function ThreadDetail() {
     return (
       <div className="container mx-auto p-6">
         <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
+          <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
             {t("forumThread.notFound")}
           </CardContent>
         </Card>

@@ -41,7 +41,7 @@ export function PageLoader({ text = "Cargando…", className }: Readonly<LoaderP
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-3 min-h-[40vh] text-muted-foreground",
+        "flex flex-col items-center justify-center gap-3 min-h-[40dvh] text-muted-foreground",
         className,
       )}
     >

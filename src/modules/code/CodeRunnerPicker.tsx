@@ -91,7 +91,7 @@ export function CodeRunnerPicker({
           else onChange(v as CodeRunnerProvider);
         }}
       >
-        <SelectTrigger className="h-7 w-52 text-xs">
+        <SelectTrigger className="h-8 w-40 sm:w-52 text-xs">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
