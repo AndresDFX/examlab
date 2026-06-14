@@ -181,6 +181,22 @@ function cellXml(ref: string, value: any): string {
  * no aparezcan en el mapa quedan en blanco en esa fila. Cuando se pasa,
  * el encabezado de columnas baja a la fila 2 y los datos arrancan en la 3;
  * sin él, el comportamiento es idéntico al de antes (header en fila 1).
+ *
+ * AUTO-MERGE de la fila de grupo: cuando hay `groupHeader`, las celdas
+ * CONTIGUAS que comparten la MISMA etiqueta no vacía se combinan en una sola
+ * (genera `<mergeCells>`), igual que el "Combinar y centrar" de Excel. Así un
+ * corte que abarca varias columnas (sus items + asistencia) muestra UNA sola
+ * etiqueta centrada. Reglas:
+ *   - Una corrida es un tramo MAXIMO de ≥2 columnas adyacentes con la misma
+ *     etiqueta no vacía → se emite un `<mergeCell ref="B1:E1"/>`.
+ *   - Etiquetas vacías o corridas de longitud 1 NO se combinan.
+ *   - Excel exige que sólo la celda SUPERIOR-IZQUIERDA del rango lleve el valor;
+ *     el resto del tramo se escribe como celda vacía (sino Excel pide "reparar").
+ *   - El caller NO calcula rangos A1: el merge se infiere de la geometría de
+ *     columnas que ya vive acá (donde está `colLetter`). El caller sólo debe
+ *     garantizar que las columnas del mismo grupo queden CONTIGUAS.
+ *   - Sin corridas combinables → no se emite el bloque `<mergeCells>` (la salida
+ *     queda byte-idéntica al comportamiento de #9, groupHeader sin merge).
  */
 export interface XlsxOptions {
   groupHeader?: Record<string, string>;
@@ -205,12 +221,42 @@ export function toXLSX(
   // Cuando hay fila de grupo, el encabezado de columnas baja una fila.
   const headerRowNum = groupHeader ? 2 : 1;
 
+  // Rangos de celdas a combinar en la fila de grupo (ej. "B1:E1"). Se llena
+  // sólo cuando hay groupHeader y existen corridas contiguas combinables.
+  const mergeRefs: string[] = [];
+  // Índices de columna cuya celda de grupo debe quedar VACIA por estar
+  // CUBIERTA por un merge (todo el tramo menos su primera columna). Excel
+  // exige que sólo la celda superior-izquierda del rango lleve el valor.
+  const coveredGroupCols = new Set<number>();
+
   const sheetRows: string[] = [];
   // Fila 1 (sólo si hay groupHeader): etiquetas de grupo. Columnas sin
   // entrada en el mapa → celda vacía (mismo path que null/undefined/"").
   if (groupHeader) {
+    // Detectar corridas de columnas adyacentes con la MISMA etiqueta no vacía.
+    // Recorre izquierda→derecha; cada tramo de longitud ≥2 produce un merge y
+    // marca como "cubiertas" todas sus columnas menos la primera.
+    let i = 0;
+    while (i < cols.length) {
+      const label = groupHeader[cols[i]] ?? "";
+      if (!label) {
+        i++;
+        continue;
+      }
+      let j = i + 1;
+      while (j < cols.length && (groupHeader[cols[j]] ?? "") === label) j++;
+      // [i, j) es un tramo maximal con la misma etiqueta no vacía.
+      if (j - i >= 2) {
+        mergeRefs.push(`${colLetter(i)}1:${colLetter(j - 1)}1`);
+        for (let k = i + 1; k < j; k++) coveredGroupCols.add(k);
+      }
+      i = j;
+    }
+
     const groupCells = cols
-      .map((c, ci) => cellXml(`${colLetter(ci)}1`, groupHeader[c] ?? ""))
+      .map((c, ci) =>
+        cellXml(`${colLetter(ci)}1`, coveredGroupCols.has(ci) ? "" : (groupHeader[c] ?? "")),
+      )
       .join("");
     sheetRows.push(`<row r="1">${groupCells}</row>`);
   }
@@ -229,12 +275,24 @@ export function toXLSX(
     sheetRows.push(`<row r="${rowNum}">${cells}</row>`);
   });
 
+  // `<mergeCells>` es hermano de `<sheetData>` y, por el orden del esquema
+  // OOXML (CT_Worksheet), DEBE ir DESPUES de `</sheetData>`. `count` tiene que
+  // coincidir con el nº de hijos `<mergeCell>` o Excel pide "reparar". Cuando
+  // no hay rangos, no emitimos nada → salida byte-idéntica a la de #9.
+  const mergeCellsXml = mergeRefs.length
+    ? `<mergeCells count="${mergeRefs.length}">` +
+      mergeRefs.map((r) => `<mergeCell ref="${r}"/>`).join("") +
+      "</mergeCells>"
+    : "";
+
   const sheet =
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
     "<sheetData>" +
     sheetRows.join("") +
-    "</sheetData></worksheet>";
+    "</sheetData>" +
+    mergeCellsXml +
+    "</worksheet>";
 
   const contentTypes =
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +

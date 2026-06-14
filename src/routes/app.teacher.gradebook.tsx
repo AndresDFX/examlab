@@ -631,13 +631,18 @@ function Gradebook() {
     // el CSV refleja exactamente lo que ve el docente.
     const consolidatedByUser = new Map<
       string,
-      { cutGrades: Array<{ cutId: string; grade: number | null }>; finalGrade: number | null }
+      {
+        cutGrades: Array<{ cutId: string; grade: number | null }>;
+        finalGrade: number | null;
+        attByCut: Array<{ cutId: string; score: number | null }>;
+      }
     >();
     if (consolidated) {
       for (const r of consolidated) {
         consolidatedByUser.set(r.student.id, {
           cutGrades: r.cutGrades,
           finalGrade: r.finalGrade,
+          attByCut: r.attByCut,
         });
       }
     }
@@ -675,7 +680,56 @@ function Gradebook() {
       return `${prefix}${col.title}${pct}`;
     };
 
+    // Orden de columnas de item AGRUPADO POR CORTE para que el merge de la fila
+    // de grupo (Excel) tenga celdas contiguas. Vamos corte por corte (en el
+    // orden de `cuts`, que ya viene por `position`), emitiendo los items del
+    // corte y luego — si aplica — una columna de "Asistencia" del corte; al
+    // final los items sin corte ("Sin corte"). NO reordenamos el `columns`
+    // state (la grilla en pantalla depende de su orden por tipo): este orden
+    // es exclusivo del export.
+    const attendanceLabel = t("hc_routesAppTeacherGradebook.csvAttendance", {
+      defaultValue: "Asistencia",
+    });
+    // ¿Algún estudiante tiene asistencia computable en este corte? (mismo
+    // criterio que el consolidado: hay sesiones en el corte → score != null).
+    const cutHasAttendance = (cutId: string) =>
+      cuts.find((c) => c.id === cutId)?.attendance_weight != null &&
+      (consolidated?.some((r) => r.attByCut.find((a) => a.cutId === cutId)?.score != null) ??
+        false);
+
+    // Cada entrada describe una columna del export: cómo se llama (key del
+    // objeto = encabezado), a qué corte pertenece (para el group header del
+    // Excel) y cómo sacar el valor por estudiante.
+    type ExportCol =
+      | { key: string; group: string | null; kind: "item"; col: GradeColumn }
+      | { key: string; group: string | null; kind: "attendance"; cutId: string };
+
+    const exportCols: ExportCol[] = [];
+    cuts.forEach((cut) => {
+      const groupLabel = `${cut.name} (${cut.weight}%)`;
+      const items = columnsByCut.get(cut.id) ?? [];
+      items.forEach((col) => {
+        exportCols.push({ key: itemLabel(col), group: groupLabel, kind: "item", col });
+      });
+      if (cutHasAttendance(cut.id)) {
+        // Key única por corte (asistencia incluye el % del bucket del corte +
+        // el nombre del corte) para que dos cortes no colapsen su "Asistencia"
+        // en la misma key del objeto.
+        const attKey = `${attendanceLabel} (${cut.attendance_weight}%) · ${cut.name}`;
+        exportCols.push({ key: attKey, group: groupLabel, kind: "attendance", cutId: cut.id });
+      }
+    });
+    // Items sin corte → grupo "Sin corte" (sin %). Quedan al final.
+    const uncut = columnsByCut.get(null) ?? [];
+    if (uncut.length) {
+      const uncutGroup = t("hc_routesAppTeacherGradebook.csvNoCut", { defaultValue: "Sin corte" });
+      uncut.forEach((col) => {
+        exportCols.push({ key: itemLabel(col), group: uncutGroup, kind: "item", col });
+      });
+    }
+
     const csvRows = exportStudents.map((s) => {
+      const stuConsolidated = consolidatedByUser.get(s.id);
       const row: Record<string, string> = {
         [t("hc_routesAppTeacherGradebook.csvName")]: s.full_name,
       };
@@ -683,24 +737,24 @@ function Gradebook() {
       if (anyCohort) row[cohortHeader] = s.cohorte?.trim() ?? "";
       row[t("hc_routesAppTeacherGradebook.csvInstitutionalEmail")] = s.institutional_email;
       row[t("hc_routesAppTeacherGradebook.csvPersonalEmail")] = s.personal_email ?? "";
-      // Detalle item por item (exámenes y talleres con su nota cruda). El
-      // encabezado incluye el % del item (peso sobre la nota final) para que
-      // la columna sea tan clara como el grid — igual que los cortes muestran
+      // Detalle item por item (exámenes/talleres/proyectos con su nota cruda) +
+      // la asistencia del corte, agrupados por corte. El encabezado de cada item
+      // incluye su % (peso sobre la nota final) — igual que los cortes muestran
       // su % (ej. "Parcial 1 (15%)").
-      columns.forEach((col) => {
-        const g = getGrade(s.id, col);
-        const label = itemLabel(col);
-        if (g.grade != null) {
-          row[label] = `${g.grade}${
-            g.isMakeup ? t("hc_routesAppTeacherGradebook.csvMakeupSuffix") : ""
-          }`;
+      exportCols.forEach((ec) => {
+        if (ec.kind === "item") {
+          const g = getGrade(s.id, ec.col);
+          row[ec.key] =
+            g.grade != null
+              ? `${g.grade}${g.isMakeup ? t("hc_routesAppTeacherGradebook.csvMakeupSuffix") : ""}`
+              : "";
         } else {
-          row[label] = "";
+          const score = stuConsolidated?.attByCut.find((a) => a.cutId === ec.cutId)?.score ?? null;
+          row[ec.key] = fmt(score);
         }
       });
       // Calificación por corte + final ponderada al final del row, en
       // orden de los cortes para que sea fácil de leer en Excel.
-      const stuConsolidated = consolidatedByUser.get(s.id);
       cuts.forEach((cut) => {
         const cg = stuConsolidated?.cutGrades.find((c) => c.cutId === cut.id);
         row[`${cut.name} (${cut.weight}%)`] = fmt(cg?.grade ?? null);
@@ -720,13 +774,14 @@ function Gradebook() {
     )}-${Date.now()}`;
     if (format === "xlsx") {
       // Fila de grupo EXCLUSIVA de Excel: mapea la etiqueta de cada columna de
-      // item al nombre del corte al que pertenece (cut.name). Las columnas de
-      // nombre/cohorte/email/cortes/final quedan en blanco (no se mapean). Las
-      // columnas de items sin corte quedan en blanco también (cutId == null).
+      // item/asistencia a su grupo de corte "Corte N (peso%)" (peso = % de la
+      // nota global del curso) — o "Sin corte" para los items sin corte. Las
+      // columnas de nombre/cohorte/email/cortes/final quedan en blanco (no se
+      // mapean). Como las columnas del mismo corte van CONTIGUAS (orden de
+      // exportCols), toXLSX auto-combina sus celdas en la fila de grupo.
       const groupHeader: Record<string, string> = {};
-      columns.forEach((col) => {
-        const cut = col.cutId ? cuts.find((c) => c.id === col.cutId) : null;
-        if (cut) groupHeader[itemLabel(col)] = cut.name;
+      exportCols.forEach((ec) => {
+        if (ec.group) groupHeader[ec.key] = ec.group;
       });
       // Si ningún item tiene corte, no agregamos la fila de grupo (evita una
       // fila inicial en blanco): pasamos undefined en vez de un mapa vacío.
@@ -894,7 +949,15 @@ function Gradebook() {
       ];
       const finalGrade = computeWeightedGrade(finalItems);
 
-      return { student: stu, cutGrades, finalGrade };
+      // Asistencia por corte expuesta para el export Excel (single source of
+      // truth con la nota del corte de arriba). null cuando el corte no tiene
+      // sesiones → el export deja la celda vacía (no es nota perdida).
+      const attByCut = cuts.map((cut) => ({
+        cutId: cut.id,
+        score: attEntries.find((a) => a.cutId === cut.id)?.score ?? null,
+      }));
+
+      return { student: stu, cutGrades, finalGrade, attByCut };
     });
   }, [
     selectedCourse,

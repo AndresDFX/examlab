@@ -151,6 +151,88 @@ describe("toXLSX", () => {
     expect(eocdEntryCount(out)).toBe(5);
   });
 
+  // ─────────────── Auto-merge de la fila de grupo (sólo Excel) ───────────────
+
+  it("auto-merge: celdas de grupo CONTIGUAS con la misma etiqueta → <mergeCells> con el ref correcto", () => {
+    // Tres items del mismo corte (B, C, D) + un final sin grupo (E).
+    const out = toXLSX([{ nombre: "Ana", p1: 4, p2: 3, p3: 5, final: 4 }], undefined, "Datos", {
+      groupHeader: { p1: "Corte 1 (30%)", p2: "Corte 1 (30%)", p3: "Corte 1 (30%)" },
+    });
+    const text = asText(out);
+    expect(text).toContain('<mergeCells count="1">');
+    expect(text).toContain('<mergeCell ref="B1:D1"/>');
+    // El bloque va DESPUES de </sheetData> y ANTES de </worksheet>.
+    expect(text.indexOf("<mergeCells")).toBeGreaterThan(text.indexOf("</sheetData>"));
+    expect(text.indexOf("<mergeCells")).toBeLessThan(text.indexOf("</worksheet>"));
+  });
+
+  it("auto-merge: sólo la PRIMERA celda del tramo lleva la etiqueta; el resto va vacío", () => {
+    const text = asText(
+      toXLSX([{ nombre: "Ana", p1: 4, p2: 3 }], undefined, "Datos", {
+        groupHeader: { p1: "Corte 1 (30%)", p2: "Corte 1 (30%)" },
+      }),
+    );
+    // B1 (primera del tramo) lleva la etiqueta; C1 queda vacía self-closing.
+    expect(text).toContain(
+      '<c r="B1" t="inlineStr"><is><t xml:space="preserve">Corte 1 (30%)</t>',
+    );
+    expect(text).toContain('<c r="C1"/>');
+    // La etiqueta aparece EXACTAMENTE una vez en toda la hoja.
+    expect(text.split("Corte 1 (30%)").length - 1).toBe(1);
+  });
+
+  it("auto-merge: dos cortes contiguos distintos → count=2 con dos <mergeCell>", () => {
+    const text = asText(
+      toXLSX([{ nombre: "Ana", a: 1, b: 2, c: 3, d: 4 }], undefined, "Datos", {
+        // a,b → Corte 1 (B,C); c,d → Corte 2 (D,E).
+        groupHeader: {
+          a: "Corte 1 (30%)",
+          b: "Corte 1 (30%)",
+          c: "Corte 2 (40%)",
+          d: "Corte 2 (40%)",
+        },
+      }),
+    );
+    expect(text).toContain('<mergeCells count="2">');
+    expect(text).toContain('<mergeCell ref="B1:C1"/>');
+    expect(text).toContain('<mergeCell ref="D1:E1"/>');
+  });
+
+  it("auto-merge: tramo de UNA sola columna o etiquetas distintas → SIN <mergeCells>", () => {
+    const text = asText(
+      toXLSX([{ nombre: "Ana", p1: 4, p2: 3 }], undefined, "Datos", {
+        // Cada columna en su propio corte (longitud 1) → nada que combinar.
+        groupHeader: { p1: "Corte 1 (30%)", p2: "Corte 2 (40%)" },
+      }),
+    );
+    expect(text).not.toContain("<mergeCells");
+    // Ambas etiquetas se conservan en sus celdas (no se vacían).
+    expect(text).toContain('<t xml:space="preserve">Corte 1 (30%)</t>');
+    expect(text).toContain('<t xml:space="preserve">Corte 2 (40%)</t>');
+  });
+
+  it("auto-merge: etiquetas vacías intercaladas NO unen tramos no adyacentes", () => {
+    // a → Corte 1, b sin grupo, c → Corte 1: NO son adyacentes → sin merge.
+    const text = asText(
+      toXLSX([{ a: 1, b: 2, c: 3 }], undefined, "Datos", {
+        groupHeader: { a: "Corte 1 (30%)", c: "Corte 1 (30%)" },
+      }),
+    );
+    expect(text).not.toContain("<mergeCells");
+  });
+
+  it("auto-merge: el ZIP sigue teniendo 5 partes (el bloque vive en sheet1.xml)", () => {
+    const out = toXLSX([{ nombre: "Ana", p1: 4, p2: 3 }], undefined, "Datos", {
+      groupHeader: { p1: "Corte 1 (30%)", p2: "Corte 1 (30%)" },
+    });
+    expect(eocdEntryCount(out)).toBe(5);
+  });
+
+  it("auto-merge: sin groupHeader NO se emite <mergeCells> (sin regresión)", () => {
+    const text = asText(toXLSX([{ nombre: "Ana", p1: 4, p2: 3 }]));
+    expect(text).not.toContain("<mergeCells");
+  });
+
   it("SIN groupHeader → header en r1 (sin regresión del comportamiento por defecto)", () => {
     // Mismo dataset, sin opciones: el header se mantiene en la fila 1.
     const text = asText(toXLSX([{ nombre: "Ana", parcial: 4 }]));
