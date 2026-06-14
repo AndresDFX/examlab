@@ -31,7 +31,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 - **Filtros de grids**: el filtro de ESTADO abre por defecto en lo vigente/activo (no "Todos"); el usuario puede cambiar a Todos/cerrados. (`c3271a5`)
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
 - **Escala de calificación**: se hereda de la asignatura/curso; las actividades y la vista de calificaciones deben usar la **escala del curso**, no 100 fijo. *(en progreso — ver Pendientes)*
-- **Contenido**: el label de un contenido en el tablero debe ser el **nombre (`display_name`)**, no el tema (`topic`). El contenido puede asociarse a >1 curso (`content_course_assignments`) y a la sección "General" (sin sesión). *(en progreso — ver Pendientes)*
+- **Contenido**: el label de un contenido en el tablero ES el **nombre (`display_name`)**, no el tema (`topic`) — `display_name?.trim() || topic`. El contenido puede asociarse a >1 curso (`content_course_assignments`, vía `ManageContentCoursesDialog`) y a la sección "General" del curso (sin sesión, destino del upload del tablero). El grid de Contenidos muestra filas de **altura estándar** (una línea: nombre + estado + conteos; sin subtítulo del tema). (`f4c396d` + #22)
 - **Multi-tenant / RLS**: nunca `USING(true)` ni `has_role()` sin scope de tenant en tablas con datos de tenant (ver `CLAUDE.md`). Migraciones envuelven `ALTER` en guard `to_regclass`.
 - **Demo**: tenant `ExamLab Demo` (`729b3114-…`) tiene un curso "Curso de pruebas" con TODOS sus usuarios como docentes (mig `20260965`) — porque los docentes no pueden auto-asignarse.
 
@@ -43,6 +43,16 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 Sesión de mejoras amplia (cada ítem = un `/goal` del usuario). Commits sobre `main`.
 
+- **Contenido / tablero**: labels por `display_name` (no `topic`) en tablero docente y
+  estudiante; multi-curso vía `ManageContentCoursesDialog` (un contenido en >1 curso,
+  visible en cada tablero); destino "General" del upload (ya existía) verificado
+  end-to-end. Sin migración de datos (era de visualización). — `f4c396d`
+- **Grid de Contenidos a altura estándar**: fila de UNA línea (nombre + estado +
+  conteos); se quitó el subtítulo del tema (queda en el tooltip) y el alto fijo h-16. — (#22)
+- **CHANGELOG.md** + protocolo: validar contra decisiones previas antes de cada tarea. — `492555a`
+- **Diagnóstico (cohortes)**: verificado que la tab Cohortes YA lista el detalle de
+  actividades sin cohorte asignada (actividad + cohortes faltantes + alumnos afectados);
+  sólo falta Publish. (#24, sin cambio de código)
 - **Filtro de estado por defecto = vigente** en grids con filtro de estado
   (estudiante exámenes/talleres/proyectos → "available"; Admin Cursos → nuevo
   filtro con default "en_curso"; Soporte → "active"; Errores → "nuevo"). Conserva

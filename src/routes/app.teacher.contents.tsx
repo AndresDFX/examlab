@@ -1255,16 +1255,23 @@ function TeacherContents() {
                           overflow-hidden + centrado vertical para que TODAS
                           las filas midan igual sin importar cuánta info tenga
                           cada fila. */}
-                      <div className="flex flex-col justify-center gap-0.5 h-16 overflow-hidden min-w-0">
-                      {/* display_name como identificador humano principal.
-                          topic queda como subtítulo en gris para conservar
-                          el contexto del prompt cuando dos contenidos tienen
-                          el mismo tema. Fallback al topic si la migración
-                          aún no se aplicó (filas pre-display_name). */}
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <div className="font-medium truncate" title={it.display_name ?? it.topic}>
+                      {/* Fila COMPACTA de altura estándar: nombre + estado +
+                          conteos en UNA sola línea. Se quitó el subtítulo del
+                          tema (redundante con el nombre; el tema va en el tooltip
+                          del nombre) y el alto fijo h-16 que duplicaba la altura
+                          de cada fila. El nombre trunca; estado y badges no
+                          encogen (shrink-0). */}
+                      <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                        <span
+                          className="font-medium truncate min-w-0"
+                          title={
+                            it.display_name && it.display_name !== it.topic
+                              ? `${it.display_name} — ${it.topic}`
+                              : (it.display_name ?? it.topic)
+                          }
+                        >
                           {it.display_name ?? it.topic}
-                        </div>
+                        </span>
                         {/* Selector estándar de estado de publicación —
                             consistente con workshops/exams/projects/polls.
                             Solo aparece cuando la generación terminó
@@ -1292,15 +1299,6 @@ function TeacherContents() {
                             </SelectContent>
                           </Select>
                         )}
-                      </div>
-                      {it.display_name && it.display_name !== it.topic && (
-                        <div
-                          className="text-[11px] text-muted-foreground truncate"
-                          title={it.topic}
-                        >
-                          {it.topic}
-                        </div>
-                      )}
                       {/* Conteos derivados: sesiones programadas +
                           evaluaciones creadas con este contenido como
                           source. Solo se muestran badges con count > 0
@@ -1312,7 +1310,7 @@ function TeacherContents() {
                         const total = d.sessions + d.exams + d.workshops + d.projects;
                         if (total === 0) return null;
                         return (
-                          <div className="flex gap-1 overflow-hidden">
+                          <div className="flex gap-1 overflow-hidden shrink-0">
                             {d.sessions > 0 && (
                               <Badge
                                 variant="outline"
