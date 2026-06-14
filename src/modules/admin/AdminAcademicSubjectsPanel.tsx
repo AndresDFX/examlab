@@ -62,6 +62,8 @@ interface EvalWeights {
   workshop_weight?: number;
   project_weight?: number;
   attendance_weight?: number;
+  grade_scale_min?: number;
+  grade_scale_max?: number;
 }
 
 interface Subject {
@@ -107,6 +109,11 @@ interface Draft {
   workshop_weight: number;
   project_weight: number;
   attendance_weight: number;
+  // Escala de calificación de la asignatura. Los cursos creados desde ella
+  // la heredan (sobrescribible). null = no definida → el curso usa el default
+  // de la institución.
+  grade_scale_min: number | null;
+  grade_scale_max: number | null;
 }
 
 const EMPTY_DRAFT: Draft = {
@@ -126,6 +133,8 @@ const EMPTY_DRAFT: Draft = {
   workshop_weight: 0,
   project_weight: 0,
   attendance_weight: 0,
+  grade_scale_min: null,
+  grade_scale_max: null,
 };
 
 export function AdminAcademicSubjectsPanel() {
@@ -231,6 +240,8 @@ export function AdminAcademicSubjectsPanel() {
       workshop_weight: Number(ev.workshop_weight ?? 0),
       project_weight: Number(ev.project_weight ?? 0),
       attendance_weight: Number(ev.attendance_weight ?? 0),
+      grade_scale_min: ev.grade_scale_min != null ? Number(ev.grade_scale_min) : null,
+      grade_scale_max: ev.grade_scale_max != null ? Number(ev.grade_scale_max) : null,
     });
     setOpen(true);
   };
@@ -261,6 +272,8 @@ export function AdminAcademicSubjectsPanel() {
       workshop_weight: Number(ev.workshop_weight ?? 0),
       project_weight: Number(ev.project_weight ?? 0),
       attendance_weight: Number(ev.attendance_weight ?? 0),
+      grade_scale_min: ev.grade_scale_min != null ? Number(ev.grade_scale_min) : null,
+      grade_scale_max: ev.grade_scale_max != null ? Number(ev.grade_scale_max) : null,
     });
     setOpen(true);
   };
@@ -281,6 +294,16 @@ export function AdminAcademicSubjectsPanel() {
       toast.error(i18n.t("academic.subjects.toastEvalWeightsMustSum100", { sum: evalSum }));
       return;
     }
+    // Escala: si se definió, validar min < max.
+    const hasScale = draft.grade_scale_min != null && draft.grade_scale_max != null;
+    if (hasScale && Number(draft.grade_scale_min) >= Number(draft.grade_scale_max)) {
+      toast.error(
+        i18n.t("academic.subjects.toastScaleInvalid", {
+          defaultValue: "La nota mínima de la escala debe ser menor que la máxima.",
+        }),
+      );
+      return;
+    }
     setSaving(true);
     const payload = {
       name,
@@ -294,15 +317,22 @@ export function AdminAcademicSubjectsPanel() {
       contenidos: draft.contenidos.trim() || null,
       bibliografia: draft.bibliografia.trim() || null,
       intensidad_horaria: draft.intensidad_horaria,
-      sistema_evaluacion:
-        evalSum > 0
-          ? {
-              exam_weight: draft.exam_weight,
-              workshop_weight: draft.workshop_weight,
-              project_weight: draft.project_weight,
-              attendance_weight: draft.attendance_weight,
-            }
-          : null,
+      // sistema_evaluacion guarda pesos (si suman 100) y/o la escala. Se
+      // persiste si HAY pesos O escala; null solo si no hay nada.
+      sistema_evaluacion: (() => {
+        const ev: Record<string, number> = {};
+        if (evalSum > 0) {
+          ev.exam_weight = draft.exam_weight;
+          ev.workshop_weight = draft.workshop_weight;
+          ev.project_weight = draft.project_weight;
+          ev.attendance_weight = draft.attendance_weight;
+        }
+        if (hasScale) {
+          ev.grade_scale_min = Number(draft.grade_scale_min);
+          ev.grade_scale_max = Number(draft.grade_scale_max);
+        }
+        return Object.keys(ev).length > 0 ? ev : null;
+      })(),
       updated_by: user.id,
     };
     const { error } = draft.id
@@ -710,6 +740,52 @@ export function AdminAcademicSubjectsPanel() {
                   />
                 </div>
               </div>
+
+              {/* Escala de calificación de la asignatura. Los cursos creados
+                  desde ella la heredan (sobrescribible). Vacío = el curso usa
+                  el default de la institución. */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div>
+                  <Label className="text-xs">
+                    {t("academic.subjects.labelScaleMin", { defaultValue: "Nota mínima (escala)" })}
+                  </Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={draft.grade_scale_min ?? ""}
+                    placeholder={t("academic.subjects.scalePlaceholderMin", { defaultValue: "Default institución" })}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        grade_scale_min: e.target.value === "" ? null : Number(e.target.value),
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">
+                    {t("academic.subjects.labelScaleMax", { defaultValue: "Nota máxima (escala)" })}
+                  </Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={draft.grade_scale_max ?? ""}
+                    placeholder={t("academic.subjects.scalePlaceholderMax", { defaultValue: "Ej. 5" })}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        grade_scale_max: e.target.value === "" ? null : Number(e.target.value),
+                      })
+                    }
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                {t("academic.subjects.scaleHint", {
+                  defaultValue:
+                    "Los cursos creados desde esta asignatura heredan esta escala (puedes cambiarla por curso). Si la dejas vacía, el curso usa el default de la institución.",
+                })}
+              </p>
               <p className="text-xs text-muted-foreground tabular-nums">
                 {t("academic.subjects.evalSumLabel")}{" "}
                 <strong>

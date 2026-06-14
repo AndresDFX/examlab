@@ -445,6 +445,8 @@ export function AdminCourses() {
         workshop_weight?: number;
         project_weight?: number;
         attendance_weight?: number;
+        grade_scale_min?: number;
+        grade_scale_max?: number;
       } | null;
     }>
   >([]);
@@ -545,6 +547,8 @@ export function AdminCourses() {
           workshop_weight?: number;
           project_weight?: number;
           attendance_weight?: number;
+          grade_scale_min?: number;
+          grade_scale_max?: number;
         } | null;
       }>,
     );
@@ -667,9 +671,10 @@ export function AdminCourses() {
       subject_id: subj.id,
       start_date: "",
       end_date: "",
-      // Hereda la escala de la institución (app_settings); sobrescribible.
-      grade_scale_min: defaultScale.min,
-      grade_scale_max: defaultScale.max,
+      // Escala: HEREDA de la asignatura si la definió; si no, el default de
+      // la institución (app_settings). Sobrescribible por el admin.
+      grade_scale_min: Number(ev.grade_scale_min ?? defaultScale.min),
+      grade_scale_max: Number(ev.grade_scale_max ?? defaultScale.max),
       // Pesos: si la asignatura los definió, los heredamos; si no,
       // usamos los defaults del sistema.
       exam_weight: Number(ev.exam_weight ?? 40),
@@ -2044,11 +2049,19 @@ export function AdminCourses() {
                     if (v === "__none__") {
                       // Al limpiar la asignatura NO tocamos program_id:
                       // el admin puede dejar el filtro Programa elegido
-                      // para luego elegir otra del mismo programa.
-                      setEditing({ ...editing, subject_id: null, semestre: null });
+                      // para luego elegir otra del mismo programa. La escala
+                      // vuelve al default de la institución (sin asignatura).
+                      setEditing({
+                        ...editing,
+                        subject_id: null,
+                        semestre: null,
+                        grade_scale_min: defaultScale.min,
+                        grade_scale_max: defaultScale.max,
+                      });
                       return;
                     }
                     const subj = subjects.find((s) => s.id === v);
+                    const ev = subj?.sistema_evaluacion ?? {};
                     setEditing({
                       ...editing,
                       subject_id: v,
@@ -2059,6 +2072,10 @@ export function AdminCourses() {
                       // Semestre derivado: viene de la asignatura, no
                       // se pide como input.
                       semestre: subj?.semestre ?? null,
+                      // Escala: hereda de la asignatura si la definió; si no,
+                      // el default de la institución. Sobrescribible.
+                      grade_scale_min: Number(ev.grade_scale_min ?? defaultScale.min),
+                      grade_scale_max: Number(ev.grade_scale_max ?? defaultScale.max),
                     });
                   }}
                 >
