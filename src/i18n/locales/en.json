@@ -4875,5 +4875,28 @@
     "successUpdated_other": "Password updated for {{count}} students.",
     "partialFailure": "{{updated}} updated, {{failed}} failed. First: {{error}}",
     "applyError": "Couldn’t change the password."
+  },
+  "videos": {
+    "loadError": "We couldn’t load the videos.",
+    "roleGate": "You need the Teacher or Admin role to manage the video library.",
+    "institutionPlaceholder": "Institution",
+    "allInstitutions": "All institutions",
+    "globalPlatform": "— Global platform —",
+    "fieldTitle": "Title",
+    "titlePlaceholder": "e.g. Introduction to the VetCare project",
+    "urlPlaceholder": "https://www.youtube.com/watch?v=… or https://cdn.yourcenter.edu/video.mp4",
+    "urlHint": "Supports YouTube, Vimeo or direct MP4/WebM. The type is detected automatically.",
+    "descLabel": "Description (optional)",
+    "descPlaceholder": "Internal notes to identify the video",
+    "courseLabel": "Course (optional)",
+    "globalOption": "Global (all courses)",
+    "courseHint": "If you associate it with a course, that course’s video pickers (sessions, workshops, exams, projects) will see it in addition to the global ones.",
+    "replaceFile": "Replace file (optional)",
+    "videoFile": "Video file",
+    "keepFile": "Leave empty to keep the current file.",
+    "formatsHint": "Formats: MP4, WebM, MOV. Max size: 500 MB.",
+    "globalCatalogToggle": "Platform-wide global catalog",
+    "globalCatalogHint": "Any institution will be able to see and reference this video. Useful for cross-cutting intros and tutorials. If left unchecked, the video belongs only to the caller’s institution.",
+    "uploading": "Uploading… {{pct}}%"
   }
 }

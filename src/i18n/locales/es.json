@@ -4875,5 +4875,28 @@
     "successUpdated_other": "Contraseña actualizada para {{count}} estudiantes.",
     "partialFailure": "{{updated}} actualizada(s), {{failed}} con error. Primero: {{error}}",
     "applyError": "No se pudo cambiar la contraseña."
+  },
+  "videos": {
+    "loadError": "No pudimos cargar los videos.",
+    "roleGate": "Necesitas rol Docente o Admin para gestionar la biblioteca de videos.",
+    "institutionPlaceholder": "Institución",
+    "allInstitutions": "Todas las instituciones",
+    "globalPlatform": "— Global plataforma —",
+    "fieldTitle": "Título",
+    "titlePlaceholder": "Ej. Introducción al proyecto VetCare",
+    "urlPlaceholder": "https://www.youtube.com/watch?v=… ó https://cdn.tucentro.edu/video.mp4",
+    "urlHint": "Soporta YouTube, Vimeo o MP4/WebM directo. El tipo se detecta automáticamente.",
+    "descLabel": "Descripción (opcional)",
+    "descPlaceholder": "Notas internas para identificar el video",
+    "courseLabel": "Curso (opcional)",
+    "globalOption": "Global (todos los cursos)",
+    "courseHint": "Si lo asocias a un curso, los selectores de video (sesiones, talleres, exámenes, proyectos) de ese curso lo verán además de los globales.",
+    "replaceFile": "Reemplazar archivo (opcional)",
+    "videoFile": "Archivo de video",
+    "keepFile": "Deja vacío para mantener el archivo actual.",
+    "formatsHint": "Formatos: MP4, WebM, MOV. Tamaño máximo: 500 MB.",
+    "globalCatalogToggle": "Catálogo global de la plataforma",
+    "globalCatalogHint": "Cualquier institución podrá ver y referenciar este video. Útil para introducciones y tutoriales transversales. Si lo dejás desmarcado, el video pertenece solo a la institución del caller.",
+    "uploading": "Subiendo… {{pct}}%"
   }
 }

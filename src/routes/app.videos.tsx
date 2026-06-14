@@ -207,7 +207,7 @@ function VideoLibrary() {
     }
     const { data, error } = await q;
     if (error) {
-      setLoadError(friendlyError(error, "No pudimos cargar los videos."));
+      setLoadError(friendlyError(error, t("videos.loadError")));
     } else {
       setRows((data ?? []) as VideoRow[]);
     }
@@ -618,7 +618,7 @@ function VideoLibrary() {
   if (!isStaff) {
     return (
       <div className="p-6 text-sm text-muted-foreground">
-        Necesitas rol Docente o Admin para gestionar la biblioteca de videos.
+        {t("videos.roleGate")}
       </div>
     );
   }
@@ -673,11 +673,11 @@ function VideoLibrary() {
         {isSuperAdminActive && tenants.length > 0 && (
           <Select value={tenantFilter} onValueChange={setTenantFilter}>
             <SelectTrigger className="w-full sm:w-56 h-9 text-xs">
-              <SelectValue placeholder="Institución" />
+              <SelectValue placeholder={t("videos.institutionPlaceholder")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas las instituciones</SelectItem>
-              <SelectItem value="global">— Global plataforma —</SelectItem>
+              <SelectItem value="all">{t("videos.allInstitutions")}</SelectItem>
+              <SelectItem value="global">{t("videos.globalPlatform")}</SelectItem>
               {tenants.map((tn) => (
                 <SelectItem key={tn.id} value={tn.id}>
                   {tn.name}
@@ -871,11 +871,11 @@ function VideoLibrary() {
 
             <TabsContent value="url" className="space-y-3 mt-3">
               <div>
-                <Label>Título</Label>
+                <Label>{t("videos.fieldTitle")}</Label>
                 <Input
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  placeholder="Ej. Introducción al proyecto VetCare"
+                  placeholder={t("videos.titlePlaceholder")}
                   disabled={saving}
                 />
               </div>
@@ -884,19 +884,19 @@ function VideoLibrary() {
                 <Input
                   value={form.url}
                   onChange={(e) => setForm({ ...form, url: e.target.value })}
-                  placeholder="https://www.youtube.com/watch?v=… ó https://cdn.tucentro.edu/video.mp4"
+                  placeholder={t("videos.urlPlaceholder")}
                   disabled={saving}
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Soporta YouTube, Vimeo o MP4/WebM directo. El tipo se detecta automáticamente.
+                  {t("videos.urlHint")}
                 </p>
               </div>
               <div>
-                <Label>Descripción (opcional)</Label>
+                <Label>{t("videos.descLabel")}</Label>
                 <Textarea
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="Notas internas para identificar el video"
+                  placeholder={t("videos.descPlaceholder")}
                   rows={3}
                   disabled={saving}
                 />
@@ -908,10 +908,10 @@ function VideoLibrary() {
                   onValueChange={(v) => setForm({ ...form, courseId: v === "__none" ? "" : v })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Global (todos los cursos)" />
+                    <SelectValue placeholder={t("videos.globalOption")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none">Global (todos los cursos)</SelectItem>
+                    <SelectItem value="__none">{t("videos.globalOption")}</SelectItem>
                     {courses.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}
@@ -920,25 +920,24 @@ function VideoLibrary() {
                   </SelectContent>
                 </Select>
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Si lo asocias a un curso, los selectores de video (sesiones, talleres, exámenes,
-                  proyectos) de ese curso lo verán además de los globales.
+                  {t("videos.courseHint")}
                 </p>
               </div>
             </TabsContent>
 
             <TabsContent value="upload" className="space-y-3 mt-3">
               <div>
-                <Label>Título</Label>
+                <Label>{t("videos.fieldTitle")}</Label>
                 <Input
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  placeholder="Ej. Introducción al proyecto VetCare"
+                  placeholder={t("videos.titlePlaceholder")}
                   disabled={saving}
                 />
               </div>
               <div>
                 <Label>
-                  {editing?.storage_path ? "Reemplazar archivo (opcional)" : "Archivo de video"}
+                  {editing?.storage_path ? t("videos.replaceFile") : t("videos.videoFile")}
                 </Label>
                 <Input
                   type="file"
@@ -953,19 +952,19 @@ function VideoLibrary() {
                 )}
                 {editing?.storage_path && !file && (
                   <p className="text-[11px] text-muted-foreground mt-1">
-                    Deja vacío para mantener el archivo actual.
+                    {t("videos.keepFile")}
                   </p>
                 )}
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Formatos: MP4, WebM, MOV. Tamaño máximo: 500 MB.
+                  {t("videos.formatsHint")}
                 </p>
               </div>
               <div>
-                <Label>Descripción (opcional)</Label>
+                <Label>{t("videos.descLabel")}</Label>
                 <Textarea
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="Notas internas para identificar el video"
+                  placeholder={t("videos.descPlaceholder")}
                   rows={3}
                   disabled={saving}
                 />
@@ -978,10 +977,10 @@ function VideoLibrary() {
                   disabled={saving}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Global (todos los cursos)" />
+                    <SelectValue placeholder={t("videos.globalOption")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none">Global (todos los cursos)</SelectItem>
+                    <SelectItem value="__none">{t("videos.globalOption")}</SelectItem>
                     {courses.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}
@@ -990,14 +989,13 @@ function VideoLibrary() {
                   </SelectContent>
                 </Select>
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Si lo asocias a un curso, los selectores de video (sesiones, talleres, exámenes,
-                  proyectos) de ese curso lo verán además de los globales.
+                  {t("videos.courseHint")}
                 </p>
               </div>
             </TabsContent>
           </Tabs>
 
-          {/* Toggle "Catálogo global de la plataforma" — solo SuperAdmin
+          {/* Toggle "{t("videos.globalCatalogToggle")}" — solo SuperAdmin
               activo. Aplica a AMBOS modos (URL + upload). tenant_id NULL
               en la fila resultante = visible y referenciable por
               cualquier institución (mig 20260722000000). */}
@@ -1014,12 +1012,10 @@ function VideoLibrary() {
                 <div className="flex-1 text-xs">
                   <div className="font-medium flex items-center gap-1.5">
                     <Globe className="h-3.5 w-3.5 text-violet-500" />
-                    Catálogo global de la plataforma
+                    {t("videos.globalCatalogToggle")}
                   </div>
                   <p className="text-muted-foreground mt-0.5">
-                    Cualquier institución podrá ver y referenciar este video. Útil para
-                    introducciones y tutoriales transversales. Si lo dejás desmarcado, el video
-                    pertenece solo a la institución del caller.
+                    {t("videos.globalCatalogHint")}
                   </p>
                 </div>
               </label>
@@ -1034,20 +1030,20 @@ function VideoLibrary() {
           {saving && uploadPct > 0 && (
             <div className="space-y-1 border-t pt-3">
               <Progress value={uploadPct} />
-              <p className="text-[11px] text-muted-foreground">Subiendo… {uploadPct}%</p>
+              <p className="text-[11px] text-muted-foreground">{t("videos.uploading", { pct: uploadPct })}</p>
             </div>
           )}
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>
-              Cancelar
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={() => void (mode === "url" ? saveUrl() : saveUpload())}
               disabled={saving}
             >
               {saving ? <Spinner size="sm" className="mr-1" /> : null}
-              Guardar
+              {t("common.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
