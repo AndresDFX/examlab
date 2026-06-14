@@ -835,41 +835,48 @@ function ExamEditor() {
   if (loadError) {
     return (
       <ErrorState
-        message="No pudimos cargar el examen"
+        message={t("hc_routesAppTeacherExamsExamId.loadErrorTitle")}
         hint={loadError}
         onRetry={() => setRetryNonce((n) => n + 1)}
       />
     );
   }
 
-  if (!exam) return <p className="text-muted-foreground">Cargando…</p>;
+  if (!exam) return <p className="text-muted-foreground">{t("hc_routesAppTeacherExamsExamId.loading")}</p>;
 
   return (
     <div className="space-y-5">
       {aiLoading && (
         <LoadingOverlay
-          title="Generando preguntas con IA…"
-          subtitle="Cada tipo de pregunta toma 10-30 segundos. Si configuraste varios tipos, esto puede tardar 1-2 minutos. No cierres esta pestaña."
+          title={t("hc_routesAppTeacherExamsExamId.aiOverlayTitle")}
+          subtitle={t("hc_routesAppTeacherExamsExamId.aiOverlaySubtitle")}
         />
       )}
       <PageHeader backTo="/app/teacher/exams" title={exam.title} />
 
       <Tabs defaultValue={(exam as any).is_external ? "external-grades" : "config"}>
         <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="config">Configuración</TabsTrigger>
+          <TabsTrigger value="config">{t("hc_routesAppTeacherExamsExamId.tabConfig")}</TabsTrigger>
           {!(exam as any).is_external && (
-            <TabsTrigger value="questions">Preguntas ({questions.length})</TabsTrigger>
+            <TabsTrigger value="questions">
+              {t("hc_routesAppTeacherExamsExamId.tabQuestions", { count: questions.length })}
+            </TabsTrigger>
           )}
           <TabsTrigger value="assignments">
-            Asignaciones ({assigned.size}/{students.length})
+            {t("hc_routesAppTeacherExamsExamId.tabAssignments", {
+              assigned: assigned.size,
+              total: students.length,
+            })}
           </TabsTrigger>
           {(exam as any).is_external && (
-            <TabsTrigger value="external-grades">Notas externas</TabsTrigger>
+            <TabsTrigger value="external-grades">
+              {t("hc_routesAppTeacherExamsExamId.tabExternalGrades")}
+            </TabsTrigger>
           )}
           {!(exam as any).is_external && (
             <TabsTrigger value="notes" className="gap-1">
               <FileText className="h-3.5 w-3.5" />
-              Notas de apoyo
+              {t("hc_routesAppTeacherExamsExamId.tabSupportNotes")}
             </TabsTrigger>
           )}
         </TabsList>
@@ -889,21 +896,21 @@ function ExamEditor() {
           <Card>
             <CardContent className="p-5 space-y-3">
               <div>
-                <Label required>Título</Label>
+                <Label required>{t("hc_routesAppTeacherExamsExamId.fieldTitle")}</Label>
                 <Input
                   value={exam.title}
                   onChange={(e) => setExam({ ...exam, title: e.target.value })}
                 />
               </div>
               <div>
-                <Label>Descripción</Label>
+                <Label>{t("hc_routesAppTeacherExamsExamId.fieldDescription")}</Label>
                 <Textarea
                   value={exam.description ?? ""}
                   onChange={(e) => setExam({ ...exam, description: e.target.value })}
                 />
               </div>
               <div>
-                <Label required>Curso</Label>
+                <Label required>{t("hc_routesAppTeacherExamsExamId.fieldCourse")}</Label>
                 <Select
                   value={(exam as any).course_id ?? undefined}
                   onValueChange={async (v) => {
@@ -916,7 +923,7 @@ function ExamEditor() {
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un curso" />
+                    <SelectValue placeholder={t("hc_routesAppTeacherExamsExamId.selectCoursePlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
                     {courses.map((c) => (
@@ -931,8 +938,7 @@ function ExamEditor() {
                 </Select>
                 {originalCourseId && (exam as any).course_id !== originalCourseId && (
                   <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
-                    Al guardar, el examen se moverá al nuevo curso: se borran las asignaciones
-                    actuales y se re-asignan los matriculados del nuevo curso.
+                    {t("hc_routesAppTeacherExamsExamId.courseChangeWarning")}
                   </p>
                 )}
               </div>
@@ -943,7 +949,7 @@ function ExamEditor() {
                   persiste los cambios (RLS ya permite al docente). */}
               {(exam as any).status === "closed" && (
                 <ReopenClosedBanner
-                  hint="Cambia el estado a Publicado y fija una fecha de fin futura para que los estudiantes puedan presentarlo de nuevo."
+                  hint={t("hc_routesAppTeacherExamsExamId.reopenHint")}
                   onReopen={() => {
                     const now = new Date();
                     const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -966,7 +972,7 @@ function ExamEditor() {
                   igual no se puede tomar). */}
               <div>
                 <Label>
-                  Estado{" "}
+                  {t("hc_routesAppTeacherExamsExamId.fieldStatus")}{" "}
                   <HelpHint>{t("help.examStatusDescriptionDetail")}</HelpHint>
                 </Label>
                 <Select
@@ -977,9 +983,9 @@ function ExamEditor() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="draft">Borrador</SelectItem>
-                    <SelectItem value="published">Publicado</SelectItem>
-                    <SelectItem value="closed">Cerrado</SelectItem>
+                    <SelectItem value="draft">{t("hc_routesAppTeacherExamsExamId.statusDraft")}</SelectItem>
+                    <SelectItem value="published">{t("hc_routesAppTeacherExamsExamId.statusPublished")}</SelectItem>
+                    <SelectItem value="closed">{t("hc_routesAppTeacherExamsExamId.statusClosed")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -989,7 +995,9 @@ function ExamEditor() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label required>
-                    {(exam as any).is_external ? "Fecha del parcial" : "Inicio"}
+                    {(exam as any).is_external
+                      ? t("hc_routesAppTeacherExamsExamId.fieldExamDate")
+                      : t("hc_routesAppTeacherExamsExamId.fieldStart")}
                   </Label>
                   <DateTimePicker
                     value={toLocal(exam.start_time)}
@@ -1018,7 +1026,7 @@ function ExamEditor() {
                 </div>
                 {!(exam as any).is_external && (
                   <div>
-                    <Label required>Fin</Label>
+                    <Label required>{t("hc_routesAppTeacherExamsExamId.fieldEnd")}</Label>
                     <DateTimePicker
                       value={toLocal(exam.end_time)}
                       onChange={(end) => {
@@ -1048,7 +1056,7 @@ function ExamEditor() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <Label className="m-0">Duración (min)</Label>
+                        <Label className="m-0">{t("hc_routesAppTeacherExamsExamId.fieldDuration")}</Label>
                         {/* CTA destacado para acción IA — sigue el patrón
                             de "Calificar todo con IA" del módulo de
                             talleres (default variant + Sparkles). Antes
@@ -1061,8 +1069,8 @@ function ExamEditor() {
                           disabled={timeEvalLoading || (questions?.length ?? 0) === 0}
                           title={
                             (questions?.length ?? 0) === 0
-                              ? "Crea preguntas primero para poder evaluar el tiempo"
-                              : "Pide a la IA una sugerencia de duración basada en las preguntas"
+                              ? t("hc_routesAppTeacherExamsExamId.evalTimeDisabledTitle")
+                              : t("hc_routesAppTeacherExamsExamId.evalTimeTitle")
                           }
                         >
                           {timeEvalLoading ? (
@@ -1070,11 +1078,11 @@ function ExamEditor() {
                           ) : (
                             <Sparkles className="h-3 w-3" />
                           )}
-                          Evaluar tiempo con IA
+                          {t("hc_routesAppTeacherExamsExamId.evalTimeButton")}
                         </Button>
                       </div>
                       <p className="text-[11px] text-muted-foreground">
-                        Se calcula automáticamente, pero puedes editarla.
+                        {t("hc_routesAppTeacherExamsExamId.durationAutoHint")}
                       </p>
                       <Input
                         type="number"
@@ -1090,7 +1098,7 @@ function ExamEditor() {
                       />
                     </div>
                     <div>
-                      <Label>Navegación</Label>
+                      <Label>{t("hc_routesAppTeacherExamsExamId.fieldNavigation")}</Label>
                       <Select
                         value={exam.navigation_type}
                         onValueChange={(v) => setExam({ ...exam, navigation_type: v })}
@@ -1099,14 +1107,14 @@ function ExamEditor() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="libre">Libre</SelectItem>
-                          <SelectItem value="secuencial">Secuencial</SelectItem>
+                          <SelectItem value="libre">{t("hc_routesAppTeacherExamsExamId.navFree")}</SelectItem>
+                          <SelectItem value="secuencial">{t("hc_routesAppTeacherExamsExamId.navSequential")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
                       <Label>
-                        Advertencias máximas{" "}
+                        {t("hc_routesAppTeacherExamsExamId.fieldMaxWarnings")}{" "}
                         <HelpHint>{t("help.examMaxWarningsHelp")}</HelpHint>
                       </Label>
                       <Input
@@ -1128,11 +1136,12 @@ function ExamEditor() {
                   </div>
                   <div>
                     <Label>
-                      Tipo de programación{" "}
+                      {t("hc_routesAppTeacherExamsExamId.fieldScheduleType")}{" "}
                       <HelpHint>
-                        <strong>Normal:</strong> temporizador absoluto hasta la fecha de fin.{" "}
-                        <strong>Relativo:</strong> cada estudiante tiene la duración indicada desde
-                        que abre el examen, dentro de la ventana.
+                        <strong>{t("hc_routesAppTeacherExamsExamId.scheduleNormalLabel")}</strong>{" "}
+                        {t("hc_routesAppTeacherExamsExamId.scheduleNormalHelp")}{" "}
+                        <strong>{t("hc_routesAppTeacherExamsExamId.scheduleRelativeLabel")}</strong>{" "}
+                        {t("hc_routesAppTeacherExamsExamId.scheduleRelativeHelp")}
                       </HelpHint>
                     </Label>
                     <Select
@@ -1143,33 +1152,35 @@ function ExamEditor() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="normal">Normal (sincrónico)</SelectItem>
-                        <SelectItem value="relativo">Relativo (por estudiante)</SelectItem>
+                        <SelectItem value="normal">{t("hc_routesAppTeacherExamsExamId.scheduleNormalOption")}</SelectItem>
+                        <SelectItem value="relativo">{t("hc_routesAppTeacherExamsExamId.scheduleRelativeOption")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="rounded-md border p-3 space-y-2">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <Label className="text-sm">Intentos máximos (override)</Label>
+                        <Label className="text-sm">{t("hc_routesAppTeacherExamsExamId.fieldMaxAttempts")}</Label>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Vacío = hereda del curso
+                          {t("hc_routesAppTeacherExamsExamId.maxAttemptsInherits")}
                           {exam.course?.max_exam_attempts != null && (
                             <>
                               {" "}
-                              (<strong>{exam.course.max_exam_attempts}</strong> intento
-                              {exam.course.max_exam_attempts === 1 ? "" : "s"})
+                              (<strong>{exam.course.max_exam_attempts}</strong>{" "}
+                              {exam.course.max_exam_attempts === 1
+                                ? t("hc_routesAppTeacherExamsExamId.attemptSingular")
+                                : t("hc_routesAppTeacherExamsExamId.attemptPlural")}
+                              )
                             </>
                           )}
-                          . Si el estudiante supera el límite, el último intento se marca como
-                          suspendido.
+                          {t("hc_routesAppTeacherExamsExamId.maxAttemptsExceeded")}
                         </p>
                       </div>
                       <Input
                         type="number"
                         min={1}
                         step={1}
-                        placeholder="Heredar"
+                        placeholder={t("hc_routesAppTeacherExamsExamId.inheritPlaceholder")}
                         className="w-24 text-right"
                         value={exam.max_attempts ?? ""}
                         onChange={(e) =>
@@ -1183,7 +1194,7 @@ function ExamEditor() {
                   </div>
                   <div>
                     <Label>
-                      Modo de calificación con reintentos{" "}
+                      {t("hc_routesAppTeacherExamsExamId.fieldRetryMode")}{" "}
                       <HelpHint>{t("help.retryModeExplanation")}</HelpHint>
                     </Label>
                     <Select
@@ -1195,11 +1206,11 @@ function ExamEditor() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="last">
-                          Último intento (toma la calificación más reciente)
+                          {t("hc_routesAppTeacherExamsExamId.retryLast")}
                         </SelectItem>
-                        <SelectItem value="average">Promedio de todos los intentos</SelectItem>
+                        <SelectItem value="average">{t("hc_routesAppTeacherExamsExamId.retryAverage")}</SelectItem>
                         <SelectItem value="highest">
-                          Más alto (mejor calificación entre los intentos)
+                          {t("hc_routesAppTeacherExamsExamId.retryHighest")}
                         </SelectItem>
                       </SelectContent>
                     </Select>
@@ -1212,12 +1223,10 @@ function ExamEditor() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <Label htmlFor="allow_exam_notes" className="text-sm">
-                          Permitir notas de apoyo
+                          {t("hc_routesAppTeacherExamsExamId.fieldAllowNotes")}
                         </Label>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Cuando está activo, el estudiante puede subir chuletas o resúmenes para
-                          que tú los apruebes antes del examen. Desactívalo para exámenes sin
-                          material de apoyo permitido.
+                          {t("hc_routesAppTeacherExamsExamId.allowNotesHint")}
                         </p>
                       </div>
                       <Checkbox
@@ -1232,7 +1241,7 @@ function ExamEditor() {
                 </>
               )}
               <div>
-                <Label>Corte de evaluación (opcional)</Label>
+                <Label>{t("hc_routesAppTeacherExamsExamId.fieldCut")}</Label>
                 <Select
                   value={(exam as any).cut_id ?? "__none__"}
                   onValueChange={(v) =>
@@ -1240,10 +1249,10 @@ function ExamEditor() {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Sin corte asignado" />
+                    <SelectValue placeholder={t("hc_routesAppTeacherExamsExamId.noCutAssigned")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">Sin corte asignado</SelectItem>
+                    <SelectItem value="__none__">{t("hc_routesAppTeacherExamsExamId.noCutAssigned")}</SelectItem>
                     {cuts.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}
@@ -1253,7 +1262,7 @@ function ExamEditor() {
                 </Select>
                 {cuts.length === 0 && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Este curso aún no tiene cortes definidos.
+                    {t("hc_routesAppTeacherExamsExamId.noCutsDefined")}
                   </p>
                 )}
               </div>
@@ -1272,7 +1281,7 @@ function ExamEditor() {
                   const overBucket = currentWeight > examMax + 0.01;
                   return (
                     <>
-                      <Label>Peso del examen (% del bucket de exámenes del corte)</Label>
+                      <Label>{t("hc_routesAppTeacherExamsExamId.fieldWeight")}</Label>
                       <div className="relative w-32">
                         <DecimalInput
                           min={0}
@@ -1296,27 +1305,32 @@ function ExamEditor() {
                       <p className="text-xs text-muted-foreground mt-1">
                         {selectedCut ? (
                           <>
-                            Cuánto pesa este examen en la <strong>nota final del curso</strong>.
-                            Bucket exámenes del corte{" "}
-                            <span className="font-medium">{selectedCut.name}</span>: {examBucket}%.
-                            Otros exámenes del corte suman {otherExamsSum.toFixed(1)}%, te queda{" "}
-                            <strong>{examMax.toFixed(1)}%</strong> disponible.
+                            {t("hc_routesAppTeacherExamsExamId.weightHintPart1")}{" "}
+                            <strong>{t("hc_routesAppTeacherExamsExamId.weightHintFinalGrade")}</strong>
+                            {t("hc_routesAppTeacherExamsExamId.weightHintPart2")}{" "}
+                            <span className="font-medium">{selectedCut.name}</span>: {examBucket}%.{" "}
+                            {t("hc_routesAppTeacherExamsExamId.weightHintOthers", {
+                              others: otherExamsSum.toFixed(1),
+                            })}{" "}
+                            <strong>{examMax.toFixed(1)}%</strong>{" "}
+                            {t("hc_routesAppTeacherExamsExamId.weightHintAvailable")}
                             {overBucket && (
                               <span className="block text-destructive mt-1">
-                                El peso actual ({currentWeight.toFixed(1)}%) excede el bucket.
-                                Reduce este o ajusta el bucket en el editor de cortes.
+                                {t("hc_routesAppTeacherExamsExamId.weightOverBucket", {
+                                  current: currentWeight.toFixed(1),
+                                })}
                               </span>
                             )}
                           </>
                         ) : (
-                          "Asigna primero un corte de evaluación arriba para poder configurar el peso."
+                          t("hc_routesAppTeacherExamsExamId.weightNoCut")
                         )}
                       </p>
                     </>
                   );
                 })()}
               </div>
-              <Button onClick={saveExam}>Guardar cambios</Button>
+              <Button onClick={saveExam}>{t("hc_routesAppTeacherExamsExamId.saveChanges")}</Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1326,20 +1340,20 @@ function ExamEditor() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
-                Generar con IA
+                {t("hc_routesAppTeacherExamsExamId.generateWithAi")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label required>Temas</Label>
+                <Label required>{t("hc_routesAppTeacherExamsExamId.fieldTopics")}</Label>
                 <Textarea
-                  placeholder="Ej: arrays, recursividad, complejidad..."
+                  placeholder={t("hc_routesAppTeacherExamsExamId.topicsPlaceholder")}
                   value={aiTopics}
                   onChange={(e) => setAiTopics(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Tipos de preguntas a generar</Label>
+                <Label>{t("hc_routesAppTeacherExamsExamId.questionTypesToGenerate")}</Label>
                 {aiRows.map((row, i) => (
                   <div key={i} className="flex items-end gap-2">
                     <div className="flex-1 min-w-0">
@@ -1348,12 +1362,12 @@ function ExamEditor() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="abierta">Abierta</SelectItem>
-                          <SelectItem value="cerrada">Opción múltiple</SelectItem>
-                          <SelectItem value="codigo">Código</SelectItem>
-                          <SelectItem value="diagrama">Diagrama</SelectItem>
-                          <SelectItem value="java_gui">Java GUI</SelectItem>
-                          <SelectItem value="python_gui">Python GUI (tkinter)</SelectItem>
+                          <SelectItem value="abierta">{t("hc_routesAppTeacherExamsExamId.typeOpen")}</SelectItem>
+                          <SelectItem value="cerrada">{t("hc_routesAppTeacherExamsExamId.typeMultipleChoice")}</SelectItem>
+                          <SelectItem value="codigo">{t("hc_routesAppTeacherExamsExamId.typeCode")}</SelectItem>
+                          <SelectItem value="diagrama">{t("hc_routesAppTeacherExamsExamId.typeDiagram")}</SelectItem>
+                          <SelectItem value="java_gui">{t("hc_routesAppTeacherExamsExamId.typeJavaGuiShort")}</SelectItem>
+                          <SelectItem value="python_gui">{t("hc_routesAppTeacherExamsExamId.typePythonGui")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1402,12 +1416,14 @@ function ExamEditor() {
                   </div>
                 ))}
                 <Button type="button" variant="outline" size="sm" onClick={addAiRow}>
-                  <Plus className="h-4 w-4 mr-1" /> Agregar tipo
+                  <Plus className="h-4 w-4 mr-1" /> {t("hc_routesAppTeacherExamsExamId.addType")}
                 </Button>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">
-                  Total: {aiRows.reduce((s, r) => s + (r.count || 0), 0)} preguntas
+                  {t("hc_routesAppTeacherExamsExamId.totalQuestions", {
+                    count: aiRows.reduce((s, r) => s + (r.count || 0), 0),
+                  })}
                 </span>
                 <Button onClick={generateAI} disabled={aiLoading}>
                   {aiLoading ? (
@@ -1415,7 +1431,7 @@ function ExamEditor() {
                   ) : (
                     <Sparkles className="h-4 w-4 mr-1" />
                   )}
-                  Generar preguntas
+                  {t("hc_routesAppTeacherExamsExamId.generateQuestions")}
                 </Button>
               </div>
             </CardContent>
@@ -1424,7 +1440,9 @@ function ExamEditor() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">
-                {editingId ? "Editar pregunta" : "Agregar manualmente"}
+                {editingId
+                  ? t("hc_routesAppTeacherExamsExamId.editQuestion")
+                  : t("hc_routesAppTeacherExamsExamId.addManually")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -1432,8 +1450,10 @@ function ExamEditor() {
                 <div className="rounded-md border bg-muted/30 px-3 py-2">
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xs text-muted-foreground font-medium">
-                      {questions.length} pregunta{questions.length !== 1 ? "s" : ""} en el examen ·{" "}
-                      {questions.reduce((s, q) => s + ((q as any).points ?? 0), 0)} pts totales
+                      {t("hc_routesAppTeacherExamsExamId.questionsSummary", {
+                        count: questions.length,
+                        points: questions.reduce((s, q) => s + ((q as any).points ?? 0), 0),
+                      })}
                     </span>
                     <button
                       type="button"
@@ -1444,7 +1464,7 @@ function ExamEditor() {
                           ?.scrollIntoView({ behavior: "smooth" })
                       }
                     >
-                      Ver lista
+                      {t("hc_routesAppTeacherExamsExamId.viewList")}
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-1">
@@ -1460,7 +1480,7 @@ function ExamEditor() {
                     ))}
                     {questions.length > 9 && (
                       <span className="inline-flex items-center rounded border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                        +{questions.length - 9} más
+                        {t("hc_routesAppTeacherExamsExamId.moreCount", { count: questions.length - 9 })}
                       </span>
                     )}
                   </div>
@@ -1470,24 +1490,24 @@ function ExamEditor() {
                   en mobile a 187px. Stack en mobile, fila en sm+. */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Label required>Tipo</Label>
+                  <Label required>{t("hc_routesAppTeacherExamsExamId.fieldType")}</Label>
                   <Select value={qType} onValueChange={setQType}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="abierta">Abierta</SelectItem>
-                      <SelectItem value="cerrada">Selección única</SelectItem>
-                      <SelectItem value="cerrada_multi">Opción múltiple</SelectItem>
-                      <SelectItem value="codigo">Código</SelectItem>
-                      <SelectItem value="diagrama">Diagrama</SelectItem>
-                      <SelectItem value="java_gui">Java GUI (Swing/AWT)</SelectItem>
-                      <SelectItem value="python_gui">Python GUI (tkinter)</SelectItem>
+                      <SelectItem value="abierta">{t("hc_routesAppTeacherExamsExamId.typeOpen")}</SelectItem>
+                      <SelectItem value="cerrada">{t("hc_routesAppTeacherExamsExamId.typeSingleChoice")}</SelectItem>
+                      <SelectItem value="cerrada_multi">{t("hc_routesAppTeacherExamsExamId.typeMultipleChoice")}</SelectItem>
+                      <SelectItem value="codigo">{t("hc_routesAppTeacherExamsExamId.typeCode")}</SelectItem>
+                      <SelectItem value="diagrama">{t("hc_routesAppTeacherExamsExamId.typeDiagram")}</SelectItem>
+                      <SelectItem value="java_gui">{t("hc_routesAppTeacherExamsExamId.typeJavaGuiSwing")}</SelectItem>
+                      <SelectItem value="python_gui">{t("hc_routesAppTeacherExamsExamId.typePythonGui")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label required>Puntos</Label>
+                  <Label required>{t("hc_routesAppTeacherExamsExamId.fieldPoints")}</Label>
                   <Input
                     type="number"
                     value={qPoints || ""}
@@ -1496,12 +1516,12 @@ function ExamEditor() {
                 </div>
               </div>
               <div>
-                <Label required>Enunciado</Label>
+                <Label required>{t("hc_routesAppTeacherExamsExamId.fieldStatement")}</Label>
                 <Textarea value={qContent} onChange={(e) => setQContent(e.target.value)} />
               </div>
               {qType === "codigo" && (
                 <div>
-                  <Label required>Lenguaje</Label>
+                  <Label required>{t("hc_routesAppTeacherExamsExamId.fieldLanguage")}</Label>
                   <Select value={qLanguage} onValueChange={setQLanguage}>
                     <SelectTrigger>
                       <SelectValue />
@@ -1516,7 +1536,7 @@ function ExamEditor() {
               )}
               {qType === "java_gui" && (
                 <div>
-                  <Label>Framework</Label>
+                  <Label>{t("hc_routesAppTeacherExamsExamId.fieldFramework")}</Label>
                   <Select
                     value={qJavaFramework}
                     onValueChange={(v) => setQJavaFramework(v as "swing" | "javafx")}
@@ -1525,22 +1545,22 @@ function ExamEditor() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="swing">Swing / AWT</SelectItem>
+                      <SelectItem value="swing">{t("hc_routesAppTeacherExamsExamId.frameworkSwing")}</SelectItem>
                       <SelectItem value="javafx">JavaFX</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-[11px] text-muted-foreground mt-1">
                     {qJavaFramework === "javafx"
-                      ? "JavaFX requiere modo runner AWS Lambda — CheerpJ no incluye OpenJFX."
-                      : "Compatible con CheerpJ (navegador) y AWS Lambda."}
+                      ? t("hc_routesAppTeacherExamsExamId.frameworkJavafxHint")
+                      : t("hc_routesAppTeacherExamsExamId.frameworkSwingHint")}
                   </p>
                 </div>
               )}
               {qType !== "cerrada" && qType !== "cerrada_multi" && (
                 <div>
-                  <Label required>Rúbrica esperada</Label>
+                  <Label required>{t("hc_routesAppTeacherExamsExamId.fieldExpectedRubric")}</Label>
                   <Textarea
-                    placeholder="Criterios para una respuesta correcta…"
+                    placeholder={t("hc_routesAppTeacherExamsExamId.rubricPlaceholder")}
                     value={qRubric}
                     onChange={(e) => setQRubric(e.target.value)}
                   />
@@ -1548,7 +1568,7 @@ function ExamEditor() {
               )}
               {qType === "cerrada" && (
                 <div className="space-y-2">
-                  <Label required>Opciones (marca la correcta)</Label>
+                  <Label required>{t("hc_routesAppTeacherExamsExamId.fieldOptionsSingle")}</Label>
                   {qChoices.map((c, i) => (
                     <div key={i} className="flex items-center gap-2">
                       <input
@@ -1558,7 +1578,9 @@ function ExamEditor() {
                       />
                       <Input
                         value={c}
-                        placeholder={`Opción ${String.fromCharCode(65 + i)}`}
+                        placeholder={t("hc_routesAppTeacherExamsExamId.optionPlaceholder", {
+                          letter: String.fromCharCode(65 + i),
+                        })}
                         onChange={(e) => {
                           const nc = [...qChoices];
                           nc[i] = e.target.value;
@@ -1573,7 +1595,7 @@ function ExamEditor() {
                 <div className="space-y-3">
                   <div className="space-y-2">
                     <Label required>
-                      Opciones{" "}
+                      {t("hc_routesAppTeacherExamsExamId.fieldOptions")}{" "}
                       <HelpHint>{t("help.multiChoiceExplanation")}</HelpHint>
                     </Label>
                     {qChoices.map((c, i) => (
@@ -1591,7 +1613,9 @@ function ExamEditor() {
                         />
                         <Input
                           value={c}
-                          placeholder={`Opción ${String.fromCharCode(65 + i)}`}
+                          placeholder={t("hc_routesAppTeacherExamsExamId.optionPlaceholder", {
+                            letter: String.fromCharCode(65 + i),
+                          })}
                           onChange={(e) => {
                             const nc = [...qChoices];
                             nc[i] = e.target.value;
@@ -1604,7 +1628,7 @@ function ExamEditor() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <Label>
-                        Mínimo de marcadas{" "}
+                        {t("hc_routesAppTeacherExamsExamId.fieldMinSelections")}{" "}
                         <HelpHint>{t("help.minSelectionsExplanation")}</HelpHint>
                       </Label>
                       <Input
@@ -1614,12 +1638,12 @@ function ExamEditor() {
                         onChange={(e) =>
                           setQMinSelections(e.target.value === "" ? "" : Number(e.target.value))
                         }
-                        placeholder="sin mínimo"
+                        placeholder={t("hc_routesAppTeacherExamsExamId.noMinPlaceholder")}
                       />
                     </div>
                     <div>
                       <Label>
-                        Máximo de marcadas{" "}
+                        {t("hc_routesAppTeacherExamsExamId.fieldMaxSelections")}{" "}
                         <HelpHint>{t("help.maxSelectionsExplanation")}</HelpHint>
                       </Label>
                       <Input
@@ -1629,7 +1653,7 @@ function ExamEditor() {
                         onChange={(e) =>
                           setQMaxSelections(e.target.value === "" ? "" : Number(e.target.value))
                         }
-                        placeholder="sin máximo"
+                        placeholder={t("hc_routesAppTeacherExamsExamId.noMaxPlaceholder")}
                       />
                     </div>
                   </div>
@@ -1639,22 +1663,22 @@ function ExamEditor() {
                 <Button onClick={submitQuestion}>
                   {editingId ? (
                     <>
-                      <Save className="h-4 w-4 mr-1" /> Guardar cambios
+                      <Save className="h-4 w-4 mr-1" /> {t("hc_routesAppTeacherExamsExamId.saveChanges")}
                     </>
                   ) : (
                     <>
-                      <Plus className="h-4 w-4 mr-1" /> Agregar pregunta
+                      <Plus className="h-4 w-4 mr-1" /> {t("hc_routesAppTeacherExamsExamId.addQuestion")}
                     </>
                   )}
                 </Button>
                 {!editingId && exam?.course_id && (
                   <Button variant="outline" onClick={() => setBankDialogOpen(true)}>
-                    <Library className="h-4 w-4 mr-1" /> Importar del banco
+                    <Library className="h-4 w-4 mr-1" /> {t("hc_routesAppTeacherExamsExamId.importFromBank")}
                   </Button>
                 )}
                 {editingId && (
                   <Button variant="outline" onClick={resetQForm}>
-                    <X className="h-4 w-4 mr-1" /> Cancelar edición
+                    <X className="h-4 w-4 mr-1" /> {t("hc_routesAppTeacherExamsExamId.cancelEdit")}
                   </Button>
                 )}
               </div>
@@ -1683,7 +1707,7 @@ function ExamEditor() {
                     <p className="text-sm">{q.content}</p>
                     {q.expected_rubric && (
                       <p className="text-xs text-muted-foreground mt-1 italic">
-                        Rúbrica: {q.expected_rubric}
+                        {t("hc_routesAppTeacherExamsExamId.rubricLabel")} {q.expected_rubric}
                       </p>
                     )}
                     {q.options?.choices && (
@@ -1704,24 +1728,24 @@ function ExamEditor() {
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <RowAction
-                      label="Subir"
+                      label={t("hc_routesAppTeacherExamsExamId.actionMoveUp")}
                       icon={ChevronUp}
                       disabled={i === 0}
                       onClick={() => moveQuestion(q.id, "up")}
                     />
                     <RowAction
-                      label="Bajar"
+                      label={t("hc_routesAppTeacherExamsExamId.actionMoveDown")}
                       icon={ChevronDown}
                       disabled={i === questions.length - 1}
                       onClick={() => moveQuestion(q.id, "down")}
                     />
                     <RowAction
-                      label="Editar pregunta"
+                      label={t("hc_routesAppTeacherExamsExamId.actionEditQuestion")}
                       icon={Pencil}
                       onClick={() => loadQIntoForm(q)}
                     />
                     <RowAction
-                      label="Eliminar pregunta"
+                      label={t("hc_routesAppTeacherExamsExamId.actionDeleteQuestion")}
                       icon={Trash2}
                       tone="destructive"
                       onClick={() => removeQuestion(q.id)}
@@ -1736,7 +1760,7 @@ function ExamEditor() {
         <TabsContent value="assignments">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Estudiantes matriculados</CardTitle>
+              <CardTitle className="text-base">{t("hc_routesAppTeacherExamsExamId.enrolledStudents")}</CardTitle>
             </CardHeader>
             <CardContent>
               <AssignSelector
@@ -1745,8 +1769,8 @@ function ExamEditor() {
                 onToggle={toggleAssign}
                 onSelectAll={assignMany}
                 onDeselectAll={unassignMany}
-                emptyText="No hay estudiantes matriculados en este curso."
-                countNoun="asignados"
+                emptyText={t("hc_routesAppTeacherExamsExamId.noEnrolledStudents")}
+                countNoun={t("hc_routesAppTeacherExamsExamId.assignedNoun")}
               />
             </CardContent>
           </Card>
@@ -1757,11 +1781,10 @@ function ExamEditor() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <FileText className="h-4 w-4 text-primary" />
-                Notas de apoyo de los estudiantes
+                {t("hc_routesAppTeacherExamsExamId.studentSupportNotes")}
               </CardTitle>
               <p className="text-xs text-muted-foreground">
-                Aprueba o rechaza el material de apoyo que cada estudiante quiere tener disponible
-                durante este examen. Si rechazas, el estudiante podrá ajustarlo y reenviarlo.
+                {t("hc_routesAppTeacherExamsExamId.studentSupportNotesHint")}
               </p>
             </CardHeader>
             <CardContent>
@@ -1772,13 +1795,10 @@ function ExamEditor() {
               {((exam as { allow_exam_notes?: boolean }).allow_exam_notes ?? true) === false ? (
                 <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-4 text-sm space-y-2">
                   <p className="font-medium text-amber-700 dark:text-amber-300">
-                    Notas de apoyo desactivadas para este examen.
+                    {t("hc_routesAppTeacherExamsExamId.notesDisabledTitle")}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Los estudiantes NO podrán subir chuletas ni material de apoyo. Si quieres
-                    habilitarlas, activa el toggle "Permitir notas de apoyo" en la pestaña
-                    Configuración. Las notas previamente enviadas se conservan y volverán a aparecer
-                    aquí si reactivas el toggle.
+                    {t("hc_routesAppTeacherExamsExamId.notesDisabledHint")}
                   </p>
                 </div>
               ) : (
@@ -1795,7 +1815,7 @@ function ExamEditor() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              Sugerencia de duración
+              {t("hc_routesAppTeacherExamsExamId.durationSuggestionTitle")}
             </DialogTitle>
           </DialogHeader>
           {timeEvalResult && (
@@ -1805,21 +1825,21 @@ function ExamEditor() {
                   y los números de 2xl quedaban espachurrados a 375px. */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                 <div className="rounded-md border p-2">
-                  <div className="text-[10px] uppercase text-muted-foreground">Actual</div>
+                  <div className="text-[10px] uppercase text-muted-foreground">{t("hc_routesAppTeacherExamsExamId.tileCurrent")}</div>
                   <div className="text-2xl font-semibold tabular-nums">
                     {timeEvalResult.current_minutes}
                   </div>
-                  <div className="text-[10px] text-muted-foreground">min</div>
+                  <div className="text-[10px] text-muted-foreground">{t("hc_routesAppTeacherExamsExamId.unitMin")}</div>
                 </div>
                 <div className="rounded-md border border-primary/40 bg-primary/5 p-2">
-                  <div className="text-[10px] uppercase text-muted-foreground">Sugerido</div>
+                  <div className="text-[10px] uppercase text-muted-foreground">{t("hc_routesAppTeacherExamsExamId.tileSuggested")}</div>
                   <div className="text-2xl font-semibold tabular-nums text-primary">
                     {timeEvalResult.suggested_minutes}
                   </div>
-                  <div className="text-[10px] text-muted-foreground">min</div>
+                  <div className="text-[10px] text-muted-foreground">{t("hc_routesAppTeacherExamsExamId.unitMin")}</div>
                 </div>
                 <div className="rounded-md border p-2">
-                  <div className="text-[10px] uppercase text-muted-foreground">Veredicto</div>
+                  <div className="text-[10px] uppercase text-muted-foreground">{t("hc_routesAppTeacherExamsExamId.tileVerdict")}</div>
                   <Badge
                     variant={
                       timeEvalResult.verdict === "AJUSTADA"
@@ -1835,19 +1855,25 @@ function ExamEditor() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground whitespace-pre-wrap rounded-md bg-muted/40 p-2">
-                {timeEvalResult.explanation || "Sin explicación."}
+                {timeEvalResult.explanation || t("hc_routesAppTeacherExamsExamId.noExplanation")}
               </p>
               <p className="text-[11px] text-muted-foreground italic">
-                Basado en {timeEvalResult.question_count} pregunta(s).
+                {t("hc_routesAppTeacherExamsExamId.basedOnQuestions", {
+                  count: timeEvalResult.question_count,
+                })}
               </p>
             </div>
           )}
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setTimeEvalResult(null)}>
-              Mantener {timeEvalResult?.current_minutes ?? 0} min
+              {t("hc_routesAppTeacherExamsExamId.keepMinutes", {
+                minutes: timeEvalResult?.current_minutes ?? 0,
+              })}
             </Button>
             <Button onClick={applyTimeSuggestion} disabled={!timeEvalResult}>
-              Usar {timeEvalResult?.suggested_minutes ?? 0} min
+              {t("hc_routesAppTeacherExamsExamId.useMinutes", {
+                minutes: timeEvalResult?.suggested_minutes ?? 0,
+              })}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -318,7 +318,9 @@ function TeacherExams() {
           .order("position"),
       ]);
     if (csErr || esErr) {
-      setLoadError(friendlyError(csErr ?? esErr, "No pudimos cargar los exámenes."));
+      setLoadError(
+        friendlyError(csErr ?? esErr, t("hc_routesAppTeacherExamsIndex.loadError")),
+      );
       return;
     }
     setLoadError(null);
@@ -519,8 +521,8 @@ function TeacherExams() {
       if (!isExternal && initialStatus === "published") {
         await supabase.rpc("notify_course_students", {
           _course_id: cid,
-          _title: "Nuevo examen disponible",
-          _body: `Se ha publicado el examen "${form.title}"`,
+          _title: t("hc_routesAppTeacherExamsIndex.notifyTitle"),
+          _body: t("hc_routesAppTeacherExamsIndex.notifyBody", { title: form.title }),
           _kind: "exam",
           _link: "/app/student/exams",
         });
@@ -556,7 +558,7 @@ function TeacherExams() {
       <div className="space-y-5">
         <PageHeader icon={<FileText className="h-6 w-6" />} title={t("exam.title")} />
         <ErrorState
-          message="No pudimos cargar los exámenes"
+          message={t("hc_routesAppTeacherExamsIndex.loadErrorTitle")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -572,13 +574,16 @@ function TeacherExams() {
         subtitle={
           filteredExams.length === exams.length
             ? t("exam.subtitle", { count: exams.length })
-            : `${filteredExams.length} de ${exams.length}`
+            : t("hc_routesAppTeacherExamsIndex.subtitleFiltered", {
+                shown: filteredExams.length,
+                total: exams.length,
+              })
         }
         actions={
           <>
             <ImportExportMenu
               label={t("exam.title")}
-              resourceName="examenes"
+              resourceName={t("hc_routesAppTeacherExamsIndex.resourceName")}
               templateCsv={EXAMS_TEMPLATE}
               onExport={() => {
                 if (!exams.length) return "";
@@ -596,7 +601,7 @@ function TeacherExams() {
                 );
               }}
               onImport={async (rows) => {
-                if (!user) throw new Error("Sesión no válida");
+                if (!user) throw new Error(t("hc_routesAppTeacherExamsIndex.invalidSession"));
                 const courseByName = new Map(
                   courses.map((c) => [c.name.toLowerCase().trim(), c.id]),
                 );
@@ -636,21 +641,33 @@ function TeacherExams() {
 
       {/* Stats 4-card — siempre visible, mismo patrón que el resto. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={Pencil} label="Borradores" value={examStats.draft} />
+        <StatCard
+          icon={Pencil}
+          label={t("hc_routesAppTeacherExamsIndex.statDraft")}
+          value={examStats.draft}
+        />
         <StatCard
           icon={CheckCircle2}
-          label="Publicados"
+          label={t("hc_routesAppTeacherExamsIndex.statPublished")}
           value={examStats.published}
           tone={examStats.published > 0 ? "success" : "default"}
         />
-        <StatCard icon={Lock} label="Cerrados" value={examStats.closed} />
-        <StatCard icon={ExternalLink} label="Externos" value={examStats.external} />
+        <StatCard
+          icon={Lock}
+          label={t("hc_routesAppTeacherExamsIndex.statClosed")}
+          value={examStats.closed}
+        />
+        <StatCard
+          icon={ExternalLink}
+          label={t("hc_routesAppTeacherExamsIndex.statExternal")}
+          value={examStats.external}
+        />
       </div>
 
       <ListFilters
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Buscar examen por título…"
+        searchPlaceholder={t("hc_routesAppTeacherExamsIndex.searchPlaceholder")}
         courseId={courseFilter}
         onCourseChange={(v) => {
           setCourseFilter(v);
@@ -666,8 +683,8 @@ function TeacherExams() {
         count={sel.count}
         onClear={sel.clear}
         onDelete={() => setBulkDeleteOpen(true)}
-        entityNameSingular="examen"
-        entityNamePlural="exámenes"
+        entityNameSingular={t("hc_routesAppTeacherExamsIndex.entitySingular")}
+        entityNamePlural={t("hc_routesAppTeacherExamsIndex.entityPlural")}
       />
 
       {/* Resumen de pesos cuando se filtra por corte: cuánto suman los
@@ -685,7 +702,8 @@ function TeacherExams() {
           return (
             <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
               <span className="text-muted-foreground">
-                Suma de pesos en <span className="font-medium text-foreground">{cut.name}</span>:
+                {t("hc_routesAppTeacherExamsIndex.weightSumPrefix")}{" "}
+                <span className="font-medium text-foreground">{cut.name}</span>:
               </span>
               <Badge
                 variant={ok ? "secondary" : sum > bucket + 0.01 ? "destructive" : "default"}
@@ -695,12 +713,15 @@ function TeacherExams() {
               </Badge>
               {!ok && sum < bucket - 0.01 && (
                 <span className="text-muted-foreground">
-                  Quedan <strong>{formatPercent(bucket - sum)}%</strong> sin asignar.
+                  {t("hc_routesAppTeacherExamsIndex.weightRemainingPrefix")}{" "}
+                  <strong>{formatPercent(bucket - sum)}%</strong>{" "}
+                  {t("hc_routesAppTeacherExamsIndex.weightRemainingSuffix")}
                 </span>
               )}
               {sum > bucket + 0.01 && (
                 <span className="text-destructive">
-                  Sobrepasa el bucket por <strong>{formatPercent(sum - bucket)}%</strong>.
+                  {t("hc_routesAppTeacherExamsIndex.weightOverPrefix")}{" "}
+                  <strong>{formatPercent(sum - bucket)}%</strong>.
                 </span>
               )}
             </div>
@@ -731,7 +752,7 @@ function TeacherExams() {
                   sort={sort}
                   className="text-right hidden md:table-cell w-16"
                 >
-                  Peso
+                  {t("hc_routesAppTeacherExamsIndex.colWeight")}
                 </SortableHead>
                 <SortableHead sortKey="start_time" sort={sort} className="hidden sm:table-cell w-28">
                   {t("exam.columns.start")}
@@ -746,7 +767,7 @@ function TeacherExams() {
                   {t("exam.columns.type")}
                 </SortableHead>
                 <SortableHead sortKey="status" sort={sort} className="w-24">
-                  Estado
+                  {t("hc_routesAppTeacherExamsIndex.colStatus")}
                 </SortableHead>
                 <SortableHead sortKey="navigation" sort={sort} className="hidden lg:table-cell w-28">
                   {t("exam.columns.navigation")}
@@ -759,12 +780,12 @@ function TeacherExams() {
                 <TableEmpty
                   colSpan={12}
                   icon={FileText}
-                  text="Aún no has creado ningún examen."
-                  hint="Diseña tu primer examen — puedes generar preguntas con IA."
+                  text={t("hc_routesAppTeacherExamsIndex.emptyText")}
+                  hint={t("hc_routesAppTeacherExamsIndex.emptyHint")}
                   action={
                     <Button size="sm" onClick={openNew}>
                       <Plus className="h-4 w-4 mr-1" />
-                      Crear primer examen
+                      {t("hc_routesAppTeacherExamsIndex.createFirst")}
                     </Button>
                   }
                 />
@@ -772,8 +793,8 @@ function TeacherExams() {
                 <TableEmpty
                   colSpan={12}
                   icon={FileText}
-                  text="Sin resultados para los filtros actuales."
-                  hint="Limpia el buscador o el curso para ver todos los exámenes."
+                  text={t("hc_routesAppTeacherExamsIndex.noResultsText")}
+                  hint={t("hc_routesAppTeacherExamsIndex.noResultsHint")}
                 />
               ) : null}
               {pagination.paginatedItems.map((e) => (
@@ -894,7 +915,11 @@ function TeacherExams() {
                           to: "/app/teacher/exams/$examId",
                           params: { examId: e.id },
                         },
-                        { label: "Duplicar", icon: Copy, onClick: () => openDuplicate(e) },
+                        {
+                          label: t("hc_routesAppTeacherExamsIndex.duplicate"),
+                          icon: Copy,
+                          onClick: () => openDuplicate(e),
+                        },
                         {
                           label: t("common.delete", { defaultValue: "Eliminar" }),
                           icon: Trash2,
@@ -909,7 +934,10 @@ function TeacherExams() {
               ))}
             </TableBody>
           </Table>
-          <DataPagination state={pagination} entityNamePlural="exámenes" />
+          <DataPagination
+            state={pagination}
+            entityNamePlural={t("hc_routesAppTeacherExamsIndex.entityPlural")}
+          />
         </CardContent>
       </Card>
 
@@ -932,11 +960,10 @@ function TeacherExams() {
             >
               <div className="space-y-0.5">
                 <Label htmlFor="is-external" className="text-sm">
-                  Actividad externa
+                  {t("hc_routesAppTeacherExamsIndex.externalActivity")}
                 </Label>
                 <p className="text-[11px] text-muted-foreground leading-tight">
-                  Un parcial que ocurrió fuera de la plataforma — presencial o hecho en otra
-                  herramienta. Solo registras notas para el cálculo del corte.
+                  {t("hc_routesAppTeacherExamsIndex.externalActivityHint")}
                 </p>
               </div>
               <Switch
@@ -967,7 +994,7 @@ function TeacherExams() {
                 semántica "solo en edición" si el dialog se reutilizara. */}
             {(form as any).id && (form as any).status === "closed" && (
               <ReopenClosedBanner
-                hint="Cambia el estado a Publicado y fija una fecha de fin futura para que los estudiantes puedan presentarlo de nuevo."
+                hint={t("hc_routesAppTeacherExamsIndex.reopenHint")}
                 onReopen={() => {
                   const now = new Date();
                   const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -985,7 +1012,7 @@ function TeacherExams() {
             )}
             <div>
               <Label>
-                Estado{" "}
+                {t("hc_routesAppTeacherExamsIndex.statusLabel")}{" "}
                 <HelpHint>{t("help.examStatusHelp")}</HelpHint>
               </Label>
               <Select
@@ -996,9 +1023,15 @@ function TeacherExams() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="draft">Borrador</SelectItem>
-                  <SelectItem value="published">Publicado</SelectItem>
-                  <SelectItem value="closed">Cerrado</SelectItem>
+                  <SelectItem value="draft">
+                    {t("hc_routesAppTeacherExamsIndex.statusDraft")}
+                  </SelectItem>
+                  <SelectItem value="published">
+                    {t("hc_routesAppTeacherExamsIndex.statusPublished")}
+                  </SelectItem>
+                  <SelectItem value="closed">
+                    {t("hc_routesAppTeacherExamsIndex.statusClosed")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1035,7 +1068,9 @@ function TeacherExams() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" data-tour-id="exam-field-dates">
               <div>
                 <Label required>
-                  {(form as any).is_external ? "Fecha del parcial" : t("common.start")}
+                  {(form as any).is_external
+                    ? t("hc_routesAppTeacherExamsIndex.examDate")
+                    : t("common.start")}
                 </Label>
                 <DateTimePicker
                   value={form.start_time as string}
@@ -1120,11 +1155,12 @@ function TeacherExams() {
             {!(form as any).is_external && (
               <div>
                 <Label>
-                  Tipo de programación{" "}
+                  {t("hc_routesAppTeacherExamsIndex.scheduleTypeLabel")}{" "}
                   <HelpHint>
-                    <strong>Normal:</strong> el cronómetro cuenta hasta la fecha de fin para todos.{" "}
-                    <strong>Relativo:</strong> cada estudiante tiene la duración indicada desde que
-                    abre el examen, dentro de la ventana.
+                    <strong>{t("hc_routesAppTeacherExamsIndex.scheduleNormalName")}:</strong>{" "}
+                    {t("hc_routesAppTeacherExamsIndex.scheduleNormalHint")}{" "}
+                    <strong>{t("hc_routesAppTeacherExamsIndex.scheduleRelativeName")}:</strong>{" "}
+                    {t("hc_routesAppTeacherExamsIndex.scheduleRelativeHint")}
                   </HelpHint>
                 </Label>
                 <Select
@@ -1135,8 +1171,12 @@ function TeacherExams() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="normal">Normal (sincrónico)</SelectItem>
-                    <SelectItem value="relativo">Relativo (por estudiante)</SelectItem>
+                    <SelectItem value="normal">
+                      {t("hc_routesAppTeacherExamsIndex.scheduleNormalOption")}
+                    </SelectItem>
+                    <SelectItem value="relativo">
+                      {t("hc_routesAppTeacherExamsIndex.scheduleRelativeOption")}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1144,7 +1184,7 @@ function TeacherExams() {
             {!(form as any).is_external && (
               <div>
                 <Label>
-                  Modo de calificación con reintentos{" "}
+                  {t("hc_routesAppTeacherExamsIndex.retryModeLabel")}{" "}
                   <HelpHint>{t("help.examRetryModeHelp")}</HelpHint>
                 </Label>
                 <Select
@@ -1155,9 +1195,15 @@ function TeacherExams() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="last">Último intento</SelectItem>
-                    <SelectItem value="average">Promedio</SelectItem>
-                    <SelectItem value="highest">Más alto</SelectItem>
+                    <SelectItem value="last">
+                      {t("hc_routesAppTeacherExamsIndex.retryLast")}
+                    </SelectItem>
+                    <SelectItem value="average">
+                      {t("hc_routesAppTeacherExamsIndex.retryAverage")}
+                    </SelectItem>
+                    <SelectItem value="highest">
+                      {t("hc_routesAppTeacherExamsIndex.retryHighest")}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1174,7 +1220,7 @@ function TeacherExams() {
             {!(form as any).is_external && (
               <div>
                 <Label>
-                  Advertencias máximas{" "}
+                  {t("hc_routesAppTeacherExamsIndex.maxWarningsLabel")}{" "}
                   <HelpHint>{t("help.examMaxWarningsHelp")}</HelpHint>
                 </Label>
                 <Input
@@ -1198,7 +1244,7 @@ function TeacherExams() {
             {selectedCourseIds.size > 1 ? (
               <div className="space-y-2">
                 <Label>
-                  Corte y peso por curso{" "}
+                  {t("hc_routesAppTeacherExamsIndex.cutWeightPerCourseLabel")}{" "}
                   <HelpHint>{t("help.examCutWeightPerCourseHelp")}</HelpHint>
                 </Label>
                 {[...selectedCourseIds].map((cid) => {
@@ -1217,7 +1263,9 @@ function TeacherExams() {
                       <p className="text-sm font-medium">{course?.name ?? cid}</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
-                          <Label className="text-xs text-muted-foreground">Corte</Label>
+                          <Label className="text-xs text-muted-foreground">
+                            {t("hc_routesAppTeacherExamsIndex.cutLabel")}
+                          </Label>
                           <Select
                             value={cc.cut_id ?? "__none__"}
                             onValueChange={(v) =>
@@ -1231,10 +1279,14 @@ function TeacherExams() {
                             }
                           >
                             <SelectTrigger className="mt-1 h-8 text-sm">
-                              <SelectValue placeholder="Sin corte" />
+                              <SelectValue
+                                placeholder={t("hc_routesAppTeacherExamsIndex.noCut")}
+                              />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="__none__">Sin corte</SelectItem>
+                              <SelectItem value="__none__">
+                                {t("hc_routesAppTeacherExamsIndex.noCut")}
+                              </SelectItem>
                               {cutsForCourse.map((c) => (
                                 <SelectItem key={c.id} value={c.id}>
                                   {c.name}
@@ -1244,12 +1296,14 @@ function TeacherExams() {
                           </Select>
                           {cutsForCourse.length === 0 && (
                             <p className="text-xs text-muted-foreground mt-1">
-                              Sin cortes definidos
+                              {t("hc_routesAppTeacherExamsIndex.noCutsDefined")}
                             </p>
                           )}
                         </div>
                         <div>
-                          <Label className="text-xs text-muted-foreground">Peso (%)</Label>
+                          <Label className="text-xs text-muted-foreground">
+                            {t("hc_routesAppTeacherExamsIndex.weightPercent")}
+                          </Label>
                           <div className="relative mt-1">
                             <DecimalInput
                               min={0}
@@ -1273,16 +1327,22 @@ function TeacherExams() {
                             <p
                               className={`text-xs mt-1 ${overBucket ? "text-destructive" : "text-muted-foreground"}`}
                             >
-                              Disponible: <strong>{exMax.toFixed(1)}%</strong> (bucket {exBucket}% −
-                              otros {sumOthers.toFixed(1)}%)
+                              {t("hc_routesAppTeacherExamsIndex.availablePrefix")}{" "}
+                              <strong>{exMax.toFixed(1)}%</strong>{" "}
+                              {t("hc_routesAppTeacherExamsIndex.bucketBreakdown", {
+                                bucket: exBucket,
+                                others: sumOthers.toFixed(1),
+                              })}
                               {overBucket && (
-                                <span className="block">Excede el bucket disponible.</span>
+                                <span className="block">
+                                  {t("hc_routesAppTeacherExamsIndex.exceedsBucket")}
+                                </span>
                               )}
                             </p>
                           )}
                           {!cc.cut_id && (
                             <p className="text-xs text-muted-foreground mt-1">
-                              Asigna un corte para configurar el peso.
+                              {t("hc_routesAppTeacherExamsIndex.assignCutToConfigure")}
                             </p>
                           )}
                         </div>
@@ -1295,7 +1355,7 @@ function TeacherExams() {
               <>
                 <div>
                   <Label>
-                    Corte de evaluación{" "}
+                    {t("hc_routesAppTeacherExamsIndex.evaluationCutLabel")}{" "}
                     <HelpHint>{t("help.examCutWeightHelp")}</HelpHint>
                   </Label>
                   {(() => {
@@ -1309,10 +1369,14 @@ function TeacherExams() {
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Sin corte asignado" />
+                          <SelectValue
+                            placeholder={t("hc_routesAppTeacherExamsIndex.noCutAssigned")}
+                          />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="__none__">Sin corte asignado</SelectItem>
+                          <SelectItem value="__none__">
+                            {t("hc_routesAppTeacherExamsIndex.noCutAssigned")}
+                          </SelectItem>
                           {availableCuts.map((c) => (
                             <SelectItem key={c.id} value={c.id}>
                               {c.name}
@@ -1335,7 +1399,7 @@ function TeacherExams() {
                     const overBucket = currentWeight > exMax + 0.01;
                     return (
                       <div>
-                        <Label>Peso del examen (% del bucket de exámenes del corte)</Label>
+                        <Label>{t("hc_routesAppTeacherExamsIndex.examWeightLabel")}</Label>
                         <div className="relative mt-1 w-32">
                           <DecimalInput
                             min={0}
@@ -1350,13 +1414,19 @@ function TeacherExams() {
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Bucket exámenes del corte{" "}
-                          <span className="font-medium">{selectedCut?.name}</span>: {exBucket}%.
-                          Otros exámenes suman {sumOthers.toFixed(1)}%, te queda{" "}
-                          <strong>{exMax.toFixed(1)}%</strong> disponible.
+                          {t("hc_routesAppTeacherExamsIndex.examBucketPrefix")}{" "}
+                          <span className="font-medium">{selectedCut?.name}</span>:{" "}
+                          {t("hc_routesAppTeacherExamsIndex.examBucketBreakdown", {
+                            bucket: exBucket,
+                            others: sumOthers.toFixed(1),
+                          })}{" "}
+                          <strong>{exMax.toFixed(1)}%</strong>{" "}
+                          {t("hc_routesAppTeacherExamsIndex.examBucketSuffix")}
                           {overBucket && (
                             <span className="block text-destructive mt-1">
-                              El peso actual ({currentWeight.toFixed(1)}%) excede el bucket.
+                              {t("hc_routesAppTeacherExamsIndex.currentWeightExceeds", {
+                                current: currentWeight.toFixed(1),
+                              })}
                             </span>
                           )}
                         </p>
@@ -1404,9 +1474,9 @@ function TeacherExams() {
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}
         items={selectedExamItems}
-        entityNameSingular="examen"
-        entityNamePlural="exámenes"
-        extraWarning="Se eliminarán también todas las preguntas, asignaciones y entregas de los exámenes seleccionados."
+        entityNameSingular={t("hc_routesAppTeacherExamsIndex.entitySingular")}
+        entityNamePlural={t("hc_routesAppTeacherExamsIndex.entityPlural")}
+        extraWarning={t("hc_routesAppTeacherExamsIndex.bulkDeleteWarning")}
         onConfirm={handleBulkDelete}
       />
 

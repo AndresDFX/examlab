@@ -34,6 +34,7 @@ import {
   type RoleKey,
 } from "@/hooks/use-module-visibility";
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { PageLoader } from "@/components/ui/loaders";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ interface Props {
 }
 
 export function ModuleGuard({ module, children }: Props) {
+  const { t } = useTranslation();
   const { user, roles, loading: authLoading } = useAuth();
   const activeRole = useActiveRole();
   const { map, loading: modLoading } = useModuleVisibility();
@@ -78,16 +80,15 @@ export function ModuleGuard({ module, children }: Props) {
       <Card className="border-amber-300/60 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30">
         <CardContent className="p-6 space-y-3 text-center">
           <Lock className="h-10 w-10 text-amber-600 dark:text-amber-400 mx-auto" />
-          <h2 className="text-lg font-semibold">Módulo no disponible</h2>
+          <h2 className="text-lg font-semibold">{t("hc_sharedComponentsModuleGuard.title")}</h2>
           <p className="text-sm text-muted-foreground">
-            Tu administrador ha deshabilitado este módulo para tu rol. Si crees que es un error,
-            comunícate con la administración de la plataforma.
+            {t("hc_sharedComponentsModuleGuard.description")}
           </p>
           {canFixToggle && (
             <Button asChild variant="outline" size="sm">
               <Link to="/app/admin/settings" search={{ tab: "modules" } as never}>
                 <Settings className="h-4 w-4 mr-2" />
-                Reactivar desde Módulos
+                {t("hc_sharedComponentsModuleGuard.reactivateFromModules")}
               </Link>
             </Button>
           )}

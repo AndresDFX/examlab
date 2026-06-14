@@ -282,13 +282,16 @@ function ContentAssignmentSelector({
             <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
               <FileText className="h-3.5 w-3.5" />
               {allIncluded
-                ? `Archivos (${eligibleFiles.length})`
-                : `Archivos (${includedCount}/${eligibleFiles.length})`}
+                ? t("hc_routesAppTeacherBoardCourseId.filesCount", { count: eligibleFiles.length })
+                : t("hc_routesAppTeacherBoardCourseId.filesCountPartial", {
+                    included: includedCount,
+                    total: eligibleFiles.length,
+                  })}
             </Button>
           </PopoverTrigger>
           <PopoverContent align="start" className="w-72 p-2">
             <div className="text-[11px] text-muted-foreground px-1 pb-1">
-              Elegí qué archivos ver en esta sesión. Por defecto se muestran todos.
+              {t("hc_routesAppTeacherBoardCourseId.filesPickerHint")}
             </div>
             <div className="max-h-56 overflow-y-auto space-y-0.5">
               {eligibleFiles.map((f) => (
@@ -307,7 +310,7 @@ function ContentAssignmentSelector({
             </div>
             {includedCount === 0 && (
               <p className="text-[11px] text-amber-600 dark:text-amber-400 px-1 pt-1">
-                Sin archivos seleccionados: el estudiante no verá material en esta sesión.
+                {t("hc_routesAppTeacherBoardCourseId.filesNoneSelected")}
               </p>
             )}
           </PopoverContent>
@@ -1122,7 +1125,7 @@ function CourseBoardPage() {
                 if (editingId) setEditingId(null);
                 setDraftRecordingUrl(e.target.value);
               }}
-              placeholder="https://… (grabación de la clase)"
+              placeholder={t("hc_routesAppTeacherBoardCourseId.recordingUrlPlaceholder")}
               className="h-8 text-xs"
             />
           </div>
@@ -1139,7 +1142,7 @@ function CourseBoardPage() {
                 if (editingId) setEditingId(null);
                 setDraftNotesUrl(e.target.value);
               }}
-              placeholder="https://… (notas de la reunión)"
+              placeholder={t("hc_routesAppTeacherBoardCourseId.notesUrlPlaceholder")}
               className="h-8 text-xs"
             />
           </div>
@@ -1290,7 +1293,7 @@ function CourseBoardPage() {
                           type="url"
                           value={draftRecordingUrl}
                           onChange={(e) => setDraftRecordingUrl(e.target.value)}
-                          placeholder="https://… (grabación de la clase)"
+                          placeholder={t("hc_routesAppTeacherBoardCourseId.recordingUrlPlaceholder")}
                           className="h-8 text-xs"
                         />
                       </div>
@@ -1304,7 +1307,7 @@ function CourseBoardPage() {
                           type="url"
                           value={draftNotesUrl}
                           onChange={(e) => setDraftNotesUrl(e.target.value)}
-                          placeholder="https://… (notas de la reunión)"
+                          placeholder={t("hc_routesAppTeacherBoardCourseId.notesUrlPlaceholder")}
                           className="h-8 text-xs"
                         />
                       </div>

@@ -503,7 +503,7 @@ function TeacherContents() {
     // generated_contents es la query crítica — sin contenidos no hay
     // grid. brand y courses son secundarios (no bloquean el render).
     if (gensErr) {
-      setLoadError(friendlyError(gensErr, "No pudimos cargar los contenidos."));
+      setLoadError(friendlyError(gensErr, t("hc_routesAppTeacherContents.loadErrorFallback")));
       setLoading(false);
       return;
     }
@@ -644,7 +644,7 @@ function TeacherContents() {
         created_by: user.id,
       });
       if (enqErr) {
-        toast.error(friendlyError(enqErr, "No se pudo encolar la generación"));
+        toast.error(friendlyError(enqErr, t("hc_routesAppTeacherContents.enqueueError")));
         return;
       }
       toast.success(
@@ -707,7 +707,9 @@ function TeacherContents() {
           if (invErr || (invData as { error?: string })?.error) {
             const detail = await extractEdgeError(invErr, invData);
             toast.error(
-              friendlyError(invErr ?? new Error(detail || "No se pudo iniciar la generación")),
+              friendlyError(
+                invErr ?? new Error(detail || t("hc_routesAppTeacherContents.startGenerationError")),
+              ),
             );
           }
         });
@@ -772,7 +774,7 @@ function TeacherContents() {
     if (!user) return;
     const insertPayload: Record<string, unknown> = {
       teacher_id: user.id,
-      display_name: `Copia de ${c.display_name}`,
+      display_name: t("hc_routesAppTeacherContents.copyOfName", { name: c.display_name }),
       topic: c.topic,
       mode: c.mode,
       language: c.language,
@@ -795,7 +797,7 @@ function TeacherContents() {
     if (insErr || !created?.id) {
       if ((insErr as { code?: string } | null)?.code === "23505") {
         throw new Error(
-          `Ya tienes un contenido llamado "Copia de ${c.display_name}". Renómbralo después de duplicar.`,
+          t("hc_routesAppTeacherContents.duplicateNameExists", { name: c.display_name }),
         );
       }
       throw insErr ?? new Error("insert failed");
@@ -926,7 +928,8 @@ function TeacherContents() {
         .select("files")
         .eq("id", item.id)
         .maybeSingle();
-      if (getErr || !row) throw new Error(getErr?.message ?? "No se pudo cargar el contenido");
+      if (getErr || !row)
+        throw new Error(getErr?.message ?? t("hc_routesAppTeacherContents.loadContentError"));
       const filesArr = Array.isArray(row.files) ? (row.files as FileEntry[]) : [];
       const nextFiles = filesArr.filter((f) => f.path !== file.path);
       const { error: updErr } = await db
@@ -1054,7 +1057,7 @@ function TeacherContents() {
           icon={<Presentation className="h-6 w-6 text-pink-500" />}
         />
         <ErrorState
-          message="No pudimos cargar los contenidos"
+          message={t("hc_routesAppTeacherContents.loadErrorTitle")}
           hint={loadError}
           onRetry={() => void load()}
         />
@@ -1100,20 +1103,24 @@ function TeacherContents() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard
           icon={CheckSquare}
-          label="Completados"
+          label={t("hc_routesAppTeacherContents.statCompleted")}
           value={contentStats.done}
           tone={contentStats.done > 0 ? "success" : "default"}
         />
-        <StatCard icon={BookOpen} label="Publicados" value={contentStats.published} />
+        <StatCard
+          icon={BookOpen}
+          label={t("hc_routesAppTeacherContents.statPublished")}
+          value={contentStats.published}
+        />
         <StatCard
           icon={RefreshCw}
-          label="En proceso"
+          label={t("hc_routesAppTeacherContents.statInProgress")}
           value={contentStats.inProgress}
           tone={contentStats.inProgress > 0 ? "warning" : "default"}
         />
         <StatCard
           icon={AlertCircle}
-          label="Fallidos"
+          label={t("hc_routesAppTeacherContents.statFailed")}
           value={contentStats.failed}
           tone={contentStats.failed > 0 ? "destructive" : "default"}
         />
@@ -1124,7 +1131,7 @@ function TeacherContents() {
           <ListFilters
             search={search}
             onSearchChange={setSearch}
-            searchPlaceholder="Buscar por nombre, tema o autor…"
+            searchPlaceholder={t("hc_routesAppTeacherContents.searchPlaceholder")}
             courseId={courseFilter}
             onCourseChange={setCourseFilter}
             courses={courses}
@@ -1194,10 +1201,14 @@ function TeacherContents() {
                     return (
                       <TableEmpty
                         colSpan={7}
-                        text={noMatch ? "Sin coincidencias" : t("contents.emptyTitle")}
+                        text={
+                          noMatch
+                            ? t("hc_routesAppTeacherContents.noMatchTitle")
+                            : t("contents.emptyTitle")
+                        }
                         hint={
                           noMatch
-                            ? "Ajusta el buscador o el filtro de curso para ver más resultados."
+                            ? t("hc_routesAppTeacherContents.noMatchHint")
                             : t("contents.emptyHint")
                         }
                         action={
@@ -1245,16 +1256,16 @@ function TeacherContents() {
                           >
                             <SelectTrigger
                               className="h-6 w-auto px-2 py-0 text-[10px] gap-1 shrink-0"
-                              aria-label="Estado de publicación"
+                              aria-label={t("hc_routesAppTeacherContents.publishStatusAria")}
                             >
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="draft" className="text-xs">
-                                Borrador
+                                {t("hc_routesAppTeacherContents.draft")}
                               </SelectItem>
                               <SelectItem value="published" className="text-xs">
-                                Publicado
+                                {t("hc_routesAppTeacherContents.published")}
                               </SelectItem>
                             </SelectContent>
                           </Select>
@@ -1506,7 +1517,7 @@ function TeacherContents() {
                           // querer ajustar los prompts ANTES de regenerar
                           // — incluso si la fila falló o aún no terminó.
                           {
-                            label: "Personalizar prompts",
+                            label: t("hc_routesAppTeacherContents.customizePrompts"),
                             icon: MessageSquareText,
                             onClick: () => setPromptOverridesFor(it.id),
                           },
@@ -1531,7 +1542,10 @@ function TeacherContents() {
               </TableBody>
             </Table>
           )}
-          <DataPagination state={pagination} entityNamePlural="contenidos" />
+          <DataPagination
+            state={pagination}
+            entityNamePlural={t("hc_routesAppTeacherContents.entityNamePlural")}
+          />
         </CardContent>
       </Card>
 
@@ -1550,13 +1564,13 @@ function TeacherContents() {
                 exige unicidad por docente (case-insensitive). */}
             <div className="space-y-1.5">
               <Label required>
-                Nombre del contenido
+                {t("hc_routesAppTeacherContents.displayNameLabel")}
                 <HelpHint>{t("help.contentDisplayNameHint")}</HelpHint>
               </Label>
               <Input
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder='Ej. "Semana 5 — Bucles" o "Cohorte 2026-I · Algoritmos"'
+                placeholder={t("hc_routesAppTeacherContents.displayNamePlaceholder")}
                 maxLength={120}
               />
             </div>
@@ -1733,7 +1747,7 @@ function TeacherContents() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="es">Español</SelectItem>
+                    <SelectItem value="es">{t("hc_routesAppTeacherContents.languageSpanish")}</SelectItem>
                     <SelectItem value="en">English</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1768,7 +1782,7 @@ function TeacherContents() {
                 className="text-sm font-medium inline-flex items-center gap-1.5 cursor-pointer min-w-0"
               >
                 <span className="truncate">
-                  Liberar al estudiante solo desde la fecha de sesión
+                  {t("hc_routesAppTeacherContents.releaseAfterSessionLabel")}
                 </span>
                 <HelpHint>{t("help.contentReleaseAfterSessionHint")}</HelpHint>
               </Label>
@@ -1940,25 +1954,26 @@ function TeacherContents() {
       <DuplicateOptionsDialog
         open={duplicateFor !== null}
         onOpenChange={(o) => !o && setDuplicateFor(null)}
-        title="Duplicar contenido"
+        title={t("hc_routesAppTeacherContents.duplicateDialogTitle")}
         description={
           <>
-            Crea una copia como <strong>borrador</strong> (renombrada "Copia de…"). Elige qué
-            información interna copiar.
+            {t("hc_routesAppTeacherContents.duplicateDescBefore")}
+            <strong>{t("hc_routesAppTeacherContents.duplicateDescDraft")}</strong>
+            {t("hc_routesAppTeacherContents.duplicateDescAfter")}
           </>
         }
         options={[
           {
             param: "copyFiles",
-            label: `Copiar archivos${
+            label: `${t("hc_routesAppTeacherContents.duplicateCopyFiles")}${
               (duplicateFor?.files?.length ?? 0) > 0 ? ` (${duplicateFor?.files?.length})` : ""
             }`,
-            hint: "Clona los archivos al almacenamiento del nuevo contenido. Si lo desmarcas, la copia queda sin archivos (solo la metadata).",
+            hint: t("hc_routesAppTeacherContents.duplicateCopyFilesHint"),
           },
           {
             param: "copyCourses",
-            label: "Copiar cursos asociados",
-            hint: "Mantiene las mismas asociaciones a cursos. Si lo desmarcas, la copia queda solo en el curso ancla del original.",
+            label: t("hc_routesAppTeacherContents.duplicateCopyCourses"),
+            hint: t("hc_routesAppTeacherContents.duplicateCopyCoursesHint"),
           },
         ]}
         onConfirm={async (flags) => {
@@ -3128,15 +3143,18 @@ function AssignToSessionsDialog({
  *  Orden de detección: SOLUCION antes que EJERCICIO genérico — porque
  *  el filename de la solución incluye ambos sufijos. */
 function humanLabelForFile(f: FileEntry): string {
-  if (f.kind === "pptx-source") return "Presentación";
+  if (f.kind === "pptx-source") return i18n.t("hc_routesAppTeacherContents.fileLabelPresentation");
   if (f.kind === "md") {
     const u = f.name.toUpperCase();
-    if (u.includes("SOLUCION") || u.includes("SOLUTION")) return "Ejercicio (con solución)";
-    if (u.includes("EJERCICIO")) return "Ejercicio (estudiante)";
-    if (u.includes("GUIA")) return "Guía docente";
-    if (u.includes("TALLER") || u.includes("PRACTICO")) return "Taller práctico";
-    if (u.includes("INTRO")) return "Introducción";
-    return "Material";
+    if (u.includes("SOLUCION") || u.includes("SOLUTION"))
+      return i18n.t("hc_routesAppTeacherContents.fileLabelExerciseSolution");
+    if (u.includes("EJERCICIO"))
+      return i18n.t("hc_routesAppTeacherContents.fileLabelExerciseStudent");
+    if (u.includes("GUIA")) return i18n.t("hc_routesAppTeacherContents.fileLabelTeacherGuide");
+    if (u.includes("TALLER") || u.includes("PRACTICO"))
+      return i18n.t("hc_routesAppTeacherContents.fileLabelPracticeWorkshop");
+    if (u.includes("INTRO")) return i18n.t("hc_routesAppTeacherContents.fileLabelIntroduction");
+    return i18n.t("hc_routesAppTeacherContents.fileLabelMaterial");
   }
   return f.name;
 }
@@ -3567,7 +3585,9 @@ function FilesByClassDialog({
                                   size="sm"
                                   variant="ghost"
                                   className="h-7 px-2 text-xs"
-                                  title={`Materiales (${intro.length})`}
+                                  title={t("hc_routesAppTeacherContents.materialsCount", {
+                                    count: intro.length,
+                                  })}
                                 >
                                   <MoreHorizontal className="h-3.5 w-3.5" />
                                   <span className="ml-1 tabular-nums text-[10px] text-muted-foreground">
@@ -3641,7 +3661,9 @@ function FilesByClassDialog({
                                       size="sm"
                                       variant="ghost"
                                       className="h-7 px-2 text-xs"
-                                      title={`Materiales (${sectionFiles.length})`}
+                                      title={t("hc_routesAppTeacherContents.materialsCount", {
+                                        count: sectionFiles.length,
+                                      })}
                                     >
                                       <MoreHorizontal className="h-3.5 w-3.5" />
                                       <span className="ml-1 tabular-nums text-[10px] text-muted-foreground">

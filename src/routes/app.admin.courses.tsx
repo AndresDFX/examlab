@@ -495,7 +495,7 @@ export function AdminCourses() {
     }
     const { data, error } = await q;
     if (error) {
-      setLoadError(friendlyError(error, "No pudimos cargar la lista de cursos."));
+      setLoadError(friendlyError(error, t("hc_routesAppAdminCourses.loadErrorMessage")));
       return;
     }
     setLoadError(null);
@@ -743,7 +743,7 @@ export function AdminCourses() {
 
   /** Crea un corte vacío con defaults razonables. */
   const makeEmptyCut = (position: number, n: number): DraftCut => ({
-    name: `Corte ${position + 1}`,
+    name: t("hc_routesAppAdminCourses.cutDefaultName", { n: position + 1 }),
     position,
     start_date: null,
     end_date: null,
@@ -872,9 +872,13 @@ export function AdminCourses() {
           Number(c.project_weight || 0);
         const target = Number(c.weight || 0);
         if (Math.abs(subSum - target) >= TOL) {
-          const label = c.name?.trim() || `Corte ${i + 1}`;
+          const label = c.name?.trim() || t("hc_routesAppAdminCourses.cutDefaultName", { n: i + 1 });
           offending.push(
-            `${label}: sub-pesos ${formatPercent(subSum)}% ≠ ${formatPercent(target)}%`,
+            t("hc_routesAppAdminCourses.subWeightOffending", {
+              label,
+              sub: formatPercent(subSum),
+              target: formatPercent(target),
+            }),
           );
         }
       });
@@ -948,7 +952,8 @@ export function AdminCourses() {
         .insert(payload)
         .select("id")
         .single();
-      if (error || !created) return toast.error(friendlyError(error, "Error creando curso"));
+      if (error || !created)
+        return toast.error(friendlyError(error, t("hc_routesAppAdminCourses.errorCreatingCourse")));
       courseId = created.id as string;
     }
 
@@ -969,7 +974,7 @@ export function AdminCourses() {
         const c = editingCuts[i];
         const cutPayload = {
           course_id: courseId,
-          name: c.name?.trim() || `Corte ${i + 1}`,
+          name: c.name?.trim() || t("hc_routesAppAdminCourses.cutDefaultName", { n: i + 1 }),
           position: i,
           start_date: c.start_date || null,
           end_date: c.end_date || null,
@@ -1292,7 +1297,8 @@ export function AdminCourses() {
         })
         .select()
         .single();
-      if (cErr || !newCourse) throw new Error(cErr?.message ?? "Error creando curso");
+      if (cErr || !newCourse)
+        throw new Error(cErr?.message ?? t("hc_routesAppAdminCourses.errorCreatingCourse"));
 
       // 2. Copy students (CRÍTICO: replicar todas las matrículas)
       if (dupCopyStudents) {
@@ -1471,20 +1477,26 @@ export function AdminCourses() {
       setDupOpen(false);
       load();
     } catch (e: any) {
-      toast.error(friendlyError(e, "Error al duplicar"));
+      toast.error(friendlyError(e, t("hc_routesAppAdminCourses.errorDuplicating")));
     } finally {
       setDupLoading(false);
     }
   };
 
-  if (!canManage) return <p className="text-muted-foreground">Necesitas rol Admin o Docente.</p>;
+  if (!canManage)
+    return (
+      <p className="text-muted-foreground">{t("hc_routesAppAdminCourses.needAdminOrTeacherRole")}</p>
+    );
 
   if (loadError) {
     return (
       <div className="space-y-5">
-        <PageHeader icon={<BookOpen className="h-6 w-6" />} title="Cursos" />
+        <PageHeader
+          icon={<BookOpen className="h-6 w-6" />}
+          title={t("hc_routesAppAdminCourses.coursesTitle")}
+        />
         <ErrorState
-          message="No pudimos cargar la lista de cursos"
+          message={t("hc_routesAppAdminCourses.loadErrorTitle")}
           hint={loadError}
           onRetry={() => void load()}
         />
@@ -1496,17 +1508,23 @@ export function AdminCourses() {
     <div className="space-y-5">
       <PageHeader
         icon={<BookOpen className="h-6 w-6" />}
-        title="Cursos"
+        title={t("hc_routesAppAdminCourses.coursesTitle")}
         subtitle={
           search.trim()
-            ? `${filteredCourses.length} de ${courses.length} cursos`
-            : `${courses.length} cursos registrados`
+            ? t("hc_routesAppAdminCourses.subtitleFiltered", {
+                shown: filteredCourses.length,
+                total: courses.length,
+              })
+            : t("hc_routesAppAdminCourses.subtitleRegistered", { count: courses.length })
         }
         actions={
           <>
-            <ImportExportMenu resourceName="cursos" onExport={exportCoursesCsv} />
+            <ImportExportMenu
+              resourceName={t("hc_routesAppAdminCourses.resourceCourses")}
+              onExport={exportCoursesCsv}
+            />
             <Button size="sm" onClick={openNew} data-tour-id="create-course">
-              <Plus className="h-4 w-4 mr-1" /> Nuevo curso
+              <Plus className="h-4 w-4 mr-1" /> {t("hc_routesAppAdminCourses.newCourse")}
             </Button>
           </>
         }
@@ -1517,15 +1535,27 @@ export function AdminCourses() {
           mantiene consistencia visual con el resto de los módulos
           incluso cuando el tenant no tiene cursos cargados todavía. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={BookOpen} label="Total" value={coursesSummary.total} />
+        <StatCard
+          icon={BookOpen}
+          label={t("hc_routesAppAdminCourses.statTotal")}
+          value={coursesSummary.total}
+        />
         <StatCard
           icon={CalendarRange}
-          label="Activos"
+          label={t("hc_routesAppAdminCourses.statActive")}
           value={coursesSummary.active}
           tone={coursesSummary.active > 0 ? "success" : "default"}
         />
-        <StatCard icon={CalendarClock} label="Próximos" value={coursesSummary.upcoming} />
-        <StatCard icon={Archive} label="Terminados" value={coursesSummary.ended} />
+        <StatCard
+          icon={CalendarClock}
+          label={t("hc_routesAppAdminCourses.statUpcoming")}
+          value={coursesSummary.upcoming}
+        />
+        <StatCard
+          icon={Archive}
+          label={t("hc_routesAppAdminCourses.statEnded")}
+          value={coursesSummary.ended}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -1533,7 +1563,7 @@ export function AdminCourses() {
           <SearchInput
             value={search}
             onChange={setSearch}
-            placeholder="Buscar por nombre, período o descripción…"
+            placeholder={t("hc_routesAppAdminCourses.searchPlaceholder")}
           />
         </div>
         {/* Filtro de institución (solo SuperAdmin con >1 tenant visible).
@@ -1587,10 +1617,10 @@ export function AdminCourses() {
             }}
           >
             <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
-              <SelectValue placeholder="Todos los programas" />
+              <SelectValue placeholder={t("hc_routesAppAdminCourses.allPrograms")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos los programas</SelectItem>
+              <SelectItem value="all">{t("hc_routesAppAdminCourses.allPrograms")}</SelectItem>
               {programs.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {p.name}
@@ -1602,10 +1632,10 @@ export function AdminCourses() {
         {subjects.length > 0 && (
           <Select value={subjectFilterUi} onValueChange={setSubjectFilterUi}>
             <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
-              <SelectValue placeholder="Todas las asignaturas" />
+              <SelectValue placeholder={t("hc_routesAppAdminCourses.allSubjects")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas las asignaturas</SelectItem>
+              <SelectItem value="all">{t("hc_routesAppAdminCourses.allSubjects")}</SelectItem>
               {subjects
                 .filter(
                   (s) =>
@@ -1626,8 +1656,8 @@ export function AdminCourses() {
         count={sel.count}
         onClear={sel.clear}
         onDelete={() => setBulkDeleteOpen(true)}
-        entityNameSingular="curso"
-        entityNamePlural="cursos"
+        entityNameSingular={t("hc_routesAppAdminCourses.entityCourseSingular")}
+        entityNamePlural={t("hc_routesAppAdminCourses.entityCoursePlural")}
       />
 
       <Card>
@@ -1661,9 +1691,9 @@ export function AdminCourses() {
                   sortKey="activity"
                   sort={sort}
                   className="hidden lg:table-cell w-44"
-                  title="Estudiantes / Docentes / Items"
+                  title={t("hc_routesAppAdminCourses.activityColumnTitle")}
                 >
-                  Actividad
+                  {t("hc_routesAppAdminCourses.activityColumn")}
                 </SortableHead>
                 <TableHead className="text-right w-28">{t("common.actions")}</TableHead>
               </TableRow>
@@ -1675,12 +1705,12 @@ export function AdminCourses() {
                   icon={BookOpen}
                   text={
                     search.trim() && courses.length > 0
-                      ? "Sin coincidencias"
+                      ? t("hc_routesAppAdminCourses.noMatches")
                       : t("course.emptyTitle")
                   }
                   hint={
                     search.trim() && courses.length > 0
-                      ? "Ajusta el buscador para ver más resultados."
+                      ? t("hc_routesAppAdminCourses.noMatchesHint")
                       : t("course.emptyHint")
                   }
                   action={
@@ -1757,21 +1787,30 @@ export function AdminCourses() {
                         <div className="flex items-center gap-2 text-xs tabular-nums">
                           <span
                             className="inline-flex items-center gap-0.5 text-muted-foreground"
-                            title={`${s.students} estudiante(s) matriculado(s)`}
+                            title={t("hc_routesAppAdminCourses.activityStudentsTitle", {
+                              count: s.students,
+                            })}
                           >
                             <Users className="h-3 w-3" />
                             <span className="font-medium text-foreground">{s.students}</span>
                           </span>
                           <span
                             className="inline-flex items-center gap-0.5 text-muted-foreground"
-                            title={`${s.teachers} docente(s) asignado(s)`}
+                            title={t("hc_routesAppAdminCourses.activityTeachersTitle", {
+                              count: s.teachers,
+                            })}
                           >
                             <UserCog className="h-3 w-3" />
                             <span className="font-medium text-foreground">{s.teachers}</span>
                           </span>
                           <span
                             className="inline-flex items-center gap-0.5 text-muted-foreground"
-                            title={`${items} item(s) total: ${s.exams} examen(es), ${s.workshops} taller(es), ${s.projects} proyecto(s)`}
+                            title={t("hc_routesAppAdminCourses.activityItemsTitle", {
+                              items,
+                              exams: s.exams,
+                              workshops: s.workshops,
+                              projects: s.projects,
+                            })}
                           >
                             <FileText className="h-3 w-3" />
                             <span className="font-medium text-foreground">{items}</span>
@@ -1793,7 +1832,7 @@ export function AdminCourses() {
                           params: { courseId: c.id },
                         },
                         {
-                          label: "Foro",
+                          label: t("hc_routesAppAdminCourses.actionForum"),
                           icon: MessageSquareText,
                           to: "/app/forum/$courseId",
                           params: { courseId: c.id },
@@ -1814,7 +1853,7 @@ export function AdminCourses() {
                           onClick: () => openDuplicate(c),
                         },
                         {
-                          label: "Certificaciones",
+                          label: t("hc_routesAppAdminCourses.actionCertifications"),
                           icon: Award,
                           onClick: () => setCertForCourse(c),
                         },
@@ -1822,7 +1861,7 @@ export function AdminCourses() {
                           // Editor de horario semanal (días + horas + aula
                           // + modalidad). Dialog separado para no
                           // sobrecargar el form principal del curso.
-                          label: "Horario",
+                          label: t("hc_routesAppAdminCourses.actionSchedule"),
                           icon: CalendarClock,
                           onClick: () => setScheduleForCourse(c),
                         },
@@ -1841,7 +1880,10 @@ export function AdminCourses() {
               ))}
             </TableBody>
           </Table>
-          <DataPagination state={pagination} entityNamePlural="cursos" />
+          <DataPagination
+            state={pagination}
+            entityNamePlural={t("hc_routesAppAdminCourses.entityCoursePlural")}
+          />
         </CardContent>
       </Card>
 
@@ -1852,16 +1894,20 @@ export function AdminCourses() {
           data-tour-id="dialog-course"
         >
           <DialogHeader>
-            <DialogTitle>{editing?.id ? "Editar" : "Nuevo"} curso</DialogTitle>
+            <DialogTitle>
+              {editing?.id
+                ? t("hc_routesAppAdminCourses.dialogEditCourse")
+                : t("hc_routesAppAdminCourses.dialogNewCourse")}
+            </DialogTitle>
           </DialogHeader>
           {editing && (
             <div className="space-y-3">
               <div data-tour-id="course-field-name">
-                <Label required>Nombre</Label>
+                <Label required>{t("hc_routesAppAdminCourses.fieldName")}</Label>
                 <Input
                   value={editing.name ?? ""}
                   onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                  placeholder="Ej: Programación II"
+                  placeholder={t("hc_routesAppAdminCourses.placeholderName")}
                 />
               </div>
               {/* Periodo académico — si el admin mantiene la lista
@@ -1873,7 +1919,7 @@ export function AdminCourses() {
                   vacío y el admin puede igual escribir el texto en
                   "Periodo (texto libre)" abajo. */}
               <div data-tour-id="course-field-period">
-                <Label required>Periodo académico</Label>
+                <Label required>{t("hc_routesAppAdminCourses.fieldAcademicPeriod")}</Label>
                 <Select
                   value={editing.period_id ?? "__manual__"}
                   onValueChange={(v) =>
@@ -1890,16 +1936,22 @@ export function AdminCourses() {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un periodo" />
+                    <SelectValue placeholder={t("hc_routesAppAdminCourses.selectPeriodPlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__manual__">Texto libre (sin asociar)</SelectItem>
+                    <SelectItem value="__manual__">
+                      {t("hc_routesAppAdminCourses.periodFreeTextOption")}
+                    </SelectItem>
                     {periods.map((p) => (
                       <SelectItem key={p.id} value={p.id} disabled={p.status === "cerrado"}>
                         {p.code}
                         {p.name ? ` — ${p.name}` : ""}
-                        {p.status === "cerrado" ? " (cerrado)" : ""}
-                        {p.status === "planificado" ? " (planificado)" : ""}
+                        {p.status === "cerrado"
+                          ? ` ${t("hc_routesAppAdminCourses.periodClosedSuffix")}`
+                          : ""}
+                        {p.status === "planificado"
+                          ? ` ${t("hc_routesAppAdminCourses.periodPlannedSuffix")}`
+                          : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1909,7 +1961,7 @@ export function AdminCourses() {
                     className="mt-2"
                     value={editing.period ?? ""}
                     onChange={(e) => setEditing({ ...editing, period: e.target.value })}
-                    placeholder="Ej: 2026-1 (texto libre)"
+                    placeholder={t("hc_routesAppAdminCourses.placeholderPeriodFreeText")}
                   />
                 )}
               </div>
@@ -1925,7 +1977,7 @@ export function AdminCourses() {
                   desde subj.program_id al elegir); este field es
                   PURAMENTE un filtro de la UI. */}
               <div>
-                <Label>Programa / Nivel</Label>
+                <Label>{t("hc_routesAppAdminCourses.fieldProgramLevel")}</Label>
                 <Select
                   value={editing.program_id ?? "__none__"}
                   onValueChange={(v) => {
@@ -1948,10 +2000,10 @@ export function AdminCourses() {
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Todos los programas" />
+                    <SelectValue placeholder={t("hc_routesAppAdminCourses.allPrograms")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">Todos los programas</SelectItem>
+                    <SelectItem value="__none__">{t("hc_routesAppAdminCourses.allPrograms")}</SelectItem>
                     {programs.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
                         {p.name}
@@ -1966,7 +2018,7 @@ export function AdminCourses() {
                   semestre como input separado. Filtrada por el programa
                   seleccionado arriba (si no hay programa → todas). */}
               <div data-tour-id="course-field-subject">
-                <Label>Asignatura del plan</Label>
+                <Label>{t("hc_routesAppAdminCourses.fieldPlanSubject")}</Label>
                 <Select
                   value={editing.subject_id ?? "__none__"}
                   onValueChange={(v) => {
@@ -1992,10 +2044,12 @@ export function AdminCourses() {
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Sin asignatura asociada" />
+                    <SelectValue placeholder={t("hc_routesAppAdminCourses.noSubjectAssociated")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">Sin asignatura asociada</SelectItem>
+                    <SelectItem value="__none__">
+                      {t("hc_routesAppAdminCourses.noSubjectAssociated")}
+                    </SelectItem>
                     {subjects
                       .filter(
                         (s) =>
@@ -2010,7 +2064,9 @@ export function AdminCourses() {
                         <SelectItem key={s.id} value={s.id}>
                           {s.name}
                           {s.code ? ` (${s.code})` : ""}
-                          {s.semestre ? ` · Sem/Cuat ${s.semestre}` : ""}
+                          {s.semestre
+                            ? ` ${t("hc_routesAppAdminCourses.subjectSemesterSuffix", { n: s.semestre })}`
+                            : ""}
                         </SelectItem>
                       ))}
                   </SelectContent>
@@ -2025,13 +2081,19 @@ export function AdminCourses() {
                   const parts: string[] = [];
                   if (subj.program_id) {
                     const prog = programs.find((p) => p.id === subj.program_id);
-                    if (prog) parts.push(`Programa: ${prog.name}`);
+                    if (prog)
+                      parts.push(t("hc_routesAppAdminCourses.inheritedProgram", { name: prog.name }));
                   }
-                  if (subj.semestre) parts.push(`Semestre/Cuatrimestre: ${subj.semestre}`);
+                  if (subj.semestre)
+                    parts.push(
+                      t("hc_routesAppAdminCourses.inheritedSemester", { n: subj.semestre }),
+                    );
                   if (parts.length === 0) return null;
                   return (
                     <p className="text-[11px] text-muted-foreground mt-1">
-                      {parts.join(" · ")} (heredado de la asignatura)
+                      {t("hc_routesAppAdminCourses.inheritedFromSubject", {
+                        parts: parts.join(" · "),
+                      })}
                     </p>
                   );
                 })()}
@@ -2043,19 +2105,19 @@ export function AdminCourses() {
                   input separado para evitar inconsistencias. */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Label>Código</Label>
+                  <Label>{t("hc_routesAppAdminCourses.fieldCode")}</Label>
                   <Input
                     value={editing.code ?? ""}
                     onChange={(e) => setEditing({ ...editing, code: e.target.value || null })}
-                    placeholder="Ej: ProgII"
+                    placeholder={t("hc_routesAppAdminCourses.placeholderCode")}
                   />
                 </div>
                 <div>
-                  <Label>Grupo</Label>
+                  <Label>{t("hc_routesAppAdminCourses.fieldGroup")}</Label>
                   <Input
                     value={editing.grupo ?? ""}
                     onChange={(e) => setEditing({ ...editing, grupo: e.target.value || null })}
-                    placeholder="Ej: 341-C"
+                    placeholder={t("hc_routesAppAdminCourses.placeholderGroup")}
                   />
                 </div>
               </div>
@@ -2064,14 +2126,14 @@ export function AdminCourses() {
                 data-tour-id="course-field-dates"
               >
                 <div>
-                  <Label required>Fecha inicio</Label>
+                  <Label required>{t("hc_routesAppAdminCourses.fieldStartDate")}</Label>
                   <DatePicker
                     value={toDateInput(editing.start_date) ?? ""}
                     onChange={(v) => setEditing({ ...editing, start_date: v || null })}
                   />
                 </div>
                 <div>
-                  <Label required>Fecha fin</Label>
+                  <Label required>{t("hc_routesAppAdminCourses.fieldEndDate")}</Label>
                   <DatePicker
                     value={toDateInput(editing.end_date) ?? ""}
                     onChange={(v) => setEditing({ ...editing, end_date: v || null })}
@@ -2079,7 +2141,7 @@ export function AdminCourses() {
                 </div>
               </div>
               <div>
-                <Label>Descripción</Label>
+                <Label>{t("hc_routesAppAdminCourses.fieldDescription")}</Label>
                 <Textarea
                   value={editing.description ?? ""}
                   onChange={(e) => setEditing({ ...editing, description: e.target.value })}
@@ -2087,10 +2149,10 @@ export function AdminCourses() {
               </div>
 
               <div className="rounded-md border p-3 space-y-3">
-                <p className="text-sm font-medium">Escala de calificación</p>
+                <p className="text-sm font-medium">{t("hc_routesAppAdminCourses.gradeScale")}</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <Label className="text-xs">Calificación mínima</Label>
+                    <Label className="text-xs">{t("hc_routesAppAdminCourses.minGrade")}</Label>
                     <Input
                       type="number"
                       step="0.1"
@@ -2101,7 +2163,7 @@ export function AdminCourses() {
                     />
                   </div>
                   <div>
-                    <Label className="text-xs">Calificación máxima</Label>
+                    <Label className="text-xs">{t("hc_routesAppAdminCourses.maxGrade")}</Label>
                     <Input
                       type="number"
                       step="0.1"
@@ -2112,7 +2174,7 @@ export function AdminCourses() {
                     />
                   </div>
                   <div>
-                    <Label className="text-xs">Aprobar ≥</Label>
+                    <Label className="text-xs">{t("hc_routesAppAdminCourses.passingGrade")}</Label>
                     <Input
                       type="number"
                       step="0.1"
@@ -2132,7 +2194,7 @@ export function AdminCourses() {
                   <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                       <div>
-                        <Label className="text-xs">Peso exámenes (%)</Label>
+                        <Label className="text-xs">{t("hc_routesAppAdminCourses.weightExams")}</Label>
                         <DecimalInput
                           min={0}
                           max={100}
@@ -2141,7 +2203,9 @@ export function AdminCourses() {
                         />
                       </div>
                       <div>
-                        <Label className="text-xs">Peso talleres (%)</Label>
+                        <Label className="text-xs">
+                          {t("hc_routesAppAdminCourses.weightWorkshops")}
+                        </Label>
                         <DecimalInput
                           min={0}
                           max={100}
@@ -2150,7 +2214,9 @@ export function AdminCourses() {
                         />
                       </div>
                       <div>
-                        <Label className="text-xs">Peso asistencia (%)</Label>
+                        <Label className="text-xs">
+                          {t("hc_routesAppAdminCourses.weightAttendance")}
+                        </Label>
                         <DecimalInput
                           min={0}
                           max={100}
@@ -2159,7 +2225,9 @@ export function AdminCourses() {
                         />
                       </div>
                       <div>
-                        <Label className="text-xs">Peso proyecto (%)</Label>
+                        <Label className="text-xs">
+                          {t("hc_routesAppAdminCourses.weightProject")}
+                        </Label>
                         <DecimalInput
                           min={0}
                           max={100}
@@ -2178,7 +2246,7 @@ export function AdminCourses() {
                       return (
                         <div className="flex items-center justify-between">
                           <p className="text-xs text-muted-foreground">
-                            Total de pesos: debe sumar 100%
+                            {t("hc_routesAppAdminCourses.totalWeightsMustSum")}
                           </p>
                           <Badge variant={ok ? "default" : "destructive"} className="text-xs">
                             {formatPercent(total)}%
@@ -2194,7 +2262,7 @@ export function AdminCourses() {
                   <div className="flex flex-wrap items-end justify-between gap-2">
                     <div>
                       <Label className="text-xs">
-                        Cantidad de cortes{" "}
+                        {t("hc_routesAppAdminCourses.cutCount")}{" "}
                         <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.courseCutsDefinition") }} /></HelpHint>
                       </Label>
                     </div>
@@ -2222,7 +2290,9 @@ export function AdminCourses() {
                           const ok = Math.abs(sumCuts - 100) < 0.01;
                           return (
                             <Badge variant={ok ? "default" : "destructive"} className="text-xs">
-                              Total: {formatPercent(sumCuts)}%
+                              {t("hc_routesAppAdminCourses.cutTotalBadge", {
+                                total: formatPercent(sumCuts),
+                              })}
                             </Badge>
                           );
                         })()}
@@ -2230,13 +2300,16 @@ export function AdminCourses() {
                   </div>
 
                   {editingCuts.length === 0 && (
-                    <p className="text-xs text-muted-foreground italic">Sin cortes configurados.</p>
+                    <p className="text-xs text-muted-foreground italic">
+                      {t("hc_routesAppAdminCourses.noCutsConfigured")}
+                    </p>
                   )}
 
                   {editingCuts.length > 0 && (
                     <p className="text-[11px] text-muted-foreground">
-                      Pulsa el ícono <ChevronRight className="inline h-3 w-3 align-text-bottom" />{" "}
-                      de cada corte para configurar los sub-pesos por tipo.
+                      {t("hc_routesAppAdminCourses.cutsHintBefore")}{" "}
+                      <ChevronRight className="inline h-3 w-3 align-text-bottom" />{" "}
+                      {t("hc_routesAppAdminCourses.cutsHintAfter")}
                     </p>
                   )}
 
@@ -2263,7 +2336,11 @@ export function AdminCourses() {
                               size="sm"
                               onClick={() => toggleExpand(idx)}
                               className="h-8 w-8 p-0 shrink-0"
-                              title={isOpen ? "Ocultar sub-pesos" : "Ver sub-pesos"}
+                              title={
+                                isOpen
+                                  ? t("hc_routesAppAdminCourses.hideSubWeights")
+                                  : t("hc_routesAppAdminCourses.showSubWeights")
+                              }
                             >
                               {isOpen ? (
                                 <ChevronDown className="h-4 w-4" />
@@ -2274,14 +2351,18 @@ export function AdminCourses() {
                             <Input
                               value={cut.name}
                               onChange={(e) => updateDraftCut(idx, { name: e.target.value })}
-                              placeholder={`Corte ${idx + 1}`}
+                              placeholder={t("hc_routesAppAdminCourses.cutDefaultName", {
+                                n: idx + 1,
+                              })}
                               className="min-w-0 flex-1"
                             />
                           </div>
                           {/* Fila 2: fechas + peso (3 columnas desde sm) */}
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 min-w-0">
                             <div className="min-w-0">
-                              <Label className="text-[10px] text-muted-foreground">Inicio</Label>
+                              <Label className="text-[10px] text-muted-foreground">
+                                {t("hc_routesAppAdminCourses.cutStart")}
+                              </Label>
                               <DatePicker
                                 value={cut.start_date ?? ""}
                                 onChange={(v) => updateDraftCut(idx, { start_date: v || null })}
@@ -2289,7 +2370,9 @@ export function AdminCourses() {
                               />
                             </div>
                             <div className="min-w-0">
-                              <Label className="text-[10px] text-muted-foreground">Fin</Label>
+                              <Label className="text-[10px] text-muted-foreground">
+                                {t("hc_routesAppAdminCourses.cutEnd")}
+                              </Label>
                               <DatePicker
                                 value={cut.end_date ?? ""}
                                 onChange={(v) => updateDraftCut(idx, { end_date: v || null })}
@@ -2297,13 +2380,15 @@ export function AdminCourses() {
                               />
                             </div>
                             <div className="min-w-0">
-                              <Label className="text-[10px] text-muted-foreground">Peso %</Label>
+                              <Label className="text-[10px] text-muted-foreground">
+                                {t("hc_routesAppAdminCourses.cutWeightPercent")}
+                              </Label>
                               <DecimalInput
                                 min={0}
                                 max={100}
                                 value={cut.weight ?? null}
                                 onChange={(v) => updateDraftCut(idx, { weight: v ?? 0 })}
-                                placeholder="0-100"
+                                placeholder={t("hc_routesAppAdminCourses.weightRangePlaceholder")}
                                 className="min-w-0 w-full"
                               />
                             </div>
@@ -2320,7 +2405,9 @@ export function AdminCourses() {
                                   inputs apenas cabían. */}
                               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 min-w-0">
                                 <div className="min-w-0">
-                                  <Label className="text-xs">Talleres %</Label>
+                                  <Label className="text-xs">
+                                    {t("hc_routesAppAdminCourses.subWorkshops")}
+                                  </Label>
                                   <DecimalInput
                                     min={0}
                                     max={100}
@@ -2332,7 +2419,9 @@ export function AdminCourses() {
                                   />
                                 </div>
                                 <div className="min-w-0">
-                                  <Label className="text-xs">Exámenes %</Label>
+                                  <Label className="text-xs">
+                                    {t("hc_routesAppAdminCourses.subExams")}
+                                  </Label>
                                   <DecimalInput
                                     min={0}
                                     max={100}
@@ -2342,7 +2431,9 @@ export function AdminCourses() {
                                   />
                                 </div>
                                 <div className="min-w-0">
-                                  <Label className="text-xs">Proyectos %</Label>
+                                  <Label className="text-xs">
+                                    {t("hc_routesAppAdminCourses.subProjects")}
+                                  </Label>
                                   <DecimalInput
                                     min={0}
                                     max={100}
@@ -2354,7 +2445,9 @@ export function AdminCourses() {
                                   />
                                 </div>
                                 <div className="min-w-0">
-                                  <Label className="text-xs">Asistencia %</Label>
+                                  <Label className="text-xs">
+                                    {t("hc_routesAppAdminCourses.subAttendance")}
+                                  </Label>
                                   <DecimalInput
                                     min={0}
                                     max={100}
@@ -2380,8 +2473,10 @@ export function AdminCourses() {
                                       variant={ok ? "secondary" : "destructive"}
                                       className="text-xs"
                                     >
-                                      Sub-pesos: {formatPercent(subSum)}% / {formatPercent(target)}%
-                                      del corte
+                                      {t("hc_routesAppAdminCourses.subWeightsBadge", {
+                                        sub: formatPercent(subSum),
+                                        target: formatPercent(target),
+                                      })}
                                     </Badge>
                                   );
                                 })()}
@@ -2399,7 +2494,7 @@ export function AdminCourses() {
               <div className="rounded-md border p-3 space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-medium inline-flex items-center gap-1.5">
-                    Intentos por examen
+                    {t("hc_routesAppAdminCourses.examAttempts")}
                     <HelpHint>{t("help.maxExamAttemptsHelp")}</HelpHint>
                   </p>
                   <Input
@@ -2421,9 +2516,9 @@ export function AdminCourses() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancelar
+              {t("hc_routesAppAdminCourses.cancel")}
             </Button>
-            <Button onClick={save}>Guardar</Button>
+            <Button onClick={save}>{t("hc_routesAppAdminCourses.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2432,7 +2527,11 @@ export function AdminCourses() {
       <Dialog open={enrollOpen} onOpenChange={setEnrollOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Estudiantes — {enrollCourse?.name}</DialogTitle>
+            <DialogTitle>
+              {t("hc_routesAppAdminCourses.studentsDialogTitle", {
+                course: enrollCourse?.name ?? "",
+              })}
+            </DialogTitle>
           </DialogHeader>
           <AssignSelector
             items={allProfiles}
@@ -2440,8 +2539,8 @@ export function AdminCourses() {
             onToggle={toggleEnroll}
             onSelectAll={enrollMany}
             onDeselectAll={unenrollMany}
-            selectedLabel="Matriculado"
-            countNoun="matriculados"
+            selectedLabel={t("hc_routesAppAdminCourses.enrolledLabel")}
+            countNoun={t("hc_routesAppAdminCourses.enrolledNoun")}
           />
         </DialogContent>
       </Dialog>
@@ -2450,28 +2549,31 @@ export function AdminCourses() {
       <Dialog open={teacherOpen} onOpenChange={setTeacherOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Docentes — {teacherCourse?.name}</DialogTitle>
+            <DialogTitle>
+              {t("hc_routesAppAdminCourses.teachersDialogTitle", {
+                course: teacherCourse?.name ?? "",
+              })}
+            </DialogTitle>
           </DialogHeader>
           <AssignSelector
             // Un Docente no puede auto-asignarse: filtramos su propia
             // fila del listado. La RLS lo bloquearía igual, esto solo
             // evita ver un checkbox que se tropieza con error.
-            items={isAdmin ? teachers : teachers.filter((t) => t.id !== user?.id)}
+            items={isAdmin ? teachers : teachers.filter((tch) => tch.id !== user?.id)}
             selectedIds={assignedTeacherIds}
             onToggle={toggleTeacher}
             onSelectAll={assignTeachersMany}
             onDeselectAll={unassignTeachersMany}
             emptyText={
               isAdmin
-                ? "No hay usuarios con rol Docente."
-                : "No hay otros docentes para asignar a este curso."
+                ? t("hc_routesAppAdminCourses.noTeacherUsers")
+                : t("hc_routesAppAdminCourses.noOtherTeachers")
             }
-            countNoun="asignados"
+            countNoun={t("hc_routesAppAdminCourses.assignedNoun")}
           />
           {!isAdmin && (
             <p className="text-[11px] text-muted-foreground">
-              No puedes asignarte a ti mismo a un curso. Si necesitas estar en este curso, pídele a
-              un Admin que te agregue.
+              {t("hc_routesAppAdminCourses.cannotSelfAssign")}
             </p>
           )}
         </DialogContent>
@@ -2481,70 +2583,80 @@ export function AdminCourses() {
       <Dialog open={dupOpen} onOpenChange={setDupOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Duplicar curso</DialogTitle>
+            <DialogTitle>{t("hc_routesAppAdminCourses.duplicateDialogTitle")}</DialogTitle>
           </DialogHeader>
           {dupSource && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Creará una copia de <strong>{dupSource.name}</strong> con la configuración
-                seleccionada.
+                {t("hc_routesAppAdminCourses.duplicateIntroBefore")}{" "}
+                <strong>{dupSource.name}</strong>{" "}
+                {t("hc_routesAppAdminCourses.duplicateIntroAfter")}
               </p>
               <div>
-                <Label required>Nombre del nuevo curso</Label>
+                <Label required>{t("hc_routesAppAdminCourses.newCourseName")}</Label>
                 <Input value={dupName} onChange={(e) => setDupName(e.target.value)} />
               </div>
               <div>
-                <Label required>Periodo</Label>
+                <Label required>{t("hc_routesAppAdminCourses.duplicatePeriod")}</Label>
                 <Input
                   value={dupPeriod}
                   onChange={(e) => setDupPeriod(e.target.value)}
-                  placeholder="Ej: 2026-2"
+                  placeholder={t("hc_routesAppAdminCourses.placeholderDuplicatePeriod")}
                 />
               </div>
               <div className="space-y-3 rounded-md border p-3">
-                <p className="text-sm font-medium">¿Qué copiar?</p>
+                <p className="text-sm font-medium">{t("hc_routesAppAdminCourses.whatToCopy")}</p>
                 <label className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm">Exámenes y preguntas</div>
+                    <div className="text-sm">
+                      {t("hc_routesAppAdminCourses.copyExamsTitle")}
+                    </div>
                     <div className="text-xs text-muted-foreground">
-                      Se copian como borrador sin asignaciones
+                      {t("hc_routesAppAdminCourses.copyExamsHint")}
                     </div>
                   </div>
                   <Switch checked={dupCopyExams} onCheckedChange={setDupCopyExams} />
                 </label>
                 <label className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm">Talleres</div>
+                    <div className="text-sm">
+                      {t("hc_routesAppAdminCourses.copyWorkshopsTitle")}
+                    </div>
                     <div className="text-xs text-muted-foreground">
-                      Se copian como borrador sin entregas
+                      {t("hc_routesAppAdminCourses.copyWorkshopsHint")}
                     </div>
                   </div>
                   <Switch checked={dupCopyWorkshops} onCheckedChange={setDupCopyWorkshops} />
                 </label>
                 <label className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm">Tablero (sesiones / cronograma)</div>
+                    <div className="text-sm">
+                      {t("hc_routesAppAdminCourses.copyBoardTitle")}
+                    </div>
                     <div className="text-xs text-muted-foreground">
-                      Copia las clases del tablero (fecha, hora, título, enlace de reunión) al curso
-                      nuevo. No copia el contenido asignado ni grabaciones — eso se reasigna.
+                      {t("hc_routesAppAdminCourses.copyBoardHint")}
                     </div>
                   </div>
                   <Switch checked={dupCopyBoard} onCheckedChange={setDupCopyBoard} />
                 </label>
                 <label className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm">Estudiantes matriculados</div>
+                    <div className="text-sm">
+                      {t("hc_routesAppAdminCourses.copyStudentsTitle")}
+                    </div>
                     <div className="text-xs text-muted-foreground">
-                      Copia las matrículas al nuevo curso
+                      {t("hc_routesAppAdminCourses.copyStudentsHint")}
                     </div>
                   </div>
                   <Switch checked={dupCopyStudents} onCheckedChange={setDupCopyStudents} />
                 </label>
                 <label className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm">Docentes asignados</div>
+                    <div className="text-sm">
+                      {t("hc_routesAppAdminCourses.copyTeachersTitle")}
+                    </div>
                     <div className="text-xs text-muted-foreground">
-                      Por defecto desactivado — habilita para clonar también el equipo docente
+                      {t("hc_routesAppAdminCourses.copyTeachersHint")}
                     </div>
                   </div>
                   <Switch checked={dupCopyTeachers} onCheckedChange={setDupCopyTeachers} />
@@ -2554,7 +2666,7 @@ export function AdminCourses() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDupOpen(false)}>
-              Cancelar
+              {t("hc_routesAppAdminCourses.cancel")}
             </Button>
             <Button onClick={doDuplicate} disabled={dupLoading}>
               {dupLoading ? (
@@ -2562,7 +2674,7 @@ export function AdminCourses() {
               ) : (
                 <Copy className="h-4 w-4 mr-1" />
               )}
-              Duplicar
+              {t("hc_routesAppAdminCourses.duplicateButton")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2572,9 +2684,9 @@ export function AdminCourses() {
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}
         items={selectedCourseItems}
-        entityNameSingular="curso"
-        entityNamePlural="cursos"
-        extraWarning="Se eliminarán también todos los exámenes, talleres, proyectos, matrículas, cortes y registros de asistencia asociados (cascade)."
+        entityNameSingular={t("hc_routesAppAdminCourses.entityCourseSingular")}
+        entityNamePlural={t("hc_routesAppAdminCourses.entityCoursePlural")}
+        extraWarning={t("hc_routesAppAdminCourses.bulkDeleteWarning")}
         onConfirm={handleBulkDelete}
       />
 

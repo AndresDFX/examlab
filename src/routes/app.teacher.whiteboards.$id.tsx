@@ -88,7 +88,7 @@ function WhiteboardEditorPage() {
         ]);
         if (cancelled) return;
         if (wbErr || !wbData) {
-          setLoadError(friendlyError(wbErr, "No pudimos cargar la pizarra."));
+          setLoadError(friendlyError(wbErr, t("hc_routesAppTeacherWhiteboardsId.couldNotLoad")));
           setLoading(false);
           return;
         }
@@ -112,7 +112,7 @@ function WhiteboardEditorPage() {
         // Acá: setear loadError → render del <ErrorState> + reset
         // loading para no dejar el spinner colgado.
         if (cancelled) return;
-        setLoadError(friendlyError(e, "No pudimos cargar la pizarra."));
+        setLoadError(friendlyError(e, t("hc_routesAppTeacherWhiteboardsId.couldNotLoad")));
         setLoading(false);
       }
     })();
@@ -142,7 +142,7 @@ function WhiteboardEditorPage() {
         })
         .eq("id", wb.id);
       if (error) {
-        toast.error(friendlyError(error, "No se pudo guardar"));
+        toast.error(friendlyError(error, t("hc_routesAppTeacherWhiteboardsId.couldNotSave")));
         return;
       }
       toast.success(
@@ -160,7 +160,7 @@ function WhiteboardEditorPage() {
       // Caller: `() => void saveMeta()` desde onClick. Sin catch
       // explícito, una rejection del update burbujea como unhandled
       // rejection. Mostramos toast amigable usando friendlyError.
-      toast.error(friendlyError(e, "No se pudo guardar"));
+      toast.error(friendlyError(e, t("hc_routesAppTeacherWhiteboardsId.couldNotSave")));
     } finally {
       setSavingMeta(false);
     }
@@ -169,15 +169,15 @@ function WhiteboardEditorPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground p-4 sm:p-8">
-        <Spinner size="sm" /> Cargando pizarra…
+        <Spinner size="sm" /> {t("hc_routesAppTeacherWhiteboardsId.loadingWhiteboard")}
       </div>
     );
   }
   if (loadError || !wb) {
     return (
       <ErrorState
-        message="No pudimos abrir la pizarra"
-        hint={loadError ?? "La pizarra fue eliminada o no tienes acceso."}
+        message={t("hc_routesAppTeacherWhiteboardsId.couldNotOpen")}
+        hint={loadError ?? t("hc_routesAppTeacherWhiteboardsId.deletedOrNoAccess")}
         onRetry={() => navigate({ to: "/app/teacher/whiteboards" })}
       />
     );
@@ -189,7 +189,7 @@ function WhiteboardEditorPage() {
         icon={<Palette className="h-6 w-6 text-primary" />}
         backTo="/app/teacher/whiteboards"
         title={wb.name}
-        subtitle="Los cambios se guardan automáticamente mientras dibujas. Podés agregar varias hojas con el botón ➕ del tab strip."
+        subtitle={t("hc_routesAppTeacherWhiteboardsId.editorSubtitle")}
       />
 
       {/* Meta: renombrar + compartir con curso. Compacto en una sola fila. */}
@@ -197,16 +197,16 @@ function WhiteboardEditorPage() {
         <CardContent className="p-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
             <div>
-              <Label>Nombre</Label>
+              <Label>{t("hc_routesAppTeacherWhiteboardsId.nameLabel")}</Label>
               <Input
                 value={metaName}
                 onChange={(e) => setMetaName(e.target.value)}
-                placeholder="Nombre de la pizarra"
+                placeholder={t("hc_routesAppTeacherWhiteboardsId.namePlaceholder")}
               />
             </div>
             <div>
               <Label>
-                Compartir con curso{" "}
+                {t("hc_routesAppTeacherWhiteboardsId.shareWithCourse")}{" "}
                 <HelpHint>{t("help.shareWithCourseHint")}</HelpHint>
               </Label>
               <Select value={metaCourse} onValueChange={setMetaCourse}>
@@ -214,7 +214,7 @@ function WhiteboardEditorPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Solo yo (privada)</SelectItem>
+                  <SelectItem value="none">{t("hc_routesAppTeacherWhiteboardsId.onlyMePrivate")}</SelectItem>
                   {courses.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name}
@@ -227,7 +227,7 @@ function WhiteboardEditorPage() {
               <div className="flex items-center gap-2 text-sm">
                 <Share2 className="h-4 w-4 text-muted-foreground" />
                 <Label htmlFor="wb-share-switch" className="cursor-pointer mb-0 font-normal">
-                  Compartir con alumnos
+                  {t("hc_routesAppTeacherWhiteboardsId.shareWithStudents")}
                 </Label>
                 <Switch
                   id="wb-share-switch"
@@ -242,7 +242,7 @@ function WhiteboardEditorPage() {
                 ) : (
                   <Save className="h-3.5 w-3.5 mr-1" />
                 )}
-                Guardar
+                {t("hc_routesAppTeacherWhiteboardsId.save")}
               </Button>
             </div>
           </div>

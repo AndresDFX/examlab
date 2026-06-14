@@ -438,9 +438,12 @@ function StudentProjects() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <PageHeader icon={<FolderKanban className="h-6 w-6" />} title="Proyectos" />
+        <PageHeader
+          icon={<FolderKanban className="h-6 w-6" />}
+          title={t("hc_routesAppStudentProjects.pageTitle")}
+        />
         <ErrorState
-          message="No pudimos cargar tus proyectos"
+          message={t("hc_routesAppStudentProjects.loadErrorTitle")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -452,11 +455,14 @@ function StudentProjects() {
     <div className="space-y-5">
       <PageHeader
         icon={<FolderKanban className="h-6 w-6" />}
-        title="Proyectos"
+        title={t("hc_routesAppStudentProjects.pageTitle")}
         subtitle={
           search.trim()
-            ? `${visibleRows.length} de ${rows.length} proyectos`
-            : `${rows.length} proyectos asignados`
+            ? t("hc_routesAppStudentProjects.subtitleFiltered", {
+                visible: visibleRows.length,
+                total: rows.length,
+              })
+            : t("hc_routesAppStudentProjects.subtitleAll", { total: rows.length })
         }
       />
 
@@ -464,15 +470,23 @@ function StudentProjects() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard
           icon={FolderKanban}
-          label="Disponibles"
+          label={t("hc_routesAppStudentProjects.statAvailable")}
           value={stats.available}
           tone={stats.available > 0 ? "success" : "default"}
         />
-        <StatCard icon={Send} label="Entregados" value={stats.submitted} />
-        <StatCard icon={CheckCircle2} label="Calificados" value={stats.graded} />
+        <StatCard
+          icon={Send}
+          label={t("hc_routesAppStudentProjects.statSubmitted")}
+          value={stats.submitted}
+        />
+        <StatCard
+          icon={CheckCircle2}
+          label={t("hc_routesAppStudentProjects.statGraded")}
+          value={stats.graded}
+        />
         <StatCard
           icon={AlertTriangle}
-          label="Vencidos"
+          label={t("hc_routesAppStudentProjects.statOverdue")}
           value={stats.overdue}
           tone={stats.overdue > 0 ? "destructive" : "default"}
         />
@@ -481,7 +495,7 @@ function StudentProjects() {
       <ListFilters
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Buscar por proyecto o curso…"
+        searchPlaceholder={t("hc_routesAppStudentProjects.searchPlaceholder")}
         courseId={courseFilter}
         onCourseChange={setCourseFilter}
         courses={availableCourses}
@@ -501,31 +515,61 @@ function StudentProjects() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="available">Disponible</SelectItem>
-                <SelectItem value="upcoming">Próximo</SelectItem>
-                <SelectItem value="submitted">Entregado</SelectItem>
-                <SelectItem value="graded">Calificado</SelectItem>
-                <SelectItem value="overdue">Vencido</SelectItem>
-                <SelectItem value="closed">Cerrado</SelectItem>
+                <SelectItem value="all">{t("hc_routesAppStudentProjects.statusAll")}</SelectItem>
+                <SelectItem value="available">
+                  {t("hc_routesAppStudentProjects.statusAvailable")}
+                </SelectItem>
+                <SelectItem value="upcoming">
+                  {t("hc_routesAppStudentProjects.statusUpcoming")}
+                </SelectItem>
+                <SelectItem value="submitted">
+                  {t("hc_routesAppStudentProjects.statusSubmitted")}
+                </SelectItem>
+                <SelectItem value="graded">
+                  {t("hc_routesAppStudentProjects.statusGraded")}
+                </SelectItem>
+                <SelectItem value="overdue">
+                  {t("hc_routesAppStudentProjects.statusOverdue")}
+                </SelectItem>
+                <SelectItem value="closed">
+                  {t("hc_routesAppStudentProjects.statusClosed")}
+                </SelectItem>
               </SelectContent>
             </Select>
             <div className="w-full sm:w-44">
-              <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Desde…" />
+              <DatePicker
+                value={dateFrom}
+                onChange={setDateFrom}
+                placeholder={t("hc_routesAppStudentProjects.dateFromPlaceholder")}
+              />
             </div>
             <div className="w-full sm:w-44">
-              <DatePicker value={dateTo} onChange={setDateTo} placeholder="Hasta…" />
+              <DatePicker
+                value={dateTo}
+                onChange={setDateTo}
+                placeholder={t("hc_routesAppStudentProjects.dateToPlaceholder")}
+              />
             </div>
             <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
               <SelectTrigger className="w-full sm:w-60">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="due_asc">Próximos primero (fecha)</SelectItem>
-                <SelectItem value="due_desc">Más lejanos primero</SelectItem>
-                <SelectItem value="start_asc">Inicio: ascendente</SelectItem>
-                <SelectItem value="start_desc">Inicio: descendente</SelectItem>
-                <SelectItem value="title_asc">Título A→Z</SelectItem>
+                <SelectItem value="due_asc">
+                  {t("hc_routesAppStudentProjects.sortDueAsc")}
+                </SelectItem>
+                <SelectItem value="due_desc">
+                  {t("hc_routesAppStudentProjects.sortDueDesc")}
+                </SelectItem>
+                <SelectItem value="start_asc">
+                  {t("hc_routesAppStudentProjects.sortStartAsc")}
+                </SelectItem>
+                <SelectItem value="start_desc">
+                  {t("hc_routesAppStudentProjects.sortStartDesc")}
+                </SelectItem>
+                <SelectItem value="title_asc">
+                  {t("hc_routesAppStudentProjects.sortTitleAsc")}
+                </SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -536,7 +580,9 @@ function StudentProjects() {
         {visibleRows.length === 0 && (
           <div className="md:col-span-2 rounded-md border border-dashed bg-muted/20 p-6 text-center">
             <p className="text-sm text-muted-foreground">
-              {hasActiveFilters ? "Sin coincidencias con los filtros actuales." : t("common.empty")}
+              {hasActiveFilters
+                ? t("hc_routesAppStudentProjects.noMatches")
+                : t("common.empty")}
             </p>
             {hasActiveFilters && (
               <Button
@@ -552,7 +598,7 @@ function StudentProjects() {
                   setSortBy("due_asc");
                 }}
               >
-                Limpiar filtros
+                {t("hc_routesAppStudentProjects.clearFilters")}
               </Button>
             )}
           </div>
@@ -625,7 +671,8 @@ function StudentProjects() {
                   {project.start_date && isUpcoming && (
                     <div className="flex items-center gap-1.5 tabular-nums">
                       <Clock className="h-3 w-3" />
-                      Disponible desde: {formatDateTime(project.start_date)}
+                      {t("hc_routesAppStudentProjects.availableFrom")}:{" "}
+                      {formatDateTime(project.start_date)}
                     </div>
                   )}
                   {project.due_date && (
@@ -667,9 +714,10 @@ function StudentProjects() {
                 {/* Modo grupal estricto SIN grupo: bloqueo de entrega. */}
                 {isOpen && blockedNoGroup && (
                   <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
-                    <div className="font-medium mb-1">Modo grupal — sin grupo asignado</div>
-                    Tu docente configuró este proyecto como grupal. Aún no perteneces a ningún
-                    grupo, así que no puedes entregar. Pídele al docente que te asigne a uno.
+                    <div className="font-medium mb-1">
+                      {t("hc_routesAppStudentProjects.groupModeNoGroupTitle")}
+                    </div>
+                    {t("hc_routesAppStudentProjects.groupModeNoGroupBody")}
                   </div>
                 )}
 
@@ -722,11 +770,11 @@ function StudentProjects() {
                       onClick={() => deleteSubmission(project.title, submission.id, !!groupId)}
                     >
                       <Trash2 className="h-3.5 w-3.5 mr-1" />
-                      Eliminar mi entrega
+                      {t("hc_routesAppStudentProjects.deleteMySubmission")}
                     </Button>
                   ) : (
                     <p className="text-[11px] text-muted-foreground text-center italic">
-                      Ya consumiste todos tus intentos — la entrega no se puede borrar.
+                      {t("hc_routesAppStudentProjects.attemptsExhausted")}
                     </p>
                   );
                 })()}
@@ -745,7 +793,10 @@ function StudentProjects() {
       {/* Pagination — fuera del grid de cards. Visible solo si hay items
           (la barra se oculta sola con totalItems=0). */}
       <div className="px-1">
-        <DataPagination state={pagination} entityNamePlural="proyectos" />
+        <DataPagination
+          state={pagination}
+          entityNamePlural={t("hc_routesAppStudentProjects.entityNamePlural")}
+        />
       </div>
 
       <Dialog

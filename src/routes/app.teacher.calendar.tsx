@@ -393,9 +393,11 @@ function CalendarPage() {
           </Select>
           {status?.connected && status.provider && status.provider !== provider && (
             <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
-              Estás conectado a{" "}
-              <strong>{status.provider === "google" ? "Google" : "Outlook"}</strong>. Si conectás{" "}
-              {provider === "google" ? "Google" : "Outlook"} se reemplaza la conexión actual.
+              {t("hc_routesAppTeacherCalendar.connectedToPrefix")}{" "}
+              <strong>{status.provider === "google" ? "Google" : "Outlook"}</strong>.{" "}
+              {t("hc_routesAppTeacherCalendar.replaceConnectionWarning", {
+                provider: provider === "google" ? "Google" : "Outlook",
+              })}
             </p>
           )}
         </CardContent>
@@ -561,10 +563,10 @@ function CalendarPage() {
                   variant="outline"
                   onClick={() => setLinkEventsOpen(true)}
                   disabled={!selectedCourseId || !status?.calendar_id || courses.length === 0}
-                  title="Asociar sesiones a eventos que ya existen en tu Google Calendar"
+                  title={t("hc_routesAppTeacherCalendar.linkFromCalendarTitle")}
                 >
                   <Link2 className="h-4 w-4 mr-2" />
-                  Vincular desde calendario
+                  {t("hc_routesAppTeacherCalendar.linkFromCalendarAction")}
                 </Button>
               </div>
               {!status?.calendar_id && (

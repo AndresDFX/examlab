@@ -52,11 +52,11 @@ type UseCase =
 type PromptModule = "exams" | "workshops" | "projects" | "fraud" | "tutor";
 
 const MODULE_LABELS: Record<PromptModule, string> = {
-  exams: "Exámenes",
-  workshops: "Talleres",
-  projects: "Proyectos",
-  fraud: "Detección de fraude",
-  tutor: "Tutor IA",
+  exams: i18n.t("hc_routesAppTeacherAiPrompts.moduleExams"),
+  workshops: i18n.t("hc_routesAppTeacherAiPrompts.moduleWorkshops"),
+  projects: i18n.t("hc_routesAppTeacherAiPrompts.moduleProjects"),
+  fraud: i18n.t("hc_routesAppTeacherAiPrompts.moduleFraud"),
+  tutor: i18n.t("hc_routesAppTeacherAiPrompts.moduleTutor"),
 };
 
 type UseCaseDef = {
@@ -70,71 +70,67 @@ const USE_CASES: UseCaseDef[] = [
   {
     key: "workshop_full",
     module: "workshops",
-    label: "Taller completo",
-    description: "Calificación de un taller entero (todas las respuestas en bloque).",
+    label: i18n.t("hc_routesAppTeacherAiPrompts.ucWorkshopFullLabel"),
+    description: i18n.t("hc_routesAppTeacherAiPrompts.ucWorkshopFullDesc"),
   },
   {
     key: "workshop_question",
     module: "workshops",
-    label: "Pregunta de taller",
-    description: "Calificación pregunta por pregunta dentro de un taller.",
+    label: i18n.t("hc_routesAppTeacherAiPrompts.ucWorkshopQuestionLabel"),
+    description: i18n.t("hc_routesAppTeacherAiPrompts.ucWorkshopQuestionDesc"),
   },
   {
     key: "project_file",
     module: "projects",
-    label: "Archivo de proyecto",
-    description: "Calificación de un archivo individual del proyecto.",
+    label: i18n.t("hc_routesAppTeacherAiPrompts.ucProjectFileLabel"),
+    description: i18n.t("hc_routesAppTeacherAiPrompts.ucProjectFileDesc"),
   },
   {
     key: "project_full",
     module: "projects",
-    label: "Proyecto completo",
-    description: "Calificación holística del proyecto completo.",
+    label: i18n.t("hc_routesAppTeacherAiPrompts.ucProjectFullLabel"),
+    description: i18n.t("hc_routesAppTeacherAiPrompts.ucProjectFullDesc"),
   },
   {
     key: "exam_question",
     module: "exams",
-    label: "Pregunta de examen",
-    description: "Calificación de una pregunta abierta de examen.",
+    label: i18n.t("hc_routesAppTeacherAiPrompts.ucExamQuestionLabel"),
+    description: i18n.t("hc_routesAppTeacherAiPrompts.ucExamQuestionDesc"),
   },
   {
     key: "exam_time_evaluation",
     module: "exams",
-    label: "Evaluación de duración de examen",
-    description: "Sugerencia de IA sobre cuántos minutos debería durar el examen.",
+    label: i18n.t("hc_routesAppTeacherAiPrompts.ucExamTimeEvalLabel"),
+    description: i18n.t("hc_routesAppTeacherAiPrompts.ucExamTimeEvalDesc"),
   },
   {
     key: "plagiarism_detection",
     module: "fraud",
-    label: "Detección de copia entre estudiantes",
-    description:
-      "Prompt que usa el botón 'Detectar copias' para comparar respuestas a la misma pregunta y reportar pares sospechosos.",
+    label: i18n.t("hc_routesAppTeacherAiPrompts.ucPlagiarismLabel"),
+    description: i18n.t("hc_routesAppTeacherAiPrompts.ucPlagiarismDesc"),
   },
   {
     key: "ai_content_detection",
     module: "fraud",
-    label: "Detección de respuestas generadas por IA",
-    description:
-      "Reglas que se anexan al prompt de calificación cuando el modelo debe estimar la probabilidad de que la respuesta haya sido generada por IA.",
+    label: i18n.t("hc_routesAppTeacherAiPrompts.ucAiContentLabel"),
+    description: i18n.t("hc_routesAppTeacherAiPrompts.ucAiContentDesc"),
   },
   {
     key: "project_description",
     module: "projects",
-    label: "Descripción de proyecto (contexto global)",
-    description:
-      "Genera la descripción del proyecto a partir de un tema. La descripción se usa como contexto global para que cada pregunta del proyecto se califique con el alcance/propósito en mente.",
+    label: i18n.t("hc_routesAppTeacherAiPrompts.ucProjectDescriptionLabel"),
+    description: i18n.t("hc_routesAppTeacherAiPrompts.ucProjectDescriptionDesc"),
   },
   {
     key: "project_questions",
     module: "projects",
-    label: "Preguntas del proyecto (auto-generadas desde la descripción)",
-    description:
-      "A partir de la descripción del proyecto, genera el set de preguntas/entregables. Restricción dura: SIEMPRE 1 pregunta tipo 'codigo_zip' + entre 2 y 5 preguntas adicionales (abierta/diagrama/cerrada) para evaluar análisis y diseño por separado.",
+    label: i18n.t("hc_routesAppTeacherAiPrompts.ucProjectQuestionsLabel"),
+    description: i18n.t("hc_routesAppTeacherAiPrompts.ucProjectQuestionsDesc"),
   },
   {
     key: "tutor_chat",
     module: "tutor",
-    label: "Tutor IA del curso (conversacional)",
+    label: i18n.t("hc_routesAppTeacherAiPrompts.ucTutorChatLabel"),
     description:
       "System prompt del Tutor IA. Soporta {{course_name}}, {{course_description}}, {{course_content_topics}}, {{course_content_material}} y {{current_datetime}} (fecha/hora actual) para responder anclado al contenido y a las fechas del curso. El override de este curso pisa al global del tenant.",
   },
@@ -217,7 +213,7 @@ function TeacherAIPrompts() {
       const { data, error } = await q;
       if (cancelled) return;
       if (error) {
-        setCoursesError(friendlyError(error, "No pudimos cargar tus cursos."));
+        setCoursesError(friendlyError(error, t("hc_routesAppTeacherAiPrompts.coursesLoadError")));
         setLoadingCourses(false);
         return;
       }
@@ -371,7 +367,7 @@ function TeacherAIPrompts() {
   };
 
   if (authLoading) return null;
-  if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
+  if (!isTeacher) return <p className="text-muted-foreground">{t("hc_routesAppTeacherAiPrompts.needTeacherRole")}</p>;
 
   const selectedCourse = courses.find((c) => c.id === courseId);
 
@@ -381,34 +377,34 @@ function TeacherAIPrompts() {
         icon={<Sparkles className="h-6 w-6 text-amber-500" />}
         title={
           <span className="inline-flex items-center gap-2">
-            Prompts de IA por curso
+            {t("hc_routesAppTeacherAiPrompts.pageTitle")}
             <HelpHint side="bottom" align="start"><span dangerouslySetInnerHTML={{ __html: t("help.editRoleOnly") }} /></HelpHint>
           </span>
         }
-        subtitle="Personaliza el rol y criterios del modelo para cada caso de uso dentro de un curso específico. Si no hay override, se usa el prompt global del sistema."
+        subtitle={t("hc_routesAppTeacherAiPrompts.pageSubtitle")}
       />
 
       <Card>
         <CardContent className="p-4 sm:p-5 space-y-3">
           <div>
-            <Label>Curso</Label>
+            <Label>{t("hc_routesAppTeacherAiPrompts.courseLabel")}</Label>
             {loadingCourses ? (
               <div className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
-                <Spinner size="md" /> Cargando cursos…
+                <Spinner size="md" /> {t("hc_routesAppTeacherAiPrompts.loadingCourses")}
               </div>
             ) : coursesError ? (
               <ErrorState
-                message="No pudimos cargar los cursos"
+                message={t("hc_routesAppTeacherAiPrompts.coursesLoadErrorTitle")}
                 hint={coursesError}
                 onRetry={() => setRetryNonce((n) => n + 1)}
                 className="py-4"
               />
             ) : courses.length === 0 ? (
-              <p className="text-sm text-muted-foreground mt-1">No tienes cursos asignados.</p>
+              <p className="text-sm text-muted-foreground mt-1">{t("hc_routesAppTeacherAiPrompts.noCoursesAssigned")}</p>
             ) : (
               <Select value={courseId ?? undefined} onValueChange={(v) => setCourseId(v)}>
                 <SelectTrigger className="w-full sm:w-[400px] mt-1">
-                  <SelectValue placeholder="Selecciona un curso" />
+                  <SelectValue placeholder={t("hc_routesAppTeacherAiPrompts.selectCoursePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {courses.map((c) => (
@@ -432,7 +428,7 @@ function TeacherAIPrompts() {
       {courseId && (
         <div className="flex flex-wrap items-end gap-3 rounded-md border bg-muted/30 p-3">
           <div className="flex-1 min-w-[160px] sm:min-w-48">
-            <Label className="text-xs">Módulo</Label>
+            <Label className="text-xs">{t("hc_routesAppTeacherAiPrompts.moduleLabel")}</Label>
             <Select
               value={moduleFilter}
               onValueChange={(v) => setModuleFilter(v as PromptModule | "all")}
@@ -441,7 +437,7 @@ function TeacherAIPrompts() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los módulos</SelectItem>
+                <SelectItem value="all">{t("hc_routesAppTeacherAiPrompts.allModules")}</SelectItem>
                 {(["exams", "workshops", "projects", "fraud", "tutor"] as const).map((m) => (
                   <SelectItem key={m} value={m}>
                     {MODULE_LABELS[m]}
@@ -451,7 +447,10 @@ function TeacherAIPrompts() {
             </Select>
           </div>
           <Badge variant="outline" className="text-[11px] tabular-nums h-6">
-            {filteredUseCases.length} de {USE_CASES.length} prompt(s)
+            {t("hc_routesAppTeacherAiPrompts.promptCount", {
+              count: filteredUseCases.length,
+              total: USE_CASES.length,
+            })}
           </Badge>
         </div>
       )}
@@ -459,7 +458,7 @@ function TeacherAIPrompts() {
       {courseId && loadingPrompts ? (
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-            <Spinner size="md" /> Cargando prompts…
+            <Spinner size="md" /> {t("hc_routesAppTeacherAiPrompts.loadingPrompts")}
           </CardContent>
         </Card>
       ) : courseId && selectedCourse ? (
@@ -467,7 +466,7 @@ function TeacherAIPrompts() {
           {filteredUseCases.length === 0 && (
             <Card>
               <CardContent className="p-6 text-sm text-muted-foreground text-center">
-                No hay prompts en este módulo.
+                {t("hc_routesAppTeacherAiPrompts.noPromptsInModule")}
               </CardContent>
             </Card>
           )}
@@ -483,11 +482,11 @@ function TeacherAIPrompts() {
                     {uc.label}
                     {hasOverride ? (
                       <Badge className="text-[10px] bg-amber-500/15 text-amber-700 border-amber-500/25 dark:bg-amber-400/15 dark:text-amber-300 dark:border-amber-400/25">
-                        Override del curso
+                        {t("hc_routesAppTeacherAiPrompts.badgeCourseOverride")}
                       </Badge>
                     ) : (
                       <Badge variant="secondary" className="text-[10px]">
-                        Usando global
+                        {t("hc_routesAppTeacherAiPrompts.badgeUsingGlobal")}
                       </Badge>
                     )}
                   </CardTitle>
@@ -498,24 +497,26 @@ function TeacherAIPrompts() {
                   <div className="rounded-md border bg-muted/30 p-3 space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-                        Prompt global (referencia)
+                        {t("hc_routesAppTeacherAiPrompts.globalPromptReference")}
                       </span>
                     </div>
                     <p className="text-xs whitespace-pre-wrap leading-relaxed text-muted-foreground">
-                      {globals[uc.key] || "(sin prompt global definido)"}
+                      {globals[uc.key] || t("hc_routesAppTeacherAiPrompts.noGlobalPromptDefined")}
                     </p>
                   </div>
 
                   {/* Editor del override */}
                   <div className="space-y-1.5">
                     <Label className="text-xs">
-                      {hasOverride ? "Override de este curso" : "Crear override para este curso"}
+                      {hasOverride
+                        ? t("hc_routesAppTeacherAiPrompts.editorLabelOverride")
+                        : t("hc_routesAppTeacherAiPrompts.editorLabelCreate")}
                     </Label>
                     <Textarea
                       rows={6}
                       value={drafts[uc.key]}
                       onChange={(e) => setDrafts((d) => ({ ...d, [uc.key]: e.target.value }))}
-                      placeholder={globals[uc.key] || "Escribe el prompt para este curso…"}
+                      placeholder={globals[uc.key] || t("hc_routesAppTeacherAiPrompts.editorPlaceholder")}
                       className="font-mono text-xs leading-relaxed"
                     />
                   </div>
@@ -533,7 +534,7 @@ function TeacherAIPrompts() {
                         }
                         disabled={savingKey === uc.key}
                       >
-                        Cancelar
+                        {t("hc_routesAppTeacherAiPrompts.cancel")}
                       </Button>
                     )}
                     {hasOverride && (
@@ -544,7 +545,7 @@ function TeacherAIPrompts() {
                         disabled={savingKey === uc.key}
                       >
                         <RotateCcw className="h-4 w-4 mr-1" />
-                        Volver al global
+                        {t("hc_routesAppTeacherAiPrompts.backToGlobal")}
                       </Button>
                     )}
                     <Button
@@ -557,7 +558,9 @@ function TeacherAIPrompts() {
                       ) : (
                         <Save className="h-4 w-4 mr-1" />
                       )}
-                      {hasOverride ? "Guardar override" : "Crear override"}
+                      {hasOverride
+                        ? t("hc_routesAppTeacherAiPrompts.saveOverride")
+                        : t("hc_routesAppTeacherAiPrompts.createOverride")}
                     </Button>
                   </div>
                 </CardContent>

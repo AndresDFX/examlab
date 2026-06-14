@@ -17,6 +17,8 @@
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/shared/components/ThemeToggle";
 import { GraduationCap, ShieldCheck, Sparkles, Eye, Code, Wifi, Clock } from "lucide-react";
@@ -41,17 +43,15 @@ function CurrentYear() {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "ExamLab — Plataforma de Gestión Educativa" },
+      { title: i18n.t("hc_routesIndex.metaTitle") },
       {
         name: "description",
-        content:
-          "Multi-institución, IA y proctoring para gestionar cursos, exámenes, talleres, proyectos, asistencia y certificados. Para Administradores, Docentes y Estudiantes.",
+        content: i18n.t("hc_routesIndex.metaDescription"),
       },
-      { property: "og:title", content: "ExamLab — Plataforma de Gestión Educativa" },
+      { property: "og:title", content: i18n.t("hc_routesIndex.ogTitle") },
       {
         property: "og:description",
-        content:
-          "Cursos, exámenes con IA, talleres en grupo, proyectos con sustentación, asistencia con QR y certificados — todo en una sola plataforma.",
+        content: i18n.t("hc_routesIndex.ogDescription"),
       },
     ],
   }),
@@ -59,6 +59,39 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
+  const { t } = useTranslation();
+  const features = [
+    {
+      icon: ShieldCheck,
+      titleKey: "hc_routesIndex.featureRolesTitle",
+      descKey: "hc_routesIndex.featureRolesDesc",
+    },
+    {
+      icon: Sparkles,
+      titleKey: "hc_routesIndex.featureAiTitle",
+      descKey: "hc_routesIndex.featureAiDesc",
+    },
+    {
+      icon: Eye,
+      titleKey: "hc_routesIndex.featureProctoringTitle",
+      descKey: "hc_routesIndex.featureProctoringDesc",
+    },
+    {
+      icon: Code,
+      titleKey: "hc_routesIndex.featureCompilerTitle",
+      descKey: "hc_routesIndex.featureCompilerDesc",
+    },
+    {
+      icon: Clock,
+      titleKey: "hc_routesIndex.featureAttendanceTitle",
+      descKey: "hc_routesIndex.featureAttendanceDesc",
+    },
+    {
+      icon: Wifi,
+      titleKey: "hc_routesIndex.featureOfflineTitle",
+      descKey: "hc_routesIndex.featureOfflineDesc",
+    },
+  ];
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
@@ -72,7 +105,7 @@ function Home() {
           <div className="flex items-center gap-2">
             <ThemeToggle variant="outline" />
             <Link to="/auth">
-              <Button>Acceder</Button>
+              <Button>{t("hc_routesIndex.access")}</Button>
             </Link>
           </div>
         </div>
@@ -80,71 +113,40 @@ function Home() {
 
       <section className="max-w-7xl mx-auto px-6 py-20 md:py-28 text-center">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent text-accent-foreground text-xs mb-6">
-          <Sparkles className="h-3 w-3" /> Multi-institución · IA · Proctoring · PWA
+          <Sparkles className="h-3 w-3" /> {t("hc_routesIndex.heroBadge")}
         </div>
         <h1 className="text-4xl md:text-6xl font-semibold tracking-tight max-w-4xl mx-auto leading-[1.1]">
-          La plataforma integral para tu <span className="text-primary">institución educativa</span>
-          .
+          {t("hc_routesIndex.heroTitlePrefix")}{" "}
+          <span className="text-primary">{t("hc_routesIndex.heroTitleHighlight")}</span>
+          {t("hc_routesIndex.heroTitleSuffix")}
         </h1>
         <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto">
-          Cursos, exámenes con IA, talleres en grupo, proyectos con sustentación, asistencia con QR
-          y certificados — para Administradores, Docentes y Estudiantes en una sola plataforma.
+          {t("hc_routesIndex.heroSubtitle")}
         </p>
         <div className="mt-8 flex items-center justify-center gap-3">
           <Link to="/auth">
-            <Button size="lg">Comenzar ahora</Button>
+            <Button size="lg">{t("hc_routesIndex.startNow")}</Button>
           </Link>
         </div>
       </section>
 
       <section className="max-w-7xl mx-auto px-6 pb-24 grid md:grid-cols-3 gap-4">
-        {[
-          {
-            icon: ShieldCheck,
-            t: "Roles y multi-institución",
-            d: "Admin, Docente, Estudiante y SuperAdmin con permisos granulares enforced en base de datos (RLS). Cada institución con su marca, usuarios y datos aislados.",
-          },
-          {
-            icon: Sparkles,
-            t: "Calificación con IA",
-            d: "Genera preguntas y rúbricas con Gemini. Califica respuestas abiertas, código fuente y proyectos completos con feedback explicado al estudiante.",
-          },
-          {
-            icon: Eye,
-            t: "Proctoring y antifraude",
-            d: "Pantalla completa, bloqueo de copia, salida de pestaña monitoreada y detección de respuestas generadas por IA. Análisis de similitud entre entregas.",
-          },
-          {
-            icon: Code,
-            t: "Compilador en vivo",
-            d: "Editor Monaco con ejecución de Java, Python, JavaScript y C. Java GUI con screenshot via AWS Lambda. Override por pregunta para resiliencia.",
-          },
-          {
-            icon: Clock,
-            t: "Cortes, asistencia y QR",
-            d: "Pesos por corte, asistencia integrada al cálculo de nota final y check-in self-service con código rotativo TOTP que el docente proyecta.",
-          },
-          {
-            icon: Wifi,
-            t: "Offline y PWA",
-            d: "Instalable como app. Respuestas guardadas localmente en IndexedDB y sincronización automática al recuperar conexión. Push notifications nativas.",
-          },
-        ].map(({ icon: Icon, t, d }) => (
+        {features.map(({ icon: Icon, titleKey, descKey }) => (
           <div
-            key={t}
+            key={titleKey}
             className="p-6 rounded-xl border bg-card hover:border-primary/30 transition-colors"
           >
             <Icon className="h-6 w-6 text-primary mb-3" />
-            <h3 className="font-semibold">{t}</h3>
-            <p className="text-sm text-muted-foreground mt-1">{d}</p>
+            <h3 className="font-semibold">{t(titleKey)}</h3>
+            <p className="text-sm text-muted-foreground mt-1">{t(descKey)}</p>
           </div>
         ))}
       </section>
 
       <footer className="border-t py-6 text-center text-xs text-muted-foreground">
-        <div>© <CurrentYear /> ExamLab — Plataforma académica</div>
+        <div>© <CurrentYear /> {t("hc_routesIndex.footerBrand")}</div>
         <Link to="/privacy" className="mt-1 inline-block hover:text-foreground">
-          Política de privacidad
+          {t("hc_routesIndex.privacyPolicy")}
         </Link>
       </footer>
     </div>

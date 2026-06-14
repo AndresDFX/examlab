@@ -49,7 +49,6 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { Send } from "lucide-react";
 import { toast } from "sonner";
-import i18n from "@/i18n";
 import { StudentWorkshopTaker } from "@/modules/workshops/WorkshopQuestions";
 import { formatDateTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -190,11 +189,7 @@ function StudentWorkshops() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success(
-      i18n.t("toast.routes_app_student_workshops.submissionDeleted", {
-        defaultValue: "Entrega eliminada",
-      }),
-    );
+    toast.success(t("hc_routesAppStudentWorkshops.submissionDeleted"));
     if (user) await reload(user.id);
   };
 
@@ -210,7 +205,7 @@ function StudentWorkshops() {
       )
       .eq("user_id", uid);
     if (asgErr) {
-      setLoadError(friendlyError(asgErr, "No pudimos cargar tus talleres."));
+      setLoadError(friendlyError(asgErr, t("hc_routesAppStudentWorkshops.loadWorkshopsError")));
       return;
     }
     setLoadError(null);
@@ -404,7 +399,7 @@ function StudentWorkshops() {
       <div className="space-y-5">
         <PageHeader icon={<Hammer className="h-6 w-6" />} title={t("nav.workshops")} />
         <ErrorState
-          message="No pudimos cargar tus talleres"
+          message={t("hc_routesAppStudentWorkshops.loadWorkshopsErrorTitle")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -424,15 +419,23 @@ function StudentWorkshops() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard
           icon={Hammer}
-          label="Disponibles"
+          label={t("hc_routesAppStudentWorkshops.statAvailable")}
           value={stats.available}
           tone={stats.available > 0 ? "success" : "default"}
         />
-        <StatCard icon={Send} label="Entregados" value={stats.submitted} />
-        <StatCard icon={CheckCircle2} label="Calificados" value={stats.graded} />
+        <StatCard
+          icon={Send}
+          label={t("hc_routesAppStudentWorkshops.statSubmitted")}
+          value={stats.submitted}
+        />
+        <StatCard
+          icon={CheckCircle2}
+          label={t("hc_routesAppStudentWorkshops.statGraded")}
+          value={stats.graded}
+        />
         <StatCard
           icon={AlertTriangle}
-          label="Vencidos"
+          label={t("hc_routesAppStudentWorkshops.statOverdue")}
           value={stats.overdue}
           tone={stats.overdue > 0 ? "destructive" : "default"}
         />
@@ -444,7 +447,7 @@ function StudentWorkshops() {
       <ListFilters
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Buscar por taller o curso…"
+        searchPlaceholder={t("hc_routesAppStudentWorkshops.searchPlaceholder")}
         courseId={courseFilter}
         onCourseChange={setCourseFilter}
         courses={availableCourses}
@@ -464,31 +467,63 @@ function StudentWorkshops() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="available">Disponible</SelectItem>
-                <SelectItem value="upcoming">Próximo</SelectItem>
-                <SelectItem value="submitted">Entregado</SelectItem>
-                <SelectItem value="graded">Calificado</SelectItem>
-                <SelectItem value="overdue">Vencido</SelectItem>
-                <SelectItem value="closed">Cerrado</SelectItem>
+                <SelectItem value="all">
+                  {t("hc_routesAppStudentWorkshops.statusAll")}
+                </SelectItem>
+                <SelectItem value="available">
+                  {t("hc_routesAppStudentWorkshops.statusAvailable")}
+                </SelectItem>
+                <SelectItem value="upcoming">
+                  {t("hc_routesAppStudentWorkshops.statusUpcoming")}
+                </SelectItem>
+                <SelectItem value="submitted">
+                  {t("hc_routesAppStudentWorkshops.statusSubmitted")}
+                </SelectItem>
+                <SelectItem value="graded">
+                  {t("hc_routesAppStudentWorkshops.statusGraded")}
+                </SelectItem>
+                <SelectItem value="overdue">
+                  {t("hc_routesAppStudentWorkshops.statusOverdue")}
+                </SelectItem>
+                <SelectItem value="closed">
+                  {t("hc_routesAppStudentWorkshops.statusClosed")}
+                </SelectItem>
               </SelectContent>
             </Select>
             <div className="w-full sm:w-44">
-              <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Desde…" />
+              <DatePicker
+                value={dateFrom}
+                onChange={setDateFrom}
+                placeholder={t("hc_routesAppStudentWorkshops.dateFromPlaceholder")}
+              />
             </div>
             <div className="w-full sm:w-44">
-              <DatePicker value={dateTo} onChange={setDateTo} placeholder="Hasta…" />
+              <DatePicker
+                value={dateTo}
+                onChange={setDateTo}
+                placeholder={t("hc_routesAppStudentWorkshops.dateToPlaceholder")}
+              />
             </div>
             <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
               <SelectTrigger className="w-full sm:w-60">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="due_asc">Próximos primero (fecha)</SelectItem>
-                <SelectItem value="due_desc">Más lejanos primero</SelectItem>
-                <SelectItem value="start_asc">Inicio: ascendente</SelectItem>
-                <SelectItem value="start_desc">Inicio: descendente</SelectItem>
-                <SelectItem value="title_asc">Título A→Z</SelectItem>
+                <SelectItem value="due_asc">
+                  {t("hc_routesAppStudentWorkshops.sortDueAsc")}
+                </SelectItem>
+                <SelectItem value="due_desc">
+                  {t("hc_routesAppStudentWorkshops.sortDueDesc")}
+                </SelectItem>
+                <SelectItem value="start_asc">
+                  {t("hc_routesAppStudentWorkshops.sortStartAsc")}
+                </SelectItem>
+                <SelectItem value="start_desc">
+                  {t("hc_routesAppStudentWorkshops.sortStartDesc")}
+                </SelectItem>
+                <SelectItem value="title_asc">
+                  {t("hc_routesAppStudentWorkshops.sortTitleAsc")}
+                </SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -499,7 +534,9 @@ function StudentWorkshops() {
         {visibleRows.length === 0 && (
           <div className="md:col-span-2 rounded-md border border-dashed bg-muted/20 p-6 text-center">
             <p className="text-sm text-muted-foreground">
-              {hasActiveFilters ? "Sin coincidencias con los filtros actuales." : t("common.empty")}
+              {hasActiveFilters
+                ? t("hc_routesAppStudentWorkshops.noMatches")
+                : t("common.empty")}
             </p>
             {hasActiveFilters && (
               <Button
@@ -515,7 +552,7 @@ function StudentWorkshops() {
                   setSortBy("due_asc");
                 }}
               >
-                Limpiar filtros
+                {t("hc_routesAppStudentWorkshops.clearFilters")}
               </Button>
             )}
           </div>
@@ -592,7 +629,8 @@ function StudentWorkshops() {
                   {workshop.start_date && isUpcoming && (
                     <div className="flex items-center gap-1.5 tabular-nums">
                       <Clock className="h-3 w-3" />
-                      Disponible desde: {formatDateTime(workshop.start_date)}
+                      {t("hc_routesAppStudentWorkshops.availableFromLabel")}:{" "}
+                      {formatDateTime(workshop.start_date)}
                     </div>
                   )}
                   {workshop.due_date && (
@@ -647,9 +685,10 @@ function StudentWorkshops() {
                     Mostramos un aviso en lugar del CTA. */}
                 {isOpen && blockedNoGroup && (
                   <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
-                    <div className="font-medium mb-1">Modo grupal — sin grupo asignado</div>
-                    Tu docente configuró este taller como grupal. Aún no perteneces a ningún grupo,
-                    así que no puedes entregar. Pídele al docente que te asigne a uno.
+                    <div className="font-medium mb-1">
+                      {t("hc_routesAppStudentWorkshops.groupModeNoGroupTitle")}
+                    </div>
+                    {t("hc_routesAppStudentWorkshops.groupModeNoGroupBody")}
                   </div>
                 )}
 
@@ -705,11 +744,11 @@ function StudentWorkshops() {
                       onClick={() => deleteSubmission(workshop.title, submission.id, !!groupId)}
                     >
                       <Trash2 className="h-3.5 w-3.5 mr-1" />
-                      Eliminar mi entrega
+                      {t("hc_routesAppStudentWorkshops.deleteMySubmission")}
                     </Button>
                   ) : (
                     <p className="text-[11px] text-muted-foreground text-center italic">
-                      Ya consumiste todos tus intentos — la entrega no se puede borrar.
+                      {t("hc_routesAppStudentWorkshops.attemptsExhaustedNoDelete")}
                     </p>
                   );
                 })()}
@@ -728,7 +767,10 @@ function StudentWorkshops() {
       {/* Pagination — fuera del grid de cards. Visible solo si hay
           items (la barra se oculta sola con totalItems=0). */}
       <div className="px-1">
-        <DataPagination state={pagination} entityNamePlural="talleres" />
+        <DataPagination
+          state={pagination}
+          entityNamePlural={t("hc_routesAppStudentWorkshops.entityNamePlural")}
+        />
       </div>
 
       {/* Workshop Questions Dialog — single entry-point for student delivery.
@@ -761,8 +803,16 @@ function StudentWorkshops() {
                 size="icon"
                 className="h-7 w-7 shrink-0"
                 onClick={toggleMaximized}
-                title={maximized ? "Restaurar tamaño" : "Tamaño completo"}
-                aria-label={maximized ? "Restaurar tamaño" : "Tamaño completo"}
+                title={
+                  maximized
+                    ? t("hc_routesAppStudentWorkshops.restoreSize")
+                    : t("hc_routesAppStudentWorkshops.fullSize")
+                }
+                aria-label={
+                  maximized
+                    ? t("hc_routesAppStudentWorkshops.restoreSize")
+                    : t("hc_routesAppStudentWorkshops.fullSize")
+                }
               >
                 {maximized ? (
                   <Minimize2 className="h-4 w-4" />

@@ -44,6 +44,7 @@ import { toast } from "sonner";
 import { LayoutTemplate, Save, Trash2 } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -73,6 +74,7 @@ export function AssessmentTemplateMenu<T extends Record<string, unknown>>({
   onApply,
   configKeys,
 }: Props<T>) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -186,42 +188,44 @@ export function AssessmentTemplateMenu<T extends Record<string, unknown>>({
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm">
             <LayoutTemplate className="h-4 w-4 mr-1" />
-            Plantillas
+            {t("hc_sharedComponentsAssessmentTemplateMenu.templates")}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
           <DropdownMenuLabel className="text-xs text-muted-foreground">
-            Aplicar plantilla
+            {t("hc_sharedComponentsAssessmentTemplateMenu.applyTemplate")}
           </DropdownMenuLabel>
           {loading ? (
-            <div className="px-2 py-1 text-xs text-muted-foreground">Cargando…</div>
+            <div className="px-2 py-1 text-xs text-muted-foreground">
+              {t("hc_sharedComponentsAssessmentTemplateMenu.loading")}
+            </div>
           ) : templates.length === 0 ? (
             <div className="px-2 py-1 text-xs text-muted-foreground">
-              Sin plantillas guardadas
+              {t("hc_sharedComponentsAssessmentTemplateMenu.noTemplates")}
             </div>
           ) : (
-            templates.map((t) => (
+            templates.map((tpl) => (
               <DropdownMenuItem
-                key={t.id}
-                onClick={() => apply(t)}
+                key={tpl.id}
+                onClick={() => apply(tpl)}
                 className="flex justify-between gap-2"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm">{t.name}</div>
-                  {t.description && (
+                  <div className="truncate text-sm">{tpl.name}</div>
+                  {tpl.description && (
                     <div className="truncate text-[11px] text-muted-foreground">
-                      {t.description}
+                      {tpl.description}
                     </div>
                   )}
                 </div>
                 <RowAction
-                  label="Eliminar"
+                  label={t("hc_sharedComponentsAssessmentTemplateMenu.delete")}
                   icon={Trash2}
                   tone="destructive"
                   className="shrink-0"
                   onClick={(e) => {
                     e.stopPropagation();
-                    void remove(t);
+                    void remove(tpl);
                   }}
                 />
               </DropdownMenuItem>
@@ -230,7 +234,7 @@ export function AssessmentTemplateMenu<T extends Record<string, unknown>>({
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => setSaveDialogOpen(true)} className="gap-2">
             <Save className="h-3.5 w-3.5" />
-            Guardar configuración actual como plantilla
+            {t("hc_sharedComponentsAssessmentTemplateMenu.saveCurrentAsTemplate")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -238,30 +242,42 @@ export function AssessmentTemplateMenu<T extends Record<string, unknown>>({
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Guardar plantilla</DialogTitle>
+            <DialogTitle>
+              {t("hc_sharedComponentsAssessmentTemplateMenu.saveTemplateTitle")}
+            </DialogTitle>
             <DialogDescription>
-              Solo se guarda la configuración (proctoring, navegación, pesos, etc.). NO se
-              guardan preguntas ni datos del{" "}
-              {target === "exam" ? "examen" : target === "workshop" ? "taller" : "proyecto"}{" "}
-              actual.
+              {t("hc_sharedComponentsAssessmentTemplateMenu.saveTemplateDescription", {
+                target:
+                  target === "exam"
+                    ? t("hc_sharedComponentsAssessmentTemplateMenu.targetExam")
+                    : target === "workshop"
+                      ? t("hc_sharedComponentsAssessmentTemplateMenu.targetWorkshop")
+                      : t("hc_sharedComponentsAssessmentTemplateMenu.targetProject"),
+              })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label required>Nombre</Label>
+              <Label required>
+                {t("hc_sharedComponentsAssessmentTemplateMenu.nameLabel")}
+              </Label>
               <Input
                 value={draftName}
                 onChange={(e) => setDraftName(e.target.value)}
-                placeholder='Ej: "Examen presencial sin proctoring"'
+                placeholder={t("hc_sharedComponentsAssessmentTemplateMenu.namePlaceholder")}
               />
             </div>
             <div>
-              <Label>Descripción (opcional)</Label>
+              <Label>
+                {t("hc_sharedComponentsAssessmentTemplateMenu.descriptionLabel")}
+              </Label>
               <Textarea
                 value={draftDesc}
                 onChange={(e) => setDraftDesc(e.target.value)}
                 rows={2}
-                placeholder="Notas internas para recordar para qué sirve"
+                placeholder={t(
+                  "hc_sharedComponentsAssessmentTemplateMenu.descriptionPlaceholder",
+                )}
               />
             </div>
           </div>
@@ -271,7 +287,7 @@ export function AssessmentTemplateMenu<T extends Record<string, unknown>>({
               onClick={() => setSaveDialogOpen(false)}
               disabled={saving}
             >
-              Cancelar
+              {t("hc_sharedComponentsAssessmentTemplateMenu.cancel")}
             </Button>
             <Button onClick={() => void saveAsTemplate()} disabled={saving}>
               {saving ? (
@@ -279,7 +295,7 @@ export function AssessmentTemplateMenu<T extends Record<string, unknown>>({
               ) : (
                 <Save className="h-4 w-4 mr-1" />
               )}
-              Guardar
+              {t("hc_sharedComponentsAssessmentTemplateMenu.save")}
             </Button>
           </DialogFooter>
         </DialogContent>

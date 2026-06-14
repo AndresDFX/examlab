@@ -15,6 +15,7 @@
  */
 import { createFileRoute } from "@tanstack/react-router";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -123,7 +124,7 @@ function originOf(t: Template): Origin {
 
 function originBadge(origin: Origin, courseName?: string) {
   if (origin === "global") {
-    return <Badge variant="secondary" className="text-xs">Global</Badge>;
+    return <Badge variant="secondary" className="text-xs">{i18n.t("hc_routesAppTeacherReports.badgeGlobal")}</Badge>;
   }
   if (origin === "override") {
     return (
@@ -131,11 +132,11 @@ function originBadge(origin: Origin, courseName?: string) {
         variant="outline"
         className="text-xs border-violet-300 text-violet-700 dark:border-violet-500/50 dark:text-violet-300"
       >
-        Personalizada{courseName ? ` · ${courseName}` : ""}
+        {i18n.t("hc_routesAppTeacherReports.badgeCustom")}{courseName ? ` · ${courseName}` : ""}
       </Badge>
     );
   }
-  return <Badge variant="outline" className="text-xs">Privada</Badge>;
+  return <Badge variant="outline" className="text-xs">{i18n.t("hc_routesAppTeacherReports.badgePrivate")}</Badge>;
 }
 
 function TeacherReports() {
@@ -147,6 +148,7 @@ function TeacherReports() {
 }
 
 function Inner() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const confirm = useConfirm();
 
@@ -284,7 +286,7 @@ function Inner() {
   const openOverride = (t: Template) => {
     if (originOf(t) !== "global") return;
     const d: TemplateDraft = {
-      name: `${t.name} (personalizada)`,
+      name: i18n.t("hc_routesAppTeacherReports.customizedNameSuffix", { name: t.name }),
       description: t.description ?? "",
       scope: t.scope,
       body_html: t.body_html,
@@ -328,9 +330,9 @@ function Inner() {
   const closeEditor = async () => {
     if (!draftEqual(draft, original)) {
       const ok = await confirm({
-        title: "¿Descartar cambios?",
-        description: "Hay cambios sin guardar que se perderán.",
-        confirmLabel: "Descartar",
+        title: t("hc_routesAppTeacherReports.discardChangesTitle"),
+        description: t("hc_routesAppTeacherReports.discardChangesDesc"),
+        confirmLabel: t("hc_routesAppTeacherReports.discardConfirm"),
         tone: "warning",
       });
       if (!ok) return;
@@ -407,16 +409,16 @@ function Inner() {
     void load();
   };
 
-  const handleDelete = async (t: Template) => {
-    if (originOf(t) === "global") return; // no puede borrar globales
+  const handleDelete = async (tpl: Template) => {
+    if (originOf(tpl) === "global") return; // no puede borrar globales
     const ok = await confirm({
-      title: `¿Eliminar "${t.name}"?`,
-      description: "Esta acción no se puede deshacer.",
-      confirmLabel: "Eliminar",
+      title: t("hc_routesAppTeacherReports.deleteTemplateTitle", { name: tpl.name }),
+      description: t("hc_routesAppTeacherReports.deleteTemplateDesc"),
+      confirmLabel: t("hc_routesAppTeacherReports.deleteConfirm"),
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await db.from("report_templates").delete().eq("id", t.id);
+    const { error } = await db.from("report_templates").delete().eq("id", tpl.id);
     if (error) {
       toast.error(friendlyError(error));
       return;
@@ -430,7 +432,7 @@ function Inner() {
     // Duplicar siempre como privada propia — no tiene sentido duplicar
     // una global como global (eso es solo Admin).
     const payload = {
-      name: `${t.name} (copia)`,
+      name: i18n.t("hc_routesAppTeacherReports.copyNameSuffix", { name: t.name }),
       description: t.description,
       scope: t.scope,
       body_html: t.body_html,
@@ -475,7 +477,7 @@ function Inner() {
         );
         return;
       }
-      const baseName = file.name.replace(/\.docx$/i, "").trim() || "Documento importado";
+      const baseName = file.name.replace(/\.docx$/i, "").trim() || i18n.t("hc_routesAppTeacherReports.importedDocName");
       const d: TemplateDraft = {
         ...emptyDraft(),
         name: baseName,
@@ -769,17 +771,17 @@ function Inner() {
     <div className="space-y-5">
       <PageHeader
         icon={<ClipboardList className="h-5 w-5 text-pink-500" />}
-        title="Informes"
-        subtitle={loading ? undefined : `${templates.length} plantilla(s) disponibles`}
+        title={t("hc_routesAppTeacherReports.pageTitle")}
+        subtitle={loading ? undefined : t("hc_routesAppTeacherReports.templatesAvailable", { count: templates.length })}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => docxInputRef.current?.click()}>
               <Upload className="h-4 w-4 mr-1" />
-              Cargar Word (.docx)
+              {t("hc_routesAppTeacherReports.uploadWord")}
             </Button>
             <Button onClick={openNewPrivate}>
               <Plus className="h-4 w-4 mr-1" />
-              Nueva plantilla
+              {t("hc_routesAppTeacherReports.newTemplate")}
             </Button>
           </div>
         }
@@ -797,15 +799,15 @@ function Inner() {
       {/* Stats 4-card — patrón compartido (Videos, Cursos, Pizarras, etc.).
           Aparece SIEMPRE — un 0 es informativo, no ruido. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={FileText} label="Total" value={reportStats.total} />
-        <StatCard icon={Globe} label="Globales" value={reportStats.global} />
+        <StatCard icon={FileText} label={t("hc_routesAppTeacherReports.statTotal")} value={reportStats.total} />
+        <StatCard icon={Globe} label={t("hc_routesAppTeacherReports.statGlobal")} value={reportStats.global} />
         <StatCard
           icon={GitBranch}
-          label="Personalizadas"
+          label={t("hc_routesAppTeacherReports.statCustom")}
           value={reportStats.override}
           tone={reportStats.override > 0 ? "success" : "default"}
         />
-        <StatCard icon={Lock} label="Privadas" value={reportStats.priv} />
+        <StatCard icon={Lock} label={t("hc_routesAppTeacherReports.statPrivate")} value={reportStats.priv} />
       </div>
 
       <ActasManager onPrintActa={handlePrintActa} />
@@ -817,7 +819,7 @@ function Inner() {
               <SearchInput
                 value={search}
                 onChange={setSearch}
-                placeholder="Buscar por nombre o descripción…"
+                placeholder={t("hc_routesAppTeacherReports.searchPlaceholder")}
               />
             </div>
             <Select
@@ -828,10 +830,10 @@ function Inner() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los orígenes</SelectItem>
-                <SelectItem value="global">Globales</SelectItem>
-                <SelectItem value="override">Personalizadas</SelectItem>
-                <SelectItem value="privada">Privadas</SelectItem>
+                <SelectItem value="all">{t("hc_routesAppTeacherReports.filterAllOrigins")}</SelectItem>
+                <SelectItem value="global">{t("hc_routesAppTeacherReports.filterGlobal")}</SelectItem>
+                <SelectItem value="override">{t("hc_routesAppTeacherReports.filterCustom")}</SelectItem>
+                <SelectItem value="privada">{t("hc_routesAppTeacherReports.filterPrivate")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -841,7 +843,7 @@ function Inner() {
               <TableSkeleton cols={4} rows={5} />
             ) : loadError ? (
               <ErrorState
-                message="No pudimos cargar"
+                message={t("hc_routesAppTeacherReports.loadErrorMessage")}
                 hint={loadError}
                 onRetry={() => setRetryNonce((n) => n + 1)}
               />
@@ -849,10 +851,10 @@ function Inner() {
               <Table fixed resizable>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="min-w-[180px]">Nombre</TableHead>
-                    <TableHead className="hidden sm:table-cell w-40">Origen</TableHead>
-                    <TableHead className="w-28">Tipo</TableHead>
-                    <TableHead className="hidden md:table-cell w-[280px]">Descripción</TableHead>
+                    <TableHead className="min-w-[180px]">{t("hc_routesAppTeacherReports.colName")}</TableHead>
+                    <TableHead className="hidden sm:table-cell w-40">{t("hc_routesAppTeacherReports.colOrigin")}</TableHead>
+                    <TableHead className="w-28">{t("hc_routesAppTeacherReports.colType")}</TableHead>
+                    <TableHead className="hidden md:table-cell w-[280px]">{t("hc_routesAppTeacherReports.colDescription")}</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
@@ -860,66 +862,66 @@ function Inner() {
                   {filtered.length === 0 ? (
                     <TableEmpty
                       colSpan={5}
-                      text="Sin plantillas"
-                      hint="Cuando el administrador cree plantillas globales aparecerán aquí. También puedes crear una privada."
+                      text={t("hc_routesAppTeacherReports.emptyTitle")}
+                      hint={t("hc_routesAppTeacherReports.emptyHint")}
                     />
                   ) : (
-                    filtered.map((t) => {
-                      const origin = originOf(t);
+                    filtered.map((tpl) => {
+                      const origin = originOf(tpl);
                       return (
-                        <TableRow key={t.id}>
+                        <TableRow key={tpl.id}>
                           <TableCell className="font-medium">
-                            <div className="truncate" title={t.name}>
-                              {t.name}
+                            <div className="truncate" title={tpl.name}>
+                              {tpl.name}
                             </div>
                           </TableCell>
                           <TableCell className="hidden sm:table-cell">
                             {originBadge(
                               origin,
-                              t.course_id ? courseNameById.get(t.course_id) : undefined,
+                              tpl.course_id ? courseNameById.get(tpl.course_id) : undefined,
                             )}
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className="text-xs">
-                              {t.scope === "curso" ? "Curso" : "Estudiante"}
+                              {tpl.scope === "curso" ? t("hc_routesAppTeacherReports.scopeCourse") : t("hc_routesAppTeacherReports.scopeStudent")}
                             </Badge>
                           </TableCell>
                           <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                            <div className="truncate" title={t.description ?? undefined}>
-                              {t.description ?? "—"}
+                            <div className="truncate" title={tpl.description ?? undefined}>
+                              {tpl.description ?? "—"}
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
                             <RowActionsMenu
                               actions={[
                                 {
-                                  label: "Generar informe",
+                                  label: t("hc_routesAppTeacherReports.actionGenerate"),
                                   icon: Play,
-                                  onClick: () => openGenerate(t),
+                                  onClick: () => openGenerate(tpl),
                                 },
                                 origin === "global" && {
-                                  label: "Personalizar para un curso",
+                                  label: t("hc_routesAppTeacherReports.actionCustomize"),
                                   icon: GitBranch,
-                                  onClick: () => openOverride(t),
+                                  onClick: () => openOverride(tpl),
                                   separatorBefore: true,
                                 },
                                 origin !== "global" && {
-                                  label: "Editar",
+                                  label: t("hc_routesAppTeacherReports.actionEdit"),
                                   icon: Pencil,
-                                  onClick: () => openEdit(t),
+                                  onClick: () => openEdit(tpl),
                                   separatorBefore: true,
                                 },
                                 {
-                                  label: "Duplicar como privada",
+                                  label: t("hc_routesAppTeacherReports.actionDuplicate"),
                                   icon: Copy,
-                                  onClick: () => void handleDuplicate(t),
+                                  onClick: () => void handleDuplicate(tpl),
                                 },
                                 origin !== "global" && {
-                                  label: "Eliminar",
+                                  label: t("hc_routesAppTeacherReports.actionDelete"),
                                   icon: Trash2,
                                   tone: "destructive",
                                   separatorBefore: true,
-                                  onClick: () => void handleDelete(t),
+                                  onClick: () => void handleDelete(tpl),
                                 },
                               ]}
                             />
@@ -940,25 +942,24 @@ function Inner() {
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-5xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editorMode === "new_private" && "Nueva plantilla privada"}
-              {editorMode === "new_override" && "Personalizar para un curso"}
-              {editorMode === "edit_private" && "Editar plantilla privada"}
-              {editorMode === "edit_override" && "Editar personalización"}
+              {editorMode === "new_private" && t("hc_routesAppTeacherReports.editorTitleNewPrivate")}
+              {editorMode === "new_override" && t("hc_routesAppTeacherReports.editorTitleNewOverride")}
+              {editorMode === "edit_private" && t("hc_routesAppTeacherReports.editorTitleEditPrivate")}
+              {editorMode === "edit_override" && t("hc_routesAppTeacherReports.editorTitleEditOverride")}
             </DialogTitle>
             {editorMode.startsWith("new_override") && (
               <DialogDescription>
-                Esta personalización solo aplicará al curso seleccionado y reemplazará la
-                plantilla global cuando la uses allí.
+                {t("hc_routesAppTeacherReports.editorOverrideDesc")}
               </DialogDescription>
             )}
           </DialogHeader>
 
           {editorMode === "new_override" || editorMode === "edit_override" ? (
             <div className="space-y-1">
-              <Label required>Curso</Label>
+              <Label required>{t("hc_routesAppTeacherReports.courseLabel")}</Label>
               <Select value={editorCourseId} onValueChange={setEditorCourseId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Curso del override" />
+                  <SelectValue placeholder={t("hc_routesAppTeacherReports.overrideCoursePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {courses.map((c) => (
@@ -974,7 +975,7 @@ function Inner() {
             // curso, el generador lo pre-selecciona y la plantilla queda
             // ligada a él; "Sin curso" la deja reutilizable en cualquiera.
             <div className="space-y-1">
-              <Label>Curso asociado (opcional)</Label>
+              <Label>{t("hc_routesAppTeacherReports.associatedCourseLabel")}</Label>
               <Select
                 value={editorCourseId || NONE_COURSE}
                 onValueChange={(v) => setEditorCourseId(v === NONE_COURSE ? "" : v)}
@@ -984,7 +985,7 @@ function Inner() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NONE_COURSE}>
-                    Sin curso (reutilizable en cualquier curso)
+                    {t("hc_routesAppTeacherReports.noCourseOption")}
                   </SelectItem>
                   {courses.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
@@ -994,7 +995,7 @@ function Inner() {
                 </SelectContent>
               </Select>
               <p className="text-[11px] text-muted-foreground">
-                Asóciala a un curso para tenerla a mano y que el generador lo elija por defecto.
+                {t("hc_routesAppTeacherReports.associatedCourseHint")}
               </p>
             </div>
           )}
@@ -1013,14 +1014,14 @@ function Inner() {
               disabled={editorSaving}
             >
               <Sparkles className="h-4 w-4 mr-1 text-violet-500" />
-              Generar con IA
+              {t("hc_routesAppTeacherReports.generateWithAi")}
             </Button>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => void closeEditor()} disabled={editorSaving}>
-                Cancelar
+                {t("hc_routesAppTeacherReports.cancel")}
               </Button>
               <Button onClick={() => void handleSave()} disabled={editorSaving}>
-                {editorSaving ? "Guardando…" : "Guardar"}
+                {editorSaving ? t("hc_routesAppTeacherReports.saving") : t("hc_routesAppTeacherReports.save")}
               </Button>
             </div>
           </DialogFooter>
@@ -1031,20 +1032,18 @@ function Inner() {
       <Dialog open={aiOpen} onOpenChange={(o) => !aiBusy && setAiOpen(o)}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Generar con IA</DialogTitle>
+            <DialogTitle>{t("hc_routesAppTeacherReports.aiDialogTitle")}</DialogTitle>
             <DialogDescription>
-              Describe qué sección quieres que la IA redacte. Usaremos los datos reales del curso
-              elegido para que la IA conozca las variables disponibles y arme un texto con
-              placeholders {`{{...}}`} reutilizables.
+              {t("hc_routesAppTeacherReports.aiDialogDesc", { ph: "{{...}}" })}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label required>Curso de referencia</Label>
+              <Label required>{t("hc_routesAppTeacherReports.referenceCourseLabel")}</Label>
               <Select value={aiCourseId} onValueChange={setAiCourseId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un curso" />
+                  <SelectValue placeholder={t("hc_routesAppTeacherReports.selectCoursePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {courses.map((c) => (
@@ -1056,11 +1055,11 @@ function Inner() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>¿Qué quieres que genere?</Label>
+              <Label>{t("hc_routesAppTeacherReports.aiInstructionLabel")}</Label>
               <Textarea
                 value={aiInstruction}
                 onChange={(e) => setAiInstruction(e.target.value)}
-                placeholder="Ej: Redacta un párrafo de observaciones de desempeño usando la nota final y la asistencia."
+                placeholder={t("hc_routesAppTeacherReports.aiInstructionPlaceholder")}
                 className="min-h-[120px]"
               />
             </div>
@@ -1068,11 +1067,11 @@ function Inner() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setAiOpen(false)} disabled={aiBusy}>
-              Cancelar
+              {t("hc_routesAppTeacherReports.cancel")}
             </Button>
             <Button onClick={() => void handleAiGenerate()} disabled={aiBusy || !aiCourseId}>
               {aiBusy ? <Spinner size="sm" className="mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
-              {aiBusy ? "Generando…" : "Generar con IA"}
+              {aiBusy ? t("hc_routesAppTeacherReports.generatingAi") : t("hc_routesAppTeacherReports.generateWithAi")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1082,17 +1081,17 @@ function Inner() {
       <Dialog open={genOpen} onOpenChange={setGenOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-6xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Generar: {genTemplate?.name}</DialogTitle>
+            <DialogTitle>{t("hc_routesAppTeacherReports.genDialogTitle", { name: genTemplate?.name ?? "" })}</DialogTitle>
             <DialogDescription>
               {genTemplate?.scope === "curso"
-                ? "Se incluirán todos los estudiantes matriculados en el curso."
-                : "El informe se generará para el estudiante seleccionado."}
+                ? t("hc_routesAppTeacherReports.genDescCourse")
+                : t("hc_routesAppTeacherReports.genDescStudent")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
-              <Label required>Curso</Label>
+              <Label required>{t("hc_routesAppTeacherReports.courseLabel")}</Label>
               <Select
                 value={genCourseId}
                 onValueChange={(v) => {
@@ -1103,7 +1102,7 @@ function Inner() {
                 disabled={!!genTemplate?.course_id}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un curso" />
+                  <SelectValue placeholder={t("hc_routesAppTeacherReports.selectCoursePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {courses.map((c) => (
@@ -1117,7 +1116,7 @@ function Inner() {
 
             {genTemplate?.scope === "estudiante" && (
               <div className="space-y-1">
-                <Label required>Estudiante</Label>
+                <Label required>{t("hc_routesAppTeacherReports.studentLabel")}</Label>
                 <Select
                   value={genStudentId}
                   onValueChange={(v) => {
@@ -1128,7 +1127,7 @@ function Inner() {
                 >
                   <SelectTrigger>
                     <SelectValue
-                      placeholder={genLoadingStudents ? "Cargando…" : "Selecciona un estudiante"}
+                      placeholder={genLoadingStudents ? t("hc_routesAppTeacherReports.loading") : t("hc_routesAppTeacherReports.selectStudentPlaceholder")}
                     />
                   </SelectTrigger>
                   <SelectContent>
@@ -1143,7 +1142,7 @@ function Inner() {
             )}
 
             <div className="space-y-1">
-              <Label>Periodo</Label>
+              <Label>{t("hc_routesAppTeacherReports.periodLabel")}</Label>
               <Input
                 value={genPeriodo}
                 onChange={(e) => {
@@ -1153,7 +1152,7 @@ function Inner() {
                   // al docente a regenerar antes de imprimir.
                   if (genHtml) setGenHtml(null);
                 }}
-                placeholder="2026-1, Trimestre 2, etc."
+                placeholder={t("hc_routesAppTeacherReports.periodPlaceholder")}
               />
             </div>
           </div>
@@ -1172,12 +1171,12 @@ function Inner() {
               ) : (
                 <Play className="h-4 w-4 mr-1" />
               )}
-              {genBuilding ? "Generando…" : "Generar"}
+              {genBuilding ? t("hc_routesAppTeacherReports.generating") : t("hc_routesAppTeacherReports.generate")}
             </Button>
             {genHtml && (
               <Button variant="outline" onClick={handlePrint}>
                 <Printer className="h-4 w-4 mr-1" />
-                Imprimir / Guardar PDF
+                {t("hc_routesAppTeacherReports.printSavePdf")}
               </Button>
             )}
           </div>
@@ -1186,7 +1185,7 @@ function Inner() {
             <div className="border rounded-md overflow-hidden bg-white">
               <iframe
                 ref={iframeRef}
-                title="Vista previa del informe"
+                title={t("hc_routesAppTeacherReports.previewTitle")}
                 srcDoc={genHtml}
                 className="w-full h-[60dvh]"
               />

@@ -97,7 +97,7 @@ function GradingConfigPage() {
     ]);
     const firstErr = courseRes.error ?? cutsRes.error ?? examsRes.error ?? workshopsRes.error;
     if (firstErr) {
-      setLoadError(friendlyError(firstErr, "No pudimos cargar la configuración de calificación."));
+      setLoadError(friendlyError(firstErr, t("hc_routesAppTeacherGradingCourseId.loadConfigError")));
       return;
     }
     if (courseRes.data) setCourseName(courseRes.data.name);
@@ -162,7 +162,7 @@ function GradingConfigPage() {
       .from("grade_cuts")
       .insert({
         course_id: courseId,
-        name: `Corte ${cuts.length + 1}`,
+        name: t("hc_routesAppTeacherGradingCourseId.defaultCutName", { number: cuts.length + 1 }),
         position: cuts.length,
         weight: 0,
       })
@@ -201,7 +201,7 @@ function GradingConfigPage() {
         cut_id: cutId,
         item_type: itemType,
         weight: 0,
-        project_title: itemType === "project" ? "Proyecto" : null,
+        project_title: itemType === "project" ? t("hc_routesAppTeacherGradingCourseId.defaultProjectTitle") : null,
       })
       .select()
       .single();
@@ -249,7 +249,7 @@ function GradingConfigPage() {
 
       {loadError && (
         <ErrorState
-          message="No pudimos cargar la configuración"
+          message={t("hc_routesAppTeacherGradingCourseId.loadErrorMessage")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -259,12 +259,11 @@ function GradingConfigPage() {
       <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
         <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
         <div className="space-y-1">
-          <p className="font-medium">Vista en transición</p>
+          <p className="font-medium">{t("hc_routesAppTeacherGradingCourseId.transitionTitle")}</p>
           <p className="text-muted-foreground">
-            Esta pantalla quedará obsoleta. La configuración oficial de cortes evaluativos vive
-            ahora en el diálogo de creación/edición de curso. La nueva jerarquía de calificación
-            es: <strong>Curso → Cortes → [Talleres, Exámenes, Proyectos, Asistencia]</strong>.
-            Los cambios realizados aquí ya no afectan el cálculo final del estudiante.
+            {t("hc_routesAppTeacherGradingCourseId.transitionLead")}{" "}
+            <strong>{t("hc_routesAppTeacherGradingCourseId.transitionHierarchy")}</strong>
+            {t("hc_routesAppTeacherGradingCourseId.transitionTrailing")}
           </p>
         </div>
       </div>

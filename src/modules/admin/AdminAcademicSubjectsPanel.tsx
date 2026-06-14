@@ -519,7 +519,7 @@ export function AdminAcademicSubjectsPanel() {
                 <Input
                   value={draft.name}
                   onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                  placeholder="Programación II"
+                  placeholder={t("hc_modulesAdminAdminAcademicSubjectsPanel.placeholderName")}
                 />
               </div>
               <div className="space-y-1">

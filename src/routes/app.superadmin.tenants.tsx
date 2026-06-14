@@ -142,7 +142,7 @@ function SuperAdminTenantsPage() {
       .is("deleted_at", null)
       .order("created_at", { ascending: true });
     if (error) {
-      setLoadError(friendlyError(error, "No pudimos cargar las instituciones."));
+      setLoadError(friendlyError(error, tl("hc_routesAppSuperadminTenants.errLoadTenants")));
       setTenants([]);
     } else {
       setTenants((data ?? []) as Tenant[]);
@@ -315,7 +315,7 @@ function SuperAdminTenantsPage() {
       .from("tenant-logos")
       .upload(path, finalFile, { upsert: true, contentType: finalFile.type });
     if (upErr) {
-      toast.error(friendlyError(upErr, "No se pudo subir el logo"));
+      toast.error(friendlyError(upErr, tl("hc_routesAppSuperadminTenants.errUploadLogo")));
       return null;
     }
     if (resized) {
@@ -423,9 +423,9 @@ function SuperAdminTenantsPage() {
       }
       return n;
     };
-    const maxAdmins = parseQuota(form.max_admins, "administradores");
-    const maxTeachers = parseQuota(form.max_teachers, "docentes");
-    const maxStudents = parseQuota(form.max_students, "estudiantes");
+    const maxAdmins = parseQuota(form.max_admins, tl("hc_routesAppSuperadminTenants.quotaLabelAdmins"));
+    const maxTeachers = parseQuota(form.max_teachers, tl("hc_routesAppSuperadminTenants.quotaLabelTeachers"));
+    const maxStudents = parseQuota(form.max_students, tl("hc_routesAppSuperadminTenants.quotaLabelStudents"));
     if (maxAdmins === undefined || maxTeachers === undefined || maxStudents === undefined) {
       setSaving(false);
       return;
@@ -448,7 +448,7 @@ function SuperAdminTenantsPage() {
     if (editing) {
       const { error } = await db.from("tenants").update(payload).eq("id", editing.id);
       if (error) {
-        toast.error(friendlyError(error, "No se pudo guardar"));
+        toast.error(friendlyError(error, tl("hc_routesAppSuperadminTenants.errSave")));
         setSaving(false);
         return;
       }
@@ -467,7 +467,7 @@ function SuperAdminTenantsPage() {
         .select("id")
         .single();
       if (error) {
-        toast.error(friendlyError(error, "No se pudo crear"));
+        toast.error(friendlyError(error, tl("hc_routesAppSuperadminTenants.errCreate")));
         setSaving(false);
         return;
       }
@@ -483,7 +483,7 @@ function SuperAdminTenantsPage() {
             // No abortamos: el tenant está creado, solo falló asociar el
             // logo. El SuperAdmin puede reintentar desde "Editar".
             toast.error(
-              friendlyError(updErr, "Institución creada, pero no se pudo asociar el logo"),
+              friendlyError(updErr, tl("hc_routesAppSuperadminTenants.errLogoAssociate")),
             );
           }
         }
@@ -515,7 +515,7 @@ function SuperAdminTenantsPage() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const data = provData as any;
           if (provErr || !data?.ok) {
-            const msg = data?.error || provErr?.message || "Error desconocido";
+            const msg = data?.error || provErr?.message || tl("hc_routesAppSuperadminTenants.unknownError");
             toast.error(
               i18n.t("superadminTenants.testUserCreationFailed", {
                 defaultValue:
@@ -614,7 +614,7 @@ function SuperAdminTenantsPage() {
     if (!ok) return;
     const { error } = await db.rpc("soft_delete_tenant", { _tenant_id: t.id });
     if (error) {
-      toast.error(friendlyError(error, "No se pudo eliminar la institución"));
+      toast.error(friendlyError(error, tl("hc_routesAppSuperadminTenants.errDeleteTenant")));
       return;
     }
     toast.success(
@@ -687,11 +687,10 @@ function SuperAdminTenantsPage() {
     //    en datos).
     const ok = await confirm({
       title: i18n.t("superadminTenants.impersonateConfirmTitle"),
-      description:
-        `Vas a reemplazar tu sesión de SuperAdmin por la de ` +
-        `${target.full_name ?? target.institutional_email} (Admin de ${t.name}). ` +
-        `Tu sesión queda guardada — para volver, usa el banner "Estás viendo como…" ` +
-        `que aparece arriba.`,
+      description: tl("hc_routesAppSuperadminTenants.impersonateConfirmDesc", {
+        admin: target.full_name ?? target.institutional_email,
+        tenant: t.name,
+      }),
       confirmLabel: i18n.t("superadminTenants.actionImpersonate"),
       tone: "warning",
     });
@@ -706,7 +705,7 @@ function SuperAdminTenantsPage() {
       await startImpersonate(target.id);
       // startImpersonate hace window.location.href — no llegamos acá.
     } catch (e) {
-      toast.error(friendlyError(e, "No se pudo iniciar la impersonación"));
+      toast.error(friendlyError(e, tl("hc_routesAppSuperadminTenants.errImpersonate")));
     }
   };
 
@@ -715,7 +714,11 @@ function SuperAdminTenantsPage() {
       <PageHeader
         icon={<Building2 className="h-6 w-6 text-violet-500 dark:text-violet-400" />}
         title={tl("superadminTenants.title")}
-        subtitle={`${tenants.length} institucion${tenants.length === 1 ? "" : "es"} en la plataforma`}
+        subtitle={
+          tenants.length === 1
+            ? tl("hc_routesAppSuperadminTenants.subtitleOne", { count: tenants.length })
+            : tl("hc_routesAppSuperadminTenants.subtitleMany", { count: tenants.length })
+        }
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={clearViewAs}>
@@ -869,7 +872,7 @@ function SuperAdminTenantsPage() {
               </TableBody>
             </Table>
           )}
-          <DataPagination state={pagination} entityNamePlural="instituciones" />
+          <DataPagination state={pagination} entityNamePlural={tl("hc_routesAppSuperadminTenants.entityNamePlural")} />
         </CardContent>
       </Card>
 
@@ -1181,7 +1184,7 @@ function SuperAdminTenantsPage() {
                         }),
                       );
                     }}
-                    title="Copiar email"
+                    title={tl("hc_routesAppSuperadminTenants.copyEmailTitle")}
                   >
                     <Copy className="h-3.5 w-3.5" />
                   </Button>
@@ -1205,7 +1208,7 @@ function SuperAdminTenantsPage() {
                         }),
                       );
                     }}
-                    title="Copiar contraseña"
+                    title={tl("hc_routesAppSuperadminTenants.copyPasswordTitle")}
                   >
                     <Copy className="h-3.5 w-3.5" />
                   </Button>
@@ -1233,7 +1236,10 @@ function SuperAdminTenantsPage() {
               onClick={() => {
                 if (!testUserCreds) return;
                 void navigator.clipboard.writeText(
-                  `Email: ${testUserCreds.email}\nContraseña: ${testUserCreds.password}`,
+                  tl("hc_routesAppSuperadminTenants.copyAllText", {
+                    email: testUserCreds.email,
+                    password: testUserCreds.password,
+                  }),
                 );
                 toast.success(
                   i18n.t("superadminTenants.credentialsCopied", {

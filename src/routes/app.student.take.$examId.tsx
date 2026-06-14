@@ -723,8 +723,8 @@ function TakeExam() {
       (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
         (navigator.platform === "MacIntel" && "ontouchend" in document));
     const fullscreenHelpText = isIOS
-      ? "iPhone/iPad: instala la app desde Safari (botón Compartir → 'Añadir a pantalla de inicio') y vuelve a abrir el examen desde el ícono, o usa una computadora."
-      : "Habilita la pantalla completa en tu navegador o usa una computadora.";
+      ? t("hc_routesAppStudentTakeExamId.fullscreenHelpIOS")
+      : t("hc_routesAppStudentTakeExamId.fullscreenHelpDesktop");
 
     try {
       await document.documentElement.requestFullscreen?.();
@@ -916,15 +916,20 @@ function TakeExam() {
               .select("full_name")
               .eq("id", user!.id)
               .single();
-            const studentName = profile?.full_name ?? "Un estudiante";
+            const studentName =
+              profile?.full_name ?? t("hc_routesAppStudentTakeExamId.aStudent");
             // Notificación resumida: un docente con muchos exámenes
             // necesita el qué/quién, no el detalle. El detalle vive en
             // el monitor (la card "Eventos de advertencia" lo muestra).
-            const body = `${studentName} superó el límite de ${maxWarnings} advertencias en el examen "${exam.title}" y fue suspendido. Revisa el detalle en el monitor.`;
+            const body = t("hc_routesAppStudentTakeExamId.suspiciousExamNotifBody", {
+              studentName,
+              maxWarnings,
+              examTitle: exam.title,
+            });
 
             const { error: rpcErr } = await supabase.rpc("notify_exam_teachers", {
               _exam_id: examId,
-              _title: "Examen sospechoso",
+              _title: t("hc_routesAppStudentTakeExamId.suspiciousExamNotifTitle"),
               _body: body,
               _link: `/app/teacher/monitor/${examId}`,
             });
@@ -1244,10 +1249,10 @@ function TakeExam() {
 
       const msg =
         eventType === "pegar"
-          ? "No está permitido pegar contenido durante el examen."
+          ? t("hc_routesAppStudentTakeExamId.pasteNotAllowed")
           : eventType === "cortar"
-            ? "No está permitido cortar contenido durante el examen."
-            : "No está permitido copiar contenido durante el examen.";
+            ? t("hc_routesAppStudentTakeExamId.cutNotAllowed")
+            : t("hc_routesAppStudentTakeExamId.copyNotAllowed");
       toast.warning(msg);
 
       const event = {
@@ -1612,7 +1617,7 @@ function TakeExam() {
           // `{ error: "detalle..." }`), no el genérico
           // "Edge Function returned a non-2xx status code".
           const real = await extractEdgeError(error, data);
-          throw new Error(real || "Error ejecutando código");
+          throw new Error(real || t("hc_routesAppStudentTakeExamId.errorRunningCode"));
         }
         stdout = data?.stdout ?? "";
         stderr = data?.stderr ?? "";
@@ -1632,10 +1637,7 @@ function TakeExam() {
       if (!stdout.trim() && !stderr.trim()) {
         // Nada útil que mostrar: o el API se quedó callado o solo devolvió
         // el mensaje opaco. Inyectamos pista accionable.
-        stderr =
-          "El compilador remoto no devolvió detalle del error. Suele indicar un error " +
-          "de compilación (falta `;`, llaves desbalanceadas, import erróneo, nombre " +
-          "de clase incorrecto). Revisa tu código línea por línea y vuelve a intentar.";
+        stderr = t("hc_routesAppStudentTakeExamId.remoteCompilerNoDetail");
       }
 
       // Combinar stdout + stderr en el orden natural de terminal.
@@ -1643,10 +1645,10 @@ function TakeExam() {
       const parts: string[] = [];
       if (stdout.trimEnd()) parts.push(stdout.trimEnd());
       if (stderr.trimEnd()) parts.push(stderr.trimEnd());
-      const output = parts.join("\n") || "(sin salida)";
+      const output = parts.join("\n") || t("hc_routesAppStudentTakeExamId.noOutput");
       setCodeOutputs((prev) => ({ ...prev, [questionId]: output }));
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Error ejecutando";
+      const msg = e instanceof Error ? e.message : t("hc_routesAppStudentTakeExamId.errorRunning");
       // Cancelación por el usuario: NO mostramos error ni loggeamos
       // como error real. La UI ya quedó libre por el cancelRun handler;
       // aquí solo silenciamos el catch para que no aparezca un toast
@@ -1654,7 +1656,10 @@ function TakeExam() {
       if (msg === CANCELLED_SENTINEL) {
         return;
       }
-      setCodeOutputs((prev) => ({ ...prev, [questionId]: `Error: ${msg}` }));
+      setCodeOutputs((prev) => ({
+        ...prev,
+        [questionId]: t("hc_routesAppStudentTakeExamId.errorPrefix", { msg }),
+      }));
       void logEvent({
         action: "code_execution_error",
         category: "exam",
@@ -1692,13 +1697,14 @@ function TakeExam() {
         <Card>
           <CardContent className="p-6 space-y-4 text-center">
             <AlertTriangle className="h-10 w-10 text-destructive mx-auto" />
-            <h2 className="text-xl font-semibold">Examen abierto en otro dispositivo</h2>
+            <h2 className="text-xl font-semibold">
+              {t("hc_routesAppStudentTakeExamId.examOpenOnAnotherDevice")}
+            </h2>
             <p className="text-sm text-muted-foreground">
-              Este examen ya está siendo presentado desde otro dispositivo o pestaña. Cierra esa
-              sesión primero. Si ya la cerraste, espera unos segundos y vuelve a intentar.
+              {t("hc_routesAppStudentTakeExamId.examOpenOnAnotherDeviceDesc")}
             </p>
             <Button variant="outline" onClick={() => navigate({ to: "/app/student/exams" })}>
-              Volver a mis exámenes
+              {t("hc_routesAppStudentTakeExamId.backToMyExams")}
             </Button>
           </CardContent>
         </Card>
@@ -1715,30 +1721,40 @@ function TakeExam() {
             <div className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm space-y-2">
               <p className="font-semibold flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-warning-foreground" />
-                Antes de comenzar
+                {t("hc_routesAppStudentTakeExamId.beforeYouStart")}
               </p>
               <ul className="list-disc list-inside text-muted-foreground space-y-1">
                 <li>
-                  Duración: <strong>{exam.time_limit_minutes} minutos</strong>.{" "}
+                  {t("hc_routesAppStudentTakeExamId.durationLabel")}{" "}
+                  <strong>
+                    {t("hc_routesAppStudentTakeExamId.minutesValue", {
+                      minutes: exam.time_limit_minutes,
+                    })}
+                  </strong>
+                  .{" "}
                   {exam.schedule_type === "relativo"
-                    ? "El cronómetro empieza cuando inicies el examen y solo se pausa al cerrar la ventana de disponibilidad."
-                    : "El tiempo no se pausa."}
+                    ? t("hc_routesAppStudentTakeExamId.timerStartsOnStart")
+                    : t("hc_routesAppStudentTakeExamId.timeNotPaused")}
                 </li>
                 <li>
-                  Cada una de estas acciones cuenta como una advertencia, y al llegar a{" "}
-                  <strong>{maxWarnings}</strong> el intento se marca como{" "}
-                  <strong>sospechoso</strong> y se entrega automáticamente:
+                  {t("hc_routesAppStudentTakeExamId.eachActionWarningPre")}{" "}
+                  <strong>{maxWarnings}</strong>{" "}
+                  {t("hc_routesAppStudentTakeExamId.eachActionWarningMid")}{" "}
+                  <strong>{t("hc_routesAppStudentTakeExamId.suspiciousWord")}</strong>{" "}
+                  {t("hc_routesAppStudentTakeExamId.eachActionWarningPost")}
                   <ul className="list-disc list-inside ml-5 mt-1 space-y-0.5">
-                    <li>Cambiar a otra pestaña o ventana.</li>
-                    <li>Ocultar la pestaña (minimizar el navegador).</li>
-                    {requireFullscreen && <li>Salir del modo pantalla completa.</li>}
+                    <li>{t("hc_routesAppStudentTakeExamId.switchTabOrWindow")}</li>
+                    <li>{t("hc_routesAppStudentTakeExamId.hideTab")}</li>
+                    {requireFullscreen && (
+                      <li>{t("hc_routesAppStudentTakeExamId.exitFullscreenAction")}</li>
+                    )}
                   </ul>
                 </li>
                 <li>
-                  <strong>Copiar, pegar, cortar y el clic derecho</strong> están deshabilitados. No
-                  generan advertencia: simplemente no funcionan.
+                  <strong>{t("hc_routesAppStudentTakeExamId.copyPasteCutRightClick")}</strong>{" "}
+                  {t("hc_routesAppStudentTakeExamId.copyPasteCutDisabledRest")}
                 </li>
-                <li>Las respuestas se guardan automáticamente (incluso sin conexión).</li>
+                <li>{t("hc_routesAppStudentTakeExamId.answersAutoSaved")}</li>
               </ul>
             </div>
             <Button size="lg" className="w-full" onClick={startExam}>
@@ -1761,14 +1777,14 @@ function TakeExam() {
         <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur flex items-center justify-center p-6">
           <div className="max-w-md w-full rounded-lg border bg-card p-6 space-y-4 text-center">
             <AlertTriangle className="h-10 w-10 text-destructive mx-auto" />
-            <h2 className="text-lg font-semibold">Saliste de pantalla completa</h2>
+            <h2 className="text-lg font-semibold">
+              {t("hc_routesAppStudentTakeExamId.youLeftFullscreen")}
+            </h2>
             <p className="text-sm text-muted-foreground">
-              Este examen requiere modo pantalla completa. Se registró una advertencia. Vuelve para
-              continuar; si superas {maxWarnings} advertencias el examen será marcado como
-              sospechoso.
+              {t("hc_routesAppStudentTakeExamId.fullscreenRequiredWarning", { maxWarnings })}
             </p>
             <Button className="w-full" onClick={reenterFullscreen}>
-              Volver a pantalla completa
+              {t("hc_routesAppStudentTakeExamId.returnToFullscreen")}
             </Button>
           </div>
         </div>
@@ -1777,10 +1793,11 @@ function TakeExam() {
         <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur flex items-center justify-center p-6">
           <div className="max-w-md w-full rounded-lg border bg-card p-6 space-y-4 text-center">
             <Pause className="h-10 w-10 text-primary mx-auto animate-pulse" />
-            <h2 className="text-lg font-semibold">Examen pausado por el docente</h2>
+            <h2 className="text-lg font-semibold">
+              {t("hc_routesAppStudentTakeExamId.examPausedByTeacher")}
+            </h2>
             <p className="text-sm text-muted-foreground">
-              El tiempo está detenido. Espera a que el docente reanude el examen para continuar
-              respondiendo. Tus respuestas están guardadas.
+              {t("hc_routesAppStudentTakeExamId.examPausedDesc")}
             </p>
           </div>
         </div>
@@ -1795,9 +1812,15 @@ function TakeExam() {
             </span>
             {attemptInfo && (
               <span className="text-primary font-medium">
-                · Intento {attemptInfo.current}/{attemptInfo.total} ·{" "}
+                ·{" "}
+                {t("hc_routesAppStudentTakeExamId.attemptLabel", {
+                  current: attemptInfo.current,
+                  total: attemptInfo.total,
+                })}{" "}
+                ·{" "}
                 <span className="text-muted-foreground">
-                  Nota final: {retryModeLabel((exam.retry_mode ?? "last") as RetryMode)}
+                  {t("hc_routesAppStudentTakeExamId.finalGradeLabel")}{" "}
+                  {retryModeLabel((exam.retry_mode ?? "last") as RetryMode)}
                 </span>
               </span>
             )}
@@ -1810,7 +1833,9 @@ function TakeExam() {
               className="text-[10px] sm:text-xs text-warning-foreground border-warning/40 bg-warning/10"
             >
               <WifiOff className="h-3 w-3 sm:mr-1" />
-              <span className="hidden sm:inline">Sin conexión</span>
+              <span className="hidden sm:inline">
+                {t("hc_routesAppStudentTakeExamId.offline")}
+              </span>
             </Badge>
           )}
           {isPaused && (
@@ -1819,7 +1844,9 @@ function TakeExam() {
               className="text-[10px] sm:text-xs text-primary border-primary/40 bg-primary/10 animate-pulse"
             >
               <Pause className="h-3 w-3 sm:mr-1" />
-              <span className="hidden sm:inline">Pausado</span>
+              <span className="hidden sm:inline">
+                {t("hc_routesAppStudentTakeExamId.paused")}
+              </span>
             </Badge>
           )}
           <Badge
@@ -1843,8 +1870,16 @@ function TakeExam() {
             size="icon"
             className="h-7 w-7 shrink-0"
             onClick={toggleMaximized}
-            title={maximized ? "Restaurar tamaño" : "Tamaño completo"}
-            aria-label={maximized ? "Restaurar tamaño" : "Tamaño completo"}
+            title={
+              maximized
+                ? t("hc_routesAppStudentTakeExamId.restoreSize")
+                : t("hc_routesAppStudentTakeExamId.fullSize")
+            }
+            aria-label={
+              maximized
+                ? t("hc_routesAppStudentTakeExamId.restoreSize")
+                : t("hc_routesAppStudentTakeExamId.fullSize")
+            }
           >
             {maximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
@@ -1862,7 +1897,7 @@ function TakeExam() {
             >
               <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
                 <FileText className="h-3.5 w-3.5" />
-                Tus notas de apoyo (aprobadas)
+                {t("hc_routesAppStudentTakeExamId.yourApprovedNotes")}
               </div>
               {notesOpen ? (
                 <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -1894,7 +1929,9 @@ function TakeExam() {
                   <Badge variant="secondary" className="text-[10px]">
                     {q.type}
                   </Badge>
-                  <span className="text-xs text-muted-foreground">{q.points} pt</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t("hc_routesAppStudentTakeExamId.pointsAbbr", { points: q.points })}
+                  </span>
                 </div>
                 <MarkdownInline>{q.content}</MarkdownInline>
 
@@ -1929,12 +1966,15 @@ function TakeExam() {
                       const maxS = q.options?.max_selections;
                       const hint =
                         typeof minS === "number" && typeof maxS === "number"
-                          ? `Marca entre ${minS} y ${maxS} opciones`
+                          ? t("hc_routesAppStudentTakeExamId.markBetween", {
+                              min: minS,
+                              max: maxS,
+                            })
                           : typeof minS === "number"
-                            ? `Marca al menos ${minS}`
+                            ? t("hc_routesAppStudentTakeExamId.markAtLeast", { min: minS })
                             : typeof maxS === "number"
-                              ? `Marca máximo ${maxS}`
-                              : "Marca todas las que consideres correctas";
+                              ? t("hc_routesAppStudentTakeExamId.markAtMost", { max: maxS })
+                              : t("hc_routesAppStudentTakeExamId.markAllCorrect");
                       return (
                         <>
                           <p className="text-xs text-muted-foreground">{hint}</p>
@@ -1965,7 +2005,7 @@ function TakeExam() {
                           })}
                           {typeof maxS === "number" && sel.length > maxS && (
                             <p className="text-xs text-destructive">
-                              Has marcado más opciones de las permitidas ({maxS}).
+                              {t("hc_routesAppStudentTakeExamId.tooManyOptions", { max: maxS })}
                             </p>
                           )}
                         </>
@@ -2053,7 +2093,7 @@ function TakeExam() {
                       <div className="space-y-1">
                         <Textarea
                           rows={4}
-                          placeholder="Tu respuesta…"
+                          placeholder={t("hc_routesAppStudentTakeExamId.yourAnswerPlaceholder")}
                           value={current}
                           maxLength={maxOpenChars}
                           onChange={(e) => updateAnswer(q.id, e.target.value)}
@@ -2069,7 +2109,7 @@ function TakeExam() {
                           }`}
                         >
                           {len.toLocaleString("es-CO")} / {maxOpenChars.toLocaleString("es-CO")}
-                          {atMax ? " — límite alcanzado" : ""}
+                          {atMax ? t("hc_routesAppStudentTakeExamId.limitReachedSuffix") : ""}
                         </div>
                       </div>
                     );
@@ -2145,21 +2185,22 @@ function TakeExam() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" />
-              ¿Pasar a la siguiente pregunta?
+              {t("hc_routesAppStudentTakeExamId.confirmNextTitle")}
             </DialogTitle>
             <DialogDescription asChild>
               <div className="text-sm text-muted-foreground space-y-2">
                 <p>
-                  Este examen tiene <strong>navegación secuencial</strong>: una vez que avances no
-                  podrás regresar a esta pregunta.
+                  {t("hc_routesAppStudentTakeExamId.confirmNextDescPre")}{" "}
+                  <strong>{t("hc_routesAppStudentTakeExamId.sequentialNavigation")}</strong>
+                  {t("hc_routesAppStudentTakeExamId.confirmNextDescPost")}
                 </p>
-                <p>Asegúrate de haber respondido lo que querías antes de continuar.</p>
+                <p>{t("hc_routesAppStudentTakeExamId.confirmNextDescReminder")}</p>
               </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => setConfirmNextOpen(false)}>
-              Cancelar
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -2169,7 +2210,7 @@ function TakeExam() {
                 void saveAnswersNow();
               }}
             >
-              Sí, avanzar
+              {t("hc_routesAppStudentTakeExamId.yesAdvance")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2180,19 +2221,19 @@ function TakeExam() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" />
-              ¿Salir del examen?
+              {t("hc_routesAppStudentTakeExamId.leaveExamTitle")}
             </DialogTitle>
             <DialogDescription asChild>
               <div className="text-sm text-muted-foreground">
-                Retroceder cuenta como una salida no permitida y registra un <strong>strike</strong>
-                . Si acumulas {maxWarnings} strikes, el examen se marcará como sospechoso. ¿Deseas
-                salir de todas formas?
+                {t("hc_routesAppStudentTakeExamId.leaveExamDescPre")}{" "}
+                <strong>{t("hc_routesAppStudentTakeExamId.strikeWord")}</strong>
+                {t("hc_routesAppStudentTakeExamId.leaveExamDescPost", { maxWarnings })}
               </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => setManualLeaveOpen(false)}>
-              Seguir en el examen
+              {t("hc_routesAppStudentTakeExamId.stayInExam")}
             </Button>
             <Button
               type="button"
@@ -2238,7 +2279,7 @@ function TakeExam() {
                 navigate({ to: "/app/student/exams" });
               }}
             >
-              Salir (registrar strike)
+              {t("hc_routesAppStudentTakeExamId.leaveRegisterStrike")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2249,24 +2290,25 @@ function TakeExam() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 shrink-0 text-amber-500" />
-              Quedan preguntas sin responder
+              {t("hc_routesAppStudentTakeExamId.unansweredQuestionsRemain")}
             </DialogTitle>
             <DialogDescription asChild>
               <div className="space-y-3 text-left text-sm text-muted-foreground">
-                <p>
-                  Aún no has respondido todas las preguntas. Puedes volver a revisarlas o entregar
-                  el examen tal como está; las respuestas que ya guardaste se incluirán.
-                </p>
+                <p>{t("hc_routesAppStudentTakeExamId.unansweredQuestionsDesc")}</p>
                 {submitModal.unansweredIndices.length > 0 && (
                   <div className="rounded-md border border-border bg-muted/40 px-3 py-2">
                     <p className="text-xs font-medium text-foreground mb-1.5">
-                      Sin responder: {submitModal.unansweredIndices.length}{" "}
-                      {submitModal.unansweredIndices.length === 1 ? "pregunta" : "preguntas"}
+                      {t("hc_routesAppStudentTakeExamId.unansweredCountLabel", {
+                        count: submitModal.unansweredIndices.length,
+                      })}{" "}
+                      {submitModal.unansweredIndices.length === 1
+                        ? t("hc_routesAppStudentTakeExamId.questionSingular")
+                        : t("hc_routesAppStudentTakeExamId.questionPlural")}
                     </p>
                     <ul className="max-h-32 overflow-y-auto text-xs space-y-0.5 list-disc list-inside">
                       {submitModal.unansweredIndices.slice(0, 25).map((idx) => (
                         <li key={idx}>
-                          Pregunta {idx + 1}
+                          {t("hc_routesAppStudentTakeExamId.questionN", { n: idx + 1 })}
                           {questions[idx]?.type ? (
                             <span className="text-muted-foreground"> ({questions[idx].type})</span>
                           ) : null}
@@ -2275,7 +2317,9 @@ function TakeExam() {
                     </ul>
                     {submitModal.unansweredIndices.length > 25 && (
                       <p className="text-[10px] mt-1 text-muted-foreground">
-                        y {submitModal.unansweredIndices.length - 25} más…
+                        {t("hc_routesAppStudentTakeExamId.andNMore", {
+                          n: submitModal.unansweredIndices.length - 25,
+                        })}
                       </p>
                     )}
                   </div>
@@ -2285,7 +2329,7 @@ function TakeExam() {
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={cancelManualSubmitModal}>
-              Seguir editando
+              {t("hc_routesAppStudentTakeExamId.keepEditing")}
             </Button>
             <Button
               type="button"
@@ -2297,7 +2341,7 @@ function TakeExam() {
               ) : (
                 <Send className="h-4 w-4 mr-1" />
               )}
-              Entregar de todas formas
+              {t("hc_routesAppStudentTakeExamId.submitAnyway")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -196,7 +196,9 @@ function TeacherWhiteboards() {
       .is("deleted_at", null)
       .order("updated_at", { ascending: false });
     if (error) {
-      setLoadError(friendlyError(error, "No pudimos cargar tus pizarras."));
+      setLoadError(
+        friendlyError(error, i18n.t("hc_routesAppTeacherWhiteboardsIndex.loadErrorFallback")),
+      );
       setLoading(false);
       return;
     }
@@ -263,7 +265,9 @@ function TeacherWhiteboards() {
     if (ids.length === 0) return;
     const { error } = await softDeleteMany("whiteboards", ids);
     if (error) {
-      toast.error(friendlyError(error, "No se pudieron enviar las pizarras a papelera"));
+      toast.error(
+        friendlyError(error, t("hc_routesAppTeacherWhiteboardsIndex.bulkTrashError")),
+      );
       throw error;
     }
     setItems((prev) => prev.filter((p) => !ids.includes(p.id)));
@@ -329,7 +333,7 @@ function TeacherWhiteboards() {
       if (draftSessionId !== "none") payload.attendance_session_id = draftSessionId;
       const { data, error } = await db.from("whiteboards").insert(payload).select("id").single();
       if (error || !data) {
-        toast.error(friendlyError(error, "No se pudo crear la pizarra"));
+        toast.error(friendlyError(error, t("hc_routesAppTeacherWhiteboardsIndex.createError")));
         return;
       }
       toast.success(
@@ -346,7 +350,7 @@ function TeacherWhiteboards() {
       // Caller: `() => void createWhiteboard()` desde onClick del botón
       // del dialog. Sin catch acá, una rejection del insert (network
       // throw, RLS panic) burbujea como unhandled rejection → audit log.
-      toast.error(friendlyError(e, "No se pudo crear la pizarra"));
+      toast.error(friendlyError(e, t("hc_routesAppTeacherWhiteboardsIndex.createError")));
     } finally {
       setSaving(false);
     }
@@ -354,16 +358,18 @@ function TeacherWhiteboards() {
 
   const deleteWhiteboard = async (w: Whiteboard) => {
     const ok = await confirm({
-      title: "¿Eliminar pizarra?",
-      description: `"${w.name}" se eliminará permanentemente, junto con todo su contenido. Esta acción no se puede deshacer.`,
+      title: t("hc_routesAppTeacherWhiteboardsIndex.deleteConfirmTitle"),
+      description: t("hc_routesAppTeacherWhiteboardsIndex.deleteConfirmDescription", {
+        name: w.name,
+      }),
       tone: "destructive",
-      confirmLabel: "Eliminar",
+      confirmLabel: t("hc_routesAppTeacherWhiteboardsIndex.deleteConfirmLabel"),
     });
     if (!ok) return;
     try {
       const { error } = await softDelete("whiteboards", w.id);
       if (error) {
-        toast.error(friendlyError(error, "No se pudo enviar la pizarra a papelera"));
+        toast.error(friendlyError(error, t("hc_routesAppTeacherWhiteboardsIndex.deleteTrashError")));
         return;
       }
       toast.success(
@@ -376,7 +382,7 @@ function TeacherWhiteboards() {
       // Caller: `() => void deleteWhiteboard(w)` desde el RowActionsMenu de
       // la fila. Mismo riesgo que createWhiteboard — envolvemos para capturar
       // rejections del network/RLS y mostrar toast amigable.
-      toast.error(friendlyError(e, "No se pudo eliminar la pizarra"));
+      toast.error(friendlyError(e, t("hc_routesAppTeacherWhiteboardsIndex.deleteError")));
     }
   };
 
@@ -390,9 +396,10 @@ function TeacherWhiteboards() {
     opts: { copyContent: boolean; copyCourse: boolean },
   ) => {
     if (!user) return;
+    const copyName = t("hc_routesAppTeacherWhiteboardsIndex.copyOfName", { name: w.name });
     const payload: Record<string, unknown> = {
       owner_id: user.id,
-      name: `Copia de ${w.name}`,
+      name: copyName,
       description: w.description,
     };
     if (opts.copyCourse && w.course_id) payload.course_id = w.course_id;
@@ -441,7 +448,7 @@ function TeacherWhiteboards() {
     toast.success(
       i18n.t("toast.routes_app_teacher_whiteboards_index.duplicated", {
         defaultValue: 'Pizarra duplicada: "{{name}}"',
-        name: `Copia de ${w.name}`,
+        name: copyName,
       }),
     );
     setRetryNonce((n) => n + 1);
@@ -452,11 +459,11 @@ function TeacherWhiteboards() {
       <div className="space-y-5">
         <PageHeader
           icon={<Palette className="h-6 w-6 text-primary" />}
-          title="Pizarras"
-          subtitle="Crea pizarras en blanco para explicar conceptos a tus alumnos o pensar en libertad."
+          title={t("hc_routesAppTeacherWhiteboardsIndex.pageTitle")}
+          subtitle={t("hc_routesAppTeacherWhiteboardsIndex.pageSubtitle")}
         />
         <ErrorState
-          message="No pudimos cargar tus pizarras"
+          message={t("hc_routesAppTeacherWhiteboardsIndex.loadErrorMessage")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -468,38 +475,50 @@ function TeacherWhiteboards() {
     <div className="space-y-5">
       <PageHeader
         icon={<Palette className="h-6 w-6 text-primary" />}
-        title="Pizarras"
+        title={t("hc_routesAppTeacherWhiteboardsIndex.pageTitle")}
         subtitle={
           items.length > 0
-            ? `${items.length} pizarra${items.length === 1 ? "" : "s"}`
-            : "Crea pizarras en blanco para explicar conceptos a tus alumnos o pensar en libertad."
+            ? t("hc_routesAppTeacherWhiteboardsIndex.subtitleCount", { count: items.length })
+            : t("hc_routesAppTeacherWhiteboardsIndex.pageSubtitle")
         }
         actions={
           <Button size="sm" onClick={() => setCreateOpen(true)} data-tour-id="create-whiteboard">
             <Plus className="h-4 w-4 mr-1" />
-            Nueva pizarra
+            {t("hc_routesAppTeacherWhiteboardsIndex.newWhiteboard")}
           </Button>
         }
       />
 
       {/* Stats 4-card — siempre visible. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={Palette} label="Total" value={whiteboardStats.total} />
+        <StatCard
+          icon={Palette}
+          label={t("hc_routesAppTeacherWhiteboardsIndex.statTotal")}
+          value={whiteboardStats.total}
+        />
         <StatCard
           icon={Globe}
-          label="Compartidas"
+          label={t("hc_routesAppTeacherWhiteboardsIndex.statShared")}
           value={whiteboardStats.shared}
           tone={whiteboardStats.shared > 0 ? "success" : "default"}
         />
-        <StatCard icon={Lock} label="Privadas" value={whiteboardStats.priv} />
-        <StatCard icon={BookOpen} label="En curso" value={whiteboardStats.inCourse} />
+        <StatCard
+          icon={Lock}
+          label={t("hc_routesAppTeacherWhiteboardsIndex.statPrivate")}
+          value={whiteboardStats.priv}
+        />
+        <StatCard
+          icon={BookOpen}
+          label={t("hc_routesAppTeacherWhiteboardsIndex.statInCourse")}
+          value={whiteboardStats.inCourse}
+        />
       </div>
 
       <div className="flex-1 min-w-0">
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Buscar por nombre o descripción…"
+          placeholder={t("hc_routesAppTeacherWhiteboardsIndex.searchPlaceholder")}
         />
       </div>
 
@@ -510,15 +529,15 @@ function TeacherWhiteboards() {
         count={sel.count}
         onClear={sel.clear}
         onDelete={() => setBulkDeleteOpen(true)}
-        entityNameSingular="pizarra"
-        entityNamePlural="pizarras"
+        entityNameSingular={t("hc_routesAppTeacherWhiteboardsIndex.entitySingular")}
+        entityNamePlural={t("hc_routesAppTeacherWhiteboardsIndex.entityPlural")}
       />
 
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
-              <Spinner size="sm" /> Cargando…
+              <Spinner size="sm" /> {t("hc_routesAppTeacherWhiteboardsIndex.loading")}
             </div>
           ) : (
             // Grid estándar de tabla — mismo patrón que Exámenes / Talleres /
@@ -530,22 +549,24 @@ function TeacherWhiteboards() {
                     <MultiSelectHeaderCheckbox state={sel} />
                   </TableHead>
                   <SortableHead sortKey="name" sort={sort}>
-                    Nombre
+                    {t("hc_routesAppTeacherWhiteboardsIndex.colName")}
                   </SortableHead>
                   <SortableHead sortKey="course" sort={sort} className="hidden sm:table-cell w-40">
-                    Curso
+                    {t("hc_routesAppTeacherWhiteboardsIndex.colCourse")}
                   </SortableHead>
                   <SortableHead sortKey="shared" sort={sort} className="hidden md:table-cell w-28">
-                    Visibilidad
+                    {t("hc_routesAppTeacherWhiteboardsIndex.colVisibility")}
                   </SortableHead>
                   <SortableHead
                     sortKey="updated_at"
                     sort={sort}
                     className="hidden lg:table-cell w-40"
                   >
-                    Actualizada
+                    {t("hc_routesAppTeacherWhiteboardsIndex.colUpdated")}
                   </SortableHead>
-                  <TableHead className="text-right w-16">Acciones</TableHead>
+                  <TableHead className="text-right w-16">
+                    {t("hc_routesAppTeacherWhiteboardsIndex.colActions")}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -555,19 +576,19 @@ function TeacherWhiteboards() {
                     icon={Palette}
                     text={
                       search.trim()
-                        ? "Ningún resultado coincide con tu búsqueda."
-                        : "No tienes pizarras todavía."
+                        ? t("hc_routesAppTeacherWhiteboardsIndex.emptySearchText")
+                        : t("hc_routesAppTeacherWhiteboardsIndex.emptyText")
                     }
                     hint={
                       search.trim()
-                        ? "Limpia el buscador para ver todas tus pizarras."
-                        : "Crea tu primera pizarra para escribir, dibujar y explicar conceptos a tu manera."
+                        ? t("hc_routesAppTeacherWhiteboardsIndex.emptySearchHint")
+                        : t("hc_routesAppTeacherWhiteboardsIndex.emptyHint")
                     }
                     action={
                       !search.trim() ? (
                         <Button size="sm" onClick={() => setCreateOpen(true)}>
                           <Plus className="h-4 w-4 mr-1" />
-                          Crear pizarra
+                          {t("hc_routesAppTeacherWhiteboardsIndex.createWhiteboard")}
                         </Button>
                       ) : undefined
                     }
@@ -609,7 +630,9 @@ function TeacherWhiteboards() {
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         <Badge variant={w.is_shared_with_course ? "default" : "secondary"}>
-                          {w.is_shared_with_course ? "Compartida" : "Privada"}
+                          {w.is_shared_with_course
+                            ? t("hc_routesAppTeacherWhiteboardsIndex.badgeShared")
+                            : t("hc_routesAppTeacherWhiteboardsIndex.badgePrivate")}
                         </Badge>
                       </TableCell>
                       <TableCell className="hidden lg:table-cell">
@@ -619,14 +642,18 @@ function TeacherWhiteboards() {
                         <RowActionsMenu
                           actions={[
                             {
-                              label: "Abrir",
+                              label: t("hc_routesAppTeacherWhiteboardsIndex.actionOpen"),
                               icon: Eye,
                               to: "/app/teacher/whiteboards/$id",
                               params: { id: w.id },
                             },
-                            { label: "Duplicar", icon: Copy, onClick: () => setDuplicateFor(w) },
                             {
-                              label: "Eliminar",
+                              label: t("hc_routesAppTeacherWhiteboardsIndex.actionDuplicate"),
+                              icon: Copy,
+                              onClick: () => setDuplicateFor(w),
+                            },
+                            {
+                              label: t("hc_routesAppTeacherWhiteboardsIndex.actionDelete"),
                               icon: Trash2,
                               tone: "destructive",
                               separatorBefore: true,
@@ -641,7 +668,10 @@ function TeacherWhiteboards() {
               </TableBody>
             </Table>
           )}
-          <DataPagination state={pagination} entityNamePlural="pizarras" />
+          <DataPagination
+            state={pagination}
+            entityNamePlural={t("hc_routesAppTeacherWhiteboardsIndex.entityPlural")}
+          />
         </CardContent>
       </Card>
 
@@ -657,42 +687,45 @@ function TeacherWhiteboards() {
           data-tour-id="dialog-whiteboard"
         >
           <DialogHeader>
-            <DialogTitle>Nueva pizarra</DialogTitle>
+            <DialogTitle>{t("hc_routesAppTeacherWhiteboardsIndex.dialogTitle")}</DialogTitle>
             <DialogDescription>
-              Crea una pizarra y opcionalmente asóciala a un curso o a una sesión concreta. Si
-              eliges un curso podrás compartirla con sus alumnos desde la pizarra.
+              {t("hc_routesAppTeacherWhiteboardsIndex.dialogDescription")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div data-tour-id="whiteboard-field-name">
-              <Label required>Nombre</Label>
+              <Label required>{t("hc_routesAppTeacherWhiteboardsIndex.fieldName")}</Label>
               <Input
                 value={draftName}
                 onChange={(e) => setDraftName(e.target.value)}
-                placeholder="Ej: Conceptos de POO, Clase 3"
+                placeholder={t("hc_routesAppTeacherWhiteboardsIndex.fieldNamePlaceholder")}
                 autoFocus
               />
             </div>
             <div data-tour-id="whiteboard-field-description">
-              <Label>Descripción (opcional)</Label>
+              <Label>{t("hc_routesAppTeacherWhiteboardsIndex.fieldDescription")}</Label>
               <Textarea
                 value={draftDescription}
                 onChange={(e) => setDraftDescription(e.target.value)}
                 rows={2}
-                placeholder="Notas, contexto, recordatorios"
+                placeholder={t("hc_routesAppTeacherWhiteboardsIndex.fieldDescriptionPlaceholder")}
               />
             </div>
             <div data-tour-id="whiteboard-field-course">
               <Label>
-                Curso (opcional){" "}
+                {t("hc_routesAppTeacherWhiteboardsIndex.fieldCourse")}{" "}
                 <HelpHint>{t("help.whiteboardCourseSharingHelp")}</HelpHint>
               </Label>
               <Select value={draftCourseId} onValueChange={setDraftCourseId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Sin curso (privada)" />
+                  <SelectValue
+                    placeholder={t("hc_routesAppTeacherWhiteboardsIndex.coursePlaceholder")}
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Sin curso (privada)</SelectItem>
+                  <SelectItem value="none">
+                    {t("hc_routesAppTeacherWhiteboardsIndex.courseNone")}
+                  </SelectItem>
                   {draftCourses.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name}
@@ -702,8 +735,7 @@ function TeacherWhiteboards() {
               </Select>
               {draftCourseId !== "none" && (
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  Se compartirá con los estudiantes del curso por defecto. Podés dejar de
-                  compartirla luego desde el editor.
+                  {t("hc_routesAppTeacherWhiteboardsIndex.courseShareNote")}
                 </p>
               )}
             </div>
@@ -716,24 +748,29 @@ function TeacherWhiteboards() {
             {draftCourseId !== "none" && (
               <div>
                 <Label>
-                  Sesión del curso (opcional){" "}
+                  {t("hc_routesAppTeacherWhiteboardsIndex.fieldSession")}{" "}
                   <HelpHint>{t("help.whiteboardSessionBindingHelp")}</HelpHint>
                 </Label>
                 {loadingSessions ? (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
-                    <Spinner size="xs" /> Cargando sesiones…
+                    <Spinner size="xs" />{" "}
+                    {t("hc_routesAppTeacherWhiteboardsIndex.loadingSessions")}
                   </div>
                 ) : draftSessions.length === 0 ? (
                   <p className="text-xs text-muted-foreground py-2">
-                    Este curso no tiene sesiones registradas. La pizarra queda asociada al curso.
+                    {t("hc_routesAppTeacherWhiteboardsIndex.noSessionsNote")}
                   </p>
                 ) : (
                   <Select value={draftSessionId} onValueChange={setDraftSessionId}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Sin sesión específica" />
+                      <SelectValue
+                        placeholder={t("hc_routesAppTeacherWhiteboardsIndex.sessionPlaceholder")}
+                      />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Sin sesión específica</SelectItem>
+                      <SelectItem value="none">
+                        {t("hc_routesAppTeacherWhiteboardsIndex.sessionNone")}
+                      </SelectItem>
                       {draftSessions.map((s) => (
                         <SelectItem key={s.id} value={s.id}>
                           {formatDate(s.session_date)}
@@ -748,11 +785,11 @@ function TeacherWhiteboards() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={saving}>
-              Cancelar
+              {t("hc_routesAppTeacherWhiteboardsIndex.cancel")}
             </Button>
             <Button onClick={() => void createWhiteboard()} disabled={saving}>
               {saving && <Spinner size="sm" className="mr-1" />}
-              Crear y abrir
+              {t("hc_routesAppTeacherWhiteboardsIndex.createAndOpen")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -767,33 +804,28 @@ function TeacherWhiteboards() {
         items={sort.sorted
           .filter((w) => sel.isSelected(w.id))
           .map((w) => ({ id: w.id, label: w.name }))}
-        entityNameSingular="pizarra"
-        entityNamePlural="pizarras"
+        entityNameSingular={t("hc_routesAppTeacherWhiteboardsIndex.entitySingular")}
+        entityNamePlural={t("hc_routesAppTeacherWhiteboardsIndex.entityPlural")}
         onConfirm={bulkDeleteWhiteboards}
       />
 
       <DuplicateOptionsDialog
         open={duplicateFor !== null}
         onOpenChange={(o) => !o && setDuplicateFor(null)}
-        title="Duplicar pizarra"
-        description={
-          <>
-            Crea una copia tuya de la pizarra. NO se copia el vínculo a una sesión ni el estado
-            de compartida. Elige qué información interna copiar.
-          </>
-        }
+        title={t("hc_routesAppTeacherWhiteboardsIndex.duplicateTitle")}
+        description={<>{t("hc_routesAppTeacherWhiteboardsIndex.duplicateDescription")}</>}
         options={[
           {
             param: "copyContent",
-            label: "Copiar contenido (hojas y dibujos)",
-            hint: "Clona todas las hojas del pizarrón. Si lo desmarcas, la copia nace en blanco con el mismo nombre.",
+            label: t("hc_routesAppTeacherWhiteboardsIndex.duplicateCopyContentLabel"),
+            hint: t("hc_routesAppTeacherWhiteboardsIndex.duplicateCopyContentHint"),
           },
           {
             param: "copyCourse",
-            label: "Copiar asociación al curso",
+            label: t("hc_routesAppTeacherWhiteboardsIndex.duplicateCopyCourseLabel"),
             hint: duplicateFor?.course_id
-              ? "Mantiene el mismo curso. Si lo desmarcas, la copia queda sin curso (personal)."
-              : "Esta pizarra no está asociada a un curso.",
+              ? t("hc_routesAppTeacherWhiteboardsIndex.duplicateCopyCourseHint")
+              : t("hc_routesAppTeacherWhiteboardsIndex.duplicateCopyCourseHintNone"),
           },
         ]}
         onConfirm={async (flags) => {

@@ -530,7 +530,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const handleSignOut = async () => {
     const ok = await confirm({
       title: t("nav.signOut"),
-      description: "¿Estás seguro de que quieres cerrar sesión?",
+      description: t("hc_sharedComponentsAppLayout.signOutConfirm"),
       confirmLabel: t("nav.signOut"),
       tone: "warning",
     });
@@ -761,16 +761,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="mx-auto h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center">
             <ShieldEllipsis className="h-6 w-6 text-destructive" />
           </div>
-          <h1 className="text-xl font-semibold">Acceso restringido</h1>
+          <h1 className="text-xl font-semibold">
+            {t("hc_sharedComponentsAppLayout.restrictedAccessTitle")}
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Tu cuenta de estudiante está marcada como{" "}
-            <strong>{profile?.estado === "aplazado" ? "aplazada" : "retirada"}</strong>, por lo que
-            no tienes acceso a la plataforma. Si crees que es un error, comunícate con la
-            administración de tu institución.
+            {t("hc_sharedComponentsAppLayout.restrictedAccessPrefix")}{" "}
+            <strong>
+              {profile?.estado === "aplazado"
+                ? t("hc_sharedComponentsAppLayout.statusDeferred")
+                : t("hc_sharedComponentsAppLayout.statusWithdrawn")}
+            </strong>
+            {t("hc_sharedComponentsAppLayout.restrictedAccessSuffix")}
           </p>
           <Button variant="outline" onClick={signOut}>
             <LogOut className="h-4 w-4 mr-1.5" />
-            Cerrar sesión
+            {t("hc_sharedComponentsAppLayout.signOut")}
           </Button>
         </div>
       </div>
@@ -975,7 +980,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="h-8 w-8 rounded-lg bg-white/5 flex items-center justify-center shadow-sm shrink-0 overflow-hidden">
                 <img
                   src={tenantLogoUrl}
-                  alt={tenant?.name ?? "Logo institución"}
+                  alt={tenant?.name ?? t("hc_sharedComponentsAppLayout.institutionLogoAlt")}
                   className="h-full w-full object-contain"
                 />
               </div>
@@ -1001,7 +1006,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     tenant elegido. */}
                 {isSuperAdminCrossTenant
                   ? t("tenant.platformBrand")
-                  : (tenant?.name ?? "Plataforma de exámenes")}
+                  : (tenant?.name ?? t("hc_sharedComponentsAppLayout.platformFallback"))}
               </div>
             </div>
             <Button
@@ -1009,8 +1014,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               size="icon"
               className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground h-7 w-7 shrink-0"
               onClick={() => setSidebarCollapsed(true)}
-              title="Ocultar menú"
-              aria-label="Ocultar menú"
+              title={t("hc_sharedComponentsAppLayout.hideMenu")}
+              aria-label={t("hc_sharedComponentsAppLayout.hideMenu")}
             >
               <Menu className="h-4 w-4" />
             </Button>
@@ -1198,7 +1203,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     activeRole === "Estudiante") && (
                     <DropdownMenuItem onClick={startManualTour} className="gap-2">
                       <HelpCircle className="h-4 w-4" />
-                      Ver tour guiado
+                      {t("hc_sharedComponentsAppLayout.viewGuidedTour")}
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
@@ -1326,7 +1331,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 variant="ghost"
                 size="icon"
                 className="text-sidebar-foreground hover:bg-sidebar-accent"
-                aria-label="Menú"
+                aria-label={t("hc_sharedComponentsAppLayout.menu")}
               >
                 <Menu className="h-5 w-5" />
               </Button>
@@ -1345,7 +1350,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     <div className="h-9 w-9 rounded-lg bg-white/5 flex items-center justify-center shadow-sm overflow-hidden">
                       <img
                         src={tenantLogoUrl}
-                        alt={tenant?.name ?? "Logo institución"}
+                        alt={tenant?.name ?? t("hc_sharedComponentsAppLayout.institutionLogoAlt")}
                         className="h-full w-full object-contain"
                       />
                     </div>
@@ -1533,7 +1538,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="h-7 w-7 rounded-md bg-white/5 flex items-center justify-center shrink-0 overflow-hidden">
                 <img
                   src={tenantLogoUrl}
-                  alt={tenant?.name ?? "Logo"}
+                  alt={tenant?.name ?? t("hc_sharedComponentsAppLayout.logoAlt")}
                   className="h-full w-full object-contain"
                 />
               </div>
@@ -1583,8 +1588,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           size="icon"
           onClick={() => setSidebarCollapsed(false)}
           className="hidden md:flex fixed top-3 left-3 z-40 h-9 w-9 bg-card shadow-sm"
-          title="Mostrar menú"
-          aria-label="Mostrar menú"
+          title={t("hc_sharedComponentsAppLayout.showMenu")}
+          aria-label={t("hc_sharedComponentsAppLayout.showMenu")}
         >
           <Menu className="h-4 w-4" />
         </Button>
@@ -1620,8 +1625,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="bg-amber-500/10 border-b border-amber-400/40 px-4 py-2 text-xs text-amber-700 dark:text-amber-300 flex items-center gap-2">
             <ShieldEllipsis className="h-3.5 w-3.5 shrink-0" />
             <span>
-              Cuenta <strong>graduada</strong>: acceso de solo lectura. Puedes consultar tus
-              certificados y notas, pero no realizar nuevas entregas ni exámenes.
+              {t("hc_sharedComponentsAppLayout.readonlyBannerPrefix")}{" "}
+              <strong>{t("hc_sharedComponentsAppLayout.statusGraduated")}</strong>
+              {t("hc_sharedComponentsAppLayout.readonlyBannerSuffix")}
             </span>
           </div>
         )}
@@ -1661,7 +1667,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <nav
             className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-card border-t border-border flex items-stretch justify-around"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-            aria-label="Navegación principal"
+            aria-label={t("hc_sharedComponentsAppLayout.mainNavigation")}
           >
             {visibleNav.slice(0, 5).map((item) => {
               const Icon = item.icon;

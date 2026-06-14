@@ -705,7 +705,7 @@ export function UploadExternalContentDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="es">Español</SelectItem>
+                  <SelectItem value="es">{t("hc_modulesContentsUploadExternalContentDialog.languageSpanish")}</SelectItem>
                   <SelectItem value="en">English</SelectItem>
                 </SelectContent>
               </Select>

@@ -242,7 +242,9 @@ function Gradebook() {
       .order("name")
       .then(({ data, error }) => {
         if (error) {
-          setLoadError(friendlyError(error, "No pudimos cargar tus cursos."));
+          setLoadError(
+            friendlyError(error, t("hc_routesAppTeacherGradebook.couldNotLoadCourses")),
+          );
           return;
         }
         setLoadError(null);
@@ -620,17 +622,20 @@ function Gradebook() {
 
     const csvRows = students.map((s) => {
       const row: Record<string, string> = {
-        nombre: s.full_name,
-        email_institucional: s.institutional_email,
-        email_personal: s.personal_email ?? "",
+        [t("hc_routesAppTeacherGradebook.csvName")]: s.full_name,
+        [t("hc_routesAppTeacherGradebook.csvInstitutionalEmail")]: s.institutional_email,
+        [t("hc_routesAppTeacherGradebook.csvPersonalEmail")]: s.personal_email ?? "",
       };
       // Detalle item por item (exámenes y talleres con su nota cruda).
       columns.forEach((col) => {
         const g = getGrade(s.id, col);
-        const prefix = col.kind === "workshop" ? "[T] " : "";
+        const prefix =
+          col.kind === "workshop" ? t("hc_routesAppTeacherGradebook.csvWorkshopPrefix") : "";
         const label = `${prefix}${col.title}`;
         if (g.grade != null) {
-          row[label] = `${g.grade}${g.isMakeup ? " (S)" : ""}`;
+          row[label] = `${g.grade}${
+            g.isMakeup ? t("hc_routesAppTeacherGradebook.csvMakeupSuffix") : ""
+          }`;
         } else {
           row[label] = "";
         }
@@ -642,13 +647,20 @@ function Gradebook() {
         const cg = stuConsolidated?.cutGrades.find((c) => c.cutId === cut.id);
         row[`${cut.name} (${cut.weight}%)`] = fmt(cg?.grade ?? null);
       });
-      row["Calificación final"] = fmt(stuConsolidated?.finalGrade ?? null);
+      row[t("hc_routesAppTeacherGradebook.csvFinalGrade")] = fmt(
+        stuConsolidated?.finalGrade ?? null,
+      );
       return row;
     });
 
-    const courseName = courses.find((c) => c.id === courseId)?.name ?? "curso";
+    const courseName =
+      courses.find((c) => c.id === courseId)?.name ??
+      t("hc_routesAppTeacherGradebook.courseFallback");
     downloadCSV(
-      `calificaciones-${courseName.replace(/\s+/g, "_")}-${Date.now()}.csv`,
+      `${t("hc_routesAppTeacherGradebook.csvFilePrefix")}-${courseName.replace(
+        /\s+/g,
+        "_",
+      )}-${Date.now()}.csv`,
       toCSV(csvRows),
     );
     toast.success(
@@ -895,10 +907,12 @@ function Gradebook() {
         return;
       }
       const ok = await confirm({
-        title: "¿Regenerar certificado?",
-        description: `Se revocará el certificado actual de este estudiante y se emitirá uno nuevo con la nota final ${finalGrade.toFixed(2)} y la configuración (logo, firma, mensaje) vigente del curso.`,
+        title: t("hc_routesAppTeacherGradebook.regenerateCertTitle"),
+        description: t("hc_routesAppTeacherGradebook.regenerateCertDescription", {
+          grade: finalGrade.toFixed(2),
+        }),
         tone: "warning",
-        confirmLabel: "Regenerar",
+        confirmLabel: t("hc_routesAppTeacherGradebook.regenerate"),
       });
       if (!ok) return;
       setIssuingId(studentId);
@@ -962,9 +976,11 @@ function Gradebook() {
       return;
     }
     const ok = await confirm({
-      title: `Emitir ${candidates.length} certificado(s)`,
-      description: `Se emitirá un certificado a cada estudiante aprobado de "${selectedCourse.name}" que aún no tenga uno activo. Esta acción no se puede deshacer (puedes revocar individualmente después).`,
-      confirmLabel: "Emitir todos",
+      title: t("hc_routesAppTeacherGradebook.bulkIssueTitle", { count: candidates.length }),
+      description: t("hc_routesAppTeacherGradebook.bulkIssueDescription", {
+        course: selectedCourse.name,
+      }),
+      confirmLabel: t("hc_routesAppTeacherGradebook.issueAll"),
       tone: "warning",
     });
     if (!ok) return;
@@ -1049,14 +1065,28 @@ function Gradebook() {
       }
       const ok = await confirm({
         title: regenerate
-          ? `¿Regenerar ${approved.length} certificado(s)?`
-          : `Generar y descargar ${targets.length + existingCount} certificado(s)`,
+          ? t("hc_routesAppTeacherGradebook.bulkRegenerateTitle", { count: approved.length })
+          : t("hc_routesAppTeacherGradebook.bulkGenerateTitle", {
+              count: targets.length + existingCount,
+            }),
         description: regenerate
-          ? `Se REVOCARÁN los certificados vigentes y se emitirán nuevos para todos los ${approved.length} aprobado(s) de "${selectedCourse.name}", aplicando la configuración (logo, firma, mensaje) y notas actuales. Se descargará el ZIP con los nuevos. Esta acción no se puede deshacer.`
+          ? t("hc_routesAppTeacherGradebook.bulkRegenerateDescription", {
+              count: approved.length,
+              course: selectedCourse.name,
+            })
           : targets.length > 0
-            ? `Se emitirán ${targets.length} certificado(s) nuevo(s) para los aprobados pendientes y se descargará un ZIP con TODOS los certificados vigentes del curso "${selectedCourse.name}" (${targets.length + existingCount} en total). Las emisiones no se pueden deshacer (revocables individualmente después).`
-            : `Se descargará un ZIP con los ${existingCount} certificado(s) ya emitidos del curso "${selectedCourse.name}".`,
-        confirmLabel: regenerate ? "Regenerar todos" : "Generar y descargar",
+            ? t("hc_routesAppTeacherGradebook.bulkGenerateDescriptionWithIssue", {
+                count: targets.length,
+                course: selectedCourse.name,
+                total: targets.length + existingCount,
+              })
+            : t("hc_routesAppTeacherGradebook.bulkGenerateDescriptionDownloadOnly", {
+                count: existingCount,
+                course: selectedCourse.name,
+              }),
+        confirmLabel: regenerate
+          ? t("hc_routesAppTeacherGradebook.regenerateAll")
+          : t("hc_routesAppTeacherGradebook.generateAndDownload"),
         tone: "warning",
       });
       if (!ok) return;
@@ -1183,7 +1213,7 @@ function Gradebook() {
         );
       } catch (e) {
         console.error("[gradebook] bulkGenerateAndDownload failed", e);
-        toast.error(friendlyError(e, "Error generando certificados en lote"));
+        toast.error(friendlyError(e, t("hc_routesAppTeacherGradebook.bulkGenerateError")));
       } finally {
         setBulkIssuing(false);
       }
@@ -1216,7 +1246,7 @@ function Gradebook() {
           revokedAt: cert.revoked_at,
         });
       } catch (e) {
-        toast.error(friendlyError(e, "Error generando PDF"));
+        toast.error(friendlyError(e, i18n.t("hc_routesAppTeacherGradebook.pdfGenerationError")));
       }
     },
     [],
@@ -1232,12 +1262,9 @@ function Gradebook() {
    */
   const handleImpersonateStudent = async (studentId: string, studentName: string) => {
     const ok = await confirm({
-      title: `¿Iniciar sesión como ${studentName}?`,
-      description:
-        "Vas a entrar a la plataforma con la cuenta de este usuario. Verás todo lo que él ve. " +
-        "Mientras estés impersonando, aparecerá un banner amarillo arriba con el botón 'Volver a mi cuenta'. " +
-        "La acción queda registrada en el log de auditoría.",
-      confirmLabel: "Iniciar como",
+      title: t("hc_routesAppTeacherGradebook.impersonateTitle", { name: studentName }),
+      description: t("hc_routesAppTeacherGradebook.impersonateDescription"),
+      confirmLabel: t("hc_routesAppTeacherGradebook.impersonateConfirm"),
       tone: "warning",
     });
     if (!ok) return;
@@ -1245,19 +1272,27 @@ function Gradebook() {
       await startImpersonate(studentId);
       // startImpersonate dispara window.location.href → no llegamos aquí.
     } catch (e) {
-      toast.error(friendlyError(e, "Error al iniciar la vista"));
+      toast.error(friendlyError(e, t("hc_routesAppTeacherGradebook.impersonateError")));
     }
   };
 
   if (authLoading) return null;
-  if (!isTeacher) return <p className="text-muted-foreground">Necesitas rol Docente.</p>;
+  if (!isTeacher)
+    return (
+      <p className="text-muted-foreground">
+        {t("hc_routesAppTeacherGradebook.needTeacherRole")}
+      </p>
+    );
 
   if (loadError) {
     return (
       <div className="space-y-5">
-        <PageHeader icon={<ClipboardList className="h-6 w-6" />} title="Calificaciones" />
+        <PageHeader
+          icon={<ClipboardList className="h-6 w-6" />}
+          title={t("hc_routesAppTeacherGradebook.pageTitle")}
+        />
         <ErrorState
-          message="No pudimos cargar el gradebook"
+          message={t("hc_routesAppTeacherGradebook.loadErrorMessage")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -1269,13 +1304,13 @@ function Gradebook() {
     <div className="space-y-5">
       <PageHeader
         icon={<ClipboardList className="h-6 w-6" />}
-        title="Calificaciones"
-        subtitle="Exámenes y talleres del curso · Haz clic en una celda para editar"
+        title={t("hc_routesAppTeacherGradebook.pageTitle")}
+        subtitle={t("hc_routesAppTeacherGradebook.pageSubtitle")}
         actions={
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <Select value={courseId} onValueChange={setCourseId}>
             <SelectTrigger className="w-full sm:w-56">
-              <SelectValue placeholder="Curso" />
+              <SelectValue placeholder={t("hc_routesAppTeacherGradebook.coursePlaceholder")} />
             </SelectTrigger>
             <SelectContent>
               {courses.map((c) => (
@@ -1292,7 +1327,7 @@ function Gradebook() {
               ) : (
                 <Save className="h-4 w-4 mr-1" />
               )}
-              Guardar cambios
+              {t("hc_routesAppTeacherGradebook.saveChanges")}
             </Button>
           )}
           <Button size="sm" variant="outline" onClick={exportCourse}>
@@ -1312,36 +1347,44 @@ function Gradebook() {
                   ) : (
                     <Award className="h-4 w-4 mr-1" />
                   )}
-                  Certificados
+                  {t("hc_routesAppTeacherGradebook.certificates")}
                   <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-70" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-72">
-                <DropdownMenuLabel>Acciones masivas</DropdownMenuLabel>
+                <DropdownMenuLabel>
+                  {t("hc_routesAppTeacherGradebook.bulkActions")}
+                </DropdownMenuLabel>
                 <DropdownMenuItem
                   onClick={() => void bulkIssueAll()}
                   disabled={bulkIssuing}
-                  title="Emite el certificado en DB para cada aprobado pendiente. No descarga PDFs — el alumno y el docente pueden bajarlos uno a uno desde el listado."
+                  title={t("hc_routesAppTeacherGradebook.issueCertsHint")}
                 >
                   <Award className="h-4 w-4 mr-2" />
-                  <span className="flex-1">Emitir certificados</span>
+                  <span className="flex-1">
+                    {t("hc_routesAppTeacherGradebook.issueCerts")}
+                  </span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => void bulkGenerateAndDownload(false)}
                   disabled={bulkIssuing}
-                  title="Emite los certificados pendientes Y descarga un ZIP con TODOS los PDFs vigentes del curso (incluye un _index.csv para auditoría)."
+                  title={t("hc_routesAppTeacherGradebook.generateDownloadBulkHint")}
                 >
                   <Download className="h-4 w-4 mr-2" />
-                  <span className="flex-1">Generar y descargar (lote)</span>
+                  <span className="flex-1">
+                    {t("hc_routesAppTeacherGradebook.generateDownloadBulk")}
+                  </span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => void bulkGenerateAndDownload(true)}
                   disabled={bulkIssuing || Object.keys(certByUserId).length === 0}
-                  title="Revoca todos los certificados vigentes del curso y emite uno nuevo por cada aprobado con la configuración (logo, firma, mensaje) y notas actuales. Útil cuando cambió el branding o las notas."
+                  title={t("hc_routesAppTeacherGradebook.regenerateAllHint")}
                 >
                   <RotateCcw className="h-4 w-4 mr-2" />
-                  <span className="flex-1">Regenerar todos</span>
+                  <span className="flex-1">
+                    {t("hc_routesAppTeacherGradebook.regenerateAll")}
+                  </span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1354,22 +1397,21 @@ function Gradebook() {
         <div className="flex flex-wrap items-center gap-4 rounded-md border p-3 bg-muted/30">
           <div className="flex items-center gap-1.5 text-sm">
             <Scale className="h-4 w-4 text-primary" />
-            <span className="font-medium">Escala:</span>
+            <span className="font-medium">{t("hc_routesAppTeacherGradebook.scaleLabel")}</span>
             <span className="tabular-nums">
               {selectedCourse.grade_scale_min} – {selectedCourse.grade_scale_max}
             </span>
           </div>
           <div className="text-sm text-muted-foreground inline-flex items-center gap-1">
-            Aprobar ≥{" "}
+            {t("hc_routesAppTeacherGradebook.passLabel")}{" "}
             <span className="font-medium tabular-nums">{selectedCourse.passing_grade}</span>
           </div>
           <div className="text-sm text-muted-foreground inline-flex items-center gap-1">
-            ¿Cómo se calcula la nota final?
+            {t("hc_routesAppTeacherGradebook.howFinalGradeCalculated")}
             <HelpHint>
-              La calificación final del curso se calcula desde los{" "}
-              <strong>cortes evaluativos</strong> configurados (Curso → Cortes → [Talleres,
-              Exámenes, Proyectos, Asistencia]). Los estudiantes ven el consolidado en su vista de
-              Calificaciones.
+              {t("hc_routesAppTeacherGradebook.finalGradeHelpPrefix")}{" "}
+              <strong>{t("hc_routesAppTeacherGradebook.evaluativeCuts")}</strong>{" "}
+              {t("hc_routesAppTeacherGradebook.finalGradeHelpSuffix")}
             </HelpHint>
           </div>
         </div>
@@ -1382,7 +1424,7 @@ function Gradebook() {
         <SearchInput
           value={studentSearch}
           onChange={setStudentSearch}
-          placeholder="Buscar estudiante por nombre o correo…"
+          placeholder={t("hc_routesAppTeacherGradebook.searchStudentPlaceholder")}
         />
       )}
 
@@ -1391,11 +1433,11 @@ function Gradebook() {
         <Card>
           <div className="flex items-center justify-between border-b px-4 py-3">
             <h2 className="text-sm font-semibold inline-flex items-center gap-1.5">
-              Consolidado por cortes
+              {t("hc_routesAppTeacherGradebook.consolidatedByCuts")}
               <HelpHint>{t("help.consolidatedByCutsExplanation")}</HelpHint>
             </h2>
             <Badge variant="outline" className="text-[10px]">
-              Solo lectura
+              {t("hc_routesAppTeacherGradebook.readOnly")}
             </Badge>
           </div>
           <CardContent className="p-0 overflow-x-auto">
@@ -1430,7 +1472,8 @@ function Gradebook() {
                             variant="outline"
                             className="text-[9px] py-0 h-4 px-1.5 bg-background/60"
                           >
-                            {c.weight}% · {itemCount} item{itemCount === 1 ? "" : "s"}
+                            {c.weight}% ·{" "}
+                            {t("hc_routesAppTeacherGradebook.itemCount", { count: itemCount })}
                           </Badge>
                           <Button
                             size="sm"
@@ -1440,12 +1483,12 @@ function Gradebook() {
                             disabled={itemCount === 0}
                             title={
                               itemCount === 0
-                                ? "Sin items asignados a este corte"
-                                : "Ver detalle del corte (items, notas individuales)"
+                                ? t("hc_routesAppTeacherGradebook.noItemsInCut")
+                                : t("hc_routesAppTeacherGradebook.viewCutDetailHint")
                             }
                           >
                             <Eye className="h-3 w-3" />
-                            Detalle
+                            {t("hc_routesAppTeacherGradebook.detail")}
                           </Button>
                         </div>
                       </TableHead>
@@ -1454,7 +1497,9 @@ function Gradebook() {
                   <TableHead className="text-center min-w-24 bg-muted/40">
                     {t("gradebook.finalColumn")}
                   </TableHead>
-                  <TableHead className="text-center min-w-28 sm:min-w-32">Certificado</TableHead>
+                  <TableHead className="text-center min-w-28 sm:min-w-32">
+                    {t("hc_routesAppTeacherGradebook.certificateColumn")}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1471,8 +1516,8 @@ function Gradebook() {
                           className="text-center text-muted-foreground py-6 text-sm"
                         >
                           {studentSearch.trim()
-                            ? "Sin coincidencias. Ajusta el buscador."
-                            : "Sin estudiantes."}
+                            ? t("hc_routesAppTeacherGradebook.noMatches")
+                            : t("hc_routesAppTeacherGradebook.noStudents")}
                         </TableCell>
                       </TableRow>
                     );
@@ -1506,7 +1551,9 @@ function Gradebook() {
                                 alumno. Server gate (admin-impersonate)
                                 revalida el overlap de cursos del Docente. */}
                             <RowAction
-                              label={`Ver la plataforma como ${row.student.full_name}`}
+                              label={t("hc_routesAppTeacherGradebook.viewAsStudent", {
+                                name: row.student.full_name,
+                              })}
                               icon={Eye}
                               onClick={() =>
                                 void handleImpersonateStudent(
@@ -1569,22 +1616,22 @@ function Gradebook() {
                                     variant="outline"
                                     className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
                                   >
-                                    Emitido
+                                    {t("hc_routesAppTeacherGradebook.issued")}
                                   </Badge>
                                   <RowAction
-                                    label="Descargar PDF"
+                                    label={t("hc_routesAppTeacherGradebook.downloadPdf")}
                                     icon={Download}
                                     onClick={() => void downloadCertForRow(cert)}
                                   />
                                   <RowAction
-                                    label="Abrir verificación"
+                                    label={t("hc_routesAppTeacherGradebook.openVerification")}
                                     icon={Eye}
                                     onClick={() => {
                                       window.open(buildVerifyUrl(cert.short_code), "_blank");
                                     }}
                                   />
                                   <RowAction
-                                    label="Regenerar (revoca y emite con la config actual)"
+                                    label={t("hc_routesAppTeacherGradebook.regenerateRowAction")}
                                     icon={RotateCcw}
                                     onClick={() =>
                                       void regenerateCertForStudent(row.student.id, row.finalGrade)
@@ -1596,7 +1643,7 @@ function Gradebook() {
                             if (passes !== true) {
                               return (
                                 <span className="text-[11px] text-muted-foreground">
-                                  No aprueba
+                                  {t("hc_routesAppTeacherGradebook.notPassing")}
                                 </span>
                               );
                             }
@@ -1615,7 +1662,7 @@ function Gradebook() {
                                 ) : (
                                   <Award className="h-3 w-3 mr-1" />
                                 )}
-                                Emitir
+                                {t("hc_routesAppTeacherGradebook.issue")}
                               </Button>
                             );
                           })()}
@@ -1638,10 +1685,11 @@ function Gradebook() {
           <div className="flex items-center gap-2 border-b px-4 py-3">
             <Inbox className="h-4 w-4 text-muted-foreground" />
             <div>
-              <h2 className="text-sm font-semibold">Sin corte asignado</h2>
+              <h2 className="text-sm font-semibold">
+                {t("hc_routesAppTeacherGradebook.noCutAssigned")}
+              </h2>
               <p className="text-xs text-muted-foreground">
-                Estos items no están vinculados a ningún corte. No suman al consolidado pero se
-                pueden calificar para llevar registro.
+                {t("hc_routesAppTeacherGradebook.noCutAssignedDescription")}
               </p>
             </div>
           </div>
@@ -1672,7 +1720,7 @@ function Gradebook() {
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-5xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Detalle del corte: {detailCut?.name}
+              {t("hc_routesAppTeacherGradebook.cutDetailTitle", { name: detailCut?.name ?? "" })}
               {detailCut && (
                 <Badge variant="outline" className="ml-2 text-[10px]">
                   {detailCut.weight}%
@@ -1711,7 +1759,9 @@ function Gradebook() {
                 const stu = students.find((x) => x.id === detailStudentId);
                 return (
                   <>
-                    Detalle: {stu?.full_name ?? "—"}
+                    {t("hc_routesAppTeacherGradebook.studentDetailTitle", {
+                      name: stu?.full_name ?? "—",
+                    })}
                     {detailCut && (
                       <span className="text-muted-foreground text-sm font-normal ml-2">
                         · {detailCut.name}
@@ -1797,7 +1847,7 @@ function renderCutDetailGrouped({
   ) {
     return (
       <p className="text-sm text-muted-foreground py-6 text-center">
-        Este corte no tiene actividades ni asistencia configuradas todavía.
+        {i18n.t("hc_routesAppTeacherGradebook.cutNoActivities")}
       </p>
     );
   }
@@ -1844,11 +1894,23 @@ function renderCutDetailGrouped({
 
   // Chips de resumen de pesos arriba del grid.
   const bucketSummary = [
-    { label: "Talleres", icon: Hammer, weight: Number(cut.workshop_weight ?? 0) || 0 },
-    { label: "Exámenes", icon: FileText, weight: Number(cut.exam_weight ?? 0) || 0 },
-    { label: "Proyectos", icon: FolderKanban, weight: Number(cut.project_weight ?? 0) || 0 },
     {
-      label: "Asistencia",
+      label: i18n.t("hc_routesAppTeacherGradebook.workshops"),
+      icon: Hammer,
+      weight: Number(cut.workshop_weight ?? 0) || 0,
+    },
+    {
+      label: i18n.t("hc_routesAppTeacherGradebook.exams"),
+      icon: FileText,
+      weight: Number(cut.exam_weight ?? 0) || 0,
+    },
+    {
+      label: i18n.t("hc_routesAppTeacherGradebook.projects"),
+      icon: FolderKanban,
+      weight: Number(cut.project_weight ?? 0) || 0,
+    },
+    {
+      label: i18n.t("hc_routesAppTeacherGradebook.attendance"),
       icon: CalendarCheck,
       weight: Number(cut.attendance_weight ?? 0) || 0,
     },
@@ -1858,7 +1920,9 @@ function renderCutDetailGrouped({
     <div className="space-y-3">
       {bucketSummary.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2">
-          <span className="text-[11px] text-muted-foreground">Buckets del corte:</span>
+          <span className="text-[11px] text-muted-foreground">
+            {i18n.t("hc_routesAppTeacherGradebook.cutBuckets")}
+          </span>
           {bucketSummary.map((b) => (
             <Badge key={b.label} variant="outline" className="text-[10px] gap-1 py-0 h-5">
               <b.icon className="h-3 w-3" />
@@ -1880,7 +1944,7 @@ function renderCutDetailGrouped({
                   <TableHead className="text-center min-w-28">
                     <div className="inline-flex items-center gap-1">
                       <Hammer className="h-3 w-3 text-amber-500 dark:text-amber-400" />
-                      Talleres
+                      {i18n.t("hc_routesAppTeacherGradebook.workshops")}
                     </div>
                   </TableHead>
                 )}
@@ -1888,7 +1952,7 @@ function renderCutDetailGrouped({
                   <TableHead className="text-center min-w-28">
                     <div className="inline-flex items-center gap-1">
                       <FileText className="h-3 w-3 text-primary" />
-                      Exámenes
+                      {i18n.t("hc_routesAppTeacherGradebook.exams")}
                     </div>
                   </TableHead>
                 )}
@@ -1896,7 +1960,7 @@ function renderCutDetailGrouped({
                   <TableHead className="text-center min-w-28">
                     <div className="inline-flex items-center gap-1">
                       <FolderKanban className="h-3 w-3 text-indigo-500 dark:text-indigo-400" />
-                      Proyectos
+                      {i18n.t("hc_routesAppTeacherGradebook.projects")}
                     </div>
                   </TableHead>
                 )}
@@ -1904,7 +1968,7 @@ function renderCutDetailGrouped({
                   <TableHead className="text-center min-w-28 bg-amber-400/5">
                     <div className="inline-flex items-center gap-1">
                       <CalendarCheck className="h-3 w-3 text-primary" />
-                      Asistencia
+                      {i18n.t("hc_routesAppTeacherGradebook.attendance")}
                     </div>
                   </TableHead>
                 )}
@@ -1927,7 +1991,7 @@ function renderCutDetailGrouped({
                     }
                     className="text-center text-muted-foreground py-8"
                   >
-                    No hay estudiantes matriculados en este curso.
+                    {i18n.t("hc_routesAppTeacherGradebook.noEnrolledStudents")}
                   </TableCell>
                 </TableRow>
               )}
@@ -1975,7 +2039,7 @@ function renderCutDetailGrouped({
                     )}
                     <TableCell className="text-right">
                       <RowAction
-                        label="Ver detalle del estudiante"
+                        label={i18n.t("hc_routesAppTeacherGradebook.viewStudentDetail")}
                         icon={Eye}
                         onClick={() => onOpenStudent(s.id)}
                       />
@@ -1990,8 +2054,7 @@ function renderCutDetailGrouped({
 
       {showAttendance && sessionsInCut.length === 0 && (
         <p className="text-[11px] text-muted-foreground italic">
-          No hay sesiones de asistencia asignadas a este corte — la columna Asistencia queda en —.
-          Asígnalas desde /app/teacher/attendance.
+          {i18n.t("hc_routesAppTeacherGradebook.noAttendanceSessionsHint")}
         </p>
       )}
     </div>
@@ -2053,21 +2116,21 @@ function renderStudentCutDetail({
   }> = [
     {
       key: "workshop",
-      label: "Talleres",
+      label: i18n.t("hc_routesAppTeacherGradebook.workshops"),
       icon: Hammer,
       cols: columns.filter((c) => c.kind === "workshop"),
       bucketWeight: Number(cut.workshop_weight ?? 0) || 0,
     },
     {
       key: "exam",
-      label: "Exámenes",
+      label: i18n.t("hc_routesAppTeacherGradebook.exams"),
       icon: FileText,
       cols: columns.filter((c) => c.kind === "exam"),
       bucketWeight: Number(cut.exam_weight ?? 0) || 0,
     },
     {
       key: "project",
-      label: "Proyectos",
+      label: i18n.t("hc_routesAppTeacherGradebook.projects"),
       icon: FolderKanban,
       cols: columns.filter((c) => c.kind === "project"),
       bucketWeight: Number(cut.project_weight ?? 0) || 0,
@@ -2085,11 +2148,15 @@ function renderStudentCutDetail({
                 <sec.icon className="h-3.5 w-3.5 text-primary" />
                 <span className="text-sm font-medium">{sec.label}</span>
                 <span className="text-[11px] text-muted-foreground">
-                  {sec.cols.length} {sec.cols.length === 1 ? "actividad" : "actividades"}
+                  {i18n.t("hc_routesAppTeacherGradebook.activityCount", {
+                    count: sec.cols.length,
+                  })}
                 </span>
               </div>
               <span className="text-[11px] text-muted-foreground tabular-nums">
-                Peso bucket: {sec.bucketWeight.toFixed(1)}%
+                {i18n.t("hc_routesAppTeacherGradebook.bucketWeight", {
+                  weight: sec.bucketWeight.toFixed(1),
+                })}
               </span>
             </div>
             <Table>
@@ -2098,19 +2165,22 @@ function renderStudentCutDetail({
                   <TableHead>{i18next.t("gradebook.activityColumn")}</TableHead>
                   <TableHead className="text-right w-32">
                     <span className="inline-flex items-center justify-end gap-1">
-                      Nota
+                      {i18n.t("hc_routesAppTeacherGradebook.grade")}
                       <HelpHint side="top">
-                        Escala del curso:{" "}
+                        {i18n.t("hc_routesAppTeacherGradebook.courseScaleLabel")}{" "}
                         <strong>
                           {selectedCourse?.grade_scale_min ?? 0}–
                           {selectedCourse?.grade_scale_max ?? "—"}
                         </strong>
-                        . Para Talleres y Proyectos el tope es el <em>puntaje máximo del item</em>{" "}
-                        (mostrado al lado del título). Decimales con coma (ej. 4,5).
+                        . {i18n.t("hc_routesAppTeacherGradebook.gradeHelpWorkshopsProjects")}{" "}
+                        <em>{i18n.t("hc_routesAppTeacherGradebook.itemMaxScore")}</em>{" "}
+                        {i18n.t("hc_routesAppTeacherGradebook.gradeHelpDecimals")}
                       </HelpHint>
                     </span>
                   </TableHead>
-                  <TableHead className="w-24 text-center">Estado</TableHead>
+                  <TableHead className="w-24 text-center">
+                    {i18n.t("hc_routesAppTeacherGradebook.status")}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -2168,7 +2238,7 @@ function renderStudentCutDetail({
                           )}
                           {g.status === "sospechoso" && (
                             <span
-                              title="Sospechoso"
+                              title={i18n.t("hc_routesAppTeacherGradebook.suspicious")}
                               className="inline-flex size-5 shrink-0 items-center justify-center rounded-md border border-destructive/40 bg-destructive/10 text-destructive"
                             >
                               <AlertTriangle className="h-3 w-3" />
@@ -2193,24 +2263,37 @@ function renderStudentCutDetail({
           <div className="flex items-center justify-between gap-2 bg-amber-400/5 px-3 py-2 border-b">
             <div className="flex items-center gap-2">
               <CalendarCheck className="h-3.5 w-3.5 text-primary" />
-              <span className="text-sm font-medium">Asistencia</span>
+              <span className="text-sm font-medium">
+                {i18n.t("hc_routesAppTeacherGradebook.attendance")}
+              </span>
               <span className="text-[11px] text-muted-foreground">
-                {totalSess} {totalSess === 1 ? "sesión" : "sesiones"} en el rango del corte
+                {i18n.t("hc_routesAppTeacherGradebook.sessionsInCutRange", { count: totalSess })}
               </span>
             </div>
             <span className="text-[11px] text-muted-foreground tabular-nums">
-              Peso bucket: {Number(cut.attendance_weight ?? 0).toFixed(1)}%
+              {i18n.t("hc_routesAppTeacherGradebook.bucketWeight", {
+                weight: Number(cut.attendance_weight ?? 0).toFixed(1),
+              })}
             </span>
           </div>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-right">Sesiones presente</TableHead>
-                <TableHead className="text-right">Total sesiones</TableHead>
-                <TableHead className="text-right">% asistencia</TableHead>
+                <TableHead className="text-right">
+                  {i18n.t("hc_routesAppTeacherGradebook.sessionsPresent")}
+                </TableHead>
+                <TableHead className="text-right">
+                  {i18n.t("hc_routesAppTeacherGradebook.totalSessions")}
+                </TableHead>
+                <TableHead className="text-right">
+                  {i18n.t("hc_routesAppTeacherGradebook.attendancePct")}
+                </TableHead>
                 {selectedCourse && (
                   <TableHead className="text-right">
-                    Nota ({selectedCourse.grade_scale_min}–{selectedCourse.grade_scale_max})
+                    {i18n.t("hc_routesAppTeacherGradebook.gradeWithScale", {
+                      min: selectedCourse.grade_scale_min,
+                      max: selectedCourse.grade_scale_max,
+                    })}
                   </TableHead>
                 )}
               </TableRow>
@@ -2222,7 +2305,7 @@ function renderStudentCutDetail({
                     colSpan={selectedCourse ? 4 : 3}
                     className="text-center text-muted-foreground py-4 text-xs italic"
                   >
-                    No hay sesiones de asistencia asignadas a este corte.
+                    {i18n.t("hc_routesAppTeacherGradebook.noAttendanceSessionsInCut")}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -2247,8 +2330,7 @@ function renderStudentCutDetail({
       )}
 
       <p className="text-[11px] text-muted-foreground italic">
-        Las ediciones se acumulan en el botón global "Guardar cambios" del gradebook (afuera del
-        modal).
+        {i18n.t("hc_routesAppTeacherGradebook.editsAccumulateHint")}
       </p>
     </div>
   );
@@ -2284,13 +2366,20 @@ function renderEditableGrid({
           <TableRow>
             <TableHead className="sticky left-0 z-10 bg-card min-w-36 sm:min-w-48">
               <span className="inline-flex items-center gap-1.5">
-                Estudiante
+                {i18n.t("hc_routesAppTeacherGradebook.student")}
                 <HelpHint side="bottom" align="start">
-                  <strong>Escala del curso:</strong> {selectedCourse?.grade_scale_min ?? 0}–
-                  {selectedCourse?.grade_scale_max ?? "—"}. Para <strong>Exámenes</strong> ingresa
-                  la nota directamente en esa escala. Para <strong>Talleres</strong> y{" "}
-                  <strong>Proyectos</strong>, el tope es el <em>puntaje máximo del item</em>{" "}
-                  (mostrado al lado del título). Decimales con coma (ej. 4,5).
+                  <strong>{i18n.t("hc_routesAppTeacherGradebook.courseScaleLabel")}</strong>{" "}
+                  {selectedCourse?.grade_scale_min ?? 0}–
+                  {selectedCourse?.grade_scale_max ?? "—"}.{" "}
+                  {i18n.t("hc_routesAppTeacherGradebook.gridHelpExamsPrefix")}{" "}
+                  <strong>{i18n.t("hc_routesAppTeacherGradebook.exams")}</strong>{" "}
+                  {i18n.t("hc_routesAppTeacherGradebook.gridHelpExamsSuffix")}{" "}
+                  <strong>{i18n.t("hc_routesAppTeacherGradebook.workshops")}</strong>{" "}
+                  {i18n.t("hc_routesAppTeacherGradebook.gridHelpAnd")}{" "}
+                  <strong>{i18n.t("hc_routesAppTeacherGradebook.projects")}</strong>
+                  {i18n.t("hc_routesAppTeacherGradebook.gridHelpProjectsSuffix")}{" "}
+                  <em>{i18n.t("hc_routesAppTeacherGradebook.itemMaxScore")}</em>{" "}
+                  {i18n.t("hc_routesAppTeacherGradebook.gradeHelpDecimals")}
                 </HelpHint>
               </span>
             </TableHead>
@@ -2311,10 +2400,16 @@ function renderEditableGrid({
                   </div>
                   <Badge variant="outline" className="text-[9px] py-0 h-3.5">
                     {col.kind === "exam"
-                      ? `Examen (/${selectedCourse?.grade_scale_max ?? 5})`
+                      ? i18n.t("hc_routesAppTeacherGradebook.examBadge", {
+                          max: selectedCourse?.grade_scale_max ?? 5,
+                        })
                       : col.kind === "workshop"
-                        ? `Taller (/${col.maxScore ?? 100})`
-                        : `Proyecto (/${col.maxScore ?? 100})`}
+                        ? i18n.t("hc_routesAppTeacherGradebook.workshopBadge", {
+                            max: col.maxScore ?? 100,
+                          })
+                        : i18n.t("hc_routesAppTeacherGradebook.projectBadge", {
+                            max: col.maxScore ?? 100,
+                          })}
                   </Badge>
                 </div>
               </TableHead>
@@ -2328,7 +2423,7 @@ function renderEditableGrid({
                 colSpan={columns.length + 1}
                 className="text-center text-muted-foreground py-8"
               >
-                No hay estudiantes matriculados en este curso.
+                {i18n.t("hc_routesAppTeacherGradebook.noEnrolledStudents")}
               </TableCell>
             </TableRow>
           )}
@@ -2377,7 +2472,7 @@ function renderEditableGrid({
                           )}
                           {g.status === "sospechoso" && (
                             <span
-                              title="Intento marcado como sospechoso (alertas de integridad)"
+                              title={i18n.t("hc_routesAppTeacherGradebook.suspiciousAttemptHint")}
                               className="inline-flex size-5 shrink-0 items-center justify-center rounded-md border border-destructive/40 bg-destructive/10 text-destructive"
                             >
                               <AlertTriangle className="h-3 w-3" strokeWidth={2} aria-hidden />

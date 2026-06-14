@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import { Copy } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -62,10 +63,10 @@ const RPC_BY_TARGET: Record<Props["target"], string> = {
   project: "clone_project",
 };
 
-const LABEL_BY_TARGET: Record<Props["target"], string> = {
-  exam: "examen",
-  workshop: "taller",
-  project: "proyecto",
+const LABEL_KEY_BY_TARGET: Record<Props["target"], string> = {
+  exam: "hc_sharedComponentsDuplicateAssessmentDialog.targetExam",
+  workshop: "hc_sharedComponentsDuplicateAssessmentDialog.targetWorkshop",
+  project: "hc_sharedComponentsDuplicateAssessmentDialog.targetProject",
 };
 
 /**
@@ -76,34 +77,42 @@ const LABEL_BY_TARGET: Record<Props["target"], string> = {
  */
 const COPY_OPTIONS_BY_TARGET: Record<
   Props["target"],
-  Array<{ param: string; label: string; hint: string }>
+  Array<{ param: string; labelKey: string; hintKey: string }>
 > = {
   exam: [
-    { param: "_copy_questions", label: "Copiar preguntas", hint: "Clona todas las preguntas del examen origen." },
+    {
+      param: "_copy_questions",
+      labelKey: "hc_sharedComponentsDuplicateAssessmentDialog.copyQuestionsLabel",
+      hintKey: "hc_sharedComponentsDuplicateAssessmentDialog.copyQuestionsExamHint",
+    },
     {
       param: "_copy_proctoring",
-      label: "Copiar configuración de proctoring",
-      hint: "Navegación (secuencial/libre), mezcla de preguntas y máx. advertencias. Si lo desmarcas, la copia nace con valores por defecto (libre, sin mezcla, 3 advertencias).",
+      labelKey: "hc_sharedComponentsDuplicateAssessmentDialog.copyProctoringLabel",
+      hintKey: "hc_sharedComponentsDuplicateAssessmentDialog.copyProctoringHint",
     },
   ],
   workshop: [
-    { param: "_copy_questions", label: "Copiar preguntas", hint: "Clona todas las preguntas del taller origen." },
+    {
+      param: "_copy_questions",
+      labelKey: "hc_sharedComponentsDuplicateAssessmentDialog.copyQuestionsLabel",
+      hintKey: "hc_sharedComponentsDuplicateAssessmentDialog.copyQuestionsWorkshopHint",
+    },
     {
       param: "_copy_groups",
-      label: "Copiar configuración de grupos",
-      hint: "Modo de grupo y tamaños. Si lo desmarcas, la copia queda como individual.",
+      labelKey: "hc_sharedComponentsDuplicateAssessmentDialog.copyGroupsLabel",
+      hintKey: "hc_sharedComponentsDuplicateAssessmentDialog.copyGroupsHint",
     },
   ],
   project: [
     {
       param: "_copy_files",
-      label: "Copiar archivos esperados",
-      hint: "Clona los slots/entregables definidos en el proyecto origen.",
+      labelKey: "hc_sharedComponentsDuplicateAssessmentDialog.copyFilesLabel",
+      hintKey: "hc_sharedComponentsDuplicateAssessmentDialog.copyFilesHint",
     },
     {
       param: "_copy_groups",
-      label: "Copiar configuración de grupos",
-      hint: "Modo de grupo y tamaños. Si lo desmarcas, la copia queda como individual.",
+      labelKey: "hc_sharedComponentsDuplicateAssessmentDialog.copyGroupsLabel",
+      hintKey: "hc_sharedComponentsDuplicateAssessmentDialog.copyGroupsHint",
     },
   ],
 };
@@ -115,6 +124,7 @@ export function DuplicateAssessmentDialog({
   target,
   onDuplicated,
 }: Props) {
+  const { t } = useTranslation();
   const { roles } = useAuth();
   const isAdmin = roles.includes("Admin");
 
@@ -122,7 +132,9 @@ export function DuplicateAssessmentDialog({
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [targetCourseId, setTargetCourseId] = useState<string>(source.courseId);
-  const [newTitle, setNewTitle] = useState(`Copia de ${source.title}`);
+  const [newTitle, setNewTitle] = useState(
+    t("hc_sharedComponentsDuplicateAssessmentDialog.copyOfTitle", { title: source.title }),
+  );
   // Flags "qué copiar". Default true para cada opción del tipo actual —
   // preserva el comportamiento histórico (duplicar todo) si el docente no
   // desmarca nada.
@@ -136,7 +148,7 @@ export function DuplicateAssessmentDialog({
     if (!open) return;
     setLoading(true);
     setTargetCourseId(source.courseId);
-    setNewTitle(`Copia de ${source.title}`);
+    setNewTitle(t("hc_sharedComponentsDuplicateAssessmentDialog.copyOfTitle", { title: source.title }));
     setCopyFlags(Object.fromEntries(copyOptions.map((o) => [o.param, true])));
     (async () => {
       let query;
@@ -213,41 +225,53 @@ export function DuplicateAssessmentDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Copy className="h-4 w-4 text-indigo-500" />
-            Duplicar {LABEL_BY_TARGET[target]}
+            {t("hc_sharedComponentsDuplicateAssessmentDialog.dialogTitle", {
+              target: t(LABEL_KEY_BY_TARGET[target]),
+            })}
           </DialogTitle>
           <DialogDescription>
-            La copia queda en <strong>borrador</strong> — debes revisar fechas, peso y corte
-            antes de publicar. Asignaciones, entregas y grupos (miembros) NO se copian. Abajo
-            eliges qué información interna copiar.
+            <span
+              dangerouslySetInnerHTML={{
+                __html: t("hc_sharedComponentsDuplicateAssessmentDialog.dialogDescription"),
+              }}
+            />
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
           <div>
-            <Label>Curso destino</Label>
+            <Label>{t("hc_sharedComponentsDuplicateAssessmentDialog.targetCourseLabel")}</Label>
             <Select value={targetCourseId} onValueChange={setTargetCourseId}>
               <SelectTrigger>
-                <SelectValue placeholder={loading ? "Cargando…" : "Selecciona…"} />
+                <SelectValue
+                  placeholder={
+                    loading
+                      ? t("hc_sharedComponentsDuplicateAssessmentDialog.loadingPlaceholder")
+                      : t("hc_sharedComponentsDuplicateAssessmentDialog.selectPlaceholder")
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
                 {courses.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.name}
-                    {c.id === source.courseId ? " (mismo curso)" : ""}
+                    {c.id === source.courseId
+                      ? t("hc_sharedComponentsDuplicateAssessmentDialog.sameCourseSuffix")
+                      : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Título de la copia</Label>
+            <Label>{t("hc_sharedComponentsDuplicateAssessmentDialog.copyTitleLabel")}</Label>
             <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
           </div>
 
           {/* Parametrización: qué información interna copiar. */}
           <div className="space-y-2 rounded-md border p-3">
             <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-              Qué copiar
+              {t("hc_sharedComponentsDuplicateAssessmentDialog.whatToCopy")}
             </Label>
             {copyOptions.map((opt) => (
               <label
@@ -263,8 +287,8 @@ export function DuplicateAssessmentDialog({
                   className="mt-0.5"
                 />
                 <span className="min-w-0">
-                  <span className="text-sm font-medium block">{opt.label}</span>
-                  <span className="text-[11px] text-muted-foreground block">{opt.hint}</span>
+                  <span className="text-sm font-medium block">{t(opt.labelKey)}</span>
+                  <span className="text-[11px] text-muted-foreground block">{t(opt.hintKey)}</span>
                 </span>
               </label>
             ))}
@@ -273,11 +297,11 @@ export function DuplicateAssessmentDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Cancelar
+            {t("hc_sharedComponentsDuplicateAssessmentDialog.cancel")}
           </Button>
           <Button onClick={() => void submit()} disabled={submitting || loading}>
             {submitting ? <Spinner size="sm" className="mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
-            Duplicar
+            {t("hc_sharedComponentsDuplicateAssessmentDialog.duplicate")}
           </Button>
         </DialogFooter>
       </DialogContent>

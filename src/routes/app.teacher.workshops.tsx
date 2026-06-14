@@ -996,8 +996,10 @@ function TeacherWorkshops() {
       if (form.status === "published" || courseChanged) {
         await supabase.rpc("notify_course_students", {
           _course_id: form.course_id!,
-          _title: courseChanged ? "Taller movido a este curso" : "Taller actualizado",
-          _body: `Se actualizó el taller "${form.title}"`,
+          _title: courseChanged
+            ? i18n.t("hc_routesAppTeacherWorkshops.notifyMovedTitle")
+            : i18n.t("hc_routesAppTeacherWorkshops.notifyUpdatedTitle"),
+          _body: i18n.t("hc_routesAppTeacherWorkshops.notifyUpdatedBody", { title: form.title }),
           _kind: "workshop",
           _link: "/app/student/workshops",
         });
@@ -1082,8 +1084,8 @@ function TeacherWorkshops() {
         if (form.status === "published") {
           await supabase.rpc("notify_course_students", {
             _course_id: cid,
-            _title: "Nuevo taller disponible",
-            _body: `Se ha publicado el taller "${form.title}"`,
+            _title: i18n.t("hc_routesAppTeacherWorkshops.notifyNewTitle"),
+            _body: i18n.t("hc_routesAppTeacherWorkshops.notifyNewBody", { title: form.title }),
             _kind: "workshop",
             _link: "/app/student/workshops",
           });
@@ -1638,9 +1640,7 @@ function TeacherWorkshops() {
       return;
     }
     if (!answer?.id) {
-      toast.message(
-        "Recalificando con el contenido global de la entrega — esta pregunta no tiene respuesta específica.",
-      );
+      toast.message(i18n.t("hc_routesAppTeacherWorkshops.regradingWithGlobalContent"));
     }
     setAiGradingAnswerId(answer?.id ?? `tmp-${subId}-${question.id}`);
     try {
@@ -1847,8 +1847,9 @@ function TeacherWorkshops() {
               }),
         );
       } else {
-        toast.message("Detección completada", {
-          description: summary?.message ?? "No se encontraron coincidencias relevantes.",
+        toast.message(i18n.t("hc_routesAppTeacherWorkshops.detectionDoneTitle"), {
+          description:
+            summary?.message ?? i18n.t("hc_routesAppTeacherWorkshops.detectionNoMatches"),
         });
       }
       // Recarga similarity_pairs y ai_likelihood por respuesta — ambos
@@ -1982,7 +1983,10 @@ function TeacherWorkshops() {
           if (q.type === "cerrada" || q.type === "cerrada_multi") {
             // Scoring local determinístico. La RPC no se ejecuta acá; se
             // limita a sumar al total.
-            localScores.set(q.id, { earned: 0, feedback: "Pregunta cerrada (calificación local)" });
+            localScores.set(q.id, {
+              earned: 0,
+              feedback: i18n.t("hc_routesAppTeacherWorkshops.feedbackClosedLocal"),
+            });
             continue;
           }
           const raw = a?.code_content ?? a?.diagram_code ?? a?.answer_text ?? "";
@@ -1990,7 +1994,10 @@ function TeacherWorkshops() {
           const starter = String(q.starter_code ?? "").trim();
           const isEmpty = !trimmed || (starter !== "" && trimmed === starter);
           if (isEmpty) {
-            localScores.set(q.id, { earned: 0, feedback: "Sin respuesta" });
+            localScores.set(q.id, {
+              earned: 0,
+              feedback: i18n.t("hc_routesAppTeacherWorkshops.feedbackNoAnswer"),
+            });
             continue;
           }
           batchItems.push({
@@ -2046,7 +2053,7 @@ function TeacherWorkshops() {
             const earned = r ? Math.max(0, Math.min(it.maxPoints, Number(r.score) || 0)) : 0;
             localScores.set(it.qid, {
               earned,
-              feedback: r?.feedback ?? "Sin retroalimentación",
+              feedback: r?.feedback ?? i18n.t("hc_routesAppTeacherWorkshops.feedbackNone"),
             });
           }
         }
@@ -2054,7 +2061,10 @@ function TeacherWorkshops() {
         // Persiste resultado per-pregunta + recalcula nota global.
         const upserts: Array<Record<string, unknown>> = [];
         for (const q of questions) {
-          const s = localScores.get(q.id) ?? { earned: 0, feedback: "Sin respuesta" };
+          const s = localScores.get(q.id) ?? {
+            earned: 0,
+            feedback: i18n.t("hc_routesAppTeacherWorkshops.feedbackNoAnswer"),
+          };
           totalEarned += s.earned;
           upserts.push({
             submission_id: sub.id,
@@ -2073,7 +2083,13 @@ function TeacherWorkshops() {
           totalPoints > 0
             ? Number(((totalEarned / totalPoints) * Number(gradingWs.max_score)).toFixed(2))
             : 0;
-        const summary = `Calificación recalculada en batch sobre ${batchItems.length} pregunta${batchItems.length === 1 ? "" : "s"} abierta${batchItems.length === 1 ? "" : "s"} (de ${questions.length} totales).`;
+        const summary =
+          batchItems.length === 1
+            ? i18n.t("hc_routesAppTeacherWorkshops.batchSummaryOne", { total: questions.length })
+            : i18n.t("hc_routesAppTeacherWorkshops.batchSummaryMany", {
+                count: batchItems.length,
+                total: questions.length,
+              });
         const { error: updateErr } = await supabase
           .from("workshop_submissions")
           .update({ ai_grade: finalGrade, ai_feedback: summary, status: "ai_revisado" })
@@ -2126,7 +2142,7 @@ function TeacherWorkshops() {
       );
 
       let aiGrade: number | null = null;
-      let aiFeedback = "Sin retroalimentación de IA";
+      let aiFeedback = i18n.t("hc_routesAppTeacherWorkshops.feedbackNoneAi");
 
       if (aiErr || aiData?.error) {
         toast.error(
@@ -2138,7 +2154,7 @@ function TeacherWorkshops() {
         return false;
       } else {
         aiGrade = aiData?.grade ?? null;
-        aiFeedback = aiData?.feedback ?? "Sin retroalimentación de IA";
+        aiFeedback = aiData?.feedback ?? i18n.t("hc_routesAppTeacherWorkshops.feedbackNoneAi");
       }
 
       const { error: updateErr } = await supabase
@@ -2278,10 +2294,9 @@ function TeacherWorkshops() {
    */
   const reopenSubmission = async (sub: WsSub) => {
     const ok = await confirm({
-      title: "¿Reabrir entrega del estudiante?",
-      description:
-        "El estudiante podrá volver a editar y reenviar sus respuestas. La calificación actual se borrará. Esta acción no se puede deshacer.",
-      confirmLabel: "Reabrir",
+      title: t("hc_routesAppTeacherWorkshops.reopenConfirmTitle"),
+      description: t("hc_routesAppTeacherWorkshops.reopenConfirmBody"),
+      confirmLabel: t("hc_routesAppTeacherWorkshops.reopenConfirmLabel"),
       tone: "warning",
     });
     if (!ok) return;
@@ -2390,7 +2405,7 @@ function TeacherWorkshops() {
     // notifications con RLS de Docente/Admin.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const subData = data as any;
-    const wsTitle = gradingWs?.title ?? "el taller";
+    const wsTitle = gradingWs?.title ?? i18n.t("hc_routesAppTeacherWorkshops.theWorkshop");
     let recipients: string[] = [];
     if (subData.group_id) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2412,8 +2427,11 @@ function TeacherWorkshops() {
       await supabase.from("notifications").insert(
         recipients.map((uid) => ({
           user_id: uid,
-          title: "Taller calificado",
-          body: `Tu taller "${wsTitle}" ya tiene calificación: ${grade}`,
+          title: i18n.t("hc_routesAppTeacherWorkshops.notifyGradedTitle"),
+          body: i18n.t("hc_routesAppTeacherWorkshops.notifyGradedBody", {
+            title: wsTitle,
+            grade,
+          }),
           kind: "grade",
           link: "/app/student/workshops",
         })),
@@ -2483,7 +2501,7 @@ function TeacherWorkshops() {
                 );
               }}
               onImport={async (rows) => {
-                if (!user) throw new Error("Sesión no válida");
+                if (!user) throw new Error(t("hc_routesAppTeacherWorkshops.invalidSession"));
                 const courseByName = new Map(
                   courses.map((c) => [c.name.toLowerCase().trim(), c.id]),
                 );
@@ -3211,7 +3229,7 @@ function TeacherWorkshops() {
                             {idx + 1}
                           </Badge>
                           <Input
-                            placeholder="Título (opcional, ej. 'Introducción al patrón MVC')"
+                            placeholder={t("hc_routesAppTeacherWorkshops.videoTitlePlaceholder")}
                             value={video.title}
                             onChange={(e) => update({ title: e.target.value })}
                             className="text-xs h-8"
@@ -3281,7 +3299,7 @@ function TeacherWorkshops() {
                           </SelectContent>
                         </Select>
                         <Input
-                          placeholder="https://www.youtube.com/watch?v=… ó https://cdn.tucentro.edu/video.mp4"
+                          placeholder={t("hc_routesAppTeacherWorkshops.videoUrlPlaceholder")}
                           value={video.url}
                           onChange={(e) => update({ url: e.target.value, library_id: null })}
                           className="text-xs h-8"
@@ -3336,8 +3354,8 @@ function TeacherWorkshops() {
             </div>
             {!(form as any).is_external && (form as any).id && form.status === "closed" && (
               <ReopenClosedBanner
-                message="Este taller está cerrado."
-                hint="Reabre el taller para que los estudiantes puedan volver a entregar. Se fijará un nuevo plazo de entrega; revísalo antes de guardar."
+                message={t("hc_routesAppTeacherWorkshops.reopenBannerMessage")}
+                hint={t("hc_routesAppTeacherWorkshops.reopenBannerHint")}
                 onReopen={() => {
                   const current = (form.due_date as string) ?? "";
                   const currentDate = current ? new Date(current) : null;
@@ -3377,9 +3395,7 @@ function TeacherWorkshops() {
                 <div>
                   <Label className="text-xs flex items-center gap-1.5 h-5">
                     {t("teacherWorkshops.fieldMaxAttempts")}
-                    <HelpHint>
-                      {`Cuántas veces puede entregar el alumno este taller. Vacío → usa el default de Admin → Configuración → Generales.`}
-                    </HelpHint>
+                    <HelpHint>{t("hc_routesAppTeacherWorkshops.maxAttemptsHelp")}</HelpHint>
                   </Label>
                   <Input
                     type="number"
@@ -3424,10 +3440,10 @@ function TeacherWorkshops() {
           <div className="space-y-3">
             {/* Course selector (read-only — workshops belong to one course) */}
             <div>
-              <Label className="text-xs">Curso al que se asigna</Label>
+              <Label className="text-xs">{t("hc_routesAppTeacherWorkshops.assignCourseLabel")}</Label>
               <Select value={assignWs?.course_id ?? undefined} disabled>
                 <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Curso" />
+                  <SelectValue placeholder={t("hc_routesAppTeacherWorkshops.assignCoursePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {courses.map((c) => (
@@ -3439,19 +3455,24 @@ function TeacherWorkshops() {
                 </SelectContent>
               </Select>
               <p className="text-[11px] text-muted-foreground mt-1">
-                Los talleres se asignan a nivel de curso. Para moverlo a otro curso, edita el
-                taller.
+                {t("hc_routesAppTeacherWorkshops.assignCourseLevelHint")}
               </p>
             </div>
 
             <div className="rounded-md border bg-muted/30 p-2.5 text-xs text-muted-foreground">
-              Por defecto el taller se asigna a <strong>todos</strong> los estudiantes matriculados.
-              Desmarca abajo para <strong>excluir</strong> a quienes no deban recibirlo.
+              {t("hc_routesAppTeacherWorkshops.assignDefaultPrefix")}{" "}
+              <strong>{t("hc_routesAppTeacherWorkshops.assignAllWord")}</strong>{" "}
+              {t("hc_routesAppTeacherWorkshops.assignEnrolledMiddle")}{" "}
+              <strong>{t("hc_routesAppTeacherWorkshops.assignExcludeWord")}</strong>{" "}
+              {t("hc_routesAppTeacherWorkshops.assignExcludeSuffix")}
             </div>
 
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">
-                {assignedIds.size} asignados · {students.length - assignedIds.size} excluidos
+                {t("hc_routesAppTeacherWorkshops.assignCounts", {
+                  assigned: assignedIds.size,
+                  excluded: students.length - assignedIds.size,
+                })}
               </span>
               <div className="flex gap-1.5">
                 <Button
@@ -3460,7 +3481,7 @@ function TeacherWorkshops() {
                   className="h-7 text-xs gap-1"
                   onClick={assignAll}
                 >
-                  <CheckSquare className="h-3 w-3" /> Incluir a todos
+                  <CheckSquare className="h-3 w-3" /> {t("hc_routesAppTeacherWorkshops.includeAll")}
                 </Button>
                 <Button
                   size="sm"
@@ -3468,14 +3489,14 @@ function TeacherWorkshops() {
                   className="h-7 text-xs gap-1"
                   onClick={unassignAll}
                 >
-                  <XSquare className="h-3 w-3" /> Excluir a todos
+                  <XSquare className="h-3 w-3" /> {t("hc_routesAppTeacherWorkshops.excludeAll")}
                 </Button>
               </div>
             </div>
             <div className="max-h-72 overflow-y-auto space-y-0.5 rounded-md border p-1">
               {students.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  No hay estudiantes matriculados en este curso.
+                  {t("hc_routesAppTeacherWorkshops.noEnrolledStudents")}
                 </p>
               )}
               {students.map((s) => {
@@ -3494,14 +3515,14 @@ function TeacherWorkshops() {
                     </div>
                     {included ? (
                       <Badge variant="secondary" className="text-[9px] shrink-0">
-                        Incluido
+                        {t("hc_routesAppTeacherWorkshops.includedBadge")}
                       </Badge>
                     ) : (
                       <Badge
                         variant="outline"
                         className="text-[9px] shrink-0 border-destructive/40 text-destructive"
                       >
-                        Excluido
+                        {t("hc_routesAppTeacherWorkshops.excludedBadge")}
                       </Badge>
                     )}
                   </label>
@@ -3523,7 +3544,11 @@ function TeacherWorkshops() {
       >
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-6xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Calificaciones — {gradingWs?.title}</DialogTitle>
+            <DialogTitle>
+              {t("hc_routesAppTeacherWorkshops.gradingDialogTitle", {
+                title: gradingWs?.title ?? "",
+              })}
+            </DialogTitle>
           </DialogHeader>
           {/* Course scale info */}
           {(() => {
@@ -3531,24 +3556,26 @@ function TeacherWorkshops() {
             return course ? (
               <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground rounded-md border p-2 bg-muted/30">
                 <span>
-                  Escala del curso:{" "}
+                  {t("hc_routesAppTeacherWorkshops.courseScaleLabel")}{" "}
                   <span className="font-medium text-foreground tabular-nums">
                     {course.grade_scale_min}–{course.grade_scale_max}
                   </span>
                 </span>
                 <span>
-                  Aprobar ≥{" "}
+                  {t("hc_routesAppTeacherWorkshops.passLabel")}{" "}
                   <span className="font-medium text-foreground tabular-nums">
                     {course.passing_grade}
                   </span>
                 </span>
                 <span>
-                  Puntaje taller:{" "}
+                  {t("hc_routesAppTeacherWorkshops.workshopScoreLabel")}{" "}
                   <span className="font-medium text-foreground tabular-nums">
                     0–{gradingWs?.max_score ?? 100}
                   </span>
                 </span>
-                <span className="font-medium">Decimales con coma (ej. 4,5).</span>
+                <span className="font-medium">
+                  {t("hc_routesAppTeacherWorkshops.decimalsHint")}
+                </span>
               </div>
             ) : null;
           })()}
@@ -3570,10 +3597,11 @@ function TeacherWorkshops() {
           {!(gradingWs as any)?.is_external && wsSubs.length > 0 && viewingSubId == null && (
             <div className="flex items-center justify-between p-3 rounded-md border bg-muted/30 gap-3 flex-wrap">
               <div className="min-w-0">
-                <p className="text-sm font-medium">Acciones masivas</p>
+                <p className="text-sm font-medium">
+                  {t("hc_routesAppTeacherWorkshops.bulkActionsTitle")}
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  Califica todas las entregas con IA y detecta copias entre estudiantes a nivel
-                  pregunta. Los resultados aparecen junto a cada pregunta dentro del acordeón.
+                  {t("hc_routesAppTeacherWorkshops.bulkActionsDesc")}
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -3582,14 +3610,14 @@ function TeacherWorkshops() {
                   variant="outline"
                   onClick={runDetectCopies}
                   disabled={detectingCopies}
-                  title="Compara las respuestas por pregunta entre estudiantes con la IA"
+                  title={t("hc_routesAppTeacherWorkshops.detectCopiesTitle")}
                 >
                   {detectingCopies ? (
                     <Spinner size="sm" className="mr-1" />
                   ) : (
                     <Users className="h-4 w-4 mr-1" />
                   )}
-                  Detectar copias
+                  {t("hc_routesAppTeacherWorkshops.detectCopies")}
                 </Button>
                 <Button size="sm" onClick={gradeAllWithAI} disabled={aiGradingAll}>
                   {aiGradingAll ? (
@@ -3597,7 +3625,7 @@ function TeacherWorkshops() {
                   ) : (
                     <Sparkles className="h-4 w-4 mr-1" />
                   )}
-                  Calificar todo con IA
+                  {t("hc_routesAppTeacherWorkshops.gradeAllWithAi")}
                 </Button>
               </div>
             </div>
@@ -3615,14 +3643,14 @@ function TeacherWorkshops() {
                   <Input
                     value={gradingSearch}
                     onChange={(e) => setGradingSearch(e.target.value)}
-                    placeholder="Buscar estudiante por nombre o correo…"
+                    placeholder={t("hc_routesAppTeacherWorkshops.gradingSearchPlaceholder")}
                     className="h-8 pl-8 pr-8 text-xs"
                   />
                   {gradingSearch && (
                     <button
                       type="button"
                       onClick={() => setGradingSearch("")}
-                      aria-label="Limpiar búsqueda"
+                      aria-label={t("hc_routesAppTeacherWorkshops.clearSearch")}
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
                       <X className="h-3.5 w-3.5" />
@@ -3631,20 +3659,25 @@ function TeacherWorkshops() {
                 </div>
                 {gradingSearch && (
                   <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
-                    {filteredWsSubs.length} de {wsSubs.length}
+                    {t("hc_routesAppTeacherWorkshops.countOf", {
+                      shown: filteredWsSubs.length,
+                      total: wsSubs.length,
+                    })}
                   </span>
                 )}
               </div>
             )}
             {!(gradingWs as any)?.is_external && wsSubs.length === 0 && (
-              <p className="text-sm text-muted-foreground">No hay entregas aún.</p>
+              <p className="text-sm text-muted-foreground">
+                {t("hc_routesAppTeacherWorkshops.noSubmissionsYet")}
+              </p>
             )}
             {!(gradingWs as any)?.is_external &&
               wsSubs.length > 0 &&
               filteredWsSubs.length === 0 &&
               viewingSubId == null && (
                 <p className="text-sm text-muted-foreground">
-                  Ningún estudiante coincide con la búsqueda.
+                  {t("hc_routesAppTeacherWorkshops.noStudentMatches")}
                 </p>
               )}
 
@@ -3659,12 +3692,12 @@ function TeacherWorkshops() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Estudiante</TableHead>
-                        <TableHead className="hidden sm:table-cell">Estado</TableHead>
-                        <TableHead className="hidden md:table-cell text-right">Nota</TableHead>
-                        <TableHead className="hidden lg:table-cell">IA</TableHead>
-                        <TableHead className="hidden lg:table-cell">Copia</TableHead>
-                        <TableHead className="text-right">Acciones</TableHead>
+                        <TableHead>{t("hc_routesAppTeacherWorkshops.colStudent")}</TableHead>
+                        <TableHead className="hidden sm:table-cell">{t("hc_routesAppTeacherWorkshops.colStatus")}</TableHead>
+                        <TableHead className="hidden md:table-cell text-right">{t("hc_routesAppTeacherWorkshops.colGrade")}</TableHead>
+                        <TableHead className="hidden lg:table-cell">{t("hc_routesAppTeacherWorkshops.colAi")}</TableHead>
+                        <TableHead className="hidden lg:table-cell">{t("hc_routesAppTeacherWorkshops.colCopy")}</TableHead>
+                        <TableHead className="text-right">{t("hc_routesAppTeacherWorkshops.colActions")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -3714,8 +3747,13 @@ function TeacherWorkshops() {
                                   }
                                   title={
                                     integrity.aiPending > 0
-                                      ? `${integrity.aiPending} pendiente${integrity.aiPending === 1 ? "" : "s"} de ${integrity.aiTotal}`
-                                      : `${integrity.aiTotal} revisada${integrity.aiTotal === 1 ? "" : "s"}`
+                                      ? t("hc_routesAppTeacherWorkshops.titlePendingOf", {
+                                          count: integrity.aiPending,
+                                          total: integrity.aiTotal,
+                                        })
+                                      : t("hc_routesAppTeacherWorkshops.titleReviewed", {
+                                          count: integrity.aiTotal,
+                                        })
                                   }
                                 >
                                   <Bot className="h-3 w-3" />
@@ -3738,8 +3776,13 @@ function TeacherWorkshops() {
                                   }
                                   title={
                                     integrity.copyPending > 0
-                                      ? `${integrity.copyPending} pendiente${integrity.copyPending === 1 ? "" : "s"} de ${integrity.copyTotal}`
-                                      : `${integrity.copyTotal} revisada${integrity.copyTotal === 1 ? "" : "s"}`
+                                      ? t("hc_routesAppTeacherWorkshops.titlePendingOf", {
+                                          count: integrity.copyPending,
+                                          total: integrity.copyTotal,
+                                        })
+                                      : t("hc_routesAppTeacherWorkshops.titleReviewed", {
+                                          count: integrity.copyTotal,
+                                        })
                                   }
                                 >
                                   <Users className="h-3 w-3" />
@@ -3754,18 +3797,19 @@ function TeacherWorkshops() {
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-1">
                                 <RowAction
-                                  label="Ver respuestas"
+                                  label={t("hc_routesAppTeacherWorkshops.viewAnswers")}
                                   icon={Eye}
                                   onClick={() => setViewingSubId(sub.id)}
                                 />
                                 <RowAction
-                                  label="Eliminar entrega"
+                                  label={t("hc_routesAppTeacherWorkshops.deleteSubmission")}
                                   icon={Trash2}
                                   tone="destructive"
                                   onClick={() =>
                                     deleteSubmission(
                                       sub.id,
-                                      sub.profile?.full_name ?? "este estudiante",
+                                      sub.profile?.full_name ??
+                                        t("hc_routesAppTeacherWorkshops.thisStudent"),
                                     )
                                   }
                                 />
@@ -3790,7 +3834,7 @@ function TeacherWorkshops() {
                 className="self-start h-8"
               >
                 <ChevronLeft className="h-4 w-4 mr-1" />
-                Volver al listado de estudiantes
+                {t("hc_routesAppTeacherWorkshops.backToStudentList")}
               </Button>
             )}
 
@@ -3860,8 +3904,13 @@ function TeacherWorkshops() {
                                 }
                                 title={
                                   integrity.aiPending > 0
-                                    ? `IA: ${integrity.aiPending} pendiente${integrity.aiPending === 1 ? "" : "s"} de ${integrity.aiTotal}`
-                                    : `IA: ${integrity.aiTotal} revisada${integrity.aiTotal === 1 ? "" : "s"}`
+                                    ? t("hc_routesAppTeacherWorkshops.titleAiPendingOf", {
+                                        count: integrity.aiPending,
+                                        total: integrity.aiTotal,
+                                      })
+                                    : t("hc_routesAppTeacherWorkshops.titleAiReviewed", {
+                                        count: integrity.aiTotal,
+                                      })
                                 }
                               >
                                 <Bot className="h-3 w-3" />
@@ -3880,8 +3929,13 @@ function TeacherWorkshops() {
                                 }
                                 title={
                                   integrity.copyPending > 0
-                                    ? `Copia: ${integrity.copyPending} pendiente${integrity.copyPending === 1 ? "" : "s"} de ${integrity.copyTotal}`
-                                    : `Copia: ${integrity.copyTotal} revisada${integrity.copyTotal === 1 ? "" : "s"}`
+                                    ? t("hc_routesAppTeacherWorkshops.titleCopyPendingOf", {
+                                        count: integrity.copyPending,
+                                        total: integrity.copyTotal,
+                                      })
+                                    : t("hc_routesAppTeacherWorkshops.titleCopyReviewed", {
+                                        count: integrity.copyTotal,
+                                      })
                                 }
                               >
                                 <Users className="h-3 w-3" />
@@ -3892,13 +3946,14 @@ function TeacherWorkshops() {
                             )}
                             <StatusBadge status={sub.status || "pendiente"} />
                             <RowAction
-                              label="Eliminar entrega"
+                              label={t("hc_routesAppTeacherWorkshops.deleteSubmission")}
                               icon={Trash2}
                               tone="destructive"
                               onClick={() =>
                                 deleteSubmission(
                                   sub.id,
-                                  sub.profile?.full_name ?? "este estudiante",
+                                  sub.profile?.full_name ??
+                                    t("hc_routesAppTeacherWorkshops.thisStudent"),
                                 )
                               }
                             />
@@ -3954,7 +4009,10 @@ function TeacherWorkshops() {
                             <div className="flex items-center gap-2">
                               <Sparkles className="h-4 w-4 text-amber-500" />
                               <span className="text-sm font-medium">
-                                Calificación IA: {sub.ai_grade}/{gradingWs?.max_score ?? 100}
+                                {t("hc_routesAppTeacherWorkshops.aiGradeLabel", {
+                                  grade: sub.ai_grade,
+                                  max: gradingWs?.max_score ?? 100,
+                                })}
                               </span>
                             </div>
                             {sub.ai_feedback && (
@@ -3967,7 +4025,7 @@ function TeacherWorkshops() {
                                 className="gap-1 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
                                 onClick={() => approveAIGrade(sub.id)}
                               >
-                                <ThumbsUp className="h-3.5 w-3.5" /> Aprobar
+                                <ThumbsUp className="h-3.5 w-3.5" /> {t("hc_routesAppTeacherWorkshops.approve")}
                               </Button>
                               <Button
                                 size="sm"
@@ -3975,7 +4033,7 @@ function TeacherWorkshops() {
                                 className="gap-1 border-destructive/50 text-destructive hover:bg-destructive/5"
                                 onClick={() => rejectAIGrade(sub.id)}
                               >
-                                <ThumbsDown className="h-3.5 w-3.5" /> Rechazar
+                                <ThumbsDown className="h-3.5 w-3.5" /> {t("hc_routesAppTeacherWorkshops.reject")}
                               </Button>
                             </div>
                           </div>
@@ -3995,7 +4053,9 @@ function TeacherWorkshops() {
                           >
                             <AccordionItem value={`per-q-${sub.id}`} className="border rounded-md">
                               <AccordionTrigger className="px-3 py-2 text-sm">
-                                Revisar respuestas por pregunta ({wsQuestions.length})
+                                {t("hc_routesAppTeacherWorkshops.reviewAnswersPerQuestion", {
+                                  count: wsQuestions.length,
+                                })}
                               </AccordionTrigger>
                               <AccordionContent className="px-3 pb-3 space-y-3">
                                 {wsQuestions.map((q, idx) => {
@@ -4029,7 +4089,9 @@ function TeacherWorkshops() {
                                           {q.type}
                                         </Badge>
                                         <span className="text-[11px] text-muted-foreground">
-                                          máx {q.points} pts
+                                          {t("hc_routesAppTeacherWorkshops.maxPts", {
+                                            points: q.points,
+                                          })}
                                         </span>
                                       </div>
                                       <div className="text-sm">
@@ -4037,7 +4099,7 @@ function TeacherWorkshops() {
                                       </div>
                                       <div>
                                         <Label className="text-[11px] text-muted-foreground">
-                                          Respuesta del estudiante
+                                          {t("hc_routesAppTeacherWorkshops.studentAnswer")}
                                         </Label>
                                         {q.type === "cerrada" ? (
                                           <div className="text-sm mt-1">
@@ -4060,7 +4122,7 @@ function TeacherWorkshops() {
                                                 </span>
                                               ) : (
                                                 <span className="italic text-muted-foreground">
-                                                  Sin respuesta
+                                                  {t("hc_routesAppTeacherWorkshops.noAnswer")}
                                                 </span>
                                               );
                                             })()}
@@ -4071,7 +4133,7 @@ function TeacherWorkshops() {
                                           </pre>
                                         ) : (
                                           <p className="text-xs italic text-muted-foreground mt-1">
-                                            Sin respuesta
+                                            {t("hc_routesAppTeacherWorkshops.noAnswer")}
                                           </p>
                                         )}
                                       </div>
@@ -4287,8 +4349,10 @@ function TeacherWorkshops() {
                                                       variant="outline"
                                                       className="text-[10px] bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300"
                                                     >
-                                                      {pendingCount} pendiente
-                                                      {pendingCount === 1 ? "" : "s"}
+                                                      {t(
+                                                        "hc_routesAppTeacherWorkshops.pendingCount",
+                                                        { count: pendingCount },
+                                                      )}
                                                     </Badge>
                                                   ) : (
                                                     <Badge
@@ -4296,7 +4360,7 @@ function TeacherWorkshops() {
                                                       className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                                                     >
                                                       <Check className="h-3 w-3 mr-1" />
-                                                      Todas revisadas
+                                                      {t("hc_routesAppTeacherWorkshops.allReviewed")}
                                                     </Badge>
                                                   )}
                                                 </button>
@@ -4371,7 +4435,7 @@ function TeacherWorkshops() {
 
                                       <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-2">
                                         <div>
-                                          <Label className="text-[11px]">Calificación IA</Label>
+                                          <Label className="text-[11px]">{t("hc_routesAppTeacherWorkshops.aiGradeFieldLabel")}</Label>
                                           <DecimalInput
                                             min={0}
                                             max={q.points}
@@ -4383,7 +4447,7 @@ function TeacherWorkshops() {
                                           />
                                         </div>
                                         <div>
-                                          <Label className="text-[11px]">Retroalimentación</Label>
+                                          <Label className="text-[11px]">{t("hc_routesAppTeacherWorkshops.feedbackFieldLabel")}</Label>
                                           <Textarea
                                             rows={2}
                                             value={ans?.ai_feedback ?? ""}
@@ -4408,7 +4472,7 @@ function TeacherWorkshops() {
                                           ) : (
                                             <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
                                           )}
-                                          Guardar pregunta
+                                          {t("hc_routesAppTeacherWorkshops.saveQuestion")}
                                         </Button>
                                         <Button
                                           size="sm"
@@ -4421,7 +4485,7 @@ function TeacherWorkshops() {
                                           ) : (
                                             <Sparkles className="h-3.5 w-3.5 mr-1" />
                                           )}
-                                          Recalificar IA
+                                          {t("hc_routesAppTeacherWorkshops.regradeAi")}
                                         </Button>
                                       </div>
                                       {/* Conversación colapsable con resumen (count +
@@ -4463,7 +4527,7 @@ function TeacherWorkshops() {
                                       );
                                     }}
                                   >
-                                    Recalcular calificación global
+                                    {t("hc_routesAppTeacherWorkshops.recomputeGlobalGrade")}
                                   </Button>
                                 </div>
                               </AccordionContent>
@@ -4487,7 +4551,7 @@ function TeacherWorkshops() {
                             variant="outline"
                             onClick={() => saveGrade(sub.id, sub.final_grade ?? 0)}
                           >
-                            <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Guardar calificación
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> {t("hc_routesAppTeacherWorkshops.saveGrade")}
                           </Button>
                           <Button
                             size="sm"
@@ -4501,8 +4565,8 @@ function TeacherWorkshops() {
                               <Sparkles className="h-3.5 w-3.5 mr-1" />
                             )}
                             {sub.status === "calificado" || sub.status === "ai_revisado"
-                              ? "Recalificar con IA"
-                              : "Calificar con IA"}
+                              ? t("hc_routesAppTeacherWorkshops.regradeWithAi")
+                              : t("hc_routesAppTeacherWorkshops.gradeWithAi")}
                           </Button>
                           {(sub.status === "calificado" || sub.status === "ai_revisado") && (
                             <Button
@@ -4511,7 +4575,7 @@ function TeacherWorkshops() {
                               className="text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/10"
                               onClick={() => reopenSubmission(sub)}
                             >
-                              Reabrir entrega
+                              {t("hc_routesAppTeacherWorkshops.reopenSubmission")}
                             </Button>
                           )}
                         </div>
@@ -4527,7 +4591,10 @@ function TeacherWorkshops() {
       <Dialog open={groupsOpen} onOpenChange={setGroupsOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Grupos del taller {groupsWs ? `— ${groupsWs.title}` : ""}</DialogTitle>
+            <DialogTitle>
+              {t("hc_routesAppTeacherWorkshops.groupsDialogTitle")}
+              {groupsWs ? ` — ${groupsWs.title}` : ""}
+            </DialogTitle>
           </DialogHeader>
           {groupsWs && (
             <WorkshopGroupsEditor workshopId={groupsWs.id} courseId={groupsWs.course_id} />
@@ -4540,7 +4607,8 @@ function TeacherWorkshops() {
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Preguntas del taller {questionsWs ? `— ${questionsWs.title}` : ""}
+              {t("hc_routesAppTeacherWorkshops.questionsDialogTitle")}
+              {questionsWs ? ` — ${questionsWs.title}` : ""}
             </DialogTitle>
           </DialogHeader>
           {questionsWs && (
@@ -4558,9 +4626,9 @@ function TeacherWorkshops() {
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}
         items={selectedWorkshopItems}
-        entityNameSingular="taller"
-        entityNamePlural="talleres"
-        extraWarning="Se eliminarán también todas las preguntas, asignaciones y entregas de los talleres seleccionados."
+        entityNameSingular={t("hc_routesAppTeacherWorkshops.bulkEntitySingular")}
+        entityNamePlural={t("hc_routesAppTeacherWorkshops.bulkEntityPlural")}
+        extraWarning={t("hc_routesAppTeacherWorkshops.bulkExtraWarning")}
         onConfirm={handleBulkDelete}
       />
 

@@ -26,6 +26,7 @@
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
@@ -178,6 +179,7 @@ const ROLE_BADGE_CLASS: Record<MessageableUser["role_label"], string> = {
 };
 
 function MessagesPage() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const activeRole = useActiveRole();
   const confirm = useConfirm();
@@ -348,7 +350,7 @@ function MessagesPage() {
       // sidebar lo muestra como ErrorState con botón Reintentar.
       if (convsRes.error) {
         setConversationsLoadError(
-          friendlyError(convsRes.error, "No pudimos cargar tus conversaciones."),
+          friendlyError(convsRes.error, t("hc_routesAppMessages.couldNotLoadConversations")),
         );
       } else {
         setConversationsLoadError(null);
@@ -363,11 +365,9 @@ function MessagesPage() {
         // Mensaje legible al usuario según el código de PostgREST.
         const code = (contactsRes.error as { code?: string }).code;
         if (code === "PGRST202" || code === "42883" || /function .* does not exist/i.test(msg)) {
-          setContactsLoadError(
-            "El módulo de mensajería aún no está publicado en este entorno. Pide al administrador que publique los cambios pendientes.",
-          );
+          setContactsLoadError(t("hc_routesAppMessages.messagingModuleNotPublished"));
         } else {
-          setContactsLoadError(`No pudimos cargar los contactos: ${msg}`);
+          setContactsLoadError(t("hc_routesAppMessages.couldNotLoadContacts", { error: msg }));
         }
         setContacts([]);
       } else {
@@ -540,7 +540,7 @@ function MessagesPage() {
       });
       if (error || data?.error) {
         const detail = await extractEdgeError(error, data);
-        toast.error(detail || "Error al enviar el mensaje.");
+        toast.error(detail || t("hc_routesAppMessages.errorSendingMessage"));
         return;
       }
       const notified = typeof data?.notified === "number" ? data.notified : 0;
@@ -576,7 +576,7 @@ function MessagesPage() {
     } catch (e) {
       // El invoke puede rechazar (network, edge crash). Sin catch: rejection
       // huérfana → audit log app.unhandled_rejection.
-      toast.error(friendlyError(e, "Error al enviar el mensaje."));
+      toast.error(friendlyError(e, t("hc_routesAppMessages.errorSendingMessage")));
     } finally {
       setBroadcastSending(false);
     }
@@ -603,7 +603,7 @@ function MessagesPage() {
     }
     const v = validateScheduledSend(broadcastScheduleAt);
     if (!v.ok) {
-      toast.error(v.error ?? "Fecha inválida.");
+      toast.error(v.error ?? t("hc_routesAppMessages.invalidDate"));
       return;
     }
     if (!myUserId) return;
@@ -633,7 +633,7 @@ function MessagesPage() {
       setBroadcastBody("");
       setBroadcastScheduleAt("");
     } catch (e) {
-      toast.error(friendlyError(e, "No se pudo programar la difusión."));
+      toast.error(friendlyError(e, t("hc_routesAppMessages.couldNotScheduleBroadcast")));
     } finally {
       setBroadcastSending(false);
     }
@@ -652,7 +652,7 @@ function MessagesPage() {
     }
     const v = validateScheduledSend(directScheduleAt);
     if (!v.ok) {
-      toast.error(v.error ?? "Fecha inválida.");
+      toast.error(v.error ?? t("hc_routesAppMessages.invalidDate"));
       return;
     }
     const otherId =
@@ -681,7 +681,7 @@ function MessagesPage() {
     } catch (e) {
       // Caller `void scheduleDirect()` desde onClick. Cubrimos rejection
       // del insert para no contaminar audit log.
-      toast.error(friendlyError(e, "No se pudo programar el mensaje."));
+      toast.error(friendlyError(e, t("hc_routesAppMessages.couldNotScheduleMessage")));
     }
   };
 
@@ -749,7 +749,7 @@ function MessagesPage() {
     }
     const validation = validateScheduledSend(editDraftSendAt);
     if (!validation.ok) {
-      toast.error(validation.error ?? "Fecha inválida.");
+      toast.error(validation.error ?? t("hc_routesAppMessages.invalidDate"));
       return;
     }
     setSavingEdit(true);
@@ -766,7 +766,7 @@ function MessagesPage() {
         .select("id")
         .maybeSingle();
       if (error) {
-        toast.error(friendlyError(error, "No se pudo guardar el cambio"));
+        toast.error(friendlyError(error, t("hc_routesAppMessages.couldNotSaveChange")));
         return;
       }
       if (!data) {
@@ -790,7 +790,7 @@ function MessagesPage() {
       // `await db.from().update()...` puede rechazar (network, sesión
       // expirada). Sin catch, el caller `() => void saveEditScheduled()`
       // produce unhandled rejection → audit log.
-      toast.error(friendlyError(e, "No se pudo guardar el cambio"));
+      toast.error(friendlyError(e, t("hc_routesAppMessages.couldNotSaveChange")));
     } finally {
       setSavingEdit(false);
     }
@@ -816,7 +816,7 @@ function MessagesPage() {
       );
       void loadScheduled();
     } catch (e) {
-      toast.error(friendlyError(e, "No se pudo cancelar"));
+      toast.error(friendlyError(e, t("hc_routesAppMessages.couldNotCancel")));
     }
   };
 
@@ -833,7 +833,7 @@ function MessagesPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).rpc("request_dispatch_scheduled_messages");
       if (error) {
-        toast.error(friendlyError(error, "No se pudo procesar la cola"));
+        toast.error(friendlyError(error, t("hc_routesAppMessages.couldNotProcessQueue")));
         return;
       }
       const n = Number(data ?? 0);
@@ -855,7 +855,7 @@ function MessagesPage() {
     } catch (e) {
       // El RPC puede rechazar con throw (función removida, JWT expirado,
       // network). Sin catch: rejection huérfana → audit log.
-      toast.error(friendlyError(e, "No se pudo procesar la cola"));
+      toast.error(friendlyError(e, t("hc_routesAppMessages.couldNotProcessQueue")));
     } finally {
       setForcingDispatch(false);
     }
@@ -1100,7 +1100,7 @@ function MessagesPage() {
     const hasBody = body.trim().length > 0;
     const hasFiles = pendingFiles.length > 0;
     if (!hasBody && !hasFiles) return;
-    const text = hasBody ? body.trim() : "(adjuntos)";
+    const text = hasBody ? body.trim() : t("hc_routesAppMessages.attachmentsPlaceholder");
     setSending(true);
     try {
       const { data, error } = await db
@@ -1109,7 +1109,7 @@ function MessagesPage() {
         .select("*")
         .single();
       if (error || !data) {
-        toast.error(friendlyError(error, "No se pudo enviar el mensaje"));
+        toast.error(friendlyError(error, t("hc_routesAppMessages.couldNotSendMessage")));
         return;
       }
       const inserted = data as MessageLite;
@@ -1174,7 +1174,7 @@ function MessagesPage() {
         .select("*")
         .single();
       if (error || !data) {
-        toast.error(friendlyError(error, "No se pudo editar el mensaje"));
+        toast.error(friendlyError(error, t("hc_routesAppMessages.couldNotEditMessage")));
         return;
       }
       setMessages((prev) =>
@@ -1199,9 +1199,9 @@ function MessagesPage() {
       return;
     }
     const ok = await confirm({
-      title: "Eliminar mensaje",
-      description: "Se eliminará el mensaje para ambas partes. Esta acción no se puede deshacer.",
-      confirmLabel: "Eliminar",
+      title: t("hc_routesAppMessages.deleteMessageTitle"),
+      description: t("hc_routesAppMessages.deleteMessageDescription"),
+      confirmLabel: t("hc_routesAppMessages.delete"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -1252,9 +1252,11 @@ function MessagesPage() {
       return;
     }
     const ok = await confirm({
-      title: `Eliminar ${eligible.length} mensaje(s)`,
-      description: `Se eliminarán ${eligible.length} mensaje(s) para ambas partes. Esta acción no se puede deshacer.`,
-      confirmLabel: "Eliminar",
+      title: t("hc_routesAppMessages.bulkDeleteMessagesTitle", { count: eligible.length }),
+      description: t("hc_routesAppMessages.bulkDeleteMessagesDescription", {
+        count: eligible.length,
+      }),
+      confirmLabel: t("hc_routesAppMessages.delete"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -1309,7 +1311,7 @@ function MessagesPage() {
     if (!myUserId) return;
     const { data, error } = await db.rpc("open_conversation", { _other: otherUserId });
     if (error || !data) {
-      toast.error(friendlyError(error, "No se pudo abrir la conversación"));
+      toast.error(friendlyError(error, t("hc_routesAppMessages.couldNotOpenConversation")));
       return;
     }
     const convId = data as string;
@@ -1333,7 +1335,7 @@ function MessagesPage() {
   const markConvRead = async (convId: string) => {
     const { error } = await db.rpc("mark_conversation_read", { _conv_id: convId });
     if (error) {
-      toast.error(friendlyError(error, "No se pudo marcar como leída"));
+      toast.error(friendlyError(error, t("hc_routesAppMessages.couldNotMarkRead")));
       return false;
     }
     return true;
@@ -1342,7 +1344,7 @@ function MessagesPage() {
   const markConvUnread = async (convId: string) => {
     const { error } = await db.rpc("mark_conversation_unread", { _conv_id: convId });
     if (error) {
-      toast.error(friendlyError(error, "No se pudo marcar como no leída"));
+      toast.error(friendlyError(error, t("hc_routesAppMessages.couldNotMarkUnread")));
       return false;
     }
     return true;
@@ -1380,10 +1382,9 @@ function MessagesPage() {
     const ids = Array.from(selectedConvIds);
     if (ids.length === 0) return;
     const ok = await confirm({
-      title: `Eliminar ${ids.length} conversación${ids.length === 1 ? "" : "es"}`,
-      description:
-        "Desaparecerán SOLO para ti. La otra persona las sigue viendo. Si te escriben de nuevo, las volverás a ver con los mensajes nuevos.",
-      confirmLabel: "Eliminar",
+      title: t("hc_routesAppMessages.deleteConversationsTitle", { count: ids.length }),
+      description: t("hc_routesAppMessages.deleteConversationsDescription"),
+      confirmLabel: t("hc_routesAppMessages.delete"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -1401,10 +1402,9 @@ function MessagesPage() {
 
   const clearConversation = async (convId: string) => {
     const ok = await confirm({
-      title: "Eliminar conversación",
-      description:
-        "La conversación desaparecerá SOLO para ti. La otra persona la sigue viendo. Si te escribe de nuevo, volverás a verla con los mensajes nuevos.",
-      confirmLabel: "Eliminar",
+      title: t("hc_routesAppMessages.deleteConversationTitle"),
+      description: t("hc_routesAppMessages.deleteConversationDescription"),
+      confirmLabel: t("hc_routesAppMessages.delete"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -1454,7 +1454,7 @@ function MessagesPage() {
     <div className="space-y-3">
       <PageHeader
         icon={<MessageSquare className="h-6 w-6 text-cyan-400 dark:text-cyan-300" />}
-        title="Mensajes"
+        title={t("hc_routesAppMessages.pageTitle")}
         actions={
           <>
             {isStaff && (
@@ -1463,28 +1463,30 @@ function MessagesPage() {
                   size="sm"
                   variant="outline"
                   onClick={() => setScheduledDialogOpen(true)}
-                  title="Ver y cancelar mensajes programados (directos y de difusión)."
+                  title={t("hc_routesAppMessages.scheduledButtonTooltip")}
                 >
                   <CalendarClock className="h-4 w-4 mr-1" />
-                  <span className="hidden sm:inline">Programados</span>
+                  <span className="hidden sm:inline">{t("hc_routesAppMessages.scheduled")}</span>
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => setBroadcastDialogOpen(true)}
-                  title="Enviar (o programar) un mensaje a todos los estudiantes de uno o más cursos."
+                  title={t("hc_routesAppMessages.broadcastButtonTooltip")}
                   data-tour-id="broadcast-messages"
                 >
                   <Megaphone className="h-4 w-4 mr-1" />
-                  <span className="hidden sm:inline">Enviar a todos los estudiantes</span>
-                  <span className="sm:hidden">Broadcast</span>
+                  <span className="hidden sm:inline">
+                    {t("hc_routesAppMessages.sendToAllStudents")}
+                  </span>
+                  <span className="sm:hidden">{t("hc_routesAppMessages.broadcast")}</span>
                 </Button>
               </>
             )}
             <Button size="sm" onClick={() => setNewDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-1" />
-              <span className="hidden sm:inline">Nueva conversación</span>
-              <span className="sm:hidden">Nueva</span>
+              <span className="hidden sm:inline">{t("hc_routesAppMessages.newConversation")}</span>
+              <span className="sm:hidden">{t("hc_routesAppMessages.newShort")}</span>
             </Button>
           </>
         }
@@ -1503,18 +1505,18 @@ function MessagesPage() {
           >
             {loading ? (
               <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
-                <Spinner size="sm" /> Cargando…
+                <Spinner size="sm" /> {t("hc_routesAppMessages.loading")}
               </div>
             ) : conversationsLoadError ? (
               <ErrorState
-                message="No pudimos cargar tus conversaciones"
+                message={t("hc_routesAppMessages.couldNotLoadConversationsTitle")}
                 hint={conversationsLoadError}
                 onRetry={() => void loadAll()}
               />
             ) : conversations.length === 0 ? (
               <EmptyState
-                title="Sin conversaciones"
-                description="Inicia una conversación con alguien de tus cursos o con un Admin."
+                title={t("hc_routesAppMessages.noConversationsTitle")}
+                description={t("hc_routesAppMessages.noConversationsDescription")}
               />
             ) : (
               <>
@@ -1522,44 +1524,46 @@ function MessagesPage() {
                 {selectedConvIds.size > 0 && (
                   <div className="sticky top-0 z-10 flex items-center gap-1 border-b bg-background/95 px-2 py-1.5 backdrop-blur">
                     <span className="text-xs font-medium mr-1">
-                      {selectedConvIds.size} seleccionada{selectedConvIds.size === 1 ? "" : "s"}
+                      {t("hc_routesAppMessages.conversationsSelected", {
+                        count: selectedConvIds.size,
+                      })}
                     </span>
                     <Button
                       size="sm"
                       variant="ghost"
                       className="h-7 px-2"
                       onClick={() => void markSelectedRead()}
-                      title="Marcar como leídas"
+                      title={t("hc_routesAppMessages.markAsRead")}
                     >
                       <MailOpen className="h-3.5 w-3.5 mr-1" />
-                      <span className="text-xs">Leídas</span>
+                      <span className="text-xs">{t("hc_routesAppMessages.readPlural")}</span>
                     </Button>
                     <Button
                       size="sm"
                       variant="ghost"
                       className="h-7 px-2"
                       onClick={() => void markSelectedUnread()}
-                      title="Marcar como no leídas"
+                      title={t("hc_routesAppMessages.markAsUnread")}
                     >
                       <Mail className="h-3.5 w-3.5 mr-1" />
-                      <span className="text-xs">No leídas</span>
+                      <span className="text-xs">{t("hc_routesAppMessages.unreadPlural")}</span>
                     </Button>
                     <Button
                       size="sm"
                       variant="ghost"
                       className="h-7 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
                       onClick={() => void clearSelectedConversations()}
-                      title="Eliminar conversaciones seleccionadas (solo para mí — el otro las sigue viendo)"
+                      title={t("hc_routesAppMessages.deleteSelectedConversationsTooltip")}
                     >
                       <Trash2 className="h-3.5 w-3.5 mr-1" />
-                      <span className="text-xs">Eliminar</span>
+                      <span className="text-xs">{t("hc_routesAppMessages.delete")}</span>
                     </Button>
                     <Button
                       size="sm"
                       variant="ghost"
                       className="h-7 px-2 ml-auto"
                       onClick={clearConvSelection}
-                      title="Cancelar selección"
+                      title={t("hc_routesAppMessages.cancelSelection")}
                     >
                       <X className="h-3.5 w-3.5" />
                     </Button>
@@ -1615,7 +1619,11 @@ function MessagesPage() {
                                   toggleConvSelected(c.conv.id);
                                 }}
                                 className="shrink-0 flex items-center justify-center w-4 h-4 rounded"
-                                aria-label={isSelected ? "Quitar selección" : "Seleccionar"}
+                                aria-label={
+                                  isSelected
+                                    ? t("hc_routesAppMessages.deselect")
+                                    : t("hc_routesAppMessages.select")
+                                }
                               >
                                 {isSelected ? (
                                   <CheckSquare className="h-4 w-4 text-primary" />
@@ -1634,7 +1642,7 @@ function MessagesPage() {
                                     toggleConvSelected(c.conv.id);
                                   }}
                                   className="hidden md:group-hover:flex md:focus-visible:flex shrink-0 items-center justify-center w-4 h-4 rounded"
-                                  aria-label="Seleccionar"
+                                  aria-label={t("hc_routesAppMessages.select")}
                                 >
                                   <Square className="h-4 w-4 text-muted-foreground" />
                                 </button>
@@ -1642,7 +1650,7 @@ function MessagesPage() {
                               </>
                             )}
                             <span className="font-medium text-sm truncate flex-1">
-                              {c.other.full_name ?? c.other.email ?? "Usuario"}
+                              {c.other.full_name ?? c.other.email ?? t("hc_routesAppMessages.user")}
                             </span>
                             {c.unread > 0 && (
                               <Badge
@@ -1671,7 +1679,9 @@ function MessagesPage() {
                             )}
                           >
                             {previewBody(c.lastMessage?.body, 50) || (
-                              <span className="italic">Sin mensajes visibles</span>
+                              <span className="italic">
+                                {t("hc_routesAppMessages.noVisibleMessages")}
+                              </span>
                             )}
                           </p>
                           {c.lastMessage && (
@@ -1691,7 +1701,7 @@ function MessagesPage() {
                                 size="sm"
                                 className="absolute right-1 top-2 h-7 w-7 p-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100"
                                 onClick={(e) => e.stopPropagation()}
-                                aria-label="Acciones de la conversación"
+                                aria-label={t("hc_routesAppMessages.conversationActions")}
                               >
                                 <MoreVertical className="h-4 w-4" />
                               </Button>
@@ -1704,7 +1714,7 @@ function MessagesPage() {
                                   }}
                                 >
                                   <MailOpen className="h-4 w-4 mr-2" />
-                                  Marcar como leída
+                                  {t("hc_routesAppMessages.markAsReadSingular")}
                                 </DropdownMenuItem>
                               ) : (
                                 <DropdownMenuItem
@@ -1713,7 +1723,7 @@ function MessagesPage() {
                                   }}
                                 >
                                   <Mail className="h-4 w-4 mr-2" />
-                                  Marcar como no leída
+                                  {t("hc_routesAppMessages.markAsUnreadSingular")}
                                 </DropdownMenuItem>
                               )}
                               {/* Entrar al modo selección. Disparador
@@ -1721,7 +1731,7 @@ function MessagesPage() {
                                   también puede usarlo. */}
                               <DropdownMenuItem onClick={() => toggleConvSelected(c.conv.id)}>
                                 <CheckSquare className="h-4 w-4 mr-2" />
-                                Seleccionar
+                                {t("hc_routesAppMessages.select")}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
@@ -1729,7 +1739,7 @@ function MessagesPage() {
                                 onClick={() => void clearConversation(c.conv.id)}
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
-                                Eliminar
+                                {t("hc_routesAppMessages.delete")}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -1752,7 +1762,7 @@ function MessagesPage() {
           >
             {!activeConv ? (
               <div className="flex-1 flex items-center justify-center p-6 text-sm text-muted-foreground">
-                Selecciona una conversación o inicia una nueva.
+                {t("hc_routesAppMessages.selectOrStartConversation")}
               </div>
             ) : (
               <>
@@ -1766,7 +1776,7 @@ function MessagesPage() {
                     size="sm"
                     className="md:hidden shrink-0 h-8 w-8 p-0"
                     onClick={() => setActiveConvId(null)}
-                    aria-label="Volver a la lista"
+                    aria-label={t("hc_routesAppMessages.backToList")}
                   >
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
@@ -1776,7 +1786,9 @@ function MessagesPage() {
                         const RI = ROLE_ICON[activeConv.other.role_label];
                         return <RI className="h-3.5 w-3.5 text-muted-foreground" />;
                       })()}
-                      {activeConv.other.full_name ?? activeConv.other.email ?? "Usuario"}
+                      {activeConv.other.full_name ??
+                        activeConv.other.email ??
+                        t("hc_routesAppMessages.user")}
                       <Badge
                         variant="outline"
                         className={cn(
@@ -1810,7 +1822,11 @@ function MessagesPage() {
                           setSelectMode(true);
                         }
                       }}
-                      title={selectMode ? "Salir de selección" : "Seleccionar mensajes"}
+                      title={
+                        selectMode
+                          ? t("hc_routesAppMessages.exitSelection")
+                          : t("hc_routesAppMessages.selectMessages")
+                      }
                       aria-pressed={selectMode}
                     >
                       <CheckSquare className="h-4 w-4" />
@@ -1820,7 +1836,7 @@ function MessagesPage() {
                       size="sm"
                       className="text-destructive hover:text-destructive shrink-0"
                       onClick={() => void clearConversation(activeConv.conv.id)}
-                      title="Eliminar conversación (solo para mí)"
+                      title={t("hc_routesAppMessages.deleteConversationOnlyMe")}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -1834,9 +1850,9 @@ function MessagesPage() {
                 {selectMode && selectedMessageIds.size > 0 && (
                   <div className="flex items-center justify-between gap-2 px-4 py-2 bg-muted/40 border-b">
                     <span className="text-xs font-medium">
-                      {selectedMessageIds.size} mensaje
-                      {selectedMessageIds.size === 1 ? "" : "s"} seleccionado
-                      {selectedMessageIds.size === 1 ? "" : "s"}
+                      {t("hc_routesAppMessages.messagesSelected", {
+                        count: selectedMessageIds.size,
+                      })}
                     </span>
                     <div className="flex gap-2">
                       <Button
@@ -1848,7 +1864,7 @@ function MessagesPage() {
                         }}
                         disabled={bulkDeleting}
                       >
-                        Cancelar
+                        {t("hc_routesAppMessages.cancel")}
                       </Button>
                       <Button
                         variant="destructive"
@@ -1861,7 +1877,7 @@ function MessagesPage() {
                         ) : (
                           <Trash2 className="h-3.5 w-3.5 mr-1" />
                         )}
-                        Eliminar
+                        {t("hc_routesAppMessages.delete")}
                       </Button>
                     </div>
                   </div>
@@ -1872,11 +1888,11 @@ function MessagesPage() {
                   <div className="relative">
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
-                      placeholder="Buscar en la conversación…"
+                      placeholder={t("hc_routesAppMessages.searchInConversation")}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-7 h-8 text-xs"
-                      aria-label="Buscar en la conversación"
+                      aria-label={t("hc_routesAppMessages.searchInConversationAria")}
                     />
                   </div>
                 </div>
@@ -1885,13 +1901,13 @@ function MessagesPage() {
                 <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
                   {loadingMessages ? (
                     <div className="text-sm text-muted-foreground flex items-center gap-2">
-                      <Spinner size="sm" /> Cargando mensajes…
+                      <Spinner size="sm" /> {t("hc_routesAppMessages.loadingMessages")}
                     </div>
                   ) : visibleMessages.length === 0 ? (
                     <p className="text-sm text-muted-foreground italic text-center py-8">
                       {searchQuery.trim()
-                        ? "Sin coincidencias para la búsqueda."
-                        : "Aún no hay mensajes. Escribe el primero ↓"}
+                        ? t("hc_routesAppMessages.noSearchMatches")
+                        : t("hc_routesAppMessages.noMessagesYet")}
                     </p>
                   ) : (
                     dayGroups.map((group) => (
@@ -1949,7 +1965,9 @@ function MessagesPage() {
                                   onClick={() => toggleSelectMessage(m.id)}
                                   className="shrink-0 mt-1 text-muted-foreground hover:text-foreground transition-colors"
                                   aria-label={
-                                    isSelected ? "Deseleccionar mensaje" : "Seleccionar mensaje"
+                                    isSelected
+                                      ? t("hc_routesAppMessages.deselectMessage")
+                                      : t("hc_routesAppMessages.selectMessage")
                                   }
                                   aria-pressed={isSelected}
                                 >
@@ -1997,7 +2015,7 @@ function MessagesPage() {
                                         onClick={cancelEdit}
                                         disabled={isSaving}
                                       >
-                                        <X className="h-3 w-3 mr-1" /> Cancelar
+                                        <X className="h-3 w-3 mr-1" /> {t("hc_routesAppMessages.cancel")}
                                       </Button>
                                       <Button
                                         size="sm"
@@ -2011,7 +2029,7 @@ function MessagesPage() {
                                         ) : (
                                           <Check className="h-3 w-3 mr-1" />
                                         )}
-                                        Guardar
+                                        {t("hc_routesAppMessages.save")}
                                       </Button>
                                     </div>
                                   </div>
@@ -2050,7 +2068,9 @@ function MessagesPage() {
                                                   ? "bg-primary-foreground/15 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/25"
                                                   : "bg-primary/10 border-primary/30 text-primary hover:bg-primary/20",
                                               )}
-                                              title={`${seg.tag.label} — abrir módulo`}
+                                              title={t("hc_routesAppMessages.openModuleTitle", {
+                                                label: seg.tag.label,
+                                              })}
                                             >
                                               <TagIcon className="h-3 w-3 shrink-0" />
                                               <span className="truncate max-w-[180px]">
@@ -2097,7 +2117,7 @@ function MessagesPage() {
                                       >
                                         <span>
                                           {formatMessageTime(m.created_at)}
-                                          {m.edited_at ? " · editado" : ""}
+                                          {m.edited_at ? t("hc_routesAppMessages.editedSuffix") : ""}
                                         </span>
                                         {/* Doble check de "leído" — solo en
                                             mensajes propios. ✓✓ azul (heredado
@@ -2112,8 +2132,16 @@ function MessagesPage() {
                                                 ? "text-primary-foreground"
                                                 : "text-primary-foreground/50",
                                             )}
-                                            title={isReadByOther ? "Leído" : "Enviado"}
-                                            aria-label={isReadByOther ? "Leído" : "Enviado"}
+                                            title={
+                                              isReadByOther
+                                                ? t("hc_routesAppMessages.read")
+                                                : t("hc_routesAppMessages.sent")
+                                            }
+                                            aria-label={
+                                              isReadByOther
+                                                ? t("hc_routesAppMessages.read")
+                                                : t("hc_routesAppMessages.sent")
+                                            }
                                           >
                                             {isReadByOther ? (
                                               <CheckCheck className="h-3 w-3" />
@@ -2131,8 +2159,10 @@ function MessagesPage() {
                                             size="icon"
                                             className="h-5 w-5 text-primary-foreground hover:text-primary-foreground"
                                             onClick={() => startEdit(m)}
-                                            title="Editar mensaje"
-                                            aria-label={`Editar mensaje ${m.id}`}
+                                            title={t("hc_routesAppMessages.editMessage")}
+                                            aria-label={t("hc_routesAppMessages.editMessageAria", {
+                                              id: m.id,
+                                            })}
                                           >
                                             <Pencil className="h-3 w-3" />
                                           </Button>
@@ -2142,8 +2172,10 @@ function MessagesPage() {
                                             size="icon"
                                             className="h-5 w-5 text-primary-foreground hover:text-primary-foreground"
                                             onClick={() => void deleteMessage(m)}
-                                            title="Eliminar mensaje"
-                                            aria-label={`Eliminar mensaje ${m.id}`}
+                                            title={t("hc_routesAppMessages.deleteMessage")}
+                                            aria-label={t("hc_routesAppMessages.deleteMessageAria", {
+                                              id: m.id,
+                                            })}
                                           >
                                             <Trash2 className="h-3 w-3" />
                                           </Button>
@@ -2177,7 +2209,7 @@ function MessagesPage() {
                     multiple
                     className="hidden"
                     onChange={(e) => addFiles(e.target.files)}
-                    aria-label="Adjuntar archivos"
+                    aria-label={t("hc_routesAppMessages.attachFiles")}
                     data-testid="message-file-input"
                   />
                   {/* TagTextarea: textarea con autocomplete `#` para
@@ -2189,7 +2221,7 @@ function MessagesPage() {
                     value={body}
                     onChange={setBody}
                     onSubmit={() => void send()}
-                    placeholder="Escribe un mensaje. Usa # para etiquetar talleres, exámenes, proyectos o cursos…"
+                    placeholder={t("hc_routesAppMessages.composerPlaceholder")}
                     rows={2}
                     className="text-sm min-h-[2.5rem] resize-none"
                   />
@@ -2200,10 +2232,11 @@ function MessagesPage() {
                   {!body.trim() && (
                     <p className="text-[11px] text-muted-foreground flex items-center gap-1 px-0.5">
                       <Hash className="h-3 w-3 shrink-0" />
-                      Tip: escribe <code className="rounded bg-muted px-1">#</code> seguido del
-                      nombre para etiquetar contenido (ej.{" "}
-                      <code className="rounded bg-muted px-1">#VetCare</code>) y enlazarlo en el
-                      mensaje.
+                      {t("hc_routesAppMessages.tagTipBefore")}{" "}
+                      <code className="rounded bg-muted px-1">#</code>{" "}
+                      {t("hc_routesAppMessages.tagTipMiddle")}{" "}
+                      <code className="rounded bg-muted px-1">#VetCare</code>
+                      {t("hc_routesAppMessages.tagTipAfter")}
                     </p>
                   )}
                   <div className="flex items-center gap-1">
@@ -2217,8 +2250,8 @@ function MessagesPage() {
                       className="h-8 w-8 p-0 shrink-0"
                       onClick={() => setTagPickerOpen(true)}
                       disabled={sending}
-                      title="Etiquetar contenido — o escribe # en el mensaje"
-                      aria-label="Etiquetar contenido"
+                      title={t("hc_routesAppMessages.tagContentTooltip")}
+                      aria-label={t("hc_routesAppMessages.tagContent")}
                     >
                       <Hash className="h-4 w-4" />
                     </Button>
@@ -2229,8 +2262,8 @@ function MessagesPage() {
                       className="h-8 w-8 p-0 shrink-0"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={sending || pendingFiles.length >= MESSAGE_ATTACHMENT_MAX_COUNT}
-                      title="Adjuntar archivos"
-                      aria-label="Adjuntar archivos"
+                      title={t("hc_routesAppMessages.attachFiles")}
+                      aria-label={t("hc_routesAppMessages.attachFiles")}
                     >
                       <Paperclip className="h-4 w-4" />
                     </Button>
@@ -2246,8 +2279,8 @@ function MessagesPage() {
                         className="h-8 w-8 p-0 shrink-0"
                         onClick={() => setDirectScheduleOpen((v) => !v)}
                         disabled={sending}
-                        title="Programar el envío de este mensaje para más tarde"
-                        aria-label="Programar mensaje"
+                        title={t("hc_routesAppMessages.scheduleMessageTooltip")}
+                        aria-label={t("hc_routesAppMessages.scheduleMessage")}
                       >
                         <Clock className="h-4 w-4" />
                       </Button>
@@ -2269,14 +2302,16 @@ function MessagesPage() {
                       size="sm"
                     >
                       {sending ? <Spinner size="xs" /> : <Send className="h-3.5 w-3.5" />}
-                      <span className="hidden sm:inline">Enviar</span>
+                      <span className="hidden sm:inline">{t("hc_routesAppMessages.send")}</span>
                     </Button>
                   </div>
                   {/* Fila de programación del mensaje directo. */}
                   {isStaff && directScheduleOpen && (
                     <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2">
                       <CalendarClock className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className="text-xs text-muted-foreground">Enviar el:</span>
+                      <span className="text-xs text-muted-foreground">
+                        {t("hc_routesAppMessages.sendOn")}
+                      </span>
                       <div className="flex-1 min-w-[180px]">
                         <DateTimePicker value={directScheduleAt} onChange={setDirectScheduleAt} />
                       </div>
@@ -2286,7 +2321,7 @@ function MessagesPage() {
                         disabled={!directScheduleAt || !body.trim()}
                       >
                         <CalendarClock className="h-3.5 w-3.5 mr-1" />
-                        Programar
+                        {t("hc_routesAppMessages.schedule")}
                       </Button>
                       <Button
                         size="sm"
@@ -2296,7 +2331,7 @@ function MessagesPage() {
                           setDirectScheduleAt("");
                         }}
                       >
-                        Cancelar
+                        {t("hc_routesAppMessages.cancel")}
                       </Button>
                     </div>
                   )}
@@ -2321,8 +2356,8 @@ function MessagesPage() {
                             className="h-5 w-5 shrink-0 text-destructive hover:text-destructive"
                             onClick={() => removePendingFile(idx)}
                             disabled={sending}
-                            title="Quitar"
-                            aria-label={`Quitar ${f.name}`}
+                            title={t("hc_routesAppMessages.remove")}
+                            aria-label={t("hc_routesAppMessages.removeFileAria", { name: f.name })}
                           >
                             <X className="h-3 w-3" />
                           </Button>
@@ -2341,16 +2376,16 @@ function MessagesPage() {
       <Dialog open={newDialogOpen} onOpenChange={setNewDialogOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Nueva conversación</DialogTitle>
+            <DialogTitle>{t("hc_routesAppMessages.newConversation")}</DialogTitle>
             <DialogDescription>
-              Solo puedes mensajear a personas de tus cursos y a los Admin.
+              {t("hc_routesAppMessages.newConversationDescription")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar por nombre, correo o rol…"
+                placeholder={t("hc_routesAppMessages.searchByNameEmailRole")}
                 value={contactSearch}
                 onChange={(e) => setContactSearch(e.target.value)}
                 className="pl-8"
@@ -2364,10 +2399,10 @@ function MessagesPage() {
               ) : filteredContacts.length === 0 ? (
                 <p className="text-sm text-muted-foreground italic px-3 py-4 text-center">
                   {contactSearch.trim()
-                    ? "No hay contactos que coincidan con la búsqueda."
+                    ? t("hc_routesAppMessages.noMatchingContacts")
                     : contacts.length === 0
-                      ? "No hay contactos disponibles todavía. Si esperas mensajear a alguien de un curso, asegúrate de estar matriculado en al menos un curso compartido. También puedes escribirle a un administrador."
-                      : "No hay contactos disponibles."}
+                      ? t("hc_routesAppMessages.noContactsYet")
+                      : t("hc_routesAppMessages.noContactsAvailable")}
                 </p>
               ) : (
                 <ul className="divide-y">
@@ -2383,7 +2418,7 @@ function MessagesPage() {
                           <RoleIcon className="h-4 w-4 text-muted-foreground shrink-0" />
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium truncate">
-                              {c.full_name ?? c.email ?? "Usuario"}
+                              {c.full_name ?? c.email ?? t("hc_routesAppMessages.user")}
                             </p>
                             {c.email && (
                               <p className="text-[11px] text-muted-foreground truncate">
@@ -2428,18 +2463,17 @@ function MessagesPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Megaphone className="h-4 w-4 text-cyan-500" />
-              Enviar a todos los estudiantes
+              {t("hc_routesAppMessages.sendToAllStudents")}
             </DialogTitle>
             <DialogDescription>
-              Crea una notificación in-app para cada estudiante de los cursos seleccionados, les
-              envía un correo individual y replica el anuncio en su conversación de Mensajes.
+              {t("hc_routesAppMessages.broadcastDialogDescription")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div>
               <div className="flex items-center justify-between">
-                <Label className="text-xs">Cursos</Label>
+                <Label className="text-xs">{t("hc_routesAppMessages.courses")}</Label>
                 {broadcastCourses.length > 0 && (
                   <button
                     type="button"
@@ -2454,14 +2488,14 @@ function MessagesPage() {
                     }
                   >
                     {broadcastCourseIds.length === broadcastCourses.length
-                      ? "Limpiar"
-                      : "Seleccionar todos"}
+                      ? t("hc_routesAppMessages.clear")
+                      : t("hc_routesAppMessages.selectAll")}
                   </button>
                 )}
               </div>
               {broadcastCourses.length === 0 ? (
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  No tienes cursos donde enviar mensajes masivos.
+                  {t("hc_routesAppMessages.noCoursesForBroadcast")}
                 </p>
               ) : (
                 <div className="mt-1 max-h-44 overflow-y-auto rounded-md border divide-y">
@@ -2478,7 +2512,9 @@ function MessagesPage() {
                       <span className="flex-1 truncate">{c.name}</span>
                       {typeof c.student_count === "number" && (
                         <span className="text-[11px] text-muted-foreground shrink-0">
-                          {c.student_count} est.
+                          {t("hc_routesAppMessages.studentCountShort", {
+                            count: c.student_count,
+                          })}
                         </span>
                       )}
                     </label>
@@ -2487,20 +2523,19 @@ function MessagesPage() {
               )}
               {broadcastCourseIds.length > 0 && (
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  {broadcastCourseIds.length} curso
-                  {broadcastCourseIds.length === 1 ? "" : "s"} seleccionado
-                  {broadcastCourseIds.length === 1 ? "" : "s"}. Los alumnos en varios cursos reciben
-                  un solo mensaje.
+                  {t("hc_routesAppMessages.coursesSelectedHint", {
+                    count: broadcastCourseIds.length,
+                  })}
                 </p>
               )}
             </div>
 
             <div>
-              <Label className="text-xs">Asunto</Label>
+              <Label className="text-xs">{t("hc_routesAppMessages.subject")}</Label>
               <Input
                 value={broadcastSubject}
                 onChange={(e) => setBroadcastSubject(e.target.value)}
-                placeholder="Ej. Recordatorio: entrega del taller 2 mañana"
+                placeholder={t("hc_routesAppMessages.subjectPlaceholder")}
                 maxLength={200}
                 disabled={broadcastSending}
               />
@@ -2510,7 +2545,7 @@ function MessagesPage() {
             </div>
 
             <div>
-              <Label className="text-xs">Mensaje</Label>
+              <Label className="text-xs">{t("hc_routesAppMessages.message")}</Label>
               {/* TagTextarea: permite etiquetar contenido (#) también en
                   difusión. Los tags se replican como chips en el mensaje
                   de /app/messages; en la notif/correo se humanizan a
@@ -2518,7 +2553,7 @@ function MessagesPage() {
               <TagTextarea
                 value={broadcastBody}
                 onChange={setBroadcastBody}
-                placeholder="Escribe el mensaje… (usa # para etiquetar contenido)"
+                placeholder={t("hc_routesAppMessages.broadcastBodyPlaceholder")}
                 rows={5}
                 maxLength={10000}
                 disabled={broadcastSending}
@@ -2534,7 +2569,7 @@ function MessagesPage() {
             <div>
               <Label className="text-xs flex items-center gap-1.5">
                 <CalendarClock className="h-3.5 w-3.5" />
-                Programar envío (opcional)
+                {t("hc_routesAppMessages.scheduleSendOptional")}
               </Label>
               <DateTimePicker
                 value={broadcastScheduleAt}
@@ -2543,7 +2578,9 @@ function MessagesPage() {
               />
               {broadcastScheduleAt && (
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  Se enviará automáticamente el {formatDateTime(localToIso(broadcastScheduleAt))}.
+                  {t("hc_routesAppMessages.willBeSentAutomatically", {
+                    when: formatDateTime(localToIso(broadcastScheduleAt)),
+                  })}
                 </p>
               )}
             </div>
@@ -2551,8 +2588,9 @@ function MessagesPage() {
             <div className="rounded-md border bg-amber-50/40 dark:bg-amber-500/5 border-amber-300/50 p-2 text-[11px] text-amber-700 dark:text-amber-300 flex items-start gap-2">
               <Megaphone className="h-3.5 w-3.5 mt-0.5 shrink-0" />
               <span>
-                Los estudiantes <strong>no podrán responder este correo</strong> — es solo un
-                anuncio. Si necesitan contactarte, deben usar "Mensajes" → "Nueva conversación".
+                {t("hc_routesAppMessages.broadcastWarningBefore")}{" "}
+                <strong>{t("hc_routesAppMessages.broadcastWarningBold")}</strong>
+                {t("hc_routesAppMessages.broadcastWarningAfter")}
               </span>
             </div>
           </div>
@@ -2563,7 +2601,7 @@ function MessagesPage() {
               onClick={() => setBroadcastDialogOpen(false)}
               disabled={broadcastSending}
             >
-              Cancelar
+              {t("hc_routesAppMessages.cancel")}
             </Button>
             <Button
               onClick={() => void (broadcastScheduleAt ? scheduleBroadcast() : sendBroadcast())}
@@ -2581,7 +2619,9 @@ function MessagesPage() {
               ) : (
                 <Send className="h-4 w-4 mr-1" />
               )}
-              {broadcastScheduleAt ? "Programar" : "Enviar a todos"}
+              {broadcastScheduleAt
+                ? t("hc_routesAppMessages.schedule")
+                : t("hc_routesAppMessages.sendToAll")}
             </Button>
           </div>
         </DialogContent>
@@ -2611,7 +2651,7 @@ function MessagesPage() {
             <div className="flex items-start justify-between gap-2 flex-wrap">
               <DialogTitle className="flex items-center gap-2">
                 <CalendarClock className="h-4 w-4 text-cyan-500" />
-                Mensajes programados
+                {t("hc_routesAppMessages.scheduledMessages")}
               </DialogTitle>
               <Button
                 size="sm"
@@ -2622,13 +2662,15 @@ function MessagesPage() {
                   void loadScheduled();
                 }}
               >
-                {showScheduledHistory ? "Solo pendientes" : "Ver historial"}
+                {showScheduledHistory
+                  ? t("hc_routesAppMessages.onlyPending")
+                  : t("hc_routesAppMessages.viewHistory")}
               </Button>
             </div>
             <DialogDescription>
               {showScheduledHistory
-                ? "Todos los mensajes programados, incluidos enviados, cancelados y fallidos."
-                : "Mensajes pendientes de envío. Puedes editarlos, cancelarlos o forzar el envío ahora."}
+                ? t("hc_routesAppMessages.scheduledHistoryDescription")
+                : t("hc_routesAppMessages.scheduledPendingDescription")}
             </DialogDescription>
           </DialogHeader>
           {/* Banner "Procesar pendientes ahora" — solo visible si hay
@@ -2642,8 +2684,7 @@ function MessagesPage() {
             <div className="flex items-center gap-2 rounded-md border border-amber-300/40 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/20 px-3 py-2">
               <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
               <p className="text-xs text-muted-foreground flex-1">
-                Hay mensajes atrasados. Si el cron está pausado o tarda, puedes forzar el envío
-                ahora.
+                {t("hc_routesAppMessages.overdueMessagesHint")}
               </p>
               <Button
                 size="sm"
@@ -2657,27 +2698,27 @@ function MessagesPage() {
                 ) : (
                   <Zap className="h-3.5 w-3.5 mr-1" />
                 )}
-                Procesar ahora
+                {t("hc_routesAppMessages.processNow")}
               </Button>
             </div>
           )}
           <div className="max-h-[60dvh] overflow-y-auto">
             {scheduledLoading ? (
               <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-6">
-                <Spinner size="sm" /> Cargando…
+                <Spinner size="sm" /> {t("hc_routesAppMessages.loading")}
               </div>
             ) : scheduledItems.length === 0 ? (
               <EmptyState
                 icon={CalendarClock}
                 text={
                   showScheduledHistory
-                    ? "No tienes mensajes programados en el historial."
-                    : "No tienes mensajes pendientes de envío."
+                    ? t("hc_routesAppMessages.noScheduledHistory")
+                    : t("hc_routesAppMessages.noScheduledPending")
                 }
                 hint={
                   showScheduledHistory
                     ? undefined
-                    : "Programa uno desde el composer del chat (botón ⏰) o desde la difusión."
+                    : t("hc_routesAppMessages.scheduledEmptyHint")
                 }
               />
             ) : (
@@ -2702,10 +2743,10 @@ function MessagesPage() {
                   // de la migración 20260605000000 (kind_check ampliado).
                   const kindLabel =
                     it.kind === "broadcast"
-                      ? "Difusión"
+                      ? t("hc_routesAppMessages.kindBroadcast")
                       : it.kind === "group"
-                        ? "Grupo"
-                        : "Directo";
+                        ? t("hc_routesAppMessages.kindGroup")
+                        : t("hc_routesAppMessages.kindDirect");
                   return (
                     <li
                       key={it.id}
@@ -2729,7 +2770,7 @@ function MessagesPage() {
                               className="text-[10px] shrink-0 border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10"
                             >
                               <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
-                              Atrasado
+                              {t("hc_routesAppMessages.overdue")}
                             </Badge>
                           )}
                         </div>
@@ -2752,7 +2793,7 @@ function MessagesPage() {
                         <div className="space-y-2 pt-1">
                           <div>
                             <Label htmlFor={`edit-body-${it.id}`} required>
-                              Contenido
+                              {t("hc_routesAppMessages.content")}
                             </Label>
                             <Textarea
                               id={`edit-body-${it.id}`}
@@ -2764,7 +2805,7 @@ function MessagesPage() {
                           </div>
                           <div>
                             <Label htmlFor={`edit-sendat-${it.id}`} required>
-                              Reprogramar envío
+                              {t("hc_routesAppMessages.rescheduleSend")}
                             </Label>
                             <DateTimePicker
                               id={`edit-sendat-${it.id}`}
@@ -2780,7 +2821,7 @@ function MessagesPage() {
                               onClick={cancelEditScheduled}
                               disabled={savingEdit}
                             >
-                              Descartar
+                              {t("hc_routesAppMessages.discard")}
                             </Button>
                             <Button
                               size="sm"
@@ -2797,7 +2838,7 @@ function MessagesPage() {
                               ) : (
                                 <Check className="h-3 w-3 mr-1" />
                               )}
-                              Guardar
+                              {t("hc_routesAppMessages.save")}
                             </Button>
                           </div>
                         </div>
@@ -2806,7 +2847,9 @@ function MessagesPage() {
                       )}
 
                       {it.status === "failed" && it.error && !isEditing && (
-                        <div className="text-[11px] text-destructive">Error: {it.error}</div>
+                        <div className="text-[11px] text-destructive">
+                          {t("hc_routesAppMessages.errorPrefix", { error: it.error })}
+                        </div>
                       )}
                       {it.status === "pending" && !isEditing && (
                         <div className="flex justify-end gap-1.5">
@@ -2817,7 +2860,7 @@ function MessagesPage() {
                             onClick={() => beginEditScheduled(it)}
                           >
                             <Pencil className="h-3 w-3 mr-1" />
-                            Editar
+                            {t("hc_routesAppMessages.edit")}
                           </Button>
                           <Button
                             size="sm"
@@ -2826,7 +2869,7 @@ function MessagesPage() {
                             onClick={() => void cancelScheduled(it.id)}
                           >
                             <X className="h-3 w-3 mr-1" />
-                            Cancelar
+                            {t("hc_routesAppMessages.cancel")}
                           </Button>
                         </div>
                       )}

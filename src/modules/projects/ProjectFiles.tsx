@@ -380,12 +380,16 @@ export function TeacherProjectFilesEditor({
     const hasSubmissions = (linkedCount ?? 0) > 0;
     const ok = await confirm({
       title: hasSubmissions
-        ? `Eliminar pregunta (${linkedCount} entrega${linkedCount === 1 ? "" : "s"} afectada${linkedCount === 1 ? "" : "s"})`
-        : "Eliminar pregunta",
+        ? t("hc_modulesProjectsProjectFiles.deleteQuestionTitleWithSubmissions", {
+            count: linkedCount,
+          })
+        : t("hc_modulesProjectsProjectFiles.deleteQuestionTitle"),
       description: hasSubmissions
-        ? `Esta pregunta ya tiene ${linkedCount} entrega${linkedCount === 1 ? "" : "s"} de estudiantes. Al eliminarla, sus respuestas y archivos de código se perderán y verán "Aún no has subido tu archivo" en la retroalimentación. Esta acción no se puede deshacer.`
-        : "Se eliminará la pregunta del proyecto. Esta acción no se puede deshacer.",
-      confirmLabel: "Eliminar",
+        ? t("hc_modulesProjectsProjectFiles.deleteQuestionDescWithSubmissions", {
+            count: linkedCount,
+          })
+        : t("hc_modulesProjectsProjectFiles.deleteQuestionDesc"),
+      confirmLabel: t("hc_modulesProjectsProjectFiles.confirmDelete"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -454,7 +458,7 @@ export function TeacherProjectFilesEditor({
         },
       });
       if (enqErr) {
-        toast.error(friendlyError(enqErr, "No se pudo encolar la generación"));
+        toast.error(friendlyError(enqErr, t("hc_modulesProjectsProjectFiles.errEnqueueGeneration")));
         return;
       }
       toast.success(
@@ -477,7 +481,7 @@ export function TeacherProjectFilesEditor({
         },
       });
       if (error) {
-        toast.error(friendlyError(error, "Error generando con IA"));
+        toast.error(friendlyError(error, t("hc_modulesProjectsProjectFiles.errGeneratingAi")));
       } else if (data?.error) {
         toast.error(data.error);
       } else if (data?.inserted) {
@@ -499,7 +503,7 @@ export function TeacherProjectFilesEditor({
       }
       void load();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Error IA";
+      const msg = e instanceof Error ? e.message : t("hc_modulesProjectsProjectFiles.errAi");
       toast.error(msg);
     } finally {
       setAutoLoading(false);
@@ -568,7 +572,7 @@ export function TeacherProjectFilesEditor({
       }));
       const { error: enqErr } = await dbAny.from("ai_generation_queue").insert(rows);
       if (enqErr) {
-        toast.error(friendlyError(enqErr, "No se pudo encolar la generación"));
+        toast.error(friendlyError(enqErr, t("hc_modulesProjectsProjectFiles.errEnqueueGeneration")));
         return;
       }
       toast.success(
@@ -639,7 +643,7 @@ export function TeacherProjectFilesEditor({
       }
       void load();
     } catch (e: any) {
-      toast.error(friendlyError(e, "Error IA"));
+      toast.error(friendlyError(e, t("hc_modulesProjectsProjectFiles.errAi")));
     } finally {
       setAiLoading(false);
     }
@@ -723,15 +727,17 @@ export function TeacherProjectFilesEditor({
             <div className="rounded-md border bg-muted/30 px-3 py-2">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs text-muted-foreground font-medium">
-                  {questions.length} pregunta{questions.length !== 1 ? "s" : ""} guardadas ·{" "}
-                  {questions.reduce((s, q) => s + (q.points ?? 0), 0)} pts totales
+                  {t("hc_modulesProjectsProjectFiles.savedQuestionsSummary", {
+                    count: questions.length,
+                    points: questions.reduce((s, q) => s + (q.points ?? 0), 0),
+                  })}
                 </span>
                 <button
                   type="button"
                   className="text-xs text-primary hover:underline"
                   onClick={() => setActiveTab("list")}
                 >
-                  Ver lista
+                  {t("hc_modulesProjectsProjectFiles.viewList")}
                 </button>
               </div>
               <div className="flex flex-wrap gap-1">
@@ -807,7 +813,9 @@ export function TeacherProjectFilesEditor({
                     onChange={(e) =>
                       setQChoices(qChoices.map((cc, j) => (j === i ? e.target.value : cc)))
                     }
-                    placeholder={`Opción ${String.fromCharCode(65 + i)}`}
+                    placeholder={t("hc_modulesProjectsProjectFiles.optionPlaceholder", {
+                      letter: String.fromCharCode(65 + i),
+                    })}
                   />
                 </div>
               ))}
@@ -838,7 +846,9 @@ export function TeacherProjectFilesEditor({
                       onChange={(e) =>
                         setQChoices(qChoices.map((cc, j) => (j === i ? e.target.value : cc)))
                       }
-                      placeholder={`Opción ${String.fromCharCode(65 + i)}`}
+                      placeholder={t("hc_modulesProjectsProjectFiles.optionPlaceholder", {
+                        letter: String.fromCharCode(65 + i),
+                      })}
                     />
                   </div>
                 ))}
@@ -919,20 +929,17 @@ export function TeacherProjectFilesEditor({
               <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
                 {qZipSingle ? (
                   <>
-                    <strong>Modo ZIP único (scaffolding):</strong> el estudiante sube UN archivo{" "}
-                    <code>.zip</code> con su proyecto. El servidor lo descomprime y la IA recibe
-                    cada archivo <strong>íntegro</strong> (sin minificar, sin truncar por archivo)
-                    en un solo prompt — hasta el tope global de ~200K caracteres. Útil para que la
-                    IA "vea" todo el código tal cual lo escribió el alumno, incluidos comentarios.
+                    <strong>{t("hc_modulesProjectsProjectFiles.zipSingleModeLabel")}</strong>{" "}
+                    {t("hc_modulesProjectsProjectFiles.zipSingleModeDescPart1")} <code>.zip</code>{" "}
+                    {t("hc_modulesProjectsProjectFiles.zipSingleModeDescPart2")}{" "}
+                    <strong>{t("hc_modulesProjectsProjectFiles.zipSingleModeWhole")}</strong>{" "}
+                    {t("hc_modulesProjectsProjectFiles.zipSingleModeDescPart3")}
                   </>
                 ) : (
                   <>
-                    El estudiante seleccionará <strong>varios archivos de código fuente</strong>{" "}
-                    directo (sin comprimir). Solo se aceptan archivos cuya extensión coincida con el
-                    lenguaje principal; cualquier otro archivo bloquea la entrega antes de subir. La
-                    IA recibe todos los archivos minificados en un solo prompt y califica el
-                    proyecto como conjunto según la rúbrica y los puntos. Diagramas y documentos van
-                    en preguntas separadas (tipo Abierta o Diagrama).
+                    {t("hc_modulesProjectsProjectFiles.multiFileDescPart1")}{" "}
+                    <strong>{t("hc_modulesProjectsProjectFiles.multiFileSourceFiles")}</strong>{" "}
+                    {t("hc_modulesProjectsProjectFiles.multiFileDescPart2")}
                   </>
                 )}
               </div>
@@ -1003,11 +1010,11 @@ export function TeacherProjectFilesEditor({
                 <Sparkles className="h-4 w-4 text-primary" />
                 {t("projectFiles.autoGenerateTitle")}{" "}
                 <HelpHint>
-                  La IA lee la descripción del proyecto y propone el set completo de preguntas.
-                  Siempre genera <strong>1 pregunta de código (archivos)</strong> y entre 2 y 5
-                  preguntas adicionales (abierta, diagrama o cerrada) para evaluar análisis y diseño
-                  por separado. El prompt se edita en Prompts (use_case{" "}
-                  <code>project_questions</code>).
+                  {t("hc_modulesProjectsProjectFiles.autoGenerateHintPart1")}{" "}
+                  <strong>{t("hc_modulesProjectsProjectFiles.autoGenerateHintCodeQuestion")}</strong>{" "}
+                  {t("hc_modulesProjectsProjectFiles.autoGenerateHintPart2")}{" "}
+                  <code>project_questions</code>
+                  {t("hc_modulesProjectsProjectFiles.autoGenerateHintPart3")}
                 </HelpHint>
               </CardTitle>
             </CardHeader>
@@ -1169,6 +1176,7 @@ export function StudentProjectTaker({
   groupId?: string | null;
   onGraded?: (finalGrade: number) => void;
 }) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const confirm = useConfirm();
   const [questions, setQuestions] = useState<ProjectFile[]>([]);
@@ -1475,7 +1483,7 @@ export function StudentProjectTaker({
           // `{ error: "detalle..." }`), no el genérico
           // "Edge Function returned a non-2xx status code".
           const real = await extractEdgeError(error, data);
-          throw new Error(real || "Error ejecutando código");
+          throw new Error(real || t("hc_modulesProjectsProjectFiles.errRunningCode"));
         }
         stdout = data?.stdout ?? "";
         stderr = data?.stderr ?? "";
@@ -1490,26 +1498,26 @@ export function StudentProjectTaker({
       if (stdoutOpaque) stdout = "";
       if (stderrOpaque) stderr = "";
       if (!stdout.trim() && !stderr.trim()) {
-        stderr =
-          "El compilador remoto no devolvió detalle del error. Suele indicar un error " +
-          "de compilación (falta `;`, llaves desbalanceadas, import erróneo, nombre " +
-          "de clase incorrecto). Revisa tu código línea por línea y vuelve a intentar.";
+        stderr = t("hc_modulesProjectsProjectFiles.compilerNoDetail");
       }
 
       // Combinar stdout + stderr en el orden natural de terminal.
       const parts: string[] = [];
       if (stdout.trimEnd()) parts.push(stdout.trimEnd());
       if (stderr.trimEnd()) parts.push(stderr.trimEnd());
-      const output = parts.join("\n") || "(sin salida)";
+      const output = parts.join("\n") || t("hc_modulesProjectsProjectFiles.noOutput");
       setCodeOutputs((prev) => ({ ...prev, [questionId]: output }));
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Error ejecutando";
+      const msg = e instanceof Error ? e.message : t("hc_modulesProjectsProjectFiles.errRunning");
       // Cancelación por el usuario: NO mostramos error ni loggeamos. La
       // UI ya quedó libre por cancelRun; aquí solo silenciamos el catch.
       if (msg === CANCELLED_SENTINEL) {
         return;
       }
-      setCodeOutputs((prev) => ({ ...prev, [questionId]: `Error: ${msg}` }));
+      setCodeOutputs((prev) => ({
+        ...prev,
+        [questionId]: t("hc_modulesProjectsProjectFiles.errorPrefix", { msg }),
+      }));
       void logEvent({
         action: "code_execution_error",
         category: "project",
@@ -1648,14 +1656,17 @@ export function StudentProjectTaker({
         if (!zipFile.name.toLowerCase().endsWith(".zip")) {
           codeQuestionErrors.push({
             qNumber: i + 1,
-            message: `Pregunta #${i + 1}: el archivo entregado no es un .zip.`,
+            message: t("hc_modulesProjectsProjectFiles.questionFileNotZip", { number: i + 1 }),
           });
           continue;
         }
         if (zipFile.size > MAX_CODE_FILES_TOTAL_BYTES) {
           codeQuestionErrors.push({
             qNumber: i + 1,
-            message: `Pregunta #${i + 1}: el ZIP pesa ${formatFileSize(zipFile.size)} y supera el tope de 50 MB.`,
+            message: t("hc_modulesProjectsProjectFiles.questionZipTooBig", {
+              number: i + 1,
+              size: formatFileSize(zipFile.size),
+            }),
           });
           continue;
         }
@@ -1663,7 +1674,10 @@ export function StudentProjectTaker({
         if (!preCheck.ok) {
           codeQuestionErrors.push({
             qNumber: i + 1,
-            message: `Pregunta #${i + 1}: ${preCheck.error}`,
+            message: t("hc_modulesProjectsProjectFiles.questionPrefixError", {
+              number: i + 1,
+              error: preCheck.error,
+            }),
           });
         }
       } else {
@@ -1680,11 +1694,18 @@ export function StudentProjectTaker({
               .slice(0, 5)
               .map((f) => f.name)
               .join(", ");
-            const more = violations.length > 5 ? ` (+${violations.length - 5} más)` : "";
+            const more = violations.length > 5
+              ? t("hc_modulesProjectsProjectFiles.moreCountSuffix", { count: violations.length - 5 })
+              : "";
             const allowedLabel = allowedExts.map((e) => `.${e}`).join(", ");
             codeQuestionErrors.push({
               qNumber: i + 1,
-              message: `Pregunta #${i + 1}: archivos no permitidos: ${sample}${more}. Solo se aceptan ${allowedLabel}.`,
+              message: t("hc_modulesProjectsProjectFiles.questionDisallowedFiles", {
+                number: i + 1,
+                sample,
+                more,
+                allowed: allowedLabel,
+              }),
             });
             continue;
           }
@@ -1693,12 +1714,19 @@ export function StudentProjectTaker({
         if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
           codeQuestionErrors.push({
             qNumber: i + 1,
-            message: `Pregunta #${i + 1}: los archivos suman ${formatFileSize(totalBytes)} y superan el tope de 50 MB.`,
+            message: t("hc_modulesProjectsProjectFiles.questionFilesTooBig", {
+              number: i + 1,
+              size: formatFileSize(totalBytes),
+            }),
           });
         } else if (filesArr.length > MAX_CODE_FILES_COUNT) {
           codeQuestionErrors.push({
             qNumber: i + 1,
-            message: `Pregunta #${i + 1}: demasiados archivos (${filesArr.length}). Máximo permitido: ${MAX_CODE_FILES_COUNT}.`,
+            message: t("hc_modulesProjectsProjectFiles.questionTooManyFiles", {
+              number: i + 1,
+              count: filesArr.length,
+              max: MAX_CODE_FILES_COUNT,
+            }),
           });
         }
       }
@@ -1724,21 +1752,21 @@ export function StudentProjectTaker({
     const unanswered = getUnansweredNumbers();
     if (unanswered.length > 0) {
       const ok = await confirm({
-        title: `${unanswered.length} pregunta${unanswered.length === 1 ? "" : "s"} sin responder`,
+        title: t("hc_modulesProjectsProjectFiles.unansweredTitle", { count: unanswered.length }),
         description: (
           <div className="space-y-1">
             <p>
-              Sin respuesta:{" "}
+              {t("hc_modulesProjectsProjectFiles.unansweredLabel")}{" "}
               <span className="font-medium text-foreground">
                 {unanswered.map((n) => `#${n}`).join(", ")}
               </span>
               .
             </p>
-            <p>Esas preguntas recibirán 0 puntos. ¿Quieres entregar el proyecto de todas formas?</p>
+            <p>{t("hc_modulesProjectsProjectFiles.unansweredWarning")}</p>
           </div>
         ),
-        confirmLabel: "Entregar de todas formas",
-        cancelLabel: "Seguir respondiendo",
+        confirmLabel: t("hc_modulesProjectsProjectFiles.submitAnyway"),
+        cancelLabel: t("hc_modulesProjectsProjectFiles.keepAnswering"),
         tone: "warning",
       });
       if (!ok) return;
@@ -1822,7 +1850,9 @@ export function StudentProjectTaker({
           .select("id")
           .single();
         if (error || !created) {
-          toast.error(friendlyError(error, "No se pudo crear la entrega"));
+          toast.error(
+            friendlyError(error, t("hc_modulesProjectsProjectFiles.errCreateSubmission")),
+          );
           setSubmitting(false);
           return;
         }
@@ -1886,13 +1916,15 @@ export function StudentProjectTaker({
         };
 
         let earned = 0;
-        let feedback = "Sin retroalimentación";
+        let feedback = t("hc_modulesProjectsProjectFiles.feedbackNone");
 
         if (q.type === "cerrada") {
           const correctIdx = q.options?.correct_index;
           const got = String(raw) === String(correctIdx) ? Number(q.points) : 0;
           earned = got;
-          feedback = got > 0 ? "Respuesta correcta" : "Respuesta incorrecta";
+          feedback = got > 0
+            ? t("hc_modulesProjectsProjectFiles.feedbackCorrect")
+            : t("hc_modulesProjectsProjectFiles.feedbackIncorrect");
           payload.selected_option = String(raw);
           // Guardar también el texto elegido en `content` para revisión
           const choices = q.options?.choices ?? [];
@@ -1911,12 +1943,19 @@ export function StudentProjectTaker({
           });
           earned = result.earned;
           feedback = result.exceededMax
-            ? `Marcaste más opciones de las permitidas (${(q.options as any)?.max_selections}).`
+            ? t("hc_modulesProjectsProjectFiles.feedbackTooManyOptions", {
+                max: (q.options as any)?.max_selections,
+              })
             : result.belowMin
-              ? `Faltó marcar al menos ${(q.options as any)?.min_selections} opciones.`
+              ? t("hc_modulesProjectsProjectFiles.feedbackBelowMinOptions", {
+                  min: (q.options as any)?.min_selections,
+                })
               : selectedArr.length === 0
-                ? "Sin respuesta"
-                : `${earned} / ${q.points} pts`;
+                ? t("hc_modulesProjectsProjectFiles.feedbackNoAnswer")
+                : t("hc_modulesProjectsProjectFiles.feedbackEarnedOfPoints", {
+                    earned,
+                    points: q.points,
+                  });
           // Guardamos array como JSON en content (selected_option es text de 1 valor)
           payload.content = JSON.stringify(selectedArr);
           payload.ai_grade = earned;
@@ -1931,18 +1970,19 @@ export function StudentProjectTaker({
           if (!zipFile) {
             payload.content = "";
             payload.ai_grade = 0;
-            payload.ai_feedback = "Sin archivo ZIP entregado";
+            payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackNoZip");
           } else if (!user?.id) {
             payload.ai_grade = 0;
-            payload.ai_feedback =
-              "Sesión no autenticada — recarga la página e inicia sesión de nuevo.";
+            payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackNotAuthenticated");
           } else if (zipFile.size > MAX_CODE_FILES_TOTAL_BYTES) {
             payload.ai_grade = 0;
-            payload.ai_feedback = `El ZIP pesa ${formatFileSize(zipFile.size)} y supera el tope de 50 MB.`;
+            payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackZipTooBig", {
+              size: formatFileSize(zipFile.size),
+            });
             toast.error(payload.ai_feedback, { duration: 8000 });
           } else if (!zipFile.name.toLowerCase().endsWith(".zip")) {
             payload.ai_grade = 0;
-            payload.ai_feedback = "El archivo entregado no es un .zip.";
+            payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackFileNotZip");
             toast.error(payload.ai_feedback, { duration: 8000 });
           } else {
             // Pre-validación cliente-side: descomprimir el ZIP en el
@@ -1971,7 +2011,9 @@ export function StudentProjectTaker({
               });
             if (upErr) {
               payload.ai_grade = 0;
-              payload.ai_feedback = `Error al subir el ZIP: ${upErr.message}`;
+              payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackZipUploadError", {
+                detail: upErr.message,
+              });
               toast.error(payload.ai_feedback, { duration: 8000 });
             } else {
               payload.zip_path = zipPath;
@@ -2006,7 +2048,8 @@ export function StudentProjectTaker({
               if (aiErr || aiData?.error) {
                 const detail = await extractEdgeError(aiErr, aiData);
                 payload.ai_grade = 0;
-                payload.ai_feedback = detail || "Error IA al calificar el ZIP";
+                payload.ai_feedback =
+                  detail || t("hc_modulesProjectsProjectFiles.feedbackAiZipError");
                 toast.error(payload.ai_feedback, { duration: 8000 });
               } else {
                 earned = Number(aiData?.grade) || 0;
@@ -2038,14 +2081,13 @@ export function StudentProjectTaker({
           if (filesArr.length === 0) {
             payload.content = "";
             payload.ai_grade = 0;
-            payload.ai_feedback = "Sin archivos de código entregados";
+            payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackNoCodeFiles");
           } else if (!user?.id) {
             // Sin sesión auth válida el path sería "undefined/...", que
             // viola la RLS de storage. Mejor un error claro que un
             // "new row violates row-level security policy" críptico.
             payload.ai_grade = 0;
-            payload.ai_feedback =
-              "Sesión no autenticada — recarga la página e inicia sesión de nuevo.";
+            payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackNotAuthenticated");
           } else {
             // Validación cliente-side defense-in-depth (el picker ya
             // filtra al elegir, pero un estado React stale podría colar
@@ -2058,10 +2100,18 @@ export function StudentProjectTaker({
                   .slice(0, 5)
                   .map((f) => f.name)
                   .join(", ");
-                const more = violations.length > 5 ? ` (+${violations.length - 5} más)` : "";
+                const more = violations.length > 5
+                  ? t("hc_modulesProjectsProjectFiles.moreCountSuffix", {
+                      count: violations.length - 5,
+                    })
+                  : "";
                 const allowedLabel = allowedExtensions.map((e) => `.${e}`).join(", ");
                 payload.ai_grade = 0;
-                payload.ai_feedback = `Archivos no permitidos: ${sample}${more}. Solo se aceptan ${allowedLabel}.`;
+                payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackDisallowedFiles", {
+                  sample,
+                  more,
+                  allowed: allowedLabel,
+                });
                 toast.error(payload.ai_feedback, { duration: 8000 });
               }
             }
@@ -2073,11 +2123,16 @@ export function StudentProjectTaker({
             const totalBytes = filesArr.reduce((acc, f) => acc + f.size, 0);
             if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
               payload.ai_grade = 0;
-              payload.ai_feedback = `El total de archivos supera el tope de 50 MB (${formatFileSize(totalBytes)}). Reduce el contenido.`;
+              payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackFilesTotalTooBig", {
+                size: formatFileSize(totalBytes),
+              });
               toast.error(payload.ai_feedback, { duration: 8000 });
             } else if (filesArr.length > MAX_CODE_FILES_COUNT) {
               payload.ai_grade = 0;
-              payload.ai_feedback = `Demasiados archivos (${filesArr.length}). Máximo permitido: ${MAX_CODE_FILES_COUNT}.`;
+              payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackTooManyFiles", {
+                count: filesArr.length,
+                max: MAX_CODE_FILES_COUNT,
+              });
               toast.error(payload.ai_feedback, { duration: 8000 });
             }
           }
@@ -2108,7 +2163,10 @@ export function StudentProjectTaker({
             const upFailed = uploads.filter((u) => u.error);
             if (upFailed.length > 0) {
               payload.ai_grade = 0;
-              payload.ai_feedback = `Error al subir ${upFailed.length} archivo(s): ${upFailed[0].error?.message ?? ""}`;
+              payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackUploadFailed", {
+                count: upFailed.length,
+                detail: upFailed[0].error?.message ?? "",
+              });
               toast.error(payload.ai_feedback, { duration: 8000 });
             } else {
               const uploadedPaths = uploads.map((u) => u.path);
@@ -2153,7 +2211,8 @@ export function StudentProjectTaker({
                 // y el estudiante no entendía por qué su entrega tuvo 0.
                 const detail = await extractEdgeError(aiErr, aiData);
                 payload.ai_grade = 0;
-                payload.ai_feedback = detail || "Error IA al calificar los archivos";
+                payload.ai_feedback =
+                  detail || t("hc_modulesProjectsProjectFiles.feedbackAiFilesError");
                 toast.error(payload.ai_feedback, { duration: 8000 });
               } else {
                 earned = Number(aiData?.grade) || 0;
@@ -2188,7 +2247,7 @@ export function StudentProjectTaker({
           if (isEmpty) {
             payload.content = "";
             payload.ai_grade = 0;
-            payload.ai_feedback = "Sin respuesta";
+            payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackNoAnswer");
           } else {
             // Pregunta abierta con respuesta — bucketea para el batch.
             // type real (no remapeado a "codigo") + framework para que
@@ -2255,7 +2314,9 @@ export function StudentProjectTaker({
               >)
             : {};
         const errMsg = batchFailed
-          ? `Error IA: ${bErr?.message ?? bData?.error ?? "Desconocido"}`
+          ? t("hc_modulesProjectsProjectFiles.aiBatchError", {
+              detail: bErr?.message ?? bData?.error ?? t("hc_modulesProjectsProjectFiles.unknown"),
+            })
           : null;
 
         for (const it of batchItems) {
@@ -2264,13 +2325,13 @@ export function StudentProjectTaker({
           if (r) {
             const earned = Math.max(0, Math.min(it.maxPoints, Number(r.score) || 0));
             payload.ai_grade = earned;
-            payload.ai_feedback = r.feedback || "Sin retroalimentación";
+            payload.ai_feedback = r.feedback || t("hc_modulesProjectsProjectFiles.feedbackNone");
             payload.ai_likelihood = typeof r.ai_likelihood === "number" ? r.ai_likelihood : null;
             payload.ai_reasons = r.ai_reasons ?? null;
             totalEarned += earned;
           } else {
             payload.ai_grade = 0;
-            payload.ai_feedback = errMsg ?? "El modelo no incluyó esta pregunta en su respuesta.";
+            payload.ai_feedback = errMsg ?? t("hc_modulesProjectsProjectFiles.feedbackModelOmitted");
           }
         }
       } else if (batchItems.length > 0 && useAsyncAi) {
@@ -2418,7 +2479,9 @@ export function StudentProjectTaker({
         pendingEnqueues.length + (useAsyncAi && batchItems.length > 0 ? batchItems.length : 0);
       if (totalQueued > 0) {
         toast.info(QUEUED_STUDENT_TITLE, {
-          description: `${totalQueued} respuesta(s)`,
+          description: t("hc_modulesProjectsProjectFiles.queuedResponsesCount", {
+            count: totalQueued,
+          }),
           duration: 6000,
         });
       }
@@ -2435,7 +2498,9 @@ export function StudentProjectTaker({
           ai_grade: submissionScore,
           submission_grade: submissionScore,
           final_grade: null,
-          ai_feedback: `Calificación automática de la entrega sobre ${maxScore} pts. Falta sustentación.`,
+          ai_feedback: t("hc_modulesProjectsProjectFiles.submissionAutoFeedback", {
+            max: maxScore,
+          }),
           status: "entregado",
         })
         .eq("id", submissionId);
@@ -2458,30 +2523,38 @@ export function StudentProjectTaker({
   if (loading) {
     return (
       <p className="text-sm text-muted-foreground">
-        <Spinner size="xs" inline className="mr-1" /> Cargando preguntas…
+        <Spinner size="xs" inline className="mr-1" />{" "}
+        {t("hc_modulesProjectsProjectFiles.loadingQuestions")}
       </p>
     );
   }
 
   if (!questions.length) {
-    return <p className="text-sm text-muted-foreground">Este proyecto aún no tiene preguntas.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        {t("hc_modulesProjectsProjectFiles.noQuestionsYet")}
+      </p>
+    );
   }
 
   if (graded) {
     return (
       <Card className="border-primary/30 bg-primary/5">
         <CardHeader>
-          <CardTitle className="text-base">Calificación de la entrega</CardTitle>
+          <CardTitle className="text-base">
+            {t("hc_modulesProjectsProjectFiles.submissionGradeTitle")}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-2xl font-semibold tabular-nums">
             {graded.grade} / {maxScore}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Esta es la nota de la entrega calculada por IA. La{" "}
-            <strong>nota final del proyecto</strong> se calcula como{" "}
-            <code>entrega × factor de sustentación</code> y se publica cuando el docente registre tu
-            sustentación.
+            {t("hc_modulesProjectsProjectFiles.gradedNotePart1")}{" "}
+            <strong>{t("hc_modulesProjectsProjectFiles.gradedNoteFinalGrade")}</strong>{" "}
+            {t("hc_modulesProjectsProjectFiles.gradedNotePart2")}{" "}
+            <code>{t("hc_modulesProjectsProjectFiles.gradedNoteFormula")}</code>{" "}
+            {t("hc_modulesProjectsProjectFiles.gradedNotePart3")}
           </p>
         </CardContent>
       </Card>
@@ -2542,20 +2615,20 @@ export function StudentProjectTaker({
       <Card className="border-amber-500/40 bg-amber-500/5 dark:bg-amber-500/10">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">
-            Link al repositorio (GitHub o Drive) <span className="text-destructive">*</span>
+            {t("hc_modulesProjectsProjectFiles.repositoryLinkTitle")}{" "}
+            <span className="text-destructive">*</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           <Input
             type="url"
-            placeholder="https://github.com/usuario/proyecto  o  https://drive.google.com/..."
+            placeholder={t("hc_modulesProjectsProjectFiles.repositoryLinkPlaceholder")}
             value={repositoryUrl}
             onChange={(e) => setRepositoryUrl(e.target.value)}
           />
           <p className="text-[11px] text-muted-foreground">
-            <strong>Obligatorio</strong>. El docente verificará que la fecha de modificación de los
-            archivos sea igual o anterior a la fecha de entrega — no edites el repositorio después
-            de entregar.
+            <strong>{t("hc_modulesProjectsProjectFiles.repositoryRequiredLabel")}</strong>
+            {t("hc_modulesProjectsProjectFiles.repositoryHint")}
           </p>
         </CardContent>
       </Card>
@@ -2580,7 +2653,7 @@ export function StudentProjectTaker({
                 rows={4}
                 value={answers[q.id] ?? ""}
                 onChange={(e) => updateAnswer(q.id, e.target.value)}
-                placeholder="Escribe tu respuesta…"
+                placeholder={t("hc_modulesProjectsProjectFiles.answerPlaceholder")}
               />
             )}
             {q.type === "cerrada" && q.options?.choices && (
@@ -2606,12 +2679,12 @@ export function StudentProjectTaker({
                   const maxS = (q.options as any)?.max_selections;
                   const hint =
                     typeof minS === "number" && typeof maxS === "number"
-                      ? `Marca entre ${minS} y ${maxS} opciones`
+                      ? t("hc_modulesProjectsProjectFiles.hintMarkBetween", { min: minS, max: maxS })
                       : typeof minS === "number"
-                        ? `Marca al menos ${minS}`
+                        ? t("hc_modulesProjectsProjectFiles.hintMarkAtLeast", { min: minS })
                         : typeof maxS === "number"
-                          ? `Marca máximo ${maxS}`
-                          : "Marca todas las correctas";
+                          ? t("hc_modulesProjectsProjectFiles.hintMarkAtMost", { max: maxS })
+                          : t("hc_modulesProjectsProjectFiles.hintMarkAllCorrect");
                   return (
                     <>
                       <p className="text-xs text-muted-foreground">{hint}</p>
@@ -2635,7 +2708,7 @@ export function StudentProjectTaker({
                       })}
                       {typeof maxS === "number" && sel.length > maxS && (
                         <p className="text-xs text-destructive">
-                          Has marcado más de las permitidas ({maxS}).
+                          {t("hc_modulesProjectsProjectFiles.markedMoreThanAllowed", { max: maxS })}
                         </p>
                       )}
                     </>
@@ -2722,9 +2795,9 @@ export function StudentProjectTaker({
                 return (
                   <div className="space-y-2">
                     <div className="rounded-md border border-amber-400/40 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-300">
-                      <strong>Modo ZIP único:</strong> sube un archivo <code>.zip</code> con todo tu
-                      proyecto. El servidor lo descomprime y la IA califica todos los archivos
-                      juntos.
+                      <strong>{t("hc_modulesProjectsProjectFiles.studentZipSingleLabel")}</strong>{" "}
+                      {t("hc_modulesProjectsProjectFiles.studentZipSinglePart1")} <code>.zip</code>{" "}
+                      {t("hc_modulesProjectsProjectFiles.studentZipSinglePart2")}
                     </div>
                     <input
                       type="file"
@@ -2768,8 +2841,9 @@ export function StudentProjectTaker({
                       className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Comprimí tu carpeta de proyecto en un único{" "}
-                      <span className="font-mono">.zip</span>. Tope: 50 MB.
+                      {t("hc_modulesProjectsProjectFiles.compressFolderPart1")}{" "}
+                      <span className="font-mono">.zip</span>
+                      {t("hc_modulesProjectsProjectFiles.compressFolderPart2")}
                     </p>
                     {currentZip && (
                       <div className="flex items-center justify-between gap-2 text-[11px]">
@@ -2780,7 +2854,9 @@ export function StudentProjectTaker({
                           </span>
                           <button
                             type="button"
-                            aria-label={`Quitar ${currentZip.name}`}
+                            aria-label={t("hc_modulesProjectsProjectFiles.removeFile", {
+                              name: currentZip.name,
+                            })}
                             className="ml-0.5 rounded hover:bg-muted-foreground/20 p-0.5"
                             onClick={() => updateAnswer(q.id, null)}
                           >
@@ -2802,7 +2878,7 @@ export function StudentProjectTaker({
                   : undefined;
                 const allowedLabel = allowedExts
                   ? allowedExts.map((e) => `.${e}`).join(", ")
-                  : "archivos de código fuente";
+                  : t("hc_modulesProjectsProjectFiles.sourceCodeFiles");
                 const current: File[] = Array.isArray(answers[q.id])
                   ? (answers[q.id] as File[])
                   : answers[q.id] instanceof File
@@ -2906,24 +2982,27 @@ export function StudentProjectTaker({
                       className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Selecciona uno o varios archivos de código fuente directamente desde tu equipo
-                      — sin comprimir. Extensiones aceptadas:{" "}
-                      <span className="font-mono">{allowedLabel}</span>. Tope: 50 MB en total y
-                      hasta {MAX_CODE_FILES_COUNT} archivos. Puedes quitar archivos antes de enviar.
+                      {t("hc_modulesProjectsProjectFiles.multiFilePickPart1")}{" "}
+                      <span className="font-mono">{allowedLabel}</span>
+                      {t("hc_modulesProjectsProjectFiles.multiFilePickPart2", {
+                        max: MAX_CODE_FILES_COUNT,
+                      })}
                     </p>
                     {current.length > 0 && (
                       <div className="space-y-1">
                         <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                           <span>
-                            {current.length} archivo{current.length === 1 ? "" : "s"} ·{" "}
-                            {formatFileSize(current.reduce((a, f) => a + f.size, 0))}
+                            {t("hc_modulesProjectsProjectFiles.filesCountSize", {
+                              count: current.length,
+                              size: formatFileSize(current.reduce((a, f) => a + f.size, 0)),
+                            })}
                           </span>
                           <button
                             type="button"
                             onClick={() => updateAnswer(q.id, [])}
                             className="text-destructive hover:underline"
                           >
-                            Quitar todos
+                            {t("hc_modulesProjectsProjectFiles.removeAll")}
                           </button>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -2939,7 +3018,9 @@ export function StudentProjectTaker({
                                 <span className="text-muted-foreground">· {sizeStr}</span>
                                 <button
                                   type="button"
-                                  aria-label={`Quitar ${f.name}`}
+                                  aria-label={t("hc_modulesProjectsProjectFiles.removeFile", {
+                                    name: f.name,
+                                  })}
                                   className="ml-0.5 rounded hover:bg-muted-foreground/20 p-0.5"
                                   onClick={() =>
                                     updateAnswer(
@@ -2971,7 +3052,9 @@ export function StudentProjectTaker({
           const isLast = remaining === 1;
           return (
             <div className="flex items-center justify-center gap-1.5 text-[11px]">
-              <span className="text-muted-foreground">Intentos restantes:</span>
+              <span className="text-muted-foreground">
+                {t("hc_modulesProjectsProjectFiles.attemptsRemainingLabel")}
+              </span>
               <span
                 className={`tabular-nums font-medium ${
                   attemptsExhausted
@@ -2988,18 +3071,18 @@ export function StudentProjectTaker({
         })()}
         {attemptsExhausted ? (
           <p className="text-[11px] text-destructive text-center">
-            Ya consumiste todos tus intentos. No puedes volver a entregar.
+            {t("hc_modulesProjectsProjectFiles.attemptsExhaustedNotice")}
           </p>
         ) : effectiveMaxAttempts - attemptCount === 1 ? (
           <p className="text-[11px] text-amber-700 dark:text-amber-300 text-center font-medium">
             {effectiveMaxAttempts === 1
-              ? "Aviso: este proyecto admite UNA sola entrega — revisa todo antes de enviar."
-              : "Aviso: te queda 1 intento — revisa todo antes de enviar."}
+              ? t("hc_modulesProjectsProjectFiles.noticeSingleSubmission")
+              : t("hc_modulesProjectsProjectFiles.noticeOneAttemptLeft")}
           </p>
         ) : null}
         {videoGateBlocking && !attemptsExhausted && (
           <p className="text-[11px] text-amber-700 dark:text-amber-300 text-center">
-            Termina de ver el video introductorio para habilitar la entrega.
+            {t("hc_modulesProjectsProjectFiles.watchIntroVideoNotice")}
           </p>
         )}
         <Button
@@ -3008,7 +3091,7 @@ export function StudentProjectTaker({
           className="w-full"
         >
           {submitting ? <Spinner size="md" className="mr-1" /> : <Send className="h-4 w-4 mr-1" />}
-          Entregar
+          {t("hc_modulesProjectsProjectFiles.submitButton")}
         </Button>
       </div>
     </div>

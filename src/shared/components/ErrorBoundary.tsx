@@ -1,7 +1,9 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { logEvent } from "@/shared/lib/audit";
+import i18n from "@/i18n";
 
 /**
  * ErrorBoundary — captura excepciones en el árbol de React que NO
@@ -117,7 +119,7 @@ export class ErrorBoundary extends Component<Props, State> {
       if (isChunkLoadError(error)) {
         return (
           <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-            Actualizando…
+            {i18n.t("hc_sharedComponentsErrorBoundary.updating")}
           </div>
         );
       }
@@ -129,6 +131,7 @@ export class ErrorBoundary extends Component<Props, State> {
 }
 
 function DefaultFallback({ error, onReset }: { error: Error; onReset: () => void }) {
+  const { t } = useTranslation();
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center space-y-4">
@@ -136,9 +139,9 @@ function DefaultFallback({ error, onReset }: { error: Error; onReset: () => void
           <AlertTriangle className="h-8 w-8 text-destructive" />
         </div>
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">Algo salió mal</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t("hc_sharedComponentsErrorBoundary.title")}</h1>
           <p className="text-sm text-muted-foreground">
-            La aplicación encontró un error inesperado. Recargar la página suele resolverlo.
+            {t("hc_sharedComponentsErrorBoundary.description")}
           </p>
         </div>
         {import.meta.env.DEV && error.message && (
@@ -147,9 +150,9 @@ function DefaultFallback({ error, onReset }: { error: Error; onReset: () => void
           </pre>
         )}
         <div className="flex items-center justify-center gap-3">
-          <Button onClick={onReset}>Reintentar</Button>
+          <Button onClick={onReset}>{t("hc_sharedComponentsErrorBoundary.retry")}</Button>
           <Button variant="outline" onClick={() => window.location.reload()}>
-            Recargar página
+            {t("hc_sharedComponentsErrorBoundary.reloadPage")}
           </Button>
         </div>
       </div>

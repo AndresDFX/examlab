@@ -194,12 +194,17 @@ function formatStudentAnswer(
     const arr: unknown[] = Array.isArray(opts) ? opts : (opts.options ?? []);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const opt = arr[idx] as any;
-    const label = typeof opt === "string" ? opt : (opt?.text ?? opt?.label ?? `Opción ${idx + 1}`);
-    return `Marcó la opción ${idx + 1}: ${label}`;
+    const label =
+      typeof opt === "string"
+        ? opt
+        : (opt?.text ??
+          opt?.label ??
+          i18n.t("hc_routesAppTeacherMonitorExamId.optionN", { n: idx + 1 }));
+    return i18n.t("hc_routesAppTeacherMonitorExamId.markedOption", { n: idx + 1, label });
   }
   if (qType === "cerrada_multi") {
     const arr = Array.isArray(raw) ? raw : [];
-    if (arr.length === 0) return "Sin selección";
+    if (arr.length === 0) return i18n.t("hc_routesAppTeacherMonitorExamId.noSelection");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const opts = (question?.options as any) ?? [];
     const optsArr: unknown[] = Array.isArray(opts) ? opts : (opts.options ?? []);
@@ -210,7 +215,10 @@ function formatStudentAnswer(
       const label = typeof opt === "string" ? opt : (opt?.text ?? opt?.label ?? "?");
       return `(${n + 1}) ${label}`;
     });
-    return `Marcó ${arr.length} opción(es): ${labels.join(" · ")}`;
+    return i18n.t("hc_routesAppTeacherMonitorExamId.markedMultiOptions", {
+      count: arr.length,
+      labels: labels.join(" · "),
+    });
   }
   // Tipos de texto libre — abierta, codigo, diagrama, java_gui, python_gui.
   const text = typeof raw === "string" ? raw : JSON.stringify(raw, null, 2);
@@ -758,15 +766,19 @@ function ExamMonitor() {
     setLoading(null);
 
     const labels: Record<string, string> = {
-      pause: "Examen pausado",
-      resume: "Examen reanudado",
-      add_time: `+${Math.floor(extraSeconds / 60)} minuto(s) añadidos`,
+      pause: t("hc_routesAppTeacherMonitorExamId.examPaused"),
+      resume: t("hc_routesAppTeacherMonitorExamId.examResumed"),
+      add_time: t("hc_routesAppTeacherMonitorExamId.minutesAdded", {
+        n: Math.floor(extraSeconds / 60),
+      }),
     };
     toast.success(
       i18n.t("toast.routes_app_teacher_monitor_examId.timerControlApplied", {
         defaultValue: "{{label}} {{scope}}",
         label: labels[action],
-        scope: targetUserId ? "(estudiante)" : "(global)",
+        scope: targetUserId
+          ? t("hc_routesAppTeacherMonitorExamId.scopeStudent")
+          : t("hc_routesAppTeacherMonitorExamId.scopeGlobal"),
       }),
     );
   };
@@ -816,7 +828,7 @@ function ExamMonitor() {
         // Extrae el mensaje real del response body (no el genérico
         // "Edge Function returned a non-2xx status code").
         const detail = await extractEdgeError(error, data);
-        toast.error(detail || "Error al calificar con IA");
+        toast.error(detail || t("hc_routesAppTeacherMonitorExamId.aiGradeError"));
         return;
       }
       if (useDryRun && data?.dryRun) {
@@ -905,7 +917,7 @@ function ExamMonitor() {
       );
       load();
     } catch (e: any) {
-      toast.error(friendlyError(e, "Error desconocido"));
+      toast.error(friendlyError(e, t("hc_routesAppTeacherMonitorExamId.unknownError")));
     } finally {
       setAiGradingId(null);
       setAiGradingQid(null);
@@ -1071,9 +1083,9 @@ function ExamMonitor() {
     const ok = await confirm({
       title: t("monitor.clearWarningsTitle"),
       description: result.restoredToInProgress
-        ? "Se eliminarán todas las advertencias y el estudiante podrá reingresar al examen. Esta acción no se puede deshacer."
+        ? t("hc_routesAppTeacherMonitorExamId.clearAllWarningsRestoreBody")
         : result.closedAsCompletado
-          ? "El examen ya cerró: se eliminarán las advertencias y la entrega quedará como 'completado' (no podrá reingresar). Esta acción no se puede deshacer."
+          ? t("hc_routesAppTeacherMonitorExamId.clearAllWarningsClosedBody")
           : t("monitor.clearWarningsBody"),
       confirmLabel: t("monitor.clearWarningsConfirm"),
       tone: "warning",
@@ -1111,8 +1123,8 @@ function ExamMonitor() {
     });
     toast.success(
       result.restoredToInProgress
-        ? "Advertencias eliminadas — el estudiante puede reingresar al examen"
-        : "Advertencias eliminadas",
+        ? t("hc_routesAppTeacherMonitorExamId.warningsClearedRestored")
+        : t("hc_routesAppTeacherMonitorExamId.warningsCleared"),
     );
     setSubmissions((prev) =>
       prev.map((s) =>
@@ -1165,10 +1177,10 @@ function ExamMonitor() {
     if (error) return toast.error(friendlyError(error));
     toast.success(
       result.restoredToInProgress
-        ? "Advertencia eliminada — el estudiante puede reingresar al examen"
+        ? t("hc_routesAppTeacherMonitorExamId.warningClearedRestored")
         : result.closedAsCompletado
-          ? "Advertencia eliminada — entrega marcada como completado (examen ya cerró)"
-          : "Advertencia eliminada",
+          ? t("hc_routesAppTeacherMonitorExamId.warningClearedClosed")
+          : t("hc_routesAppTeacherMonitorExamId.warningCleared"),
     );
     setSubmissions((prev) =>
       prev.map((s) =>
@@ -1227,8 +1239,8 @@ function ExamMonitor() {
     if (error) return toast.error(friendlyError(error));
     toast.success(
       numScore == null
-        ? "Calificación por pregunta eliminada"
-        : "Calificación por pregunta guardada",
+        ? t("hc_routesAppTeacherMonitorExamId.questionGradeRemoved")
+        : t("hc_routesAppTeacherMonitorExamId.questionGradeSaved"),
     );
 
     setSubmissions((prev) =>
@@ -1451,7 +1463,9 @@ function ExamMonitor() {
       const submissionIds = targets.map((s) => s.id);
       if (skipped.length > 0) {
         toast.message(
-          `${skipped.length} entrega(s) omitida(s) — el feedback ya menciona penalidad por IA.`,
+          t("hc_routesAppTeacherMonitorExamId.submissionsSkippedAiPenalty", {
+            count: skipped.length,
+          }),
         );
       }
       const { data, error } = await supabase.functions.invoke("detect-plagiarism", {
@@ -1464,7 +1478,7 @@ function ExamMonitor() {
       // permission, etc.).
       if (error || (data as { error?: string })?.error) {
         const detail = await extractEdgeError(error, data);
-        throw new Error(detail || "Error en detect-plagiarism");
+        throw new Error(detail || t("hc_routesAppTeacherMonitorExamId.detectPlagiarismError"));
       }
       const summary = data as { pairs?: unknown[]; message?: string };
       const found = Array.isArray(summary?.pairs) ? summary.pairs.length : 0;
@@ -1517,16 +1531,20 @@ function ExamMonitor() {
     if (targets.length === 0) {
       if (skipped.length > 0) {
         toast.message(
-          `Todas las entregas ya tienen feedback con penalidad por IA. ${skipped.length} omitida(s).`,
+          t("hc_routesAppTeacherMonitorExamId.allSubmissionsHaveAiPenalty", {
+            count: skipped.length,
+          }),
         );
       } else {
-        toast.message("No hay intentos finalizados para recalificar.");
+        toast.message(t("hc_routesAppTeacherMonitorExamId.noFinalizedAttempts"));
       }
       return;
     }
     if (skipped.length > 0) {
       toast.message(
-        `${skipped.length} entrega(s) omitida(s) — el feedback ya menciona penalidad por IA.`,
+        t("hc_routesAppTeacherMonitorExamId.submissionsSkippedAiPenalty", {
+          count: skipped.length,
+        }),
       );
     }
 
@@ -1693,7 +1711,7 @@ function ExamMonitor() {
             proposedUpdate: {},
             breakdown: [],
             status: "failed",
-            error: detail || "Error desconocido",
+            error: detail || t("hc_routesAppTeacherMonitorExamId.unknownError"),
           });
         } else {
           const d = data as {
@@ -2045,9 +2063,9 @@ function ExamMonitor() {
         title={`${t("monitor.title")}: ${exam.title}`}
         subtitle={
           <>
-            {exam.course?.name} · Modo de reintento:{" "}
-            <span className="font-medium">{retryModeLabel(retryMode)}</span> · Máx. intentos:{" "}
-            {maxAttempts}
+            {exam.course?.name} · {t("hc_routesAppTeacherMonitorExamId.retryModeLabel")}{" "}
+            <span className="font-medium">{retryModeLabel(retryMode)}</span> ·{" "}
+            {t("hc_routesAppTeacherMonitorExamId.maxAttemptsLabel")} {maxAttempts}
           </>
         }
       />
@@ -2117,7 +2135,7 @@ function ExamMonitor() {
                 {selectableSubmissions.length > 0 && monitorSel.count === 0 && (
                   <span className="text-[11px] text-muted-foreground hidden md:inline-flex items-center gap-1">
                     <span aria-hidden>↙</span>
-                    Marca estudiantes para recalificar solo algunos
+                    {t("hc_routesAppTeacherMonitorExamId.multiSelectHint")}
                   </span>
                 )}
                 <Button
@@ -2125,7 +2143,7 @@ function ExamMonitor() {
                   variant="default"
                   onClick={() => void runRegradeLatestAll()}
                   disabled={regradeAllLoading || detecting}
-                  title="Recalifica con IA el último intento finalizado de cada estudiante. Abre un modal con las notas propuestas para que aprueben en lote."
+                  title={t("hc_routesAppTeacherMonitorExamId.regradeLatestButtonTitle")}
                 >
                   {regradeAllLoading ? (
                     <Spinner size="sm" className="mr-1.5" />
@@ -2133,8 +2151,11 @@ function ExamMonitor() {
                     <Sparkles className="h-3.5 w-3.5 mr-1.5" />
                   )}
                   {regradeAllLoading
-                    ? `Recalificando ${regradeAllProgress.done}/${regradeAllProgress.total}…`
-                    : "Recalificar último intento"}
+                    ? t("hc_routesAppTeacherMonitorExamId.regradingProgress", {
+                        done: regradeAllProgress.done,
+                        total: regradeAllProgress.total,
+                      })
+                    : t("hc_routesAppTeacherMonitorExamId.regradeLatestButton")}
                 </Button>
                 <Button
                   size="sm"
@@ -2160,10 +2181,16 @@ function ExamMonitor() {
         <CardHeader className="space-y-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">
-              En progreso ({inProgressStudents.length}) · Completados ({completedStudents.length})
+              {t("hc_routesAppTeacherMonitorExamId.inProgressCount", {
+                count: inProgressStudents.length,
+              })}{" "}
+              ·{" "}
+              {t("hc_routesAppTeacherMonitorExamId.completedCount", {
+                count: completedStudents.length,
+              })}
             </CardTitle>
             <Button variant="ghost" size="sm" onClick={load}>
-              <Clock className="h-4 w-4 mr-1" /> Actualizar
+              <Clock className="h-4 w-4 mr-1" /> {t("hc_routesAppTeacherMonitorExamId.refresh")}
             </Button>
           </div>
           {studentRows.length > 0 && (
@@ -2173,14 +2200,14 @@ function ExamMonitor() {
                 <Input
                   value={monitorSearch}
                   onChange={(e) => setMonitorSearch(e.target.value)}
-                  placeholder="Buscar estudiante por nombre o correo…"
+                  placeholder={t("hc_routesAppTeacherMonitorExamId.searchPlaceholder")}
                   className="h-8 pl-8 pr-8 text-xs"
                 />
                 {monitorSearch && (
                   <button
                     type="button"
                     onClick={() => setMonitorSearch("")}
-                    aria-label="Limpiar búsqueda"
+                    aria-label={t("hc_routesAppTeacherMonitorExamId.clearSearch")}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
                     <XIcon className="h-3.5 w-3.5" />
@@ -2189,7 +2216,10 @@ function ExamMonitor() {
               </div>
               {monitorSearch && (
                 <span className="text-[11px] text-muted-foreground tabular-nums">
-                  {filteredStudentRows.length} de {studentRows.length}
+                  {t("hc_routesAppTeacherMonitorExamId.filteredCount", {
+                    shown: filteredStudentRows.length,
+                    total: studentRows.length,
+                  })}
                 </span>
               )}
             </div>
@@ -2203,9 +2233,9 @@ function ExamMonitor() {
           count={monitorSel.count}
           onClear={monitorSel.clear}
           onDelete={() => void runRegradeSelected()}
-          entityNameSingular="estudiante"
-          entityNamePlural="estudiantes"
-          actionLabel="Recalificar con IA"
+          entityNameSingular={t("hc_routesAppTeacherMonitorExamId.entityStudentSingular")}
+          entityNamePlural={t("hc_routesAppTeacherMonitorExamId.entityStudentPlural")}
+          actionLabel={t("hc_routesAppTeacherMonitorExamId.regradeWithAiAction")}
           actionIcon={Sparkles}
         />
         <CardContent className="p-0 overflow-x-auto">
@@ -2266,10 +2296,16 @@ function ExamMonitor() {
             </TableHeader>
             <TableBody>
               {studentRows.length === 0 && (
-                <TableEmpty colSpan={11} text="Ningún estudiante ha iniciado el examen aún." />
+                <TableEmpty
+                  colSpan={11}
+                  text={t("hc_routesAppTeacherMonitorExamId.emptyNoStudentsStarted")}
+                />
               )}
               {studentRows.length > 0 && filteredStudentRows.length === 0 && (
-                <TableEmpty colSpan={11} text="Ningún estudiante coincide con la búsqueda." />
+                <TableEmpty
+                  colSpan={11}
+                  text={t("hc_routesAppTeacherMonitorExamId.emptyNoSearchMatch")}
+                />
               )}
               {filteredStudentRows.map((row) => {
                 const latest = row.latest;
@@ -2313,7 +2349,7 @@ function ExamMonitor() {
                         type="button"
                         className="text-sm font-medium underline-offset-2 hover:underline tabular-nums"
                         onClick={() => setAttemptsForUser(row.userId)}
-                        title="Ver y gestionar intentos"
+                        title={t("hc_routesAppTeacherMonitorExamId.viewManageAttempts")}
                       >
                         {row.currentNumber}/{maxAttempts}
                       </button>
@@ -2389,7 +2425,9 @@ function ExamMonitor() {
                               <button
                                 type="button"
                                 onClick={() => openView(latest)}
-                                title={`${open} conversación(es) abierta(s)`}
+                                title={t("hc_routesAppTeacherMonitorExamId.openConversations", {
+                                  count: open,
+                                })}
                                 className="inline-flex items-center gap-1 rounded-md border border-amber-400/60 bg-amber-400/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-400/25 transition-colors"
                               >
                                 <MessageSquareText className="h-3 w-3" />
@@ -2400,7 +2438,9 @@ function ExamMonitor() {
                               <button
                                 type="button"
                                 onClick={() => openView(latest)}
-                                title={`${pending} conversación(es) esperan tu respuesta`}
+                                title={t("hc_routesAppTeacherMonitorExamId.pendingConversations", {
+                                  count: pending,
+                                })}
                                 className="inline-flex items-center gap-1 rounded-md border border-destructive/60 bg-destructive/15 px-1.5 py-0.5 text-[11px] font-semibold text-destructive hover:bg-destructive/25 transition-colors"
                               >
                                 <AlertTriangle className="h-3 w-3" />
@@ -2459,7 +2499,11 @@ function ExamMonitor() {
                                   sendTimerControl(isPaused ? "resume" : "pause", row.userId)
                                 }
                                 disabled={loading === pauseKey}
-                                title={isPaused ? "Reanudar examen" : "Pausar examen"}
+                                title={
+                                  isPaused
+                                    ? t("hc_routesAppTeacherMonitorExamId.resumeExamTitle")
+                                    : t("hc_routesAppTeacherMonitorExamId.pauseExamTitle")
+                                }
                                 className={isPaused ? "text-amber-600 hover:text-amber-700" : ""}
                               >
                                 {loading === pauseKey ? (
@@ -2470,7 +2514,9 @@ function ExamMonitor() {
                                   <Pause className="h-3.5 w-3.5" />
                                 )}
                                 <span className="ml-1 text-[11px]">
-                                  {isPaused ? "Reanudar" : "Pausar"}
+                                  {isPaused
+                                    ? t("hc_routesAppTeacherMonitorExamId.resume")
+                                    : t("hc_routesAppTeacherMonitorExamId.pause")}
                                 </span>
                               </Button>
                             );
@@ -2481,7 +2527,7 @@ function ExamMonitor() {
                             size="sm"
                             onClick={() => sendTimerControl("add_time", row.userId, 5 * 60)}
                             disabled={loading === `add_time-${row.userId}`}
-                            title="Agregar 5 minutos a este estudiante"
+                            title={t("hc_routesAppTeacherMonitorExamId.add5MinutesTitle")}
                           >
                             {loading === `add_time-${row.userId}` ? (
                               <Spinner size="sm" />
@@ -2492,7 +2538,7 @@ function ExamMonitor() {
                           </Button>
                         )}
                         <RowAction
-                          label="Ver intentos"
+                          label={t("hc_routesAppTeacherMonitorExamId.viewAttempts")}
                           icon={Eye}
                           onClick={() => setAttemptsForUser(row.userId)}
                         />
@@ -2500,8 +2546,10 @@ function ExamMonitor() {
                           <RowAction
                             label={
                               row.attempts.length === 1
-                                ? "Eliminar el intento del estudiante"
-                                : `Eliminar los ${row.attempts.length} intentos del estudiante`
+                                ? t("hc_routesAppTeacherMonitorExamId.deleteStudentAttempt")
+                                : t("hc_routesAppTeacherMonitorExamId.deleteStudentAttempts", {
+                                    count: row.attempts.length,
+                                  })
                             }
                             icon={Trash2}
                             tone="destructive"
@@ -2522,18 +2570,29 @@ function ExamMonitor() {
       <Dialog open={attemptsForUser != null} onOpenChange={(o) => !o && setAttemptsForUser(null)}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Intentos de {attemptsRow?.profile?.full_name ?? "—"}</DialogTitle>
+            <DialogTitle>
+              {t("hc_routesAppTeacherMonitorExamId.attemptsOf", {
+                name: attemptsRow?.profile?.full_name ?? "—",
+              })}
+            </DialogTitle>
             <DialogDescription>
-              {attemptsRow?.profile?.institutional_email} · {attemptsRow?.attemptsUsed ?? 0}{" "}
-              finalizado(s) · {attemptsRow?.currentNumber ?? 0} de {maxAttempts} usados · Modo:{" "}
-              {retryModeLabel(retryMode)}
+              {attemptsRow?.profile?.institutional_email} ·{" "}
+              {t("hc_routesAppTeacherMonitorExamId.finalizedCount", {
+                count: attemptsRow?.attemptsUsed ?? 0,
+              })}{" "}
+              ·{" "}
+              {t("hc_routesAppTeacherMonitorExamId.usedOfMax", {
+                used: attemptsRow?.currentNumber ?? 0,
+                max: maxAttempts,
+              })}{" "}
+              · {t("hc_routesAppTeacherMonitorExamId.modeLabel")} {retryModeLabel(retryMode)}
             </DialogDescription>
           </DialogHeader>
           {attemptsRow && (
             <div className="space-y-3">
               <div className="rounded-md border p-3 flex items-center justify-between">
                 <div className="text-sm">
-                  Calificación efectiva:{" "}
+                  {t("hc_routesAppTeacherMonitorExamId.effectiveGrade")}{" "}
                   <span className="font-semibold">{attemptsRow.effectiveGrade ?? "—"}</span>
                 </div>
                 <Button
@@ -2541,7 +2600,8 @@ function ExamMonitor() {
                   size="sm"
                   onClick={() => deleteAllAttempts(attemptsRow)}
                 >
-                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Eliminar todos
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />{" "}
+                  {t("hc_routesAppTeacherMonitorExamId.deleteAll")}
                 </Button>
               </div>
               <ScrollArea className="max-h-[55dvh] pr-3">
@@ -2558,44 +2618,54 @@ function ExamMonitor() {
                       >
                         <div className="space-y-1">
                           <div className="flex items-center gap-2 text-sm font-medium">
-                            <span>Intento {idx + 1}</span>
+                            <span>
+                              {t("hc_routesAppTeacherMonitorExamId.attemptN", { n: idx + 1 })}
+                            </span>
                             <StatusBadge status={a.status} />
                             {extraMin > 0 && (
                               <Badge variant="secondary" className="text-[10px]">
-                                <TimerReset className="h-3 w-3 mr-0.5" />+{extraMin}m extra
+                                <TimerReset className="h-3 w-3 mr-0.5" />
+                                {t("hc_routesAppTeacherMonitorExamId.extraMinutesBadge", {
+                                  n: extraMin,
+                                })}
                               </Badge>
                             )}
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 text-xs text-muted-foreground tabular-nums">
                             <div>
-                              <span className="text-foreground/60">Inicio:</span>{" "}
+                              <span className="text-foreground/60">
+                                {t("hc_routesAppTeacherMonitorExamId.startLabel")}
+                              </span>{" "}
                               {formatDateTime(a.started_at ?? a.created_at)}
                             </div>
                             <div>
                               <span className="text-foreground/60">
-                                {a.submitted_at ? "Fin:" : "Fin previsto:"}
+                                {a.submitted_at
+                                  ? t("hc_routesAppTeacherMonitorExamId.endLabel")
+                                  : t("hc_routesAppTeacherMonitorExamId.endPlannedLabel")}
                               </span>{" "}
                               {endAt ? formatDateTime(endAt) : "—"}
                             </div>
                           </div>
                           <div className="text-xs">
-                            Calificación:{" "}
+                            {t("hc_routesAppTeacherMonitorExamId.gradeLabel")}{" "}
                             <span className="font-medium tabular-nums">
                               {grade != null ? grade : "—"}
                             </span>{" "}
-                            · Advertencias: {a.focus_warnings}
+                            · {t("hc_routesAppTeacherMonitorExamId.warningsLabel")}{" "}
+                            {a.focus_warnings}
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
                           {isFinal && (
                             <RowAction
-                              label="Ver respuestas y calificar"
+                              label={t("hc_routesAppTeacherMonitorExamId.viewAnswersAndGrade")}
                               icon={Eye}
                               onClick={() => openView(a)}
                             />
                           )}
                           <RowAction
-                            label="Eliminar este intento"
+                            label={t("hc_routesAppTeacherMonitorExamId.deleteThisAttempt")}
                             icon={Trash2}
                             tone="destructive"
                             onClick={() => deleteOneAttempt(a)}
@@ -2635,11 +2705,18 @@ function ExamMonitor() {
           }
         >
           <DialogHeader>
-            <DialogTitle>Respuestas de {viewingSub?.profile?.full_name ?? "—"}</DialogTitle>
+            <DialogTitle>
+              {t("hc_routesAppTeacherMonitorExamId.answersOf", {
+                name: viewingSub?.profile?.full_name ?? "—",
+              })}
+            </DialogTitle>
             <DialogDescription>
-              {viewingSub?.profile?.institutional_email} · Estado: {statusLabel(viewingSub?.status)}
+              {viewingSub?.profile?.institutional_email} ·{" "}
+              {t("hc_routesAppTeacherMonitorExamId.statusLabel")} {statusLabel(viewingSub?.status)}
               {" · "}
-              <span className="font-medium">Decimales con coma (ej. 4,5).</span>
+              <span className="font-medium">
+                {t("hc_routesAppTeacherMonitorExamId.decimalsHint")}
+              </span>
             </DialogDescription>
           </DialogHeader>
 
@@ -2682,16 +2759,18 @@ function ExamMonitor() {
                           <CardTitle className="text-sm flex items-center justify-between gap-2">
                             <span className="flex items-center gap-2">
                               <AlertTriangle className="h-4 w-4 text-destructive" />
-                              Eventos de advertencia ({events.length})
+                              {t("hc_routesAppTeacherMonitorExamId.warningEventsTitle", {
+                                count: events.length,
+                              })}
                             </span>
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => clearAllWarnings(viewingSub)}
-                              title="Limpiar todas las advertencias del intento"
+                              title={t("hc_routesAppTeacherMonitorExamId.clearAllWarningsTitle")}
                             >
                               <Trash2 className="h-3 w-3 mr-1" />
-                              Limpiar todas
+                              {t("hc_routesAppTeacherMonitorExamId.clearAll")}
                             </Button>
                           </CardTitle>
                         </CardHeader>
@@ -2706,11 +2785,14 @@ function ExamMonitor() {
                                 <span className="font-medium">{warningLabel(ev.type)}</span>
                                 {typeof ev.questionIdx === "number" && (
                                   <span className="text-muted-foreground">
-                                    · pregunta {ev.questionIdx + 1}
+                                    ·{" "}
+                                    {t("hc_routesAppTeacherMonitorExamId.questionN", {
+                                      n: ev.questionIdx + 1,
+                                    })}
                                   </span>
                                 )}
                                 <RowAction
-                                  label="Eliminar esta advertencia"
+                                  label={t("hc_routesAppTeacherMonitorExamId.deleteThisWarning")}
                                   icon={Trash2}
                                   tone="destructive"
                                   onClick={() => clearOneWarning(viewingSub, i)}
@@ -2728,12 +2810,14 @@ function ExamMonitor() {
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm flex items-center gap-2">
                         <MessageSquareText className="h-4 w-4 text-primary" />
-                        Retroalimentación general del examen
+                        {t("hc_routesAppTeacherMonitorExamId.generalFeedbackTitle")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2">
                       <Textarea
-                        placeholder="Escribe una retroalimentación general para el estudiante sobre su desempeño en el examen…"
+                        placeholder={t(
+                          "hc_routesAppTeacherMonitorExamId.generalFeedbackPlaceholder",
+                        )}
                         value={teacherFeedbackDraft}
                         onChange={(e) => setTeacherFeedbackDraft(e.target.value)}
                         rows={3}
@@ -2749,14 +2833,16 @@ function ExamMonitor() {
                           ) : (
                             <Save className="h-3.5 w-3.5 mr-1" />
                           )}
-                          Guardar retroalimentación
+                          {t("hc_routesAppTeacherMonitorExamId.saveFeedback")}
                         </Button>
                       </div>
                     </CardContent>
                   </Card>
 
                   {questions.length === 0 && (
-                    <p className="text-sm text-muted-foreground">Este examen no tiene preguntas.</p>
+                    <p className="text-sm text-muted-foreground">
+                      {t("hc_routesAppTeacherMonitorExamId.examNoQuestions")}
+                    </p>
                   )}
                   {(() => {
                     const breakdown: BreakdownItem[] = Array.isArray(
@@ -2784,7 +2870,9 @@ function ExamMonitor() {
                         >
                           <CardHeader className="pb-2">
                             <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
-                              <span className="font-semibold">Pregunta {idx + 1}</span>
+                              <span className="font-semibold">
+                                {t("hc_routesAppTeacherMonitorExamId.questionN", { n: idx + 1 })}
+                              </span>
                               <Badge variant="outline" className="text-[10px]">
                                 {q.type}
                               </Badge>
@@ -2806,7 +2894,7 @@ function ExamMonitor() {
                                     <Badge
                                       variant="outline"
                                       className="text-[10px] text-muted-foreground line-through decoration-muted-foreground/60"
-                                      title="Nota original de la IA — reemplazada por la manual"
+                                      title={t("hc_routesAppTeacherMonitorExamId.originalAiGradeTitle")}
                                     >
                                       {bd?.earned ?? "—"} / {q.points}
                                     </Badge>
@@ -2844,12 +2932,12 @@ function ExamMonitor() {
                                       {c}
                                       {isStudent && (
                                         <Badge variant="outline" className="ml-2 text-[9px]">
-                                          elegida
+                                          {t("hc_routesAppTeacherMonitorExamId.chosen")}
                                         </Badge>
                                       )}
                                       {isCorrect && (
                                         <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
-                                          correcta
+                                          {t("hc_routesAppTeacherMonitorExamId.correct")}
                                         </Badge>
                                       )}
                                     </div>
@@ -2883,12 +2971,12 @@ function ExamMonitor() {
                                         {c}
                                         {isStudent && (
                                           <Badge variant="outline" className="ml-2 text-[9px]">
-                                            elegida
+                                            {t("hc_routesAppTeacherMonitorExamId.chosen")}
                                           </Badge>
                                         )}
                                         {isCorrect && (
                                           <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
-                                            correcta
+                                            {t("hc_routesAppTeacherMonitorExamId.correct")}
                                           </Badge>
                                         )}
                                       </div>
@@ -2909,7 +2997,7 @@ function ExamMonitor() {
                               <CodeEditor
                                 value={
                                   ans == null || ans === ""
-                                    ? "// Sin responder"
+                                    ? t("hc_routesAppTeacherMonitorExamId.codeNoAnswer")
                                     : typeof ans === "string"
                                       ? ans
                                       : JSON.stringify(ans, null, 2)
@@ -2934,7 +3022,7 @@ function ExamMonitor() {
                                 <div className="rounded border bg-muted/30 p-2 text-xs whitespace-pre-wrap font-mono min-h-[40px]">
                                   {ans == null || ans === "" ? (
                                     <span className="text-muted-foreground italic">
-                                      Sin responder
+                                      {t("hc_routesAppTeacherMonitorExamId.noAnswer")}
                                     </span>
                                   ) : typeof ans === "string" ? (
                                     ans
@@ -3350,10 +3438,17 @@ function ExamMonitor() {
                                     </span>
                                     <Badge variant="outline" className="text-[10px]">
                                       {sug.source === "ai"
-                                        ? `IA ${aiPct}%`
+                                        ? t("hc_routesAppTeacherMonitorExamId.sourceAi", {
+                                            pct: aiPct,
+                                          })
                                         : sug.source === "plagio"
-                                          ? `Copia ${cpPct}%`
-                                          : `IA ${aiPct}% + Copia ${cpPct}%`}
+                                          ? t("hc_routesAppTeacherMonitorExamId.sourceCopy", {
+                                              pct: cpPct,
+                                            })
+                                          : t("hc_routesAppTeacherMonitorExamId.sourceBoth", {
+                                              aiPct,
+                                              cpPct,
+                                            })}
                                     </Badge>
                                     {/* Comparar con peers de copia inline.
                                       Antes solo aparecía dentro del collapsible
@@ -3383,7 +3478,13 @@ function ExamMonitor() {
                                               });
                                             }
                                           }}
-                                          title={`Comparar con ${peerName} (${Math.round(pair.score * 100)}%)`}
+                                          title={t(
+                                            "hc_routesAppTeacherMonitorExamId.compareWithPeer",
+                                            {
+                                              name: peerName,
+                                              pct: Math.round(pair.score * 100),
+                                            },
+                                          )}
                                         >
                                           <Eye className="h-3 w-3 mr-1" />
                                           {isActive
@@ -3394,7 +3495,9 @@ function ExamMonitor() {
                                     })}
                                     {peersHidden > 0 && (
                                       <span className="text-[10px] text-muted-foreground">
-                                        +{peersHidden} más
+                                        {t("hc_routesAppTeacherMonitorExamId.morePeers", {
+                                          count: peersHidden,
+                                        })}
                                       </span>
                                     )}
                                     <Button
@@ -3459,7 +3562,10 @@ function ExamMonitor() {
                                 <DecimalInput
                                   min={0}
                                   max={q.points}
-                                  placeholder={`Calificación manual 0-${q.points}`}
+                                  placeholder={t(
+                                    "hc_routesAppTeacherMonitorExamId.manualGradePlaceholder",
+                                    { max: q.points },
+                                  )}
                                   value={qEntry.score}
                                   onChange={(v) =>
                                     setQOverrides((prev) => ({
@@ -3484,7 +3590,7 @@ function ExamMonitor() {
                                   ) : (
                                     <Save className="h-3.5 w-3.5 mr-1" />
                                   )}
-                                  Guardar
+                                  {t("hc_routesAppTeacherMonitorExamId.save")}
                                 </Button>
                                 {/* Recalificar con IA solo aplica a preguntas que SE
                                     califican con IA (abierta, código, diagrama,
@@ -3501,19 +3607,21 @@ function ExamMonitor() {
                                       aiGradingQid === q.id || aiGradingId === viewingSub.id
                                     }
                                     className="h-8"
-                                    title="Recalificar esta pregunta con IA"
+                                    title={t("hc_routesAppTeacherMonitorExamId.regradeQuestionTitle")}
                                   >
                                     {aiGradingQid === q.id ? (
                                       <Spinner size="sm" className="mr-1" />
                                     ) : (
                                       <Sparkles className="h-3.5 w-3.5 mr-1" />
                                     )}
-                                    Recalificar
+                                    {t("hc_routesAppTeacherMonitorExamId.regrade")}
                                   </Button>
                                 )}
                               </div>
                               <Textarea
-                                placeholder="Retroalimentación manual (opcional)"
+                                placeholder={t(
+                                  "hc_routesAppTeacherMonitorExamId.manualFeedbackPlaceholder",
+                                )}
                                 value={qEntry.feedback}
                                 onChange={(e) =>
                                   setQOverrides((prev) => ({
@@ -3616,12 +3724,12 @@ function ExamMonitor() {
                                   {c}
                                   {isStudent && (
                                     <Badge variant="outline" className="ml-2 text-[9px]">
-                                      elegida
+                                      {t("hc_routesAppTeacherMonitorExamId.chosen")}
                                     </Badge>
                                   )}
                                   {isCorrect && (
                                     <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
-                                      correcta
+                                      {t("hc_routesAppTeacherMonitorExamId.correct")}
                                     </Badge>
                                   )}
                                 </div>
@@ -3651,12 +3759,12 @@ function ExamMonitor() {
                                     {c}
                                     {isStudent && (
                                       <Badge variant="outline" className="ml-2 text-[9px]">
-                                        elegida
+                                        {t("hc_routesAppTeacherMonitorExamId.chosen")}
                                       </Badge>
                                     )}
                                     {isCorrect && (
                                       <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
-                                        correcta
+                                        {t("hc_routesAppTeacherMonitorExamId.correct")}
                                       </Badge>
                                     )}
                                   </div>
@@ -3670,7 +3778,7 @@ function ExamMonitor() {
                           <CodeEditor
                             value={
                               peerAns == null || peerAns === ""
-                                ? "// Sin responder"
+                                ? t("hc_routesAppTeacherMonitorExamId.codeNoAnswer")
                                 : typeof peerAns === "string"
                                   ? peerAns
                                   : JSON.stringify(peerAns, null, 2)
@@ -3692,7 +3800,9 @@ function ExamMonitor() {
                         ) : (
                           <div className="rounded border bg-muted/30 p-2 text-xs whitespace-pre-wrap font-mono min-h-[40px]">
                             {peerAns == null || peerAns === "" ? (
-                              <span className="text-muted-foreground italic">Sin responder</span>
+                              <span className="text-muted-foreground italic">
+                                {t("hc_routesAppTeacherMonitorExamId.noAnswer")}
+                              </span>
                             ) : typeof peerAns === "string" ? (
                               peerAns
                             ) : (
@@ -3781,21 +3891,21 @@ function ExamMonitor() {
                 <div className="flex flex-wrap items-center gap-3 text-xs sm:mr-auto">
                   <span className="inline-flex items-center gap-1 rounded-md border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-blue-700 dark:text-blue-300">
                     <Sparkles className="h-3 w-3" aria-hidden />
-                    <span className="font-medium">Nota IA</span>
+                    <span className="font-medium">
+                      {t("hc_routesAppTeacherMonitorExamId.aiGradeLabel")}
+                    </span>
                     <HelpHint side="top">
-                      Nota propuesta automáticamente por la IA al calificar el intento. Es el
-                      baseline del modelo — sirve como referencia pero NO se usa para el gradebook
-                      si el docente puso una nota Final manual.
+                      {t("hc_routesAppTeacherMonitorExamId.aiGradeHint")}
                     </HelpHint>
                     <span className="font-semibold tabular-nums">{viewingSub.ai_grade ?? "—"}</span>
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-emerald-700 dark:text-emerald-300">
                     <Check className="h-3 w-3" aria-hidden />
-                    <span className="font-medium">Nota Final</span>
+                    <span className="font-medium">
+                      {t("hc_routesAppTeacherMonitorExamId.finalGradeLabel")}
+                    </span>
                     <HelpHint side="top">
-                      Nota efectiva del intento — la que aparece en gradebook, reportes y nota del
-                      curso. Si pones un valor manual abajo (override) toma ese; si no, hereda la
-                      nota de IA. Cambiarla aquí pisa la calificación automática.
+                      {t("hc_routesAppTeacherMonitorExamId.finalGradeHint")}
                     </HelpHint>
                     <span className="font-semibold tabular-nums">
                       {viewingSub.final_override_grade ?? viewingSub.ai_grade ?? "—"}
@@ -3813,7 +3923,7 @@ function ExamMonitor() {
                   ) : (
                     <Sparkles className="h-3.5 w-3.5 mr-1" />
                   )}
-                  Recalificar todo con IA
+                  {t("hc_routesAppTeacherMonitorExamId.regradeAllWithAi")}
                 </Button>
                 {/* Override global manual (DecimalInput + "Guardar
                     calificación") fue removido: la calificación final
@@ -3852,8 +3962,8 @@ function ExamMonitor() {
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-amber-500" />
               {regradeMode === "async"
-                ? "Encolar recalificación del último intento"
-                : "Recalificar último intento con IA"}
+                ? t("hc_routesAppTeacherMonitorExamId.batchQueueTitle")
+                : t("hc_routesAppTeacherMonitorExamId.batchRegradeTitle")}
               {(regradeAllLoading || regradeAllProgress.total > 0) && (
                 <span className="text-xs font-normal text-muted-foreground">
                   · {regradeAllProgress.done}/{regradeAllProgress.total}
@@ -3884,13 +3994,17 @@ function ExamMonitor() {
                 <span className="truncate">
                   {regradeAllLoading && regradeCurrentStudent
                     ? regradeMode === "async"
-                      ? `Encolando: ${regradeCurrentStudent}`
-                      : `Procesando: ${regradeCurrentStudent}`
+                      ? t("hc_routesAppTeacherMonitorExamId.queueingStudent", {
+                          name: regradeCurrentStudent,
+                        })
+                      : t("hc_routesAppTeacherMonitorExamId.processingStudent", {
+                          name: regradeCurrentStudent,
+                        })
                     : !regradeAllLoading && regradeAllProgress.done === regradeAllProgress.total
                       ? regradeMode === "async"
-                        ? "Encolado terminado."
-                        : "Propuestas listas."
-                      : "Iniciando…"}
+                        ? t("hc_routesAppTeacherMonitorExamId.queueingDone")
+                        : t("hc_routesAppTeacherMonitorExamId.proposalsReady")
+                      : t("hc_routesAppTeacherMonitorExamId.starting")}
                 </span>
                 <span className="tabular-nums shrink-0">
                   {regradeAllProgress.done}/{regradeAllProgress.total}
@@ -3903,9 +4017,9 @@ function ExamMonitor() {
               <div className="text-sm text-muted-foreground py-6 text-center">
                 {regradeAllLoading
                   ? regradeMode === "async"
-                    ? "Encolando jobs en la cola IA…"
-                    : "Generando propuestas con IA…"
-                  : "Sin resultados para mostrar."}
+                    ? t("hc_routesAppTeacherMonitorExamId.queueingJobs")
+                    : t("hc_routesAppTeacherMonitorExamId.generatingProposals")
+                  : t("hc_routesAppTeacherMonitorExamId.noResults")}
               </div>
             ) : (
               <div className="border rounded-md divide-y">
@@ -3934,11 +4048,15 @@ function ExamMonitor() {
                           onClick={toggleExpand}
                           disabled={!canExpand}
                           className="shrink-0 p-0.5 hover:bg-muted rounded disabled:opacity-30 disabled:cursor-not-allowed"
-                          aria-label={isExpanded ? "Colapsar" : "Expandir"}
+                          aria-label={
+                            isExpanded
+                              ? t("hc_routesAppTeacherMonitorExamId.collapse")
+                              : t("hc_routesAppTeacherMonitorExamId.expand")
+                          }
                           title={
                             canExpand
-                              ? "Ver respuestas del estudiante y desglose IA"
-                              : "Sin desglose disponible"
+                              ? t("hc_routesAppTeacherMonitorExamId.viewStudentAnswersBreakdown")
+                              : t("hc_routesAppTeacherMonitorExamId.noBreakdownAvailable")
                           }
                         >
                           {isExpanded ? (
@@ -3951,12 +4069,16 @@ function ExamMonitor() {
                           <div className="text-sm font-medium truncate">{row.studentName}</div>
                           {row.aiLikelihood > 0 && (
                             <div className="text-[10px] text-muted-foreground">
-                              IA fraude: {(row.aiLikelihood * 100).toFixed(0)}%
+                              {t("hc_routesAppTeacherMonitorExamId.aiFraudPct", {
+                                pct: (row.aiLikelihood * 100).toFixed(0),
+                              })}
                             </div>
                           )}
                           {row.status === "failed" && row.error && (
                             <div className="text-[10px] text-destructive mt-0.5">
-                              Error: {row.error}
+                              {t("hc_routesAppTeacherMonitorExamId.errorPrefix", {
+                                error: row.error,
+                              })}
                             </div>
                           )}
                         </div>
@@ -3994,7 +4116,7 @@ function ExamMonitor() {
                               className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                             >
                               <Check className="h-3 w-3 mr-1" />
-                              Aplicada
+                              {t("hc_routesAppTeacherMonitorExamId.applied")}
                             </Badge>
                           ) : row.status === "queued" ? (
                             <Badge
@@ -4002,11 +4124,11 @@ function ExamMonitor() {
                               className="text-[10px] bg-sky-500/10 text-sky-700 border-sky-500/30 dark:text-sky-300"
                             >
                               <Clock className="h-3 w-3 mr-1" />
-                              Encolado
+                              {t("hc_routesAppTeacherMonitorExamId.queued")}
                             </Badge>
                           ) : row.status === "cancelled" ? (
                             <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                              Cancelado
+                              {t("hc_routesAppTeacherMonitorExamId.cancelled")}
                             </Badge>
                           ) : row.status === "failed" ? (
                             <Button
@@ -4015,7 +4137,7 @@ function ExamMonitor() {
                               disabled
                               className="h-7 text-[11px]"
                             >
-                              Error
+                              {t("hc_routesAppTeacherMonitorExamId.errorLabel")}
                             </Button>
                           ) : row.status === "approving" ? (
                             <Spinner size="sm" />
@@ -4032,7 +4154,7 @@ function ExamMonitor() {
                               className="h-7 text-[11px]"
                             >
                               <Check className="h-3 w-3 mr-1" />
-                              Aplicar
+                              {t("hc_routesAppTeacherMonitorExamId.apply")}
                             </Button>
                           )}
                         </div>
@@ -4072,7 +4194,8 @@ function ExamMonitor() {
                                   </Badge>
                                   <div className="flex-1 min-w-0">
                                     <div className="text-[11px] text-muted-foreground line-clamp-2">
-                                      {q?.content ?? "(pregunta no encontrada)"}
+                                      {q?.content ??
+                                        t("hc_routesAppTeacherMonitorExamId.questionNotFound")}
                                     </div>
                                   </div>
                                   <span className="text-[11px] font-semibold tabular-nums shrink-0">
@@ -4082,7 +4205,7 @@ function ExamMonitor() {
                                 {studentAnswerStr && (
                                   <div className="rounded border bg-muted/40 px-2 py-1.5">
                                     <div className="text-[10px] font-medium text-muted-foreground mb-0.5">
-                                      Respuesta del estudiante
+                                      {t("hc_routesAppTeacherMonitorExamId.studentAnswer")}
                                     </div>
                                     <div className="text-[11px] whitespace-pre-wrap font-mono max-h-32 overflow-y-auto">
                                       {studentAnswerStr.slice(0, 800)}
@@ -4093,7 +4216,7 @@ function ExamMonitor() {
                                 {fb && (
                                   <div className="rounded border-l-2 border-primary/40 bg-primary/5 pl-2 py-1">
                                     <div className="text-[10px] font-medium text-foreground mb-0.5">
-                                      Retroalimentación IA
+                                      {t("hc_routesAppTeacherMonitorExamId.aiFeedback")}
                                     </div>
                                     <div className="text-[11px] text-muted-foreground whitespace-pre-wrap">
                                       {fb}
@@ -4104,10 +4227,12 @@ function ExamMonitor() {
                                   <Badge
                                     variant="destructive"
                                     className="text-[10px]"
-                                    title="La IA estima que esta respuesta tiene alta probabilidad de haber sido generada por IA."
+                                    title={t("hc_routesAppTeacherMonitorExamId.aiDetectedTitle")}
                                   >
                                     <Bot className="h-2.5 w-2.5 mr-1" />
-                                    IA detectada {(aiLike * 100).toFixed(0)}%
+                                    {t("hc_routesAppTeacherMonitorExamId.aiDetectedPct", {
+                                      pct: (aiLike * 100).toFixed(0),
+                                    })}
                                   </Badge>
                                 )}
                               </div>
@@ -4135,7 +4260,7 @@ function ExamMonitor() {
                 disabled={regradeAbortRef.current?.signal.aborted ?? false}
               >
                 <XIcon className="h-4 w-4 mr-1" />
-                Cancelar
+                {t("hc_routesAppTeacherMonitorExamId.cancel")}
               </Button>
             )}
             <Button
@@ -4143,7 +4268,7 @@ function ExamMonitor() {
               onClick={() => setRegradeAllOpen(false)}
               disabled={regradeAllLoading || applyingBulk}
             >
-              Cerrar
+              {t("hc_routesAppTeacherMonitorExamId.close")}
             </Button>
             {/* "Aprobar todas" solo aplica al modo SYNC (las filas tienen
                 propuestas dryRun que aprobar). En modo ASYNC los jobs ya
@@ -4163,7 +4288,7 @@ function ExamMonitor() {
                 ) : (
                   <Sparkles className="h-3.5 w-3.5 mr-1.5" />
                 )}
-                Aprobar todas
+                {t("hc_routesAppTeacherMonitorExamId.approveAll")}
               </Button>
             )}
           </DialogFooter>
@@ -4183,11 +4308,10 @@ function ExamMonitor() {
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-indigo-500" />
-              Revisión de recalificación con IA
+              {t("hc_routesAppTeacherMonitorExamId.regradeReviewTitle")}
             </DialogTitle>
             <DialogDescription>
-              La IA ya calculó la nueva nota. Revísala antes de aplicarla — si la descartas, la
-              calificación actual no se modifica.
+              {t("hc_routesAppTeacherMonitorExamId.regradeReviewDescription")}
             </DialogDescription>
           </DialogHeader>
           {reGradePreview && (
@@ -4201,7 +4325,7 @@ function ExamMonitor() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-lg border bg-muted/30 p-3">
                   <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
-                    Nota actual
+                    {t("hc_routesAppTeacherMonitorExamId.currentGrade")}
                   </div>
                   <div className="text-2xl font-semibold tabular-nums">
                     {reGradePreview.previous.final_override_grade ??
@@ -4210,13 +4334,13 @@ function ExamMonitor() {
                   </div>
                   <div className="text-[11px] text-muted-foreground mt-1">
                     {reGradePreview.previous.final_override_grade != null
-                      ? "Override manual del docente"
-                      : "Nota IA previa"}
+                      ? t("hc_routesAppTeacherMonitorExamId.teacherManualOverride")
+                      : t("hc_routesAppTeacherMonitorExamId.previousAiGrade")}
                   </div>
                 </div>
                 <div className="rounded-lg border border-indigo-500/40 bg-indigo-500/5 p-3">
                   <div className="text-[11px] uppercase tracking-wide text-indigo-700 dark:text-indigo-300 mb-1">
-                    Nota propuesta por IA
+                    {t("hc_routesAppTeacherMonitorExamId.aiProposedGrade")}
                   </div>
                   <div className="text-2xl font-semibold tabular-nums text-indigo-700 dark:text-indigo-300">
                     {reGradePreview.grade}
@@ -4226,11 +4350,15 @@ function ExamMonitor() {
                       const prev =
                         reGradePreview.previous.final_override_grade ??
                         reGradePreview.previous.ai_grade;
-                      if (prev == null) return "Sin nota previa";
+                      if (prev == null)
+                        return t("hc_routesAppTeacherMonitorExamId.noPreviousGrade");
                       const delta = reGradePreview.grade - Number(prev);
-                      if (Math.abs(delta) < 0.005) return "Sin cambio";
+                      if (Math.abs(delta) < 0.005)
+                        return t("hc_routesAppTeacherMonitorExamId.noChange");
                       const sign = delta > 0 ? "+" : "";
-                      return `Diferencia: ${sign}${delta.toFixed(2)}`;
+                      return t("hc_routesAppTeacherMonitorExamId.difference", {
+                        value: `${sign}${delta.toFixed(2)}`,
+                      });
                     })()}
                   </div>
                 </div>
@@ -4240,7 +4368,9 @@ function ExamMonitor() {
               {(reGradePreview.ai_likelihood > 0 || reGradePreview.ai_reasons) && (
                 <div className="rounded-lg border p-3 text-xs space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">Sospecha de IA</span>
+                    <span className="font-medium">
+                      {t("hc_routesAppTeacherMonitorExamId.aiSuspicion")}
+                    </span>
                     <span className="tabular-nums">
                       {(reGradePreview.ai_likelihood * 100).toFixed(0)}%
                     </span>
@@ -4263,10 +4393,11 @@ function ExamMonitor() {
               {reGradePreview.breakdown.length > 0 && (
                 <div className="rounded-lg border">
                   <div className="px-3 py-2 border-b bg-muted/30 text-xs font-medium flex items-center justify-between">
-                    <span>Detalle por pregunta</span>
+                    <span>{t("hc_routesAppTeacherMonitorExamId.detailPerQuestion")}</span>
                     <span className="text-[10px] text-muted-foreground font-normal">
-                      {reGradePreview.breakdown.length}{" "}
-                      {reGradePreview.breakdown.length === 1 ? "pregunta" : "preguntas"}
+                      {t("hc_routesAppTeacherMonitorExamId.questionsCount", {
+                        count: reGradePreview.breakdown.length,
+                      })}
                     </span>
                   </div>
                   <div className="divide-y">
@@ -4295,7 +4426,7 @@ function ExamMonitor() {
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="font-medium">
-                              Pregunta {i + 1}
+                              {t("hc_routesAppTeacherMonitorExamId.questionN", { n: i + 1 })}
                               {b.type && (
                                 <span className="ml-1 text-muted-foreground font-normal">
                                   · {b.type}
@@ -4322,7 +4453,7 @@ function ExamMonitor() {
                           {question?.content && (
                             <div className="rounded border bg-muted/30 px-2 py-1.5">
                               <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
-                                Enunciado
+                                {t("hc_routesAppTeacherMonitorExamId.statement")}
                               </div>
                               <p
                                 className="whitespace-pre-wrap line-clamp-3 text-foreground/90"
@@ -4342,7 +4473,7 @@ function ExamMonitor() {
                           {answerText && (
                             <div className="rounded border bg-background px-2 py-1.5">
                               <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
-                                Respuesta del estudiante
+                                {t("hc_routesAppTeacherMonitorExamId.studentAnswer")}
                               </div>
                               <pre className="whitespace-pre-wrap break-words font-mono text-[11px] max-h-32 overflow-y-auto text-foreground/90">
                                 {answerText}
@@ -4356,7 +4487,7 @@ function ExamMonitor() {
                           {b.feedback && (
                             <div className="rounded border border-indigo-500/30 bg-indigo-500/5 px-2 py-1.5">
                               <div className="text-[10px] uppercase tracking-wide text-indigo-700 dark:text-indigo-300 mb-0.5">
-                                Feedback IA
+                                {t("hc_routesAppTeacherMonitorExamId.aiFeedback")}
                               </div>
                               <p className="whitespace-pre-wrap text-foreground/90">{b.feedback}</p>
                             </div>
@@ -4375,7 +4506,7 @@ function ExamMonitor() {
               onClick={() => setReGradePreview(null)}
               disabled={applyingReGrade}
             >
-              Descartar
+              {t("hc_routesAppTeacherMonitorExamId.discard")}
             </Button>
             <Button onClick={() => void applyReGrade()} disabled={applyingReGrade}>
               {applyingReGrade ? (
@@ -4383,7 +4514,7 @@ function ExamMonitor() {
               ) : (
                 <Check className="h-4 w-4 mr-1" />
               )}
-              Aplicar nueva calificación
+              {t("hc_routesAppTeacherMonitorExamId.applyNewGrade")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -551,7 +551,7 @@ function TeacherProjects() {
       setCourses((cs.data ?? []) as Course[]);
     } catch (e) {
       console.error("[projects] courses load failed", e);
-      toast.error(friendlyError(e, "Error cargando cursos"));
+      toast.error(friendlyError(e, t("hc_routesAppTeacherProjects.errorLoadingCourses")));
     }
 
     try {
@@ -585,7 +585,7 @@ function TeacherProjects() {
       }[];
     } catch (e) {
       console.error("[projects] project_courses load failed", e);
-      toast.error(friendlyError(e, "Error cargando vínculos de cursos"));
+      toast.error(friendlyError(e, t("hc_routesAppTeacherProjects.errorLoadingCourseLinks")));
     }
 
     try {
@@ -677,8 +677,8 @@ function TeacherProjects() {
       // Marca loadError para que el render muestre <ErrorState> en vez
       // de una tabla vacía como si no hubiera proyectos. Mantengo el
       // toast para feedback inmediato.
-      setLoadError(friendlyError(e, "No pudimos cargar los proyectos."));
-      toast.error(friendlyError(e, "Error cargando proyectos"));
+      setLoadError(friendlyError(e, t("hc_routesAppTeacherProjects.couldNotLoadProjects")));
+      toast.error(friendlyError(e, t("hc_routesAppTeacherProjects.errorLoadingProjects")));
     }
   };
 
@@ -1146,10 +1146,12 @@ function TeacherProjects() {
       // dispara correo. Antes era 'info' y solo iba a in-app.
       if (payload.status === "published" && !isExternal) {
         const isUpdate = !!editing;
-        const title = isUpdate ? "Proyecto actualizado" : "Nuevo proyecto disponible";
+        const title = isUpdate
+          ? t("hc_routesAppTeacherProjects.notifProjectUpdatedTitle")
+          : t("hc_routesAppTeacherProjects.notifProjectPublishedTitle");
         const body = isUpdate
-          ? `Se actualizó el proyecto "${form.title}"`
-          : `Se ha publicado el proyecto "${form.title}"`;
+          ? t("hc_routesAppTeacherProjects.notifProjectUpdatedBody", { title: form.title })
+          : t("hc_routesAppTeacherProjects.notifProjectPublishedBody", { title: form.title });
         for (const cid of linked) {
           await supabase.rpc("notify_course_students", {
             _course_id: cid,
@@ -1207,10 +1209,10 @@ function TeacherProjects() {
       const res = data as any;
       if (error || res?.error) {
         const detail = await extractEdgeError(error, data);
-        throw new Error(detail || "La IA no devolvió descripción");
+        throw new Error(detail || t("hc_routesAppTeacherProjects.aiNoDescription"));
       }
       const description = String(res?.description ?? "").trim();
-      if (!description) throw new Error("La IA no devolvió descripción");
+      if (!description) throw new Error(t("hc_routesAppTeacherProjects.aiNoDescription"));
       setForm((prev) => ({ ...prev, description }));
       toast.success(
         i18n.t("toast.routes_app_teacher_projects.descriptionGenerated", {
@@ -1220,7 +1222,7 @@ function TeacherProjects() {
       setAiDescOpen(false);
       setAiDescTopic("");
     } catch (e) {
-      toast.error(friendlyError(e, "Error al generar la descripción"));
+      toast.error(friendlyError(e, t("hc_routesAppTeacherProjects.errorGeneratingDescription")));
     } finally {
       setAiDescLoading(false);
     }
@@ -1300,7 +1302,8 @@ function TeacherProjects() {
       setAssigned(new Set((asgn ?? []).map((a: { user_id: string }) => a.user_id)));
     } catch (e) {
       console.error("[projects] assignment load failed", e);
-      const message = e instanceof Error ? e.message : "No se pudieron cargar estudiantes";
+      const message =
+        e instanceof Error ? e.message : t("hc_routesAppTeacherProjects.couldNotLoadStudents");
       setAssignError(message);
       toast.error(message);
     } finally {
@@ -1465,7 +1468,7 @@ function TeacherProjects() {
         if (ansErr) {
           console.error("[projects] load submission files failed", ansErr);
           toast.error(
-            friendlyError(ansErr, "No se pudieron cargar las respuestas de las entregas."),
+            friendlyError(ansErr, t("hc_routesAppTeacherProjects.couldNotLoadSubmissionAnswers")),
           );
         }
         const profMap = new Map(((profs ?? []) as Array<{ id: string }>).map((pp) => [pp.id, pp]));
@@ -1679,10 +1682,9 @@ function TeacherProjects() {
     const sub = gradingSubs.find((s) => s.id === subId);
     if (!sub) return;
     const ok = await confirm({
-      title: "¿Reabrir entrega del estudiante?",
-      description:
-        "El estudiante podrá editar y reenviar sus archivos. Se borrará la calificación, sustentación y nota final actuales. Esta acción no se puede deshacer.",
-      confirmLabel: "Reabrir",
+      title: t("hc_routesAppTeacherProjects.reopenSubmissionTitle"),
+      description: t("hc_routesAppTeacherProjects.reopenSubmissionBody"),
+      confirmLabel: t("hc_routesAppTeacherProjects.reopenSubmissionConfirm"),
       tone: "warning",
     });
     if (!ok) return;
@@ -1807,7 +1809,7 @@ function TeacherProjects() {
     void cancelPendingAiJobsForTarget(
       "project_submissions",
       subId,
-      "Cancelado: el docente registró la sustentación (nota final manual).",
+      t("hc_routesAppTeacherProjects.aiJobCancelledDefenseReason"),
     );
     toast.success(
       validFactor != null
@@ -1846,14 +1848,20 @@ function TeacherProjects() {
       recipients = Array.from(new Set(recipients)).filter((uid) => uid && uid !== myId);
       if (recipients.length > 0) {
         const body =
-          `Tu proyecto fue sustentado y la nota final es ${newFinal}/${maxScore}. ` +
+          t("hc_routesAppTeacherProjects.notifDefenseGradedBody", {
+            finalGrade: newFinal,
+            maxScore,
+          }) +
+          " " +
           (notes
-            ? `Notas del docente: ${notes.slice(0, 240)}`
-            : "Entra a la plataforma para ver el detalle.");
+            ? t("hc_routesAppTeacherProjects.notifTeacherNotes", { notes: notes.slice(0, 240) })
+            : t("hc_routesAppTeacherProjects.notifEnterPlatformForDetail"));
         await db.from("notifications").insert(
           recipients.map((uid) => ({
             user_id: uid,
-            title: `Sustentación calificada: ${gradingProject?.title ?? "proyecto"}`,
+            title: t("hc_routesAppTeacherProjects.notifDefenseGradedTitle", {
+              project: gradingProject?.title ?? t("hc_routesAppTeacherProjects.projectWord"),
+            }),
             body,
             kind: "grade",
             link: "/app/student/projects",
@@ -1985,11 +1993,15 @@ function TeacherProjects() {
           maxSelections: meta.options?.max_selections,
         });
         const newFeedback = result.exceededMax
-          ? `Marcó más opciones de las permitidas (${meta.options?.max_selections}).`
+          ? t("hc_routesAppTeacherProjects.markedMoreThanAllowed", {
+              max: meta.options?.max_selections,
+            })
           : result.belowMin
-            ? `Marcó menos del mínimo (${meta.options?.min_selections}).`
+            ? t("hc_routesAppTeacherProjects.markedLessThanMin", {
+                min: meta.options?.min_selections,
+              })
             : selectedArr.length === 0
-              ? "Sin respuesta"
+              ? t("hc_routesAppTeacherProjects.noAnswer")
               : `${result.earned} / ${file.points} pts`;
         patchSubFile(subId, file.id, {
           ai_grade: result.earned,
@@ -2082,10 +2094,19 @@ function TeacherProjects() {
     const isSubset = explicitSubs != null;
     const ok = await confirm({
       title: isSubset
-        ? `Recalificar ${targets.length} entrega(s) seleccionada(s)`
-        : "Recalificar todas las entregas con IA",
-      description: `Vas a llamar IA por cada archivo de cada entrega ${isSubset ? "seleccionada" : "filtrada"}: ${targets.length} entrega(s) × ${gradingFiles.length} archivo(s) = ${targets.length * gradingFiles.length} llamadas. Esto puede tardar varios minutos y consume tokens del proveedor IA.`,
-      confirmLabel: isSubset ? "Recalificar seleccionadas" : "Recalificar todas",
+        ? t("hc_routesAppTeacherProjects.regradeSelectedTitle", { n: targets.length })
+        : t("hc_routesAppTeacherProjects.regradeAllTitle"),
+      description: t("hc_routesAppTeacherProjects.regradeBody", {
+        scope: isSubset
+          ? t("hc_routesAppTeacherProjects.regradeScopeSelected")
+          : t("hc_routesAppTeacherProjects.regradeScopeFiltered"),
+        subs: targets.length,
+        files: gradingFiles.length,
+        calls: targets.length * gradingFiles.length,
+      }),
+      confirmLabel: isSubset
+        ? t("hc_routesAppTeacherProjects.regradeSelectedConfirm")
+        : t("hc_routesAppTeacherProjects.regradeAllConfirm"),
       tone: "warning",
     });
     if (!ok) return;
@@ -2154,11 +2175,11 @@ function TeacherProjects() {
           ? t("project.deleteSubmissionTitle", {
               name: gradingSubs.find((s) => s.id === ids[0])?.profile?.full_name ?? "—",
             })
-          : `Eliminar ${ids.length} entregas`,
+          : t("hc_routesAppTeacherProjects.deleteNSubmissionsTitle", { n: ids.length }),
       description:
         ids.length === 1
           ? t("project.deleteSubmissionBody")
-          : `Se eliminarán ${ids.length} entregas y todos sus archivos asociados. Esta acción no se puede deshacer.`,
+          : t("hc_routesAppTeacherProjects.deleteNSubmissionsBody", { n: ids.length }),
       confirmLabel: t("project.deleteSubmissionConfirm"),
       tone: "destructive",
     });
@@ -2190,9 +2211,12 @@ function TeacherProjects() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <PageHeader icon={<FolderKanban className="h-6 w-6" />} title="Proyectos" />
+        <PageHeader
+          icon={<FolderKanban className="h-6 w-6" />}
+          title={t("hc_routesAppTeacherProjects.pageTitle")}
+        />
         <ErrorState
-          message="No pudimos cargar los proyectos"
+          message={t("hc_routesAppTeacherProjects.couldNotLoadProjectsTitle")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -2204,17 +2228,23 @@ function TeacherProjects() {
     <div className="space-y-5">
       <PageHeader
         icon={<FolderKanban className="h-6 w-6" />}
-        title="Proyectos"
+        title={t("hc_routesAppTeacherProjects.pageTitle")}
         subtitle={
           filteredProjects.length === projects.length
-            ? `${projects.length} proyectos`
-            : `${filteredProjects.length} de ${projects.length} proyectos`
+            ? t("hc_routesAppTeacherProjects.subtitleCount", { count: projects.length })
+            : t("hc_routesAppTeacherProjects.subtitleFiltered", {
+                shown: filteredProjects.length,
+                total: projects.length,
+              })
         }
         actions={
           <>
-            <ImportExportMenu resourceName="proyectos" onExport={exportProjectsCsv} />
+            <ImportExportMenu
+              resourceName={t("hc_routesAppTeacherProjects.resourceName")}
+              onExport={exportProjectsCsv}
+            />
             <Button onClick={openNew} data-tour-id="create-project">
-              <Plus className="h-4 w-4 mr-1" /> Nuevo proyecto
+              <Plus className="h-4 w-4 mr-1" /> {t("hc_routesAppTeacherProjects.newProject")}
             </Button>
           </>
         }
@@ -2222,21 +2252,33 @@ function TeacherProjects() {
 
       {/* Stats 4-card — siempre visible. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={Pencil} label="Borradores" value={projectStats.draft} />
+        <StatCard
+          icon={Pencil}
+          label={t("hc_routesAppTeacherProjects.statDrafts")}
+          value={projectStats.draft}
+        />
         <StatCard
           icon={CheckCircle2}
-          label="Publicados"
+          label={t("hc_routesAppTeacherProjects.statPublished")}
           value={projectStats.published}
           tone={projectStats.published > 0 ? "success" : "default"}
         />
-        <StatCard icon={Lock} label="Cerrados" value={projectStats.closed} />
-        <StatCard icon={ExternalLink} label="Externos" value={projectStats.external} />
+        <StatCard
+          icon={Lock}
+          label={t("hc_routesAppTeacherProjects.statClosed")}
+          value={projectStats.closed}
+        />
+        <StatCard
+          icon={ExternalLink}
+          label={t("hc_routesAppTeacherProjects.statExternal")}
+          value={projectStats.external}
+        />
       </div>
 
       <ListFilters
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Buscar proyecto por título…"
+        searchPlaceholder={t("hc_routesAppTeacherProjects.searchPlaceholder")}
         courseId={courseFilter}
         onCourseChange={(v) => {
           setCourseFilter(v);
@@ -2252,8 +2294,8 @@ function TeacherProjects() {
         count={sel.count}
         onClear={sel.clear}
         onDelete={() => setBulkDeleteOpen(true)}
-        entityNameSingular="proyecto"
-        entityNamePlural="proyectos"
+        entityNameSingular={t("hc_routesAppTeacherProjects.entitySingular")}
+        entityNamePlural={t("hc_routesAppTeacherProjects.entityPlural")}
       />
 
       {/* Resumen de pesos cuando se filtra por corte: cuánto suman los
@@ -2268,7 +2310,8 @@ function TeacherProjects() {
           return (
             <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
               <span className="text-muted-foreground">
-                Suma de pesos en <span className="font-medium text-foreground">{cut.name}</span>:
+                {t("hc_routesAppTeacherProjects.sumOfWeightsIn")}{" "}
+                <span className="font-medium text-foreground">{cut.name}</span>:
               </span>
               <Badge
                 variant={ok ? "secondary" : sum > bucket + 0.01 ? "destructive" : "default"}
@@ -2278,12 +2321,15 @@ function TeacherProjects() {
               </Badge>
               {!ok && sum < bucket - 0.01 && (
                 <span className="text-muted-foreground">
-                  Quedan <strong>{formatPercent(bucket - sum)}%</strong> sin asignar.
+                  {t("hc_routesAppTeacherProjects.remaining")}{" "}
+                  <strong>{formatPercent(bucket - sum)}%</strong>{" "}
+                  {t("hc_routesAppTeacherProjects.unassigned")}
                 </span>
               )}
               {sum > bucket + 0.01 && (
                 <span className="text-destructive">
-                  Sobrepasa el bucket por <strong>{formatPercent(sum - bucket)}%</strong>.
+                  {t("hc_routesAppTeacherProjects.exceedsBucketBy")}{" "}
+                  <strong>{formatPercent(sum - bucket)}%</strong>.
                 </span>
               )}
             </div>
@@ -2350,7 +2396,7 @@ function TeacherProjects() {
                         .map((cid) => courses.find((c) => c.id === cid))
                         .filter((c): c is NonNullable<typeof c> => !!c)
                         .map((c) => ({ id: c.id, name: c.name, period: c.period }))}
-                      popoverTitle={`Cursos del proyecto`}
+                      popoverTitle={t("hc_routesAppTeacherProjects.projectCourses")}
                     />
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs hidden md:table-cell">
@@ -2381,28 +2427,28 @@ function TeacherProjects() {
                     <RowActionsMenu
                       actions={[
                         {
-                          label: "Preguntas del proyecto",
+                          label: t("hc_routesAppTeacherProjects.actionProjectQuestions"),
                           icon: FileText,
                           onClick: () => openFilesDialog(p),
                         },
                         {
-                          label: "Asignar estudiantes",
+                          label: t("hc_routesAppTeacherProjects.actionAssignStudents"),
                           icon: Users,
                           onClick: () => openAssignDialog(p),
                         },
                         !p.is_external && {
-                          label: "Grupos",
+                          label: t("hc_routesAppTeacherProjects.actionGroups"),
                           icon: UsersRound,
                           onClick: () => openGroupsForProject(p),
                         },
                         {
-                          label: "Entregas y calificación",
+                          label: t("hc_routesAppTeacherProjects.actionSubmissionsGrading"),
                           icon: ClipboardList,
                           onClick: () => openGradingDialog(p),
                         },
                         { label: t("common.edit"), icon: Pencil, onClick: () => openEdit(p) },
                         {
-                          label: "Duplicar",
+                          label: t("hc_routesAppTeacherProjects.actionDuplicate"),
                           icon: Copy,
                           onClick: () =>
                             setDuplicateSource({
@@ -2427,12 +2473,12 @@ function TeacherProjects() {
                 <TableEmpty
                   colSpan={9}
                   icon={FolderKanban}
-                  text="Aún no has creado ningún proyecto."
-                  hint="Define las preguntas del proyecto y asígnalo a uno o varios cursos."
+                  text={t("hc_routesAppTeacherProjects.emptyNoProjects")}
+                  hint={t("hc_routesAppTeacherProjects.emptyNoProjectsHint")}
                   action={
                     <Button size="sm" onClick={openNew}>
                       <Plus className="h-4 w-4 mr-1" />
-                      Crear primer proyecto
+                      {t("hc_routesAppTeacherProjects.createFirstProject")}
                     </Button>
                   }
                 />
@@ -2440,13 +2486,13 @@ function TeacherProjects() {
                 <TableEmpty
                   colSpan={9}
                   icon={FolderKanban}
-                  text="Sin resultados para los filtros actuales."
-                  hint="Limpia el buscador o el curso para ver todos los proyectos."
+                  text={t("hc_routesAppTeacherProjects.emptyNoResults")}
+                  hint={t("hc_routesAppTeacherProjects.emptyNoResultsHint")}
                 />
               ) : null}
             </TableBody>
           </Table>
-          <DataPagination state={pagination} entityNamePlural="proyectos" />
+          <DataPagination state={pagination} entityNamePlural={t("hc_routesAppTeacherProjects.entityPlural")} />
         </CardContent>
       </Card>
 
@@ -2454,7 +2500,11 @@ function TeacherProjects() {
       <Dialog open={open} onOpenChange={projectDirty.guardOpenChange(setOpen)}>
         <DialogContent data-tour-id="dialog-project">
           <DialogHeader>
-            <DialogTitle>{editing ? "Editar proyecto" : "Nuevo proyecto"}</DialogTitle>
+            <DialogTitle>
+              {editing
+                ? t("hc_routesAppTeacherProjects.editProject")
+                : t("hc_routesAppTeacherProjects.newProject")}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             {/*
@@ -2469,11 +2519,10 @@ function TeacherProjects() {
             >
               <div className="space-y-0.5">
                 <Label htmlFor="project-is-external" className="text-sm">
-                  Actividad externa
+                  {t("hc_routesAppTeacherProjects.externalActivity")}
                 </Label>
                 <p className="text-[11px] text-muted-foreground leading-tight">
-                  Un proyecto que ocurrió fuera de la plataforma. Solo registras notas y
-                  observaciones por estudiante.
+                  {t("hc_routesAppTeacherProjects.externalActivityHint")}
                 </p>
               </div>
               <Switch
@@ -2489,7 +2538,7 @@ function TeacherProjects() {
                 quien tenga grupo entrega en grupo, los demas individual. */}
             {!(form as any).is_external && (
               <div className="space-y-1" data-tour-id="project-field-group-mode">
-                <Label>Modo de trabajo</Label>
+                <Label>{t("hc_routesAppTeacherProjects.workMode")}</Label>
                 <Select
                   value={form.group_mode ?? "individual"}
                   onValueChange={(v) =>
@@ -2501,23 +2550,23 @@ function TeacherProjects() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="individual">
-                      Individual — cada estudiante entrega por separado
+                      {t("hc_routesAppTeacherProjects.workModeIndividual")}
                     </SelectItem>
                     <SelectItem value="group_required">
-                      Grupal — todos deben estar en un grupo para entregar
+                      {t("hc_routesAppTeacherProjects.workModeGroupRequired")}
                     </SelectItem>
                     <SelectItem value="teacher_assigned">
-                      Mixto — quien tenga grupo entrega en grupo, los demás individual
+                      {t("hc_routesAppTeacherProjects.workModeMixed")}
                     </SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-muted-foreground leading-tight">
-                  En Grupal o Mixto administras los grupos desde el menú "Grupos".
+                  {t("hc_routesAppTeacherProjects.workModeHint")}
                 </p>
               </div>
             )}
             <div data-tour-id="project-field-title">
-              <Label required>Título</Label>
+              <Label required>{t("hc_routesAppTeacherProjects.title")}</Label>
               <Input
                 value={form.title ?? ""}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -2540,19 +2589,19 @@ function TeacherProjects() {
                   }}
                 >
                   <Sparkles className="h-3 w-3 mr-1" />
-                  Generar con IA
+                  {t("hc_routesAppTeacherProjects.generateWithAi")}
                 </Button>
               </div>
               <Textarea
                 rows={4}
                 value={form.description ?? ""}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Propósito, alcance y restricciones del proyecto. Esta descripción acompañará la calificación IA de cada pregunta."
+                placeholder={t("hc_routesAppTeacherProjects.descriptionPlaceholder")}
               />
             </div>
             {!(form as any).is_external && (
               <div>
-                <Label>Link externo (opcional)</Label>
+                <Label>{t("hc_routesAppTeacherProjects.externalLink")}</Label>
                 <Input
                   placeholder="https://..."
                   value={form.external_link ?? ""}
@@ -2563,16 +2612,14 @@ function TeacherProjects() {
             {!(form as any).is_external && (
               <div>
                 <Label className="flex items-center gap-1.5">
-                  Intentos máximos (opcional)
-                  <HelpHint>
-                    {`Cuántas veces puede entregar el alumno este proyecto. Si lo dejas vacío usa el default global definido en Admin → Configuración → Generales.`}
-                  </HelpHint>
+                  {t("hc_routesAppTeacherProjects.maxAttempts")}
+                  <HelpHint>{t("hc_routesAppTeacherProjects.maxAttemptsHint")}</HelpHint>
                 </Label>
                 <Input
                   type="number"
                   min={1}
                   max={10}
-                  placeholder="Hereda del default global"
+                  placeholder={t("hc_routesAppTeacherProjects.maxAttemptsPlaceholder")}
                   value={form.max_attempts ?? ""}
                   onChange={(e) =>
                     setForm({
@@ -2586,12 +2633,12 @@ function TeacherProjects() {
             {!(form as any).is_external && (
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5">
-                  Videos introductorios obligatorios (opcional)
+                  {t("hc_routesAppTeacherProjects.introVideos")}
                   <HelpHint>{t("help.introVideosHelpProject")}</HelpHint>
                 </Label>
                 {formIntroVideos.length === 0 && (
                   <p className="text-[11px] text-muted-foreground italic">
-                    Sin videos. Click en "+ Agregar video" para empezar.
+                    {t("hc_routesAppTeacherProjects.noVideosHint")}
                   </p>
                 )}
                 <div className="space-y-2">
@@ -2623,7 +2670,7 @@ function TeacherProjects() {
                             {idx + 1}
                           </Badge>
                           <Input
-                            placeholder="Título (opcional, ej. 'Introducción al patrón MVC')"
+                            placeholder={t("hc_routesAppTeacherProjects.videoTitlePlaceholder")}
                             value={video.title}
                             onChange={(e) => update({ title: e.target.value })}
                             className="text-xs h-8"
@@ -2636,7 +2683,7 @@ function TeacherProjects() {
                               className="h-8 w-8"
                               onClick={moveUp}
                               disabled={idx === 0}
-                              title="Mover arriba"
+                              title={t("hc_routesAppTeacherProjects.moveUp")}
                             >
                               <ChevronUp className="h-3.5 w-3.5" />
                             </Button>
@@ -2647,7 +2694,7 @@ function TeacherProjects() {
                               className="h-8 w-8"
                               onClick={moveDown}
                               disabled={idx === formIntroVideos.length - 1}
-                              title="Mover abajo"
+                              title={t("hc_routesAppTeacherProjects.moveDown")}
                             >
                               <ChevronDown className="h-3.5 w-3.5" />
                             </Button>
@@ -2657,7 +2704,7 @@ function TeacherProjects() {
                               variant="ghost"
                               className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                               onClick={remove}
-                              title="Quitar video"
+                              title={t("hc_routesAppTeacherProjects.removeVideo")}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -2683,11 +2730,13 @@ function TeacherProjects() {
                           }}
                         >
                           <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Biblioteca o URL…" />
+                            <SelectValue
+                              placeholder={t("hc_routesAppTeacherProjects.libraryOrUrl")}
+                            />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="__custom">
-                              URL personalizada (no reusable)
+                              {t("hc_routesAppTeacherProjects.customUrlOption")}
                             </SelectItem>
                             {videoLibrary.map((vl) => (
                               <SelectItem key={vl.id} value={vl.id}>
@@ -2704,14 +2753,14 @@ function TeacherProjects() {
                             vacía y la fila se descartaba al guardar). */}
                         {video.library_id ? (
                           <div className="rounded-md border bg-muted/40 px-2.5 py-1.5 text-[11px] text-muted-foreground">
-                            URL gestionada desde el módulo Videos —{" "}
+                            {t("hc_routesAppTeacherProjects.urlManagedFromVideos")}{" "}
                             <span className="font-mono truncate inline-block max-w-[400px] align-bottom">
-                              {video.url || "(cargando…)"}
+                              {video.url || t("hc_routesAppTeacherProjects.loadingParen")}
                             </span>
                           </div>
                         ) : (
                           <Input
-                            placeholder="https://www.youtube.com/watch?v=… ó https://cdn.tucentro.edu/video.mp4"
+                            placeholder={t("hc_routesAppTeacherProjects.videoUrlPlaceholder")}
                             value={video.url}
                             onChange={(e) => update({ url: e.target.value, library_id: null })}
                             className="text-xs h-8"
@@ -2733,11 +2782,12 @@ function TeacherProjects() {
                   }
                 >
                   <Plus className="h-3.5 w-3.5 mr-1" />
-                  Agregar video
+                  {t("hc_routesAppTeacherProjects.addVideo")}
                 </Button>
                 <p className="text-[11px] text-muted-foreground">
-                  Tip: registra los videos en <strong>Videos</strong> (sidebar) y referénciálos aquí
-                  — evita re-pegar URLs.
+                  {t("hc_routesAppTeacherProjects.videoTipPrefix")}{" "}
+                  <strong>{t("hc_routesAppTeacherProjects.videosSidebar")}</strong>{" "}
+                  {t("hc_routesAppTeacherProjects.videoTipSuffix")}
                 </p>
               </div>
             )}
@@ -2748,7 +2798,9 @@ function TeacherProjects() {
               </Label>
               <div className="border rounded-md p-2 max-h-44 overflow-y-auto space-y-1">
                 {courses.length === 0 && (
-                  <p className="text-xs text-muted-foreground">Sin cursos disponibles</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("hc_routesAppTeacherProjects.noCoursesAvailable")}
+                  </p>
                 )}
                 {courses.map((c) => {
                   const checked = (form.linked_course_ids ?? []).includes(c.id);
@@ -2770,7 +2822,7 @@ function TeacherProjects() {
             {(form.linked_course_ids ?? []).length > 0 && (
               <div className="space-y-2">
                 <Label>
-                  Corte y peso por curso{" "}
+                  {t("hc_routesAppTeacherProjects.cutAndWeightPerCourse")}{" "}
                   <HelpHint>{t("help.cutWeightPerCourseProject")}</HelpHint>
                 </Label>
                 {(form.linked_course_ids ?? []).map((cid) => {
@@ -2793,7 +2845,9 @@ function TeacherProjects() {
                           de cortes a ~155px. Stack en mobile. */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
-                          <Label className="text-xs text-muted-foreground">Corte</Label>
+                          <Label className="text-xs text-muted-foreground">
+                            {t("hc_routesAppTeacherProjects.cut")}
+                          </Label>
                           <Select
                             value={cc.cut_id ?? "__none"}
                             onValueChange={(v) =>
@@ -2807,10 +2861,12 @@ function TeacherProjects() {
                             }
                           >
                             <SelectTrigger className="mt-1 h-8 text-sm">
-                              <SelectValue placeholder="Sin corte" />
+                              <SelectValue placeholder={t("hc_routesAppTeacherProjects.noCut")} />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="__none">Sin corte</SelectItem>
+                              <SelectItem value="__none">
+                                {t("hc_routesAppTeacherProjects.noCut")}
+                              </SelectItem>
                               {cutsForCourse.map((c) => (
                                 <SelectItem key={c.id} value={c.id}>
                                   {c.name}
@@ -2820,12 +2876,14 @@ function TeacherProjects() {
                           </Select>
                           {cutsForCourse.length === 0 && (
                             <p className="text-xs text-muted-foreground mt-1">
-                              Sin cortes definidos
+                              {t("hc_routesAppTeacherProjects.noCutsDefined")}
                             </p>
                           )}
                         </div>
                         <div>
-                          <Label className="text-xs text-muted-foreground">Peso (%)</Label>
+                          <Label className="text-xs text-muted-foreground">
+                            {t("hc_routesAppTeacherProjects.weightPercent")}
+                          </Label>
                           <div className="relative mt-1">
                             <DecimalInput
                               min={0}
@@ -2849,16 +2907,22 @@ function TeacherProjects() {
                             <p
                               className={`text-xs mt-1 ${overBucket ? "text-destructive" : "text-muted-foreground"}`}
                             >
-                              Disponible: <strong>{pjMax.toFixed(1)}%</strong> (bucket {pjBucket}% −
-                              otros {otherSum.toFixed(1)}%)
+                              {t("hc_routesAppTeacherProjects.available")}{" "}
+                              <strong>{pjMax.toFixed(1)}%</strong>{" "}
+                              {t("hc_routesAppTeacherProjects.bucketBreakdown", {
+                                bucket: pjBucket,
+                                others: otherSum.toFixed(1),
+                              })}
                               {overBucket && (
-                                <span className="block">Excede el bucket disponible.</span>
+                                <span className="block">
+                                  {t("hc_routesAppTeacherProjects.exceedsAvailableBucket")}
+                                </span>
                               )}
                             </p>
                           )}
                           {!cc.cut_id && (
                             <p className="text-xs text-muted-foreground mt-1">
-                              Asigna un corte para configurar el peso.
+                              {t("hc_routesAppTeacherProjects.assignCutToConfigureWeight")}
                             </p>
                           )}
                         </div>
@@ -2880,7 +2944,9 @@ function TeacherProjects() {
               )}
               <div>
                 <Label required>
-                  {(form as any).is_external ? "Fecha del evento" : t("common.endDate")}
+                  {(form as any).is_external
+                    ? t("hc_routesAppTeacherProjects.eventDate")
+                    : t("common.endDate")}
                 </Label>
                 <DateTimePicker
                   value={form.due_date ? toLocal(form.due_date) : ""}
@@ -2890,7 +2956,7 @@ function TeacherProjects() {
             </div>
             {editing && !form.is_external && form.status === "closed" && (
               <ReopenClosedBanner
-                hint="Para reabrir el proyecto, cambia el estado a Publicado y fija una nueva fecha límite futura."
+                hint={t("hc_routesAppTeacherProjects.reopenClosedHint")}
                 onReopen={() => {
                   const dueMs = form.due_date ? new Date(form.due_date).getTime() : NaN;
                   const isFuture = !Number.isNaN(dueMs) && dueMs > Date.now();
@@ -2903,7 +2969,7 @@ function TeacherProjects() {
             )}
             {!form.is_external && (
               <div>
-                <Label>Estado</Label>
+                <Label>{t("hc_routesAppTeacherProjects.status")}</Label>
                 <Select
                   value={form.status ?? "draft"}
                   onValueChange={(v) => setForm({ ...form, status: v as Project["status"] })}
@@ -2912,9 +2978,15 @@ function TeacherProjects() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="draft">Borrador</SelectItem>
-                    <SelectItem value="published">Publicado</SelectItem>
-                    <SelectItem value="closed">Cerrado</SelectItem>
+                    <SelectItem value="draft">
+                      {t("hc_routesAppTeacherProjects.statusDraft")}
+                    </SelectItem>
+                    <SelectItem value="published">
+                      {t("hc_routesAppTeacherProjects.statusPublished")}
+                    </SelectItem>
+                    <SelectItem value="closed">
+                      {t("hc_routesAppTeacherProjects.statusClosed")}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -2937,26 +3009,25 @@ function TeacherProjects() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
-              Generar descripción con IA
+              {t("hc_routesAppTeacherProjects.generateDescriptionTitle")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label required>Tema o título del proyecto</Label>
+              <Label required>{t("hc_routesAppTeacherProjects.topicOrTitle")}</Label>
               <Input
                 value={aiDescTopic}
                 onChange={(e) => setAiDescTopic(e.target.value)}
-                placeholder="Ej: Sistema de inventario para una librería"
+                placeholder={t("hc_routesAppTeacherProjects.topicPlaceholder")}
                 disabled={aiDescLoading}
               />
               <p className="text-[11px] text-muted-foreground mt-1">
-                La descripción se usará como contexto global al calificar cada pregunta del
-                proyecto. Podrás editarla después.
+                {t("hc_routesAppTeacherProjects.descriptionContextHint")}
               </p>
             </div>
             {form.description && (
               <p className="text-[11px] text-amber-700 dark:text-amber-300">
-                ⚠ Reemplazará la descripción actual.
+                {t("hc_routesAppTeacherProjects.willReplaceDescription")}
               </p>
             )}
           </div>
@@ -2970,7 +3041,7 @@ function TeacherProjects() {
               ) : (
                 <Sparkles className="h-3.5 w-3.5 mr-1" />
               )}
-              Generar
+              {t("hc_routesAppTeacherProjects.generate")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2981,7 +3052,8 @@ function TeacherProjects() {
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Grupos del proyecto {groupsProject ? `— ${groupsProject.title}` : ""}
+              {t("hc_routesAppTeacherProjects.projectGroups")}{" "}
+              {groupsProject ? `— ${groupsProject.title}` : ""}
             </DialogTitle>
           </DialogHeader>
           {groupsProject && (
@@ -3001,7 +3073,9 @@ function TeacherProjects() {
       <Dialog open={filesOpen} onOpenChange={setFilesOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Preguntas — {filesProject?.title}</DialogTitle>
+            <DialogTitle>
+              {t("hc_routesAppTeacherProjects.questionsLabel")} — {filesProject?.title}
+            </DialogTitle>
           </DialogHeader>
           {filesProject && (
             <TeacherProjectFilesEditor
@@ -3016,7 +3090,9 @@ function TeacherProjects() {
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Asignar — {assignProject?.title}</DialogTitle>
+            <DialogTitle>
+              {t("hc_routesAppTeacherProjects.assignLabel")} — {assignProject?.title}
+            </DialogTitle>
           </DialogHeader>
 
           <AssignSelector
@@ -3027,13 +3103,13 @@ function TeacherProjects() {
             onDeselectAll={unassignMany}
             loading={assignLoading}
             errorText={assignError}
-            emptyText="Sin estudiantes matriculados."
-            countNoun="asignados"
+            emptyText={t("hc_routesAppTeacherProjects.noEnrolledStudents")}
+            countNoun={t("hc_routesAppTeacherProjects.assignedNoun")}
             headerExtras={
               assignProject && (assignProject.linked_course_ids ?? []).length > 0 ? (
                 <div className="space-y-2">
                   <p className="text-[11px] text-muted-foreground">
-                    Filtra por curso o asigna a todos los matriculados de un curso.
+                    {t("hc_routesAppTeacherProjects.filterByCourseHint")}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {(assignProject.linked_course_ids ?? []).map((cid) => {
@@ -3065,7 +3141,7 @@ function TeacherProjects() {
                             size="sm"
                             variant="ghost"
                             className="h-8 w-8 p-0"
-                            title="Asignar a todos los matriculados de este curso"
+                            title={t("hc_routesAppTeacherProjects.assignAllEnrolledOfCourse")}
                             onClick={() => assignByCourse(cid)}
                           >
                             <UserPlus className="h-3 w-3" />
@@ -3086,8 +3162,10 @@ function TeacherProjects() {
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {gradingProject?.is_external ? "Notas externas" : "Entregas"} —{" "}
-              {gradingProject?.title}
+              {gradingProject?.is_external
+                ? t("hc_routesAppTeacherProjects.externalGrades")
+                : t("hc_routesAppTeacherProjects.submissions")}{" "}
+              — {gradingProject?.title}
             </DialogTitle>
           </DialogHeader>
           {/* Proyecto externo: mostrar el editor de notas externas en lugar
@@ -3105,7 +3183,7 @@ function TeacherProjects() {
           )}
           {!gradingProject?.is_external && !gradingLoading && gradingSubs.length === 0 && (
             <p className="text-sm text-muted-foreground p-4 text-center">
-              Aún no hay entregas para este proyecto.
+              {t("hc_routesAppTeacherProjects.noSubmissionsYet")}
             </p>
           )}
           {!gradingProject?.is_external &&
@@ -3131,14 +3209,14 @@ function TeacherProjects() {
                   <Input
                     value={gradingSearch}
                     onChange={(e) => setGradingSearch(e.target.value)}
-                    placeholder="Buscar estudiante por nombre o correo…"
+                    placeholder={t("hc_routesAppTeacherProjects.searchStudentPlaceholder")}
                     className="h-8 pl-8 pr-8 text-xs"
                   />
                   {gradingSearch && (
                     <button
                       type="button"
                       onClick={() => setGradingSearch("")}
-                      aria-label="Limpiar búsqueda"
+                      aria-label={t("hc_routesAppTeacherProjects.clearSearch")}
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
                       <X className="h-3.5 w-3.5" />
@@ -3147,14 +3225,20 @@ function TeacherProjects() {
                 </div>
                 {gradingSearch && (
                   <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
-                    {filteredGradingSubs.length} de {gradingSubs.length}
+                    {t("hc_routesAppTeacherProjects.countOf", {
+                      shown: filteredGradingSubs.length,
+                      total: gradingSubs.length,
+                    })}
                   </span>
                 )}
               </div>
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <p className="text-xs text-muted-foreground">
-                  {gradingSubs.length} entrega(s) · puntaje máximo {gradingProject?.max_score} ·{" "}
-                  <span className="font-medium">decimales con coma (ej. 4,5)</span>
+                  {t("hc_routesAppTeacherProjects.submissionsSummary", {
+                    count: gradingSubs.length,
+                    maxScore: gradingProject?.max_score,
+                  })}{" "}
+                  · <span className="font-medium">{t("hc_routesAppTeacherProjects.decimalsWithComma")}</span>
                 </p>
                 <div className="flex items-center gap-2 flex-wrap">
                   {/* Hint para invitar a usar los checkboxes — análogo al
@@ -3163,7 +3247,7 @@ function TeacherProjects() {
                   {gradingSel.count === 0 && filteredGradingSubs.length > 1 && (
                     <span className="text-[11px] text-muted-foreground hidden md:inline-flex items-center gap-1">
                       <span aria-hidden>↙</span>
-                      Marca entregas para recalificar solo algunas
+                      {t("hc_routesAppTeacherProjects.markToRegradeSome")}
                     </span>
                   )}
                   {gradingSel.count > 0 && (
@@ -3173,7 +3257,7 @@ function TeacherProjects() {
                       onClick={() => gradingSel.clear()}
                       disabled={bulkRegrading}
                     >
-                      Limpiar ({gradingSel.count})
+                      {t("hc_routesAppTeacherProjects.clearWithCount", { count: gradingSel.count })}
                     </Button>
                   )}
                   {/* Eliminar entregas marcadas — bulk. Antes la única
@@ -3189,7 +3273,7 @@ function TeacherProjects() {
                       className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
                     >
                       <Trash2 className="h-3.5 w-3.5 mr-1" />
-                      Eliminar {gradingSel.count}
+                      {t("hc_routesAppTeacherProjects.deleteWithCount", { count: gradingSel.count })}
                     </Button>
                   )}
                   {/* Bulk regrade con IA: si hay selección recalifica solo
@@ -3209,8 +3293,8 @@ function TeacherProjects() {
                     disabled={bulkRegrading || filteredGradingSubs.length === 0}
                     title={
                       gradingSel.count > 0
-                        ? "Recalifica solo las entregas marcadas — útil si las dudas son sobre pocos estudiantes."
-                        : "Recalifica con IA todos los archivos de todas las entregas filtradas en serie. Útil tras cambiar rúbricas o modelo."
+                        ? t("hc_routesAppTeacherProjects.regradeSelectedTooltip")
+                        : t("hc_routesAppTeacherProjects.regradeAllTooltip")
                     }
                   >
                     {bulkRegrading ? (
@@ -3219,16 +3303,19 @@ function TeacherProjects() {
                       <Sparkles className="h-3.5 w-3.5 mr-1 text-amber-500" />
                     )}
                     {bulkRegrading
-                      ? `Recalificando ${bulkProgress.done}/${bulkProgress.total}…`
+                      ? t("hc_routesAppTeacherProjects.regradingProgress", {
+                          done: bulkProgress.done,
+                          total: bulkProgress.total,
+                        })
                       : gradingSel.count > 0
-                        ? `Recalificar ${gradingSel.count} con IA`
-                        : "Recalificar todas con IA"}
+                        ? t("hc_routesAppTeacherProjects.regradeNWithAi", { count: gradingSel.count })
+                        : t("hc_routesAppTeacherProjects.regradeAllWithAi")}
                   </Button>
                 </div>
               </div>
               {filteredGradingSubs.length === 0 && (
                 <p className="text-sm text-muted-foreground p-2 text-center">
-                  Ningún estudiante coincide con la búsqueda.
+                  {t("hc_routesAppTeacherProjects.noStudentMatchesSearch")}
                 </p>
               )}
               <Accordion
@@ -3267,7 +3354,9 @@ function TeacherProjects() {
                             <MultiSelectCheckbox
                               id={sub.id}
                               state={gradingSel}
-                              ariaLabel={`Seleccionar entrega de ${sub.profile?.full_name ?? "—"}`}
+                              ariaLabel={t("hc_routesAppTeacherProjects.selectSubmissionOf", {
+                                name: sub.profile?.full_name ?? "—",
+                              })}
                             />
                           </span>
                           <span className="font-medium text-sm">
@@ -3281,7 +3370,7 @@ function TeacherProjects() {
                           </div>
                           {sub.defense_factor == null && headerGrade != null && (
                             <Badge variant="secondary" className="text-[9px]">
-                              Falta sustentar
+                              {t("hc_routesAppTeacherProjects.pendingDefenseBadge")}
                             </Badge>
                           )}
                           <Badge variant="outline" className="text-[10px] tabular-nums">
@@ -3295,7 +3384,8 @@ function TeacherProjects() {
                         <div className="space-y-3">
                           <div className="flex items-center justify-between flex-wrap gap-2">
                             <p className="text-[11px] text-muted-foreground tabular-nums">
-                              Enviado: {formatDateTime(sub.submitted_at)}
+                              {t("hc_routesAppTeacherProjects.sentLabel")}{" "}
+                              {formatDateTime(sub.submitted_at)}
                             </p>
                             <Button
                               size="sm"
@@ -3303,13 +3393,14 @@ function TeacherProjects() {
                               className="text-destructive"
                               onClick={() => deleteSubmission(sub)}
                             >
-                              <Trash2 className="h-3.5 w-3.5 mr-1" /> Eliminar entrega
+                              <Trash2 className="h-3.5 w-3.5 mr-1" />{" "}
+                              {t("hc_routesAppTeacherProjects.deleteSubmission")}
                             </Button>
                           </div>
                           {sub.repository_url && (
                             <div className="rounded-md border bg-amber-500/5 dark:bg-amber-500/10 border-amber-500/30 p-2.5 space-y-1">
                               <div className="text-[11px] text-muted-foreground">
-                                Repositorio del estudiante (verificar fechas vs entrega):
+                                {t("hc_routesAppTeacherProjects.studentRepository")}
                               </div>
                               <a
                                 href={sub.repository_url}
@@ -3327,7 +3418,7 @@ function TeacherProjects() {
                               creía que "no se veía lo que entregaron". */}
                           {gradingFiles.length > 0 && (
                             <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              Lo que entregó el estudiante
+                              {t("hc_routesAppTeacherProjects.whatStudentSubmitted")}
                             </div>
                           )}
                           {gradingFiles.map((f) => {
@@ -3351,9 +3442,13 @@ function TeacherProjects() {
                                       <Badge
                                         variant="outline"
                                         className="text-[10px] border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                                        title={`La IA analizó ${a.zip_chars_used ?? "parte"} de los caracteres del ZIP. Archivos individuales > 50KB se truncaron y/o el total excedió 200KB.`}
+                                        title={t("hc_routesAppTeacherProjects.zipTruncatedTooltip", {
+                                          chars:
+                                            a.zip_chars_used ??
+                                            t("hc_routesAppTeacherProjects.partWord"),
+                                        })}
                                       >
-                                        ZIP truncado · revisa manualmente
+                                        {t("hc_routesAppTeacherProjects.zipTruncatedBadge")}
                                       </Badge>
                                     )}
                                     {a?.ai_likelihood != null && (
@@ -3363,7 +3458,9 @@ function TeacherProjects() {
                                         }
                                         className="text-[10px] ml-auto"
                                       >
-                                        IA: {Math.round(Number(a.ai_likelihood) * 100)}%
+                                        {t("hc_routesAppTeacherProjects.aiBadge", {
+                                          pct: Math.round(Number(a.ai_likelihood) * 100),
+                                        })}
                                       </Badge>
                                     )}
                                   </div>
@@ -3377,7 +3474,9 @@ function TeacherProjects() {
                                     a?.ai_likelihood != null &&
                                     Number(a.ai_likelihood) >= 0.6 && (
                                       <div className="rounded-md border border-amber-300/60 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 text-[11px] text-amber-700 dark:text-amber-300">
-                                        <div className="font-medium mb-0.5">Razones IA:</div>
+                                        <div className="font-medium mb-0.5">
+                                          {t("hc_routesAppTeacherProjects.aiReasonsLabel")}
+                                        </div>
                                         <div className="whitespace-pre-line">{a.ai_reasons}</div>
                                       </div>
                                     )}
@@ -3385,7 +3484,7 @@ function TeacherProjects() {
                                     ((a?.code_paths && a.code_paths.length > 0) || a?.zip_path) && (
                                       <div className="rounded-md border bg-muted/30 p-2 space-y-1.5">
                                         <div className="text-[11px] font-medium text-muted-foreground">
-                                          Archivos entregados
+                                          {t("hc_routesAppTeacherProjects.submittedFiles")}
                                         </div>
                                         {a?.code_paths && a.code_paths.length > 0
                                           ? a.code_paths.map((p) => (
@@ -3405,7 +3504,9 @@ function TeacherProjects() {
                                                     if (error || !data?.signedUrl) {
                                                       toast.error(
                                                         error?.message ??
-                                                          "No se pudo generar enlace de descarga.",
+                                                          t(
+                                                            "hc_routesAppTeacherProjects.couldNotGenerateDownloadLink",
+                                                          ),
                                                       );
                                                       return;
                                                     }
@@ -3417,7 +3518,7 @@ function TeacherProjects() {
                                                   }}
                                                 >
                                                   <Download className="h-3 w-3 mr-1" />
-                                                  Descargar
+                                                  {t("hc_routesAppTeacherProjects.download")}
                                                 </Button>
                                               </div>
                                             ))
@@ -3425,7 +3526,8 @@ function TeacherProjects() {
                                               <div className="flex items-center gap-2 min-w-0">
                                                 <FileArchive className="h-3.5 w-3.5 text-primary shrink-0" />
                                                 <span className="text-[11px] font-mono truncate flex-1">
-                                                  {a.zip_path.split("/").pop()} (ZIP legacy)
+                                                  {a.zip_path.split("/").pop()}{" "}
+                                                  {t("hc_routesAppTeacherProjects.zipLegacy")}
                                                 </span>
                                                 <Button
                                                   size="sm"
@@ -3439,7 +3541,9 @@ function TeacherProjects() {
                                                     if (error || !data?.signedUrl) {
                                                       toast.error(
                                                         error?.message ??
-                                                          "No se pudo generar enlace de descarga.",
+                                                          t(
+                                                            "hc_routesAppTeacherProjects.couldNotGenerateDownloadLink",
+                                                          ),
                                                       );
                                                       return;
                                                     }
@@ -3451,7 +3555,7 @@ function TeacherProjects() {
                                                   }}
                                                 >
                                                   <Download className="h-3 w-3 mr-1" />
-                                                  Descargar
+                                                  {t("hc_routesAppTeacherProjects.download")}
                                                 </Button>
                                               </div>
                                             )}
@@ -3471,7 +3575,9 @@ function TeacherProjects() {
                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                     <div>
                                       <Label className="text-[10px]">
-                                        Calificación (max {f.points})
+                                        {t("hc_routesAppTeacherProjects.gradeMax", {
+                                          points: f.points,
+                                        })}
                                       </Label>
                                       <DecimalInput
                                         min={0}
@@ -3483,7 +3589,9 @@ function TeacherProjects() {
                                       />
                                     </div>
                                     <div className="md:col-span-2">
-                                      <Label className="text-[10px]">Retroalimentación</Label>
+                                      <Label className="text-[10px]">
+                                        {t("hc_routesAppTeacherProjects.feedback")}
+                                      </Label>
                                       <Textarea
                                         rows={2}
                                         value={a?.ai_feedback ?? ""}
@@ -3507,7 +3615,7 @@ function TeacherProjects() {
                                       ) : (
                                         <Sparkles className="h-3.5 w-3.5 mr-1" />
                                       )}
-                                      Recalificar IA
+                                      {t("hc_routesAppTeacherProjects.regradeAi")}
                                     </Button>
                                     <Button
                                       size="sm"
@@ -3519,7 +3627,7 @@ function TeacherProjects() {
                                       ) : (
                                         <Save className="h-3.5 w-3.5 mr-1" />
                                       )}
-                                      Guardar
+                                      {t("common.save")}
                                     </Button>
                                   </div>
                                   <FeedbackThread
@@ -3548,7 +3656,7 @@ function TeacherProjects() {
                                 className="text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/10"
                                 onClick={() => reopenProjectSubmission(sub.id)}
                               >
-                                Reabrir entrega
+                                {t("hc_routesAppTeacherProjects.reopenSubmissionButton")}
                               </Button>
                             </div>
                           )}
@@ -3567,9 +3675,9 @@ function TeacherProjects() {
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}
         items={selectedProjectItems}
-        entityNameSingular="proyecto"
-        entityNamePlural="proyectos"
-        extraWarning="Se eliminarán también las asignaciones, preguntas y entregas de los proyectos seleccionados."
+        entityNameSingular={t("hc_routesAppTeacherProjects.entitySingular")}
+        entityNamePlural={t("hc_routesAppTeacherProjects.entityPlural")}
+        extraWarning={t("hc_routesAppTeacherProjects.bulkDeleteExtraWarning")}
         onConfirm={handleBulkDelete}
       />
 
@@ -3611,6 +3719,7 @@ function DefensePanel({
     videoUrl?: string | null,
   ) => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [factor, setFactor] = useState<string>(
     sub.defense_factor != null ? String(sub.defense_factor) : "",
   );
@@ -3657,7 +3766,7 @@ function DefensePanel({
       .from("project-files")
       .createSignedUrl(videoUrl, 120);
     if (error || !data?.signedUrl) {
-      toast.error(friendlyError(error, "No se pudo abrir el video"));
+      toast.error(friendlyError(error, t("hc_routesAppTeacherProjects.couldNotOpenVideo")));
       return;
     }
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
@@ -3672,30 +3781,38 @@ function DefensePanel({
   return (
     <Card className="border-primary/30 bg-primary/5">
       <CardContent className="p-3 space-y-2">
-        <div className="text-sm font-medium">Sustentación</div>
+        <div className="text-sm font-medium">{t("hc_routesAppTeacherProjects.defense")}</div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
           <div>
-            <div className="text-muted-foreground text-[11px]">Nota entrega</div>
+            <div className="text-muted-foreground text-[11px]">
+              {t("hc_routesAppTeacherProjects.submissionGrade")}
+            </div>
             <div className="font-mono tabular-nums">
               {subGrade != null ? `${subGrade}/${maxScore}` : "—"}
             </div>
           </div>
           <div>
-            <div className="text-muted-foreground text-[11px]">Factor (0–1)</div>
+            <div className="text-muted-foreground text-[11px]">
+              {t("hc_routesAppTeacherProjects.factor01")}
+            </div>
             <Input
               type="text"
               inputMode="decimal"
-              placeholder="ej. 0,8"
+              placeholder={t("hc_routesAppTeacherProjects.factorPlaceholder")}
               value={factor}
               onChange={(e) => setFactor(e.target.value)}
               className="h-8 text-xs"
             />
             {!factorValid && (
-              <p className="text-[10px] text-destructive mt-0.5">Debe estar entre 0 y 1</p>
+              <p className="text-[10px] text-destructive mt-0.5">
+                {t("hc_routesAppTeacherProjects.factorRange")}
+              </p>
             )}
           </div>
           <div>
-            <div className="text-muted-foreground text-[11px]">Nota final = entrega × factor</div>
+            <div className="text-muted-foreground text-[11px]">
+              {t("hc_routesAppTeacherProjects.finalGradeFormula")}
+            </div>
             <div className="font-mono tabular-nums font-semibold">
               {previewFinal != null ? `${previewFinal}/${maxScore}` : "—"}
             </div>
@@ -3703,18 +3820,20 @@ function DefensePanel({
         </div>
         <Textarea
           rows={2}
-          placeholder="Notas de la sustentación (opcional)"
+          placeholder={t("hc_routesAppTeacherProjects.defenseNotesPlaceholder")}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           className="text-xs"
         />
         {/* Video de sustentación: pegar un enlace o subir un archivo. */}
         <div className="space-y-1">
-          <div className="text-muted-foreground text-[11px]">Video de sustentación (opcional)</div>
+          <div className="text-muted-foreground text-[11px]">
+            {t("hc_routesAppTeacherProjects.defenseVideoLabel")}
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <Input
               type="url"
-              placeholder="Pega un enlace (Drive, YouTube, Meet…)"
+              placeholder={t("hc_routesAppTeacherProjects.defenseVideoLinkPlaceholder")}
               value={isExternalUrl ? videoUrl : ""}
               onChange={(e) => setVideoUrl(e.target.value)}
               className="h-8 text-xs flex-1 min-w-[180px]"
@@ -3731,7 +3850,7 @@ function DefensePanel({
                 }}
               />
               {uploadingVideo ? <Spinner size="sm" /> : <Upload className="h-3.5 w-3.5" />}
-              Subir
+              {t("hc_routesAppTeacherProjects.upload")}
             </label>
           </div>
           {videoUrl && (
@@ -3741,20 +3860,22 @@ function DefensePanel({
                 onClick={() => void openVideo()}
                 className="inline-flex items-center gap-1 text-primary hover:underline"
               >
-                <Video className="h-3.5 w-3.5" /> Ver video {isExternalUrl ? "(enlace)" : "(subido)"}
+                <Video className="h-3.5 w-3.5" /> {t("hc_routesAppTeacherProjects.viewVideo")}{" "}
+                {isExternalUrl
+                  ? t("hc_routesAppTeacherProjects.viewVideoLink")
+                  : t("hc_routesAppTeacherProjects.viewVideoUploaded")}
               </button>
               <button
                 type="button"
                 onClick={() => setVideoUrl("")}
                 className="text-muted-foreground hover:text-destructive"
               >
-                Quitar
+                {t("hc_routesAppTeacherProjects.removeWord")}
               </button>
             </div>
           )}
           <p className="text-[10px] text-muted-foreground">
-            Para videos largos conviene un enlace (Drive/YouTube); la subida directa tiene tope de
-            tamaño.
+            {t("hc_routesAppTeacherProjects.defenseVideoTip")}
           </p>
         </div>
         <div className="flex justify-end">
@@ -3772,7 +3893,7 @@ function DefensePanel({
             disabled={saving || !factorValid}
           >
             {saving ? <Spinner size="sm" className="mr-1" /> : null}
-            Guardar sustentación
+            {t("hc_routesAppTeacherProjects.saveDefense")}
           </Button>
         </div>
       </CardContent>

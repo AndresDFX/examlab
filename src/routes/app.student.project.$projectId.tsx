@@ -292,7 +292,8 @@ function StudentProjectDetail() {
           if (!cancelled) setAnswersByFid(map);
         }
       } catch (e) {
-        if (!cancelled) setLoadError(friendlyError(e, "No pudimos cargar los datos del proyecto."));
+        if (!cancelled)
+          setLoadError(friendlyError(e, t("hc_routesAppStudentProjectProjectId.loadErrorFallback")));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -315,11 +316,11 @@ function StudentProjectDetail() {
       <div className="space-y-4 p-2">
         <Link to="/app/student/projects">
           <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" /> Proyectos
+            <ArrowLeft className="h-4 w-4 mr-1" /> {t("hc_routesAppStudentProjectProjectId.projectsBack")}
           </Button>
         </Link>
         <ErrorState
-          message="No pudimos cargar los datos del proyecto"
+          message={t("hc_routesAppStudentProjectProjectId.loadErrorTitle")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -332,7 +333,7 @@ function StudentProjectDetail() {
       <div className="space-y-4 p-2">
         <Link to="/app/student/projects">
           <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" /> Proyectos
+            <ArrowLeft className="h-4 w-4 mr-1" /> {t("hc_routesAppStudentProjectProjectId.projectsBack")}
           </Button>
         </Link>
         <Card>
@@ -349,7 +350,7 @@ function StudentProjectDetail() {
       <div className="space-y-4 p-2">
         <Link to="/app/student/projects">
           <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" /> Proyectos
+            <ArrowLeft className="h-4 w-4 mr-1" /> {t("hc_routesAppStudentProjectProjectId.projectsBack")}
           </Button>
         </Link>
         <Card>
@@ -367,7 +368,7 @@ function StudentProjectDetail() {
     <div className="space-y-5 max-w-3xl mx-auto">
       <PageHeader
         backTo="/app/student/projects"
-        backLabel="Proyectos"
+        backLabel={t("hc_routesAppStudentProjectProjectId.projectsBack")}
         title={project.title}
         subtitle={project.course?.name}
       />
@@ -387,7 +388,7 @@ function StudentProjectDetail() {
       {project.description && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Descripción del proyecto</CardTitle>
+            <CardTitle className="text-base">{t("hc_routesAppStudentProjectProjectId.projectDescription")}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm whitespace-pre-wrap">{project.description}</CardContent>
         </Card>
@@ -400,7 +401,7 @@ function StudentProjectDetail() {
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
         >
-          <ExternalLink className="h-4 w-4" /> Abrir recurso del proyecto
+          <ExternalLink className="h-4 w-4" /> {t("hc_routesAppStudentProjectProjectId.openProjectResource")}
         </a>
       )}
 
@@ -448,9 +449,9 @@ function StudentProjectDetail() {
           )}
 
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold tracking-tight">Archivos entregados</h2>
+            <h2 className="text-lg font-semibold tracking-tight">{t("hc_routesAppStudentProjectProjectId.submittedFiles")}</h2>
             {files.length === 0 && (
-              <p className="text-sm text-muted-foreground">No hay archivos definidos.</p>
+              <p className="text-sm text-muted-foreground">{t("hc_routesAppStudentProjectProjectId.noFilesDefined")}</p>
             )}
             {files.map((f, idx) => {
               const ans = answersByFid[f.id];
@@ -468,7 +469,7 @@ function StudentProjectDetail() {
                       {aiFlag && (
                         <Badge variant="destructive" className="text-[10px]">
                           <Bot className="h-3 w-3 mr-1" />
-                          Posible IA
+                          {t("hc_routesAppStudentProjectProjectId.possibleAi")}
                         </Badge>
                       )}
                       <span className="text-sm font-normal text-muted-foreground ml-auto tabular-nums">
@@ -509,7 +510,7 @@ function StudentProjectDetail() {
                                       if (error || !data?.signedUrl) {
                                         toast.error(
                                           error?.message ??
-                                            "No se pudo generar enlace de descarga.",
+                                            t("hc_routesAppStudentProjectProjectId.downloadLinkError"),
                                         );
                                         return;
                                       }
@@ -517,7 +518,7 @@ function StudentProjectDetail() {
                                     }}
                                   >
                                     <Download className="h-3.5 w-3.5 mr-1" />
-                                    Descargar
+                                    {t("hc_routesAppStudentProjectProjectId.download")}
                                   </Button>
                                 </div>
                               ))
@@ -525,7 +526,7 @@ function StudentProjectDetail() {
                                 <div className="flex items-center gap-3">
                                   <FileArchive className="h-6 w-6 text-primary shrink-0" />
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium">Código entregado (ZIP)</p>
+                                    <p className="text-sm font-medium">{t("hc_routesAppStudentProjectProjectId.submittedCodeZip")}</p>
                                     <p className="text-[11px] text-muted-foreground truncate">
                                       {ans.zip_path.split("/").pop()}
                                     </p>
@@ -541,7 +542,7 @@ function StudentProjectDetail() {
                                       if (error || !data?.signedUrl) {
                                         toast.error(
                                           error?.message ??
-                                            "No se pudo generar enlace de descarga.",
+                                            t("hc_routesAppStudentProjectProjectId.downloadLinkError"),
                                         );
                                         return;
                                       }
@@ -549,7 +550,7 @@ function StudentProjectDetail() {
                                     }}
                                   >
                                     <Download className="h-3.5 w-3.5 mr-1" />
-                                    Descargar
+                                    {t("hc_routesAppStudentProjectProjectId.download")}
                                   </Button>
                                 </div>
                               )}
@@ -567,8 +568,8 @@ function StudentProjectDetail() {
                         //    subió nada todavía.
                         <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
                           {ans && (ans.ai_feedback || ans.ai_grade != null)
-                            ? "Tu entrega no incluyó archivos de código para esta sección. Revisa la retroalimentación abajo."
-                            : "Aún no has subido los archivos de código para esta sección."}
+                            ? t("hc_routesAppStudentProjectProjectId.noCodeFilesGraded")
+                            : t("hc_routesAppStudentProjectProjectId.noCodeFilesYet")}
                         </div>
                       )
                     ) : (
@@ -601,8 +602,7 @@ function StudentProjectDetail() {
                       ans &&
                       (!ans.ai_feedback || !ans.ai_feedback.trim()) && (
                         <div className="border-t pt-3 text-[11px] text-amber-700 dark:text-amber-300">
-                          La IA no generó retroalimentación para esta sección. Pide a tu docente que
-                          recalifique con IA o que revise manualmente.
+                          {t("hc_routesAppStudentProjectProjectId.aiNoFeedbackNote")}
                         </div>
                       )}
                     {submission && (

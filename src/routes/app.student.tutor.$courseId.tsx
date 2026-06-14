@@ -29,6 +29,7 @@ import { findActiveTagQuery } from "@/modules/messaging/message-tags";
 import { isReferenceableFile } from "@/modules/contents/material-extract";
 import { cn } from "@/shared/lib/utils";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 export const Route = createFileRoute("/app/student/tutor/$courseId")({ component: TutorChat });
 
@@ -51,6 +52,7 @@ interface CourseFile {
 }
 
 function TutorChat() {
+  const { t } = useTranslation();
   const { courseId } = Route.useParams();
   const { user } = useAuth();
   const confirm = useConfirm();
@@ -112,7 +114,7 @@ function TutorChat() {
         ]);
         if (cancelled) return;
         if (cErr) {
-          setLoadError(friendlyError(cErr, "No pudimos cargar el tutor de este curso."));
+          setLoadError(friendlyError(cErr, t("hc_routesAppStudentTutorCourseId.loadTutorError")));
           return;
         }
         setCourse(c as { id: string; name: string } | null);
@@ -124,7 +126,7 @@ function TutorChat() {
           topic: string | null;
           files: Array<{ name?: string }> | null;
         }>) {
-          const contentName = (row.display_name || row.topic || "Contenido").trim();
+          const contentName = (row.display_name || row.topic || t("hc_routesAppStudentTutorCourseId.contentFallback")).trim();
           for (const f of Array.isArray(row.files) ? row.files : []) {
             if (f?.name && isReferenceableFile(f.name)) {
               files.push({ contentId: row.id, contentName, fileName: String(f.name) });
@@ -143,7 +145,7 @@ function TutorChat() {
           if (!cancelled) setMessages((msgs ?? []) as Message[]);
         }
       } catch (e) {
-        if (!cancelled) setLoadError(friendlyError(e, "No pudimos cargar el tutor de este curso."));
+        if (!cancelled) setLoadError(friendlyError(e, t("hc_routesAppStudentTutorCourseId.loadTutorError")));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -171,7 +173,7 @@ function TutorChat() {
       .select("id")
       .maybeSingle();
     if (error || !data) {
-      toast.error(friendlyError(error, "No se pudo iniciar la conversación"));
+      toast.error(friendlyError(error, t("hc_routesAppStudentTutorCourseId.startConversationError")));
       return null;
     }
     const newId = (data as { id: string }).id;
@@ -183,10 +185,9 @@ function TutorChat() {
   const clearConversation = async () => {
     if (!sessionId || messages.length === 0) return;
     const ok = await confirm({
-      title: "¿Limpiar la conversación?",
-      description:
-        "Se borrarán todos los mensajes con el tutor para este curso. Esta acción no se puede deshacer.",
-      confirmLabel: "Limpiar",
+      title: t("hc_routesAppStudentTutorCourseId.clearConfirmTitle"),
+      description: t("hc_routesAppStudentTutorCourseId.clearConfirmDescription"),
+      confirmLabel: t("hc_routesAppStudentTutorCourseId.clearConfirmLabel"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -263,7 +264,7 @@ function TutorChat() {
       // accionable, ej. API key inválida) vive en error.context.response.
       if (error) {
         const real = await extractEdgeError(error, data);
-        throw new Error(real || "Error consultando al tutor");
+        throw new Error(real || t("hc_routesAppStudentTutorCourseId.tutorQueryError"));
       }
       if (data?.error) throw new Error(data.error);
       await loadMessages(sid);
@@ -271,7 +272,7 @@ function TutorChat() {
       setReferenced([]);
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticUserMsg.id));
-      toast.error(friendlyError(e, "Error consultando al tutor"));
+      toast.error(friendlyError(e, t("hc_routesAppStudentTutorCourseId.tutorQueryError")));
     } finally {
       setSending(false);
     }
@@ -284,8 +285,8 @@ function TutorChat() {
       <PageHeader
         backTo="/app/student/courses"
         icon={<Sparkles className="h-6 w-6 text-indigo-500" />}
-        title={course ? `Tutor IA · ${course.name}` : "Tutor IA"}
-        subtitle="Te guío con el material del curso. No resuelvo ejercicios — explico el método para que tú llegues a la respuesta."
+        title={course ? t("hc_routesAppStudentTutorCourseId.titleWithCourse", { course: course.name }) : t("hc_routesAppStudentTutorCourseId.title")}
+        subtitle={t("hc_routesAppStudentTutorCourseId.subtitle")}
         actions={
           hasMessages ? (
             <Button
@@ -299,7 +300,7 @@ function TutorChat() {
               ) : (
                 <Trash2 className="h-4 w-4 mr-1" />
               )}
-              Limpiar conversación
+              {t("hc_routesAppStudentTutorCourseId.clearConversation")}
             </Button>
           ) : null
         }
@@ -307,7 +308,7 @@ function TutorChat() {
 
       {loadError && (
         <ErrorState
-          message="No pudimos cargar el tutor"
+          message={t("hc_routesAppStudentTutorCourseId.errorStateMessage")}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -317,7 +318,7 @@ function TutorChat() {
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
           {loading ? (
             <div className="text-center text-sm text-muted-foreground py-8">
-              <Spinner size="md" /> Cargando…
+              <Spinner size="md" /> {t("hc_routesAppStudentTutorCourseId.loading")}
             </div>
           ) : !hasMessages ? (
             <EmptyChat />
@@ -329,7 +330,7 @@ function TutorChat() {
               <Bot className="h-4 w-4 mt-0.5" />
               <div className="flex items-center gap-2">
                 <Spinner size="sm" />
-                El tutor está pensando…
+                {t("hc_routesAppStudentTutorCourseId.tutorThinking")}
               </div>
             </div>
           )}
@@ -338,14 +339,14 @@ function TutorChat() {
         <div className="border-t p-3 space-y-2">
           {referenced.length > 0 && (
             <div className="flex flex-wrap items-center gap-1">
-              <span className="text-[11px] text-muted-foreground mr-0.5">Material referenciado:</span>
+              <span className="text-[11px] text-muted-foreground mr-0.5">{t("hc_routesAppStudentTutorCourseId.referencedMaterial")}</span>
               {referenced.map((f, i) => (
                 <Badge key={`${f.contentId}-${f.fileName}-${i}`} variant="secondary" className="gap-1 text-[10px] max-w-[220px]">
                   <FileText className="h-3 w-3 shrink-0" />
                   <span className="truncate">{f.fileName}</span>
                   <button
                     type="button"
-                    aria-label={`Quitar ${f.fileName}`}
+                    aria-label={t("hc_routesAppStudentTutorCourseId.removeFile", { file: f.fileName })}
                     className="ml-0.5 rounded-sm hover:bg-foreground/10 p-0.5"
                     onClick={() => setReferenced((prev) => prev.filter((_, j) => j !== i))}
                   >
@@ -388,7 +389,7 @@ function TutorChat() {
                 setTagQuery(findActiveTagQuery(val, caret));
                 setTagIndex(0);
               }}
-              placeholder="¿En qué te ayudo? Escribe # para referenciar material del curso…"
+              placeholder={t("hc_routesAppStudentTutorCourseId.inputPlaceholder")}
               rows={3}
               className="resize-none text-sm"
               maxLength={4000}
@@ -425,7 +426,7 @@ function TutorChat() {
           </div>
           <div className="flex items-center justify-end sm:justify-between gap-2">
             <span className="hidden sm:inline text-[11px] text-muted-foreground">
-              Enter para enviar · Shift+Enter salto de línea · <span className="font-medium">#</span> referencia material
+              {t("hc_routesAppStudentTutorCourseId.shortcutsHintBefore")} <span className="font-medium">#</span> {t("hc_routesAppStudentTutorCourseId.shortcutsHintAfter")}
             </span>
             <Button
               size="sm"
@@ -437,7 +438,7 @@ function TutorChat() {
               ) : (
                 <Send className="h-4 w-4 mr-1" />
               )}
-              Enviar
+              {t("hc_routesAppStudentTutorCourseId.send")}
             </Button>
           </div>
         </div>
@@ -447,25 +448,26 @@ function TutorChat() {
 }
 
 function EmptyChat() {
+  const { t } = useTranslation();
   return (
     <div className="text-center py-12 space-y-3">
       <div className="mx-auto w-16 h-16 rounded-full bg-indigo-500/10 flex items-center justify-center">
         <Sparkles className="h-8 w-8 text-indigo-500" />
       </div>
-      <h2 className="text-base font-semibold">Soy tu tutor de IA</h2>
+      <h2 className="text-base font-semibold">{t("hc_routesAppStudentTutorCourseId.emptyTitle")}</h2>
       <p className="text-sm text-muted-foreground max-w-md mx-auto">
-        Conozco el material de este curso. Pregúntame por conceptos, ejercicios, dudas de
-        clase — te guío para que tú llegues a la respuesta.
+        {t("hc_routesAppStudentTutorCourseId.emptyDescription")}
       </p>
       <div className="text-[11px] text-muted-foreground flex items-center justify-center gap-1 pt-2">
         <AlertTriangle className="h-3 w-3" />
-        No reemplazo a tu docente ni doy soluciones exactas a tareas.
+        {t("hc_routesAppStudentTutorCourseId.emptyDisclaimer")}
       </div>
     </div>
   );
 }
 
 function MessageBubble({ message }: { message: Message }) {
+  const { t } = useTranslation();
   const isUser = message.role === "user";
   return (
     <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
@@ -481,7 +483,7 @@ function MessageBubble({ message }: { message: Message }) {
           variant="outline"
           className={`text-[10px] ${isUser ? "" : "border-indigo-500/40 text-indigo-700 dark:text-indigo-300"}`}
         >
-          {isUser ? "Tú" : "Tutor"}
+          {isUser ? t("hc_routesAppStudentTutorCourseId.roleYou") : t("hc_routesAppStudentTutorCourseId.roleTutor")}
         </Badge>
         <div
           className={`mt-1 rounded-lg p-3 text-sm inline-block text-left ${
