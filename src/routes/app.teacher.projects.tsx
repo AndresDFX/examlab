@@ -90,9 +90,10 @@ import {
 } from "@/components/ui/multi-select";
 import { ListFilters } from "@/components/ui/list-filters";
 import { StatCard } from "@/components/ui/stat-card";
-import { CheckCircle2, Lock, ExternalLink, Video, Upload } from "lucide-react";
+import { CheckCircle2, Lock, ExternalLink, Video, Upload, FileUp } from "lucide-react";
 import { CourseListCell } from "@/components/ui/course-list-cell";
 import { TeacherProjectFilesEditor } from "@/modules/projects/ProjectFiles";
+import { BulkImportDefensesDialog } from "@/modules/projects/BulkImportDefensesDialog";
 import { AssignSelector } from "@/shared/components/AssignSelector";
 import { FeedbackThread } from "@/modules/grading/FeedbackThread";
 import { FraudPanel } from "@/modules/exams/FraudPanel";
@@ -502,6 +503,9 @@ function TeacherProjects() {
   const [openAccordionItems, setOpenAccordionItems] = useState<string[]>([]);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [aiRegradingId, setAiRegradingId] = useState<string | null>(null);
+  // Bulk import de sustentaciones via CSV — abre el dialog separado.
+  // Sin ese flujo el docente tenía que sustentar uno por uno.
+  const [bulkDefensesOpen, setBulkDefensesOpen] = useState(false);
   // Bulk re-grade del proyecto entero. Itera todas las entregas filtradas
   // (respeta el buscador del modal) × todas las preguntas y llama el
   // edge per-file. Progreso visible en el botón (X/Y). Para volúmenes
@@ -1752,12 +1756,22 @@ function TeacherProjects() {
     factor: number | null,
     notes: string,
     videoUrl?: string | null,
+    /** Override manual de submission_grade. Si `null/undefined`, NO se
+     *  toca (se mantiene el valor calculado por la IA o el trigger SQL).
+     *  Útil cuando el docente quiere ajustar la nota global sin pasar
+     *  por la edición de cada archivo. */
+    subGradeOverride?: number | null,
   ) => {
     const sub = gradingSubs.find((s) => s.id === subId);
     if (!sub) return;
     const videoVal = (videoUrl ?? "").trim() || null;
-    const subGrade = sub.submission_grade ?? sub.ai_grade;
-    if (subGrade == null) {
+    // El override del docente gana sobre el cálculo automático. Si no hay
+    // override, usar el submission_grade actual o el ai_grade legacy.
+    const effectiveSubGrade =
+      subGradeOverride != null && !Number.isNaN(subGradeOverride)
+        ? subGradeOverride
+        : (sub.submission_grade ?? sub.ai_grade);
+    if (effectiveSubGrade == null) {
       toast.error(
         i18n.t("toast.routes_app_teacher_projects.submissionNotGradedYet", {
           defaultValue: "La entrega aún no tiene calificación. Califica los archivos primero.",
@@ -1768,17 +1782,27 @@ function TeacherProjects() {
     const validFactor =
       factor != null && !Number.isNaN(factor) ? Math.max(0, Math.min(1, factor)) : null;
     const newFinal =
-      validFactor != null ? Number((Number(subGrade) * validFactor).toFixed(2)) : null;
+      validFactor != null
+        ? Number((Number(effectiveSubGrade) * validFactor).toFixed(2))
+        : null;
+    // Si el docente cambió `submission_grade` manualmente, también lo
+    // persistimos. El trigger SQL `trg_project_submission_files_recompute`
+    // NO interferirá porque solo dispara al cambiar `ai_grade` de un file.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updatePayload: any = {
+      defense_factor: validFactor,
+      defense_notes: notes || null,
+      defense_at: validFactor != null ? new Date().toISOString() : null,
+      defense_video_url: videoVal,
+      final_grade: newFinal,
+      status: validFactor != null ? "calificado" : "entregado",
+    };
+    if (subGradeOverride != null && !Number.isNaN(subGradeOverride)) {
+      updatePayload.submission_grade = subGradeOverride;
+    }
     const { error } = await db
       .from("project_submissions")
-      .update({
-        defense_factor: validFactor,
-        defense_notes: notes || null,
-        defense_at: validFactor != null ? new Date().toISOString() : null,
-        defense_video_url: videoVal,
-        final_grade: newFinal,
-        status: validFactor != null ? "calificado" : "entregado",
-      })
+      .update(updatePayload)
       .eq("id", subId);
     if (error) {
       toast.error(friendlyError(error));
@@ -1795,6 +1819,9 @@ function TeacherProjects() {
               defense_video_url: videoVal,
               final_grade: newFinal,
               status: validFactor != null ? "calificado" : "entregado",
+              ...(subGradeOverride != null && !Number.isNaN(subGradeOverride)
+                ? { submission_grade: subGradeOverride }
+                : {}),
             }
           : s,
       ),
@@ -3161,12 +3188,30 @@ function TeacherProjects() {
       <Dialog open={gradingOpen} onOpenChange={setGradingOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {gradingProject?.is_external
-                ? t("hc_routesAppTeacherProjects.externalGrades")
-                : t("hc_routesAppTeacherProjects.submissions")}{" "}
-              — {gradingProject?.title}
-            </DialogTitle>
+            <div className="flex items-start justify-between gap-2 flex-wrap">
+              <DialogTitle>
+                {gradingProject?.is_external
+                  ? t("hc_routesAppTeacherProjects.externalGrades")
+                  : t("hc_routesAppTeacherProjects.submissions")}{" "}
+                — {gradingProject?.title}
+              </DialogTitle>
+              {/* Bulk import sustentaciones — solo proyectos NO externos.
+                  Para externos las notas se ingresan via ExternalGradesEditor
+                  (otro flujo, columna final_grade directa sin factor). */}
+              {!gradingProject?.is_external && gradingSubs.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setBulkDefensesOpen(true)}
+                  type="button"
+                >
+                  <FileUp className="h-3.5 w-3.5 mr-1" />
+                  {t("hc_routesAppTeacherProjects.importDefensesCsv", {
+                    defaultValue: "Importar sustentaciones",
+                  })}
+                </Button>
+              )}
+            </div>
           </DialogHeader>
           {/* Proyecto externo: mostrar el editor de notas externas en lugar
               de la lista de entregas reales. */}
@@ -3671,6 +3716,30 @@ function TeacherProjects() {
         </DialogContent>
       </Dialog>
 
+      {/* Bulk import sustentaciones — separado del grading dialog para no
+          cargar su árbol de submissions/files al abrir, y para que el reset
+          de estado (parsedRows/errors) viva en el sub-dialog. */}
+      {gradingProject && (
+        <BulkImportDefensesDialog
+          open={bulkDefensesOpen}
+          onOpenChange={setBulkDefensesOpen}
+          projectId={gradingProject.id}
+          projectTitle={gradingProject.title}
+          maxScore={Number(gradingProject.max_score) || 100}
+          submissions={gradingSubs}
+          onApplied={(updates) => {
+            // Merge en el state local del grading dialog para que el accordion
+            // refleje los cambios sin recargar.
+            setGradingSubs((prev) =>
+              prev.map((s) => {
+                const u = updates.get(s.id);
+                return u ? { ...s, ...u } : s;
+              }),
+            );
+          }}
+        />
+      )}
+
       <BulkDeleteDialog
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}
@@ -3717,6 +3786,7 @@ function DefensePanel({
     factor: number | null,
     notes: string,
     videoUrl?: string | null,
+    subGradeOverride?: number | null,
   ) => Promise<void>;
 }) {
   const { t } = useTranslation();
@@ -3725,6 +3795,18 @@ function DefensePanel({
   );
   const [notes, setNotes] = useState<string>(sub.defense_notes ?? "");
   const [saving, setSaving] = useState(false);
+  // Nota de entrega EDITABLE. La IA computa automáticamente sumando los
+  // ai_grade ponderados de los archivos (trigger SQL desde mig
+  // 20260955000000). Pero el docente puede sobrescribir manualmente si
+  // detecta que la ponderación quedó mal o quiere ajustar. Si el input
+  // queda vacío, no se manda override (el trigger sigue mandando).
+  const initialSubGrade =
+    sub.submission_grade != null
+      ? String(sub.submission_grade)
+      : sub.ai_grade != null
+        ? String(sub.ai_grade)
+        : "";
+  const [subGradeStr, setSubGradeStr] = useState<string>(initialSubGrade);
   // Video de sustentación: `videoUrl` guarda un enlace externo (http…) o un
   // path del bucket project-files (subido). El input de URL solo refleja el
   // caso externo; el subido se muestra como chip "Ver video (subido)".
@@ -3771,12 +3853,25 @@ function DefensePanel({
     }
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   };
-  const subGrade: number | null = sub.submission_grade ?? sub.ai_grade ?? null;
+  const baselineSubGrade: number | null = sub.submission_grade ?? sub.ai_grade ?? null;
+  // Valor efectivo: si el docente editó el input, usar eso para preview.
+  // Si está vacío, fallback a la baseline (calculada por IA).
+  const subGradeNumRaw =
+    subGradeStr.trim() === "" ? null : Number(subGradeStr.replace(",", "."));
+  const subGradeValid =
+    subGradeNumRaw == null ||
+    (!Number.isNaN(subGradeNumRaw) && subGradeNumRaw >= 0 && subGradeNumRaw <= maxScore);
+  const effectiveSubGrade =
+    subGradeNumRaw != null && subGradeValid ? subGradeNumRaw : baselineSubGrade;
+  const subGradeChanged =
+    subGradeNumRaw != null &&
+    subGradeValid &&
+    (baselineSubGrade == null || Number(baselineSubGrade) !== subGradeNumRaw);
   const factorNum = factor.trim() === "" ? null : Number(factor.replace(",", "."));
   const factorValid = factorNum == null || (factorNum >= 0 && factorNum <= 1);
   const previewFinal =
-    subGrade != null && factorNum != null && factorValid
-      ? Number((Number(subGrade) * factorNum).toFixed(2))
+    effectiveSubGrade != null && factorNum != null && factorValid
+      ? Number((Number(effectiveSubGrade) * factorNum).toFixed(2))
       : null;
   return (
     <Card className="border-primary/30 bg-primary/5">
@@ -3785,11 +3880,27 @@ function DefensePanel({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
           <div>
             <div className="text-muted-foreground text-[11px]">
-              {t("hc_routesAppTeacherProjects.submissionGrade")}
+              {t("hc_routesAppTeacherProjects.submissionGrade")}{" "}
+              <span className="text-[10px]">(/{maxScore})</span>
             </div>
-            <div className="font-mono tabular-nums">
-              {subGrade != null ? `${subGrade}/${maxScore}` : "—"}
-            </div>
+            <Input
+              type="text"
+              inputMode="decimal"
+              placeholder={baselineSubGrade != null ? String(baselineSubGrade) : "0"}
+              value={subGradeStr}
+              onChange={(e) => setSubGradeStr(e.target.value)}
+              className="h-8 text-xs font-mono tabular-nums"
+            />
+            {!subGradeValid && (
+              <p className="text-[10px] text-destructive mt-0.5">
+                0 — {maxScore}
+              </p>
+            )}
+            {subGradeChanged && subGradeValid && (
+              <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                Override manual (IA: {baselineSubGrade ?? 0})
+              </p>
+            )}
           </div>
           <div>
             <div className="text-muted-foreground text-[11px]">
@@ -3882,15 +3993,24 @@ function DefensePanel({
           <Button
             size="sm"
             onClick={async () => {
-              if (!factorValid) return;
+              if (!factorValid || !subGradeValid) return;
               setSaving(true);
               try {
-                await onSave(sub.id, factorNum, notes, videoUrl);
+                // Pasar el override solo si el docente cambió la nota;
+                // si no, mandar undefined para que el server siga usando
+                // el cálculo del trigger.
+                await onSave(
+                  sub.id,
+                  factorNum,
+                  notes,
+                  videoUrl,
+                  subGradeChanged ? subGradeNumRaw : undefined,
+                );
               } finally {
                 setSaving(false);
               }
             }}
-            disabled={saving || !factorValid}
+            disabled={saving || !factorValid || !subGradeValid}
           >
             {saving ? <Spinner size="sm" className="mr-1" /> : null}
             {t("hc_routesAppTeacherProjects.saveDefense")}
