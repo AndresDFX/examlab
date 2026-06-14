@@ -173,6 +173,10 @@ type GradeColumn = {
    *  Se muestra en los encabezados del export para que la columna sea tan
    *  clara como el grid (igual que los cortes muestran su %). */
   weight?: number | null;
+  /** Corte al que pertenece el item (exam.cut_id / workshop_courses.cut_id /
+   *  project_courses.cut_id). null = sin corte. Usado por el export Excel para
+   *  la fila de grupo que agrupa cada entregable bajo su corte. */
+  cutId?: string | null;
 };
 
 /** Editable grade cell keyed by `${studentId}::${columnId}` */
@@ -329,6 +333,7 @@ function Gradebook() {
         kind: "exam" as const,
         parentExamId: null,
         weight: e.weight ?? null,
+        cutId: e.cut_id ?? null,
       }));
 
     const wsCols: GradeColumn[] = ((workshops ?? []) as Workshop[]).map((w) => ({
@@ -338,6 +343,7 @@ function Gradebook() {
       maxScore: w.max_score,
       isExternal: !!w.is_external,
       weight: w.weight ?? null,
+      cutId: w.cut_id ?? null,
     }));
 
     const prjCols: GradeColumn[] = ((projectsData ?? []) as Project[]).map((p) => ({
@@ -347,6 +353,7 @@ function Gradebook() {
       maxScore: p.max_score,
       isExternal: !!p.is_external,
       weight: p.weight ?? null,
+      cutId: p.cut_id ?? null,
     }));
 
     setColumns([...examCols, ...wsCols, ...prjCols]);
@@ -658,6 +665,16 @@ function Gradebook() {
         })
       : students;
 
+    // Etiqueta de columna de item — debe ser IDÉNTICA tanto en el row de datos
+    // como en la fila de grupo del Excel (es la KEY del objeto que ambos usan),
+    // así que la centralizamos para que no diverjan.
+    const itemLabel = (col: GradeColumn) => {
+      const prefix =
+        col.kind === "workshop" ? t("hc_routesAppTeacherGradebook.csvWorkshopPrefix") : "";
+      const pct = col.weight != null ? ` (${col.weight}%)` : "";
+      return `${prefix}${col.title}${pct}`;
+    };
+
     const csvRows = exportStudents.map((s) => {
       const row: Record<string, string> = {
         [t("hc_routesAppTeacherGradebook.csvName")]: s.full_name,
@@ -672,10 +689,7 @@ function Gradebook() {
       // su % (ej. "Parcial 1 (15%)").
       columns.forEach((col) => {
         const g = getGrade(s.id, col);
-        const prefix =
-          col.kind === "workshop" ? t("hc_routesAppTeacherGradebook.csvWorkshopPrefix") : "";
-        const pct = col.weight != null ? ` (${col.weight}%)` : "";
-        const label = `${prefix}${col.title}${pct}`;
+        const label = itemLabel(col);
         if (g.grade != null) {
           row[label] = `${g.grade}${
             g.isMakeup ? t("hc_routesAppTeacherGradebook.csvMakeupSuffix") : ""
@@ -705,7 +719,26 @@ function Gradebook() {
       "_",
     )}-${Date.now()}`;
     if (format === "xlsx") {
-      downloadXLSX(`${fileBase}.xlsx`, toXLSX(csvRows));
+      // Fila de grupo EXCLUSIVA de Excel: mapea la etiqueta de cada columna de
+      // item al nombre del corte al que pertenece (cut.name). Las columnas de
+      // nombre/cohorte/email/cortes/final quedan en blanco (no se mapean). Las
+      // columnas de items sin corte quedan en blanco también (cutId == null).
+      const groupHeader: Record<string, string> = {};
+      columns.forEach((col) => {
+        const cut = col.cutId ? cuts.find((c) => c.id === col.cutId) : null;
+        if (cut) groupHeader[itemLabel(col)] = cut.name;
+      });
+      // Si ningún item tiene corte, no agregamos la fila de grupo (evita una
+      // fila inicial en blanco): pasamos undefined en vez de un mapa vacío.
+      downloadXLSX(
+        `${fileBase}.xlsx`,
+        toXLSX(
+          csvRows,
+          undefined,
+          "Datos",
+          Object.keys(groupHeader).length ? { groupHeader } : undefined,
+        ),
+      );
     } else {
       downloadCSV(`${fileBase}.csv`, toCSV(csvRows));
     }
@@ -740,23 +773,16 @@ function Gradebook() {
   const columnsByCut = useMemo(() => {
     const map = new Map<string | null, GradeColumn[]>();
     for (const col of columns) {
-      let cutId: string | null = null;
-      if (col.kind === "exam") {
-        const exam = allExams.find((e) => e.id === col.id);
-        cutId = exam?.cut_id ?? null;
-      } else if (col.kind === "workshop") {
-        const ws = allWorkshops.find((w) => w.id === col.id);
-        cutId = ws?.cut_id ?? null;
-      } else {
-        const pr = projects.find((p) => p.id === col.id);
-        cutId = pr?.cut_id ?? null;
-      }
+      // `col.cutId` ya viene resuelto al construir las columnas en loadCourse
+      // (exam.cut_id / workshop.cut_id / project_courses.cut_id) — única fuente
+      // de verdad, compartida con la fila de grupo del export Excel.
+      const cutId = col.cutId ?? null;
       const arr = map.get(cutId) ?? [];
       arr.push(col);
       map.set(cutId, arr);
     }
     return map;
-  }, [columns, allExams, allWorkshops, projects]);
+  }, [columns]);
 
   const uncutColumns = columnsByCut.get(null) ?? [];
   const detailCutColumns = detailCutId ? (columnsByCut.get(detailCutId) ?? []) : [];

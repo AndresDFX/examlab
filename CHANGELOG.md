@@ -43,6 +43,10 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 Sesión de mejoras amplia (cada ítem = un `/goal` del usuario). Commits sobre `main`.
 
+- **Export Excel de calificaciones — fila de grupo por corte** (#9): `toXLSX` acepta
+  `options.groupHeader` opcional → fila extra arriba del header que mapea cada columna
+  de item al nombre de su corte. Sólo Excel (CSV sin cambios). `GradeColumn.cutId`
+  cargado. Sin items con corte → sin fila de grupo. tests xlsx 15/15.
 - **Contenido / tablero**: labels por `display_name` (no `topic`) en tablero docente y
   estudiante; multi-curso vía `ManageContentCoursesDialog` (un contenido en >1 curso,
   visible en cada tablero); destino "General" del upload (ya existía) verificado

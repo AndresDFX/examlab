@@ -101,4 +101,61 @@ describe("toXLSX", () => {
     expect(text).toContain('r="AA1"');
     expect(text).toContain('r="AB1"');
   });
+
+  // ─────────────── Fila de grupo (sólo Excel) ───────────────
+
+  it("groupHeader → fila de grupo en r1, encabezados en r2, datos en r3", () => {
+    const text = asText(
+      toXLSX([{ nombre: "Ana", parcial: 4 }], undefined, "Datos", {
+        groupHeader: { parcial: "Primer corte" },
+      }),
+    );
+    // La fila de grupo va arriba con la etiqueta del corte.
+    expect(text).toMatch(/<row r="1">.*Primer corte.*<\/row>/s);
+    // El encabezado de columnas baja a la fila 2 y los datos a la 3.
+    expect(text).toContain('<row r="2">');
+    expect(text).toContain('<row r="3">');
+    expect(text).toMatch(/<row r="2">.*nombre.*parcial.*<\/row>/s);
+    expect(text).toMatch(/<row r="3">.*Ana.*<\/row>/s);
+    // La etiqueta del corte cae bajo la columna "parcial" (B1, no A1).
+    expect(text).toContain('<c r="B1" t="inlineStr"><is><t xml:space="preserve">Primer corte</t>');
+  });
+
+  it("groupHeader → columnas sin mapear quedan como celda vacía en la fila de grupo", () => {
+    const text = asText(
+      toXLSX([{ nombre: "Ana", parcial: 4, final: 3 }], undefined, "Datos", {
+        groupHeader: { parcial: "Primer corte" },
+      }),
+    );
+    // nombre (A) y final (C) no están en el mapa → celdas vacías self-closing.
+    expect(text).toContain('<c r="A1"/>');
+    expect(text).toContain('<c r="C1"/>');
+  });
+
+  it("groupHeader respeta el orden/whitelist de columnas", () => {
+    const text = asText(
+      toXLSX([{ a: "1", b: "2", c: "3" }], ["c", "a"], "Datos", {
+        groupHeader: { c: "Corte X", a: "Corte Y" },
+      }),
+    );
+    // Orden c, a → Corte X en A1, Corte Y en B1; 'b' no aparece.
+    expect(text).toContain('<c r="A1" t="inlineStr"><is><t xml:space="preserve">Corte X</t>');
+    expect(text).toContain('<c r="B1" t="inlineStr"><is><t xml:space="preserve">Corte Y</t>');
+    expect(text).not.toContain("Corte Z");
+  });
+
+  it("groupHeader NO agrega partes al ZIP (sigue siendo 5)", () => {
+    const out = toXLSX([{ nombre: "Ana", parcial: 4 }], undefined, "Datos", {
+      groupHeader: { parcial: "Primer corte" },
+    });
+    expect(eocdEntryCount(out)).toBe(5);
+  });
+
+  it("SIN groupHeader → header en r1 (sin regresión del comportamiento por defecto)", () => {
+    // Mismo dataset, sin opciones: el header se mantiene en la fila 1.
+    const text = asText(toXLSX([{ nombre: "Ana", parcial: 4 }]));
+    expect(text).toMatch(/<row r="1">.*nombre.*<\/row>/s);
+    expect(text).toContain('<row r="2">');
+    expect(text).not.toContain('<row r="3">');
+  });
 });

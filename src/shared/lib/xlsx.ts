@@ -173,28 +173,56 @@ function cellXml(ref: string, value: any): string {
 }
 
 /**
+ * Opciones EXCLUSIVAS de Excel (no tienen equivalente en CSV).
+ *
+ * `groupHeader`: agrega UNA fila extra ARRIBA del encabezado de columnas.
+ * Mapea NOMBRE DE COLUMNA (la misma key del header) → etiqueta de grupo
+ * (ej. el nombre del corte al que pertenece esa columna). Las columnas que
+ * no aparezcan en el mapa quedan en blanco en esa fila. Cuando se pasa,
+ * el encabezado de columnas baja a la fila 2 y los datos arrancan en la 3;
+ * sin él, el comportamiento es idéntico al de antes (header en fila 1).
+ */
+export interface XlsxOptions {
+  groupHeader?: Record<string, string>;
+}
+
+/**
  * Serializa filas a un .xlsx (Uint8Array).
  * @param rows     filas como objetos { columna: valor }
  * @param columns  orden/whitelist de columnas (default: claves de la 1ª fila)
  * @param sheetName nombre de la hoja (default "Datos")
+ * @param options  opciones sólo-Excel (ver {@link XlsxOptions})
  */
 export function toXLSX(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rows: Record<string, any>[],
   columns?: string[],
   sheetName = "Datos",
+  options?: XlsxOptions,
 ): Uint8Array {
   const cols = columns ?? (rows.length ? Object.keys(rows[0]) : []);
+  const groupHeader = options?.groupHeader;
+  // Cuando hay fila de grupo, el encabezado de columnas baja una fila.
+  const headerRowNum = groupHeader ? 2 : 1;
 
   const sheetRows: string[] = [];
-  // Fila 1: encabezados (siempre texto).
+  // Fila 1 (sólo si hay groupHeader): etiquetas de grupo. Columnas sin
+  // entrada en el mapa → celda vacía (mismo path que null/undefined/"").
+  if (groupHeader) {
+    const groupCells = cols
+      .map((c, ci) => cellXml(`${colLetter(ci)}1`, groupHeader[c] ?? ""))
+      .join("");
+    sheetRows.push(`<row r="1">${groupCells}</row>`);
+  }
+  // Encabezados de columna (fila 1 sin groupHeader, fila 2 con él) — texto.
   const headerCells = cols
-    .map((c, ci) => cellXml(`${colLetter(ci)}1`, c))
+    .map((c, ci) => cellXml(`${colLetter(ci)}${headerRowNum}`, c))
     .join("");
-  sheetRows.push(`<row r="1">${headerCells}</row>`);
-  // Filas de datos.
+  sheetRows.push(`<row r="${headerRowNum}">${headerCells}</row>`);
+  // Filas de datos (arrancan justo después del encabezado). Sin groupHeader
+  // esto colapsa al `ri + 2` de siempre (byte-idéntico al comportamiento previo).
   rows.forEach((r, ri) => {
-    const rowNum = ri + 2;
+    const rowNum = ri + headerRowNum + 1;
     const cells = cols
       .map((c, ci) => cellXml(`${colLetter(ci)}${rowNum}`, r[c]))
       .join("");
