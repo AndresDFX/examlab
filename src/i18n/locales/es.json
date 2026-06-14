@@ -2421,6 +2421,7 @@
       "drained": "Drenado: {{total}} job(s) ({{grading}} grading + {{generation}} generación){{failedSuffix}}",
       "drainFailPart": " ({{failed}} con error, quedan listos para reintentar)",
       "drainPartial": "Procesados {{n}}{{failPart}}. Quedan {{remaining}} pendientes — espera ~1 min y vuelve a pulsar «Procesar todos» (o el sistema los procesa solo dentro de la próxima hora).",
+      "drainExhausted": "Procesados {{n}}{{failPart}}. Tras {{retries}} reintentos aún quedan {{remaining}} pendientes. Espera unos minutos y vuelve a pulsar «Procesar todos» manualmente.",
       "drainDone": "Listo: procesados {{n}}{{failPart}}. No quedan jobs pendientes.",
       "reasonRequired": "La razón es obligatoria (mínimo 5 caracteres).",
       "jobRejected": "Job rechazado. El docente recibió la notificación.",
@@ -3465,7 +3466,7 @@
   },
   "unifiedAiQueue": {
     "drainingTitle": "Drenando cola IA…",
-    "drainingSubtitle": "Invocando los workers de calificación y generación. Puede tardar varios minutos. No cierres esta pestaña.",
+    "drainingSubtitle": "Invocando los workers de calificación y generación. Reintenta automáticamente los pendientes hasta 3 veces. Puede tardar varios minutos. No cierres esta pestaña.",
     "statPending": "Pendientes",
     "statProcessing": "En proceso",
     "statFailed": "Fallados 24h",

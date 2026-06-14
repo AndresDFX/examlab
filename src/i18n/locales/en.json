@@ -2421,6 +2421,7 @@
       "drained": "Drained: {{total}} job(s) ({{grading}} grading + {{generation}} generation){{failedSuffix}}",
       "drainFailPart": " ({{failed}} with errors, ready to retry)",
       "drainPartial": "Processed {{n}}{{failPart}}. {{remaining}} still pending — wait ~1 min and press “Process all” again (or the system will process them within the next hour).",
+      "drainExhausted": "Processed {{n}}{{failPart}}. After {{retries}} retries, {{remaining}} are still pending. Wait a few minutes and press “Process all” manually again.",
       "drainDone": "Done: processed {{n}}{{failPart}}. No jobs left pending.",
       "reasonRequired": "A reason is required (at least 5 characters).",
       "jobRejected": "Job rejected. The teacher has been notified.",
@@ -3465,7 +3466,7 @@
   },
   "unifiedAiQueue": {
     "drainingTitle": "Draining AI queue…",
-    "drainingSubtitle": "Invoking grading and generation workers. This may take several minutes. Do not close this tab.",
+    "drainingSubtitle": "Invoking grading and generation workers. Automatically retries pending jobs up to 3 times. This may take several minutes. Do not close this tab.",
     "statPending": "Pending",
     "statProcessing": "Processing",
     "statFailed": "Failed 24h",

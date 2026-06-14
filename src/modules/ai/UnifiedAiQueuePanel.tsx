@@ -961,44 +961,79 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
   };
 
   // Drain mode (Admin only) — invoca AMBOS workers sin jobId.
+  //
+  // Cada invocación del worker de calificación procesa UNO A UNO dentro de su
+  // presupuesto de tiempo y para al primer fallo (los no procesados siguen
+  // 'pending'). Si tras una pasada QUEDAN pendientes, re-invocamos el worker
+  // automáticamente hasta DRAIN_MAX_RETRIES veces más: cada nueva pasada salta
+  // el job que ya falló (ahora 'failed', fuera de 'pending') y sigue con el
+  // resto, así que progresa. Solo si tras agotar los reintentos AÚN quedan
+  // pendientes mostramos el mensaje de "vuelve a ejecutar manualmente".
+  // Guard de no-progreso: si una pasada no reduce los pendientes (worker no
+  // pudo reclamar nada), cortamos antes de gastar los reintentos restantes.
+  const DRAIN_MAX_RETRIES = 3;
   const drainAll = async () => {
     if (draining) return;
     setDraining(true);
     try {
-      const [gradingRes, genRes] = await Promise.all([
-        supabase.functions.invoke("ai-grading-worker", { body: {} }),
-        supabase.functions.invoke("ai-generation-worker", { body: {} }),
-      ]);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const g = gradingRes.data as any;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const gn = genRes.data as any;
-      const procTotal = (g?.processed ?? 0) + (gn?.processed ?? 0);
-      const failG = (g?.failed ?? 0) + (gn?.failed ?? 0);
-      // El worker de calificación ahora procesa UNO A UNO con presupuesto de
-      // tiempo y reporta cuántos quedan pendientes + por qué paró. Si quedan
-      // pendientes, avisamos al usuario que espere y reintente (no quedan
-      // jobs colgados en "en proceso" — los no procesados siguen pendientes).
-      const remaining = g?.remainingPending ?? 0;
-      const stopped = g?.stopped as string | undefined;
+      let procTotal = 0;
+      let failTotal = 0;
+      let remaining = 0;
+      let prevRemaining = Number.POSITIVE_INFINITY;
+      let attempt = 0; // 0 = pasada inicial; 1..3 = reintentos automáticos
+      let noProgress = false;
+      // Bucle: pasada inicial + hasta DRAIN_MAX_RETRIES reintentos.
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const [gradingRes, genRes] = await Promise.all([
+          supabase.functions.invoke("ai-grading-worker", { body: {} }),
+          supabase.functions.invoke("ai-generation-worker", { body: {} }),
+        ]);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const g = gradingRes.data as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const gn = genRes.data as any;
+        procTotal += (g?.processed ?? 0) + (gn?.processed ?? 0);
+        // Cada pasada reporta fallos DISTINTOS (un job 'failed' ya no se
+        // re-reclama), así que acumular no doble-cuenta.
+        failTotal += (g?.failed ?? 0) + (gn?.failed ?? 0);
+        remaining = g?.remainingPending ?? 0;
+
+        if (remaining === 0) break; // todo procesado
+        if (attempt >= DRAIN_MAX_RETRIES) break; // agotó reintentos
+        if (remaining >= prevRemaining) {
+          // La pasada no redujo pendientes → reintentar no ayudará.
+          noProgress = true;
+          break;
+        }
+        prevRemaining = remaining;
+        attempt++;
+        // Pausa breve entre reintentos (no martillar el gateway).
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+
       const failPart =
-        failG > 0
+        failTotal > 0
           ? i18n.t("toast.modules_ai_UnifiedAiQueuePanel.drainFailPart", {
               defaultValue: " ({{failed}} con error, quedan listos para reintentar)",
-              failed: failG,
+              failed: failTotal,
             })
           : "";
+
       if (remaining > 0) {
+        // Agotó los reintentos automáticos (o no hubo progreso) y aún quedan
+        // pendientes → ahora SÍ pedir ejecución manual.
         toast.warning(
-          i18n.t("toast.modules_ai_UnifiedAiQueuePanel.drainPartial", {
+          i18n.t("toast.modules_ai_UnifiedAiQueuePanel.drainExhausted", {
             defaultValue:
-              "Procesados {{n}}{{failPart}}. Quedan {{remaining}} pendientes — espera ~1 min y vuelve a pulsar «Procesar todos» (o el sistema los procesa solo dentro de la próxima hora).",
+              "Procesados {{n}}{{failPart}}. Tras {{retries}} reintentos aún quedan {{remaining}} pendientes. Espera unos minutos y vuelve a pulsar «Procesar todos» manualmente.",
             n: procTotal,
             remaining,
+            retries: attempt,
             failPart,
-            stopped,
+            noProgress,
           }),
-          { duration: 12000 },
+          { duration: 13000 },
         );
       } else {
         toast.success(
