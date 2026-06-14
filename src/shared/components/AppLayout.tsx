@@ -681,7 +681,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (roles.length && !activeRole) {
-      const order: AppRole[] = ["Admin", "Docente", "Estudiante"];
+      // Prioridad del rol por DEFECTO al loguearse cuando el usuario tiene
+      // varios roles. Docente gana a Admin a propósito: un usuario con ambos
+      // (caso común: el docente que además administra su tenant) entra a
+      // trabajar como Docente, no a la consola de administración. Un Admin
+      // puro sigue entrando como Admin; un Estudiante puro como Estudiante.
+      // SuperAdmin no se lista (un SA puro cae a roles[0]; mantiene su comportamiento).
+      const order: AppRole[] = ["Docente", "Admin", "Estudiante"];
       setActiveRole(order.find((r) => roles.includes(r)) ?? roles[0]);
     }
   }, [roles, activeRole]);
