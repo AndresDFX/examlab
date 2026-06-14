@@ -677,11 +677,11 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           const workshopIds = [...new Set(((wcRows.data ?? []) as any[]).map((r) => r.workshop_id))];
           const projectIds = [...new Set(((pcRows.data ?? []) as any[]).map((r) => r.project_id))];
 
-          const [exSub, wsSub, prjSub] = await Promise.all([
+          const [exSub, wsSub, prjSub, enrRows] = await Promise.all([
             examIds.length
               ? dbAny2
                   .from("submissions")
-                  .select("exam_id")
+                  .select("exam_id, user_id")
                   .in("status", ["completado", "sospechoso"])
                   .is("ai_grade", null)
                   .in("exam_id", examIds)
@@ -689,7 +689,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
             workshopIds.length
               ? dbAny2
                   .from("workshop_submissions")
-                  .select("workshop_id")
+                  .select("workshop_id, user_id")
                   .eq("status", "entregado")
                   .is("final_grade", null)
                   .in("workshop_id", workshopIds)
@@ -697,7 +697,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
             projectIds.length
               ? dbAny2
                   .from("project_submissions")
-                  .select("project_id")
+                  .select("project_id, user_id")
                   .eq("status", "entregado")
                   .is("final_grade", null)
                   // Excluye las ya calificadas por IA que esperan sustentación
@@ -705,12 +705,35 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                   .is("submission_grade", null)
                   .in("project_id", projectIds)
               : Promise.resolve({ data: [] }),
+            // Matrícula vigente por curso — para NO contar entregas de
+            // estudiantes que ya NO están en el curso (su entrega quedó
+            // huérfana). Así el conteo coincide con el diagnóstico, que
+            // itera sólo sobre matriculados.
+            liveCourseIds.length
+              ? dbAny2
+                  .from("course_enrollments")
+                  .select("course_id, user_id")
+                  .in("course_id", liveCourseIds)
+              : Promise.resolve({ data: [] }),
           ]);
-          const pendingActivityIds: string[] = [
-            ...((exSub.data ?? []) as any[]).map((s) => s.exam_id),
-            ...((wsSub.data ?? []) as any[]).map((s) => s.workshop_id),
-            ...((prjSub.data ?? []) as any[]).map((s) => s.project_id),
-          ];
+          // Set de matriculados por curso.
+          const enrolledByCourse = new Map<string, Set<string>>();
+          for (const e of (enrRows.data ?? []) as any[]) {
+            const set = enrolledByCourse.get(e.course_id) ?? new Set<string>();
+            set.add(e.user_id);
+            enrolledByCourse.set(e.course_id, set);
+          }
+          const isEnrolled = (activityId: string, uid: string): boolean => {
+            const cid = activityToCourse.get(activityId);
+            return cid ? (enrolledByCourse.get(cid)?.has(uid) ?? false) : false;
+          };
+          const pendingActivityIds: string[] = [];
+          for (const s of (exSub.data ?? []) as any[])
+            if (isEnrolled(s.exam_id, s.user_id)) pendingActivityIds.push(s.exam_id);
+          for (const s of (wsSub.data ?? []) as any[])
+            if (isEnrolled(s.workshop_id, s.user_id)) pendingActivityIds.push(s.workshop_id);
+          for (const s of (prjSub.data ?? []) as any[])
+            if (isEnrolled(s.project_id, s.user_id)) pendingActivityIds.push(s.project_id);
           const agg = aggregatePendingGradingByCourse(courseList, activityToCourse, pendingActivityIds);
           if (!cancelled) {
             setPendingGradingTotal(agg.total);
