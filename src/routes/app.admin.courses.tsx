@@ -72,8 +72,10 @@ import {
   Award,
   Video,
   RefreshCw,
+  Stethoscope,
 } from "lucide-react";
 import { CourseCertificateSettingsDialog } from "@/modules/certificates/CourseCertificateSettingsDialog";
+import { CourseDiagnosticDialog } from "@/modules/courses/CourseDiagnosticDialog";
 import { LinkCalendarEventsDialog } from "@/modules/calendar/LinkCalendarEventsDialog";
 import {
   Select,
@@ -220,6 +222,11 @@ export function AdminCourses() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Course> | null>(null);
   const [certForCourse, setCertForCourse] = useState<Course | null>(null);
+  // Diagnóstico del curso — dialog separado abierto desde el menú de
+  // acciones de fila. Escanea calificaciones pendientes, errores IA,
+  // conversaciones abiertas y asistencia, con acciones de remediación
+  // (re-encolar IA, cerrar conversación, navegar a calificar).
+  const [diagnosticForCourse, setDiagnosticForCourse] = useState<Course | null>(null);
   // Editor de horarios — dialog independiente abierto desde el menú
   // de acciones de fila. Mantener fuera del editing principal evita
   // sobrecargar el dialog del form de curso.
@@ -1865,6 +1872,18 @@ export function AdminCourses() {
                           icon: CalendarClock,
                           onClick: () => setScheduleForCourse(c),
                         },
+                        {
+                          // Diagnóstico del curso — escaneo de calificaciones
+                          // pendientes, errores IA, conversaciones abiertas
+                          // y asistencia, con acciones de remediación.
+                          label: t("hc_routesAppAdminCourses.actionDiagnostic", {
+                            defaultValue: "Diagnóstico del curso",
+                          }),
+                          icon: Stethoscope,
+                          iconColor: "var(--brand-primary)",
+                          onClick: () => setDiagnosticForCourse(c),
+                          separatorBefore: true,
+                        },
                         { label: t("common.edit"), icon: Pencil, onClick: () => openEdit(c) },
                         {
                           label: t("common.delete"),
@@ -2700,6 +2719,14 @@ export function AdminCourses() {
           onOpenChange={(o) => !o && setScheduleForCourse(null)}
           courseId={scheduleForCourse.id}
           courseName={scheduleForCourse.name}
+        />
+      )}
+      {diagnosticForCourse && (
+        <CourseDiagnosticDialog
+          open={!!diagnosticForCourse}
+          onOpenChange={(o) => !o && setDiagnosticForCourse(null)}
+          courseId={diagnosticForCourse.id}
+          courseName={diagnosticForCourse.name}
         />
       )}
     </div>
