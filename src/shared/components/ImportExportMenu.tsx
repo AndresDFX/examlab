@@ -8,8 +8,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Download, Upload, FileDown, FileUp } from "lucide-react";
+import { Download, Upload, FileDown, FileUp, FileSpreadsheet } from "lucide-react";
 import { downloadCSV, parseCSV } from "@/shared/lib/csv";
+import { toXLSX, downloadXLSX } from "@/shared/lib/xlsx";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
@@ -62,6 +63,27 @@ export function ImportExportMenu({
         return;
       }
       downloadCSV(`${resourceName}-${Date.now()}.csv`, csv);
+      toast.success(i18n.t("toast.shared_components_ImportExportMenu.fileExportedSuccess", { defaultValue: "Archivo exportado correctamente" }));
+    } catch (e: any) {
+      toast.error(i18n.t("toast.shared_components_ImportExportMenu.exportError", { defaultValue: "Error exportando: {{detail}}", detail: friendlyError(e, "desconocido") }));
+    }
+  };
+
+  // Export a Excel (.xlsx): reusamos el MISMO `onExport` (que devuelve CSV) y
+  // lo convertimos a xlsx parseando el CSV de vuelta a filas. Así CUALQUIER
+  // export basado en este menú obtiene Excel sin tocar el call-site. Los
+  // valores quedan como texto (preserva ceros a la izquierda, documentos,
+  // UUIDs) — Excel igual los ordena/filtra.
+  const handleExportXlsx = async () => {
+    if (!onExport) return;
+    try {
+      const csv = await onExport();
+      if (!csv || csv.trim() === "") {
+        toast.info(i18n.t("toast.shared_components_ImportExportMenu.noDataToExport", { defaultValue: "No hay datos para exportar" }));
+        return;
+      }
+      const rows = parseCSV(csv);
+      downloadXLSX(`${resourceName}-${Date.now()}.xlsx`, toXLSX(rows));
       toast.success(i18n.t("toast.shared_components_ImportExportMenu.fileExportedSuccess", { defaultValue: "Archivo exportado correctamente" }));
     } catch (e: any) {
       toast.error(i18n.t("toast.shared_components_ImportExportMenu.exportError", { defaultValue: "Error exportando: {{detail}}", detail: friendlyError(e, "desconocido") }));
@@ -127,6 +149,12 @@ export function ImportExportMenu({
             <DropdownMenuItem onClick={handleExport}>
               <Upload className="h-4 w-4 mr-2 rotate-180" />
               Exportar a CSV
+            </DropdownMenuItem>
+          )}
+          {onExport && (
+            <DropdownMenuItem onClick={handleExportXlsx}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Exportar a Excel
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>

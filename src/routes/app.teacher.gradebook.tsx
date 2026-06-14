@@ -39,6 +39,7 @@ import {
   Download,
   GitBranch,
   FileText,
+  FileSpreadsheet,
   Hammer,
   Save,
   Scale,
@@ -63,6 +64,7 @@ import {
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { startImpersonate } from "@/modules/admin/impersonation";
 import { downloadCSV, toCSV } from "@/shared/lib/csv";
+import { toXLSX, downloadXLSX } from "@/shared/lib/xlsx";
 import { computeWeightedGrade, type GradedItem } from "@/modules/grading/grade";
 import { computeAttemptGrade, type RetryMode } from "@/modules/exams/exam-attempts";
 import {
@@ -593,7 +595,7 @@ function Gradebook() {
   };
 
   // Export CSV
-  const exportCourse = () => {
+  const exportCourse = (format: "csv" | "xlsx" = "csv") => {
     if (!students.length || !columns.length) {
       toast.info(
         i18n.t("toast.routes_app_teacher_gradebook.noDataToExport", {
@@ -656,13 +658,15 @@ function Gradebook() {
     const courseName =
       courses.find((c) => c.id === courseId)?.name ??
       t("hc_routesAppTeacherGradebook.courseFallback");
-    downloadCSV(
-      `${t("hc_routesAppTeacherGradebook.csvFilePrefix")}-${courseName.replace(
-        /\s+/g,
-        "_",
-      )}-${Date.now()}.csv`,
-      toCSV(csvRows),
-    );
+    const fileBase = `${t("hc_routesAppTeacherGradebook.csvFilePrefix")}-${courseName.replace(
+      /\s+/g,
+      "_",
+    )}-${Date.now()}`;
+    if (format === "xlsx") {
+      downloadXLSX(`${fileBase}.xlsx`, toXLSX(csvRows));
+    } else {
+      downloadCSV(`${fileBase}.csv`, toCSV(csvRows));
+    }
     toast.success(
       i18n.t("toast.routes_app_teacher_gradebook.fileExported", {
         defaultValue: "Archivo exportado correctamente",
@@ -1330,10 +1334,24 @@ function Gradebook() {
               {t("hc_routesAppTeacherGradebook.saveChanges")}
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={exportCourse}>
-            <Download className="h-4 w-4 mr-1" />
-            CSV
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline">
+                <Download className="h-4 w-4 mr-1" />
+                {t("hc_routesAppTeacherGradebook.exportLabel", { defaultValue: "Exportar" })}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => exportCourse("csv")}>
+                <FileText className="h-4 w-4 mr-2" />
+                CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportCourse("xlsx")}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {/* Acciones de certificados — agrupadas en dropdown para no
               saturar la toolbar (en mobile las 3 caían en filas separadas
               y opacaban Guardar/CSV). El icono Award + caret marca que

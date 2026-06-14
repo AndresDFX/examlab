@@ -266,5 +266,107 @@ describe("diagCellSeverity / diagCellStatusLabel", () => {
     expect(diagCellStatusLabel("sin_entregar")).toBeTruthy();
     expect(diagCellStatusLabel("entregado_sin_calificar")).toBeTruthy();
     expect(diagCellStatusLabel("calificado")).toBeTruthy();
+    expect(diagCellStatusLabel("sin_sustentacion")).toBeTruthy();
+  });
+});
+
+// ── sin_sustentacion (proyectos sin sustentación) ─────────────────────
+describe("summarizePendingGrades — sin_sustentacion", () => {
+  it("proyecto con defense_pending → sin_sustentacion (gana a calificado)", () => {
+    const sub: DiagSubmission = {
+      user_id: "u-ana",
+      item_id: "pr-1",
+      item_kind: "project",
+      status: "calificado",
+      has_final_grade: true, // ai_grade presente
+      defense_pending: true,
+      submission_id: "psub-1",
+    };
+    const rows = summarizePendingGrades([ana], [sub], [proyecto]);
+    expect(rows[0].status).toBe("sin_sustentacion");
+    expect(rows[0].submissionId).toBe("psub-1");
+  });
+
+  it("error_ia gana a sin_sustentacion (el error es lo más accionable)", () => {
+    const sub: DiagSubmission = {
+      user_id: "u-ana",
+      item_id: "pr-1",
+      item_kind: "project",
+      status: "entregado",
+      has_final_grade: true,
+      defense_pending: true,
+      submission_id: "psub-1",
+    };
+    const rows = summarizePendingGrades(
+      [ana],
+      [sub],
+      [proyecto],
+      new Set(["u-ana::project::pr-1"]),
+    );
+    expect(rows[0].status).toBe("error_ia");
+  });
+
+  it("proyecto con final_grade (defense_pending=false) → calificado", () => {
+    const sub: DiagSubmission = {
+      user_id: "u-ana",
+      item_id: "pr-1",
+      item_kind: "project",
+      status: "calificado",
+      has_final_grade: true,
+      defense_pending: false,
+      submission_id: "psub-1",
+    };
+    const rows = summarizePendingGrades([ana], [sub], [proyecto]);
+    expect(rows[0].status).toBe("calificado");
+  });
+
+  it("submissionId se propaga; null cuando no hay submission", () => {
+    const sub: DiagSubmission = {
+      user_id: "u-ana",
+      item_id: "ex-1",
+      item_kind: "exam",
+      status: "entregado",
+      has_final_grade: false,
+      submission_id: "sub-xyz",
+    };
+    const rows = summarizePendingGrades([ana, beto], [sub], [examen]);
+    const anaRow = rows.find((r) => r.student.id === "u-ana")!;
+    const betoRow = rows.find((r) => r.student.id === "u-beto")!;
+    expect(anaRow.submissionId).toBe("sub-xyz");
+    expect(anaRow.status).toBe("entregado_sin_calificar");
+    expect(betoRow.submissionId).toBeNull();
+  });
+
+  it("summarizeMatrix cuenta sinSustentacion", () => {
+    const subs: DiagSubmission[] = [
+      {
+        user_id: "u-ana",
+        item_id: "pr-1",
+        item_kind: "project",
+        status: "calificado",
+        has_final_grade: true,
+        defense_pending: true,
+        submission_id: "p1",
+      },
+      {
+        user_id: "u-beto",
+        item_id: "pr-1",
+        item_kind: "project",
+        status: "calificado",
+        has_final_grade: true,
+        defense_pending: false,
+        submission_id: "p2",
+      },
+    ];
+    const summary = summarizeMatrix(summarizePendingGrades([ana, beto], subs, [proyecto]));
+    expect(summary.sinSustentacion).toBe(1);
+    expect(summary.calificado).toBe(1);
+  });
+
+  it("severidad: sin_sustentacion entre entregado_sin_calificar y sin_entregar", () => {
+    expect(diagCellSeverity("entregado_sin_calificar")).toBeLessThan(
+      diagCellSeverity("sin_sustentacion"),
+    );
+    expect(diagCellSeverity("sin_sustentacion")).toBeLessThan(diagCellSeverity("sin_entregar"));
   });
 });

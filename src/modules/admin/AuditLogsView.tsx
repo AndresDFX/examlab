@@ -49,9 +49,18 @@ import {
   ChevronDown,
   ChevronRight,
   Download,
+  FileText,
+  FileSpreadsheet,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { formatDateTime } from "@/shared/lib/format";
-import { toCSV } from "@/shared/lib/csv";
+import { toCSV, downloadCSV } from "@/shared/lib/csv";
+import { toXLSX, downloadXLSX } from "@/shared/lib/xlsx";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
@@ -463,30 +472,27 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
     setDateTo("");
   };
 
-  // ── Export CSV ────────────────────────────────────────────────────────────
-  const exportCsv = () => {
+  // ── Export CSV / Excel ────────────────────────────────────────────────────
+  const exportAudit = (format: "csv" | "xlsx" = "csv") => {
     if (!filtered.length) return;
-    const csv = toCSV(
-      filtered.map((l) => ({
-        fecha: formatDateTime(l.created_at),
-        actor: l.actor_email ?? "",
-        rol: l.actor_role ?? "",
-        accion: actionLabel(l.action),
-        categoria: CATEGORY_CONFIG[l.category] ? t(`audit.categories.${l.category}`) : l.category,
-        nivel: SEVERITY_CONFIG[l.severity] ? t(`audit.severities.${l.severity}`) : l.severity,
-        entidad: l.entity_name ?? "",
-        tipo_entidad: l.entity_type ?? "",
-        curso: l.course_name ?? "",
-        detalles: JSON.stringify(l.metadata),
-      })),
-    );
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `auditoria_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const rows = filtered.map((l) => ({
+      fecha: formatDateTime(l.created_at),
+      actor: l.actor_email ?? "",
+      rol: l.actor_role ?? "",
+      accion: actionLabel(l.action),
+      categoria: CATEGORY_CONFIG[l.category] ? t(`audit.categories.${l.category}`) : l.category,
+      nivel: SEVERITY_CONFIG[l.severity] ? t(`audit.severities.${l.severity}`) : l.severity,
+      entidad: l.entity_name ?? "",
+      tipo_entidad: l.entity_type ?? "",
+      curso: l.course_name ?? "",
+      detalles: JSON.stringify(l.metadata),
+    }));
+    const fileBase = `auditoria_${new Date().toISOString().slice(0, 10)}`;
+    if (format === "xlsx") {
+      downloadXLSX(`${fileBase}.xlsx`, toXLSX(rows));
+      return;
+    }
+    downloadCSV(`${fileBase}.csv`, toCSV(rows));
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -504,10 +510,24 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
         subtitle={mode === "admin" ? t("audit.subtitleAdmin") : t("audit.subtitleTeacher")}
         icon={<Shield className="h-6 w-6" />}
         actions={
-          <Button variant="outline" size="sm" onClick={exportCsv} disabled={!filtered.length}>
-            <Download className="h-4 w-4 mr-2" />
-            {t("audit.exportCsv")}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={!filtered.length}>
+                <Download className="h-4 w-4 mr-2" />
+                {t("audit.exportLabel", { defaultValue: "Exportar" })}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => exportAudit("csv")}>
+                <FileText className="h-4 w-4 mr-2" />
+                CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportAudit("xlsx")}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         }
       />
 

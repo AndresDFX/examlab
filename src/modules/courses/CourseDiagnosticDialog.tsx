@@ -47,7 +47,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { SearchInput } from "@/components/ui/search-input";
-import { Stethoscope, AlertTriangle, MessageSquare, CheckCircle2, RefreshCw, ExternalLink, Lock, ClipboardList, CalendarCheck, FileText, Hammer, FolderKanban } from "lucide-react";
+import { Stethoscope, AlertTriangle, MessageSquare, CheckCircle2, RefreshCw, ExternalLink, Lock, ClipboardList, CalendarCheck, FileText, Hammer, FolderKanban, Gavel, Sparkles } from "lucide-react";
 import {
   summarizePendingGrades,
   summarizeMatrix,
@@ -59,6 +59,7 @@ import {
   type DiagPendingRow,
   type DiagAttendanceSession,
 } from "@/modules/courses/diagnostic";
+import { enqueueAiGradeForSubmission } from "@/modules/ai/grade-submission";
 
 // Casts estilo db cuando los types auto-generados no traen una tabla / RPC.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -116,6 +117,8 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
   const [submissions, setSubmissions] = useState<DiagSubmission[]>([]);
   const [aiFailedRefs, setAiFailedRefs] = useState<Set<string>>(new Set());
   const [matrixSearch, setMatrixSearch] = useState("");
+  const [courseLanguage, setCourseLanguage] = useState<"es" | "en">("es");
+  const [gradingAll, setGradingAll] = useState(false);
 
   // Pestaña 2: jobs IA failed.
   const [aiFailedJobs, setAiFailedJobs] = useState<AiFailedJob[]>([]);
@@ -133,6 +136,14 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
     setLoading(true);
     setLoadError(null);
     try {
+      // Idioma del curso (para el body de calificación IA). Best-effort.
+      const { data: courseRow } = await db
+        .from("courses")
+        .select("language")
+        .eq("id", courseId)
+        .maybeSingle();
+      setCourseLanguage(courseRow?.language === "en" ? "en" : "es");
+
       // 1) Matriculados (filtramos por institutional_email para ordenar).
       const { data: enr } = await db
         .from("course_enrollments")
@@ -214,7 +225,9 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
         projectIds.length
           ? db
               .from("project_submissions")
-              .select("id, project_id, user_id, ai_grade, final_grade, status")
+              .select(
+                "id, project_id, user_id, ai_grade, final_grade, status, submission_grade, defense_factor, defense_at",
+              )
               .in("project_id", projectIds)
           : Promise.resolve({ data: [] }),
       ]);
@@ -239,6 +252,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
           item_kind: "exam",
           status: s.status,
           has_final_grade: hasGrade,
+          submission_id: s.id,
         });
         submissionIdToRef.set(s.id, {
           ref: `${s.user_id}::exam::${s.exam_id}`,
@@ -260,6 +274,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
           item_kind: "workshop",
           status: s.status,
           has_final_grade: hasGrade,
+          submission_id: s.id,
         });
         submissionIdToRef.set(s.id, {
           ref: `${s.user_id}::workshop::${s.workshop_id}`,
@@ -273,14 +288,26 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
         ai_grade: number | null;
         final_grade: number | null;
         status: string;
+        submission_grade: number | null;
+        defense_factor: number | null;
+        defense_at: string | null;
       }>) {
         const hasGrade = s.final_grade != null || s.ai_grade != null;
+        // Sin sustentación: la entrega ya tiene nota (de entrega o IA) pero la
+        // nota FINAL no cierra porque falta registrar la sustentación
+        // (final_grade null + defense_at null). Acción del docente, no IA.
+        const defensePending =
+          (s.submission_grade != null || s.ai_grade != null) &&
+          s.final_grade == null &&
+          s.defense_at == null;
         subs.push({
           user_id: s.user_id,
           item_id: s.project_id,
           item_kind: "project",
           status: s.status,
           has_final_grade: hasGrade,
+          submission_id: s.id,
+          defense_pending: defensePending,
         });
         submissionIdToRef.set(s.id, {
           ref: `${s.user_id}::project::${s.project_id}`,
@@ -467,6 +494,67 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
   }, [matrixRows, matrixSearch]);
 
   // ── Acciones de remediación ─────────────────────────────────────────
+
+  // "Calificar todos": encola con IA TODAS las entregas accionables
+  // (entregadas sin calificar o con error de IA) reusando la lógica
+  // canónica de encolado por tipo (enqueueAiGradeForSubmission). Las
+  // celdas "sin sustentación" NO entran — esas las cierra el docente
+  // manualmente (factor de sustentación), no la IA.
+  const gradeAll = async () => {
+    if (gradingAll) return;
+    const targets = matrixRows.filter(
+      (r) =>
+        (r.status === "entregado_sin_calificar" || r.status === "error_ia") && r.submissionId,
+    );
+    if (targets.length === 0) {
+      toast.info("No hay entregas pendientes de calificar con IA.");
+      return;
+    }
+    const ok = await confirm({
+      title: "Calificar todos con IA",
+      description: `Se enviarán ${targets.length} entrega(s) a calificación con IA. Según la configuración del curso se procesan al instante o quedan en la cola de IA. Las cerradas se califican solas y no consumen IA.`,
+      confirmLabel: "Calificar todos",
+      tone: "default",
+    });
+    if (!ok) return;
+    setGradingAll(true);
+    try {
+      let okCount = 0;
+      let enqueued = 0;
+      let failCount = 0;
+      let firstError: string | undefined;
+      for (const r of targets) {
+        const res = await enqueueAiGradeForSubmission({
+          kind: r.item.kind,
+          submissionId: r.submissionId!,
+          itemId: r.item.id,
+          courseId,
+          courseLanguage,
+        });
+        if (res.ok) {
+          okCount += 1;
+          enqueued += res.enqueued;
+        } else {
+          failCount += 1;
+          firstError ??= res.error;
+        }
+      }
+      if (failCount > 0) {
+        toast.warning(
+          `${okCount} entrega(s) procesadas (${enqueued} job(s) de IA), ${failCount} con error. Primero: ${friendlyError(firstError ?? "")}`,
+          { duration: 12000 },
+        );
+      } else {
+        toast.success(
+          `${okCount} entrega(s) enviadas a calificación con IA (${enqueued} job(s)). Revisa la Cola IA para el progreso.`,
+          { duration: 8000 },
+        );
+      }
+      void loadAll();
+    } finally {
+      setGradingAll(false);
+    }
+  };
 
   const retryAiJob = async (jobId: string) => {
     setRetryingJobIds((prev) => new Set(prev).add(jobId));
@@ -661,7 +749,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
               {/* ── TAB 1: Calificaciones pendientes ─────────────────── */}
               <TabsContent value="grades" className="m-0 space-y-3">
                 {/* Stats compactos */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-xs">
                   <StatPill
                     color="emerald"
                     icon={<CheckCircle2 className="h-3.5 w-3.5" />}
@@ -681,6 +769,12 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                     value={matrixSummary.errorIa}
                   />
                   <StatPill
+                    color="violet"
+                    icon={<Gavel className="h-3.5 w-3.5" />}
+                    label="Falta sustentación"
+                    value={matrixSummary.sinSustentacion}
+                  />
+                  <StatPill
                     color="slate"
                     icon={<ClipboardList className="h-3.5 w-3.5" />}
                     label="Sin entregar"
@@ -688,11 +782,31 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                   />
                 </div>
 
-                <SearchInput
-                  value={matrixSearch}
-                  onChange={setMatrixSearch}
-                  placeholder="Buscar estudiante o actividad..."
-                />
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex-1 min-w-[180px]">
+                    <SearchInput
+                      value={matrixSearch}
+                      onChange={setMatrixSearch}
+                      placeholder="Buscar estudiante o actividad..."
+                    />
+                  </div>
+                  {(matrixSummary.entregadoSinCalificar + matrixSummary.errorIa > 0) && (
+                    <Button
+                      size="sm"
+                      className="h-9 shrink-0"
+                      disabled={gradingAll}
+                      onClick={() => void gradeAll()}
+                    >
+                      {gradingAll ? (
+                        <Spinner size="xs" className="mr-1" />
+                      ) : (
+                        <Sparkles className="h-3.5 w-3.5 mr-1" />
+                      )}
+                      Calificar todos con IA (
+                      {matrixSummary.entregadoSinCalificar + matrixSummary.errorIa})
+                    </Button>
+                  )}
+                </div>
 
                 {items.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-6 text-center">
@@ -725,7 +839,9 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                                 ? "bg-destructive/5"
                                 : r.status === "entregado_sin_calificar"
                                   ? "bg-amber-50/40 dark:bg-amber-950/10"
-                                  : ""
+                                  : r.status === "sin_sustentacion"
+                                    ? "bg-violet-50/40 dark:bg-violet-950/10"
+                                    : ""
                             }
                           >
                             <TableCell className="text-xs">
@@ -765,6 +881,11 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                                   <AlertTriangle className="h-3 w-3 mr-0.5" /> Error IA
                                 </Badge>
                               )}
+                              {r.status === "sin_sustentacion" && (
+                                <Badge variant="outline" className="text-[10px] border-violet-500/40 text-violet-700 dark:text-violet-300">
+                                  <Gavel className="h-3 w-3 mr-0.5" /> Falta sustentación
+                                </Badge>
+                              )}
                               {r.status === "sin_entregar" && (
                                 <Badge variant="outline" className="text-[10px] text-muted-foreground">
                                   Sin entregar
@@ -781,6 +902,16 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                                   onClick={() => goToGrading(r.item.kind, r.item.id)}
                                 >
                                   Calificar
+                                </Button>
+                              )}
+                              {r.status === "sin_sustentacion" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs"
+                                  onClick={() => goToGrading(r.item.kind, r.item.id)}
+                                >
+                                  <Gavel className="h-3 w-3 mr-1" /> Sustentar
                                 </Button>
                               )}
                             </TableCell>
@@ -1014,7 +1145,7 @@ function StatPill({
   label,
   value,
 }: {
-  color: "emerald" | "amber" | "red" | "slate";
+  color: "emerald" | "amber" | "red" | "slate" | "violet";
   icon: React.ReactNode;
   label: string;
   value: number;
@@ -1025,6 +1156,7 @@ function StatPill({
       "bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/30 dark:border-amber-900 dark:text-amber-300",
     red: "bg-red-50 border-red-200 text-red-800 dark:bg-red-950/30 dark:border-red-900 dark:text-red-300",
     slate: "bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-900/30 dark:border-slate-700 dark:text-slate-300",
+    violet: "bg-violet-50 border-violet-200 text-violet-800 dark:bg-violet-950/30 dark:border-violet-900 dark:text-violet-300",
   }[color];
   return (
     <div className={`rounded-md border p-2 ${colorClass}`}>

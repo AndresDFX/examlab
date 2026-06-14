@@ -39,6 +39,13 @@ export type DiagSubmission = {
   status: string | null;
   /** ¿Hay alguna nota persistida ya? */
   has_final_grade: boolean;
+  /** id real de la fila de submission (submissions / workshop_submissions /
+   *  project_submissions). Lo necesita "Calificar todos" para encolar. */
+  submission_id?: string | null;
+  /** Solo proyectos: la entrega tiene nota de entrega/IA pero le falta la
+   *  SUSTENTACIÓN (final_grade null + defense_at null). El docente debe
+   *  registrar el factor de sustentación para cerrar la nota final. */
+  defense_pending?: boolean;
 };
 
 /** Estado conceptual de la celda matriz. */
@@ -46,7 +53,8 @@ export type DiagCellStatus =
   | "sin_entregar"
   | "entregado_sin_calificar"
   | "calificado"
-  | "error_ia";
+  | "error_ia"
+  | "sin_sustentacion";
 
 /** Una celda de la matriz: un estudiante × una actividad. */
 export type DiagPendingRow = {
@@ -57,6 +65,8 @@ export type DiagPendingRow = {
    *  esta submission? Cuando true, la celda se marca `error_ia`
    *  aunque la submission técnicamente esté "entregado". */
   hasAiError: boolean;
+  /** id real de la submission (cuando existe) — para encolar IA. */
+  submissionId: string | null;
 };
 
 /**
@@ -105,6 +115,11 @@ export function summarizePendingGrades(
         if (aiFailedRefIds.has(submissionRef)) {
           hasAiError = true;
           status = "error_ia";
+        } else if (sub.defense_pending) {
+          // Proyecto calificado pero sin sustentación: la nota final no
+          // cierra hasta que el docente registre el factor de sustentación.
+          // Gana a "calificado" porque es accionable.
+          status = "sin_sustentacion";
         } else if (sub.has_final_grade) {
           status = "calificado";
         } else {
@@ -112,7 +127,7 @@ export function summarizePendingGrades(
         }
       }
 
-      rows.push({ student, item, status, hasAiError });
+      rows.push({ student, item, status, hasAiError, submissionId: sub?.submission_id ?? null });
     }
   }
   return rows;
@@ -125,6 +140,7 @@ export type DiagSummary = {
   entregadoSinCalificar: number;
   calificado: number;
   errorIa: number;
+  sinSustentacion: number;
 };
 
 export function summarizeMatrix(rows: DiagPendingRow[]): DiagSummary {
@@ -134,12 +150,14 @@ export function summarizeMatrix(rows: DiagPendingRow[]): DiagSummary {
     entregadoSinCalificar: 0,
     calificado: 0,
     errorIa: 0,
+    sinSustentacion: 0,
   };
   for (const r of rows) {
     if (r.status === "sin_entregar") result.sinEntregar += 1;
     else if (r.status === "entregado_sin_calificar") result.entregadoSinCalificar += 1;
     else if (r.status === "calificado") result.calificado += 1;
     else if (r.status === "error_ia") result.errorIa += 1;
+    else if (r.status === "sin_sustentacion") result.sinSustentacion += 1;
   }
   return result;
 }
@@ -212,6 +230,8 @@ export function diagCellStatusLabel(status: DiagCellStatus): string {
       return "Calificado";
     case "error_ia":
       return "Error de IA";
+    case "sin_sustentacion":
+      return "Falta sustentación";
   }
 }
 
@@ -224,9 +244,11 @@ export function diagCellSeverity(status: DiagCellStatus): number {
       return 0;
     case "entregado_sin_calificar":
       return 1;
-    case "sin_entregar":
+    case "sin_sustentacion":
       return 2;
-    case "calificado":
+    case "sin_entregar":
       return 3;
+    case "calificado":
+      return 4;
   }
 }
