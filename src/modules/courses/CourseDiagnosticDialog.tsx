@@ -647,52 +647,56 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
     }
   };
 
-  // Navega al módulo de calificación correcto según el tipo de actividad.
-  const goToGrading = (kind: "exam" | "workshop" | "project", itemId: string) => {
+  // Abre la calificación/sustentación de la ENTREGA específica (no el
+  // listado/edición del módulo). Cada ruta soporta deep-link a la entrega:
+  //   examen   → monitor con ?student=&submission= (abre la vista de respuestas)
+  //   taller   → /workshops con ?workshop=&submission= (abre el diálogo de
+  //              calificación y resalta la entrega del estudiante)
+  //   proyecto → /projects con ?project=&submission= (abre el diálogo de
+  //              calificación/sustentación y resalta la entrega)
+  // submissionId/userId son opcionales: sin ellos igual abre el diálogo de
+  // calificación del item (mejor que el formulario de edición).
+  const goToSubmissionGrading = (
+    kind: "exam" | "workshop" | "project",
+    itemId: string,
+    submissionId?: string | null,
+    userId?: string | null,
+  ) => {
     if (!canNavigateTeacherRoutes) {
       toast.error("No tenés permisos para navegar a este módulo.");
       return;
     }
+    const submission = submissionId ?? undefined;
+    onOpenChange(false);
     if (kind === "exam") {
-      onOpenChange(false);
-      void navigate({
-        to: "/app/teacher/exams/$examId",
-        params: { examId: itemId },
-      });
-    } else if (kind === "workshop") {
-      // No hay una ruta /app/teacher/workshops/$id — el listado de
-      // talleres abre el detalle inline. Mandamos al listado con un
-      // search param que la pantalla puede leer (best-effort).
-      onOpenChange(false);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      void navigate({
-        to: "/app/teacher/workshops",
-        search: { edit: itemId },
-      } as any);
-    } else {
-      onOpenChange(false);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      void navigate({
-        to: "/app/teacher/projects",
-        search: { edit: itemId },
-      } as any);
-    }
-  };
-
-  // Para "Ver entrega" en errores IA / conversaciones — abre el monitor
-  // del examen (cuando aplica) o el listado del módulo.
-  const goToSubmissionContext = (kind: "exam" | "workshop" | "project", itemId: string) => {
-    if (kind === "exam") {
-      onOpenChange(false);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       void navigate({
         to: "/app/teacher/monitor/$examId",
         params: { examId: itemId },
-        search: {},
+        search: { student: userId ?? undefined, submission },
+      } as any);
+    } else if (kind === "workshop") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      void navigate({
+        to: "/app/teacher/workshops",
+        search: { workshop: itemId, submission },
       } as any);
     } else {
-      goToGrading(kind, itemId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      void navigate({
+        to: "/app/teacher/projects",
+        search: { project: itemId, submission },
+      } as any);
     }
+  };
+
+  // Para "Ver entrega" en conversaciones — abre la entrega específica.
+  const goToSubmissionContext = (
+    kind: "exam" | "workshop" | "project",
+    itemId: string,
+    submissionId?: string | null,
+  ) => {
+    goToSubmissionGrading(kind, itemId, submissionId);
   };
 
   // Iconos por tipo de actividad.
@@ -956,7 +960,14 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                                   size="sm"
                                   variant="outline"
                                   className="h-7 text-xs"
-                                  onClick={() => goToGrading(r.item.kind, r.item.id)}
+                                  onClick={() =>
+                                    goToSubmissionGrading(
+                                      r.item.kind,
+                                      r.item.id,
+                                      r.submissionId,
+                                      r.student.id,
+                                    )
+                                  }
                                 >
                                   Calificar
                                 </Button>
@@ -966,7 +977,14 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                                   size="sm"
                                   variant="outline"
                                   className="h-7 text-xs"
-                                  onClick={() => goToGrading(r.item.kind, r.item.id)}
+                                  onClick={() =>
+                                    goToSubmissionGrading(
+                                      r.item.kind,
+                                      r.item.id,
+                                      r.submissionId,
+                                      r.student.id,
+                                    )
+                                  }
                                 >
                                   <Gavel className="h-3 w-3 mr-1" /> Sustentar
                                 </Button>
@@ -1098,7 +1116,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                               size="sm"
                               variant="outline"
                               className="h-7 text-xs"
-                              onClick={() => goToSubmissionContext(t.parent_kind, getItemIdForThread(t, items))}
+                              onClick={() => goToSubmissionContext(t.parent_kind, getItemIdForThread(t, items), t.submission_id)}
                             >
                               <ExternalLink className="h-3 w-3 mr-1" />
                               Ver
