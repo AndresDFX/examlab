@@ -30,7 +30,9 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   - Finalizar es acción de docente del curso o Admin/SuperAdmin (validado en la RPC).
 - **Filtros de grids**: el filtro de ESTADO abre por defecto en lo vigente/activo (no "Todos"); el usuario puede cambiar a Todos/cerrados. (`c3271a5`)
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
-- **Escala de calificación**: se hereda de la asignatura/curso; las actividades y la vista de calificaciones deben usar la **escala del curso**, no 100 fijo. *(en progreso — ver Pendientes)*
+- **Escala de calificación**: se hereda de la asignatura/curso; la vista de calificaciones muestra SIEMPRE la escala del curso. La "Nota" usa `toScale(raw, max_score)`; el "Puntaje" se normaliza a `grade_scale_max` en PRESENTACIÓN (`rescaleScore`), sin tocar datos. NO normalizar `max_score` de items legacy por migración masiva (riesgo de re-interpretar notas bajas de items /100). Items nuevos default `max_score = grade_scale_max`.
+- **Finalizar curso exige SIN pendientes de calificación** (mig 20260972): `set_course_status`→finalizado RAISE si hay pendientes; `auto_finalize_courses` (cron) no finaliza cursos vencidos con pendientes y notifica a sus docentes. "Pendiente" = lógica del Diagnóstico (`course_pending_grading_count`).
+- **Item compartido (M:N) en >1 curso**: su nota debe verse en CADA curso al que pertenece (`workshop_courses`/`project_courses`), no solo en el curso ancla; el peso/corte es por curso. *(en refinamiento — #30/#31)*
 - **Contenido**: el label de un contenido en el tablero ES el **nombre (`display_name`)**, no el tema (`topic`) — `display_name?.trim() || topic`. El contenido puede asociarse a >1 curso (`content_course_assignments`, vía `ManageContentCoursesDialog`) y a la sección "General" del curso (sin sesión, destino del upload del tablero). El grid de Contenidos muestra filas de **altura estándar** (una línea: nombre + estado + conteos; sin subtítulo del tema). (`f4c396d` + #22)
 - **Multi-tenant / RLS**: nunca `USING(true)` ni `has_role()` sin scope de tenant en tablas con datos de tenant (ver `CLAUDE.md`). Migraciones envuelven `ALTER` en guard `to_regclass`.
 - **Demo**: tenant `ExamLab Demo` (`729b3114-…`) tiene un curso "Curso de pruebas" con TODOS sus usuarios como docentes (mig `20260965`) — porque los docentes no pueden auto-asignarse.
@@ -48,6 +50,21 @@ Sesión de mejoras amplia (cada ítem = un `/goal` del usuario). Commits sobre `
 > chocar en `es.json`/`en.json`; un pase final consolida las claves. Se corrieron
 > hasta 3 workflows a la vez.
 
+- **Kahoot con IA desde el contenido del curso** (#18): elegir curso + fuente
+  (una sesión / todo); la edge lee el material real y genera las preguntas; si es
+  de una sesión, el Kahoot queda asociado a ella. — `d5f084f`
+- **"Puntaje" siempre en escala del curso** (#19, presentación, sin tocar notas) +
+  **editar peso por curso** en talleres compartidos (#21). — `917d134`.
+  ⚠️ **Se DESCARTÓ** la migración que normalizaba `max_score` a la escala del curso:
+  su heurística ("notas ≤ escala se asumen ya en escala del curso") podía
+  RE-INTERPRETAR notas bajas de items /100 (4/100 ≈ 0,2/5 → 4/5), cambiando notas
+  finales. El fix de presentación resuelve el síntoma sin riesgo. Si se quiere
+  normalizar `max_score`, hacerlo per-tenant verificando que no haya notas 0<g≤escala
+  en items /100.
+- **Finalizar curso (auto/manual) exige no tener pendientes de calificación** (#29):
+  manual → RAISE; auto (cron) → no finaliza + notifica a los docentes. Mig 20260972. — `b1ef9cd`
+- **Fix #27**: `weightBucketDesc` mostraba `<strong>` literal (i18n vía t() escapa); tags
+  quitados en es+en. — `3162b8a`
 - **Validación fecha fin ≥ fecha inicio** (#10, iguales permitido): helper
   `isValidDateRange` + aplicado en cortes/curso, exámenes (create+edit), talleres,
   proyectos, periodos académicos. — `b30101e`
