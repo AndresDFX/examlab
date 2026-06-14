@@ -136,6 +136,7 @@
     "subtitleAdmin": "Complete history of system events",
     "subtitleTeacher": "Events from your courses and your own actions",
     "exportCsv": "Export CSV",
+    "exportLabel": "Export",
     "filters": {
       "searchPlaceholder": "Search actor, entity, action…",
       "categoryAll": "All categories",
@@ -4076,6 +4077,27 @@
     "btnCancel": "Cancel",
     "btnLaunch": "Launch"
   },
+  "activitySession": {
+    "label": "Link to session (optional)",
+    "hint": "If you link it to a session, it appears under that class on the teacher and student board. Otherwise, it appears in the course's General section.",
+    "placeholder": "General (no session)",
+    "none": "General (no session)"
+  },
+  "tenantEmail": {
+    "title": "Institution email",
+    "useCustom": "Use own SMTP",
+    "useCustomHint": "When enabled, this institution's emails are sent from its own account. Otherwise the platform's global SMTP is used.",
+    "host": "SMTP server",
+    "port": "Port",
+    "user": "SMTP user",
+    "password": "Password / App Password",
+    "passwordHint": "For Gmail use an App Password (not the account password).",
+    "from": "Sender (From)",
+    "fromName": "Sender name",
+    "incomplete": "Fill host, port, user, password and sender to use your own SMTP.",
+    "saved": "Email settings saved",
+    "saveError": "Could not save"
+  },
   "superadminTenants": {
     "title": "Institutions",
     "clearViewAsBtn": "Clear \"view as\"",
@@ -4093,6 +4115,8 @@
     "actionImpersonate": "Log in as Admin",
     "actionImpersonateHint": "Replaces your session with the tenant Admin's session",
     "actionManageUsers": "Manage users",
+    "actionEmail": "Configure email",
+    "actionEmailHint": "Institution's own SMTP (host, user, sender). Otherwise uses the global one.",
     "actionViewAs": "View as this institution",
     "actionViewAsHint": "Only changes visual branding, keeps your session",
     "actionEdit": "Edit",
@@ -7348,6 +7372,7 @@
   "hc_routesAppTeacherGradebook": {
     "couldNotLoadCourses": "We couldn't load your courses.",
     "csvName": "name",
+    "exportLabel": "Export",
     "csvInstitutionalEmail": "institutional_email",
     "csvPersonalEmail": "personal_email",
     "csvFinalGrade": "Final grade",

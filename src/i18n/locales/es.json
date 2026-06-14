@@ -136,6 +136,7 @@
     "subtitleAdmin": "Historial completo de eventos del sistema",
     "subtitleTeacher": "Eventos de tus cursos y tus propias acciones",
     "exportCsv": "Exportar CSV",
+    "exportLabel": "Exportar",
     "filters": {
       "searchPlaceholder": "Buscar actor, entidad, acción…",
       "categoryAll": "Todas las categorías",
@@ -4076,6 +4077,27 @@
     "btnCancel": "Cancelar",
     "btnLaunch": "Lanzar"
   },
+  "activitySession": {
+    "label": "Asociar a sesión (opcional)",
+    "hint": "Si la asocias a una sesión, aparece bajo esa clase en el tablero del docente y del estudiante. Si no, aparece en la sección General del curso.",
+    "placeholder": "General (sin sesión)",
+    "none": "General (sin sesión)"
+  },
+  "tenantEmail": {
+    "title": "Correo de la institución",
+    "useCustom": "Usar SMTP propio",
+    "useCustomHint": "Si lo activas, los correos de esta institución se envían con su propia cuenta. Si no, se usa el SMTP global de la plataforma.",
+    "host": "Servidor SMTP",
+    "port": "Puerto",
+    "user": "Usuario SMTP",
+    "password": "Contraseña / App Password",
+    "passwordHint": "Para Gmail usa una App Password (no la contraseña de la cuenta).",
+    "from": "Remitente (From)",
+    "fromName": "Nombre del remitente",
+    "incomplete": "Completa host, puerto, usuario, contraseña y remitente para usar SMTP propio.",
+    "saved": "Configuración de correo guardada",
+    "saveError": "No se pudo guardar"
+  },
   "superadminTenants": {
     "title": "Instituciones",
     "clearViewAsBtn": "Limpiar \"ver como\"",
@@ -4093,6 +4115,8 @@
     "actionImpersonate": "Iniciar sesión como Admin",
     "actionImpersonateHint": "Reemplaza tu sesión por la del Admin del tenant",
     "actionManageUsers": "Gestionar usuarios",
+    "actionEmail": "Configurar correo",
+    "actionEmailHint": "SMTP propio de la institución (host, usuario, remitente). Si no, usa el global.",
     "actionViewAs": "Ver como esta institución",
     "actionViewAsHint": "Solo cambia branding visual, mantiene tu sesión",
     "actionEdit": "Editar",
@@ -7348,6 +7372,7 @@
   "hc_routesAppTeacherGradebook": {
     "couldNotLoadCourses": "No pudimos cargar tus cursos.",
     "csvName": "nombre",
+    "exportLabel": "Exportar",
     "csvInstitutionalEmail": "email_institucional",
     "csvPersonalEmail": "email_personal",
     "csvFinalGrade": "Calificación final",
