@@ -265,6 +265,13 @@ function AdminDashboard() {
               .select("id", { count: "exact", head: true })
               .in("status", ["completado", "sospechoso"])
               .is("ai_grade", null)
+              // "Calificado" = CUALQUIER nota persistida. Un examen calificado
+              // MANUALMENTE por el docente tiene `ai_grade=null` pero
+              // `final_override_grade` seteado → NO es pendiente. Sin este
+              // filtro, los exámenes con override contaban como "por calificar"
+              // (bug Camacho: 35 ya calificados a mano se contaban). Espeja el
+              // `has_final_grade = ai_grade || final_override_grade` del diagnóstico.
+              .is("final_override_grade", null)
               .in("exam_id", examIds)
           : Promise.resolve({ count: 0 }),
         hasWorkshops
@@ -273,6 +280,9 @@ function AdminDashboard() {
               .select("id", { count: "exact", head: true })
               .eq("status", "entregado")
               .is("final_grade", null)
+              // Idem: graded = final_grade || ai_grade (diagnóstico). Excluye
+              // los ya calificados por IA sin override.
+              .is("ai_grade", null)
               .in("workshop_id", workshopIds)
           : Promise.resolve({ count: 0 }),
         hasProjects
@@ -283,8 +293,10 @@ function AdminDashboard() {
               .is("final_grade", null)
               // Sólo "por calificar" REAL: excluye las ya calificadas por IA que
               // esperan SUSTENTACIÓN (submission_grade ya seteado → la nota base
-              // existe, falta el factor de sustentación, no la calificación).
+              // existe, falta el factor de sustentación, no la calificación) y
+              // las ya calificadas por IA (ai_grade seteado).
               .is("submission_grade", null)
+              .is("ai_grade", null)
               .in("project_id", projectIds)
           : Promise.resolve({ count: 0 }),
         // Threads abiertos a nivel plataforma (Admin RLS = sin filtro).
@@ -684,6 +696,11 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                   .select("exam_id, user_id")
                   .in("status", ["completado", "sospechoso"])
                   .is("ai_grade", null)
+                  // Excluye exámenes calificados MANUALMENTE (override del
+                  // docente) — graded = ai_grade || final_override_grade, igual
+                  // que el diagnóstico. Sin esto el stat docente mostraba 35
+                  // mientras el detalle por curso (diagnóstico) mostraba 0.
+                  .is("final_override_grade", null)
                   .in("exam_id", examIds)
               : Promise.resolve({ data: [] }),
             workshopIds.length
@@ -692,6 +709,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                   .select("workshop_id, user_id")
                   .eq("status", "entregado")
                   .is("final_grade", null)
+                  .is("ai_grade", null)
                   .in("workshop_id", workshopIds)
               : Promise.resolve({ data: [] }),
             projectIds.length
@@ -701,8 +719,10 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                   .eq("status", "entregado")
                   .is("final_grade", null)
                   // Excluye las ya calificadas por IA que esperan sustentación
-                  // (submission_grade seteado) — no son "por calificar".
+                  // (submission_grade seteado) y las ya calificadas por IA
+                  // (ai_grade) — no son "por calificar".
                   .is("submission_grade", null)
+                  .is("ai_grade", null)
                   .in("project_id", projectIds)
               : Promise.resolve({ data: [] }),
             // Matrícula vigente por curso — para NO contar entregas de
