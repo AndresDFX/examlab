@@ -261,6 +261,16 @@ function StudentGrades() {
           const pct = max > 0 ? raw / max : 0;
           return course.grade_scale_min + pct * (course.grade_scale_max - course.grade_scale_min);
         };
+        // Helper: normaliza un puntaje raw de escala 0..fromMax a 0..toMax,
+        // redondeado a 2 decimales. Usado para presentar la columna
+        // "Puntaje" SIEMPRE en la escala del curso (#19) sin tocar la nota
+        // final (que usa `toScale`/`it.grade`). Para items ya en la escala
+        // del curso (fromMax === toMax) devuelve el mismo valor.
+        const rescaleScore = (raw: number, fromMax: number, toMax: number) => {
+          if (fromMax <= 0) return 0;
+          if (fromMax === toMax) return Math.round(raw * 100) / 100;
+          return Math.round((raw / fromMax) * toMax * 100) / 100;
+        };
 
         // Construye filas para cada item del curso (ya escaladas).
         const rows: ItemRow[] = [];
@@ -303,39 +313,46 @@ function StudentGrades() {
 
         // Talleres — para is_external la nota ya está en la escala del
         // curso (la ingresa el docente en ExternalGradesEditor con cap =
-        // course.grade_scale_max). Para AI, w.max_score es la escala 0..100
-        // del prompt y hay que reescalar.
+        // course.grade_scale_max). Para AI/datos viejos, w.max_score puede
+        // ser 0..100 (legacy) — se reescala internamente con `internalMax`
+        // SOLO para calcular `grade` (no cambia la nota). La columna
+        // "Puntaje" SIEMPRE se presenta en la escala del curso (#19): el
+        // tope mostrado es grade_scale_max y el valor el puntaje normalizado.
         for (const w of (workshops ?? []) as any[]) {
           const sub = (wsSubs ?? []).find((s: any) => s.workshop_id === w.id);
           const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
-          const wMax = w.is_external ? course.grade_scale_max : (w.max_score ?? 100);
+          const internalMax = w.is_external ? course.grade_scale_max : (w.max_score ?? 100);
           rows.push({
             id: w.id,
             title: w.title,
             kind: "workshop",
             cut_id: w.cut_id ?? null,
-            rawGrade: raw,
-            rawMax: wMax,
-            grade: raw != null ? toScale(raw, wMax) : null,
+            // Puntaje en escala del curso: normaliza raw (0..internalMax) a
+            // 0..grade_scale_max. Para items ya en escala del curso
+            // (internalMax === grade_scale_max) es no-op.
+            rawGrade: raw != null ? rescaleScore(raw, internalMax, course.grade_scale_max) : null,
+            rawMax: course.grade_scale_max,
+            grade: raw != null ? toScale(raw, internalMax) : null,
             status: sub?.status ?? "pendiente",
             weight: Number(w.weight ?? 1),
             reviewWorkshopId: sub ? w.id : null,
           });
         }
 
-        // Proyectos — misma regla: external = ya en escala del curso.
+        // Proyectos — misma regla: external = ya en escala del curso;
+        // Puntaje normalizado a la escala del curso (#19).
         for (const p of flatProjects as any[]) {
           const sub = (prjSubs ?? []).find((s: any) => s.project_id === p.id);
           const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
-          const pMax = p.is_external ? course.grade_scale_max : (p.max_score ?? 100);
+          const internalMax = p.is_external ? course.grade_scale_max : (p.max_score ?? 100);
           rows.push({
             id: p.id,
             title: p.title,
             kind: "project",
             cut_id: p.cut_id ?? null,
-            rawGrade: raw,
-            rawMax: pMax,
-            grade: raw != null ? toScale(raw, pMax) : null,
+            rawGrade: raw != null ? rescaleScore(raw, internalMax, course.grade_scale_max) : null,
+            rawMax: course.grade_scale_max,
+            grade: raw != null ? toScale(raw, internalMax) : null,
             status: sub?.status ?? "pendiente",
             weight: Number(p.weight ?? 1),
           });

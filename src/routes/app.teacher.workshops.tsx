@@ -268,6 +268,12 @@ function TeacherWorkshops() {
    *  Para talleres single-course tiene un único course_id; para multi
    *  trae varios. Usado por el grid (badges) y el edit dialog (set inicial). */
   const [workshopCourses, setWorkshopCourses] = useState<Map<string, string[]>>(new Map());
+  // Per-workshop map: courseId → { cut_id, weight } desde workshop_courses.
+  // Permite que el form de EDICIÓN hidrate el peso/corte de CADA curso
+  // asociado (paridad con projects), no solo el del curso primario.
+  const [workshopCourseCuts, setWorkshopCourseCuts] = useState<
+    Map<string, Record<string, { cut_id: string | null; weight: number }>>
+  >(new Map());
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [aiErrorsByWorkshop, setAiErrorsByWorkshop] = useState<Record<string, number>>({});
@@ -516,7 +522,7 @@ function TeacherWorkshops() {
   const [students, setStudents] = useState<Student[]>([]);
   const [assignedIds, setAssignedIds] = useState<Set<string>>(new Set());
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
-  // Per-course cut+weight used only during multi-course creation (not editing).
+  // Per-course cut+weight para creación Y edición multi-curso.
   const [courseCuts, setCourseCuts] = useState<
     Record<string, { cut_id: string | null; weight: number }>
   >({});
@@ -608,8 +614,12 @@ function TeacherWorkshops() {
       (supabase as any).rpc("count_ai_errors_per_workshop"),
       // workshop_courses: tabla M:N introducida en mig 20260704000000.
       // Mapeamos {workshop_id → course_id[]} para que la columna 'Curso'
-      // del grid pueda mostrar N badges en talleres multi-curso.
-      (supabase as any).from("workshop_courses").select("workshop_id, course_id"),
+      // del grid pueda mostrar N badges en talleres multi-curso. Traemos
+      // ADEMÁS cut_id/weight (que pueden diferir por curso) para que el
+      // form de edición hidrate el peso/corte de CADA curso asociado.
+      (supabase as any)
+        .from("workshop_courses")
+        .select("workshop_id, course_id, cut_id, weight"),
     ]);
     // Si las queries crítica fallan (courses, workshops), marcamos
     // loadError para mostrar ErrorState en vez de "0 talleres" silencioso.
@@ -626,14 +636,27 @@ function TeacherWorkshops() {
       errMap[row.workshop_id] = Number(row.error_count) || 0;
     }
     setAiErrorsByWorkshop(errMap);
-    // Index workshop_courses → courseIds[] por workshop_id.
+    // Index workshop_courses → courseIds[] por workshop_id + cut/weight por curso.
     const wcMap = new Map<string, string[]>();
-    for (const r of (wcRows ?? []) as Array<{ workshop_id: string; course_id: string }>) {
+    const wcCutsMap = new Map<
+      string,
+      Record<string, { cut_id: string | null; weight: number }>
+    >();
+    for (const r of (wcRows ?? []) as Array<{
+      workshop_id: string;
+      course_id: string;
+      cut_id: string | null;
+      weight: number | null;
+    }>) {
       const arr = wcMap.get(r.workshop_id) ?? [];
       arr.push(r.course_id);
       wcMap.set(r.workshop_id, arr);
+      const cutsMap = wcCutsMap.get(r.workshop_id) ?? {};
+      cutsMap[r.course_id] = { cut_id: r.cut_id ?? null, weight: Number(r.weight ?? 1) };
+      wcCutsMap.set(r.workshop_id, cutsMap);
     }
     setWorkshopCourses(wcMap);
+    setWorkshopCourseCuts(wcCutsMap);
   };
   useEffect(() => {
     load();
@@ -851,8 +874,15 @@ function TeacherWorkshops() {
       );
       return;
     }
-    // If editing, use single course
-    const courseIds = form.id ? [form.course_id!] : [...selectedCourseIds];
+    // Cursos a los que el taller queda asociado (M:N). En creación y en
+    // edición usamos el set completo de cursos seleccionados — el form de
+    // edición ahora gestiona el peso/corte de CADA curso (#21), no solo el
+    // primario.
+    const courseIds = [...selectedCourseIds].length
+      ? [...selectedCourseIds]
+      : form.course_id
+        ? [form.course_id]
+        : [];
     if (courseIds.length === 0) {
       toast.error(
         i18n.t("toast.routes_app_teacher_workshops.selectAtLeastOneCourse", {
@@ -873,7 +903,9 @@ function TeacherWorkshops() {
     const groupMode: string = isExternal
       ? "individual"
       : ((form as any).group_mode ?? "individual");
-    const isMultiCourse = !form.id && courseIds.length > 1;
+    // Per-curso (corte+peso por curso) cuando hay >1 curso — tanto en
+    // creación como en edición.
+    const isMultiCourse = courseIds.length > 1;
     const basePayload: Record<string, any> = {
       title: form.title,
       description: form.description ?? null,
@@ -924,8 +956,9 @@ function TeacherWorkshops() {
         const requested = Math.max(0, Number(cc.weight ?? 1));
         const cut = cuts.find((c) => c.id === cc.cut_id);
         const bucket = Number(cut?.workshop_weight ?? 0);
+        // Excluir el taller en edición (sino su peso se contaría doble).
         const sumOthers = workshops
-          .filter((w) => (w as any).cut_id === cc.cut_id)
+          .filter((w) => (w as any).cut_id === cc.cut_id && w.id !== form.id)
           .reduce((s, w) => s + Number((w as any).weight ?? 0), 0);
         const available = Math.max(0, bucket - sumOthers);
         if (requested > available + 0.01) {
@@ -958,9 +991,20 @@ function TeacherWorkshops() {
         });
         if (!ok) return;
       }
+      // Sincroniza las columnas legacy del curso primario
+      // (workshops.cut_id/weight) desde courseCuts[primario] cuando es
+      // multi-curso, para que la fila legacy quede consistente con su fila
+      // en workshop_courses. En single-curso ya las setea basePayload.
+      const editPayload: Record<string, any> = { ...basePayload, course_id: form.course_id! };
+      if (isMultiCourse) {
+        const primaryCc = form.course_id ? courseCuts[form.course_id] : undefined;
+        editPayload.cut_id = primaryCc?.cut_id ?? null;
+        editPayload.weight =
+          primaryCc?.weight != null ? Math.max(0, Number(primaryCc.weight)) : null;
+      }
       const { error } = await supabase
         .from("workshops")
-        .update({ ...basePayload, course_id: form.course_id! })
+        .update(editPayload as any)
         .eq("id", form.id);
       if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
       // ── Sync workshop_courses (M:N) ──
@@ -977,15 +1021,27 @@ function TeacherWorkshops() {
       const finalCourseIds = editedCourseIds.length > 0 ? editedCourseIds : [form.course_id!];
       await dbAny2.from("workshop_courses").delete().eq("workshop_id", form.id);
       const wcEditRows = finalCourseIds.map((cid) => {
+        // Single-curso: el editor edita form.cut_id/weight (no courseCuts),
+        // así que para el curso primario el form GANA. Multi-curso: cada
+        // curso vive en courseCuts (editado por el editor per-curso).
         const cc = courseCuts[cid];
+        const isPrimary = cid === form.course_id;
+        if (!isMultiCourse && isPrimary) {
+          return {
+            workshop_id: form.id,
+            course_id: cid,
+            cut_id: form.cut_id || null,
+            weight: (form as any).weight != null ? Math.max(0, Number((form as any).weight)) : null,
+          };
+        }
         return {
           workshop_id: form.id,
           course_id: cid,
-          cut_id: cc?.cut_id || (cid === form.course_id ? form.cut_id || null : null),
+          cut_id: cc?.cut_id || (isPrimary ? form.cut_id || null : null),
           weight:
             cc?.weight != null
               ? Math.max(0, Number(cc.weight))
-              : cid === form.course_id && (form as any).weight != null
+              : isPrimary && (form as any).weight != null
                 ? Math.max(0, Number((form as any).weight))
                 : null,
         };
@@ -2809,19 +2865,28 @@ function TeacherWorkshops() {
                                   ? [ws.course_id]
                                   : [];
                             setSelectedCourseIds(new Set(allIds));
-                            // courseCuts per-curso: si no tenemos detalle
-                            // de cuts por curso, dejamos los defaults; el
-                            // save flow respeta el primary cut_id/weight
-                            // del workshop para el curso primario.
+                            // courseCuts per-curso: hidratar desde
+                            // workshop_courses (cut_id/weight reales por
+                            // curso). Fallback al cut_id/weight del workshop
+                            // (curso primario) para filas que predatan la
+                            // mig M:N. Sin esto, editar el peso del primario
+                            // pisaba los pesos de los cursos secundarios.
+                            const stored = workshopCourseCuts.get(ws.id);
                             const cutsByCourse: Record<
                               string,
                               { cut_id: string | null; weight: number }
                             > = {};
                             for (const cid of allIds) {
-                              cutsByCourse[cid] = {
-                                cut_id: cid === ws.course_id ? ((ws as any).cut_id ?? null) : null,
-                                weight: cid === ws.course_id ? Number((ws as any).weight ?? 1) : 1,
-                              };
+                              if (stored?.[cid]) {
+                                cutsByCourse[cid] = stored[cid];
+                              } else if (cid === ws.course_id && (ws as any).cut_id) {
+                                cutsByCourse[cid] = {
+                                  cut_id: (ws as any).cut_id ?? null,
+                                  weight: Number((ws as any).weight ?? 1),
+                                };
+                              } else {
+                                cutsByCourse[cid] = { cut_id: null, weight: 1 };
+                              }
                             }
                             setCourseCuts(cutsByCourse);
                             setOpen(true);
@@ -2966,8 +3031,9 @@ function TeacherWorkshops() {
                 </p>
               )}
             </div>
-            {/* Corte y peso: tabla per-curso cuando hay múltiples cursos en creación */}
-            {!form.id && selectedCourseIds.size > 1 ? (
+            {/* Corte y peso: tabla per-curso cuando hay múltiples cursos
+                (creación O edición — paridad con projects). */}
+            {selectedCourseIds.size > 1 ? (
               <div className="space-y-2">
                 <Label>
                   {t("teacherWorkshops.cutPerCourse")}{" "}
@@ -2979,8 +3045,10 @@ function TeacherWorkshops() {
                   const cutsForCourse = cuts.filter((c) => c.course_id === cid);
                   const selectedCut = cc.cut_id ? cuts.find((c) => c.id === cc.cut_id) : null;
                   const wsBucket = Number(selectedCut?.workshop_weight ?? 0);
+                  // Excluir el taller en edición del cómputo del bucket
+                  // disponible — sino su propio peso se contaría doble.
                   const sumOthers = workshops
-                    .filter((w) => (w as any).cut_id === cc.cut_id)
+                    .filter((w) => (w as any).cut_id === cc.cut_id && w.id !== form.id)
                     .reduce((s, w) => s + Number((w as any).weight ?? 0), 0);
                   const wsMax = Math.max(0, wsBucket - sumOthers);
                   const overBucket = !!cc.cut_id && Number(cc.weight) > wsMax + 0.01;
