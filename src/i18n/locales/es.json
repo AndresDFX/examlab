@@ -6614,6 +6614,7 @@
     "searchPlaceholder": "Buscar por nombre, período o descripción…",
     "allPrograms": "Todos los programas",
     "allSubjects": "Todas las asignaturas",
+    "allPeriods": "Todos los periodos",
     "entityCourseSingular": "curso",
     "entityCoursePlural": "cursos",
     "activityColumn": "Actividad",

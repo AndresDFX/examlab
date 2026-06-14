@@ -251,6 +251,7 @@ export function AdminCourses() {
   // dos se combinan (AND) con search + tenantFilter.
   const [programFilterUi, setProgramFilterUi] = useState<string>("all");
   const [subjectFilterUi, setSubjectFilterUi] = useState<string>("all");
+  const [periodFilterUi, setPeriodFilterUi] = useState<string>("all");
 
   // Filtramos por nombre + período + descripción. Case-insensitive,
   // includes. El multi-select trabaja sobre la lista visible. Si hay
@@ -269,6 +270,10 @@ export function AdminCourses() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       result = result.filter((c: any) => c.subject_id === subjectFilterUi);
     }
+    if (periodFilterUi !== "all") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      result = result.filter((c: any) => c.period_id === periodFilterUi);
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -279,7 +284,7 @@ export function AdminCourses() {
       );
     }
     return result;
-  }, [courses, search, subjectFilter, programFilterUi, subjectFilterUi]);
+  }, [courses, search, subjectFilter, programFilterUi, subjectFilterUi, periodFilterUi]);
 
   // Orden por columna (asc/desc clicando el encabezado). Va ENTRE el
   // filtro y la paginación: filtrar → ORDENAR → paginar. Las columnas con
@@ -340,7 +345,7 @@ export function AdminCourses() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:admin_courses",
-    resetKey: `${search}|${subjectFilter ?? ""}|${programFilterUi}|${subjectFilterUi}|${tenantFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${subjectFilter ?? ""}|${programFilterUi}|${subjectFilterUi}|${periodFilterUi}|${tenantFilter}|${sort.resetKey}`,
   });
 
   // Export del listado filtrado. No soportamos import porque cada curso
@@ -1659,6 +1664,26 @@ export function AdminCourses() {
                     {s.code ? ` (${s.code})` : ""}
                   </SelectItem>
                 ))}
+            </SelectContent>
+          </Select>
+        )}
+        {/* Periodo: filtra cursos cuyo period_id matchee. Solo si la
+            institución tiene periodos cargados. */}
+        {periods.length > 0 && (
+          <Select value={periodFilterUi} onValueChange={setPeriodFilterUi}>
+            <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
+              <SelectValue placeholder={t("hc_routesAppAdminCourses.allPeriods", { defaultValue: "Todos los periodos" })} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">
+                {t("hc_routesAppAdminCourses.allPeriods", { defaultValue: "Todos los periodos" })}
+              </SelectItem>
+              {periods.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name ?? p.code}
+                  {p.name && p.code ? ` (${p.code})` : ""}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         )}
