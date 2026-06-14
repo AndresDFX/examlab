@@ -206,6 +206,15 @@ const MODULES: Array<{
   { key: "configuration", label: "Configuración" },
 ];
 
+/**
+ * Módulos PROPIOS del SuperAdmin (paneles cross-tenant). No tienen pantalla
+ * para Admin/Docente/Estudiante (RBAC los manda a /unauthorized), así que
+ * NO deben aparecer en el panel de una institución (scope tenant) — sus
+ * toggles serían no-op y confunden. Solo se muestran en el scope GLOBAL,
+ * donde el SuperAdmin reordena/esconde su propio menú.
+ */
+const SUPERADMIN_ONLY_MODULES = new Set(["tenants", "system"]);
+
 /** Resuelve la fila virtual + rol a su `module_key` físico (en DB). */
 function physicalKeyFor(
   module: { key: string; roleKeyMap?: Partial<Record<ModuleRoleKey, string>> },
@@ -374,11 +383,20 @@ export function AdminModuleVisibilityPanel() {
         }
       }
     }
-    const sorted = MODULES.slice().sort((a, b) => {
+    // En scope TENANT (Admin de institución, o SuperAdmin con "Ver como")
+    // ocultamos los módulos propios del SuperAdmin — un Admin no los ve por
+    // RBAC, así que togglearlos no hace nada. En scope global sí aparecen.
+    const panelModules = isGlobalScope
+      ? MODULES
+      : MODULES.filter((m) => !SUPERADMIN_ONLY_MODULES.has(m.key));
+    const sorted = panelModules.slice().sort((a, b) => {
       const oa = orderByVirtual.get(a.key) ?? 9999;
       const ob = orderByVirtual.get(b.key) ?? 9999;
       if (oa !== ob) return oa - ob;
-      return MODULES.findIndex((m) => m.key === a.key) - MODULES.findIndex((m) => m.key === b.key);
+      return (
+        panelModules.findIndex((m) => m.key === a.key) -
+        panelModules.findIndex((m) => m.key === b.key)
+      );
     });
     setLocalOrder(sorted.map((m) => m.key));
     setLoading(false);
