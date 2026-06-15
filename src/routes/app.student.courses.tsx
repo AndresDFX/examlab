@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { groupCohortWeights, type CohortWeightGroup } from "@/modules/courses/cohort-weights";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -403,6 +404,27 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
   // Media (imagen / PDF) seleccionada para VER inline. El alumno solo ve
   // (canEdit=false); editar es exclusivo del docente dueño del contenido.
   const [mediaFile, setMediaFile] = useState<ContentFileEntry | null>(null);
+  // #33 — desglose de evaluación POR COHORTE: si el curso usa cohortes y
+  // distintas cohortes tienen actividades asignadas distintas, mostramos qué
+  // actividades y % aplican a cada cohorte. Requiere leer asignaciones/cohortes
+  // de otros alumnos → vía RPC SECURITY DEFINER get_course_cohort_weights.
+  const [cohortWeights, setCohortWeights] = useState<CohortWeightGroup[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data } = await db.rpc("get_course_cohort_weights", { _course_id: course.id });
+        if (cancelled) return;
+        setCohortWeights(groupCohortWeights((data ?? []) as Parameters<typeof groupCohortWeights>[0]));
+      } catch {
+        if (!cancelled) setCohortWeights([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [course.id]);
 
   useEffect(() => {
     if (!user) return;
@@ -727,6 +749,56 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
           </div>
         </CardHeader>
       </Card>
+
+      {/* #33 — Desglose de evaluación POR COHORTE: qué actividades y % aplican
+          a cada cohorte (las cohortes pueden tener actividades asignadas
+          distintas). Solo aparece si el curso usa cohortes con actividades. */}
+      {cohortWeights.length > 0 && (
+        <div className="space-y-2">
+          <CardTitle className="text-base">
+            {t("courseBoard.cohortWeightsTitle", { defaultValue: "Evaluación por cohorte" })}
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            {t("courseBoard.cohortWeightsHint", {
+              defaultValue:
+                "Actividades y porcentaje que aplican a cada cohorte. Distintas cohortes pueden tener actividades distintas asignadas.",
+            })}
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {cohortWeights.map((g) => (
+              <Card key={g.cohorte}>
+                <CardContent className="p-4 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-sm truncate">{g.cohorte}</span>
+                    <Badge variant="secondary" className="text-[11px] shrink-0 tabular-nums">
+                      {t("courseBoard.cohortWeightsTotal", {
+                        defaultValue: "Total {{total}}%",
+                        total: g.totalWeight,
+                      })}
+                    </Badge>
+                  </div>
+                  <ul className="space-y-1">
+                    {g.items.map((it) => (
+                      <li
+                        key={`${it.kind}-${it.itemId}`}
+                        className="flex items-center justify-between gap-2 text-xs"
+                      >
+                        <span className="truncate min-w-0">
+                          {it.title}
+                          {it.cutName ? (
+                            <span className="text-muted-foreground"> · {it.cutName}</span>
+                          ) : null}
+                        </span>
+                        <span className="tabular-nums shrink-0">{it.weight}%</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Material GENERAL del curso — contenidos publicados asignados al
           curso sin sesión específica (ej. subidos desde el Tablero del
