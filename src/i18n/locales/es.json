@@ -6173,7 +6173,10 @@
     "previewRealNote": "Vista previa con DATOS REALES del curso/estudiante elegido. Cambia la selección de arriba para ver otro caso.",
     "previewLoading": "cargando datos…",
     "aiDataSource": "Datos de:",
-    "aiNoCourse": "Elige un curso en la pestaña “Vista previa” para usar datos reales."
+    "aiNoCourse": "Elige un curso en la pestaña “Vista previa” para usar datos reales.",
+    "varsScopeStudent": "Informe por estudiante: variables del alumno.",
+    "varsScopeCourse": "Informe por curso: variables del curso + iterar estudiantes.",
+    "scopeFirstHint": "Elígelo primero: define qué variables aparecen a la derecha y qué datos usa la IA (todo el curso o un estudiante)."
   },
   "hc_modulesSchedulesCourseScheduleEditor": {
     "loadScheduleError": "No pudimos cargar el horario",

@@ -1,5 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { renderTemplate, buildSampleReportContext, SAMPLE_LOGO_DATA_URI } from "./template-engine";
+import {
+  renderTemplate,
+  buildSampleReportContext,
+  reportCatalogForScope,
+  SAMPLE_LOGO_DATA_URI,
+} from "./template-engine";
+
+describe("reportCatalogForScope", () => {
+  const paths = (scope: "estudiante" | "curso") => reportCatalogForScope(scope).map((n) => n.path);
+
+  it("scope 'estudiante': variables del alumno único, sin el consolidado de curso", () => {
+    const p = paths("estudiante");
+    expect(p).toContain("estudiante");
+    expect(p).toContain("notas");
+    expect(p).toContain("asistencia");
+    expect(p).toContain("curso");
+    expect(p).toContain("docente");
+    expect(p).toContain("institucion");
+    expect(p).not.toContain("estudiantes"); // grupo consolidado de curso
+  });
+
+  it("scope 'curso': consolidado de curso, sin los escalares del alumno único", () => {
+    const p = paths("curso");
+    expect(p).toContain("estudiantes"); // {{#each estudiantes}} + totales
+    expect(p).toContain("curso");
+    expect(p).toContain("docente");
+    expect(p).toContain("institucion");
+    expect(p).not.toContain("estudiante");
+    expect(p).not.toContain("notas");
+    expect(p).not.toContain("asistencia");
+  });
+});
 
 describe("buildSampleReportContext", () => {
   it("rellena variables de muestra (estudiante, institución con logo)", () => {

@@ -45,6 +45,18 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-15
 
+**Informes — variables y prompt IA según el TIPO de informe (scope).** El panel
+de variables de la derecha y el contexto de la IA dependen ahora del scope:
+- `reportCatalogForScope(scope)` (template-engine): por **estudiante** muestra
+  variables del alumno único (`estudiante.*`, notas, asistencia) + curso/docente/
+  institución; por **curso** muestra el consolidado `{{#each estudiantes}}` +
+  totales. El editor (`TemplateEditor`) usa el catálogo según `value.scope`.
+- La **IA** recibe ese mismo catálogo (`buildAiReportPrompt({ catalog })`) y los
+  datos reales según scope: curso → datos del curso completo; estudiante →
+  datos de ese estudiante (vía `studentId` en `buildReportContext`).
+- El editor **pide PRIMERO el tipo de informe** (scope), full-width y con nota
+  de que de él dependen variables + datos. + tests de `reportCatalogForScope`.
+
 **Informes — exportación .docx REAL (cabecera en el área de encabezado),
 resaltado de lo agregado por la plataforma, y nombres únicos.** (commit pendiente)
 

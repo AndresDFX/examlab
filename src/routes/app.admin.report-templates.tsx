@@ -34,7 +34,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { ModuleGuard } from "@/shared/components/ModuleGuard";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { parseDocxBundle, extractPlaceholders } from "@/modules/reports/docx-import";
-import { buildAiReportPrompt } from "@/modules/reports/template-engine";
+import { buildAiReportPrompt, reportCatalogForScope } from "@/modules/reports/template-engine";
 import { buildReportContext } from "@/modules/reports/report-context";
 import {
   Table,
@@ -227,6 +227,7 @@ function Inner() {
         draftText: draft.body_html,
         instruction: aiInstruction,
         ctx,
+        catalog: reportCatalogForScope(draft.scope),
       }));
     } catch (e) {
       setAiBusy(false);

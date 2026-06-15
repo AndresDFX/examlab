@@ -6173,7 +6173,10 @@
     "previewRealNote": "Preview with REAL data from the chosen course/student. Change the selection above to see another case.",
     "previewLoading": "loading data…",
     "aiDataSource": "Data from:",
-    "aiNoCourse": "Pick a course in the “Preview” tab to use real data."
+    "aiNoCourse": "Pick a course in the “Preview” tab to use real data.",
+    "varsScopeStudent": "Per-student report: student variables.",
+    "varsScopeCourse": "Per-course report: course variables + iterate students.",
+    "scopeFirstHint": "Choose it first: it defines which variables appear on the right and what data the AI uses (the whole course or one student)."
   },
   "hc_modulesSchedulesCourseScheduleEditor": {
     "loadScheduleError": "We couldn't load the schedule",

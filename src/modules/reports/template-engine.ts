@@ -373,6 +373,31 @@ export const REPORT_VARIABLE_CATALOG: VariableNode[] = [
 ];
 
 /**
+ * Catálogo de variables FILTRADO según el tipo de informe (scope):
+ *   - 'estudiante': variables del alumno ÚNICO (estudiante.*, nota_final,
+ *     cortes/exámenes/talleres/proyectos, asistencia.*) + curso/docente/
+ *     institución. NO el grupo consolidado `{{#each estudiantes}}`.
+ *   - 'curso': curso/docente/institución + el grupo CONSOLIDADO
+ *     (`{{#each estudiantes}}` + totales). NO los escalares del alumno único
+ *     (que en un informe de curso no tienen un valor — viven dentro del each).
+ * Esto refleja exactamente las dos formas que arma `buildReportContext`.
+ */
+export function reportCatalogForScope(
+  scope: "estudiante" | "curso",
+  catalog: VariableNode[] = REPORT_VARIABLE_CATALOG,
+): VariableNode[] {
+  // Grupos que SÓLO aplican al informe por estudiante (alumno único).
+  const studentOnly = new Set(["estudiante", "notas", "asistencia"]);
+  // Grupo que SÓLO aplica al informe consolidado por curso.
+  const courseOnly = new Set(["estudiantes"]);
+  return catalog.filter((node) => {
+    if (studentOnly.has(node.path)) return scope === "estudiante";
+    if (courseOnly.has(node.path)) return scope === "curso";
+    return true; // curso / docente / institución → ambos scopes
+  });
+}
+
+/**
  * Snippet que se inserta al click en un nodo del catálogo.
  */
 export function variableSnippet(node: VariableNode): string {

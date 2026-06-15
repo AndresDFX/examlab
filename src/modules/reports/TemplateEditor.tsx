@@ -34,7 +34,7 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { ChevronDown, ChevronRight, Code2, Eye, Sparkles } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import {
-  REPORT_VARIABLE_CATALOG,
+  reportCatalogForScope,
   variableSnippet,
   renderTemplate,
   buildSampleReportContext,
@@ -279,7 +279,13 @@ export function TemplateEditor({
     setTimeout(() => insertAtCursor(html, true), 60);
   };
 
-  const effectiveCatalog = catalog ?? REPORT_VARIABLE_CATALOG;
+  // Las variables del panel derecho DEPENDEN del tipo de informe: por
+  // estudiante muestra las del alumno único; por curso, el grupo consolidado
+  // `{{#each estudiantes}}`. Un `catalog` explícito (prop) lo sobreescribe.
+  const effectiveCatalog = useMemo(
+    () => catalog ?? reportCatalogForScope(value.scope),
+    [catalog, value.scope],
+  );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-3">
@@ -287,16 +293,11 @@ export function TemplateEditor({
         {showMetadata && (
           <Card>
             <CardContent className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label required>{t("hc_modulesReportsTemplateEditor.labelName")}</Label>
-                <Input
-                  value={value.name}
-                  onChange={(e) => onChange({ ...value, name: e.target.value })}
-                  placeholder={t("hc_modulesReportsTemplateEditor.placeholderName")}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>
+              {/* PRIMERO el tipo de informe (scope): de él dependen las
+                  variables del panel derecho y los datos que usa la IA
+                  (curso completo vs un estudiante). */}
+              <div className="space-y-1 sm:col-span-2">
+                <Label required>
                   {t("hc_modulesReportsTemplateEditor.labelReportType")}{" "}
                   <HelpHint>{t("help.reportScopeHelp")}</HelpHint>
                 </Label>
@@ -312,6 +313,20 @@ export function TemplateEditor({
                     <SelectItem value="curso">{t("hc_modulesReportsTemplateEditor.scopeCourse")}</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  {t("hc_modulesReportsTemplateEditor.scopeFirstHint", {
+                    defaultValue:
+                      "Elígelo primero: define qué variables aparecen a la derecha y qué datos usa la IA (todo el curso o un estudiante).",
+                  })}
+                </p>
+              </div>
+              <div className="space-y-1 sm:col-span-2">
+                <Label required>{t("hc_modulesReportsTemplateEditor.labelName")}</Label>
+                <Input
+                  value={value.name}
+                  onChange={(e) => onChange({ ...value, name: e.target.value })}
+                  placeholder={t("hc_modulesReportsTemplateEditor.placeholderName")}
+                />
               </div>
               <div className="space-y-1 sm:col-span-2">
                 <Label>{t("hc_modulesReportsTemplateEditor.labelDescription")}</Label>
@@ -561,8 +576,18 @@ export function TemplateEditor({
             <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium pb-1">
               {t("hc_modulesReportsTemplateEditor.availableVariables")}
             </p>
-            <p className="text-[11px] text-muted-foreground pb-2">
+            <p className="text-[11px] text-muted-foreground pb-1">
               {t("hc_modulesReportsTemplateEditor.clickToInsert")}
+            </p>
+            {/* Las variables dependen del tipo de informe (scope). */}
+            <p className="text-[11px] font-medium text-violet-700 dark:text-violet-300 pb-2">
+              {value.scope === "estudiante"
+                ? t("hc_modulesReportsTemplateEditor.varsScopeStudent", {
+                    defaultValue: "Informe por estudiante: variables del alumno.",
+                  })
+                : t("hc_modulesReportsTemplateEditor.varsScopeCourse", {
+                    defaultValue: "Informe por curso: variables del curso + iterar estudiantes.",
+                  })}
             </p>
             {effectiveCatalog.map((node) => (
               <CatalogNode key={node.path} node={node} onInsert={insertAtCursor} />

@@ -85,6 +85,7 @@ import {
   renderTemplate,
   buildAiReportPrompt,
   buildSampleReportContext,
+  reportCatalogForScope,
   type TemplateContext,
 } from "@/modules/reports/template-engine";
 import { useTenant } from "@/modules/tenants/use-tenant";
@@ -644,6 +645,9 @@ function Inner() {
         draftText: "",
         instruction,
         ctx,
+        // Variables que la IA puede usar = las del scope del informe (curso vs
+        // estudiante), igual que el panel derecho.
+        catalog: reportCatalogForScope(draft.scope),
       }));
     } catch (e) {
       toast.error(
