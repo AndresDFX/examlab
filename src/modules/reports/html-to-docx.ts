@@ -74,11 +74,13 @@ interface PartCtx {
   rels: { id: string; target: string; type: string }[];
   media: { path: string; bytes: Uint8Array }[];
   imgSeq: number;
-  docPrId: number;
+  /** Contador de `wp:docPr/@id` COMPARTIDO entre cuerpo/cabecera/pie: ese id
+   *  debe ser único a nivel de TODO el documento (LibreOffice es estricto). */
+  idSeq: { n: number };
 }
 
-function newPartCtx(prefix: string): PartCtx {
-  return { prefix, rels: [], media: [], imgSeq: 0, docPrId: 1 };
+function newPartCtx(prefix: string, idSeq: { n: number }): PartCtx {
+  return { prefix, rels: [], media: [], imgSeq: 0, idSeq };
 }
 
 const IMAGE_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
@@ -151,7 +153,7 @@ function imageRun(img: Element, ctx: PartCtx): string {
   const relId = `rId${ctx.prefix}Img${ctx.imgSeq}`;
   ctx.media.push({ path: `word/media/${fileName}`, bytes: parsed.bytes });
   ctx.rels.push({ id: relId, target: `media/${fileName}`, type: IMAGE_REL });
-  const pid = ctx.docPrId++;
+  const pid = ctx.idSeq.n++;
 
   return (
     "<w:r><w:drawing>" +
@@ -202,11 +204,28 @@ function tableToWml(table: Element, ctx: PartCtx): string {
     const per = Number.isFinite(w) ? w / span : 0;
     for (let k = 0; k < span; k++) pcts.push(per);
   }
+  // Nº de columnas LÓGICAS = máx (suma de colspans) entre TODAS las filas
+  // (no sólo la primera): si una fila posterior es más ancha, el grid debe
+  // cubrirla o LibreOffice rechaza el archivo.
+  let gridCols = 0;
+  for (const tr of rows) {
+    let n = 0;
+    for (const c of Array.from(tr.children)) {
+      if (c.tagName.toLowerCase() !== "td") continue;
+      n += Math.max(1, Number(c.getAttribute("colspan") ?? "1"));
+    }
+    gridCols = Math.max(gridCols, n);
+  }
+  gridCols = Math.max(1, gridCols);
   const total = pcts.reduce((a, b) => a + b, 0);
+  // `<w:tblGrid>` es OBLIGATORIO en CT_Tbl (minOccurs=1): si lo omitiéramos
+  // cuando no hay anchos, Word muestra "contenido ilegible / reparar". Por eso
+  // SIEMPRE se emite — con los % de la 1ª fila si cubren todas las columnas, o
+  // equitativo en caso contrario.
   const grid =
-    total > 0
+    total > 0 && pcts.length === gridCols
       ? `<w:tblGrid>${pcts.map((p) => `<w:gridCol w:w="${Math.max(1, Math.round((p / total) * 9000))}"/>`).join("")}</w:tblGrid>`
-      : "";
+      : `<w:tblGrid>${Array.from({ length: gridCols }, () => `<w:gridCol w:w="${Math.round(9000 / gridCols)}"/>`).join("")}</w:tblGrid>`;
   const borders = withBorders
     ? "<w:tblBorders>" +
       ["top", "left", "bottom", "right", "insideH", "insideV"]
@@ -344,8 +363,11 @@ export function htmlToDocxFiles(
     opts?.pageOrientation ?? (pageDecl?.[2]?.toLowerCase() === "landscape" ? "landscape" : "portrait"),
   );
 
+  // Contador de ids de dibujo compartido por todas las partes.
+  const idSeq = { n: 1 };
+
   // ── Cuerpo ──
-  const docCtx = newPartCtx("doc");
+  const docCtx = newPartCtx("doc", idSeq);
   let bodyWml = blocksToWml(mainEl, docCtx);
   if (!bodyWml.trim()) bodyWml = "<w:p/>";
 
@@ -366,7 +388,7 @@ export function htmlToDocxFiles(
   ];
 
   if (headerEl) {
-    const hCtx = newPartCtx("hdr");
+    const hCtx = newPartCtx("hdr", idSeq);
     const hWml = blocksToWml(headerEl, hCtx) || "<w:p/>";
     files["word/header1.xml"] = strToU8(
       `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr ${ROOT_NS}>${hWml}</w:hdr>`,
@@ -384,7 +406,7 @@ export function htmlToDocxFiles(
     );
   }
   if (footerEl) {
-    const fCtx = newPartCtx("ftr");
+    const fCtx = newPartCtx("ftr", idSeq);
     const fWml = blocksToWml(footerEl, fCtx) || "<w:p/>";
     files["word/footer1.xml"] = strToU8(
       `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr ${ROOT_NS}>${fWml}</w:ftr>`,

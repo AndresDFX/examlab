@@ -110,4 +110,28 @@ describe("htmlToDocxFiles — estructura OOXML del .docx", () => {
     expect(document).toContain("<w:pgSz");
     expect(document).toContain('w:w="11906"'); // A4 ancho en twips
   });
+
+  it("SIEMPRE emite <w:tblGrid> aunque la tabla no tenga anchos (CT_Tbl lo exige)", () => {
+    // Tabla SIN width:% en las celdas (caso común). Sin tblGrid, Word muestra
+    // "contenido ilegible / reparar".
+    const html =
+      `<!doctype html><html><head><style>@page{size:A4 portrait}</style></head><body><main>` +
+      `<table><tr><td><p>A</p></td><td><p>B</p></td></tr></table>` +
+      `</main></body></html>`;
+    const f = htmlToDocxFiles(html);
+    const document = strFromU8(f["word/document.xml"]);
+    expect(document).toContain("<w:tblGrid>");
+    expect((document.match(/<w:gridCol/g) ?? []).length).toBe(2);
+  });
+
+  it("el grid cubre la fila MÁS ancha (no sólo la primera)", () => {
+    const html =
+      `<!doctype html><html><head><style>@page{size:A4 portrait}</style></head><body><main>` +
+      `<table><tr><td><p>1</p></td></tr><tr><td><p>a</p></td><td><p>b</p></td><td><p>c</p></td></tr></table>` +
+      `</main></body></html>`;
+    const f = htmlToDocxFiles(html);
+    const document = strFromU8(f["word/document.xml"]);
+    // 3 columnas (la fila más ancha), no 1 (la primera).
+    expect((document.match(/<w:gridCol/g) ?? []).length).toBe(3);
+  });
 });
