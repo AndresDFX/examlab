@@ -1055,12 +1055,14 @@ function TeacherWorkshops() {
       if (courseChanged) {
         await supabase.from("workshop_assignments").delete().eq("workshop_id", form.id);
       }
-      // Auto-assign en TODOS los cursos del taller (no solo el primario).
-      // Es idempotente — re-aplica matriculados sin duplicar assignments.
-      if (form.status === "published" || courseChanged) {
-        for (const cid of finalCourseIds) {
-          await autoAssignWorkshop(form.id, cid);
-        }
+      // Auto-assign en TODOS los cursos del taller (no solo el primario) y
+      // SIEMPRE (no solo al publicar / cambiar de curso). Al COMPARTIR un
+      // taller a un curso nuevo vía edición —incluso si sigue en borrador—
+      // los estudiantes del nuevo curso deben quedar asignados para que
+      // entreguen y se les compute nota en ese curso (goal #30/#31). Es
+      // idempotente — re-aplica matriculados sin duplicar assignments.
+      for (const cid of finalCourseIds) {
+        await autoAssignWorkshop(form.id, cid);
       }
       if (form.status === "published" || courseChanged) {
         await supabase.rpc("notify_course_students", {

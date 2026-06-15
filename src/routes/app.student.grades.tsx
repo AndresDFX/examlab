@@ -185,12 +185,17 @@ function StudentGrades() {
             .eq("course_id", courseId)
             .neq("status", "draft")
             .is("deleted_at", null),
-          supabase
-            .from("workshops")
-            .select("id, title, max_score, cut_id, weight, is_external, status")
-            .eq("course_id", courseId)
-            .neq("status", "draft")
-            .is("deleted_at", null),
+          // Talleres via workshop_courses (M:N) para incluir los talleres
+          // COMPARTIDOS a este curso como SECUNDARIO y usar el cut_id/weight
+          // POR CURSO (no el global legacy de workshops). Un taller que se
+          // comparte a 2 cursos vive solo en workshop_courses para el curso
+          // secundario; cargarlo por workshops.course_id (ancla legacy) lo
+          // dejaba invisible aquí. El filtro de draft se aplica abajo sobre
+          // el join (workshop_courses no tiene status). Espejo de flatProjects.
+          db
+            .from("workshop_courses")
+            .select("cut_id, weight, workshop:workshops(id, title, max_score, is_external, status, deleted_at)")
+            .eq("course_id", courseId),
           // Proyectos via project_courses para incluir secundarios y usar
           // cut_id/weight por curso. El filtro de draft se aplica abajo
           // sobre el join (project_courses no tiene status).
@@ -207,7 +212,23 @@ function StudentGrades() {
 
         const cuts = (cutsData ?? []) as Cut[];
         const examIds = (exams ?? []).map((e: { id: string }) => e.id);
-        const wsIds = (workshops ?? []).map((w: { id: string }) => w.id);
+        // Flatten workshop_courses rows → per-course cut_id/weight override
+        // (espejo de flatProjects). Excluimos drafts y los talleres en
+        // papelera. Así un taller compartido aparece con su cut_id/weight de
+        // ESTE curso, y la nota correcta se ve en ambos cursos.
+        const flatWorkshops = (workshops ?? [])
+          .filter(
+            (wc: any) =>
+              wc.workshop &&
+              !wc.workshop.deleted_at &&
+              (wc.workshop.status ?? "published") !== "draft",
+          )
+          .map((wc: any) => ({
+            ...wc.workshop,
+            cut_id: wc.cut_id ?? null,
+            weight: wc.weight ?? 1,
+          }));
+        const wsIds = flatWorkshops.map((w: { id: string }) => w.id);
         // Flatten project_courses rows → per-course cut_id/weight override.
         // Excluimos drafts: si el proyecto está en borrador no debe pesar
         // todavía en la nota del estudiante.
@@ -318,7 +339,7 @@ function StudentGrades() {
         // SOLO para calcular `grade` (no cambia la nota). La columna
         // "Puntaje" SIEMPRE se presenta en la escala del curso (#19): el
         // tope mostrado es grade_scale_max y el valor el puntaje normalizado.
-        for (const w of (workshops ?? []) as any[]) {
+        for (const w of flatWorkshops as any[]) {
           const sub = (wsSubs ?? []).find((s: any) => s.workshop_id === w.id);
           const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
           const internalMax = w.is_external ? course.grade_scale_max : (w.max_score ?? 100);

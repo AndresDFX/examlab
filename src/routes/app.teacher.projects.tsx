@@ -1144,17 +1144,20 @@ function TeacherProjects() {
         }
       }
 
-      // Auto-asignar a todos los matriculados de los cursos vinculados al publicar
-      if (payload.status === "published") {
-        const added = await autoAssignProject(projectId, linked);
-        if (added > 0)
-          toast.success(
-            i18n.t("toast.routes_app_teacher_projects.studentsAutoAssigned", {
-              defaultValue: "{{n}} estudiante(s) asignados automáticamente",
-              n: added,
-            }),
-          );
-      }
+      // Auto-asignar a todos los matriculados de TODOS los cursos vinculados
+      // SIEMPRE (no solo al publicar). Esto garantiza que al COMPARTIR un
+      // proyecto a un curso nuevo —incluso en borrador o al editar— los
+      // estudiantes del nuevo curso queden asignados para que entreguen y se
+      // les compute nota en ese curso (goal #30/#31). Es idempotente:
+      // autoAssignProject solo inserta los que faltan.
+      const added = await autoAssignProject(projectId, linked);
+      if (added > 0)
+        toast.success(
+          i18n.t("toast.routes_app_teacher_projects.studentsAutoAssigned", {
+            defaultValue: "{{n}} estudiante(s) asignados automáticamente",
+            n: added,
+          }),
+        );
 
       // Notificar a los estudiantes solo cuando el proyecto está
       // publicado y NO es externo. Distintos titles para create/update.

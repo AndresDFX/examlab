@@ -278,13 +278,25 @@ function Gradebook() {
       .is("deleted_at", null)
       .order("start_time");
 
-    // Workshops
-    const { data: workshops } = await supabase
-      .from("workshops")
-      .select("id, title, course_id, max_score, cut_id, weight, is_external")
-      .eq("course_id", courseId)
-      .is("deleted_at", null)
-      .order("created_at");
+    // Workshops: query via workshop_courses (M:N) para incluir los talleres
+    // COMPARTIDOS a este curso como SECUNDARIO y usar el cut_id/weight POR
+    // CURSO (no el global legacy de workshops). Espejo exacto del query de
+    // proyectos de abajo. Cargar por workshops.course_id (ancla legacy)
+    // dejaba un taller compartido invisible (sin columna ni nota) en el
+    // curso secundario.
+    const { data: wcData } = await db
+      .from("workshop_courses")
+      .select(
+        "cut_id, weight, workshop:workshops(id, title, course_id, max_score, is_external, deleted_at)",
+      )
+      .eq("course_id", courseId);
+    const workshops = (wcData ?? [])
+      .filter((wc: any) => wc.workshop && !wc.workshop.deleted_at) // en papelera → excluido
+      .map((wc: any) => ({
+        ...wc.workshop,
+        cut_id: wc.cut_id,
+        weight: wc.weight,
+      }));
 
     // Cortes evaluativos
     const { data: cutsData } = await db
