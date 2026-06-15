@@ -159,17 +159,21 @@ function colLetter(n: number): string {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function cellXml(ref: string, value: any): string {
+function cellXml(ref: string, value: any, styleIndex?: number): string {
+  // Atributo de estilo (`s="N"`, índice en cellXfs de styles.xml). Sólo se
+  // emite cuando el caller pidió un estilo para esta celda; sin él el output
+  // queda byte-idéntico al del writer sin estilos.
+  const s = styleIndex != null && styleIndex > 0 ? ` s="${styleIndex}"` : "";
   if (value === null || value === undefined || value === "") {
-    return `<c r="${ref}"/>`;
+    return `<c r="${ref}"${s}/>`;
   }
   // Número de JS (y finito) → celda numérica.
   if (typeof value === "number" && Number.isFinite(value)) {
-    return `<c r="${ref}" t="n"><v>${value}</v></c>`;
+    return `<c r="${ref}"${s} t="n"><v>${value}</v></c>`;
   }
   // Resto → texto inline (preserva ceros a la izquierda, UUIDs, etc.).
-  const s = xmlEscape(String(value));
-  return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${s}</t></is></c>`;
+  const esc = xmlEscape(String(value));
+  return `<c r="${ref}"${s} t="inlineStr"><is><t xml:space="preserve">${esc}</t></is></c>`;
 }
 
 /**
@@ -200,6 +204,108 @@ function cellXml(ref: string, value: any): string {
  */
 export interface XlsxOptions {
   groupHeader?: Record<string, string>;
+  /**
+   * Estilos de celda EXCLUSIVOS de Excel (color de relleno + negrita). El
+   * writer arma `xl/styles.xml` a partir de este arreglo y deja disponibles
+   * los índices `1..N` (en orden) para usar en {@link cellStyle},
+   * {@link headerStyle} y {@link groupHeaderStyle}. El índice 0 está reservado
+   * para "sin estilo" (default de Excel) y NUNCA debe pasarse.
+   *
+   * `styles.xml` SÓLO se incluye en el ZIP cuando este arreglo está presente
+   * Y algún estilo termina aplicándose; el camino sin estilos queda
+   * byte-idéntico al del writer original (5 partes, celdas sin `s=`).
+   */
+  styles?: XlsxStyle[];
+  /**
+   * Devuelve el índice de cellXfs (1-based en {@link styles}) para colorear la
+   * celda de datos de la columna `colKey` en la fila `rowIndex` (0-based dentro
+   * de `rows`), dado su `value` crudo. `undefined`/`0` = sin estilo.
+   */
+  cellStyle?: (colKey: string, rowIndex: number, value: unknown) => number | undefined;
+  /** Índice de cellXfs a aplicar a TODAS las celdas del encabezado de columnas. */
+  headerStyle?: number;
+  /** Índice de cellXfs a aplicar a las celdas de la fila de grupo de corte. */
+  groupHeaderStyle?: number;
+}
+
+/**
+ * Descriptor de alto nivel de un estilo de celda. El writer lo traduce a las
+ * entradas de `fonts`/`fills`/`cellXfs` de `xl/styles.xml`.
+ *
+ * `fill`: color de fondo en ARGB de 8 hex (ej. `"FFD9EAD3"` = verde suave). El
+ * primer byte es alpha (`FF` opaco). `bold`: texto en negrita.
+ */
+export interface XlsxStyle {
+  fill?: string;
+  bold?: boolean;
+}
+
+/**
+ * Arma `xl/styles.xml` (OOXML) a partir de los {@link XlsxStyle} del caller.
+ *
+ * Estructura y ORDEN exigidos por el esquema (CT_Stylesheet):
+ *   <styleSheet> <fonts> <fills> <borders> <cellStyleXfs> <cellXfs> </styleSheet>
+ *
+ * Índices reservados por la spec de Excel:
+ *   - fonts[0]   = fuente default; fonts[1] = negrita (si algún estilo la usa).
+ *   - fills[0]   = none; fills[1] = gray125 (OBLIGATORIO — Excel reserva los 2
+ *                  primeros patrones, sino corrompe los colores). Los rellenos
+ *                  personalizados arrancan en el índice 2.
+ *   - borders[0] = borde vacío (default).
+ *   - cellStyleXfs[0] = xf base default.
+ *   - cellXfs[0] = xf default (sin estilo); cellXfs[1..N] = un xf por cada
+ *                  XlsxStyle del caller, en el MISMO orden → el índice que el
+ *                  caller usa en `s="N"` (vía cellStyle/headerStyle/…) es
+ *                  `posición-en-styles + 1`.
+ */
+function buildStylesXml(styles: XlsxStyle[]): string {
+  // ── fonts ── index 0 default, index 1 bold (sólo si se usa).
+  const usesBold = styles.some((st) => st.bold);
+  const fonts: string[] = [
+    '<font><sz val="11"/><name val="Calibri"/></font>', // 0 default
+  ];
+  const BOLD_FONT_IDX = 1;
+  if (usesBold) fonts.push('<font><b/><sz val="11"/><name val="Calibri"/></font>'); // 1 bold
+
+  // ── fills ── 0 none, 1 gray125 (reservados), 2.. rellenos sólidos del caller.
+  const fills: string[] = [
+    '<fill><patternFill patternType="none"/></fill>', // 0
+    '<fill><patternFill patternType="gray125"/></fill>', // 1
+  ];
+  // Cada color único → un fill solid. Dedup para no repetir el mismo color.
+  const fillIndexByColor = new Map<string, number>();
+  const fillIdxForColor = (rgb: string): number => {
+    const key = rgb.toUpperCase();
+    const found = fillIndexByColor.get(key);
+    if (found != null) return found;
+    const idx = fills.length;
+    fills.push(`<fill><patternFill patternType="solid"><fgColor rgb="${key}"/></patternFill></fill>`);
+    fillIndexByColor.set(key, idx);
+    return idx;
+  };
+
+  // ── cellXfs ── 0 default, 1..N por estilo del caller.
+  const cellXfs: string[] = ['<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'];
+  for (const st of styles) {
+    const fontId = st.bold ? BOLD_FONT_IDX : 0;
+    const fillId = st.fill ? fillIdxForColor(st.fill) : 0;
+    const applyFont = st.bold ? ' applyFont="1"' : "";
+    const applyFill = st.fill ? ' applyFill="1"' : "";
+    cellXfs.push(
+      `<xf numFmtId="0" fontId="${fontId}" fillId="${fillId}" borderId="0" xfId="0"${applyFont}${applyFill}/>`,
+    );
+  }
+
+  return (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    `<fonts count="${fonts.length}">${fonts.join("")}</fonts>` +
+    `<fills count="${fills.length}">${fills.join("")}</fills>` +
+    '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+    `<cellXfs count="${cellXfs.length}">${cellXfs.join("")}</cellXfs>` +
+    "</styleSheet>"
+  );
 }
 
 /**
@@ -220,6 +326,23 @@ export function toXLSX(
   const groupHeader = options?.groupHeader;
   // Cuando hay fila de grupo, el encabezado de columnas baja una fila.
   const headerRowNum = groupHeader ? 2 : 1;
+
+  // ── Estilos (opcional) ── Sólo entran en juego si el caller pasó `styles`.
+  // `usedStyles` rastrea si ALGÚN estilo terminó aplicándose: si nadie usó
+  // estilo, NO incluimos `xl/styles.xml` y el output queda byte-idéntico al
+  // del writer sin estilos (5 partes, celdas sin `s=`).
+  const styleDefs = options?.styles;
+  const cellStyleFn = options?.cellStyle;
+  const headerStyle = options?.headerStyle;
+  const groupHeaderStyle = options?.groupHeaderStyle;
+  let usedStyles = false;
+  // Resuelve el índice de estilo a aplicar a una celda. Devuelve undefined si
+  // no hay estilos definidos o el índice cae fuera de rango (defensivo).
+  const resolveStyle = (idx: number | undefined): number | undefined => {
+    if (!styleDefs || idx == null || idx <= 0 || idx > styleDefs.length) return undefined;
+    usedStyles = true;
+    return idx;
+  };
 
   // Rangos de celdas a combinar en la fila de grupo (ej. "B1:E1"). Se llena
   // sólo cuando hay groupHeader y existen corridas contiguas combinables.
@@ -253,16 +376,21 @@ export function toXLSX(
       i = j;
     }
 
+    // La fila de grupo recibe `groupHeaderStyle` (sólo en celdas con etiqueta;
+    // las cubiertas por un merge o vacías quedan sin estilo, igual que Excel).
+    const groupStyleIdx = resolveStyle(groupHeaderStyle);
     const groupCells = cols
-      .map((c, ci) =>
-        cellXml(`${colLetter(ci)}1`, coveredGroupCols.has(ci) ? "" : (groupHeader[c] ?? "")),
-      )
+      .map((c, ci) => {
+        const label = coveredGroupCols.has(ci) ? "" : (groupHeader[c] ?? "");
+        return cellXml(`${colLetter(ci)}1`, label, label ? groupStyleIdx : undefined);
+      })
       .join("");
     sheetRows.push(`<row r="1">${groupCells}</row>`);
   }
   // Encabezados de columna (fila 1 sin groupHeader, fila 2 con él) — texto.
+  const headerStyleIdx = resolveStyle(headerStyle);
   const headerCells = cols
-    .map((c, ci) => cellXml(`${colLetter(ci)}${headerRowNum}`, c))
+    .map((c, ci) => cellXml(`${colLetter(ci)}${headerRowNum}`, c, headerStyleIdx))
     .join("");
   sheetRows.push(`<row r="${headerRowNum}">${headerCells}</row>`);
   // Filas de datos (arrancan justo después del encabezado). Sin groupHeader
@@ -270,7 +398,10 @@ export function toXLSX(
   rows.forEach((r, ri) => {
     const rowNum = ri + headerRowNum + 1;
     const cells = cols
-      .map((c, ci) => cellXml(`${colLetter(ci)}${rowNum}`, r[c]))
+      .map((c, ci) => {
+        const styleIdx = cellStyleFn ? resolveStyle(cellStyleFn(c, ri, r[c])) : undefined;
+        return cellXml(`${colLetter(ci)}${rowNum}`, r[c], styleIdx);
+      })
       .join("");
     sheetRows.push(`<row r="${rowNum}">${cells}</row>`);
   });
@@ -294,6 +425,11 @@ export function toXLSX(
     mergeCellsXml +
     "</worksheet>";
 
+  // styles.xml SÓLO se materializa si algún estilo se aplicó (ver `usedStyles`).
+  // Cuando no, la salida queda byte-idéntica a la del writer sin estilos.
+  const includeStyles = usedStyles && !!styleDefs;
+  const stylesXml = includeStyles ? buildStylesXml(styleDefs!) : "";
+
   const contentTypes =
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
@@ -301,6 +437,9 @@ export function toXLSX(
     '<Default Extension="xml" ContentType="application/xml"/>' +
     '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
     '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+    (includeStyles
+      ? '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+      : "") +
     "</Types>";
 
   const rootRels =
@@ -320,16 +459,23 @@ export function toXLSX(
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
     '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+    // styles.xml se referencia desde el workbook (rId2) sólo cuando existe.
+    (includeStyles
+      ? '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+      : "") +
     "</Relationships>";
 
   const enc = new TextEncoder();
-  return zipStore([
+  const parts: ZipEntry[] = [
     { name: "[Content_Types].xml", data: enc.encode(contentTypes) },
     { name: "_rels/.rels", data: enc.encode(rootRels) },
     { name: "xl/workbook.xml", data: enc.encode(workbook) },
     { name: "xl/_rels/workbook.xml.rels", data: enc.encode(wbRels) },
     { name: "xl/worksheets/sheet1.xml", data: enc.encode(sheet) },
-  ]);
+  ];
+  // 6ª parte sólo cuando hay estilos aplicados.
+  if (includeStyles) parts.push({ name: "xl/styles.xml", data: enc.encode(stylesXml) });
+  return zipStore(parts);
 }
 
 /** Dispara la descarga de un .xlsx en el navegador. */

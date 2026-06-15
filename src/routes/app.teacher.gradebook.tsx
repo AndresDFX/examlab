@@ -795,16 +795,55 @@ function Gradebook() {
       exportCols.forEach((ec) => {
         if (ec.group) groupHeader[ec.key] = ec.group;
       });
+
+      // ── Color tipo grilla de notas ── Pintamos el Excel como el grid en
+      // pantalla: encabezado de columnas en negrita + fill gris; fila de grupo
+      // de corte con un tono suave; y cada celda de NOTA verde si aprueba
+      // (≥ passing_grade del curso) o roja si reprueba (< passing_grade). Las
+      // celdas vacías ("—") quedan sin color. Nombre/cohorte/email sin pintar.
+      //
+      // El índice en `styles` (1-based) es el que devolvemos en cellStyle /
+      // headerStyle / groupHeaderStyle (cellXfs 0 = sin estilo).
+      const styles = [
+        { fill: "FFE7E6E6", bold: true }, // 1 encabezado (gris + negrita)
+        { fill: "FFF2F2F2", bold: true }, // 2 fila de grupo de corte (gris suave)
+        { fill: "FFD9EAD3" }, // 3 nota aprobada (verde suave)
+        { fill: "FFF4CCCC" }, // 4 nota reprobada (rojo suave)
+      ];
+      const HEADER_STYLE = 1;
+      const GROUP_STYLE = 2;
+      const PASS_STYLE = 3;
+      const FAIL_STYLE = 4;
+
+      // Conjunto de columnas que llevan NOTA (item + asistencia + cortes +
+      // final) → son las únicas que se colorean por aprobado/reprobado.
+      const gradeKeys = new Set<string>();
+      exportCols.forEach((ec) => gradeKeys.add(ec.key));
+      cuts.forEach((cut) => gradeKeys.add(`${cut.name} (${cut.weight}%)`));
+      gradeKeys.add(t("hc_routesAppTeacherGradebook.csvFinalGrade"));
+
+      const passingGrade = courses.find((c) => c.id === courseId)?.passing_grade;
+      // Las notas se escribieron como string ("4.50", "4★" con sufijo de
+      // habilitación); parseFloat extrae el número y descarta el sufijo. ""
+      // (sin nota) → NaN → sin color.
+      const cellStyle = (colKey: string, _rowIndex: number, value: unknown) => {
+        if (passingGrade == null || !gradeKeys.has(colKey)) return undefined;
+        const n = parseFloat(String(value ?? ""));
+        if (!Number.isFinite(n)) return undefined;
+        return n >= passingGrade ? PASS_STYLE : FAIL_STYLE;
+      };
+
       // Si ningún item tiene corte, no agregamos la fila de grupo (evita una
-      // fila inicial en blanco): pasamos undefined en vez de un mapa vacío.
+      // fila inicial en blanco): omitimos groupHeader del objeto de opciones.
+      const hasGroup = Object.keys(groupHeader).length > 0;
       downloadXLSX(
         `${fileBase}.xlsx`,
-        toXLSX(
-          csvRows,
-          undefined,
-          "Datos",
-          Object.keys(groupHeader).length ? { groupHeader } : undefined,
-        ),
+        toXLSX(csvRows, undefined, "Datos", {
+          ...(hasGroup ? { groupHeader, groupHeaderStyle: GROUP_STYLE } : {}),
+          styles,
+          headerStyle: HEADER_STYLE,
+          cellStyle,
+        }),
       );
     } else {
       downloadCSV(`${fileBase}.csv`, toCSV(csvRows));

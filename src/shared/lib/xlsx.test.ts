@@ -240,4 +240,146 @@ describe("toXLSX", () => {
     expect(text).toContain('<row r="2">');
     expect(text).not.toContain('<row r="3">');
   });
+
+  // ─────────────── Estilos de celda (color/negrita, sólo Excel) ───────────────
+
+  it("estilos aplicados → 6 partes (se agrega xl/styles.xml)", () => {
+    const out = toXLSX([{ nombre: "Ana", nota: 4 }], undefined, "Datos", {
+      styles: [{ fill: "FFE7E6E6", bold: true }],
+      headerStyle: 1,
+    });
+    expect(eocdEntryCount(out)).toBe(6);
+    const text = asText(out);
+    expect(text).toContain("xl/styles.xml");
+  });
+
+  it("styles.xml tiene la estructura/orden OOXML requerido", () => {
+    const text = asText(
+      toXLSX([{ nombre: "Ana", nota: 4 }], undefined, "Datos", {
+        styles: [
+          { fill: "FFE7E6E6", bold: true },
+          { fill: "FFD9EAD3" },
+        ],
+        headerStyle: 1,
+        cellStyle: (k) => (k === "nota" ? 2 : undefined),
+      }),
+    );
+    // styleSheet con los hijos en orden: fonts < fills < borders < cellStyleXfs < cellXfs.
+    expect(text).toContain("<styleSheet");
+    const iFonts = text.indexOf("<fonts");
+    const iFills = text.indexOf("<fills");
+    const iBorders = text.indexOf("<borders");
+    const iCellStyleXfs = text.indexOf("<cellStyleXfs");
+    const iCellXfs = text.indexOf("<cellXfs");
+    expect(iFonts).toBeGreaterThan(-1);
+    expect(iFonts).toBeLessThan(iFills);
+    expect(iFills).toBeLessThan(iBorders);
+    expect(iBorders).toBeLessThan(iCellStyleXfs);
+    expect(iCellStyleXfs).toBeLessThan(iCellXfs);
+    // Fills reservados (none + gray125) + el sólido del caller (ARGB 8 hex).
+    expect(text).toContain('patternType="none"');
+    expect(text).toContain('patternType="gray125"');
+    expect(text).toContain('<patternFill patternType="solid"><fgColor rgb="FFE7E6E6"/></patternFill>');
+    expect(text).toContain('<fgColor rgb="FFD9EAD3"/>');
+    // Fuente bold (index 1) presente porque al menos un estilo la usa.
+    expect(text).toContain("<b/>");
+    // cellXfs: index 0 default + 2 del caller → count="3".
+    expect(text).toContain('<cellXfs count="3">');
+  });
+
+  it("declara styles.xml en [Content_Types] y en los rels del workbook", () => {
+    const text = asText(
+      toXLSX([{ a: 1 }], undefined, "Datos", { styles: [{ fill: "FFD9EAD3" }], headerStyle: 1 }),
+    );
+    expect(text).toContain(
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>',
+    );
+    expect(text).toContain(
+      'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"',
+    );
+  });
+
+  it("headerStyle → el encabezado lleva s= en sus celdas", () => {
+    const text = asText(
+      toXLSX([{ nombre: "Ana", nota: 4 }], undefined, "Datos", {
+        styles: [{ fill: "FFE7E6E6", bold: true }],
+        headerStyle: 1,
+      }),
+    );
+    // Encabezado en r1: A1/B1 con s="1".
+    expect(text).toContain('<c r="A1" s="1"');
+    expect(text).toContain('<c r="B1" s="1"');
+  });
+
+  it("cellStyle → colorea aprobado (verde) vs reprobado (rojo) por celda de nota", () => {
+    // passing=3: 4 aprueba (s=2), 2 reprueba (s=3); el nombre no se colorea.
+    const text = asText(
+      toXLSX([{ nombre: "Ana", n1: "4.00", n2: "2.00" }], undefined, "Datos", {
+        styles: [{ fill: "FFE7E6E6", bold: true }, { fill: "FFD9EAD3" }, { fill: "FFF4CCCC" }],
+        headerStyle: 1,
+        cellStyle: (k, _r, v) => {
+          if (k === "nombre") return undefined;
+          const num = parseFloat(String(v));
+          if (!Number.isFinite(num)) return undefined;
+          return num >= 3 ? 2 : 3;
+        },
+      }),
+    );
+    // Datos en r2: A2 (nombre) SIN s=, B2 (n1=4 aprueba) s="2", C2 (n2=2 reprueba) s="3".
+    expect(text).toContain('<c r="A2" t="inlineStr">');
+    expect(text).toContain('<c r="B2" s="2"');
+    expect(text).toContain('<c r="C2" s="3"');
+  });
+
+  it("celda de nota vacía ('—') queda sin estilo", () => {
+    const text = asText(
+      toXLSX([{ nombre: "Ana", n1: "" }], undefined, "Datos", {
+        styles: [{ fill: "FFD9EAD3" }, { fill: "FFF4CCCC" }],
+        cellStyle: (_k, _r, v) => {
+          const num = parseFloat(String(v));
+          if (!Number.isFinite(num)) return undefined;
+          return num >= 3 ? 1 : 2;
+        },
+      }),
+    );
+    // n1 vacío → B2 celda vacía self-closing SIN s=.
+    expect(text).toContain('<c r="B2"/>');
+  });
+
+  it("groupHeaderStyle → fila de grupo coloreada (sólo en celdas con etiqueta)", () => {
+    const text = asText(
+      toXLSX([{ nombre: "Ana", p1: 4, p2: 3 }], undefined, "Datos", {
+        groupHeader: { p1: "Corte 1", p2: "Corte 1" },
+        styles: [{ fill: "FFF2F2F2", bold: true }],
+        groupHeaderStyle: 1,
+      }),
+    );
+    // B1 (primera del merge, lleva etiqueta) con s="1"; A1 (sin etiqueta) sin s=.
+    expect(text).toContain('<c r="B1" s="1"');
+    expect(text).toContain('<c r="A1"/>');
+    // El merge sigue funcionando con estilos.
+    expect(text).toContain('<mergeCell ref="B1:C1"/>');
+  });
+
+  it("styles definidos pero NUNCA aplicados → sigue siendo 5 partes (byte-idéntico)", () => {
+    // Pasamos `styles` pero NINGÚN índice (sin headerStyle/cellStyle/group) →
+    // nadie usó estilo → no se materializa styles.xml.
+    const out = toXLSX([{ a: 1 }], undefined, "Datos", { styles: [{ fill: "FFD9EAD3" }] });
+    expect(eocdEntryCount(out)).toBe(5);
+    const text = asText(out);
+    expect(text).not.toContain("xl/styles.xml");
+    expect(text).not.toContain(' s="');
+    // Idéntico al output sin opción alguna.
+    const baseline = asText(toXLSX([{ a: 1 }]));
+    expect(text).toBe(baseline);
+  });
+
+  it("índice de estilo fuera de rango → se ignora (sin s=, sigue 5 partes)", () => {
+    const out = toXLSX([{ a: 1 }], undefined, "Datos", {
+      styles: [{ fill: "FFD9EAD3" }],
+      headerStyle: 99, // fuera de rango → ignorado
+    });
+    expect(eocdEntryCount(out)).toBe(5);
+    expect(asText(out)).not.toContain(' s="');
+  });
 });
