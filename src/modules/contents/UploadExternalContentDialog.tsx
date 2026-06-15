@@ -29,9 +29,10 @@
  *   INSERT, así que el docente sube bajo su propio prefijo (mismo que
  *   las generadas por IA).
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { toast } from "sonner";
@@ -213,6 +214,42 @@ export function UploadExternalContentDialog({
       setProgress({ done: 0, total: 0 });
     }
   }, [open, defaultCourseId]);
+
+  // Guard "cambios sin guardar". Agrupa la metadata editable + el conteo
+  // de archivos/cursos seleccionados. (Los `File` no se serializan bien con
+  // JSON.stringify — usamos su cantidad como señal de cambio; los campos de
+  // texto sí se detectan exacto, que es lo que más duele perder.)
+  const formMemo = useMemo(
+    () => ({
+      displayName,
+      topic,
+      mode,
+      nClasses,
+      durationInput,
+      tags,
+      language,
+      author,
+      instructions,
+      releaseAfterSessionDate,
+      fileCount: files.length,
+      selectedCourseIds: Array.from(selectedCourseIds),
+    }),
+    [
+      displayName,
+      topic,
+      mode,
+      nClasses,
+      durationInput,
+      tags,
+      language,
+      author,
+      instructions,
+      releaseAfterSessionDate,
+      files.length,
+      selectedCourseIds,
+    ],
+  );
+  const dirty = useDirtyDialog(open, formMemo);
 
   const toggleCourse = (id: string) => {
     setSelectedCourseIds((prev) => {
@@ -520,7 +557,12 @@ export function UploadExternalContentDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
+    <Dialog
+      open={open}
+      onOpenChange={dirty.guardOpenChange((o) => {
+        if (!saving) onOpenChange(o);
+      })}
+    >
       <DialogContent
         data-tour-id="dialog-upload-external"
         className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh] overflow-y-auto"

@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,6 +85,9 @@ export function AdminAcademicProgramsPanel() {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  // Guard "cambios sin guardar" para el dialog crear/editar carrera. El form
+  // ya es UN objeto (`draft`), así que se pasa directo al hook.
+  const dirty = useDirtyDialog(open, draft);
 
   const load = async () => {
     setLoading(true);
@@ -327,7 +331,7 @@ export function AdminAcademicProgramsPanel() {
         )}
       </CardContent>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={dirty.guardOpenChange(setOpen)}>
         {/* DialogContent del design system ya maneja: width responsive,
             max-h-[calc(100dvh-2rem)] + overflow-y-auto, y DialogFooter es
             sticky bottom-0 con bg + border-t. No hace falta añadir

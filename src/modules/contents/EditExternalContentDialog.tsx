@@ -21,8 +21,9 @@
  * `generated_contents` (la RLS deja al docente del curso / Admin editar
  * sus propias filas).
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { toast } from "sonner";
@@ -76,6 +77,13 @@ export function EditExternalContentDialog({ content, onOpenChange, onSaved }: Pr
   const [mode, setMode] = useState<ContentMode>("material_individual");
   const [nClasses, setNClasses] = useState<number>(8);
   const [saving, setSaving] = useState(false);
+  // Guard "cambios sin guardar". Agrupa los campos editables; el hook captura
+  // el snapshot al abrir (la hidratación corre en el effect sobre `content`).
+  const formMemo = useMemo(
+    () => ({ displayName, topic, mode, nClasses }),
+    [displayName, topic, mode, nClasses],
+  );
+  const dirty = useDirtyDialog(open, formMemo);
 
   // Cargamos los valores actuales cada vez que se abre con un contenido
   // nuevo. Si el contenido venía como individual, partimos n_classes en
@@ -145,7 +153,12 @@ export function EditExternalContentDialog({ content, onOpenChange, onSaved }: Pr
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
+    <Dialog
+      open={open}
+      onOpenChange={dirty.guardOpenChange((o) => {
+        if (!saving) onOpenChange(o);
+      })}
+    >
       <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

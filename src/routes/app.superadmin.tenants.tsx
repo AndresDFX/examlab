@@ -28,6 +28,7 @@ import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { SectionLoader } from "@/components/ui/loaders";
 import { usePagination } from "@/hooks/use-pagination";
 import { useTableSort } from "@/hooks/use-table-sort";
+import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { DataPagination } from "@/components/ui/data-pagination";
 import {
   Table,
@@ -109,6 +110,9 @@ function SuperAdminTenantsPage() {
   });
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  // Guard "cambios sin guardar" para el dialog crear/editar institución. El
+  // form ya es UN objeto (`form`), así que se pasa directo al hook.
+  const dirty = useDirtyDialog(dialogOpen, form);
   // Credenciales del usuario de prueba recién creado. Se muestran UNA
   // SOLA VEZ en un dialog separado tras crear la institución (la edge
   // function `provision-tenant-test-user` no las persiste en plaintext).
@@ -890,7 +894,7 @@ function SuperAdminTenantsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={dirty.guardOpenChange(setDialogOpen)}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editing ? tl("superadminTenants.dialogEditTitle", { name: editing.name }) : tl("superadminTenants.dialogNewTitle")}</DialogTitle>

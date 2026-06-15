@@ -45,6 +45,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useTableSort } from "@/hooks/use-table-sort";
+import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { toast } from "sonner";
 import {
   Plus,
@@ -256,6 +257,16 @@ function AdminUsers() {
     if (profile?.tenant_id) myTenantIdRef.current = profile.tenant_id;
   }, [profile?.tenant_id]);
   const confirm = useConfirm();
+  // Guard "cambios sin guardar" para el dialog crear/editar usuario.
+  // Agrupa los campos editables del form (el objeto `editing` + los
+  // states sueltos password / forcePasswordChange / enrollCourseId) en un
+  // memo; el hook compara por JSON.stringify y pide confirmación al cerrar
+  // si hay cambios. El dialog "Ver contraseña" es solo lectura → no se guarda.
+  const userFormMemo = useMemo(
+    () => ({ editing, password, forcePasswordChange, enrollCourseId }),
+    [editing, password, forcePasswordChange, enrollCourseId],
+  );
+  const userDirty = useDirtyDialog(dialogOpen, userFormMemo);
   // Filtramos por nombre + ambos correos + rol. case-insensitive,
   // includes (no prefix). Cualquier match en cualquier campo cuenta —
   // los admins suelen buscar por nombre parcial o pedazo de email
@@ -1625,7 +1636,7 @@ function AdminUsers() {
         </CardContent>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={userDirty.guardOpenChange(setDialogOpen)}>
         <DialogContent data-tour-id="dialog-user">
           <DialogHeader>
             <DialogTitle>{editing?.id ? t("adminUsers.dialogTitleEdit") : t("adminUsers.dialogTitleNew")}</DialogTitle>

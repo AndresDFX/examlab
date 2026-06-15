@@ -47,6 +47,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useTableSort } from "@/hooks/use-table-sort";
+import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import {
   Dialog,
   DialogContent,
@@ -1883,8 +1884,43 @@ function CreatePollDialog({
     }
   };
 
+  // Guard "cambios sin guardar": agrupa los campos editables del form (no
+  // los derivados ni los inputs auxiliares del generador de slots, que se
+  // consumen al generar). El hook captura el snapshot tras la hidratación
+  // (que corre en la transición open false→true) y pide confirmación al
+  // cerrar si algo cambió.
+  const formMemo = useMemo(
+    () => ({
+      title,
+      description,
+      courseIds,
+      type,
+      visibility,
+      closesAt,
+      allowChange,
+      autoCloseAll,
+      isPublished,
+      sessionId,
+      options,
+    }),
+    [
+      title,
+      description,
+      courseIds,
+      type,
+      visibility,
+      closesAt,
+      allowChange,
+      autoCloseAll,
+      isPublished,
+      sessionId,
+      options,
+    ],
+  );
+  const dirty = useDirtyDialog(open, formMemo);
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={dirty.guardOpenChange(onOpenChange)}>
       <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg" data-tour-id="dialog-poll">
         <DialogHeader>
           <DialogTitle>{isEdit ? t("teacherPolls.editPoll") : t("teacherPolls.newPoll")}</DialogTitle>

@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { softDelete } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
+import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { toast } from "sonner";
@@ -440,6 +441,39 @@ function TeacherContents() {
   // Si true, el estudiante solo accede al contenido en/después de la
   // fecha de la sesión asignada. Default false = visible al asignarse.
   const [releaseAfterSessionDate, setReleaseAfterSessionDate] = useState(false);
+
+  // Guard "cambios sin guardar" para el dialog de nuevo contenido (form de
+  // generación con IA). Agrupa los campos editables del form en un memo; el
+  // hook captura el snapshot al abrir y confirma al cerrar si hay cambios.
+  const contentFormMemo = useMemo(
+    () => ({
+      displayName,
+      topic,
+      mode,
+      nClasses,
+      durationInput,
+      tags,
+      language,
+      courseId,
+      author,
+      instructions,
+      releaseAfterSessionDate,
+    }),
+    [
+      displayName,
+      topic,
+      mode,
+      nClasses,
+      durationInput,
+      tags,
+      language,
+      courseId,
+      author,
+      instructions,
+      releaseAfterSessionDate,
+    ],
+  );
+  const contentDirty = useDirtyDialog(dialogOpen, contentFormMemo);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -1583,7 +1617,7 @@ function TeacherContents() {
       </Card>
 
       {/* Create dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={contentDirty.guardOpenChange(setDialogOpen)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("contents.newContent")}</DialogTitle>

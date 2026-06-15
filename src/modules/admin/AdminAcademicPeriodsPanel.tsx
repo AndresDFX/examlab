@@ -15,6 +15,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,6 +107,9 @@ export function AdminAcademicPeriodsPanel() {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
+  // Guard "cambios sin guardar" para el dialog crear/editar periodo. El form
+  // ya es UN objeto (`draft`), así que se pasa directo al hook.
+  const dirty = useDirtyDialog(open, draft);
 
   const load = async () => {
     setLoading(true);
@@ -394,7 +398,7 @@ export function AdminAcademicPeriodsPanel() {
         )}
       </CardContent>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={dirty.guardOpenChange(setOpen)}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{draft.id ? t("academic.periods.editTitle") : t("academic.periods.createTitle")}</DialogTitle>

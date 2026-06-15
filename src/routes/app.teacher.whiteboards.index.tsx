@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/table";
 import { usePagination } from "@/hooks/use-pagination";
 import { useTableSort } from "@/hooks/use-table-sort";
+import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { DataPagination } from "@/components/ui/data-pagination";
 import {
   Dialog,
@@ -116,6 +117,14 @@ function TeacherWhiteboards() {
   const [draftCourseId, setDraftCourseId] = useState<string>("none");
   const [draftSessionId, setDraftSessionId] = useState<string>("none");
   const [saving, setSaving] = useState(false);
+  // Guard "cambios sin guardar" para el dialog de creación. Agrupa los
+  // campos editables del draft en un memo (el hook compara por
+  // JSON.stringify).
+  const createFormMemo = useMemo(
+    () => ({ draftName, draftDescription, draftCourseId, draftSessionId }),
+    [draftName, draftDescription, draftCourseId, draftSessionId],
+  );
+  const createDirty = useDirtyDialog(createOpen, createFormMemo);
   // Cursos del docente (cargados al abrir el dialog). Mismo patrón que
   // /app/teacher/whiteboards/$id (selector de "compartir con curso").
   const [draftCourses, setDraftCourses] = useState<Array<{ id: string; name: string }>>([]);
@@ -689,10 +698,10 @@ function TeacherWhiteboards() {
 
       <Dialog
         open={createOpen}
-        onOpenChange={(open) => {
+        onOpenChange={createDirty.guardOpenChange((open) => {
           setCreateOpen(open);
           if (!open) resetCreateDialog();
-        }}
+        })}
       >
         <DialogContent
           className="max-w-[calc(100vw-2rem)] sm:max-w-md"

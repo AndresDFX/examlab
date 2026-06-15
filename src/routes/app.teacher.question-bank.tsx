@@ -70,6 +70,7 @@ import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { toCSV } from "@/shared/lib/csv";
 import { usePagination } from "@/hooks/use-pagination";
 import { useTableSort } from "@/hooks/use-table-sort";
+import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
@@ -182,6 +183,9 @@ function QuestionBankPage() {
   });
   const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
+  // Guard "cambios sin guardar" para el dialog crear/editar pregunta.
+  // El form ya es UN objeto (`draft`), así que se pasa directo.
+  const draftDirty = useDirtyDialog(dialogOpen, draft);
 
   // Generación con IA (mismo gate que talleres/exámenes/Kahoot).
   const [aiOpen, setAiOpen] = useState(false);
@@ -831,7 +835,7 @@ function QuestionBankPage() {
       </Card>
 
       {/* Dialog crear/editar */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={draftDirty.guardOpenChange(setDialogOpen)}>
         <DialogContent
           className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90dvh] overflow-y-auto"
           data-tour-id="dialog-question"

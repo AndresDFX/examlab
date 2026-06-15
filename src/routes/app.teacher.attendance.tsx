@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
+import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { isStaffRole } from "@/shared/lib/roles";
 import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
@@ -236,6 +237,32 @@ function TeacherAttendance() {
   // enlace libre (Google Docs/Notion/…). Google Calendar lo trae como
   // attachment al vincular; también editable a mano.
   const [newNotesUrl, setNewNotesUrl] = useState("");
+  // Guard "cambios sin guardar" para el dialog de nueva sesión. Agrupa los
+  // campos editables del form en un memo (el hook compara por JSON.stringify
+  // y captura el snapshot al abrir el dialog).
+  const newSessionFormMemo = useMemo(
+    () => ({
+      newDate,
+      newStartTime,
+      newEndTime,
+      newTitle,
+      newCutId,
+      newRecordingUrl,
+      newRecordingVideoId,
+      newNotesUrl,
+    }),
+    [
+      newDate,
+      newStartTime,
+      newEndTime,
+      newTitle,
+      newCutId,
+      newRecordingUrl,
+      newRecordingVideoId,
+      newNotesUrl,
+    ],
+  );
+  const newSessionDirty = useDirtyDialog(newSessionOpen, newSessionFormMemo);
   // Lista de videos disponibles para asociar a la sesión (biblioteca
   // filtrada al curso actual + globales sin course_id). Cargada lazy
   // cuando se abre el dialog.
@@ -1601,7 +1628,7 @@ function TeacherAttendance() {
       </Card>
 
       {/* New session dialog */}
-      <Dialog open={newSessionOpen} onOpenChange={setNewSessionOpen}>
+      <Dialog open={newSessionOpen} onOpenChange={newSessionDirty.guardOpenChange(setNewSessionOpen)}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm" data-tour-id="dialog-session">
           <DialogHeader>
             <DialogTitle>{t("teacherAttendance.newSessionDialogTitle")}</DialogTitle>
