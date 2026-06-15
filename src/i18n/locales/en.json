@@ -6108,7 +6108,7 @@
     "printActa": "Print record",
     "deleteActa": "Delete record",
     "generateDialogTitle": "Generate official record",
-    "generateDialogDescription": "An immutable record will be created with the cohort of students enrolled in the course at this moment. If you need to modify grades later, delete the record and generate a new one.",
+    "generateDialogDescription": "A record will be created with the cohort of students enrolled in the course at this moment. If an acta already exists for this course, generating REPLACES it with the current grades.",
     "courseLabel": "Course",
     "selectCoursePlaceholder": "Select a course",
     "cancel": "Cancel",

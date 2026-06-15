@@ -6108,7 +6108,7 @@
     "printActa": "Imprimir acta",
     "deleteActa": "Eliminar acta",
     "generateDialogTitle": "Generar acta oficial",
-    "generateDialogDescription": "Se creará un registro inmutable con la cohorte de estudiantes matriculados al curso en este momento. Si necesitas modificar notas después, borra el acta y genera una nueva.",
+    "generateDialogDescription": "Se creará un registro con la cohorte de estudiantes matriculados al curso en este momento. Si ya existe un acta para este curso, al generar se REEMPLAZA con las notas actuales.",
     "courseLabel": "Curso",
     "selectCoursePlaceholder": "Selecciona un curso",
     "cancel": "Cancelar",

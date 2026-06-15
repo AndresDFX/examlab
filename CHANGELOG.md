@@ -45,6 +45,22 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-15
 
+**Acta oficial — "No se pudo generar el acta" CORREGIDO (workflow).** Un workflow
+de diagnóstico (14 hallazgos, 7 confirmados) halló la causa: `generate_course_acta`
+hacía un INSERT plano sobre `course_actas`, que tiene UNIQUE (course_id,
+COALESCE(period_id, zero-uuid)); al **regenerar** un acta ya existente lanzaba
+23505 → toast genérico. Fix (mig `20260978`, recrea el RPC):
+- **ON CONFLICT DO UPDATE** → "Generar" ahora REGENERA (reemplaza) el acta del
+  curso/periodo con las notas actuales, sin pedir borrar a mano. Diálogo
+  actualizado.
+- **Talleres vía `workshop_courses`** (M:N, peso/corte por curso): antes el RPC
+  leía `workshops.course_id` (modelo viejo) y OMITÍA los talleres COMPARTIDOS
+  (p. ej. el "Taller Final" de Camacho) del acta.
+- Filtros `deleted_at IS NULL` (papelera) en exámenes/talleres/proyectos; RAISE
+  claro si el curso no tiene estudiantes; `search_path` incluye `extensions`.
+- `friendlyError` mapea `idx_course_actas_unique` + el toast de acta muestra el
+  detalle real (message/hint) — ya no oculta la causa.
+
 **Informes — nombre único también al IMPORTAR + diagnóstico del fallo de acta.**
 - El nombre único de plantilla ahora se aplica tanto a las creadas de 0 (en
   guardar) como a las **importadas** desde `.docx` (docente y admin): si ya

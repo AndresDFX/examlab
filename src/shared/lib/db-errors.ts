@@ -38,6 +38,9 @@ const UNIQUE_INDEX_MESSAGES: Record<string, string> = {
   workshop_groups_workshop_id_name_key: "Ya existe un grupo con ese nombre en este taller.",
   project_groups_project_name_lower_uidx: "Ya existe un grupo con ese nombre en este proyecto.",
   project_groups_project_id_name_key: "Ya existe un grupo con ese nombre en este proyecto.",
+  // Actas: una sola por (curso, periodo). Regenerar exige borrar la anterior.
+  idx_course_actas_unique:
+    "Ya existe un acta para este curso y periodo. Bórrala desde la lista para generar una nueva.",
 };
 
 /**
