@@ -111,6 +111,10 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/** Marcador HTML de salto de página. `composeTemplateHtml` lo convierte en
+ *  un corte real en impresión/PDF y en un divisor visible en pantalla. */
+export const PAGE_BREAK_HTML = '<div class="examlab-page-break"></div>';
+
 /** Texto + formato (negrita/itálica) de UN run `<w:r>`. */
 function runToHtml(runXml: string): string {
   // Propiedades del run (rPr) → negrita / itálica. `w:val="false|0|off"`
@@ -122,20 +126,48 @@ function runToHtml(runXml: string): string {
   const bold = isOn("b");
   const italic = isOn("i");
 
+  // Acumulamos el texto formateado del run, pero los SALTOS DE PÁGINA se
+  // emiten como bloques sueltos (fuera de <strong>/<em>) para que el corte
+  // sea top-level y no quede envuelto en formato inline.
   let text = "";
-  const TOKEN_RE = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:tab\s*\/?>|<w:br(?:\s[^>]*)?\/?>/g;
+  const out: string[] = [];
+  const flush = () => {
+    if (!text) return;
+    let html = text;
+    if (italic) html = `<em>${html}</em>`;
+    if (bold) html = `<strong>${html}</strong>`;
+    out.push(html);
+    text = "";
+  };
+  // OOXML expresa los saltos de página de dos formas:
+  //   - <w:br w:type="page"/>          salto manual (lo insertó el autor)
+  //   - <w:lastRenderedPageBreak/>     hint de Word de dónde paginó (auto)
+  // Ambos los traducimos al marcador de salto para que el docente VEA dónde
+  // cambian las páginas del .docx original. Un <w:br/> sin type="page" es un
+  // salto de línea suave (textWrapping) → <br/>.
+  const TOKEN_RE =
+    /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:tab\s*\/?>|<w:br(\s[^>]*)?\/?>|<w:lastRenderedPageBreak\s*\/?>/g;
   let m: RegExpExecArray | null;
   while ((m = TOKEN_RE.exec(runXml)) !== null) {
     const tag = m[0];
-    if (tag.startsWith("<w:tab")) text += "&#9;";
-    else if (tag.startsWith("<w:br")) text += "<br/>";
-    else text += escapeHtml(decodeXmlEntities(m[1] ?? ""));
+    if (tag.startsWith("<w:tab")) {
+      text += "&#9;";
+    } else if (tag.startsWith("<w:lastRenderedPageBreak")) {
+      flush();
+      out.push(PAGE_BREAK_HTML);
+    } else if (tag.startsWith("<w:br")) {
+      if (/w:type\s*=\s*"page"/.test(tag)) {
+        flush();
+        out.push(PAGE_BREAK_HTML);
+      } else {
+        text += "<br/>";
+      }
+    } else {
+      text += escapeHtml(decodeXmlEntities(m[1] ?? ""));
+    }
   }
-  if (!text) return "";
-  let html = text;
-  if (italic) html = `<em>${html}</em>`;
-  if (bold) html = `<strong>${html}</strong>`;
-  return html;
+  flush();
+  return out.join("");
 }
 
 /** Nivel de encabezado del párrafo (1..4) o null si es párrafo normal. */
@@ -158,7 +190,21 @@ function paragraphToHtml(paragraphXml: string): string {
   const inner = runs.join("");
   if (!inner.trim()) return ""; // párrafo vacío → se omite
   const level = paragraphHeadingLevel(paragraphXml);
-  return level ? `<h${level}>${inner}</h${level}>` : `<p>${inner}</p>`;
+  const tag = level ? `h${level}` : "p";
+  // Si el párrafo contiene saltos de página, los sacamos a nivel top-level:
+  // un <div.examlab-page-break> dentro de un <p> es HTML inválido. Partimos
+  // por el marcador y envolvemos cada fragmento de texto en su <p>/<hN>,
+  // dejando el corte como hermano.
+  if (!inner.includes(PAGE_BREAK_HTML)) {
+    return `<${tag}>${inner}</${tag}>`;
+  }
+  const segments = inner.split(PAGE_BREAK_HTML);
+  const html: string[] = [];
+  segments.forEach((seg, i) => {
+    if (seg.trim()) html.push(`<${tag}>${seg}</${tag}>`);
+    if (i < segments.length - 1) html.push(PAGE_BREAK_HTML);
+  });
+  return html.join("");
 }
 
 /** Convierte un `<w:tbl>` a un `<table>` HTML simple (texto plano por celda). */

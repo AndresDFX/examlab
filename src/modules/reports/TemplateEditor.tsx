@@ -388,6 +388,23 @@ export function composeTemplateHtml(
 <style>
 @page { size: ${draft.page_size} ${draft.page_orientation}; margin: 18mm; }
 body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #111; line-height: 1.4; }
+/* Salto de página explícito. En impresión/PDF fuerza un corte real; en
+   pantalla (editor + generador) lo decoramos como un divisor visible para
+   que el docente vea CLARAMENTE dónde termina una página y empieza otra
+   (antes el .docx importado se veía como un bloque continuo). */
+.examlab-page-break { break-after: page; page-break-after: always; }
+@media screen {
+  .examlab-page-break {
+    display: block; height: 0; margin: 30px 0 10px; border: 0;
+    border-top: 2px dashed #f59e0b; position: relative; break-after: auto;
+  }
+  .examlab-page-break::after {
+    content: "Salto de página"; position: absolute; left: 50%; top: -0.8em;
+    transform: translateX(-50%); background: #fffbeb; color: #92400e;
+    font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding: 3px 12px; border: 1px solid #fcd34d; border-radius: 999px; white-space: nowrap;
+  }
+}
 ${draft.css ?? ""}
 </style>
 </head><body>

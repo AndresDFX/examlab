@@ -6,6 +6,7 @@ import {
   extractHtmlFromDocumentXml,
   MAX_DOCX_BYTES,
   parseDocxToText,
+  PAGE_BREAK_HTML,
 } from "./docx-import";
 import {
   buildAiReportPrompt,
@@ -347,5 +348,30 @@ describe("extractHtmlFromDocumentXml", () => {
     expect(html).toContain("<p>Después</p>");
     // El párrafo de la celda NO debe aparecer como <p> suelto.
     expect(html).not.toContain("<p>A1</p>");
+  });
+
+  // ── Saltos de página (claridad de páginas al editar) ──
+  it("traduce <w:br w:type=\"page\"/> a un marcador de salto de página", () => {
+    const xml = `<w:document><w:body><w:p><w:r><w:t>Pág 1</w:t></w:r><w:r><w:br w:type="page"/></w:r><w:r><w:t>Pág 2</w:t></w:r></w:p></w:body></w:document>`;
+    const html = extractHtmlFromDocumentXml(xml);
+    expect(html).toContain(PAGE_BREAK_HTML);
+    // El salto parte el párrafo en fragmentos top-level (no queda dentro del <p>).
+    expect(html).toContain("<p>Pág 1</p>");
+    expect(html).toContain("<p>Pág 2</p>");
+    expect(html).not.toMatch(/<p>[^<]*examlab-page-break/);
+  });
+
+  it("traduce <w:lastRenderedPageBreak/> (hint de Word) a salto de página", () => {
+    const xml = `<w:document><w:body><w:p><w:r><w:lastRenderedPageBreak/><w:t>Nueva página</w:t></w:r></w:p></w:body></w:document>`;
+    const html = extractHtmlFromDocumentXml(xml);
+    expect(html).toContain(PAGE_BREAK_HTML);
+    expect(html).toContain("<p>Nueva página</p>");
+  });
+
+  it("un <w:br/> suave (sin type=page) sigue siendo <br/>, no salto de página", () => {
+    const xml = `<w:document><w:body><w:p><w:r><w:t>línea 1</w:t><w:br/><w:t>línea 2</w:t></w:r></w:p></w:body></w:document>`;
+    const html = extractHtmlFromDocumentXml(xml);
+    expect(html).toContain("<br/>");
+    expect(html).not.toContain(PAGE_BREAK_HTML);
   });
 });

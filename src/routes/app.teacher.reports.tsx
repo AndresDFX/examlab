@@ -66,10 +66,12 @@ import {
   Printer,
   GitBranch,
   FileText,
+  FileType,
   Globe,
   Lock,
   Upload,
   Sparkles,
+  History,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { StatCard } from "@/components/ui/stat-card";
@@ -85,6 +87,9 @@ import { renderTemplate, buildAiReportPrompt } from "@/modules/reports/template-
 import { buildReportContext, buildReportContextFromActa } from "@/modules/reports/report-context";
 import { parseDocxToHtml, extractPlaceholders } from "@/modules/reports/docx-import";
 import { ActasManager } from "@/modules/reports/ActasManager";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { DateCell } from "@/components/ui/date-cell";
+import { downloadReportAsWord, printReportHtml } from "@/modules/reports/report-download";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -113,6 +118,20 @@ type Template = {
 
 type Course = { id: string; name: string };
 type Student = { id: string; full_name: string; institutional_email: string };
+
+// Informe GENERADO persistido (historial). Es un snapshot del HTML compuesto
+// + metadatos de qué plantilla/curso/estudiante/periodo lo originó.
+type GeneratedReport = {
+  id: string;
+  template_name: string;
+  scope: "estudiante" | "curso";
+  course_id: string;
+  course_name: string | null;
+  student_name: string | null;
+  periodo: string | null;
+  html: string;
+  created_at: string;
+};
 
 type Origin = "global" | "override" | "privada";
 
@@ -159,6 +178,18 @@ function Inner() {
   const [retryNonce, setRetryNonce] = useState(0);
   const [search, setSearch] = useState("");
   const [originFilter, setOriginFilter] = useState<"all" | Origin>("all");
+
+  // Tab activa: "plantillas" (gestionar blueprints) | "informes" (historial de
+  // informes generados + actas). Separación de conceptos Plantilla ≠ Informe.
+  const [tab, setTab] = useState<"plantillas" | "informes">("plantillas");
+
+  // Historial de informes generados (tab "Informes generados").
+  const [genReports, setGenReports] = useState<GeneratedReport[]>([]);
+  const [genReportsLoading, setGenReportsLoading] = useState(true);
+  // Id del informe ya persistido para el preview actual — evita duplicar la
+  // fila si el docente descarga Word Y PDF de la misma generación. Se resetea
+  // al generar un preview nuevo.
+  const [genSavedId, setGenSavedId] = useState<string | null>(null);
 
   // Editor state (compartido entre nueva privada / override / editar)
   const [editorOpen, setEditorOpen] = useState(false);
@@ -225,8 +256,24 @@ function Inner() {
     setLoading(false);
   };
 
+  // Historial de informes generados — best-effort: si la tabla no existe en
+  // este entorno (migración 20260975 sin Publish) o falla, dejamos la lista
+  // vacía sin tumbar la pantalla de plantillas.
+  const loadGenReports = async () => {
+    if (!user) return;
+    setGenReportsLoading(true);
+    const { data, error } = await db
+      .from("generated_reports")
+      .select("id, template_name, scope, course_id, course_name, student_name, periodo, html, created_at")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (!error) setGenReports((data ?? []) as GeneratedReport[]);
+    setGenReportsLoading(false);
+  };
+
   useEffect(() => {
     void load();
+    void loadGenReports();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, retryNonce]);
 
@@ -745,6 +792,8 @@ function Inner() {
         page_size: genTemplate.page_size,
       });
       setGenHtml(html);
+      // Preview nuevo → el informe aún no se guardó como descargable.
+      setGenSavedId(null);
     } catch (e) {
       toast.error(
         e instanceof Error
@@ -755,14 +804,86 @@ function Inner() {
     setGenBuilding(false);
   };
 
-  const handlePrint = () => {
-    const iframe = iframeRef.current;
-    if (!iframe?.contentWindow) {
-      toast.error(i18n.t("toast.routes_app_teacher_reports.previewUnavailable", { defaultValue: "Vista previa no disponible" }));
+  // Metadatos del informe generado (para nombre de archivo + persistencia).
+  const genMeta = () => {
+    const studentName =
+      genTemplate?.scope === "estudiante"
+        ? (genStudents.find((s) => s.id === genStudentId)?.full_name ?? null)
+        : null;
+    return {
+      templateName: genTemplate?.name ?? "Informe",
+      courseName: courseNameById.get(genCourseId) ?? null,
+      studentName,
+      periodo: genPeriodo.trim() || null,
+    };
+  };
+
+  // Persiste el informe generado en el historial (una sola vez por preview).
+  // Best-effort: si la tabla no existe / RLS rechaza, no bloquea la descarga.
+  const persistGeneration = async () => {
+    if (!genHtml || !genTemplate || !genCourseId || genSavedId) return;
+    const meta = genMeta();
+    const { data, error } = await db
+      .from("generated_reports")
+      .insert({
+        template_id: genTemplate.id,
+        template_name: genTemplate.name,
+        scope: genTemplate.scope,
+        course_id: genCourseId,
+        course_name: meta.courseName,
+        student_id: genTemplate.scope === "estudiante" ? genStudentId || null : null,
+        student_name: meta.studentName,
+        periodo: meta.periodo,
+        acta_id: genActaId,
+        html: genHtml,
+        page_orientation: genTemplate.page_orientation,
+        page_size: genTemplate.page_size,
+      })
+      .select("id")
+      .single();
+    if (!error && data) {
+      setGenSavedId(data.id as string);
+      void loadGenReports();
+    }
+  };
+
+  const handleDownloadWord = async () => {
+    if (!genHtml) return;
+    downloadReportAsWord(genHtml, genMeta());
+    await persistGeneration();
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!genHtml) return;
+    printReportHtml(genHtml);
+    await persistGeneration();
+  };
+
+  // ── Historial: re-descarga / eliminación de informes generados ──
+  const reDownloadWord = (r: GeneratedReport) =>
+    downloadReportAsWord(r.html, {
+      templateName: r.template_name,
+      courseName: r.course_name,
+      studentName: r.student_name,
+      periodo: r.periodo,
+    });
+  const reDownloadPdf = (r: GeneratedReport) => printReportHtml(r.html);
+  const deleteGenReport = async (r: GeneratedReport) => {
+    const ok = await confirm({
+      title: i18n.t("hc_routesAppTeacherReports.genDeleteTitle", { defaultValue: "Eliminar informe generado" }),
+      description: i18n.t("hc_routesAppTeacherReports.genDeleteDesc", {
+        defaultValue: "Se quitará del historial. Esta acción no se puede deshacer.",
+      }),
+      confirmLabel: i18n.t("hc_routesAppTeacherReports.actionDelete", { defaultValue: "Eliminar" }),
+      tone: "destructive",
+    });
+    if (!ok) return;
+    const { error } = await db.from("generated_reports").delete().eq("id", r.id);
+    if (error) {
+      toast.error(friendlyError(error));
       return;
     }
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
+    setGenReports((prev) => prev.filter((x) => x.id !== r.id));
   };
 
   // ── Render ───────────────────────────────────────────────────────
@@ -796,23 +917,34 @@ function Inner() {
         onChange={onDocxInputChange}
       />
 
-      {/* Stats 4-card — patrón compartido (Videos, Cursos, Pizarras, etc.).
-          Aparece SIEMPRE — un 0 es informativo, no ruido. */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={FileText} label={t("hc_routesAppTeacherReports.statTotal")} value={reportStats.total} />
-        <StatCard icon={Globe} label={t("hc_routesAppTeacherReports.statGlobal")} value={reportStats.global} />
-        <StatCard
-          icon={GitBranch}
-          label={t("hc_routesAppTeacherReports.statCustom")}
-          value={reportStats.override}
-          tone={reportStats.override > 0 ? "success" : "default"}
-        />
-        <StatCard icon={Lock} label={t("hc_routesAppTeacherReports.statPrivate")} value={reportStats.priv} />
-      </div>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+        <TabsList>
+          <TabsTrigger value="plantillas">
+            <FileText className="h-4 w-4 mr-1.5" />
+            {t("hc_routesAppTeacherReports.tabTemplates", { defaultValue: "Plantillas" })}
+          </TabsTrigger>
+          <TabsTrigger value="informes">
+            <History className="h-4 w-4 mr-1.5" />
+            {t("hc_routesAppTeacherReports.tabGenerated", { defaultValue: "Informes generados" })}
+          </TabsTrigger>
+        </TabsList>
 
-      <ActasManager onPrintActa={handlePrintActa} />
+        <TabsContent value="plantillas" className="space-y-5 mt-4">
+          {/* Stats 4-card — patrón compartido (Videos, Cursos, Pizarras, etc.).
+              Aparece SIEMPRE — un 0 es informativo, no ruido. */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard icon={FileText} label={t("hc_routesAppTeacherReports.statTotal")} value={reportStats.total} />
+            <StatCard icon={Globe} label={t("hc_routesAppTeacherReports.statGlobal")} value={reportStats.global} />
+            <StatCard
+              icon={GitBranch}
+              label={t("hc_routesAppTeacherReports.statCustom")}
+              value={reportStats.override}
+              tone={reportStats.override > 0 ? "success" : "default"}
+            />
+            <StatCard icon={Lock} label={t("hc_routesAppTeacherReports.statPrivate")} value={reportStats.priv} />
+          </div>
 
-      <Card>
+          <Card>
         <CardContent className="p-4 space-y-3">
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="flex-1">
@@ -936,6 +1068,103 @@ function Inner() {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="informes" className="space-y-5 mt-4">
+          {/* Actas oficiales (snapshots inmutables) — son un tipo especial de
+              informe generado, viven en su propio flujo (course_actas). */}
+          <ActasManager onPrintActa={handlePrintActa} />
+
+          {/* Historial de informes generados (descargables) */}
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                  <History className="h-4 w-4 text-pink-500" />
+                  {t("hc_routesAppTeacherReports.genHistoryTitle", { defaultValue: "Informes generados" })}
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  {t("hc_routesAppTeacherReports.genHistoryHint", {
+                    defaultValue:
+                      "Cada Word/PDF que generaste desde una plantilla. Volvé a descargarlo cuando quieras.",
+                  })}
+                </p>
+              </div>
+              <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                {genReportsLoading ? (
+                  <TableSkeleton cols={4} rows={4} />
+                ) : (
+                  <Table fixed>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[160px]">{t("hc_routesAppTeacherReports.genColTemplate", { defaultValue: "Plantilla" })}</TableHead>
+                        <TableHead className="hidden sm:table-cell">{t("hc_routesAppTeacherReports.genColCourse", { defaultValue: "Curso" })}</TableHead>
+                        <TableHead className="hidden md:table-cell">{t("hc_routesAppTeacherReports.genColTarget", { defaultValue: "Estudiante / Periodo" })}</TableHead>
+                        <TableHead className="hidden lg:table-cell w-40">{t("hc_routesAppTeacherReports.genColDate", { defaultValue: "Generado" })}</TableHead>
+                        <TableHead className="w-10" />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {genReports.length === 0 ? (
+                        <TableEmpty
+                          colSpan={5}
+                          text={t("hc_routesAppTeacherReports.genEmptyTitle", { defaultValue: "Aún no generaste informes" })}
+                          hint={t("hc_routesAppTeacherReports.genEmptyHint", {
+                            defaultValue: "Generá uno desde una plantilla (tab “Plantillas” → Generar).",
+                          })}
+                        />
+                      ) : (
+                        genReports.map((r) => (
+                          <TableRow key={r.id}>
+                            <TableCell className="font-medium">
+                              <div className="truncate" title={r.template_name}>{r.template_name}</div>
+                            </TableCell>
+                            <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
+                              <div className="truncate" title={r.course_name ?? undefined}>{r.course_name ?? "—"}</div>
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                              <div className="truncate">
+                                {r.student_name ? r.student_name : r.scope === "estudiante" ? "—" : t("hc_routesAppTeacherReports.scopeCourse")}
+                                {r.periodo ? ` · ${r.periodo}` : ""}
+                              </div>
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell">
+                              <DateCell value={r.created_at} variant="datetime" />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <RowActionsMenu
+                                actions={[
+                                  {
+                                    label: t("hc_routesAppTeacherReports.downloadWord", { defaultValue: "Descargar Word" }),
+                                    icon: FileType,
+                                    onClick: () => reDownloadWord(r),
+                                  },
+                                  {
+                                    label: t("hc_routesAppTeacherReports.downloadPdf", { defaultValue: "Descargar PDF" }),
+                                    icon: Printer,
+                                    onClick: () => reDownloadPdf(r),
+                                  },
+                                  {
+                                    label: t("hc_routesAppTeacherReports.actionDelete", { defaultValue: "Eliminar" }),
+                                    icon: Trash2,
+                                    tone: "destructive",
+                                    separatorBefore: true,
+                                    onClick: () => void deleteGenReport(r),
+                                  },
+                                ]}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* ── Dialog: Editor ── */}
       <Dialog open={editorOpen} onOpenChange={(o) => !o && void closeEditor()}>
@@ -1159,6 +1388,7 @@ function Inner() {
 
           <div className="flex flex-wrap items-center gap-2">
             <Button
+              variant="outline"
               onClick={() => void handleGenerate()}
               disabled={
                 genBuilding ||
@@ -1171,15 +1401,29 @@ function Inner() {
               ) : (
                 <Play className="h-4 w-4 mr-1" />
               )}
-              {genBuilding ? t("hc_routesAppTeacherReports.generating") : t("hc_routesAppTeacherReports.generate")}
+              {genBuilding
+                ? t("hc_routesAppTeacherReports.generating")
+                : t("hc_routesAppTeacherReports.previewBtn", { defaultValue: "Vista previa" })}
             </Button>
             {genHtml && (
-              <Button variant="outline" onClick={handlePrint}>
-                <Printer className="h-4 w-4 mr-1" />
-                {t("hc_routesAppTeacherReports.printSavePdf")}
-              </Button>
+              <>
+                <Button onClick={() => void handleDownloadWord()}>
+                  <FileType className="h-4 w-4 mr-1" />
+                  {t("hc_routesAppTeacherReports.downloadWord", { defaultValue: "Descargar Word" })}
+                </Button>
+                <Button variant="outline" onClick={() => void handleDownloadPdf()}>
+                  <Printer className="h-4 w-4 mr-1" />
+                  {t("hc_routesAppTeacherReports.downloadPdf", { defaultValue: "Descargar PDF" })}
+                </Button>
+              </>
             )}
           </div>
+          <p className="text-[11px] text-muted-foreground -mt-1">
+            {t("hc_routesAppTeacherReports.generateHint", {
+              defaultValue:
+                "Generá el archivo descargable (Word o PDF) con tus ajustes. Cada descarga queda en “Informes generados”.",
+            })}
+          </p>
 
           {genHtml && (
             <div className="border rounded-md overflow-hidden bg-white">

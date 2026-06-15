@@ -33,6 +33,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 - **Escala de calificación**: se hereda de la asignatura/curso; la vista de calificaciones muestra SIEMPRE la escala del curso. La "Nota" usa `toScale(raw, max_score)`; el "Puntaje" se normaliza a `grade_scale_max` en PRESENTACIÓN (`rescaleScore`), sin tocar datos. NO normalizar `max_score` de items legacy por migración masiva (riesgo de re-interpretar notas bajas de items /100). Items nuevos default `max_score = grade_scale_max`.
 - **Finalizar curso exige SIN pendientes de calificación** (mig 20260972): `set_course_status`→finalizado RAISE si hay pendientes; `auto_finalize_courses` (cron) no finaliza cursos vencidos con pendientes y notifica a sus docentes. "Pendiente" = lógica del Diagnóstico (`course_pending_grading_count`). Esa función es **interna** (SECURITY DEFINER, SIN GRANT a `authenticated` desde mig `20260974` — los callers internos la conservan); NO invocarla desde el cliente.
 - **Items SIN corte (`cut_id NULL`)**: cuentan en la NOTA FINAL del curso con su peso, tanto en el gradebook docente como en la vista del estudiante (paridad con el número del certificado). La tarjeta "Sin corte" del estudiante es informativa pero su nota SÍ entra al weighted avg. (`app.teacher.gradebook.tsx`, `app.student.grades.tsx`, fix #0)
+- **Informes: Plantilla ≠ Informe generado** (mig `20260975`). La **Plantilla** (`report_templates`) es el blueprint reutilizable; el **Informe generado** (`generated_reports`) es la instancia con datos reales (snapshot HTML, descargable Word/PDF), persistida con historial. "Generar" produce el archivo descargable (Word vía MSO-HTML `.doc` o PDF vía impresión), es acción de DOCENTE (RLS: docente del curso / Admin del tenant / SA; el estudiante nunca lo ve; inmutable). Los saltos de página de Word se preservan al importar `.docx` y se ven como divisor "Salto de página" en pantalla + corte real en PDF/Word (marcador `.examlab-page-break`). UI del docente en 2 tabs: "Plantillas" / "Informes generados".
 - **Item compartido (M:N) en >1 curso**: su nota debe verse en CADA curso al que pertenece (`workshop_courses`/`project_courses`), no solo en el curso ancla; el peso/corte es por curso. *(en refinamiento — #30/#31)*
 - **Contenido**: el label de un contenido en el tablero ES el **nombre (`display_name`)**, no el tema (`topic`) — `display_name?.trim() || topic`. El contenido puede asociarse a >1 curso (`content_course_assignments`, vía `ManageContentCoursesDialog`) y a la sección "General" del curso (sin sesión, destino del upload del tablero). El grid de Contenidos muestra filas de **altura estándar** (una línea: nombre + estado + conteos; sin subtítulo del tema). (`f4c396d` + #22)
 - **Multi-tenant / RLS**: nunca `USING(true)` ni `has_role()` sin scope de tenant en tablas con datos de tenant (ver `CLAUDE.md`). Migraciones envuelven `ALTER` en guard `to_regclass`.
@@ -112,6 +113,34 @@ Diferido (registrado, no corregido en este commit):
 
 Validación: `tsc` EXIT 0; tests afectados (xlsx + course-status + cohort-weights)
 verdes (course-status 13/13 con el nuevo test TZ).
+
+**Refactor del módulo Informes — Plantilla ≠ Informe generado, claridad de
+páginas, descarga Word/PDF.** (commit pendiente)
+
+- **Páginas claras al editar un .docx**: el importador (`docx-import.ts`) ahora
+  detecta los saltos de página de Word (`<w:br w:type="page"/>` y el hint
+  `<w:lastRenderedPageBreak/>`) y los traduce a un marcador
+  `<div class="examlab-page-break">`. `composeTemplateHtml` lo convierte en un
+  corte REAL en impresión/PDF/Word (`page-break-after`) y en un divisor visible
+  "Salto de página" en pantalla (`@media screen`) — antes el .docx se veía como
+  un bloque continuo sin saber dónde cambiaba la página. + tests.
+- **"Generar" = archivo descargable (Word o PDF)**: nuevo
+  [report-download.ts](src/modules/reports/report-download.ts) — Word vía técnica
+  HTML-como-Word (MSO, sin librerías, `.doc` editable que respeta `@page` +
+  saltos) y PDF vía impresión en iframe oculto. El generador ahora muestra
+  "Vista previa" + "Descargar Word" + "Descargar PDF" (antes sólo "Imprimir/PDF").
+  El flujo es de DOCENTE, nunca de estudiante (RLS lo refuerza).
+- **Plantilla vs Informe generado**: nueva tabla `generated_reports` (mig
+  `20260975`) que persiste cada informe generado (plantilla + curso/estudiante/
+  periodo + snapshot HTML + quién/cuándo). RLS: sólo docente del curso / Admin
+  del tenant / SA (scopeada con `course_in_my_tenant`); inmutable (sin UPDATE);
+  el estudiante NO la ve. La pantalla del docente se reorganizó en 2 **tabs**:
+  "Plantillas" (gestionar blueprints) e "Informes generados" (actas + historial
+  con re-descarga Word/PDF + eliminar). Persistir ocurre al descargar (una fila
+  por generación, dedupe Word+PDF del mismo preview).
+
+Validación: `tsc` EXIT 0; tests de reports 85/85; locale-parity 7/7 (17 claves
+nuevas en es+en).
 
 ### 2026-06-14
 
