@@ -512,8 +512,16 @@ function StudentGrades() {
         items.push({ score: it.grade, weight: it.weight ?? 1 });
       }
     }
+    // Items SIN corte asignado (config gap): el gradebook docente los incluye
+    // en la nota final (finalItems = todos los allItems) y el certificado se
+    // emite con ESE número. Si acá los excluyéramos, el estudiante vería una
+    // nota final distinta a la de su certificado/gradebook. Los sumamos al
+    // weighted avg con su peso para mantener la paridad docente↔estudiante.
+    for (const it of unassigned) {
+      items.push({ score: it.grade, weight: it.weight ?? 1 });
+    }
     return computeWeightedGrade(items);
-  }, [cutsBreakdown]);
+  }, [cutsBreakdown, unassigned]);
 
   const passes = course && finalGrade != null ? finalGrade >= course.passing_grade : null;
   const fmt = (n: number | null) => (n == null ? "—" : n.toFixed(2));

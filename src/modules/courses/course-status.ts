@@ -57,7 +57,13 @@ export function deriveCourseDisplayState(
   // como en_curso para no esconder cursos operativos pre-migración).
   // Próximo: publicado pero aún sin empezar (start_date en el futuro).
   if (course.start_date) {
-    const startMs = new Date(course.start_date).getTime();
+    // Ancla DATE-only ('YYYY-MM-DD') a mediodía LOCAL antes de parsear. Sin
+    // esto `new Date('2026-06-15')` se interpreta como medianoche UTC → en
+    // es-CO (UTC-5) cae el día anterior 19:00 local y el curso se clasifica
+    // 'proximo' por unas horas el día de inicio (mismo bug UTC-1 que evita
+    // formatDateOnly). Con hora explícita (timestamptz) se respeta tal cual.
+    const raw = course.start_date;
+    const startMs = new Date(raw.length === 10 ? `${raw}T12:00:00` : raw).getTime();
     if (Number.isFinite(startMs) && startMs > now) return "proximo";
   }
   // Empezado o sin fecha de inicio.

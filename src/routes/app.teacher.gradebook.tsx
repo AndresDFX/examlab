@@ -709,7 +709,10 @@ function Gradebook() {
     // ¿Algún estudiante tiene asistencia computable en este corte? (mismo
     // criterio que el consolidado: hay sesiones en el corte → score != null).
     const cutHasAttendance = (cutId: string) =>
-      cuts.find((c) => c.id === cutId)?.attendance_weight != null &&
+      // > 0, no `!= null`: un corte con attendance_weight = 0 (bucket sin
+      // peso) no aporta a la nota → no debe agregar una columna espuria
+      // "Asistencia (0%)" al export. Alineado con el filtro > 0 del cálculo.
+      Number(cuts.find((c) => c.id === cutId)?.attendance_weight ?? 0) > 0 &&
       (consolidated?.some((r) => r.attByCut.find((a) => a.cutId === cutId)?.score != null) ??
         false);
 

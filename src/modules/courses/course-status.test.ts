@@ -71,6 +71,24 @@ describe("deriveCourseDisplayState", () => {
       deriveCourseDisplayState({ status: "en_curso", start_date: "no-es-fecha" }, NOW),
     ).toBe("en_curso");
   });
+
+  // Regresión #28/#30: DATE-only ('YYYY-MM-DD') se ancla a MEDIODÍA local, no
+  // a medianoche UTC. Sin el ancla, un curso que empieza "hoy" se clasificaba
+  // off-by-one en zonas UTC-negativas (es-CO) durante las primeras horas del
+  // día. Estos casos son TZ-independientes (construimos `now` con el
+  // constructor local, igual que el ancla del helper).
+  it("DATE-only se ancla a mediodía local (regresión TZ off-by-one)", () => {
+    const startStr = "2026-06-15";
+    const localNoon = new Date(2026, 5, 15, 12, 0, 0).getTime();
+    // Justo antes del mediodía local del día de inicio → aún no empieza.
+    expect(
+      deriveCourseDisplayState({ status: "en_curso", start_date: startStr }, localNoon - 1),
+    ).toBe("proximo");
+    // Justo después del mediodía local → ya empezó.
+    expect(
+      deriveCourseDisplayState({ status: "en_curso", start_date: startStr }, localNoon + 1),
+    ).toBe("en_curso");
+  });
 });
 
 describe("summarizeCourses", () => {

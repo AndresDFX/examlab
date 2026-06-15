@@ -31,7 +31,8 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 - **Filtros de grids**: el filtro de ESTADO abre por defecto en lo vigente/activo (no "Todos"); el usuario puede cambiar a Todos/cerrados. (`c3271a5`)
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
 - **Escala de calificación**: se hereda de la asignatura/curso; la vista de calificaciones muestra SIEMPRE la escala del curso. La "Nota" usa `toScale(raw, max_score)`; el "Puntaje" se normaliza a `grade_scale_max` en PRESENTACIÓN (`rescaleScore`), sin tocar datos. NO normalizar `max_score` de items legacy por migración masiva (riesgo de re-interpretar notas bajas de items /100). Items nuevos default `max_score = grade_scale_max`.
-- **Finalizar curso exige SIN pendientes de calificación** (mig 20260972): `set_course_status`→finalizado RAISE si hay pendientes; `auto_finalize_courses` (cron) no finaliza cursos vencidos con pendientes y notifica a sus docentes. "Pendiente" = lógica del Diagnóstico (`course_pending_grading_count`).
+- **Finalizar curso exige SIN pendientes de calificación** (mig 20260972): `set_course_status`→finalizado RAISE si hay pendientes; `auto_finalize_courses` (cron) no finaliza cursos vencidos con pendientes y notifica a sus docentes. "Pendiente" = lógica del Diagnóstico (`course_pending_grading_count`). Esa función es **interna** (SECURITY DEFINER, SIN GRANT a `authenticated` desde mig `20260974` — los callers internos la conservan); NO invocarla desde el cliente.
+- **Items SIN corte (`cut_id NULL`)**: cuentan en la NOTA FINAL del curso con su peso, tanto en el gradebook docente como en la vista del estudiante (paridad con el número del certificado). La tarjeta "Sin corte" del estudiante es informativa pero su nota SÍ entra al weighted avg. (`app.teacher.gradebook.tsx`, `app.student.grades.tsx`, fix #0)
 - **Item compartido (M:N) en >1 curso**: su nota debe verse en CADA curso al que pertenece (`workshop_courses`/`project_courses`), no solo en el curso ancla; el peso/corte es por curso. *(en refinamiento — #30/#31)*
 - **Contenido**: el label de un contenido en el tablero ES el **nombre (`display_name`)**, no el tema (`topic`) — `display_name?.trim() || topic`. El contenido puede asociarse a >1 curso (`content_course_assignments`, vía `ManageContentCoursesDialog`) y a la sección "General" del curso (sin sesión, destino del upload del tablero). El grid de Contenidos muestra filas de **altura estándar** (una línea: nombre + estado + conteos; sin subtítulo del tema). (`f4c396d` + #22)
 - **Multi-tenant / RLS**: nunca `USING(true)` ni `has_role()` sin scope de tenant en tablas con datos de tenant (ver `CLAUDE.md`). Migraciones envuelven `ALTER` en guard `to_regclass`.
@@ -40,6 +41,77 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 ---
 
 ## Historial
+
+### 2026-06-15
+
+**Auditoría funcional #39 (workflow) — fixes de seguridad y correctitud.** El
+workflow halló 53 candidatos → 36 confirmados. Se corrigió el subconjunto de
+ALTA + las MEDIA de seguridad/correctitud + cheap-code; el resto (safe-failing
+o de mayor riesgo) queda registrado abajo como **diferido**.
+
+Corregido (commit pendiente):
+
+- **#0 ALTA — divergencia nota final docente↔estudiante con items SIN corte**:
+  el gradebook docente incluye TODOS los items en la nota final (y el
+  certificado usa ese número), pero la vista del estudiante excluía los items
+  con `cut_id NULL` (vivían en "Sin corte" como informativos). Ahora el
+  estudiante también los suma al weighted avg → paridad con docente/certificado.
+  (`app.student.grades.tsx`)
+- **#1/#25 MEDIA — fuga cross-tenant**: `course_pending_grading_count(uuid)`
+  (mig `20260972`) era SECURITY DEFINER + GRANT authenticated SIN authz → cualquier
+  autenticado leía el conteo de pendientes de cualquier curso/tenant. `REVOKE`
+  (los llamadores internos SECURITY DEFINER conservan EXECUTE). Mig `20260974`.
+- **#3 MEDIA — `content_course_assignments`**: políticas WRITE/SELECT con
+  `has_role` SIN scope de tenant → Admin de tenant A podía asociar material a
+  curso de tenant B. Scopeadas con `course_in_my_tenant`. Mig `20260974`.
+- **#4 MEDIA — `workshop_courses`**: la política tenant-scoped de `20260528`
+  nunca se aplicó (la tabla se creó después, en `20260704`) → quedó viva la WRITE
+  bare-`has_role` (leak cross-tenant de binding taller↔curso + weight/cut).
+  Re-aplicado el scope (`workshop_courses_staff_manage`/`_select_in_tenant`).
+  Mig `20260974`.
+- **#16 MEDIA — `get_course_cohort_weights` mostraba DRAFT**: el tablero del
+  estudiante listaba actividades/% aún no publicadas (las filas `*_assignments`
+  existen desde la creación, incluso en borrador). Filtro `status <> 'draft'`.
+  Mig `20260974`.
+- **#21/#27 BAJA — curso demo oculto**: el "Curso de pruebas" se sembró sin
+  `status` → heredó `borrador` y quedaba oculto bajo el filtro por defecto
+  `en_curso`. `UPDATE` a `en_curso` (idempotente). Mig `20260974`.
+- **#28/#30 BAJA — TZ off-by-one en `deriveCourseDisplayState`**: DATE-only se
+  parseaba como medianoche UTC → en es-CO un curso que empieza "hoy" se
+  clasificaba mal las primeras horas. Anclado a mediodía local (patrón
+  `formatDateOnly`). + test de regresión TZ-independiente. (`course-status.ts`)
+- **#19 BAJA — columna "Asistencia (0%)" espuria** en export: `cutHasAttendance`
+  usaba `!= null` en vez de `> 0`. (`app.teacher.gradebook.tsx`)
+- **#9 MEDIA — `.xlsx` inválido por chars de control**: `xmlEscape` no eliminaba
+  los caracteres prohibidos por XML 1.0 (un nombre con control char tras CSV mal
+  formado generaba un archivo que Excel no abría). Strip antes de escapar.
+  (`xlsx.ts`)
+
+Diferido (registrado, no corregido en este commit):
+
+- **#5/#29 — colisión de claves en export Excel/CSV** cuando 2 items comparten
+  label (mismo título+peso+tipo en cortes distintos): requiere refactor de
+  `toXLSX` para usar id estable como key y label sólo como header.
+- **#6/#8 — atribución de items COMPARTIDOS/GRUPO** en dashboards y gradebook
+  (un workshop/project compartido se atribuye a UN solo curso; entregas de grupo
+  sólo cuentan al "último editor"). Pre-existente, más visible con la feature de
+  cursos compartidos.
+- **#10/#11/#17 — validación/resolución de peso POR-CURSO** en talleres/proyectos
+  multi-curso usa columnas legacy en vez de `*_courses` (sólo afecta validación
+  de bucket y el caso `weight NULL` en curso secundario).
+- **#12–#15 — `useDirtyDialog`**: spurious-dirty al abrir para editar (polls,
+  EditExternalContent) + estados fuera de `form` no observados (videos intro,
+  cursos, pesos por-curso en workshops/projects). Safe-failing (peor caso: prompt
+  "¿descartar?" de más o guardia omitida — nunca corrupción). Requiere verificar
+  timing de hidratación por diálogo.
+- **#2 — `notify_teachers_daily_summary`** cuenta entregas con status en inglés
+  (`'submitted','in_progress'`) que nunca matchean el dominio español → el conteo
+  de talleres/proyectos del digest diario es siempre 0. Pre-existente; bajo impacto.
+- Varios BAJA de borde: #18/#31 (presentación de items external/`max_score=0`),
+  #20/#22/#23/#24/#26/#32/#33/#34/#35.
+
+Validación: `tsc` EXIT 0; tests afectados (xlsx + course-status + cohort-weights)
+verdes (course-status 13/13 con el nuevo test TZ).
 
 ### 2026-06-14
 

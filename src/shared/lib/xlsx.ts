@@ -138,12 +138,20 @@ function zipStore(entries: ZipEntry[]): Uint8Array {
 
 // ─────────────────────────── OOXML ───────────────────────────
 function xmlEscape(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+  return (
+    s
+      // XML 1.0 prohíbe los chars de control 0x00-0x08, 0x0B, 0x0C, 0x0E-0x1F.
+      // Un nombre de estudiante/cohorte con uno (p. ej. tras un CSV mal
+      // formado) generaría XML inválido y Excel/LibreOffice se negaría a abrir
+      // el .xlsx. Los eliminamos ANTES de escapar las 5 entidades.
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;")
+  );
 }
 
 /** Letra de columna estilo Excel: 0 → A, 25 → Z, 26 → AA. */
