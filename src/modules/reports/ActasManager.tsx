@@ -151,7 +151,18 @@ export function ActasManager({ onPrintActa }: Props) {
     const { data, error } = await db.rpc("generate_course_acta", { p_course_id: genCourseId });
     setGenerating(false);
     if (error) {
-      toast.error(friendlyError(error, t("hc_modulesReportsActasManager.errorGenerateActa")));
+      // Log del error REAL (code/message/hint/details) para diagnóstico — el
+      // toast traduce a un mensaje amigable, pero la consola guarda la causa.
+      // eslint-disable-next-line no-console
+      console.error("[acta] generate_course_acta falló:", error);
+      // Surface también el detalle crudo (message/hint) cuando exista: el toast
+      // genérico solo no decía POR QUÉ falló (ej. acta ya existente, datos).
+      const e = error as { message?: string; hint?: string };
+      const detail = (e.hint || e.message || "").trim();
+      const friendly = friendlyError(error, t("hc_modulesReportsActasManager.errorGenerateActa"));
+      toast.error(detail && !friendly.includes(detail) ? `${friendly} — ${detail}` : friendly, {
+        duration: 12000,
+      });
       return;
     }
     // Acta es registro institucional — `warning` para que destaque en

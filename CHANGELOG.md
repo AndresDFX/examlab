@@ -45,6 +45,17 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-15
 
+**Informes — nombre único también al IMPORTAR + diagnóstico del fallo de acta.**
+- El nombre único de plantilla ahora se aplica tanto a las creadas de 0 (en
+  guardar) como a las **importadas** desde `.docx` (docente y admin): si ya
+  existe una con ese nombre se crea una NUEVA con sufijo "(N)" — nunca se entra
+  en modo edición de la existente.
+- `ActasManager`: el fallo "No se pudo generar el acta" ahora **muestra el
+  detalle real** (message/hint) en el toast + `console.error`, para diagnosticar
+  (antes el toast genérico ocultaba la causa). La descarga Word ya es `.docx`
+  real (commits previos `925c8a6`/`d2f9916`) — el `.doc` que se ve aún es la
+  versión sin Publish.
+
 **Informes — variables y prompt IA según el TIPO de informe (scope).** El panel
 de variables de la derecha y el contexto de la IA dependen ahora del scope:
 - `reportCatalogForScope(scope)` (template-engine): por **estudiante** muestra

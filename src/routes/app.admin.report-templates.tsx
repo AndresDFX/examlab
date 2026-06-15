@@ -181,9 +181,21 @@ function Inner() {
         return;
       }
       const baseName = file.name.replace(/\.docx$/i, "").trim() || "Documento importado";
+      // Nombre ÚNICO también al importar (crea una plantilla NUEVA con sufijo si
+      // ya existe una con ese nombre; nunca entra en modo edición).
+      const takenNames = new Set(templates.map((tpl) => tpl.name.trim().toLowerCase()));
+      let uniqueName = baseName;
+      if (takenNames.has(uniqueName.toLowerCase())) {
+        for (let i = 2; i < 999; i++) {
+          if (!takenNames.has(`${baseName} (${i})`.toLowerCase())) {
+            uniqueName = `${baseName} (${i})`;
+            break;
+          }
+        }
+      }
       const d: TemplateDraft = {
         ...emptyDraft(),
-        name: baseName,
+        name: uniqueName,
         body_html: bodyHtml,
         header_html: headerHtml,
         footer_html: footerHtml,

@@ -566,9 +566,12 @@ function Inner() {
         return;
       }
       const baseName = file.name.replace(/\.docx$/i, "").trim() || i18n.t("hc_routesAppTeacherReports.importedDocName");
+      // Nombre ÚNICO también al IMPORTAR: si ya existe una plantilla con ese
+      // nombre, se crea una NUEVA con sufijo (no se entra en modo edición de la
+      // existente — esto es siempre una plantilla privada nueva).
       const d: TemplateDraft = {
         ...emptyDraft(),
-        name: baseName,
+        name: uniqueTemplateName(baseName, null),
         description: i18n.t("toast.routes_app_teacher_reports.docxImportedDesc", {
           defaultValue: "Importado de un Word (.docx)",
         }),
