@@ -9,6 +9,7 @@ import {
   parseDocxBundle,
   PAGE_BREAK_HTML,
 } from "./docx-import";
+import { composeTemplateHtml } from "./TemplateEditor";
 import {
   buildAiReportPrompt,
   flattenCatalogPaths,
@@ -453,5 +454,121 @@ describe("parseDocxBundle", () => {
     const bundle = parseDocxBundle(buildDocxWithHeader());
     // cx=952500 EMU / 9525 = 100px.
     expect(bundle.headerHtml).toContain("width:100px");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// Fidelidad de estructura de TABLA: anchos de columna (tblGrid) preservados.
+// Sin esto, una cabecera "logo | título | versión" se DESFASA al exportar
+// porque las columnas reflowean a ancho automático.
+// ─────────────────────────────────────────────────────────────────────
+
+/** Tabla con <w:tblGrid> de 3 columnas (20% / 60% / 20%) + celdas logo|título|versión. */
+function gridHeaderTableXml(opts?: { titleSpan?: boolean }): string {
+  const span = opts?.titleSpan;
+  const titleCell = span
+    ? `<w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>TITULO</w:t></w:r></w:p></w:tc>`
+    : `<w:tc><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>TITULO</w:t></w:r></w:p></w:tc>`;
+  const rowCells = span
+    ? `<w:tc><w:p><w:r><w:t>LOGO</w:t></w:r></w:p></w:tc>${titleCell}`
+    : `<w:tc><w:p><w:r><w:t>LOGO</w:t></w:r></w:p></w:tc>${titleCell}<w:tc><w:p><w:r><w:t>V1.0</w:t></w:r></w:p></w:tc>`;
+  return `<w:tbl><w:tblPr></w:tblPr><w:tblGrid><w:gridCol w:w="2000"/><w:gridCol w:w="6000"/><w:gridCol w:w="2000"/></w:tblGrid><w:tr>${rowCells}</w:tr></w:tbl>`;
+}
+
+describe("tableToHtml — anchos de columna (fidelidad de estructura)", () => {
+  it("aplica el ancho % de cada columna desde <w:tblGrid> + table-layout:fixed", () => {
+    const xml = `<w:document><w:body>${gridHeaderTableXml()}</w:body></w:document>`;
+    const html = extractHtmlFromDocumentXml(xml);
+    expect(html).toContain("table-layout:fixed");
+    // 2000/10000=20%, 6000/10000=60%, 2000/10000=20%.
+    expect(html).toContain("width:20%");
+    expect(html).toContain("width:60%");
+    expect(html).toContain("LOGO");
+    expect(html).toContain("TITULO");
+    expect(html).toContain("V1.0");
+  });
+
+  it("gridSpan: la celda combinada lleva colspan + suma de anchos", () => {
+    const xml = `<w:document><w:body>${gridHeaderTableXml({ titleSpan: true })}</w:body></w:document>`;
+    const html = extractHtmlFromDocumentXml(xml);
+    expect(html).toContain('colspan="2"');
+    // El título abarca cols 2+3 = 60%+20% = 80%.
+    expect(html).toContain("width:80%");
+  });
+
+  it("sin <w:tblGrid> NO fuerza table-layout:fixed (comportamiento previo)", () => {
+    const xml = `<w:document><w:body><w:tbl><w:tr><w:tc><w:p><w:r><w:t>A</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>`;
+    const html = extractHtmlFromDocumentXml(xml);
+    expect(html).not.toContain("table-layout:fixed");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// "E2E" del flujo importar→exportar: el .docx con cabecera (logo + título +
+// versión, con anchos de columna) sobrevive intacto al componer el documento
+// de exportación (composeTemplateHtml). Es la fidelidad estructural que el
+// usuario pidió: que el informe quede "tal cual como el original".
+// ─────────────────────────────────────────────────────────────────────
+
+/** .docx con cabecera de 3 columnas con grid + logo embebido. */
+function buildDocxWithGridHeader(): Uint8Array {
+  const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+  const R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+  const A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+  const documentXmlStr = `<?xml version="1.0"?>
+<w:document ${W} ${R}><w:body>
+  <w:p><w:r><w:t>Cuerpo</w:t></w:r></w:p>
+  <w:sectPr><w:headerReference w:type="default" r:id="rId1"/></w:sectPr>
+</w:body></w:document>`;
+  const documentRels = `<?xml version="1.0"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="header" Target="header1.xml"/>
+</Relationships>`;
+  const headerXml = `<?xml version="1.0"?>
+<w:hdr ${W} ${R} ${A}>
+  <w:tbl><w:tblPr></w:tblPr>
+    <w:tblGrid><w:gridCol w:w="2000"/><w:gridCol w:w="6000"/><w:gridCol w:w="2000"/></w:tblGrid>
+    <w:tr>
+      <w:tc><w:p><w:r><w:drawing><a:blip r:embed="rId2"/></w:drawing></w:r></w:p></w:tc>
+      <w:tc><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>DIAGNÓSTICO Y SEGUIMIENTO ACADÉMICO</w:t></w:r></w:p></w:tc>
+      <w:tc><w:p><w:r><w:t>V – 1.0 – 2019</w:t></w:r></w:p></w:tc>
+    </w:tr>
+  </w:tbl>
+</w:hdr>`;
+  const headerRels = `<?xml version="1.0"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId2" Type="image" Target="media/image1.png"/>
+</Relationships>`;
+  const zipped = zipSync({
+    "[Content_Types].xml": strToU8(`<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>`),
+    "word/document.xml": strToU8(documentXmlStr),
+    "word/_rels/document.xml.rels": strToU8(documentRels),
+    "word/header1.xml": strToU8(headerXml),
+    "word/_rels/header1.xml.rels": strToU8(headerRels),
+    "word/media/image1.png": strToU8("FAKE-PNG"),
+  });
+  return new Uint8Array(zipped);
+}
+
+describe("importar .docx → exportar: la cabecera mantiene su estructura", () => {
+  it("composeTemplateHtml conserva tabla, anchos de columna, logo y título centrado", () => {
+    const bundle = parseDocxBundle(buildDocxWithGridHeader());
+    const composed = composeTemplateHtml({
+      body_html: bundle.bodyHtml,
+      header_html: bundle.headerHtml,
+      footer_html: bundle.footerHtml,
+      css: "",
+      page_orientation: "portrait",
+      page_size: "A4",
+    });
+    // La cabecera va dentro de <header> y conserva la estructura del .docx:
+    expect(composed).toContain("<header>");
+    expect(composed).toContain("table-layout:fixed");
+    expect(composed).toContain("width:20%");
+    expect(composed).toContain("width:60%");
+    expect(composed).toContain("data:image/png;base64,");
+    expect(composed).toContain("text-align:center");
+    expect(composed).toContain("DIAGNÓSTICO Y SEGUIMIENTO ACADÉMICO");
+    expect(composed).toContain("V – 1.0 – 2019");
   });
 });

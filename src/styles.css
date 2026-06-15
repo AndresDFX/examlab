@@ -357,3 +357,42 @@ iframe[src*="gpteng"] {
     linear-gradient(-45deg, transparent 75%, #3f3f46 75%);
   background-color: #27272a;
 }
+
+/* ────────────────────────────────────────────────────────────────────
+ * Salto de página visible en el EDITOR VISUAL de informes (contentEditable)
+ * ────────────────────────────────────────────────────────────────────
+ * El importador de .docx inserta `<div class="examlab-page-break">` donde el
+ * Word tenía un salto de página. En la vista previa (iframe) ya se decora vía
+ * el CSS embebido del documento, pero el editor VISUAL (RichTextEditor) vive
+ * en el documento principal y el div salía invisible — el docente no veía
+ * DÓNDE empieza/termina cada página. Esta regla lo pinta como un divisor con
+ * etiqueta. Sólo afecta al contentEditable: el marcador no aparece en ningún
+ * otro lugar del DOM principal (las previsualizaciones son iframes srcDoc con
+ * su propio documento/CSS). */
+.examlab-page-break {
+  display: block;
+  height: 0;
+  margin: 1.4rem 0;
+  border: 0;
+  border-top: 2px dashed #f59e0b;
+  position: relative;
+}
+.examlab-page-break::after {
+  content: "Salto de página";
+  position: absolute;
+  left: 50%;
+  top: -0.7em;
+  transform: translateX(-50%);
+  background: #fffbeb;
+  color: #92400e;
+  font: 600 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 2px 8px;
+  border: 1px solid #fcd34d;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.dark .examlab-page-break::after {
+  background: #422006;
+  color: #fcd34d;
+  border-color: #854d0e;
+}

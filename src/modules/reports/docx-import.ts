@@ -341,6 +341,24 @@ function paragraphToHtml(paragraphXml: string, resolveImage: ImageResolver = NO_
 const HAS_VISIBLE_BORDER = /<w:(?:tbl|tc)Borders>[\s\S]*?w:val="(?:single|double|thick|dotted|dashed|wave)"/;
 
 /**
+ * Porcentajes de ancho de columna a partir del `<w:tblGrid>` del .docx (cada
+ * `<w:gridCol w:w="twips"/>` define el ancho de una columna). Preservarlos es
+ * lo que evita que una cabecera "logo | título | versión" se DESFASE al
+ * exportar (sin esto las columnas reflowean a ancho automático/igual y la
+ * estructura queda distinta al original). Devuelve [] si no hay grid.
+ */
+function parseGridColPercents(tableXml: string): number[] {
+  const grid = /<w:tblGrid>([\s\S]*?)<\/w:tblGrid>/.exec(tableXml)?.[1] ?? "";
+  const widths: number[] = [];
+  const RE = /<w:gridCol\b[^>]*\bw:w="(\d+)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = RE.exec(grid)) !== null) widths.push(Number(m[1]));
+  const total = widths.reduce((a, b) => a + b, 0);
+  if (total <= 0 || widths.length === 0) return [];
+  return widths.map((w) => Math.round((w / total) * 1000) / 10); // % con 1 decimal
+}
+
+/**
  * Convierte un `<w:tbl>` a un `<table>` HTML preservando el CONTENIDO de cada
  * celda (párrafos con imágenes/negrita/alineación, no sólo texto plano) — así
  * una cabecera tipo "logo | título | versión" se ve como en el .docx. Los
@@ -349,6 +367,8 @@ const HAS_VISIBLE_BORDER = /<w:(?:tbl|tc)Borders>[\s\S]*?w:val="(?:single|double
  */
 function tableToHtml(tableXml: string, resolveImage: ImageResolver = NO_IMAGES): string {
   const tblHasBorder = HAS_VISIBLE_BORDER.test(/<w:tblPr>[\s\S]*?<\/w:tblPr>/.exec(tableXml)?.[0] ?? "");
+  const colPercents = parseGridColPercents(tableXml);
+  const useFixed = colPercents.length > 0; // con grid → respetar anchos exactos
   const rows: string[] = [];
   const ROW_RE = /<w:tr(?:\s[^>]*)?>([\s\S]*?)<\/w:tr>/g;
   let rm: RegExpExecArray | null;
@@ -356,9 +376,20 @@ function tableToHtml(tableXml: string, resolveImage: ImageResolver = NO_IMAGES):
     const cells: string[] = [];
     const CELL_RE = /<w:tc(?:\s[^>]*)?>([\s\S]*?)<\/w:tc>/g;
     let cm: RegExpExecArray | null;
+    let colIdx = 0; // índice de columna para mapear anchos del grid
     while ((cm = CELL_RE.exec(rm[1] ?? "")) !== null) {
       const cellXml = cm[1] ?? "";
       const cellHasBorder = tblHasBorder || HAS_VISIBLE_BORDER.test(cellXml);
+      // gridSpan: cuántas columnas del grid ocupa esta celda (título centrado
+      // de la cabecera suele abarcar varias).
+      const span = Math.max(1, Number(/<w:gridSpan\s+w:val="(\d+)"/.exec(cellXml)?.[1] ?? "1"));
+      let widthStyle = "";
+      if (useFixed) {
+        let pct = 0;
+        for (let k = 0; k < span && colIdx + k < colPercents.length; k++) pct += colPercents[colIdx + k];
+        if (pct > 0) widthStyle = `width:${Math.round(pct * 10) / 10}%;`;
+      }
+      colIdx += span;
       // Contenido de la celda: sus párrafos con formato/imágenes.
       const paras: string[] = [];
       const PARA_RE = /<w:p(?:\s[^>]*)?>([\s\S]*?)<\/w:p>/g;
@@ -369,12 +400,18 @@ function tableToHtml(tableXml: string, resolveImage: ImageResolver = NO_IMAGES):
       }
       const cellHtml = paras.join("") || "&nbsp;";
       const border = cellHasBorder ? "border:1px solid #444;" : "";
-      cells.push(`<td style="padding:4px 6px;vertical-align:middle;${border}">${cellHtml}</td>`);
+      const colspanAttr = span > 1 ? ` colspan="${span}"` : "";
+      cells.push(
+        `<td${colspanAttr} style="padding:4px 6px;vertical-align:middle;${widthStyle}${border}">${cellHtml}</td>`,
+      );
     }
     if (cells.length > 0) rows.push(`<tr>${cells.join("")}</tr>`);
   }
   if (rows.length === 0) return "";
-  return `<table style="border-collapse:collapse;width:100%;">${rows.join("")}</table>`;
+  // table-layout:fixed sólo cuando hay anchos de grid → respeta los % exactos
+  // (sin esto el navegador re-reparte por contenido y la cabecera se desfasa).
+  const tableStyle = `border-collapse:collapse;width:100%;${useFixed ? "table-layout:fixed;" : ""}`;
+  return `<table style="${tableStyle}">${rows.join("")}</table>`;
 }
 
 /**

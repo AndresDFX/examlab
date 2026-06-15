@@ -45,6 +45,24 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-15
 
+**Informes — saltos de página visibles en el editor visual + fidelidad de la
+cabecera del .docx al exportar.** (commit pendiente)
+
+- **Editor visual muestra dónde empieza/termina cada página**: el marcador
+  `examlab-page-break` se decora en el contentEditable (regla global en
+  `styles.css`, sólo afecta al editor — las previsualizaciones son iframes con
+  su propio doc) como divisor "Salto de página". Antes sólo se veía el conteo
+  total de páginas, no las divisiones.
+- **La cabecera del .docx ya no se DESFASA al exportar**: el importador ahora
+  preserva los anchos de columna del `<w:tblGrid>` (cada `<w:gridCol>` →
+  `width:%`) + `gridSpan` (→ `colspan` + suma de anchos) + `table-layout:fixed`.
+  Sin esto, una cabecera "logo | título | versión" reflowaba a columnas
+  automáticas y la estructura quedaba distinta al original. + tests
+  estructurales ("e2e" del flujo importar→exportar: docx con grid → bundle →
+  `composeTemplateHtml` conserva tabla/anchos/logo/título centrado).
+
+Validación: `tsc` EXIT 0; reports 99/99.
+
 **Diagnóstico (workflow) + fix: tormenta de correos "de notificaciones que ya
 pasaron" en el tenant Camacho.** Un workflow de auditoría (32 hallazgos, 19
 confirmados) identificó las causas. Causa raíz de los CORREOS de eventos
