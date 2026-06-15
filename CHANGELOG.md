@@ -45,6 +45,32 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-15
 
+**Diagnóstico (workflow) + fix: tormenta de correos "de notificaciones que ya
+pasaron" en el tenant Camacho.** Un workflow de auditoría (32 hallazgos, 19
+confirmados) identificó las causas. Causa raíz de los CORREOS de eventos
+pasados: `dispatch_scheduled_messages()` seleccionaba `status='pending' AND
+send_at <= now()` SIN tope inferior → un mensaje programado vencido (outage de
+cron / send_at pasado) se disparaba RETROACTIVAMENTE; como `broadcast` emaila,
+mandaba un correo a CADA estudiante de un aviso ya pasado.
+
+- **Fix (mig `20260977000000`)**: `dispatch_scheduled_messages` ahora (1) cancela
+  de entrada los pendientes vencidos >24h, (2) sólo despacha lo vencido en las
+  últimas 24h (nunca retroactivo), (3) limpieza one-shot de los acumulados. El
+  resto del cuerpo (direct/broadcast + GUC) idéntico a `20260709000000`.
+- **Corrección de un over-flag del audit**: las funciones cron de recordatorio de
+  estudiante NO tienen un "leak cross-tenant" real (notifican a cada alumno de SU
+  propio curso); agregarles `tenant_id = current_tenant_id()` (NULL bajo
+  service_role) ROMPERÍA todos los recordatorios — NO se aplicó.
+- **Otras causas confirmadas (relevadas, fix recomendado, no aplicado aún)**:
+  dedup por TÍTULO exacto en recordatorios (se reabre al editar el título → usar
+  dedup por id de entidad); remoción del rate-limit de mensajería (`20260531`,
+  decisión de producto — kill-switch `email_settings.enabled_kinds.messages`);
+  `notify_send_email` re-dispara en UPDATE/re-insert (guard `TG_OP='UPDATE'` /
+  `email_delivered_at IS NOT NULL`); `notify_teachers_pending_grading` duplica
+  notificación DIARIA en la CAMPANA (no correo: kind='system') → falta guard
+  `created_at::date = CURRENT_DATE`. SQL diagnóstico entregado al usuario para
+  confirmar cuál(es) están activas en Camacho.
+
 **Informes IA — fix `prompt_too_large`, prompt configurable y preview con datos reales.**
 (commit pendiente)
 
