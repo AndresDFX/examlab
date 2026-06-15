@@ -3644,7 +3644,7 @@
     "cutNone": "No cut",
     "cutNoCuts": "No cuts defined",
     "weightColLabel": "Weight (%)",
-    "weightAvailable": "Available: <strong>{{max}}%</strong> (bucket {{bucket}}% − others {{others}}%)",
+    "weightAvailable": "Available: {{max}}% (bucket {{bucket}}% − others {{others}}%)",
     "weightExceedsBucket": "Exceeds the available bucket.",
     "weightAssignCut": "Assign a cut to configure the weight.",
     "cutSingle": "Evaluation cut",
