@@ -33,7 +33,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 - **Escala de calificación**: se hereda de la asignatura/curso; la vista de calificaciones muestra SIEMPRE la escala del curso. La "Nota" usa `toScale(raw, max_score)`; el "Puntaje" se normaliza a `grade_scale_max` en PRESENTACIÓN (`rescaleScore`), sin tocar datos. NO normalizar `max_score` de items legacy por migración masiva (riesgo de re-interpretar notas bajas de items /100). Items nuevos default `max_score = grade_scale_max`.
 - **Finalizar curso exige SIN pendientes de calificación** (mig 20260972): `set_course_status`→finalizado RAISE si hay pendientes; `auto_finalize_courses` (cron) no finaliza cursos vencidos con pendientes y notifica a sus docentes. "Pendiente" = lógica del Diagnóstico (`course_pending_grading_count`). Esa función es **interna** (SECURITY DEFINER, SIN GRANT a `authenticated` desde mig `20260974` — los callers internos la conservan); NO invocarla desde el cliente.
 - **Items SIN corte (`cut_id NULL`)**: cuentan en la NOTA FINAL del curso con su peso, tanto en el gradebook docente como en la vista del estudiante (paridad con el número del certificado). La tarjeta "Sin corte" del estudiante es informativa pero su nota SÍ entra al weighted avg. (`app.teacher.gradebook.tsx`, `app.student.grades.tsx`, fix #0)
-- **Informes: Plantilla ≠ Informe generado** (mig `20260975`). La **Plantilla** (`report_templates`) es el blueprint reutilizable; el **Informe generado** (`generated_reports`) es la instancia con datos reales (snapshot HTML, descargable Word/PDF), persistida con historial. "Generar" produce el archivo descargable (Word vía MSO-HTML `.doc` o PDF vía impresión), es acción de DOCENTE (RLS: docente del curso / Admin del tenant / SA; el estudiante nunca lo ve; inmutable). Los saltos de página de Word se preservan al importar `.docx` y se ven como divisor "Salto de página" en pantalla + corte real en PDF/Word (marcador `.examlab-page-break`). UI del docente en 2 tabs: "Plantillas" / "Informes generados".
+- **Informes: Plantilla ≠ Informe generado** (mig `20260975`). La **Plantilla** (`report_templates`) es el blueprint reutilizable; el **Informe generado** (`generated_reports`) es la instancia con datos reales (snapshot HTML, descargable Word/PDF), persistida con historial. "Generar" produce el archivo descargable (Word vía MSO-HTML `.doc` o PDF vía impresión), es acción de DOCENTE (RLS: docente del curso / Admin del tenant / SA; el estudiante nunca lo ve; inmutable). Los saltos de página de Word se preservan al importar `.docx` y se ven como divisor "Salto de página" en pantalla + corte real en PDF/Word (marcador `.examlab-page-break`). UI del docente en 2 tabs: "Plantillas" / "Informes generados". **Importar `.docx`** captura cuerpo + **cabecera + pie** con **imágenes embebidas como data URI** (`parseDocxBundle` → `header_html`/`footer_html`/`body_html`); el preview del editor se renderiza como **hojas de página** ("Página N") y la exportación incluye el documento original completo + las `{{variables}}` (no sólo lo nuevo).
 - **Item compartido (M:N) en >1 curso**: su nota debe verse en CADA curso al que pertenece (`workshop_courses`/`project_courses`), no solo en el curso ancla; el peso/corte es por curso. *(en refinamiento — #30/#31)*
 - **Contenido**: el label de un contenido en el tablero ES el **nombre (`display_name`)**, no el tema (`topic`) — `display_name?.trim() || topic`. El contenido puede asociarse a >1 curso (`content_course_assignments`, vía `ManageContentCoursesDialog`) y a la sección "General" del curso (sin sesión, destino del upload del tablero). El grid de Contenidos muestra filas de **altura estándar** (una línea: nombre + estado + conteos; sin subtítulo del tema). (`f4c396d` + #22)
 - **Multi-tenant / RLS**: nunca `USING(true)` ni `has_role()` sin scope de tenant en tablas con datos de tenant (ver `CLAUDE.md`). Migraciones envuelven `ALTER` en guard `to_regclass`.
@@ -141,6 +141,34 @@ páginas, descarga Word/PDF.** (commit pendiente)
 
 Validación: `tsc` EXIT 0; tests de reports 85/85; locale-parity 7/7 (17 claves
 nuevas en es+en).
+
+**Importar .docx — cabeceras con imagen, páginas claras y export completo.**
+(commit pendiente) Refuerza el flujo de IMPORTAR un Word a una plantilla:
+
+- **Cabeceras/pies con imágenes**: el importador (`docx-import.ts`) ahora
+  extrae también la CABECERA y el PIE del .docx (vía `<w:sectPr>` →
+  `headerReference`/`footerReference`, o fallback `header1.xml`/`footer1.xml`)
+  y **embebe las imágenes** (logo institucional) como data URI — resolviendo
+  rId → rels → `word/media/*` y base64. Las celdas de tabla se renderizan con
+  su contenido real (imágenes + negrita + alineación `<w:jc>`), no sólo texto;
+  los bordes se respetan sólo si la tabla/celda los declara. Así una cabecera
+  "logo | título | versión" aparece en el preview y al exportar. `parseDocxBundle`
+  devuelve `{ bodyHtml, headerHtml, footerHtml }`; los handlers de importar
+  (docente + admin) pueblan `header_html`/`footer_html`, no sólo `body_html`.
+- **Páginas claras al editar**: el preview del editor (`composePreviewHtml`) se
+  rediseñó como **hojas de página** separadas (una por bloque entre saltos),
+  cada una con etiqueta "Página N", tamaño real de hoja (mm según size/orient.)
+  y cabecera/pie repetidos — antes se veía todo el contenido junto sin saber
+  qué texto caía en cada página.
+- **Export = antiguo + nuevo**: al poblar `header_html`/`footer_html` en la
+  importación (y persistirlos en `report_templates`), la generación/exportación
+  (`composeTemplateHtml` → `<header>`+`<main>`+`<footer>`) ahora incluye el
+  documento ORIGINAL completo (logo/cabecera/cuerpo del .docx) MÁS las
+  `{{variables}}` que agregó el docente. Antes sólo exportaba lo nuevo porque
+  la cabecera/pie nunca se importaban.
+
+Validación: `tsc` EXIT 0; tests de reports 97/97 (docx-import con casos de
+cabecera+imagen+alineación; preview con hojas de página); locale-parity 7/7.
 
 ### 2026-06-14
 

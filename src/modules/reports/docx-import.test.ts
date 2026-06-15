@@ -6,6 +6,7 @@ import {
   extractHtmlFromDocumentXml,
   MAX_DOCX_BYTES,
   parseDocxToText,
+  parseDocxBundle,
   PAGE_BREAK_HTML,
 } from "./docx-import";
 import {
@@ -346,8 +347,9 @@ describe("extractHtmlFromDocumentXml", () => {
     expect(html).toContain("A1");
     expect(html).toContain("B1");
     expect(html).toContain("<p>Después</p>");
-    // El párrafo de la celda NO debe aparecer como <p> suelto.
-    expect(html).not.toContain("<p>A1</p>");
+    // La celda renderiza su párrafo DENTRO del <td> (no como <p> suelto a
+    // nivel de documento) — y preserva formato/imágenes, no sólo texto plano.
+    expect(html).toMatch(/<td[^>]*><p>A1<\/p><\/td>/);
   });
 
   // ── Saltos de página (claridad de páginas al editar) ──
@@ -373,5 +375,83 @@ describe("extractHtmlFromDocumentXml", () => {
     const html = extractHtmlFromDocumentXml(xml);
     expect(html).toContain("<br/>");
     expect(html).not.toContain(PAGE_BREAK_HTML);
+  });
+
+  it("emite <img> con data URI para <a:blip r:embed> usando el resolver", () => {
+    const xml = `<w:document><w:body><w:p><w:r><w:drawing><a:blip r:embed="rIdX"/></w:drawing></w:r></w:p></w:body></w:document>`;
+    const html = extractHtmlFromDocumentXml(xml, (rid) =>
+      rid === "rIdX" ? "data:image/png;base64,AAA" : null,
+    );
+    expect(html).toContain('<img src="data:image/png;base64,AAA"');
+  });
+
+  it("respeta la alineación del párrafo (<w:jc w:val=center>)", () => {
+    const xml = `<w:document><w:body><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>Centrado</w:t></w:r></w:p></w:body></w:document>`;
+    expect(extractHtmlFromDocumentXml(xml)).toContain('style="text-align:center"');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// parseDocxBundle — cuerpo + cabecera/pie + imágenes embebidas
+// ─────────────────────────────────────────────────────────────────────
+
+/** .docx con una CABECERA tipo "logo | título" (imagen + texto centrado). */
+function buildDocxWithHeader(): Uint8Array {
+  const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+  const R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+  const A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+  const WP = 'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"';
+  const documentXmlStr = `<?xml version="1.0"?>
+<w:document ${W} ${R}><w:body>
+  <w:p><w:r><w:t>Cuerpo del informe</w:t></w:r></w:p>
+  <w:sectPr><w:headerReference w:type="default" r:id="rId1"/></w:sectPr>
+</w:body></w:document>`;
+  const documentRels = `<?xml version="1.0"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="header" Target="header1.xml"/>
+</Relationships>`;
+  const headerXml = `<?xml version="1.0"?>
+<w:hdr ${W} ${R} ${A} ${WP}>
+  <w:tbl><w:tblPr></w:tblPr><w:tr>
+    <w:tc><w:p><w:r><w:drawing><wp:inline><wp:extent cx="952500" cy="476250"/><a:blip r:embed="rId2"/></wp:inline></w:drawing></w:r></w:p></w:tc>
+    <w:tc><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>DIAGNÓSTICO Y SEGUIMIENTO ACADÉMICO</w:t></w:r></w:p></w:tc>
+  </w:tr></w:tbl>
+</w:hdr>`;
+  const headerRels = `<?xml version="1.0"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId2" Type="image" Target="media/image1.png"/>
+</Relationships>`;
+  const zipped = zipSync({
+    "[Content_Types].xml": strToU8(`<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>`),
+    "word/document.xml": strToU8(documentXmlStr),
+    "word/_rels/document.xml.rels": strToU8(documentRels),
+    "word/header1.xml": strToU8(headerXml),
+    "word/_rels/header1.xml.rels": strToU8(headerRels),
+    // El contenido real no importa para el test: parseDocxBundle sólo lo
+    // base64-codifica en un data URI.
+    "word/media/image1.png": strToU8("FAKE-PNG-BYTES"),
+  });
+  return new Uint8Array(zipped);
+}
+
+describe("parseDocxBundle", () => {
+  it("extrae cuerpo + cabecera con imagen embebida como data URI", () => {
+    const bundle = parseDocxBundle(buildDocxWithHeader());
+    expect(bundle.bodyHtml).toContain("Cuerpo del informe");
+    // La cabecera trae el logo embebido (no un enlace a archivo externo).
+    expect(bundle.headerHtml).toContain("data:image/png;base64,");
+    expect(bundle.headerHtml).toContain("<img ");
+    // Y el título centrado.
+    expect(bundle.headerHtml).toContain("DIAGNÓSTICO Y SEGUIMIENTO ACADÉMICO");
+    expect(bundle.headerHtml).toContain("text-align:center");
+    expect(bundle.headerHtml).toContain("<table");
+    // Sin pie en este documento.
+    expect(bundle.footerHtml).toBe("");
+  });
+
+  it("dimensiona la imagen por <wp:extent> (EMU → px)", () => {
+    const bundle = parseDocxBundle(buildDocxWithHeader());
+    // cx=952500 EMU / 9525 = 100px.
+    expect(bundle.headerHtml).toContain("width:100px");
   });
 });

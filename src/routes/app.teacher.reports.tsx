@@ -85,7 +85,7 @@ import {
 } from "@/modules/reports/TemplateEditor";
 import { renderTemplate, buildAiReportPrompt } from "@/modules/reports/template-engine";
 import { buildReportContext, buildReportContextFromActa } from "@/modules/reports/report-context";
-import { parseDocxToHtml, extractPlaceholders } from "@/modules/reports/docx-import";
+import { parseDocxBundle, extractPlaceholders } from "@/modules/reports/docx-import";
 import { ActasManager } from "@/modules/reports/ActasManager";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DateCell } from "@/components/ui/date-cell";
@@ -513,10 +513,11 @@ function Inner() {
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       // Convertimos a HTML preservando formato básico (párrafos, encabezados,
-      // negrita/itálica, tablas) — así el Word cargado se ve parecido al
-      // original en el editor y el docente solo agrega los {{placeholders}}.
-      const text = parseDocxToHtml(bytes);
-      if (!text.trim()) {
+      // negrita/itálica, tablas), CABECERA/PIE e IMÁGENES (logo) embebidas —
+      // así el Word cargado se ve completo en el editor/preview y al exportar,
+      // y el docente solo agrega los {{placeholders}}.
+      const { bodyHtml, headerHtml, footerHtml } = parseDocxBundle(bytes);
+      if (!bodyHtml.trim() && !headerHtml.trim() && !footerHtml.trim()) {
         toast.error(
           i18n.t("toast.routes_app_teacher_reports.docxEmpty", {
             defaultValue: "El documento no contiene texto que importar.",
@@ -533,7 +534,9 @@ function Inner() {
         }),
         // HTML con formato preservado; el docente edita inline e inserta las
         // {{variables}} del catálogo (la "lógica" del informe).
-        body_html: text,
+        body_html: bodyHtml,
+        header_html: headerHtml,
+        footer_html: footerHtml,
       };
       setDraft(d);
       setOriginal(emptyDraft());
@@ -543,7 +546,7 @@ function Inner() {
       setEditorTemplateId(null);
       setEditorOpen(true);
 
-      const placeholders = extractPlaceholders(text);
+      const placeholders = extractPlaceholders(`${bodyHtml}\n${headerHtml}\n${footerHtml}`);
       toast.success(
         placeholders.length > 0
           ? i18n.t("toast.routes_app_teacher_reports.docxImportedWithVars", {

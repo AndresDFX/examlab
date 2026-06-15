@@ -33,7 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
 import { ModuleGuard } from "@/shared/components/ModuleGuard";
 import { friendlyError } from "@/shared/lib/db-errors";
-import { parseDocxToHtml, extractPlaceholders } from "@/modules/reports/docx-import";
+import { parseDocxBundle, extractPlaceholders } from "@/modules/reports/docx-import";
 import { buildAiReportPrompt } from "@/modules/reports/template-engine";
 import { buildReportContext } from "@/modules/reports/report-context";
 import {
@@ -169,8 +169,10 @@ function Inner() {
   const handleDocxFile = async (file: File) => {
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const html = parseDocxToHtml(bytes);
-      if (!html.trim()) {
+      // Cuerpo + cabecera/pie + imágenes (logo) embebidas, para que la
+      // plantilla refleje el .docx completo en preview y exportación.
+      const { bodyHtml, headerHtml, footerHtml } = parseDocxBundle(bytes);
+      if (!bodyHtml.trim() && !headerHtml.trim() && !footerHtml.trim()) {
         toast.error(
           i18n.t("adminReportTemplates.docxEmpty", {
             defaultValue: "El documento no contiene texto que importar.",
@@ -179,12 +181,18 @@ function Inner() {
         return;
       }
       const baseName = file.name.replace(/\.docx$/i, "").trim() || "Documento importado";
-      const d: TemplateDraft = { ...emptyDraft(), name: baseName, body_html: html };
+      const d: TemplateDraft = {
+        ...emptyDraft(),
+        name: baseName,
+        body_html: bodyHtml,
+        header_html: headerHtml,
+        footer_html: footerHtml,
+      };
       setEditing(null);
       setDraft(d);
       setOriginal(emptyDraft());
       setDialogOpen(true);
-      const placeholders = extractPlaceholders(html);
+      const placeholders = extractPlaceholders(`${bodyHtml}\n${headerHtml}\n${footerHtml}`);
       toast.success(
         placeholders.length > 0
           ? i18n.t("adminReportTemplates.docxImportedWithVars", {

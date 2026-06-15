@@ -115,8 +115,133 @@ function escapeHtml(s: string): string {
  *  un corte real en impresión/PDF y en un divisor visible en pantalla. */
 export const PAGE_BREAK_HTML = '<div class="examlab-page-break"></div>';
 
+// ── Imágenes embebidas + relaciones (rels) ─────────────────────────────
+// Un .docx referencia imágenes por relationship id (rId). El mapeo rId →
+// archivo vive en word/_rels/<part>.xml.rels; el binario en word/media/*.
+// Embebemos las imágenes como data URI para que sobrevivan en el HTML
+// guardado y en la exportación (Word/PDF) sin depender de archivos externos.
+// Así las CABECERAS con logo del .docx aparecen en el preview y al exportar.
+
+/** Función que resuelve un rId de imagen a un data URI (o null). */
+export type ImageResolver = (rId: string) => string | null;
+
+const NO_IMAGES: ImageResolver = () => null;
+
+/** rId → ruta destino, parseado de un *.rels. Ignora relaciones externas. */
+function parseRels(relsXml: string): Map<string, string> {
+  const map = new Map<string, string>();
+  const RE = /<Relationship\b[^>]*?\/?>/g;
+  let m: RegExpExecArray | null;
+  while ((m = RE.exec(relsXml)) !== null) {
+    const tag = m[0];
+    if (/\bTargetMode="External"/.test(tag)) continue;
+    const id = /\bId="([^"]+)"/.exec(tag)?.[1];
+    const target = /\bTarget="([^"]+)"/.exec(tag)?.[1];
+    if (id && target) map.set(id, target);
+  }
+  return map;
+}
+
+/** Resuelve un Target (relativo con `../`/`./`, o absoluto `/word/...`) contra
+ *  el directorio de la parte (ej. "word/"). Devuelve la ruta canónica del ZIP. */
+function resolveTarget(baseDir: string, target: string): string {
+  if (target.startsWith("/")) return target.slice(1);
+  const stack: string[] = [];
+  for (const part of (baseDir + target).split("/")) {
+    if (part === "..") stack.pop();
+    else if (part !== "." && part !== "") stack.push(part);
+  }
+  return stack.join("/");
+}
+
+/** MIME de una imagen por extensión, o null si el navegador no la renderiza
+ *  en `<img>` (emf/wmf/tiff → vectoriales/legacy de Windows, se omiten). */
+function imageMime(path: string): string | null {
+  const ext = path.toLowerCase().split(".").pop() ?? "";
+  switch (ext) {
+    case "png": return "image/png";
+    case "jpg":
+    case "jpeg": return "image/jpeg";
+    case "gif": return "image/gif";
+    case "bmp": return "image/bmp";
+    case "webp": return "image/webp";
+    case "svg": return "image/svg+xml";
+    default: return null;
+  }
+}
+
+/** Base64 de un Uint8Array (browser `btoa`, o `Buffer` en Node/jsdom). */
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  if (typeof btoa !== "undefined") return btoa(binary);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (globalThis as any).Buffer.from(bytes).toString("base64");
+}
+
+/** Construye un ImageResolver para una parte (document/header/footer) dado su
+ *  mapa de rels y las entradas del ZIP. `baseDir` = carpeta de la parte. */
+function makeImageResolver(
+  rels: Map<string, string>,
+  entries: Record<string, Uint8Array>,
+  baseDir: string,
+): ImageResolver {
+  const cache = new Map<string, string | null>();
+  return (rId: string) => {
+    if (cache.has(rId)) return cache.get(rId) ?? null;
+    let uri: string | null = null;
+    const target = rels.get(rId);
+    if (target) {
+      const path = resolveTarget(baseDir, target);
+      const bytes = entries[path];
+      const mime = imageMime(path);
+      if (bytes && mime) uri = `data:${mime};base64,${bytesToBase64(bytes)}`;
+    }
+    cache.set(rId, uri);
+    return uri;
+  };
+}
+
+/** Extrae las imágenes de UN run: `<a:blip r:embed>` (DrawingML moderno) y
+ *  `<v:imagedata r:id>` (VML legacy). Devuelve `<img>` con data URI;
+ *  dimensiona por `<wp:extent>` (EMU → px CSS) cuando está presente. */
+function runImagesToHtml(runXml: string, resolveImage: ImageResolver): string {
+  const ids: string[] = [];
+  const BLIP = /<a:blip\b[^>]*?\br:embed="([^"]+)"/g;
+  const VML = /<v:imagedata\b[^>]*?\br:id="([^"]+)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = BLIP.exec(runXml)) !== null) ids.push(m[1]);
+  while ((m = VML.exec(runXml)) !== null) ids.push(m[1]);
+  if (ids.length === 0) return "";
+  // Dimensión del drawing (EMU; 9525 EMU = 1px CSS).
+  const extent = /<wp:extent\b[^>]*\bcx="(\d+)"[^>]*\bcy="(\d+)"/.exec(runXml);
+  let sizeStyle = "max-width:100%;height:auto;";
+  if (extent) {
+    const w = Math.round(Number(extent[1]) / 9525);
+    if (w > 0) sizeStyle = `width:${w}px;max-width:100%;height:auto;`;
+  }
+  const imgs: string[] = [];
+  for (const id of ids) {
+    const uri = resolveImage(id);
+    if (uri) imgs.push(`<img src="${uri}" style="${sizeStyle}" alt="" />`);
+  }
+  return imgs.join("");
+}
+
+/** Alineación del párrafo (`<w:jc>`) → valor CSS `text-align`, o null. */
+function paragraphAlign(paragraphXml: string): string | null {
+  const v = /<w:jc\s+w:val="([^"]+)"/.exec(paragraphXml)?.[1];
+  if (v === "center") return "center";
+  if (v === "right" || v === "end") return "right";
+  if (v === "both" || v === "distribute") return "justify";
+  return null;
+}
+
 /** Texto + formato (negrita/itálica) de UN run `<w:r>`. */
-function runToHtml(runXml: string): string {
+function runToHtml(runXml: string, resolveImage: ImageResolver = NO_IMAGES): string {
   // Propiedades del run (rPr) → negrita / itálica. `w:val="false|0|off"`
   // desactiva el atributo heredado de un estilo, así que lo excluimos.
   const rPr = /<w:rPr>([\s\S]*?)<\/w:rPr>/.exec(runXml)?.[1] ?? "";
@@ -167,6 +292,9 @@ function runToHtml(runXml: string): string {
     }
   }
   flush();
+  // Imágenes del run (logo de cabecera, etc.) → al final del run.
+  const imgs = runImagesToHtml(runXml, resolveImage);
+  if (imgs) out.push(imgs);
   return out.join("");
 }
 
@@ -179,36 +307,48 @@ function paragraphHeadingLevel(paragraphXml: string): number | null {
 }
 
 /** Convierte un `<w:p>` a `<p>`/`<hN>` con sus runs formateados. */
-function paragraphToHtml(paragraphXml: string): string {
+function paragraphToHtml(paragraphXml: string, resolveImage: ImageResolver = NO_IMAGES): string {
   const runs: string[] = [];
   const RUN_RE = /<w:r(?:\s[^>]*)?>([\s\S]*?)<\/w:r>/g;
   let m: RegExpExecArray | null;
   while ((m = RUN_RE.exec(paragraphXml)) !== null) {
-    const h = runToHtml(m[1] ?? "");
+    const h = runToHtml(m[1] ?? "", resolveImage);
     if (h) runs.push(h);
   }
   const inner = runs.join("");
   if (!inner.trim()) return ""; // párrafo vacío → se omite
   const level = paragraphHeadingLevel(paragraphXml);
   const tag = level ? `h${level}` : "p";
+  const align = paragraphAlign(paragraphXml);
+  const attr = align ? ` style="text-align:${align}"` : "";
   // Si el párrafo contiene saltos de página, los sacamos a nivel top-level:
   // un <div.examlab-page-break> dentro de un <p> es HTML inválido. Partimos
   // por el marcador y envolvemos cada fragmento de texto en su <p>/<hN>,
   // dejando el corte como hermano.
   if (!inner.includes(PAGE_BREAK_HTML)) {
-    return `<${tag}>${inner}</${tag}>`;
+    return `<${tag}${attr}>${inner}</${tag}>`;
   }
   const segments = inner.split(PAGE_BREAK_HTML);
   const html: string[] = [];
   segments.forEach((seg, i) => {
-    if (seg.trim()) html.push(`<${tag}>${seg}</${tag}>`);
+    if (seg.trim()) html.push(`<${tag}${attr}>${seg}</${tag}>`);
     if (i < segments.length - 1) html.push(PAGE_BREAK_HTML);
   });
   return html.join("");
 }
 
-/** Convierte un `<w:tbl>` a un `<table>` HTML simple (texto plano por celda). */
-function tableToHtml(tableXml: string): string {
+/** ¿La tabla/celda define un borde visible (no `nil`/`none`)? */
+const HAS_VISIBLE_BORDER = /<w:(?:tbl|tc)Borders>[\s\S]*?w:val="(?:single|double|thick|dotted|dashed|wave)"/;
+
+/**
+ * Convierte un `<w:tbl>` a un `<table>` HTML preservando el CONTENIDO de cada
+ * celda (párrafos con imágenes/negrita/alineación, no sólo texto plano) — así
+ * una cabecera tipo "logo | título | versión" se ve como en el .docx. Los
+ * bordes se respetan sólo si la tabla o la celda los declaran (una cabecera
+ * sin bordes no inventa líneas; una tabla de datos sí las conserva).
+ */
+function tableToHtml(tableXml: string, resolveImage: ImageResolver = NO_IMAGES): string {
+  const tblHasBorder = HAS_VISIBLE_BORDER.test(/<w:tblPr>[\s\S]*?<\/w:tblPr>/.exec(tableXml)?.[0] ?? "");
   const rows: string[] = [];
   const ROW_RE = /<w:tr(?:\s[^>]*)?>([\s\S]*?)<\/w:tr>/g;
   let rm: RegExpExecArray | null;
@@ -217,9 +357,19 @@ function tableToHtml(tableXml: string): string {
     const CELL_RE = /<w:tc(?:\s[^>]*)?>([\s\S]*?)<\/w:tc>/g;
     let cm: RegExpExecArray | null;
     while ((cm = CELL_RE.exec(rm[1] ?? "")) !== null) {
-      // Texto de la celda: concatenamos sus párrafos (sin formato fino).
-      const cellText = escapeHtml(extractTextFromDocumentXml(cm[1] ?? "")).replace(/\n/g, "<br/>");
-      cells.push(`<td style="border:1px solid #ccc;padding:4px;">${cellText}</td>`);
+      const cellXml = cm[1] ?? "";
+      const cellHasBorder = tblHasBorder || HAS_VISIBLE_BORDER.test(cellXml);
+      // Contenido de la celda: sus párrafos con formato/imágenes.
+      const paras: string[] = [];
+      const PARA_RE = /<w:p(?:\s[^>]*)?>([\s\S]*?)<\/w:p>/g;
+      let pm: RegExpExecArray | null;
+      while ((pm = PARA_RE.exec(cellXml)) !== null) {
+        const ph = paragraphToHtml(pm[1] ?? "", resolveImage);
+        if (ph) paras.push(ph);
+      }
+      const cellHtml = paras.join("") || "&nbsp;";
+      const border = cellHasBorder ? "border:1px solid #444;" : "";
+      cells.push(`<td style="padding:4px 6px;vertical-align:middle;${border}">${cellHtml}</td>`);
     }
     if (cells.length > 0) rows.push(`<tr>${cells.join("")}</tr>`);
   }
@@ -234,16 +384,19 @@ function tableToHtml(tableXml: string): string {
  * el bloque completo (incl. sus párrafos internos), así que esos no se
  * re-emiten sueltos.
  */
-export function extractHtmlFromDocumentXml(documentXml: string): string {
+export function extractHtmlFromDocumentXml(
+  documentXml: string,
+  resolveImage: ImageResolver = NO_IMAGES,
+): string {
   const out: string[] = [];
   const BLOCK_RE = /<w:tbl>([\s\S]*?)<\/w:tbl>|<w:p(?:\s[^>]*)?>([\s\S]*?)<\/w:p>/g;
   let m: RegExpExecArray | null;
   while ((m = BLOCK_RE.exec(documentXml)) !== null) {
     if (m[1] !== undefined) {
-      const t = tableToHtml(m[1]);
+      const t = tableToHtml(m[1], resolveImage);
       if (t) out.push(t);
     } else {
-      const p = paragraphToHtml(m[2] ?? "");
+      const p = paragraphToHtml(m[2] ?? "", resolveImage);
       if (p) out.push(p);
     }
   }
@@ -256,30 +409,101 @@ export function extractHtmlFromDocumentXml(documentXml: string): string {
  * contenedor que `parseDocxToText`.
  */
 export function parseDocxToHtml(bytes: Uint8Array): string {
-  const xml = readDocumentXml(bytes);
-  return extractHtmlFromDocumentXml(xml);
+  return parseDocxBundle(bytes).bodyHtml;
 }
 
-/** Lee y descomprime `word/document.xml` de los bytes del .docx. Compartido
- *  por las variantes texto/HTML. Lanza Error en español si algo falla. */
-function readDocumentXml(bytes: Uint8Array): string {
-  if (bytes.byteLength === 0) {
-    throw new Error("El archivo está vacío.");
-  }
+/** HTML del cuerpo + cabecera + pie de un .docx (con imágenes embebidas). */
+export interface DocxBundle {
+  bodyHtml: string;
+  headerHtml: string;
+  footerHtml: string;
+}
+
+/** Descomprime el .docx validando tamaño/contenedor (compartido). */
+function unzipDocx(bytes: Uint8Array): Record<string, Uint8Array> {
+  if (bytes.byteLength === 0) throw new Error("El archivo está vacío.");
   if (bytes.byteLength > MAX_DOCX_BYTES) {
     throw new Error("El archivo supera el tamaño máximo permitido (8 MB).");
   }
-  let entries: Record<string, Uint8Array>;
   try {
-    entries = unzipSync(bytes);
+    return unzipSync(bytes);
   } catch {
     throw new Error("El archivo no es un .docx válido (no se pudo descomprimir).");
   }
+}
+
+/** Lee y parsea un *.rels del ZIP (vacío si no existe). */
+function readRels(entries: Record<string, Uint8Array>, path: string): Map<string, string> {
+  const b = entries[path];
+  return b ? parseRels(strFromU8(b)) : new Map<string, string>();
+}
+
+/**
+ * Resuelve y extrae a HTML la CABECERA o PIE "por defecto" del documento.
+ * Word referencia los headers/footers en `<w:sectPr>` vía
+ * `<w:headerReference w:type="default|first|even" r:id="rIdX"/>`. Elegimos el
+ * `default` (luego `first`, luego cualquiera); si no hay referencia, caemos a
+ * `word/header1.xml` / `word/footer1.xml` si existen. Las imágenes de la parte
+ * (logo institucional) se embeben con su propio mapa de rels.
+ */
+function extractHeaderFooter(
+  entries: Record<string, Uint8Array>,
+  documentXml: string,
+  docRels: Map<string, string>,
+  kind: "header" | "footer",
+): string {
+  const refTag = kind === "header" ? "headerReference" : "footerReference";
+  const byType: Record<string, string> = {};
+  const REF_RE = new RegExp(`<w:${refTag}\\b[^>]*>`, "g");
+  let rm: RegExpExecArray | null;
+  while ((rm = REF_RE.exec(documentXml)) !== null) {
+    const tag = rm[0];
+    const type = /w:type="([^"]+)"/.exec(tag)?.[1] ?? "default";
+    const rid = /r:id="([^"]+)"/.exec(tag)?.[1];
+    if (rid) byType[type] = rid;
+  }
+  const chosenRid = byType["default"] ?? byType["first"] ?? byType["even"] ?? null;
+
+  let partPath: string | null = null;
+  if (chosenRid) {
+    const target = docRels.get(chosenRid);
+    if (target) partPath = resolveTarget("word/", target);
+  }
+  if (!partPath || !entries[partPath]) {
+    const guess = `word/${kind}1.xml`;
+    if (entries[guess]) partPath = guess;
+    else return "";
+  }
+
+  const xml = strFromU8(entries[partPath]);
+  const fileName = partPath.split("/").pop() ?? "";
+  const baseDir = partPath.slice(0, partPath.length - fileName.length); // "word/"
+  const rels = readRels(entries, `${baseDir}_rels/${fileName}.rels`);
+  const resolver = makeImageResolver(rels, entries, baseDir);
+  return extractHtmlFromDocumentXml(xml, resolver);
+}
+
+/**
+ * Parsea un .docx COMPLETO: cuerpo + cabecera + pie, con las imágenes
+ * (logos, sellos) embebidas como data URI. La cabecera va a `header_html` de
+ * la plantilla y el pie a `footer_html`, así el preview y la exportación
+ * muestran el documento ORIGINAL completo (lo "antiguo") y el docente sólo
+ * agrega encima sus `{{variables}}` (lo "nuevo").
+ */
+export function parseDocxBundle(bytes: Uint8Array): DocxBundle {
+  const entries = unzipDocx(bytes);
   const docXmlBytes = entries[DOCUMENT_XML_PATH];
   if (!docXmlBytes) {
     throw new Error("El archivo no contiene un documento de Word (falta word/document.xml).");
   }
-  return strFromU8(docXmlBytes);
+  const documentXml = strFromU8(docXmlBytes);
+  const docRels = readRels(entries, "word/_rels/document.xml.rels");
+  const bodyResolver = makeImageResolver(docRels, entries, "word/");
+  return {
+    bodyHtml: extractHtmlFromDocumentXml(documentXml, bodyResolver),
+    headerHtml: extractHeaderFooter(entries, documentXml, docRels, "header"),
+    footerHtml: extractHeaderFooter(entries, documentXml, docRels, "footer"),
+  };
 }
 
 /**

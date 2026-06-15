@@ -30,6 +30,7 @@ import {
   type VariableNode,
 } from "./template-engine";
 import { RichTextEditor, type RichTextEditorHandle } from "./RichTextEditor";
+import { PAGE_BREAK_HTML } from "./docx-import";
 
 export interface TemplateDraft {
   name: string;
@@ -388,6 +389,12 @@ export function composeTemplateHtml(
 <style>
 @page { size: ${draft.page_size} ${draft.page_orientation}; margin: 18mm; }
 body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #111; line-height: 1.4; }
+/* Imágenes (logo de cabecera importada del .docx) nunca rebasan el ancho. */
+img { max-width: 100%; height: auto; }
+table { border-collapse: collapse; width: 100%; }
+td p { margin: 2px 0; }
+header { margin-bottom: 10px; }
+footer { margin-top: 12px; }
 /* Salto de página explícito. En impresión/PDF fuerza un corte real; en
    pantalla (editor + generador) lo decoramos como un divisor visible para
    que el docente vea CLARAMENTE dónde termina una página y empieza otra
@@ -436,18 +443,58 @@ function highlightPlaceholders(html: string): string {
   });
 }
 
+/** Dimensiones de página en mm para el preview (portrait por defecto). */
+function pageDimsMm(
+  size: TemplateDraft["page_size"],
+  orientation: TemplateDraft["page_orientation"],
+): { w: number; h: number } {
+  const base = size === "letter" ? { w: 216, h: 279 } : { w: 210, h: 297 };
+  return orientation === "landscape" ? { w: base.h, h: base.w } : base;
+}
+
 /**
- * HTML para la VISTA PREVIA en vivo del editor: el documento compuesto, con
- * los placeholders resaltados como campos. Para un .docx importado (sin
- * placeholders todavía) se ve el documento formateado tal cual; a medida que
- * el docente inserta variables, se ven resaltadas. Se reemplazan por datos
- * reales al "Generar". Pensado para `<iframe srcDoc sandbox="">`.
+ * HTML para la VISTA PREVIA en vivo del editor. A diferencia del documento de
+ * exportación (continuo), el preview se renderiza como HOJAS DE PÁGINA
+ * separadas — una por cada bloque entre saltos de página — con su etiqueta
+ * "Página N", la cabecera/pie repetidos y el tamaño real de la hoja. Así el
+ * docente VE claramente qué texto cae en cada página (antes se veía todo
+ * junto). Los `{{placeholders}}` se resaltan como campos.
  */
 export function composePreviewHtml(
   draft: Pick<TemplateDraft, "body_html" | "header_html" | "footer_html" | "css" | "page_orientation" | "page_size">,
 ): string {
-  const styled = composeTemplateHtml(draft).replace("</style>", `${PH_PREVIEW_STYLE}\n</style>`);
-  return highlightPlaceholders(styled);
+  const dims = pageDimsMm(draft.page_size, draft.page_orientation);
+  const header = draft.header_html ? `<header>${draft.header_html}</header>` : "";
+  const footer = draft.footer_html ? `<footer>${draft.footer_html}</footer>` : "";
+  // Partimos el cuerpo por los marcadores de salto de página → una hoja por
+  // segmento. Sin saltos = una sola hoja.
+  const segments = (draft.body_html || "").split(PAGE_BREAK_HTML);
+  const pages = segments
+    .map(
+      (seg, i) => `<div class="examlab-page-wrap">
+  <div class="examlab-page-label">Página ${i + 1}</div>
+  <div class="examlab-page">${header}<main>${seg}</main>${footer}</div>
+</div>`,
+    )
+    .join("\n");
+  const html = `<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+html, body { margin: 0; padding: 0; }
+body { background: #e5e7eb; padding: 18px 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #111; line-height: 1.4; }
+.examlab-page-wrap { width: ${dims.w}mm; max-width: calc(100% - 24px); margin: 0 auto 26px; }
+.examlab-page-label { font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: #6b7280; margin: 0 0 6px 4px; }
+.examlab-page { background: #fff; min-height: ${dims.h}mm; box-shadow: 0 1px 8px rgba(0,0,0,.18); padding: 18mm; box-sizing: border-box; overflow: hidden; }
+.examlab-page img { max-width: 100%; height: auto; }
+.examlab-page table { border-collapse: collapse; width: 100%; }
+.examlab-page td p { margin: 2px 0; }
+.examlab-page header { margin-bottom: 10px; }
+.examlab-page footer { margin-top: 12px; border-top: 1px solid #eee; padding-top: 6px; font-size: .85em; color: #555; }
+${PH_PREVIEW_STYLE}
+${draft.css ?? ""}
+</style>
+</head><body>${pages}</body></html>`;
+  return highlightPlaceholders(html);
 }
 
 /**
