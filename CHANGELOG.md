@@ -45,6 +45,22 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-15
 
+**Informes — cabecera de CUADROS DE TEXTO reconstruida (caso Camacho).** Con el
+.docx real (`diagnostico.docx`) se halló que la cabecera NO es una tabla sino 3
+**cuadros de texto flotantes** (`<w:drawing>`+`<w:txbxContent>`, anclados con
+`<wp:positionH>`): logo (inline) + título + versión. El importador los aplanaba
+a párrafos apilados → la exportación quedaba desfasada.
+- **`reconstructPositionedBoxes`** (docx-import): detecta cuadros de texto, los
+  agrupa por posición horizontal y los reconstruye como una **fila de tabla** —
+  una columna por cuadro, ordenadas izquierda→derecha, ancho proporcional a su
+  tamaño. Verificado contra el archivo real: logo 26% | título 55% | versión 19%,
+  título centrado/negrita, logo embebido. + tests con cabecera sintética.
+- **Dedup de imágenes** (mc:AlternateContent DrawingML+VML ya no duplica el logo).
+- **Tope de tamaño de imagen en el .docx** (`html-to-docx`): el logo se acota al
+  ancho de SU columna/página (en .docx no hay `max-width` → un logo grande
+  desbordaba y rompía el layout). Verificado E2E: el `.docx` del archivo real
+  produce un `<w:tbl>` de 3 celdas en `word/header1.xml` con el logo embebido.
+
 **Informes — fidelidad de estilos del .docx + variables en ambos scopes + iterar
 estudiantes en preview.**
 - **Estilos del .docx copiados con más fidelidad**: el importador ahora preserva

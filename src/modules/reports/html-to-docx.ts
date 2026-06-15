@@ -77,6 +77,13 @@ interface PartCtx {
   /** Contador de `wp:docPr/@id` COMPARTIDO entre cuerpo/cabecera/pie: ese id
    *  debe ser único a nivel de TODO el documento (LibreOffice es estricto). */
   idSeq: { n: number };
+  /** Ancho útil de la página en EMU (tope para imágenes — evita que un logo
+   *  grande desborde la página en el .docx, donde NO hay max-width). */
+  pageEmuW?: number;
+  /** Ancho EMU de la celda actual (cuando se renderiza una imagen DENTRO de
+   *  una celda de tabla): el logo se acota al ancho de SU columna, igual que
+   *  en el original. Se setea/limpia alrededor del render de cada celda. */
+  cellEmuW?: number;
 }
 
 function newPartCtx(prefix: string, idSeq: { n: number }): PartCtx {
@@ -188,8 +195,16 @@ function imageRun(img: Element, ctx: PartCtx): string {
   const st = styleMap(img);
   const wPx = parseFloat(st["width"] ?? "") || 120;
   const hPx = parseFloat(st["height"] ?? "") || Math.round(wPx * 0.4);
-  const cx = Math.max(1, Math.round(wPx * EMU_PER_PX));
-  const cy = Math.max(1, Math.round(hPx * EMU_PER_PX));
+  let cx = Math.max(1, Math.round(wPx * EMU_PER_PX));
+  let cy = Math.max(1, Math.round(hPx * EMU_PER_PX));
+  // Tope de ancho: la celda actual (si la imagen va en una tabla) o la página.
+  // En el .docx NO hay max-width, así que un logo grande desbordaría y rompería
+  // el layout — lo acotamos a su columna preservando la proporción.
+  const maxW = ctx.cellEmuW ?? ctx.pageEmuW;
+  if (maxW && cx > maxW) {
+    cy = Math.max(1, Math.round((cy * maxW) / cx));
+    cx = maxW;
+  }
 
   ctx.imgSeq += 1;
   const fileName = `image_${ctx.prefix}_${ctx.imgSeq}.${parsed.ext}`;
@@ -291,8 +306,14 @@ function tableToWml(table: Element, ctx: PartCtx): string {
           const vAlign = va === "top" ? "top" : va === "bottom" ? "bottom" : "center";
           // Orden CT_TcPr: tcW, gridSpan, tcBorders, shd, vAlign.
           const tcPr = `<w:tcPr>${tcW}${gridSpan}${tcBorders}${shd}<w:vAlign w:val="${vAlign}"/></w:tcPr>`;
+          // Acotar imágenes de la celda a SU ancho (% del ancho útil de página).
+          const prevCell = ctx.cellEmuW;
+          if (ctx.pageEmuW && Number.isFinite(w) && w > 0) {
+            ctx.cellEmuW = Math.round((w / 100) * ctx.pageEmuW);
+          }
           // El contenido de la celda son párrafos; Word exige ≥1 <w:p>.
           const inner = cellContent(td, ctx);
+          ctx.cellEmuW = prevCell;
           return `<w:tc>${tcPr}${inner}</w:tc>`;
         })
         .join("");
@@ -411,9 +432,12 @@ export function htmlToDocxFiles(
 
   // Contador de ids de dibujo compartido por todas las partes.
   const idSeq = { n: 1 };
+  // Ancho útil de página en EMU (1 twip = 635 EMU) — tope de imágenes.
+  const contentEmuW = (size.w - 2 * margin) * 635;
 
   // ── Cuerpo ──
   const docCtx = newPartCtx("doc", idSeq);
+  docCtx.pageEmuW = contentEmuW;
   let bodyWml = blocksToWml(mainEl, docCtx);
   if (!bodyWml.trim()) bodyWml = "<w:p/>";
 
@@ -435,6 +459,7 @@ export function htmlToDocxFiles(
 
   if (headerEl) {
     const hCtx = newPartCtx("hdr", idSeq);
+    hCtx.pageEmuW = contentEmuW;
     const hWml = blocksToWml(headerEl, hCtx) || "<w:p/>";
     files["word/header1.xml"] = strToU8(
       `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr ${ROOT_NS}>${hWml}</w:hdr>`,
@@ -453,6 +478,7 @@ export function htmlToDocxFiles(
   }
   if (footerEl) {
     const fCtx = newPartCtx("ftr", idSeq);
+    fCtx.pageEmuW = contentEmuW;
     const fWml = blocksToWml(footerEl, fCtx) || "<w:p/>";
     files["word/footer1.xml"] = strToU8(
       `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr ${ROOT_NS}>${fWml}</w:ftr>`,

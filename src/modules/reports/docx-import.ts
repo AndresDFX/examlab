@@ -209,13 +209,16 @@ function makeImageResolver(
  *  `<v:imagedata r:id>` (VML legacy). Devuelve `<img>` con data URI;
  *  dimensiona por `<wp:extent>` (EMU → px CSS) cuando está presente. */
 function runImagesToHtml(runXml: string, resolveImage: ImageResolver): string {
-  const ids: string[] = [];
+  // Set para DEDUP: Word envuelve cada drawing en <mc:AlternateContent> con un
+  // fallback VML, así que el mismo rId aparece como <a:blip> Y <v:imagedata> →
+  // sin dedup saldría la imagen dos veces.
+  const ids = new Set<string>();
   const BLIP = /<a:blip\b[^>]*?\br:embed="([^"]+)"/g;
   const VML = /<v:imagedata\b[^>]*?\br:id="([^"]+)"/g;
   let m: RegExpExecArray | null;
-  while ((m = BLIP.exec(runXml)) !== null) ids.push(m[1]);
-  while ((m = VML.exec(runXml)) !== null) ids.push(m[1]);
-  if (ids.length === 0) return "";
+  while ((m = BLIP.exec(runXml)) !== null) ids.add(m[1]);
+  while ((m = VML.exec(runXml)) !== null) ids.add(m[1]);
+  if (ids.size === 0) return "";
   // Dimensión del drawing (EMU; 9525 EMU = 1px CSS).
   const extent = /<wp:extent\b[^>]*\bcx="(\d+)"[^>]*\bcy="(\d+)"/.exec(runXml);
   let sizeStyle = "max-width:100%;height:auto;";
@@ -539,7 +542,85 @@ function extractHeaderFooter(
   const baseDir = partPath.slice(0, partPath.length - fileName.length); // "word/"
   const rels = readRels(entries, `${baseDir}_rels/${fileName}.rels`);
   const resolver = makeImageResolver(rels, entries, baseDir);
-  return extractHtmlFromDocumentXml(xml, resolver);
+  // Cabeceras hechas con CUADROS DE TEXTO flotantes (caso común de letterhead
+  // institucional, p. ej. Camacho: logo | título | versión): reconstruirlas
+  // como una fila de tabla por posición. Si no hay cuadros, extracción normal.
+  const boxed = reconstructPositionedBoxes(xml, resolver);
+  return boxed ?? extractHtmlFromDocumentXml(xml, resolver);
+}
+
+/**
+ * Reconstruye una cabecera/pie basada en CUADROS DE TEXTO flotantes (Word
+ * `<w:drawing>` con `<w:txbxContent>`, anclados con `<wp:positionH>`) como una
+ * FILA de tabla — una columna por cuadro, ordenadas izquierda→derecha por su
+ * posición horizontal y con ancho proporcional a su tamaño. Sin esto, los
+ * cuadros se aplanan a párrafos apilados y se pierde el layout (el caso de la
+ * cabecera Camacho: logo + título + versión lado a lado). Devuelve null si no
+ * hay cuadros de texto (entonces se usa la extracción normal).
+ */
+function reconstructPositionedBoxes(xml: string, resolveImage: ImageResolver): string | null {
+  const drawings = xml.match(/<w:drawing>[\s\S]*?<\/w:drawing>/g) ?? [];
+  if (drawings.length === 0 || !drawings.some((d) => /<w:txbxContent>/.test(d))) return null;
+
+  interface Item {
+    x: number;
+    cx: number;
+    txbx: string | null;
+    drawing: string;
+  }
+  const raw: Item[] = drawings.map((d, idx) => {
+    const isAnchor = /<wp:anchor\b/.test(d);
+    const posOff = /<wp:posOffset>(-?\d+)<\/wp:posOffset>/.exec(d);
+    const alignH = /<wp:positionH[^>]*>[\s\S]*?<wp:align>(left|center|right)<\/wp:align>/.exec(d);
+    let x: number;
+    if (!isAnchor)
+      x = -1_000_000 + idx; // inline (en flujo) → más a la izquierda, en orden
+    else if (posOff) x = Number(posOff[1]);
+    else if (alignH) x = alignH[1] === "left" ? 0 : alignH[1] === "center" ? 3_000_000 : 6_000_000;
+    else x = idx;
+    const ext = /<wp:extent\b[^>]*\bcx="(\d+)"/.exec(d);
+    const txbx = /<w:txbxContent>([\s\S]*?)<\/w:txbxContent>/.exec(d);
+    return { x, cx: ext ? Number(ext[1]) : 0, txbx: txbx ? txbx[1] : null, drawing: d };
+  });
+  raw.sort((a, b) => a.x - b.x);
+
+  // Agrupar por posición horizontal (tolerancia ≈ 3px): un cuadro de texto y su
+  // forma decorativa comparten posición → una sola columna.
+  const groups: Item[][] = [];
+  for (const it of raw) {
+    const g = groups.find((grp) => Math.abs(grp[0].x - it.x) < 30000);
+    if (g) g.push(it);
+    else groups.push([it]);
+  }
+
+  const cells = groups.map((g) => {
+    const withTxbx = g.find((it) => it.txbx);
+    const cx = Math.max(0, ...g.map((it) => it.cx));
+    let html: string;
+    if (withTxbx) {
+      const paras: string[] = [];
+      const PARA_RE = /<w:p(?:\s[^>]*)?>([\s\S]*?)<\/w:p>/g;
+      let pm: RegExpExecArray | null;
+      while ((pm = PARA_RE.exec(withTxbx.txbx as string)) !== null) {
+        const ph = paragraphToHtml(pm[1] ?? "", resolveImage);
+        if (ph) paras.push(ph);
+      }
+      html = paras.join("") || "&nbsp;";
+    } else {
+      // Sin cuadro de texto → imagen (logo). runImagesToHtml escanea el drawing.
+      html = runImagesToHtml(g.map((it) => it.drawing).join(""), resolveImage) || "&nbsp;";
+    }
+    return { cx, html };
+  });
+  if (cells.length === 0) return null;
+  const total = cells.reduce((s, c) => s + (c.cx || 1), 0);
+  const tds = cells
+    .map((c) => {
+      const pct = Math.round(((c.cx || 1) / total) * 1000) / 10;
+      return `<td style="width:${pct}%;padding:2px 6px;vertical-align:middle;">${c.html}</td>`;
+    })
+    .join("");
+  return `<table style="border-collapse:collapse;width:100%;table-layout:fixed;"><tr>${tds}</tr></table>`;
 }
 
 /**

@@ -472,6 +472,73 @@ describe("parseDocxBundle", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
+// Cabecera con CUADROS DE TEXTO flotantes (caso Camacho: logo | título |
+// versión posicionados con <wp:anchor>) → reconstruida como fila de tabla
+// ordenada por posición. Sin esto se aplanaba a párrafos apilados.
+// ─────────────────────────────────────────────────────────────────────
+
+function buildDocxWithTextboxHeader(): Uint8Array {
+  const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+  const R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+  const WP = 'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"';
+  const A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+  const documentXmlStr = `<?xml version="1.0"?>
+<w:document ${W} ${R}><w:body><w:p><w:r><w:t>x</w:t></w:r></w:p>
+<w:sectPr><w:headerReference w:type="default" r:id="rId1"/></w:sectPr></w:body></w:document>`;
+  const documentRels = `<?xml version="1.0"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="header" Target="header1.xml"/></Relationships>`;
+  // Logo inline (rId2) + caja "VERSION" a la derecha (posOffset grande) + caja
+  // "TITULO" al centro (posOffset medio). Insertadas en orden NO posicional a
+  // propósito, para verificar el ordenamiento por posición.
+  const headerXml = `<?xml version="1.0"?>
+<w:hdr ${W} ${R} ${WP} ${A}>
+  <w:p><w:r><w:drawing><wp:inline><wp:extent cx="1362075" cy="590550"/><a:blip r:embed="rId2"/></wp:inline></w:drawing></w:r></w:p>
+  <w:p><w:r><w:drawing><wp:anchor><wp:positionH relativeFrom="column"><wp:posOffset>6000000</wp:posOffset></wp:positionH><wp:extent cx="977900" cy="470535"/><a:graphic><a:graphicData><wps:txbx><w:txbxContent><w:p><w:r><w:t>VERSION</w:t></w:r></w:p></w:txbxContent></wps:txbx></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>
+  <w:p><w:r><w:drawing><wp:anchor><wp:positionH relativeFrom="column"><wp:posOffset>3000000</wp:posOffset></wp:positionH><wp:extent cx="2905125" cy="688340"/><a:graphic><a:graphicData><wps:txbx><w:txbxContent><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b w:val="1"/></w:rPr><w:t>TITULO</w:t></w:r></w:p></w:txbxContent></wps:txbx></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>
+</w:hdr>`;
+  const headerRels = `<?xml version="1.0"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId2" Type="image" Target="media/image1.png"/></Relationships>`;
+  const zipped = zipSync({
+    "[Content_Types].xml": strToU8(`<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>`),
+    "word/document.xml": strToU8(documentXmlStr),
+    "word/_rels/document.xml.rels": strToU8(documentRels),
+    "word/header1.xml": strToU8(headerXml),
+    "word/_rels/header1.xml.rels": strToU8(headerRels),
+    "word/media/image1.png": strToU8("PNG"),
+  });
+  return new Uint8Array(zipped);
+}
+
+describe("parseDocxBundle — cabecera de cuadros de texto → tabla por posición", () => {
+  const bundle = parseDocxBundle(buildDocxWithTextboxHeader());
+  const h = bundle.headerHtml;
+
+  it("reconstruye una FILA de tabla con una columna por cuadro/logo", () => {
+    expect(h.startsWith("<table")).toBe(true);
+    expect((h.match(/<td/g) ?? []).length).toBe(3);
+    expect(h).toContain("data:image/png;base64,"); // logo embebido
+    expect(h).toContain("TITULO");
+    expect(h).toContain("VERSION");
+  });
+
+  it("ordena las columnas por posición horizontal: logo → título → versión", () => {
+    const iLogo = h.indexOf("<img");
+    const iTitle = h.indexOf("TITULO");
+    const iVer = h.indexOf("VERSION");
+    expect(iLogo).toBeGreaterThanOrEqual(0);
+    expect(iLogo).toBeLessThan(iTitle); // logo (inline) primero
+    expect(iTitle).toBeLessThan(iVer); // título (posOffset 3M) antes que versión (6M)
+  });
+
+  it("preserva el título centrado y en negrita dentro de su celda", () => {
+    expect(h).toContain("text-align:center");
+    expect(h).toContain("<strong>TITULO</strong>");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
 // Fidelidad de estructura de TABLA: anchos de columna (tblGrid) preservados.
 // Sin esto, una cabecera "logo | título | versión" se DESFASA al exportar
 // porque las columnas reflowean a ancho automático.
