@@ -250,6 +250,17 @@ function runToHtml(runXml: string, resolveImage: ImageResolver = NO_IMAGES): str
     !new RegExp(`<w:${tag}\\s+w:val="(?:false|0|off)"`).test(rPr);
   const bold = isOn("b");
   const italic = isOn("i");
+  const underline = /<w:u\s+w:val="(?!none)/.test(rPr);
+  // Estilos de caracter para copiar el formato TAL CUAL: tamaño (w:sz =
+  // medios-puntos → pt), color (w:color hex) y fuente (w:rFonts).
+  const szHalf = /<w:sz\s+w:val="(\d+)"/.exec(rPr)?.[1];
+  const colorHex = /<w:color\s+w:val="([0-9A-Fa-f]{6})"/.exec(rPr)?.[1];
+  const font = /<w:rFonts\b[^>]*\bw:ascii="([^"]+)"/.exec(rPr)?.[1];
+  const charStyles: string[] = [];
+  if (szHalf) charStyles.push(`font-size:${Math.round((Number(szHalf) / 2) * 10) / 10}pt`);
+  if (colorHex && colorHex.toLowerCase() !== "auto") charStyles.push(`color:#${colorHex}`);
+  if (font) charStyles.push(`font-family:'${font.replace(/'/g, "")}'`);
+  const styleAttr = charStyles.length ? ` style="${charStyles.join(";")}"` : "";
 
   // Acumulamos el texto formateado del run, pero los SALTOS DE PÁGINA se
   // emiten como bloques sueltos (fuera de <strong>/<em>) para que el corte
@@ -261,6 +272,9 @@ function runToHtml(runXml: string, resolveImage: ImageResolver = NO_IMAGES): str
     let html = text;
     if (italic) html = `<em>${html}</em>`;
     if (bold) html = `<strong>${html}</strong>`;
+    if (underline) html = `<u>${html}</u>`;
+    // Tamaño/color/fuente → span con estilo (preserva el look del .docx).
+    if (styleAttr) html = `<span${styleAttr}>${html}</span>`;
     out.push(html);
     text = "";
   };
@@ -400,9 +414,17 @@ function tableToHtml(tableXml: string, resolveImage: ImageResolver = NO_IMAGES):
       }
       const cellHtml = paras.join("") || "&nbsp;";
       const border = cellHasBorder ? "border:1px solid #444;" : "";
+      // Alineación vertical de la celda (<w:vAlign>) — preserva el look (el logo
+      // y el título suelen ir centrados verticalmente).
+      const vAlignVal = /<w:vAlign\s+w:val="([^"]+)"/.exec(cellXml)?.[1];
+      const vAlign =
+        vAlignVal === "top" ? "top" : vAlignVal === "bottom" ? "bottom" : "middle";
+      // Sombreado / fondo de celda (<w:shd w:fill="RRGGBB">), ignora auto.
+      const fill = /<w:shd\b[^>]*\bw:fill="([0-9A-Fa-f]{6})"/.exec(cellXml)?.[1];
+      const bg = fill && fill.toLowerCase() !== "auto" ? `background-color:#${fill};` : "";
       const colspanAttr = span > 1 ? ` colspan="${span}"` : "";
       cells.push(
-        `<td${colspanAttr} style="padding:4px 6px;vertical-align:middle;${widthStyle}${border}">${cellHtml}</td>`,
+        `<td${colspanAttr} style="padding:4px 6px;vertical-align:${vAlign};${widthStyle}${border}${bg}">${cellHtml}</td>`,
       );
     }
     if (cells.length > 0) rows.push(`<tr>${cells.join("")}</tr>`);

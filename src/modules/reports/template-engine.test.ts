@@ -9,26 +9,25 @@ import {
 describe("reportCatalogForScope", () => {
   const paths = (scope: "estudiante" | "curso") => reportCatalogForScope(scope).map((n) => n.path);
 
-  it("scope 'estudiante': variables del alumno único, sin el consolidado de curso", () => {
-    const p = paths("estudiante");
-    expect(p).toContain("estudiante");
-    expect(p).toContain("notas");
-    expect(p).toContain("asistencia");
-    expect(p).toContain("curso");
-    expect(p).toContain("docente");
-    expect(p).toContain("institucion");
-    expect(p).not.toContain("estudiantes"); // grupo consolidado de curso
+  it("muestra TODOS los grupos en ambos scopes (para poder referenciar)", () => {
+    for (const scope of ["estudiante", "curso"] as const) {
+      const p = paths(scope);
+      for (const g of ["estudiante", "notas", "asistencia", "curso", "docente", "institucion", "estudiantes"]) {
+        expect(p, `${scope} debe incluir ${g}`).toContain(g);
+      }
+    }
   });
 
-  it("scope 'curso': consolidado de curso, sin los escalares del alumno único", () => {
+  it("scope 'estudiante': pone primero las del alumno (estudiante antes que curso)", () => {
+    const p = paths("estudiante");
+    expect(p.indexOf("estudiante")).toBeLessThan(p.indexOf("curso"));
+    expect(p.indexOf("notas")).toBeLessThan(p.indexOf("estudiantes"));
+  });
+
+  it("scope 'curso': pone primero curso + consolidado (curso antes que estudiante)", () => {
     const p = paths("curso");
-    expect(p).toContain("estudiantes"); // {{#each estudiantes}} + totales
-    expect(p).toContain("curso");
-    expect(p).toContain("docente");
-    expect(p).toContain("institucion");
-    expect(p).not.toContain("estudiante");
-    expect(p).not.toContain("notas");
-    expect(p).not.toContain("asistencia");
+    expect(p.indexOf("curso")).toBeLessThan(p.indexOf("estudiante"));
+    expect(p.indexOf("estudiantes")).toBeLessThan(p.indexOf("notas"));
   });
 });
 

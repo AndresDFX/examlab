@@ -124,6 +124,28 @@ describe("htmlToDocxFiles — estructura OOXML del .docx", () => {
     expect((document.match(/<w:gridCol/g) ?? []).length).toBe(2);
   });
 
+  it("lleva borde POR CELDA (la celda con borde sí, la sin borde no) + tamaño/color al run", () => {
+    const html =
+      `<!doctype html><html><head><style>@page{size:A4 portrait}</style></head><body><main>` +
+      `<table style="table-layout:fixed;width:100%">` +
+      `<tr>` +
+      `<td style="width:30%"><p>logo</p></td>` +
+      `<td style="width:70%;border:1px solid #444;vertical-align:top;background-color:#EEEEEE">` +
+      `<p><span style="font-size:18pt;color:#0000FF"><strong>T</strong></span></p></td>` +
+      `</tr></table></main></body></html>`;
+    const f = htmlToDocxFiles(html);
+    const document = strFromU8(f["word/document.xml"]);
+    // El run lleva el tamaño (18pt → 36 medios-puntos) y el color.
+    expect(document).toContain('<w:sz w:val="36"/>');
+    expect(document).toContain('<w:color w:val="0000FF"/>');
+    // La celda con borde lleva tcBorders; la celda del logo NO.
+    expect(document).toContain("<w:tcBorders>");
+    expect(document).toContain('<w:shd w:val="clear" w:color="auto" w:fill="EEEEEE"/>');
+    expect(document).toContain('<w:vAlign w:val="top"/>');
+    // Exactamente UNA celda con borde (la del título, no la del logo).
+    expect((document.match(/<w:tcBorders>/g) ?? []).length).toBe(1);
+  });
+
   it("el grid cubre la fila MÁS ancha (no sólo la primera)", () => {
     const html =
       `<!doctype html><html><head><style>@page{size:A4 portrait}</style></head><body><main>` +

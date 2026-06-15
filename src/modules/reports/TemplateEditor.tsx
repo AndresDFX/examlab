@@ -225,8 +225,23 @@ export function TemplateEditor({
     // .docx/PDF exportado), así el docente distingue lo agregado vs el template
     // original. IA = bloque (div), variable = inline (span).
     if ((activeTab === "preview" || activeTab === "body") && bodyMode === "visual") {
-      if (asHtml) richRef.current?.insertHtml(`<div class="examlab-added">${snippet}</div>`);
-      else richRef.current?.insertHtml(`<span class="examlab-added">${snippet}</span>`);
+      if (asHtml) {
+        // Contenido de IA = bloque.
+        richRef.current?.insertHtml(`<div class="examlab-added">${snippet}</div>`);
+      } else if (/\{\{[#/]/.test(snippet)) {
+        // Bloque de control ({{#each}}/{{#if}}): un <span> inline lo PARTE en
+        // contentEditable y rompe el par {{#each}}…{{/each}} → el preview no
+        // itera. Lo insertamos como bloques: apertura / línea editable / cierre,
+        // para que el par quede intacto y el docente escriba la fila en medio.
+        const open = snippet.split("\n")[0];
+        const close = snippet.trim().split("\n").pop() ?? "{{/each}}";
+        richRef.current?.insertHtml(
+          `<div class="examlab-added">${open}</div><div><br></div><div class="examlab-added">${close}</div>`,
+        );
+      } else {
+        // Variable escalar → span inline coloreado.
+        richRef.current?.insertHtml(`<span class="examlab-added">${snippet}</span>`);
+      }
       return;
     }
     const tab: EditTab = activeTab === "preview" ? "body" : activeTab;

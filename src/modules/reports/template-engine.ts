@@ -373,28 +373,28 @@ export const REPORT_VARIABLE_CATALOG: VariableNode[] = [
 ];
 
 /**
- * Catálogo de variables FILTRADO según el tipo de informe (scope):
- *   - 'estudiante': variables del alumno ÚNICO (estudiante.*, nota_final,
- *     cortes/exámenes/talleres/proyectos, asistencia.*) + curso/docente/
- *     institución. NO el grupo consolidado `{{#each estudiantes}}`.
- *   - 'curso': curso/docente/institución + el grupo CONSOLIDADO
- *     (`{{#each estudiantes}}` + totales). NO los escalares del alumno único
- *     (que en un informe de curso no tienen un valor — viven dentro del each).
- * Esto refleja exactamente las dos formas que arma `buildReportContext`.
+ * Catálogo de variables ORDENADO según el tipo de informe (scope) — pero
+ * mostrando TODAS las variables en ambos scopes, para poder REFERENCIAR datos
+ * del curso aunque el informe sea por estudiante (y los escalares del alumno
+ * aunque sea por curso). El scope sólo cambia el ORDEN (lo relevante primero):
+ *   - 'estudiante': primero estudiante/notas/asistencia, luego curso/docente/
+ *     institución y el consolidado `{{#each estudiantes}}`.
+ *   - 'curso': primero curso + consolidado `{{#each estudiantes}}` + docente/
+ *     institución, luego los escalares del alumno.
  */
 export function reportCatalogForScope(
   scope: "estudiante" | "curso",
   catalog: VariableNode[] = REPORT_VARIABLE_CATALOG,
 ): VariableNode[] {
-  // Grupos que SÓLO aplican al informe por estudiante (alumno único).
-  const studentOnly = new Set(["estudiante", "notas", "asistencia"]);
-  // Grupo que SÓLO aplica al informe consolidado por curso.
-  const courseOnly = new Set(["estudiantes"]);
-  return catalog.filter((node) => {
-    if (studentOnly.has(node.path)) return scope === "estudiante";
-    if (courseOnly.has(node.path)) return scope === "curso";
-    return true; // curso / docente / institución → ambos scopes
-  });
+  const order =
+    scope === "estudiante"
+      ? ["estudiante", "notas", "asistencia", "curso", "docente", "institucion", "estudiantes"]
+      : ["curso", "estudiantes", "docente", "institucion", "notas", "asistencia", "estudiante"];
+  const rank = (path: string) => {
+    const i = order.indexOf(path);
+    return i < 0 ? order.length : i;
+  };
+  return [...catalog].sort((a, b) => rank(a.path) - rank(b.path));
 }
 
 /**

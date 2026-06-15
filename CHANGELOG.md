@@ -45,6 +45,28 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-15
 
+**Informes — fidelidad de estilos del .docx + variables en ambos scopes + iterar
+estudiantes en preview.**
+- **Estilos del .docx copiados con más fidelidad**: el importador ahora preserva
+  tamaño de fuente (`w:sz`→pt), color (`w:color`), fuente (`w:rFonts`), subrayado,
+  alineación vertical de celda (`w:vAlign`) y sombreado (`w:shd`). La exportación
+  `.docx` (`html-to-docx`) los lleva al run (`w:sz`/`w:color`/`w:rFonts`/`w:u`) y a
+  la celda (`tcBorders` POR CELDA — la del título sí, el logo no — `w:shd`,
+  `w:vAlign`). + tests.
+- **Variables de la derecha en AMBOS scopes**: `reportCatalogForScope` ya no
+  oculta grupos — los muestra TODOS, sólo reordena (lo relevante al scope
+  primero). Así, aunque el informe sea por estudiante, aparecen las variables del
+  curso para referenciar (y los escalares del alumno en uno por curso).
+- **`{{#each estudiantes}}` ahora itera en la vista previa**: insertar un bloque
+  de control (`{{#each}}`/`{{#if}}`) en el editor visual lo metía en un `<span>`
+  inline que partía el par de tokens y rompía la iteración. Ahora se inserta como
+  BLOQUES (apertura / línea editable / cierre) con el par intacto → el preview
+  itera con datos reales/de muestra.
+- El resaltado de lo agregado en la plataforma (variables/IA/bloques) sigue
+  siendo SÓLO del editor; la exportación conserva el formato del template (sin
+  color). *Nota: colorear texto libre tecleado vs original requiere control de
+  cambios y queda fuera de alcance; lo insertado (variables/IA) sí se resalta.*
+
 **Acta oficial — "No se pudo generar el acta" CORREGIDO (workflow).** Un workflow
 de diagnóstico (14 hallazgos, 7 confirmados) halló la causa: `generate_course_acta`
 hacía un INSERT plano sobre `course_actas`, que tiene UNIQUE (course_id,

@@ -106,16 +106,54 @@ function jcFromAlign(align?: string): string {
   return "";
 }
 
-/** Runs de contenido inline (texto + strong/em/br/img/span). */
-function inlineRuns(node: Node, ctx: PartCtx, fmt: { b?: boolean; i?: boolean }): string {
+/** Formato de caracter acumulado por la recursión de inline. */
+interface RunFmt {
+  b?: boolean;
+  i?: boolean;
+  u?: boolean;
+  sz?: string; // medios-puntos (w:sz)
+  color?: string; // hex sin #
+  font?: string;
+}
+
+/** `<w:rPr>` desde el formato acumulado, en el orden que exige CT_RPr
+ *  (rFonts, b, i, color, sz, u) — Word es estricto con la secuencia. */
+function rPrXml(fmt: RunFmt): string {
+  const parts: string[] = [];
+  if (fmt.font) parts.push(`<w:rFonts w:ascii="${xmlEscape(fmt.font)}" w:hAnsi="${xmlEscape(fmt.font)}"/>`);
+  if (fmt.b) parts.push("<w:b/>");
+  if (fmt.i) parts.push("<w:i/>");
+  if (fmt.color) parts.push(`<w:color w:val="${fmt.color}"/>`);
+  if (fmt.sz) parts.push(`<w:sz w:val="${fmt.sz}"/>`);
+  if (fmt.u) parts.push('<w:u w:val="single"/>');
+  return parts.length ? `<w:rPr>${parts.join("")}</w:rPr>` : "";
+}
+
+/** Lee el `style` inline de un <span> y lo mezcla en el formato de run. */
+function fmtFromSpanStyle(el: Element, base: RunFmt): RunFmt {
+  const st = styleMap(el);
+  const next: RunFmt = { ...base };
+  const fs = st["font-size"];
+  if (fs) {
+    const pt = parseFloat(fs);
+    if (Number.isFinite(pt) && pt > 0) next.sz = String(Math.round(pt * 2)); // pt → medios-puntos
+  }
+  const color = st["color"];
+  const hex = /#([0-9a-fA-F]{6})/.exec(color ?? "")?.[1];
+  if (hex) next.color = hex.toUpperCase();
+  const ff = st["font-family"];
+  if (ff) next.font = ff.replace(/['"]/g, "").split(",")[0].trim();
+  return next;
+}
+
+/** Runs de contenido inline (texto + strong/em/u/br/img/span con estilos). */
+function inlineRuns(node: Node, ctx: PartCtx, fmt: RunFmt): string {
   let out = "";
   node.childNodes.forEach((child) => {
     if (child.nodeType === 3 /* text */) {
       const text = child.textContent ?? "";
       if (text.length === 0) return;
-      const rPr =
-        fmt.b || fmt.i ? `<w:rPr>${fmt.b ? "<w:b/>" : ""}${fmt.i ? "<w:i/>" : ""}</w:rPr>` : "";
-      out += `<w:r>${rPr}<w:t xml:space="preserve">${xmlEscape(text)}</w:t></w:r>`;
+      out += `<w:r>${rPrXml(fmt)}<w:t xml:space="preserve">${xmlEscape(text)}</w:t></w:r>`;
       return;
     }
     if (child.nodeType !== 1) return;
@@ -127,10 +165,15 @@ function inlineRuns(node: Node, ctx: PartCtx, fmt: { b?: boolean; i?: boolean })
       out += inlineRuns(el, ctx, { ...fmt, b: true });
     } else if (tag === "em" || tag === "i") {
       out += inlineRuns(el, ctx, { ...fmt, i: true });
+    } else if (tag === "u") {
+      out += inlineRuns(el, ctx, { ...fmt, u: true });
     } else if (tag === "img") {
       out += imageRun(el, ctx);
+    } else if (tag === "span") {
+      // Copia tamaño/color/fuente del .docx importado al run.
+      out += inlineRuns(el, ctx, fmtFromSpanStyle(el, fmt));
     } else {
-      // span / a / u / otros → heredar formato.
+      // a / otros → heredar formato.
       out += inlineRuns(el, ctx, fmt);
     }
   });
@@ -184,17 +227,9 @@ function paragraph(el: Element, ctx: PartCtx, styleId?: string): string {
 
 const HEADING_STYLE: Record<string, string> = { h1: "Heading1", h2: "Heading2", h3: "Heading3", h4: "Heading4" };
 
-/** ¿la tabla declara bordes visibles? (heurística sobre el style inline de tds) */
-function tableHasBorders(table: Element): boolean {
-  return Array.from(table.querySelectorAll("td")).some((td) =>
-    /border\s*:\s*[^;]*\b(1px|solid|2px|double|dashed|dotted)\b/i.test(td.getAttribute("style") ?? ""),
-  );
-}
-
 function tableToWml(table: Element, ctx: PartCtx): string {
   const rows = Array.from(table.querySelectorAll(":scope > tbody > tr, :scope > tr"));
   if (rows.length === 0) return "";
-  const withBorders = tableHasBorders(table);
   // Anchos de columna desde la 1ª fila (width:% de cada td) → tblGrid en pct.
   const firstCells = Array.from(rows[0].children).filter((c) => c.tagName.toLowerCase() === "td");
   const pcts: number[] = [];
@@ -226,25 +261,36 @@ function tableToWml(table: Element, ctx: PartCtx): string {
     total > 0 && pcts.length === gridCols
       ? `<w:tblGrid>${pcts.map((p) => `<w:gridCol w:w="${Math.max(1, Math.round((p / total) * 9000))}"/>`).join("")}</w:tblGrid>`
       : `<w:tblGrid>${Array.from({ length: gridCols }, () => `<w:gridCol w:w="${Math.round(9000 / gridCols)}"/>`).join("")}</w:tblGrid>`;
-  const borders = withBorders
-    ? "<w:tblBorders>" +
-      ["top", "left", "bottom", "right", "insideH", "insideV"]
-        .map((s) => `<w:${s} w:val="single" w:sz="4" w:space="0" w:color="444444"/>`)
-        .join("") +
-      "</w:tblBorders>"
-    : "";
-  const tblPr = `<w:tblPr><w:tblW w:type="pct" w:w="5000"/>${borders}<w:tblLayout w:type="fixed"/></w:tblPr>`;
+  const tblPr = `<w:tblPr><w:tblW w:type="pct" w:w="5000"/><w:tblLayout w:type="fixed"/></w:tblPr>`;
 
   const trs = rows
     .map((tr) => {
       const cells = Array.from(tr.children).filter((c) => c.tagName.toLowerCase() === "td");
       const tcs = cells
         .map((td) => {
+          const tdStyle = styleMap(td);
           const span = Math.max(1, Number(td.getAttribute("colspan") ?? "1"));
-          const w = parseFloat(styleMap(td)["width"] ?? "");
+          const w = parseFloat(tdStyle["width"] ?? "");
           const tcW = Number.isFinite(w) ? `<w:tcW w:type="pct" w:w="${Math.round(w * 50)}"/>` : "";
           const gridSpan = span > 1 ? `<w:gridSpan w:val="${span}"/>` : "";
-          const tcPr = `<w:tcPr>${tcW}${gridSpan}<w:vAlign w:val="center"/></w:tcPr>`;
+          // Borde POR CELDA (la celda con borde lleva su caja; el logo no).
+          const hasBorder = /\b(solid|double|dashed|dotted)\b/i.test(tdStyle["border"] ?? "");
+          const tcBorders = hasBorder
+            ? "<w:tcBorders>" +
+              ["top", "left", "bottom", "right"]
+                .map((s) => `<w:${s} w:val="single" w:sz="4" w:space="0" w:color="444444"/>`)
+                .join("") +
+              "</w:tcBorders>"
+            : "";
+          // Sombreado de celda (background-color) + alineación vertical.
+          const fillHex = /#([0-9a-fA-F]{6})/.exec(tdStyle["background-color"] ?? "")?.[1];
+          const shd = fillHex
+            ? `<w:shd w:val="clear" w:color="auto" w:fill="${fillHex.toUpperCase()}"/>`
+            : "";
+          const va = tdStyle["vertical-align"];
+          const vAlign = va === "top" ? "top" : va === "bottom" ? "bottom" : "center";
+          // Orden CT_TcPr: tcW, gridSpan, tcBorders, shd, vAlign.
+          const tcPr = `<w:tcPr>${tcW}${gridSpan}${tcBorders}${shd}<w:vAlign w:val="${vAlign}"/></w:tcPr>`;
           // El contenido de la celda son párrafos; Word exige ≥1 <w:p>.
           const inner = cellContent(td, ctx);
           return `<w:tc>${tcPr}${inner}</w:tc>`;

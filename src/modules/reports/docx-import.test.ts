@@ -390,6 +390,20 @@ describe("extractHtmlFromDocumentXml", () => {
     const xml = `<w:document><w:body><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>Centrado</w:t></w:r></w:p></w:body></w:document>`;
     expect(extractHtmlFromDocumentXml(xml)).toContain('style="text-align:center"');
   });
+
+  it("preserva tamaño (w:sz) y color (w:color) del run como estilo inline", () => {
+    const xml = `<w:document><w:body><w:p><w:r><w:rPr><w:sz w:val="32"/><w:color w:val="FF0000"/></w:rPr><w:t>Grande rojo</w:t></w:r></w:p></w:body></w:document>`;
+    const html = extractHtmlFromDocumentXml(xml);
+    expect(html).toContain("font-size:16pt"); // 32 medios-puntos / 2
+    expect(html).toContain("color:#FF0000");
+  });
+
+  it("preserva alineación vertical y sombreado de la celda", () => {
+    const xml = `<w:document><w:body><w:tbl><w:tr><w:tc><w:tcPr><w:vAlign w:val="top"/><w:shd w:fill="EEEEEE"/></w:tcPr><w:p><w:r><w:t>X</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>`;
+    const html = extractHtmlFromDocumentXml(xml);
+    expect(html).toContain("vertical-align:top");
+    expect(html).toContain("background-color:#EEEEEE");
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────
