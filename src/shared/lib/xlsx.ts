@@ -238,6 +238,10 @@ export interface XlsxOptions {
 export interface XlsxStyle {
   fill?: string;
   bold?: boolean;
+  /** Alineación horizontal de la celda. Útil para celdas combinadas
+   *  (mergeCells): por defecto el texto queda a la izquierda; "center" lo
+   *  centra a lo ancho del merge. */
+  align?: "left" | "center" | "right";
 }
 
 /**
@@ -291,8 +295,13 @@ function buildStylesXml(styles: XlsxStyle[]): string {
     const fillId = st.fill ? fillIdxForColor(st.fill) : 0;
     const applyFont = st.bold ? ' applyFont="1"' : "";
     const applyFill = st.fill ? ' applyFill="1"' : "";
+    const applyAlign = st.align ? ' applyAlignment="1"' : "";
+    const attrs = `numFmtId="0" fontId="${fontId}" fillId="${fillId}" borderId="0" xfId="0"${applyFont}${applyFill}${applyAlign}`;
+    // Con alineación el <xf> lleva un hijo <alignment/> (no self-closing).
     cellXfs.push(
-      `<xf numFmtId="0" fontId="${fontId}" fillId="${fillId}" borderId="0" xfId="0"${applyFont}${applyFill}/>`,
+      st.align
+        ? `<xf ${attrs}><alignment horizontal="${st.align}"/></xf>`
+        : `<xf ${attrs}/>`,
     );
   }
 

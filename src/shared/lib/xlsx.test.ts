@@ -287,6 +287,20 @@ describe("toXLSX", () => {
     expect(text).toContain('<cellXfs count="3">');
   });
 
+  it("style.align → xf con <alignment horizontal> + applyAlignment (para celdas combinadas)", () => {
+    const text = asText(
+      toXLSX([{ a: 1 }], undefined, "Datos", {
+        styles: [{ fill: "FFF2F2F2", bold: true, align: "center" }],
+        groupHeader: { a: "G" },
+        groupHeaderStyle: 1,
+      }),
+    );
+    expect(text).toContain('applyAlignment="1"');
+    expect(text).toContain('<alignment horizontal="center"/>');
+    // El xf sin align sigue siendo self-closing (el default, index 0).
+    expect(text).toContain('<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>');
+  });
+
   it("declara styles.xml en [Content_Types] y en los rels del workbook", () => {
     const text = asText(
       toXLSX([{ a: 1 }], undefined, "Datos", { styles: [{ fill: "FFD9EAD3" }], headerStyle: 1 }),

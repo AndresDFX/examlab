@@ -7545,6 +7545,7 @@
     "csvPersonalEmail": "email_personal",
     "csvFinalGrade": "Calificación final",
     "csvWorkshopPrefix": "[T] ",
+    "csvProjectPrefix": "[P] ",
     "csvMakeupSuffix": " (S)",
     "csvFilePrefix": "calificaciones",
     "courseFallback": "curso",

@@ -687,7 +687,11 @@ function Gradebook() {
     // así que la centralizamos para que no diverjan.
     const itemLabel = (col: GradeColumn) => {
       const prefix =
-        col.kind === "workshop" ? t("hc_routesAppTeacherGradebook.csvWorkshopPrefix") : "";
+        col.kind === "workshop"
+          ? t("hc_routesAppTeacherGradebook.csvWorkshopPrefix")
+          : col.kind === "project"
+            ? t("hc_routesAppTeacherGradebook.csvProjectPrefix")
+            : "";
       const pct = col.weight != null ? ` (${col.weight}%)` : "";
       return `${prefix}${col.title}${pct}`;
     };
@@ -806,7 +810,7 @@ function Gradebook() {
       // headerStyle / groupHeaderStyle (cellXfs 0 = sin estilo).
       const styles = [
         { fill: "FFE7E6E6", bold: true }, // 1 encabezado (gris + negrita)
-        { fill: "FFF2F2F2", bold: true }, // 2 fila de grupo de corte (gris suave)
+        { fill: "FFF2F2F2", bold: true, align: "center" as const }, // 2 fila de grupo de corte (gris suave, centrado en la celda combinada)
         { fill: "FFD9EAD3" }, // 3 nota aprobada (verde suave)
         { fill: "FFF4CCCC" }, // 4 nota reprobada (rojo suave)
       ];
