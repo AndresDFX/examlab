@@ -29,7 +29,8 @@ BEGIN
      OR to_regclass('public.project_courses') IS NULL
      OR to_regclass('public.exam_assignments') IS NULL
      OR to_regclass('public.workshop_assignments') IS NULL
-     OR to_regclass('public.project_assignments') IS NULL THEN
+     OR to_regclass('public.project_assignments') IS NULL
+     OR to_regclass('public.grade_cuts') IS NULL THEN
     RAISE NOTICE 'skip get_course_cohort_weights: tabla(s) ausente(s)';
     RETURN;
   END IF;
