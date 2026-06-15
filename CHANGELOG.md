@@ -45,6 +45,27 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 Sesión de mejoras amplia (cada ítem = un `/goal` del usuario). Commits sobre `main`.
 
+> ⚠️ **PENDIENTE DE PUBLISH (Lovable):** varios fixes son de código/migración y
+> sólo se ven tras **Publish**. En particular el fix de **talleres COMPARTIDOS**
+> (`6912b4b`) resuelve #35/#36 (la nota del Taller Final no aparecía en Seminario)
+> — el dato está sano, falta deploy. Migraciones nuevas: 20260962–20260973.
+
+- **Colores en el Excel de calificaciones** (#38): estilos OOXML opcionales en
+  xlsx.ts (6ª parte sólo si se usan; byte-idéntico sin estilos) + encabezado/grupo/
+  verde-aprobado/rojo-reprueba como el grid. — `b8fe520`
+- **i18n: consolidación** de 35 claves defaultValue de la sesión en es+en (7680/7680). — `81b2a76`
+- **Aviso "cambios sin guardar"** (#11b) extendido a 12 diálogos de crear/editar. — `0dce3be`
+- **Tablero del estudiante: evaluación por cohorte** (#33): RPC SECURITY DEFINER
+  get_course_cohort_weights + helper + panel (qué actividades/% aplican a cada
+  cohorte). Mig 20260973. — `c1e3d63`
+- **Item COMPARTIDO muestra nota en AMBOS cursos** (#30/#31/#35/#36): talleres se
+  cargaban por ancla legacy; ahora via workshop_courses (grades + gradebook +
+  cut-detail). Datos VetCare/Taller Final sanos. — `6912b4b` *(requiere Publish)*
+- **Crash al ordenar grilla de talleres por Corte** (#32, TDZ cuts) — `1f681e8`. +
+  fix `<strong>` literal en weightBucketDesc/weightAvailable (#27/#34) — `3162b8a`,`985ccba`.
+- **Finalizar curso exige sin pendientes** (#29, mig 20260972) — `b1ef9cd`.
+- **Datos Camacho**: Taller Final compartido a 2 cursos (Corte 3, 15% c/u) vía REST (#28).
+
 > **Paralelización (#25):** desde acá los workflows con archivos de código DISJUNTOS
 > corren EN PARALELO usando `t(..., {defaultValue})` (sin editar locales) para no
 > chocar en `es.json`/`en.json`; un pase final consolida las claves. Se corrieron
