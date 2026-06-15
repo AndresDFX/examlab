@@ -81,7 +81,12 @@ import {
   draftEqual,
   type TemplateDraft,
 } from "@/modules/reports/TemplateEditor";
-import { renderTemplate, buildAiReportPrompt, buildSampleReportContext } from "@/modules/reports/template-engine";
+import {
+  renderTemplate,
+  buildAiReportPrompt,
+  buildSampleReportContext,
+  type TemplateContext,
+} from "@/modules/reports/template-engine";
 import { useTenant } from "@/modules/tenants/use-tenant";
 import { buildReportContext, buildReportContextFromActa } from "@/modules/reports/report-context";
 import { parseDocxBundle, extractPlaceholders } from "@/modules/reports/docx-import";
@@ -597,16 +602,22 @@ function Inner() {
   const aiGenerate = async ({
     instruction,
     courseId,
+    studentId,
   }: {
     instruction: string;
     courseId: string;
+    studentId?: string;
   }): Promise<string | null> => {
     let system = "";
     let userMsg = "";
     try {
-      const ctx = await buildReportContext({ courseId, studentId: undefined });
+      const ctx = await buildReportContext({ courseId, studentId: studentId || undefined });
+      // draftText vacío a propósito: la generación es de un FRAGMENTO para
+      // insertar en el cursor, no una reescritura del informe entero. Mandar
+      // el body completo (que puede traer imágenes embebidas del .docx) era la
+      // causa del error `prompt_too_large` (>200K chars en el edge).
       ({ system, user: userMsg } = buildAiReportPrompt({
-        draftText: draft.body_html,
+        draftText: "",
         instruction,
         ctx,
       }));
@@ -667,6 +678,42 @@ function Inner() {
       console.info("[reports][ai-prompt]\n", prompt);
     }
     return null;
+  };
+
+  // ── Vista previa con datos REALES (no mock) ───────────────────────
+  // El editor previsualiza con datos de un curso (y un estudiante, en scope
+  // 'estudiante') que el docente elige. buildReportContext trae los datos
+  // reales (notas, asistencia, lista de estudiantes). Si falla (curso sin
+  // alumnos, etc.), devolvemos null → el editor cae al contexto de muestra.
+  const loadPreviewContext = async ({
+    courseId,
+    studentId,
+  }: {
+    courseId: string;
+    studentId?: string;
+  }): Promise<TemplateContext | null> => {
+    try {
+      return await buildReportContext({ courseId, studentId: studentId || undefined });
+    } catch {
+      return null;
+    }
+  };
+
+  const loadCourseStudents = async (
+    courseId: string,
+  ): Promise<{ id: string; full_name: string }[]> => {
+    const { data: ens } = await db
+      .from("course_enrollments")
+      .select("user_id")
+      .eq("course_id", courseId);
+    const ids = (ens ?? []).map((e: { user_id: string }) => e.user_id);
+    if (ids.length === 0) return [];
+    const { data: profs } = await db
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", ids)
+      .order("full_name");
+    return (profs ?? []) as { id: string; full_name: string }[];
   };
 
   // ── Generador handlers ───────────────────────────────────────────
@@ -1228,7 +1275,9 @@ function Inner() {
             onChange={setDraft}
             previewContext={previewContext}
             onAiGenerate={aiGenerate}
-            aiCourses={courses}
+            courses={courses}
+            loadPreviewContext={loadPreviewContext}
+            loadCourseStudents={loadCourseStudents}
           />
 
           <DialogFooter>

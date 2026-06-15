@@ -4372,6 +4372,7 @@
     "filterModuleContents": "Contenidos",
     "filterModuleBranding": "Marca institucional",
     "filterModuleTutor": "Tutor IA",
+    "filterModuleReports": "Informes",
     "showingCount": "Mostrando {{shown}} de {{total}}",
     "brandingTitle": "Marca institucional",
     "brandingHelpHint": "Estos valores se inyectan al prompt de Generación de contenidos como {{university_name}}, {{logo_url}}, {{primary_color}} y {{secondary_color}}. Aparecen también en la portada del .pptx generado.",
@@ -6164,7 +6165,13 @@
     "aiInstructionPlaceholder": "Ej.: un párrafo de observaciones del desempeño del estudiante usando su nombre y nota final.",
     "aiCancel": "Cancelar",
     "aiGenerating": "Generando…",
-    "aiGenerateInsert": "Generar e insertar"
+    "aiGenerateInsert": "Generar e insertar",
+    "previewCourseLabel": "Datos del curso",
+    "previewStudentLabel": "Estudiante",
+    "previewRealNote": "Vista previa con DATOS REALES del curso/estudiante elegido. Cambia la selección de arriba para ver otro caso.",
+    "previewLoading": "cargando datos…",
+    "aiDataSource": "Datos de:",
+    "aiNoCourse": "Elige un curso en la pestaña “Vista previa” para usar datos reales."
   },
   "hc_modulesSchedulesCourseScheduleEditor": {
     "loadScheduleError": "No pudimos cargar el horario",

@@ -4372,6 +4372,7 @@
     "filterModuleContents": "Contents",
     "filterModuleBranding": "Institutional branding",
     "filterModuleTutor": "AI Tutor",
+    "filterModuleReports": "Reports",
     "showingCount": "Showing {{shown}} of {{total}}",
     "brandingTitle": "Institutional branding",
     "brandingHelpHint": "These values are injected into the Content Generation prompt as {{university_name}}, {{logo_url}}, {{primary_color}} and {{secondary_color}}. They also appear on the cover of the generated .pptx.",
@@ -6164,7 +6165,13 @@
     "aiInstructionPlaceholder": "E.g.: a paragraph of observations on the student's performance using their name and final grade.",
     "aiCancel": "Cancel",
     "aiGenerating": "Generating…",
-    "aiGenerateInsert": "Generate and insert"
+    "aiGenerateInsert": "Generate and insert",
+    "previewCourseLabel": "Course data",
+    "previewStudentLabel": "Student",
+    "previewRealNote": "Preview with REAL data from the chosen course/student. Change the selection above to see another case.",
+    "previewLoading": "loading data…",
+    "aiDataSource": "Data from:",
+    "aiNoCourse": "Pick a course in the “Preview” tab to use real data."
   },
   "hc_modulesSchedulesCourseScheduleEditor": {
     "loadScheduleError": "We couldn't load the schedule",

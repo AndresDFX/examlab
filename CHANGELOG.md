@@ -33,7 +33,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 - **Escala de calificación**: se hereda de la asignatura/curso; la vista de calificaciones muestra SIEMPRE la escala del curso. La "Nota" usa `toScale(raw, max_score)`; el "Puntaje" se normaliza a `grade_scale_max` en PRESENTACIÓN (`rescaleScore`), sin tocar datos. NO normalizar `max_score` de items legacy por migración masiva (riesgo de re-interpretar notas bajas de items /100). Items nuevos default `max_score = grade_scale_max`.
 - **Finalizar curso exige SIN pendientes de calificación** (mig 20260972): `set_course_status`→finalizado RAISE si hay pendientes; `auto_finalize_courses` (cron) no finaliza cursos vencidos con pendientes y notifica a sus docentes. "Pendiente" = lógica del Diagnóstico (`course_pending_grading_count`). Esa función es **interna** (SECURITY DEFINER, SIN GRANT a `authenticated` desde mig `20260974` — los callers internos la conservan); NO invocarla desde el cliente.
 - **Items SIN corte (`cut_id NULL`)**: cuentan en la NOTA FINAL del curso con su peso, tanto en el gradebook docente como en la vista del estudiante (paridad con el número del certificado). La tarjeta "Sin corte" del estudiante es informativa pero su nota SÍ entra al weighted avg. (`app.teacher.gradebook.tsx`, `app.student.grades.tsx`, fix #0)
-- **Informes: Plantilla ≠ Informe generado** (mig `20260975`). La **Plantilla** (`report_templates`) es el blueprint reutilizable; el **Informe generado** (`generated_reports`) es la instancia con datos reales (snapshot HTML, descargable Word/PDF), persistida con historial. "Generar" produce el archivo descargable (Word vía MSO-HTML `.doc` o PDF vía impresión), es acción de DOCENTE (RLS: docente del curso / Admin del tenant / SA; el estudiante nunca lo ve; inmutable). Los saltos de página de Word se preservan al importar `.docx` y se ven como divisor "Salto de página" en pantalla + corte real en PDF/Word (marcador `.examlab-page-break`). UI del docente en 2 tabs: "Plantillas" / "Informes generados". **Importar `.docx`** captura cuerpo + **cabecera + pie** con **imágenes embebidas como data URI** (`parseDocxBundle` → `header_html`/`footer_html`/`body_html`); el preview del editor se renderiza como **hojas de página** ("Página X de N") con las **variables YA RESUELTAS** (datos de muestra o la marca real del tenant — el logo se ve, no `{{tokens}}`), y la exportación incluye el documento original completo + las `{{variables}}` (no sólo lo nuevo). La **Generación IA** vive en el panel de Variables disponibles (derecha) e inserta el contenido EXACTAMENTE en el cursor (`onAiGenerate` + `RichTextEditor.insertHtml`), NO como botón global que reemplaza el cuerpo.
+- **Informes: Plantilla ≠ Informe generado** (mig `20260975`). La **Plantilla** (`report_templates`) es el blueprint reutilizable; el **Informe generado** (`generated_reports`) es la instancia con datos reales (snapshot HTML, descargable Word/PDF), persistida con historial. "Generar" produce el archivo descargable (Word vía MSO-HTML `.doc` o PDF vía impresión), es acción de DOCENTE (RLS: docente del curso / Admin del tenant / SA; el estudiante nunca lo ve; inmutable). Los saltos de página de Word se preservan al importar `.docx` y se ven como divisor "Salto de página" en pantalla + corte real en PDF/Word (marcador `.examlab-page-break`). UI del docente en 2 tabs: "Plantillas" / "Informes generados". **Importar `.docx`** captura cuerpo + **cabecera + pie** con **imágenes embebidas como data URI** (`parseDocxBundle` → `header_html`/`footer_html`/`body_html`); el preview del editor se renderiza como **hojas de página** ("Página X de N") con las **variables YA RESUELTAS** (datos de muestra o la marca real del tenant — el logo se ve, no `{{tokens}}`), y la exportación incluye el documento original completo + las `{{variables}}` (no sólo lo nuevo). La **Generación IA** vive en el panel de Variables disponibles (derecha) e inserta el contenido EXACTAMENTE en el cursor (`onAiGenerate` + `RichTextEditor.insertHtml`), NO como botón global que reemplaza el cuerpo. Su system prompt es **configurable** (`ai_prompts.use_case='report_generation'`, mig `20260976`), resuelto por el edge `ai-generate-report` (course→tenant→platform→FALLBACK). El texto default DEBE quedar **byte-idéntico** en 4 lugares: `DEFAULT_REPORT_GENERATION_PROMPT` (template-engine.ts), el seed de la mig `20260976`, el `FALLBACK_REPORT_PROMPT` del edge, y el `defaultPrompt` del `AdminPromptsPanel`. La generación inline manda `draftText:""` (fragmento, no reescritura) para no exceder el tope de 200K del edge (`prompt_too_large`). El **preview usa DATOS REALES** de un curso/estudiante elegido (selector en la pestaña Vista previa; estudiante seleccionable en scope estudiante), no mock.
 - **Item compartido (M:N) en >1 curso**: su nota debe verse en CADA curso al que pertenece (`workshop_courses`/`project_courses`), no solo en el curso ancla; el peso/corte es por curso. *(en refinamiento — #30/#31)*
 - **Contenido**: el label de un contenido en el tablero ES el **nombre (`display_name`)**, no el tema (`topic`) — `display_name?.trim() || topic`. El contenido puede asociarse a >1 curso (`content_course_assignments`, vía `ManageContentCoursesDialog`) y a la sección "General" del curso (sin sesión, destino del upload del tablero). El grid de Contenidos muestra filas de **altura estándar** (una línea: nombre + estado + conteos; sin subtítulo del tema). (`f4c396d` + #22)
 - **Multi-tenant / RLS**: nunca `USING(true)` ni `has_role()` sin scope de tenant en tablas con datos de tenant (ver `CLAUDE.md`). Migraciones envuelven `ALTER` en guard `to_regclass`.
@@ -44,6 +44,32 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 ## Historial
 
 ### 2026-06-15
+
+**Informes IA — fix `prompt_too_large`, prompt configurable y preview con datos reales.**
+(commit pendiente)
+
+- **`prompt_too_large` (413) corregido**: la Generación IA inline mandaba el
+  CUERPO COMPLETO del informe como `draftText` (que tras importar un .docx
+  incluye imágenes base64 → >200K chars, el tope del edge). Ahora la generación
+  inline manda `draftText: ""` (es un FRAGMENTO para el cursor, no una
+  reescritura). Además `buildAiReportPrompt` elimina los data URIs y acota el
+  resumen del curso (12K) y el borrador (8K) — defensa anti-tamaño.
+- **Prompt configurable** (`ai_prompts.use_case = 'report_generation'`): el
+  system prompt de la Generación IA dejó de estar hardcodeado en el front; ahora
+  vive en el módulo de Prompts (Admin → IA → categoría "Informes"), editable por
+  el SuperAdmin (PLATFORM DEFAULT) y disponible para todos los tenants vía el
+  resolver del edge (`ai-generate-report` resuelve course→tenant→platform→
+  FALLBACK, igual que el Tutor). Mig `20260976000000` (CHECK + seed). El front
+  manda el `user` dinámico; el edge resuelve el `system`.
+- **Vista previa con DATOS REALES (no mock)**: el editor ahora previsualiza con
+  los datos reales de un curso que el docente elige (selector de curso en la
+  pestaña Vista previa). En scope **estudiante** aparece además un selector de
+  ESTUDIANTE para "situar" las variables con ese alumno; en scope **curso** las
+  iteraciones (`{{#each estudiantes}}`) traen TODOS los estudiantes reales. La
+  Generación IA usa ese mismo curso/estudiante como fuente de datos (ya no un
+  selector aparte). Hasta elegir curso, cae al contexto de muestra/marca.
+
+Validación: `tsc` EXIT 0; reports 95/95 + locale-parity 7/7.
 
 **Editor de informes — preview renderizado, números de página y Generación IA al cursor.**
 (commit pendiente) Mejora el editor de plantillas (flujo de importar .docx):

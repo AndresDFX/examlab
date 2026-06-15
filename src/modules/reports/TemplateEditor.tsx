@@ -12,7 +12,7 @@
  * (TipTap, ProseMirror) y sigue sin resolver el problema de inyectar
  * `{{#each}}` correctamente. Esto es deliberadamente simple.
  */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -66,20 +66,36 @@ interface Props {
    *  completo y deja al docente decidir. */
   catalog?: VariableNode[];
   /**
-   * Contexto para RENDERIZAR la vista previa (en vez de mostrar los
-   * `{{placeholders}}` crudos). Si no se pasa, usa un contexto de muestra.
-   * La ruta puede inyectar la marca real del tenant (logo/nombre).
+   * Contexto de RESPALDO para la vista previa cuando aún no se cargó un curso
+   * real (datos de muestra + marca del tenant). En cuanto el docente elige un
+   * curso, el preview usa los datos REALES de `loadPreviewContext`.
    */
   previewContext?: TemplateContext;
+  /** Cursos del docente — alimentan los selectores de curso (preview + IA). */
+  courses?: { id: string; name: string }[];
+  /**
+   * Carga el contexto REAL (no mock) para previsualizar: notas, asistencia y
+   * lista de estudiantes del curso (y de UN estudiante en scope 'estudiante').
+   * Devuelve null si el curso no tiene datos (cae al contexto de muestra).
+   */
+  loadPreviewContext?: (args: {
+    courseId: string;
+    studentId?: string;
+  }) => Promise<TemplateContext | null>;
+  /** Estudiantes matriculados de un curso (para el selector en scope 'estudiante'). */
+  loadCourseStudents?: (courseId: string) => Promise<{ id: string; full_name: string }[]>;
   /**
    * Si se provee, habilita la acción "Generación IA" en el panel de variables:
    * el docente sitúa el cursor, pide un prompt y la IA inserta el contenido
-   * EXACTAMENTE donde está el cursor. Devuelve el HTML generado (o null si
-   * falló — el caller maneja el toast/fallback). `aiCourses` alimenta el
-   * selector de curso de referencia para los datos.
+   * EXACTAMENTE donde está el cursor. Usa el curso/estudiante elegido en la
+   * vista previa como fuente de datos reales. Devuelve el HTML generado (o null
+   * si falló — el caller maneja el toast/fallback).
    */
-  onAiGenerate?: (args: { instruction: string; courseId: string }) => Promise<string | null>;
-  aiCourses?: { id: string; name: string }[];
+  onAiGenerate?: (args: {
+    instruction: string;
+    courseId: string;
+    studentId?: string;
+  }) => Promise<string | null>;
 }
 
 type EditTab = "body" | "header" | "footer" | "css";
@@ -91,8 +107,10 @@ export function TemplateEditor({
   showMetadata = true,
   catalog,
   previewContext,
+  courses,
+  loadPreviewContext,
+  loadCourseStudents,
   onAiGenerate,
-  aiCourses,
 }: Props) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<Tab>("body");
@@ -114,13 +132,76 @@ export function TemplateEditor({
         : tab === "footer" ? "footer_html"
           : "css";
 
-  // HTML compuesto para la vista previa en vivo (body + header/footer + CSS).
-  // Se RENDERIZA con datos de muestra (o la marca real del tenant) — ya no se
-  // muestran los {{placeholders}} crudos, sino el documento como se verá (el
-  // logo institucional aparece, las variables resueltas, etc.).
+  // ── Datos REALES para la vista previa (no mock) ──
+  // El docente elige un curso (y un estudiante, en scope 'estudiante') y el
+  // preview se renderiza con sus datos reales: notas, asistencia, lista de
+  // estudiantes. Hasta que haya un curso elegido, cae a `previewContext`
+  // (muestra + marca del tenant).
+  const [pvCourseId, setPvCourseId] = useState<string>("");
+  const [pvStudentId, setPvStudentId] = useState<string>("");
+  const [pvStudents, setPvStudents] = useState<{ id: string; full_name: string }[]>([]);
+  const [pvCtx, setPvCtx] = useState<TemplateContext | null>(null);
+  const [pvLoading, setPvLoading] = useState(false);
+
+  // Auto-seleccionar el primer curso al montar → datos reales de entrada.
+  useEffect(() => {
+    if (!pvCourseId && courses && courses.length > 0) setPvCourseId(courses[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courses]);
+
+  // Estudiantes del curso (solo scope 'estudiante', para "situar" las variables).
+  useEffect(() => {
+    if (!pvCourseId || value.scope !== "estudiante" || !loadCourseStudents) {
+      setPvStudents([]);
+      setPvStudentId("");
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const list = await loadCourseStudents(pvCourseId);
+      if (cancelled) return;
+      setPvStudents(list);
+      setPvStudentId((prev) => (list.some((s) => s.id === prev) ? prev : (list[0]?.id ?? "")));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pvCourseId, value.scope]);
+
+  // Contexto REAL cuando cambia curso/estudiante.
+  useEffect(() => {
+    if (!pvCourseId || !loadPreviewContext) {
+      setPvCtx(null);
+      return;
+    }
+    if (value.scope === "estudiante" && !pvStudentId) {
+      setPvCtx(null);
+      return;
+    }
+    let cancelled = false;
+    setPvLoading(true);
+    void (async () => {
+      const ctx = await loadPreviewContext({
+        courseId: pvCourseId,
+        studentId: value.scope === "estudiante" ? pvStudentId : undefined,
+      });
+      if (cancelled) return;
+      setPvCtx(ctx);
+      setPvLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pvCourseId, pvStudentId, value.scope]);
+
+  // HTML compuesto para la vista previa. Se RENDERIZA con datos REALES del
+  // curso/estudiante elegido (o la muestra/marca del tenant como respaldo) —
+  // nunca se muestran los {{placeholders}} crudos.
   const previewHtml = useMemo(
-    () => composePreviewHtml(value, previewContext),
-    [value, previewContext],
+    () => composePreviewHtml(value, pvCtx ?? previewContext),
+    [value, pvCtx, previewContext],
   );
 
   // Número de páginas del cuerpo = saltos de página + 1. Sirve para mostrar
@@ -163,21 +244,28 @@ export function TemplateEditor({
   };
 
   // ── Generación IA inline (insertar en el cursor) ──
+  // Usa el MISMO curso/estudiante elegido para la vista previa como fuente de
+  // datos reales (no un selector aparte).
   const [aiOpen, setAiOpen] = useState(false);
   const [aiInstruction, setAiInstruction] = useState("");
-  const [aiCourseId, setAiCourseId] = useState<string>("");
   const [aiBusy, setAiBusy] = useState(false);
+
+  const pvCourseName = courses?.find((c) => c.id === pvCourseId)?.name ?? "";
+  const pvStudentName = pvStudents.find((s) => s.id === pvStudentId)?.full_name ?? "";
 
   const openAi = () => {
     setAiInstruction("");
-    setAiCourseId(aiCourses?.[0]?.id ?? "");
     setAiOpen(true);
   };
 
   const runAi = async () => {
-    if (!onAiGenerate || !aiCourseId || !aiInstruction.trim()) return;
+    if (!onAiGenerate || !pvCourseId || !aiInstruction.trim()) return;
     setAiBusy(true);
-    const html = await onAiGenerate({ instruction: aiInstruction, courseId: aiCourseId });
+    const html = await onAiGenerate({
+      instruction: aiInstruction,
+      courseId: pvCourseId,
+      studentId: value.scope === "estudiante" ? pvStudentId || undefined : undefined,
+    });
     setAiBusy(false);
     if (html == null) return; // el caller ya mostró el error/fallback.
     setAiOpen(false);
@@ -369,12 +457,64 @@ export function TemplateEditor({
                   con datos de muestra (logo, notas…) y dividido en hojas de
                   página numeradas. sandbox="" = solo HTML/CSS, sin scripts
                   (seguro para HTML de plantilla). */}
-              <TabsContent value="preview" className="mt-2">
-                <p className="text-[11px] text-muted-foreground mb-1.5">
-                  {t("hc_modulesReportsTemplateEditor.previewRenderedNote", {
-                    defaultValue:
-                      "Vista previa con datos de EJEMPLO (las variables aparecen ya resueltas, p. ej. el logo). Al generar el informe se usan los datos reales del curso/estudiante.",
-                  })}
+              <TabsContent value="preview" className="mt-2 space-y-2">
+                {/* Selección de DATOS REALES: curso (+ estudiante en scope
+                    'estudiante'). El preview se renderiza con esos datos. */}
+                {courses && courses.length > 0 && (
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">
+                        {t("hc_modulesReportsTemplateEditor.previewCourseLabel", { defaultValue: "Datos del curso" })}
+                      </Label>
+                      <Select value={pvCourseId} onValueChange={setPvCourseId}>
+                        <SelectTrigger className="h-8 w-56 text-xs">
+                          <SelectValue
+                            placeholder={t("hc_modulesReportsTemplateEditor.aiCoursePlaceholder", { defaultValue: "Elige un curso" })}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {courses.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {value.scope === "estudiante" && pvStudents.length > 0 && (
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">
+                          {t("hc_modulesReportsTemplateEditor.previewStudentLabel", { defaultValue: "Estudiante" })}
+                        </Label>
+                        <Select value={pvStudentId} onValueChange={setPvStudentId}>
+                          <SelectTrigger className="h-8 w-56 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {pvStudents.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {s.full_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  {pvCtx
+                    ? t("hc_modulesReportsTemplateEditor.previewRealNote", {
+                        defaultValue:
+                          "Vista previa con DATOS REALES del curso/estudiante elegido. Cambia la selección de arriba para ver otro caso.",
+                      })
+                    : t("hc_modulesReportsTemplateEditor.previewRenderedNote", {
+                        defaultValue:
+                          "Vista previa con datos de EJEMPLO (elige un curso arriba para ver datos reales). Al generar el informe se usan los datos reales del curso/estudiante.",
+                      })}
+                  {pvLoading
+                    ? ` · ${t("hc_modulesReportsTemplateEditor.previewLoading", { defaultValue: "cargando datos…" })}`
+                    : ""}
                 </p>
                 <iframe
                   srcDoc={previewHtml}
@@ -443,25 +583,20 @@ export function TemplateEditor({
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
-              <div className="space-y-1">
-                <Label required>
-                  {t("hc_modulesReportsTemplateEditor.aiCourseLabel", { defaultValue: "Curso de referencia (datos)" })}
-                </Label>
-                <Select value={aiCourseId} onValueChange={setAiCourseId}>
-                  <SelectTrigger>
-                    <SelectValue
-                      placeholder={t("hc_modulesReportsTemplateEditor.aiCoursePlaceholder", { defaultValue: "Elige un curso" })}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(aiCourses ?? []).map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Fuente de datos = el curso/estudiante elegido en Vista previa. */}
+              {pvCourseId ? (
+                <p className="text-[11px] text-muted-foreground">
+                  {t("hc_modulesReportsTemplateEditor.aiDataSource", { defaultValue: "Datos de:" })}{" "}
+                  <span className="font-medium text-foreground">{pvCourseName}</span>
+                  {value.scope === "estudiante" && pvStudentName ? ` · ${pvStudentName}` : ""}
+                </p>
+              ) : (
+                <p className="text-[11px] text-amber-600">
+                  {t("hc_modulesReportsTemplateEditor.aiNoCourse", {
+                    defaultValue: "Elige un curso en la pestaña “Vista previa” para usar datos reales.",
+                  })}
+                </p>
+              )}
               <div className="space-y-1">
                 <Label required>
                   {t("hc_modulesReportsTemplateEditor.aiInstructionLabel", { defaultValue: "¿Qué quieres que genere?" })}
@@ -481,7 +616,7 @@ export function TemplateEditor({
               <Button variant="outline" onClick={() => setAiOpen(false)} disabled={aiBusy}>
                 {t("hc_modulesReportsTemplateEditor.aiCancel", { defaultValue: "Cancelar" })}
               </Button>
-              <Button onClick={() => void runAi()} disabled={aiBusy || !aiCourseId || !aiInstruction.trim()}>
+              <Button onClick={() => void runAi()} disabled={aiBusy || !pvCourseId || !aiInstruction.trim()}>
                 {aiBusy ? <Spinner size="sm" className="mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
                 {aiBusy
                   ? t("hc_modulesReportsTemplateEditor.aiGenerating", { defaultValue: "Generando…" })

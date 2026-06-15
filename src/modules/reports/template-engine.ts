@@ -570,21 +570,43 @@ export function buildSampleReportContext(overrides?: Partial<TemplateContext>): 
   };
 }
 
+/**
+ * System prompt POR DEFECTO de la generación de informes con IA
+ * (use_case `report_generation`). Es el "platform default" editable desde
+ * Admin → IA → Prompts. DEBE mantenerse byte-idéntico con:
+ *   - el seed de la migración 20260976000000_report_generation_prompt.sql
+ *   - el FALLBACK del edge `ai-generate-report`
+ *   - el defaultPrompt de `AdminPromptsPanel` (use_case report_generation)
+ */
+export const DEFAULT_REPORT_GENERATION_PROMPT = [
+  "Eres un asistente que redacta secciones de informes académicos para un docente.",
+  "Escribe en español (es-CO), tono formal e institucional, claro y conciso.",
+  "El texto que produces es una PLANTILLA: cuando un dato provenga de las variables",
+  "disponibles, inserta el placeholder con doble llave (por ejemplo {{estudiante.nombre}})",
+  "EN LUGAR del valor concreto, para que el sistema lo reemplace luego por cada",
+  "estudiante o curso. Usa los valores concretos solo como referencia de contexto.",
+  "Devuelve únicamente el texto/HTML de la sección, sin explicaciones ni comentarios,",
+  "sin envolver en bloques de código.",
+].join("\n");
+
+/** Quita imágenes embebidas (data URIs base64) que inflan el prompt — el
+ *  modelo no necesita los bytes de la imagen, solo saber que hay una. */
+function stripDataUris(s: string): string {
+  return s
+    .replace(/\bsrc\s*=\s*"data:[^"]*"/gi, 'src="[imagen]"')
+    .replace(/\bsrc\s*=\s*'data:[^']*'/gi, "src='[imagen]'");
+}
+
 export function buildAiReportPrompt(args: AiReportPromptArgs): { system: string; user: string } {
   const { draftText, instruction, ctx, catalog } = args;
   const paths = flattenCatalogPaths(catalog);
-  const ctxSummary = summarizeContextForAi(ctx);
+  // Topes anti `prompt_too_large` (el edge rechaza > 200K chars): el resumen
+  // del curso y el texto del borrador se acotan, y se eliminan las imágenes
+  // embebidas (data URIs) del borrador antes de mandarlo.
+  const ctxSummary = summarizeContextForAi(ctx).slice(0, 12_000);
+  const cleanDraft = stripDataUris(draftText ?? "").trim().slice(0, 8_000);
 
-  const system = [
-    "Eres un asistente que redacta secciones de informes académicos para un docente.",
-    "Escribe en español (es-CO), tono formal e institucional, claro y conciso.",
-    "El texto que produces es una PLANTILLA: cuando un dato provenga de las variables",
-    "disponibles, inserta el placeholder con doble llave (por ejemplo {{estudiante.nombre}})",
-    "EN LUGAR del valor concreto, para que el sistema lo reemplace luego por cada",
-    "estudiante o curso. Usa los valores concretos solo como referencia de contexto.",
-    "Devuelve únicamente el texto/HTML de la sección, sin explicaciones ni comentarios,",
-    "sin envolver en bloques de código.",
-  ].join("\n");
+  const system = DEFAULT_REPORT_GENERATION_PROMPT;
 
   const user = [
     `INSTRUCCIÓN DEL DOCENTE:\n${instruction.trim() || "Genera el contenido del informe."}`,
@@ -593,8 +615,8 @@ export function buildAiReportPrompt(args: AiReportPromptArgs): { system: string;
     "",
     `DATOS DEL CURSO (referencia de contexto, no los incrustes literalmente si hay una variable):\n${ctxSummary}`,
     "",
-    draftText.trim()
-      ? `TEXTO ACTUAL DEL INFORME (mejóralo / complétalo según la instrucción):\n${draftText.trim()}`
+    cleanDraft
+      ? `TEXTO ACTUAL DEL INFORME (mejóralo / complétalo según la instrucción):\n${cleanDraft}`
       : "El informe está vacío: genera el contenido desde cero según la instrucción.",
   ].join("\n");
 
