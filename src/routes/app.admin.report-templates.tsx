@@ -349,8 +349,28 @@ function Inner() {
       return;
     }
     setSaving(true);
+    // Nombre ÚNICO entre las plantillas globales (auto-sufija "(2)", "(3)"…).
+    const takenNames = new Set(
+      templates.filter((tpl) => tpl.id !== editing?.id).map((tpl) => tpl.name.trim().toLowerCase()),
+    );
+    let finalName = draft.name.trim();
+    if (takenNames.has(finalName.toLowerCase())) {
+      const root = finalName;
+      for (let i = 2; i < 999; i++) {
+        if (!takenNames.has(`${root} (${i})`.toLowerCase())) {
+          finalName = `${root} (${i})`;
+          break;
+        }
+      }
+      toast.info(
+        i18n.t("adminReportTemplates.nameAdjusted", {
+          defaultValue: 'Ya existía una plantilla con ese nombre; se guardó como "{{name}}".',
+          name: finalName,
+        }),
+      );
+    }
     const payload = {
-      name: draft.name.trim(),
+      name: finalName,
       description: draft.description.trim() || null,
       scope: draft.scope,
       body_html: draft.body_html,

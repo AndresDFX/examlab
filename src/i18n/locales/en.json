@@ -3178,6 +3178,7 @@
     },
     "routes_app_teacher_reports": {
       "nameRequired": "The name is required",
+      "nameAdjusted": "A template with that name already existed; saved as \"{{name}}\".",
       "bodyEmpty": "The body cannot be empty",
       "selectCourseForOverride": "Select the course for the customization",
       "templateUpdated": "Template updated",
@@ -3919,6 +3920,7 @@
   },
   "adminReportTemplates": {
     "title": "Reports",
+    "nameAdjusted": "A template with that name already existed; saved as \"{{name}}\".",
     "subtitleCount": "{{count}} global template(s)",
     "loadWordBtn": "Load Word (.docx)",
     "newTemplateBtn": "New template",

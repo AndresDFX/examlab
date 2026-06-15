@@ -3178,6 +3178,7 @@
     },
     "routes_app_teacher_reports": {
       "nameRequired": "El nombre es obligatorio",
+      "nameAdjusted": "Ya existía una plantilla con ese nombre; se guardó como \"{{name}}\".",
       "bodyEmpty": "El cuerpo no puede estar vacío",
       "selectCourseForOverride": "Selecciona el curso para la personalización",
       "templateUpdated": "Plantilla actualizada",
@@ -3919,6 +3920,7 @@
   },
   "adminReportTemplates": {
     "title": "Informes",
+    "nameAdjusted": "Ya existía una plantilla con ese nombre; se guardó como \"{{name}}\".",
     "subtitleCount": "{{count}} plantilla(s) global(es)",
     "loadWordBtn": "Cargar Word (.docx)",
     "newTemplateBtn": "Nueva plantilla",

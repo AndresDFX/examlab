@@ -93,7 +93,7 @@ import { parseDocxBundle, extractPlaceholders } from "@/modules/reports/docx-imp
 import { ActasManager } from "@/modules/reports/ActasManager";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DateCell } from "@/components/ui/date-cell";
-import { downloadReportAsWord, printReportHtml } from "@/modules/reports/report-download";
+import { downloadReportAsWord, printReportHtml, fileStamp } from "@/modules/reports/report-download";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -402,6 +402,21 @@ function Inner() {
     setEditorOpen(false);
   };
 
+  // Garantiza un nombre de plantilla ÚNICO (auto-sufija "(2)", "(3)"… si choca
+  // con otra plantilla ya existente). El usuario pidió nombres únicos.
+  const uniqueTemplateName = (desired: string, excludeId: string | null): string => {
+    const taken = new Set(
+      templates.filter((tpl) => tpl.id !== excludeId).map((tpl) => tpl.name.trim().toLowerCase()),
+    );
+    const baseName = desired.trim() || i18n.t("hc_routesAppTeacherReports.importedDocName", { defaultValue: "Plantilla" });
+    if (!taken.has(baseName.toLowerCase())) return baseName;
+    for (let i = 2; i < 999; i++) {
+      const cand = `${baseName} (${i})`;
+      if (!taken.has(cand.toLowerCase())) return cand;
+    }
+    return `${baseName} (${templates.length + 1})`;
+  };
+
   const handleSave = async () => {
     if (!user) return;
     if (!draft.name.trim()) {
@@ -421,8 +436,17 @@ function Inner() {
     }
 
     setEditorSaving(true);
+    const finalName = uniqueTemplateName(draft.name.trim(), editorTemplateId);
+    if (finalName !== draft.name.trim()) {
+      toast.info(
+        i18n.t("toast.routes_app_teacher_reports.nameAdjusted", {
+          defaultValue: 'Ya existía una plantilla con ese nombre; se guardó como "{{name}}".',
+          name: finalName,
+        }),
+      );
+    }
     const base = {
-      name: draft.name.trim(),
+      name: finalName,
       description: draft.description.trim() || null,
       scope: draft.scope,
       body_html: draft.body_html,
@@ -890,7 +914,7 @@ function Inner() {
 
   const handleDownloadWord = async () => {
     if (!genHtml) return;
-    downloadReportAsWord(genHtml, genMeta());
+    downloadReportAsWord(genHtml, { ...genMeta(), stamp: fileStamp(new Date()) });
     await persistGeneration();
   };
 
@@ -907,6 +931,7 @@ function Inner() {
       courseName: r.course_name,
       studentName: r.student_name,
       periodo: r.periodo,
+      stamp: fileStamp(new Date(r.created_at)),
     });
   const reDownloadPdf = (r: GeneratedReport) => printReportHtml(r.html);
   const deleteGenReport = async (r: GeneratedReport) => {

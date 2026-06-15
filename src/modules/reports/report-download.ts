@@ -1,45 +1,21 @@
 /**
- * Descarga de informes GENERADOS como archivo: Word (.doc) o PDF (imprimir).
+ * Descarga de informes GENERADOS como archivo: Word (.docx) o PDF (imprimir).
  *
  * El informe generado es un HTML completo (`composeTemplateHtml` ya resolvió
- * `@page`, saltos de página y datos reales). De acá salen los dos formatos que
- * el docente pidió: "el archivo descargable en Word o PDF con los ajustes que
- * hice".
+ * `@page`, saltos de página y datos reales).
  *
- * - **Word**: usamos la técnica HTML-como-Word (MSO): un documento HTML con los
- *   namespaces de Office + un bloque `<!--[if gte mso 9]>` que Word interpreta
- *   para fijar la vista. Word lo abre como documento EDITABLE; respeta `@page`
- *   (tamaño/orientación) y `page-break-after` (saltos de página). Sin librerías
- *   nuevas, sin servidor — el `.docx` real (OOXML) sería desproporcionado para
- *   el valor que agrega. Extensión `.doc` porque es HTML+MSO, no OOXML.
+ * - **Word**: generamos un `.docx` REAL (OOXML) con `htmlToDocxBlob` — antes era
+ *   un `.doc` HTML-como-Word (MSO) que Word RE-INTERPRETABA (cambiaba el formato)
+ *   y dejaba la cabecera al inicio del cuerpo. Ahora la cabecera va al ÁREA de
+ *   encabezado de página (word/header1.xml) y el formato se respeta.
  * - **PDF**: imprimimos el HTML en un iframe oculto → el usuario elige "Guardar
- *   como PDF" en el diálogo del navegador. Mismo motor que ya usaba el módulo.
+ *   como PDF". `composeTemplateHtml` posiciona header/footer como `position:fixed`
+ *   en `@media print` para que se repitan en el área de encabezado/pie de cada
+ *   página (no sólo al inicio).
  *
  * Las funciones que tocan DOM/`window` son no-op en SSR (guard `typeof`).
  */
-
-/** Inyecta los namespaces de Office y el bloque MSO en un HTML compuesto. */
-function toWordHtml(composedHtml: string): string {
-  const ns =
-    "<html xmlns:o='urn:schemas-microsoft-com:office:office' " +
-    "xmlns:w='urn:schemas-microsoft-com:office:word' " +
-    "xmlns='http://www.w3.org/TR/REC-html40'$1";
-  const msoHead =
-    "<head><meta charset='utf-8'>" +
-    "<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View>" +
-    "<w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->";
-  return composedHtml
-    .replace(/<html(\s|>)/i, ns)
-    .replace(/<head>/i, msoHead);
-}
-
-/** Blob de Word (.doc) a partir del HTML compuesto del informe. */
-export function htmlToWordBlob(composedHtml: string): Blob {
-  // El BOM ﻿ ayuda a Word a detectar UTF-8.
-  return new Blob(["﻿", toWordHtml(composedHtml)], {
-    type: "application/msword",
-  });
-}
+import { htmlToDocxBlob } from "./html-to-docx";
 
 /** Dispara la descarga de un Blob con el nombre dado (no-op en SSR). */
 export function downloadBlob(blob: Blob, filename: string): void {
@@ -74,22 +50,38 @@ export function reportFileName(
     courseName?: string | null;
     studentName?: string | null;
     periodo?: string | null;
+    /** Marca temporal (fecha-hora de generación) → nombre de archivo ÚNICO,
+     *  para que dos informes generados no se sobrescriban al descargar. */
+    stamp?: string | null;
   },
-  ext: "doc" | "pdf",
+  ext: "docx" | "pdf",
 ): string {
-  const segs = ["Informe", parts.templateName, parts.courseName, parts.studentName, parts.periodo]
+  const segs = [
+    "Informe",
+    parts.templateName,
+    parts.courseName,
+    parts.studentName,
+    parts.periodo,
+    parts.stamp,
+  ]
     .map(safePart)
     .filter(Boolean);
   const base = segs.join(" - ") || "Informe";
   return `${base}.${ext}`;
 }
 
-/** Descarga el HTML compuesto como archivo Word (.doc). */
+/** Marca temporal legible y válida para nombre de archivo: "2026-06-15 1432". */
+export function fileStamp(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+/** Descarga el HTML compuesto como archivo Word REAL (.docx OOXML). */
 export function downloadReportAsWord(
   composedHtml: string,
   parts: Parameters<typeof reportFileName>[0],
 ): void {
-  downloadBlob(htmlToWordBlob(composedHtml), reportFileName(parts, "doc"));
+  downloadBlob(htmlToDocxBlob(composedHtml), reportFileName(parts, "docx"));
 }
 
 /**

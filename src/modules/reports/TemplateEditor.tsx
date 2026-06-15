@@ -219,9 +219,14 @@ export function TemplateEditor({
       // la selección guardada del editor visual sigue válida.
     }
     // En el cuerpo en modo Visual, insertamos en el cursor del editor WYSIWYG.
+    // Lo que se inserta DESDE LA PLATAFORMA (una variable o contenido de IA) se
+    // envuelve en `.examlab-added` para resaltarlo con otro color TEMPORALMENTE
+    // — sólo en el editor (la clase no tiene estilo en el preview ni en el
+    // .docx/PDF exportado), así el docente distingue lo agregado vs el template
+    // original. IA = bloque (div), variable = inline (span).
     if ((activeTab === "preview" || activeTab === "body") && bodyMode === "visual") {
-      if (asHtml) richRef.current?.insertHtml(snippet);
-      else richRef.current?.insertText(snippet);
+      if (asHtml) richRef.current?.insertHtml(`<div class="examlab-added">${snippet}</div>`);
+      else richRef.current?.insertHtml(`<span class="examlab-added">${snippet}</span>`);
       return;
     }
     const tab: EditTab = activeTab === "preview" ? "body" : activeTab;
@@ -699,6 +704,17 @@ table { border-collapse: collapse; width: 100%; }
 td p { margin: 2px 0; }
 header { margin-bottom: 10px; }
 footer { margin-top: 12px; }
+/* PDF (imprimir): la cabecera/pie van al ÁREA de encabezado/pie de cada página
+   (no sólo al inicio del documento) vía position:fixed. Para informes de 1 página
+   queda exacto; en multi-página se repite arriba/abajo. El padding de main evita
+   que la primera línea quede tapada por la cabecera fija. En pantalla NO aplica
+   (el preview es flujo normal). Para fidelidad total de encabezado, la descarga
+   .docx lo pone en word/header1.xml (área de encabezado real de Word). */
+@media print {
+  header { position: fixed; top: 0; left: 0; right: 0; }
+  footer { position: fixed; bottom: 0; left: 0; right: 0; }
+  main { padding-top: 2.2cm; padding-bottom: 1.4cm; }
+}
 /* Salto de página explícito. En impresión/PDF fuerza un corte real; en
    pantalla (editor + generador) lo decoramos como un divisor visible para
    que el docente vea CLARAMENTE dónde termina una página y empieza otra
