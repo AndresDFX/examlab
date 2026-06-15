@@ -21,13 +21,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Spinner } from "@/components/ui/spinner";
 import { HelpHint } from "@/components/ui/help-hint";
-import { ChevronDown, ChevronRight, Code2, Eye } from "lucide-react";
+import { ChevronDown, ChevronRight, Code2, Eye, Sparkles } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import {
   REPORT_VARIABLE_CATALOG,
   variableSnippet,
+  renderTemplate,
+  buildSampleReportContext,
   type VariableNode,
+  type TemplateContext,
 } from "./template-engine";
 import { RichTextEditor, type RichTextEditorHandle } from "./RichTextEditor";
 import { PAGE_BREAK_HTML } from "./docx-import";
@@ -53,12 +65,35 @@ interface Props {
    *  habilita la sección {{#each estudiantes}}). Por default usa el catálogo
    *  completo y deja al docente decidir. */
   catalog?: VariableNode[];
+  /**
+   * Contexto para RENDERIZAR la vista previa (en vez de mostrar los
+   * `{{placeholders}}` crudos). Si no se pasa, usa un contexto de muestra.
+   * La ruta puede inyectar la marca real del tenant (logo/nombre).
+   */
+  previewContext?: TemplateContext;
+  /**
+   * Si se provee, habilita la acción "Generación IA" en el panel de variables:
+   * el docente sitúa el cursor, pide un prompt y la IA inserta el contenido
+   * EXACTAMENTE donde está el cursor. Devuelve el HTML generado (o null si
+   * falló — el caller maneja el toast/fallback). `aiCourses` alimenta el
+   * selector de curso de referencia para los datos.
+   */
+  onAiGenerate?: (args: { instruction: string; courseId: string }) => Promise<string | null>;
+  aiCourses?: { id: string; name: string }[];
 }
 
 type EditTab = "body" | "header" | "footer" | "css";
 type Tab = EditTab | "preview";
 
-export function TemplateEditor({ value, onChange, showMetadata = true, catalog }: Props) {
+export function TemplateEditor({
+  value,
+  onChange,
+  showMetadata = true,
+  catalog,
+  previewContext,
+  onAiGenerate,
+  aiCourses,
+}: Props) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<Tab>("body");
   // Modo de edición del CUERPO: "visual" (WYSIWYG) por default, "html" para
@@ -79,22 +114,36 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
         : tab === "footer" ? "footer_html"
           : "css";
 
-  // HTML compuesto para la vista previa en vivo (body + header/footer + CSS
-  // + @page). Los {{placeholders}} se resaltan como "campos" para que se
-  // distingan del contenido estático; se reemplazan por datos reales al
-  // generar el informe (flujo "Generar").
-  const previewHtml = useMemo(() => composePreviewHtml(value), [value]);
+  // HTML compuesto para la vista previa en vivo (body + header/footer + CSS).
+  // Se RENDERIZA con datos de muestra (o la marca real del tenant) — ya no se
+  // muestran los {{placeholders}} crudos, sino el documento como se verá (el
+  // logo institucional aparece, las variables resueltas, etc.).
+  const previewHtml = useMemo(
+    () => composePreviewHtml(value, previewContext),
+    [value, previewContext],
+  );
 
-  const insertAtCursor = (snippet: string) => {
-    // En la pestaña de vista previa no hay dónde insertar.
-    if (activeTab === "preview") return;
-    // En el cuerpo en modo Visual, insertamos el {{placeholder}} como texto
-    // en el cursor del editor WYSIWYG.
-    if (activeTab === "body" && bodyMode === "visual") {
-      richRef.current?.insertText(snippet);
+  // Número de páginas del cuerpo = saltos de página + 1. Sirve para mostrar
+  // "N páginas" mientras se edita y los números de página en el preview.
+  const pageCount = useMemo(
+    () => (value.body_html || "").split(PAGE_BREAK_HTML).length,
+    [value.body_html],
+  );
+
+  const insertAtCursor = (snippet: string, asHtml = false) => {
+    // En la pestaña de vista previa no hay dónde insertar → pasamos al cuerpo.
+    if (activeTab === "preview") {
+      setActiveTab("body");
+      // El cuerpo ya estaba montado en background (Tabs no desmonta), así que
+      // la selección guardada del editor visual sigue válida.
+    }
+    // En el cuerpo en modo Visual, insertamos en el cursor del editor WYSIWYG.
+    if ((activeTab === "preview" || activeTab === "body") && bodyMode === "visual") {
+      if (asHtml) richRef.current?.insertHtml(snippet);
+      else richRef.current?.insertText(snippet);
       return;
     }
-    const tab: EditTab = activeTab;
+    const tab: EditTab = activeTab === "preview" ? "body" : activeTab;
     const field = fieldFor(tab);
     const ref = refFor(tab).current;
     if (!ref) return;
@@ -111,6 +160,30 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
       r.focus();
       r.setSelectionRange(newPos, newPos);
     });
+  };
+
+  // ── Generación IA inline (insertar en el cursor) ──
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiInstruction, setAiInstruction] = useState("");
+  const [aiCourseId, setAiCourseId] = useState<string>("");
+  const [aiBusy, setAiBusy] = useState(false);
+
+  const openAi = () => {
+    setAiInstruction("");
+    setAiCourseId(aiCourses?.[0]?.id ?? "");
+    setAiOpen(true);
+  };
+
+  const runAi = async () => {
+    if (!onAiGenerate || !aiCourseId || !aiInstruction.trim()) return;
+    setAiBusy(true);
+    const html = await onAiGenerate({ instruction: aiInstruction, courseId: aiCourseId });
+    setAiBusy(false);
+    if (html == null) return; // el caller ya mostró el error/fallback.
+    setAiOpen(false);
+    // Insertar tras cerrar el diálogo (el foco vuelve al editor; la selección
+    // guardada al abrir el diálogo sigue válida → cae donde el docente estaba).
+    setTimeout(() => insertAtCursor(html, true), 60);
   };
 
   const effectiveCatalog = catalog ?? REPORT_VARIABLE_CATALOG;
@@ -233,6 +306,15 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
                     <Code2 className="h-3.5 w-3.5 mr-1" />
                     HTML
                   </Button>
+                  {/* Conteo de páginas (= saltos de página + 1). Da el sentido
+                      de cuántas páginas tiene el informe mientras se edita; los
+                      números por página se ven en la pestaña Vista previa. */}
+                  <span className="ml-auto text-[11px] text-muted-foreground tabular-nums">
+                    {t("hc_modulesReportsTemplateEditor.pageCount", {
+                      count: pageCount,
+                      defaultValue: "{{count}} página(s)",
+                    })}
+                  </span>
                 </div>
                 {bodyMode === "visual" ? (
                   <RichTextEditor
@@ -283,17 +365,16 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
                 />
               </TabsContent>
               {/* Vista previa en vivo: renderiza el documento (body + header/
-                  footer + CSS) tal como se verá. Para un Word importado se ve
-                  formateado; los {{campos}} se resaltan y se reemplazan por
-                  datos reales al Generar. sandbox="" = solo HTML/CSS, sin
-                  scripts (seguro para HTML de plantilla). */}
+                  footer + CSS) tal como se verá, con las variables YA RESUELTAS
+                  con datos de muestra (logo, notas…) y dividido en hojas de
+                  página numeradas. sandbox="" = solo HTML/CSS, sin scripts
+                  (seguro para HTML de plantilla). */}
               <TabsContent value="preview" className="mt-2">
                 <p className="text-[11px] text-muted-foreground mb-1.5">
-                  {t("hc_modulesReportsTemplateEditor.previewNoteBefore")}{" "}
-                  <span className="font-mono bg-amber-100 text-amber-800 rounded px-1">
-                    {"{{campos}}"}
-                  </span>{" "}
-                  {t("hc_modulesReportsTemplateEditor.previewNoteAfter")}
+                  {t("hc_modulesReportsTemplateEditor.previewRenderedNote", {
+                    defaultValue:
+                      "Vista previa con datos de EJEMPLO (las variables aparecen ya resueltas, p. ej. el logo). Al generar el informe se usan los datos reales del curso/estudiante.",
+                  })}
                 </p>
                 <iframe
                   srcDoc={previewHtml}
@@ -310,6 +391,28 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
       <div>
         <Card className="lg:sticky lg:top-4">
           <CardContent className="p-3 space-y-1 max-h-[80dvh] overflow-y-auto">
+            {/* Generación IA al cursor: el docente sitúa el cursor en el
+                cuerpo, abre el prompt, y la IA inserta el contenido EXACTAMENTE
+                donde está. Reemplaza el botón global de "Generar con IA". */}
+            {onAiGenerate && (
+              <div className="pb-2 mb-1 border-b">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="w-full justify-start h-8 text-xs border-violet-300 text-violet-700 hover:bg-violet-50 dark:border-violet-500/50 dark:text-violet-300 dark:hover:bg-violet-500/10"
+                  onClick={openAi}
+                >
+                  <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                  {t("hc_modulesReportsTemplateEditor.aiInsertButton", { defaultValue: "Generación IA" })}
+                </Button>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {t("hc_modulesReportsTemplateEditor.aiInsertHint", {
+                    defaultValue: "Sitúa el cursor en el cuerpo y la IA inserta ahí lo que pidas.",
+                  })}
+                </p>
+              </div>
+            )}
             <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium pb-1">
               {t("hc_modulesReportsTemplateEditor.availableVariables")}
             </p>
@@ -322,6 +425,72 @@ export function TemplateEditor({ value, onChange, showMetadata = true, catalog }
           </CardContent>
         </Card>
       </div>
+
+      {/* Diálogo de Generación IA inline (insertar en el cursor). */}
+      {onAiGenerate && (
+        <Dialog open={aiOpen} onOpenChange={(o) => !aiBusy && setAiOpen(o)}>
+          <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-violet-500" />
+                {t("hc_modulesReportsTemplateEditor.aiDialogTitle", { defaultValue: "Generar con IA e insertar" })}
+              </DialogTitle>
+              <DialogDescription>
+                {t("hc_modulesReportsTemplateEditor.aiDialogDesc", {
+                  defaultValue:
+                    "El contenido se insertará donde tienes el cursor en el cuerpo. Puede incluir variables {{...}} que se resuelven al generar el informe.",
+                })}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label required>
+                  {t("hc_modulesReportsTemplateEditor.aiCourseLabel", { defaultValue: "Curso de referencia (datos)" })}
+                </Label>
+                <Select value={aiCourseId} onValueChange={setAiCourseId}>
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={t("hc_modulesReportsTemplateEditor.aiCoursePlaceholder", { defaultValue: "Elige un curso" })}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(aiCourses ?? []).map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label required>
+                  {t("hc_modulesReportsTemplateEditor.aiInstructionLabel", { defaultValue: "¿Qué quieres que genere?" })}
+                </Label>
+                <Textarea
+                  value={aiInstruction}
+                  onChange={(e) => setAiInstruction(e.target.value)}
+                  className="min-h-[110px]"
+                  placeholder={t("hc_modulesReportsTemplateEditor.aiInstructionPlaceholder", {
+                    defaultValue:
+                      "Ej.: un párrafo de observaciones del desempeño del estudiante usando su nombre y nota final.",
+                  })}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAiOpen(false)} disabled={aiBusy}>
+                {t("hc_modulesReportsTemplateEditor.aiCancel", { defaultValue: "Cancelar" })}
+              </Button>
+              <Button onClick={() => void runAi()} disabled={aiBusy || !aiCourseId || !aiInstruction.trim()}>
+                {aiBusy ? <Spinner size="sm" className="mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
+                {aiBusy
+                  ? t("hc_modulesReportsTemplateEditor.aiGenerating", { defaultValue: "Generando…" })
+                  : t("hc_modulesReportsTemplateEditor.aiGenerateInsert", { defaultValue: "Generar e insertar" })}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -421,28 +590,6 @@ ${draft.footer_html ? `<footer>${draft.footer_html}</footer>` : ""}
 </body></html>`;
 }
 
-// Estilo del resaltado de placeholders en la vista previa.
-const PH_PREVIEW_STYLE =
-  ".examlab-ph{background:#fef3c7;color:#92400e;border-radius:3px;padding:0 2px;" +
-  "font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.85em;white-space:nowrap;}";
-
-/**
- * Resalta los `{{placeholders}}` que aparecen en CONTENIDO de texto (entre
- * `>` y `<`) — nunca dentro de atributos de tag (ej. `src="{{logo}}"`), para
- * no romper el HTML. Hace visibles los "campos" dinámicos sin necesidad de
- * scripts en el iframe (puede ir con sandbox="").
- */
-function highlightPlaceholders(html: string): string {
-  return html.replace(/>([^<]*)</g, (full: string, text: string) => {
-    if (!text.includes("{{")) return full;
-    const wrapped = text.replace(
-      /\{\{\{?[^{}]+\}?\}\}/g,
-      (tok: string) => `<span class="examlab-ph">${tok}</span>`,
-    );
-    return `>${wrapped}<`;
-  });
-}
-
 /** Dimensiones de página en mm para el preview (portrait por defecto). */
 function pageDimsMm(
   size: TemplateDraft["page_size"],
@@ -453,48 +600,58 @@ function pageDimsMm(
 }
 
 /**
- * HTML para la VISTA PREVIA en vivo del editor. A diferencia del documento de
- * exportación (continuo), el preview se renderiza como HOJAS DE PÁGINA
- * separadas — una por cada bloque entre saltos de página — con su etiqueta
- * "Página N", la cabecera/pie repetidos y el tamaño real de la hoja. Así el
- * docente VE claramente qué texto cae en cada página (antes se veía todo
- * junto). Los `{{placeholders}}` se resaltan como campos.
+ * HTML para la VISTA PREVIA en vivo del editor. Se RENDERIZA con datos (de
+ * muestra, o la marca real del tenant): las variables aparecen ya resueltas
+ * (el logo institucional se ve, las notas se ven), NO como `{{placeholders}}`.
+ * Y se dibuja como HOJAS DE PÁGINA separadas — una por bloque entre saltos —
+ * con etiqueta "Página X de N", cabecera/pie repetidos y tamaño real de hoja,
+ * para que el docente vea claramente qué cae en cada página.
  */
 export function composePreviewHtml(
   draft: Pick<TemplateDraft, "body_html" | "header_html" | "footer_html" | "css" | "page_orientation" | "page_size">,
+  ctx: TemplateContext = buildSampleReportContext(),
 ): string {
   const dims = pageDimsMm(draft.page_size, draft.page_orientation);
-  const header = draft.header_html ? `<header>${draft.header_html}</header>` : "";
-  const footer = draft.footer_html ? `<footer>${draft.footer_html}</footer>` : "";
-  // Partimos el cuerpo por los marcadores de salto de página → una hoja por
-  // segmento. Sin saltos = una sola hoja.
-  const segments = (draft.body_html || "").split(PAGE_BREAK_HTML);
+  // Render resiliente: una plantilla con un bloque sin cerrar no debe romper
+  // el preview entero → cae al HTML crudo de ese fragmento.
+  const render = (html: string): string => {
+    if (!html) return "";
+    try {
+      return renderTemplate(html, ctx);
+    } catch {
+      return html;
+    }
+  };
+  const header = draft.header_html ? `<header>${render(draft.header_html)}</header>` : "";
+  const footer = draft.footer_html ? `<footer>${render(draft.footer_html)}</footer>` : "";
+  // Partimos el cuerpo YA RENDERIZADO por los marcadores de salto → una hoja
+  // por segmento. Sin saltos = una sola hoja.
+  const segments = render(draft.body_html || "").split(PAGE_BREAK_HTML);
+  const total = segments.length;
   const pages = segments
     .map(
       (seg, i) => `<div class="examlab-page-wrap">
-  <div class="examlab-page-label">Página ${i + 1}</div>
+  <div class="examlab-page-label">Página ${i + 1} de ${total}</div>
   <div class="examlab-page">${header}<main>${seg}</main>${footer}</div>
 </div>`,
     )
     .join("\n");
-  const html = `<!doctype html>
+  return `<!doctype html>
 <html><head><meta charset="utf-8">
 <style>
 html, body { margin: 0; padding: 0; }
 body { background: #e5e7eb; padding: 18px 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #111; line-height: 1.4; }
 .examlab-page-wrap { width: ${dims.w}mm; max-width: calc(100% - 24px); margin: 0 auto 26px; }
-.examlab-page-label { font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: #6b7280; margin: 0 0 6px 4px; }
+.examlab-page-label { display: inline-block; font: 700 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: #fff; background: #6b7280; border-radius: 999px; padding: 4px 10px; margin: 0 0 6px 4px; }
 .examlab-page { background: #fff; min-height: ${dims.h}mm; box-shadow: 0 1px 8px rgba(0,0,0,.18); padding: 18mm; box-sizing: border-box; overflow: hidden; }
 .examlab-page img { max-width: 100%; height: auto; }
 .examlab-page table { border-collapse: collapse; width: 100%; }
 .examlab-page td p { margin: 2px 0; }
 .examlab-page header { margin-bottom: 10px; }
 .examlab-page footer { margin-top: 12px; border-top: 1px solid #eee; padding-top: 6px; font-size: .85em; color: #555; }
-${PH_PREVIEW_STYLE}
 ${draft.css ?? ""}
 </style>
 </head><body>${pages}</body></html>`;
-  return highlightPlaceholders(html);
 }
 
 /**

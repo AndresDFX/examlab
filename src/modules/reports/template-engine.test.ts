@@ -1,5 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { renderTemplate } from "./template-engine";
+import { renderTemplate, buildSampleReportContext, SAMPLE_LOGO_DATA_URI } from "./template-engine";
+
+describe("buildSampleReportContext", () => {
+  it("rellena variables de muestra (estudiante, institución con logo)", () => {
+    const ctx = buildSampleReportContext() as Record<string, any>;
+    expect(ctx.estudiante.nombre).toBeTruthy();
+    expect(ctx.institucion.logo).toBe(SAMPLE_LOGO_DATA_URI);
+    // El preview puede renderizar variables sin que queden vacías.
+    expect(renderTemplate("{{estudiante.nombre}} — {{nota_final}}", ctx)).toContain("—");
+  });
+
+  it("mezcla el override de institución conservando el logo de muestra", () => {
+    const ctx = buildSampleReportContext({ institucion: { nombre: "Mi U" } }) as Record<string, any>;
+    expect(ctx.institucion.nombre).toBe("Mi U");
+    // No se pasó logo en el override → conserva el de muestra.
+    expect(ctx.institucion.logo).toBe(SAMPLE_LOGO_DATA_URI);
+  });
+
+  it("el override puede fijar el logo real del tenant", () => {
+    const ctx = buildSampleReportContext({
+      institucion: { nombre: "Mi U", logo: "https://t.test/logo.png" },
+    }) as Record<string, any>;
+    expect(ctx.institucion.logo).toBe("https://t.test/logo.png");
+  });
+});
 
 describe("renderTemplate — variables", () => {
   it("interpola variables simples", () => {

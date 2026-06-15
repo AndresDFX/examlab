@@ -70,10 +70,8 @@ import {
   Globe,
   Lock,
   Upload,
-  Sparkles,
   History,
 } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
 import { StatCard } from "@/components/ui/stat-card";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
@@ -83,7 +81,8 @@ import {
   draftEqual,
   type TemplateDraft,
 } from "@/modules/reports/TemplateEditor";
-import { renderTemplate, buildAiReportPrompt } from "@/modules/reports/template-engine";
+import { renderTemplate, buildAiReportPrompt, buildSampleReportContext } from "@/modules/reports/template-engine";
+import { useTenant } from "@/modules/tenants/use-tenant";
 import { buildReportContext, buildReportContextFromActa } from "@/modules/reports/report-context";
 import { parseDocxBundle, extractPlaceholders } from "@/modules/reports/docx-import";
 import { ActasManager } from "@/modules/reports/ActasManager";
@@ -221,12 +220,23 @@ function Inner() {
   // Importar .docx → cargar como plantilla privada editable inline.
   const docxInputRef = useRef<HTMLInputElement>(null);
 
-  // Generar con IA (dentro del editor): el docente describe qué quiere,
-  // elegimos un curso de referencia para el contexto, y armamos el prompt.
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiInstruction, setAiInstruction] = useState("");
-  const [aiCourseId, setAiCourseId] = useState<string>("");
-  const [aiBusy, setAiBusy] = useState(false);
+  // Marca del tenant para RENDERIZAR la vista previa (logo + nombre reales);
+  // el resto de variables se rellenan con datos de muestra.
+  const { tenant } = useTenant();
+  const previewContext = useMemo(
+    () =>
+      buildSampleReportContext(
+        tenant
+          ? {
+              institucion: {
+                nombre: tenant.name,
+                ...(tenant.logo_url ? { logo: tenant.logo_url } : {}),
+              },
+            }
+          : undefined,
+      ),
+    [tenant],
+  );
 
   const load = async () => {
     if (!user) return;
@@ -576,41 +586,31 @@ function Inner() {
     if (file) void handleDocxFile(file);
   };
 
-  // ── Generar con IA (rellenar/redactar el body del editor) ─────────
-
-  // Arma el prompt con datos REALES del curso (report-context combina
-  // valores de la plataforma + del curso) y lo manda al edge
-  // `ai-generate-report`, que corre la IA server-side (la API key vive como
-  // secret) y devuelve el HTML/texto del informe. El resultado se inserta
-  // en el editor como nuevo body. Si el edge falla (IA no configurada,
-  // saturada, etc.), caemos al fallback de copiar el prompt al portapapeles
-  // para usarlo en una IA externa.
-  const handleAiGenerate = async () => {
-    if (!aiCourseId) {
-      toast.error(
-        i18n.t("toast.routes_app_teacher_reports.aiSelectCourse", {
-          defaultValue: "Selecciona un curso de referencia para los datos.",
-        }),
-      );
-      return;
-    }
-    setAiBusy(true);
+  // ── Generación IA INLINE (insertar en el cursor) ──────────────────
+  //
+  // Callback que TemplateEditor invoca cuando el docente abre "Generación IA"
+  // desde el panel de variables (situando antes el cursor en el cuerpo). Arma
+  // el prompt con datos REALES del curso y lo manda al edge `ai-generate-report`
+  // (la API key vive como secret). Devuelve el HTML generado para que el editor
+  // lo inserte EXACTAMENTE donde está el cursor. Si el edge falla, cae al
+  // fallback de copiar el prompt al portapapeles y devuelve null.
+  const aiGenerate = async ({
+    instruction,
+    courseId,
+  }: {
+    instruction: string;
+    courseId: string;
+  }): Promise<string | null> => {
     let system = "";
     let userMsg = "";
     try {
-      const ctx = await buildReportContext({
-        courseId: aiCourseId,
-        // Para scope estudiante no fijamos un alumno: el contexto de curso
-        // alcanza para que la IA conozca el shape de datos disponible.
-        studentId: undefined,
-      });
+      const ctx = await buildReportContext({ courseId, studentId: undefined });
       ({ system, user: userMsg } = buildAiReportPrompt({
         draftText: draft.body_html,
-        instruction: aiInstruction,
+        instruction,
         ctx,
       }));
     } catch (e) {
-      setAiBusy(false);
       toast.error(
         e instanceof Error
           ? e.message
@@ -618,31 +618,23 @@ function Inner() {
               defaultValue: "No se pudo preparar la generación con IA.",
             }),
       );
-      return;
+      return null;
     }
 
     // 1) Intento principal: el edge corre la IA y devuelve el contenido.
     try {
       const { data, error } = await db.functions.invoke("ai-generate-report", {
-        body: { system, user: userMsg, courseId: aiCourseId },
+        body: { system, user: userMsg, courseId },
       });
       const content = typeof data?.content === "string" ? data.content.trim() : "";
       if (!error && content) {
-        // Insertamos el resultado como nuevo body del editor (el prompt ya
-        // incluye el body actual y pide "mejóralo/complétalo", así que el
-        // texto devuelto es la versión completa).
-        setDraft((d) => ({ ...d, body_html: content }));
-        setAiOpen(false);
-        setAiBusy(false);
         toast.success(
           i18n.t("toast.routes_app_teacher_reports.aiGenerated", {
-            defaultValue:
-              "Informe generado con IA e insertado en el editor. Revísalo y ajusta los {{...}} antes de guardar.",
+            defaultValue: "Contenido generado e insertado donde tenías el cursor.",
           }),
         );
-        return;
+        return content;
       }
-      // Si el edge respondió error (o vacío), caemos al fallback de clipboard.
       if (error) console.warn("[reports][ai-generate-report]", error);
     } catch (e) {
       console.warn("[reports][ai-generate-report] invoke failed", e);
@@ -658,8 +650,6 @@ function Inner() {
     } catch {
       copied = false;
     }
-    setAiOpen(false);
-    setAiBusy(false);
     toast.warning(
       copied
         ? i18n.t("toast.routes_app_teacher_reports.aiFallbackCopied", {
@@ -676,6 +666,7 @@ function Inner() {
       // eslint-disable-next-line no-console
       console.info("[reports][ai-prompt]\n", prompt);
     }
+    return null;
   };
 
   // ── Generador handlers ───────────────────────────────────────────
@@ -1232,78 +1223,20 @@ function Inner() {
             </div>
           )}
 
-          <TemplateEditor value={draft} onChange={setDraft} />
-
-          <DialogFooter className="sm:justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setAiInstruction("");
-                setAiCourseId(editorCourseId || courses[0]?.id || "");
-                setAiOpen(true);
-              }}
-              disabled={editorSaving}
-            >
-              <Sparkles className="h-4 w-4 mr-1 text-violet-500" />
-              {t("hc_routesAppTeacherReports.generateWithAi")}
-            </Button>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => void closeEditor()} disabled={editorSaving}>
-                {t("hc_routesAppTeacherReports.cancel")}
-              </Button>
-              <Button onClick={() => void handleSave()} disabled={editorSaving}>
-                {editorSaving ? t("hc_routesAppTeacherReports.saving") : t("hc_routesAppTeacherReports.save")}
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Dialog: Generar con IA ── */}
-      <Dialog open={aiOpen} onOpenChange={(o) => !aiBusy && setAiOpen(o)}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t("hc_routesAppTeacherReports.aiDialogTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("hc_routesAppTeacherReports.aiDialogDesc", { ph: "{{...}}" })}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label required>{t("hc_routesAppTeacherReports.referenceCourseLabel")}</Label>
-              <Select value={aiCourseId} onValueChange={setAiCourseId}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t("hc_routesAppTeacherReports.selectCoursePlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {courses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>{t("hc_routesAppTeacherReports.aiInstructionLabel")}</Label>
-              <Textarea
-                value={aiInstruction}
-                onChange={(e) => setAiInstruction(e.target.value)}
-                placeholder={t("hc_routesAppTeacherReports.aiInstructionPlaceholder")}
-                className="min-h-[120px]"
-              />
-            </div>
-          </div>
+          <TemplateEditor
+            value={draft}
+            onChange={setDraft}
+            previewContext={previewContext}
+            onAiGenerate={aiGenerate}
+            aiCourses={courses}
+          />
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAiOpen(false)} disabled={aiBusy}>
+            <Button variant="outline" onClick={() => void closeEditor()} disabled={editorSaving}>
               {t("hc_routesAppTeacherReports.cancel")}
             </Button>
-            <Button onClick={() => void handleAiGenerate()} disabled={aiBusy || !aiCourseId}>
-              {aiBusy ? <Spinner size="sm" className="mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
-              {aiBusy ? t("hc_routesAppTeacherReports.generatingAi") : t("hc_routesAppTeacherReports.generateWithAi")}
+            <Button onClick={() => void handleSave()} disabled={editorSaving}>
+              {editorSaving ? t("hc_routesAppTeacherReports.saving") : t("hc_routesAppTeacherReports.save")}
             </Button>
           </DialogFooter>
         </DialogContent>

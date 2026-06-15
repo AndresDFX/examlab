@@ -484,6 +484,92 @@ export interface AiReportPromptArgs {
  * PURA: no invoca la IA — solo arma los mensajes. El wiring del edge
  * queda en el caller (app.teacher.reports.tsx).
  */
+/** Logo de muestra (SVG inline) para el preview cuando no hay logo real. */
+export const SAMPLE_LOGO_DATA_URI =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="140" height="56">' +
+      '<rect width="140" height="56" rx="6" fill="#e5e7eb"/>' +
+      '<text x="70" y="34" font-family="sans-serif" font-size="15" fill="#6b7280" text-anchor="middle">LOGO</text></svg>',
+  );
+
+/**
+ * Contexto de MUESTRA para la vista previa del editor. Rellena cada variable
+ * del catálogo con un valor de ejemplo, para que el preview se vea RENDERIZADO
+ * (datos reales de ejemplo) en lugar de mostrar los `{{placeholders}}` crudos.
+ * El caller (la ruta) puede sobreescribir `institucion` con la marca real del
+ * tenant (nombre + logo) para que el logo institucional se vea de verdad.
+ *
+ * PURA: sin DB ni red. Testeada.
+ */
+export function buildSampleReportContext(overrides?: Partial<TemplateContext>): TemplateContext {
+  const base: TemplateContext = {
+    estudiante: {
+      nombre: "Juan Pérez Gómez",
+      email: "juan.perez@correo.edu.co",
+      codigo: "20211020",
+      documento: "1.234.567.890",
+      cohorte: "2024-1",
+      estado: "activo",
+      programa: "Ingeniería de Sistemas",
+    },
+    curso: {
+      nombre: "Programación II",
+      codigo: "IS-202",
+      semestre: "2",
+      grupo: "341C",
+      programa: "Ingeniería de Sistemas",
+      programa_codigo: "IS",
+      facultad: "Facultad de Ingeniería",
+      asignatura: "Programación Orientada a Objetos",
+      asignatura_codigo: "POO-202",
+      creditos: 3,
+      horario: "Lun 10:00–12:00 · Jue 14:00–16:00",
+    },
+    periodo: "2026-1",
+    periodo_obj: { start_date: "2026-01-20", end_date: "2026-05-30", status: "en curso" },
+    fecha_emision: "15 de junio de 2026",
+    docente: { nombre: "María Rodríguez", email: "maria.rodriguez@correo.edu.co" },
+    institucion: { nombre: "Institución Universitaria", logo: SAMPLE_LOGO_DATA_URI },
+    nota_final: "4,3",
+    aprobado: true,
+    estado_aprobacion: "Aprobado",
+    escala_max: 5,
+    cortes: [
+      { nombre: "Corte 1", nota: "4,0", peso: "30%" },
+      { nombre: "Corte 2", nota: "4,2", peso: "30%" },
+      { nombre: "Corte 3", nota: "4,6", peso: "40%" },
+    ],
+    examenes: [
+      { titulo: "Parcial 1", nota: "4,0", peso: "15%" },
+      { titulo: "Parcial 2", nota: "4,5", peso: "15%" },
+    ],
+    talleres: [{ titulo: "Taller 1", nota: "4,8", peso: "10%" }],
+    proyectos: [{ titulo: "Proyecto final", nota: "4,5", peso: "20%" }],
+    asistencia: { presentes: 18, ausentes: 2, total: 20, porcentaje: "90%" },
+    estudiantes: [
+      { nombre: "Juan Pérez", email: "juan@correo.edu.co", codigo: "20211020", documento: "1.234.567.890", nota_final: "4,3", estado_aprobacion: "Aprobado", asistencia: { porcentaje: "90%" } },
+      { nombre: "Ana Gómez", email: "ana@correo.edu.co", codigo: "20211021", documento: "1.234.567.891", nota_final: "3,1", estado_aprobacion: "Aprobado", asistencia: { porcentaje: "85%" } },
+      { nombre: "Luis Torres", email: "luis@correo.edu.co", codigo: "20211022", documento: "1.234.567.892", nota_final: "2,4", estado_aprobacion: "Reprobado", asistencia: { porcentaje: "70%" } },
+    ],
+    total_estudiantes: 25,
+    total_aprobados: 20,
+    total_reprobados: 4,
+    total_sin_nota: 1,
+  };
+  if (!overrides) return base;
+  return {
+    ...base,
+    ...overrides,
+    // `institucion` se mezcla a nivel de campo para conservar el logo de
+    // muestra si el override sólo trae el nombre (o viceversa).
+    institucion: {
+      ...(base.institucion as Record<string, unknown>),
+      ...((overrides.institucion as Record<string, unknown>) ?? {}),
+    },
+  };
+}
+
 export function buildAiReportPrompt(args: AiReportPromptArgs): { system: string; user: string } {
   const { draftText, instruction, ctx, catalog } = args;
   const paths = flattenCatalogPaths(catalog);

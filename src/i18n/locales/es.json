@@ -6151,7 +6151,20 @@
     "previewNoteAfter": "resaltados se reemplazan por los datos reales al Generar.",
     "previewIframeTitle": "Vista previa del informe",
     "availableVariables": "Variables disponibles",
-    "clickToInsert": "Click → inserta en la pestaña activa."
+    "clickToInsert": "Click → inserta en la pestaña activa.",
+    "pageCount": "{{count}} página(s)",
+    "previewRenderedNote": "Vista previa con datos de EJEMPLO (las variables aparecen ya resueltas, p. ej. el logo). Al generar el informe se usan los datos reales del curso/estudiante.",
+    "aiInsertButton": "Generación IA",
+    "aiInsertHint": "Sitúa el cursor en el cuerpo y la IA inserta ahí lo que pidas.",
+    "aiDialogTitle": "Generar con IA e insertar",
+    "aiDialogDesc": "El contenido se insertará donde tienes el cursor en el cuerpo. Puede incluir variables {{...}} que se resuelven al generar el informe.",
+    "aiCourseLabel": "Curso de referencia (datos)",
+    "aiCoursePlaceholder": "Elige un curso",
+    "aiInstructionLabel": "¿Qué quieres que genere?",
+    "aiInstructionPlaceholder": "Ej.: un párrafo de observaciones del desempeño del estudiante usando su nombre y nota final.",
+    "aiCancel": "Cancelar",
+    "aiGenerating": "Generando…",
+    "aiGenerateInsert": "Generar e insertar"
   },
   "hc_modulesSchedulesCourseScheduleEditor": {
     "loadScheduleError": "No pudimos cargar el horario",

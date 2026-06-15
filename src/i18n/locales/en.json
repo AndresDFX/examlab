@@ -6151,7 +6151,20 @@
     "previewNoteAfter": "fields are replaced with the real data when you Generate.",
     "previewIframeTitle": "Report preview",
     "availableVariables": "Available variables",
-    "clickToInsert": "Click → inserts in the active tab."
+    "clickToInsert": "Click → inserts in the active tab.",
+    "pageCount": "{{count}} page(s)",
+    "previewRenderedNote": "Preview with SAMPLE data (variables appear already resolved, e.g. the logo). The real course/student data is used when you generate the report.",
+    "aiInsertButton": "AI generation",
+    "aiInsertHint": "Place the cursor in the body and the AI inserts what you ask for right there.",
+    "aiDialogTitle": "Generate with AI and insert",
+    "aiDialogDesc": "The content will be inserted where your cursor is in the body. It can include {{...}} variables that resolve when the report is generated.",
+    "aiCourseLabel": "Reference course (data)",
+    "aiCoursePlaceholder": "Choose a course",
+    "aiInstructionLabel": "What should it generate?",
+    "aiInstructionPlaceholder": "E.g.: a paragraph of observations on the student's performance using their name and final grade.",
+    "aiCancel": "Cancel",
+    "aiGenerating": "Generating…",
+    "aiGenerateInsert": "Generate and insert"
   },
   "hc_modulesSchedulesCourseScheduleEditor": {
     "loadScheduleError": "We couldn't load the schedule",

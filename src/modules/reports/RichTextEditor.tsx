@@ -34,6 +34,8 @@ import {
 export interface RichTextEditorHandle {
   /** Inserta texto plano (ej. un `{{placeholder}}`) en la posición del cursor. */
   insertText(text: string): void;
+  /** Inserta HTML (ej. contenido generado por IA) en la posición del cursor. */
+  insertHtml(html: string): void;
 }
 
 interface Props {
@@ -88,19 +90,31 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, Props>(function R
     emit();
   };
 
+  const restoreSelection = () => {
+    const el = elRef.current;
+    if (!el) return;
+    el.focus();
+    if (lastRange.current) {
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(lastRange.current);
+      }
+    }
+  };
+
   useImperativeHandle(ref, () => ({
     insertText(text: string) {
-      const el = elRef.current;
-      if (!el) return;
-      el.focus();
-      if (lastRange.current) {
-        const sel = window.getSelection();
-        if (sel) {
-          sel.removeAllRanges();
-          sel.addRange(lastRange.current);
-        }
-      }
+      if (!elRef.current) return;
+      restoreSelection();
       document.execCommand("insertText", false, text);
+      saveSelection();
+      emit();
+    },
+    insertHtml(html: string) {
+      if (!elRef.current) return;
+      restoreSelection();
+      document.execCommand("insertHTML", false, html);
       saveSelection();
       emit();
     },
