@@ -274,6 +274,11 @@ function TeacherWorkshops() {
   const [workshopCourseCuts, setWorkshopCourseCuts] = useState<
     Map<string, Record<string, { cut_id: string | null; weight: number }>>
   >(new Map());
+  // `cuts` se declara ANTES de useTableSort: el accessor de orden por corte
+  // (`cut`) lo referencia, y useTableSort ordena en un useMemo que corre en
+  // render → declararlo después causaba TDZ ("Cannot access 'cuts' before
+  // initialization") al ordenar la grilla por la columna Corte.
+  const [cuts, setCuts] = useState<Cut[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [aiErrorsByWorkshop, setAiErrorsByWorkshop] = useState<Record<string, number>>({});
@@ -383,7 +388,6 @@ function TeacherWorkshops() {
         .map((w) => ({ id: w.id, label: w.title })),
     [filteredWorkshops, sel],
   );
-  const [cuts, setCuts] = useState<Cut[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Workshop>>({});
   /** Lista N de videos introductorios del taller. Vive separada del
