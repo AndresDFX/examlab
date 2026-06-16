@@ -45,6 +45,22 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-16
 
+**Kahoot — reconexión: el jugador vuelve a la pregunta ACTUAL tras caída de
+internet.** Supabase Realtime no re-emite los eventos perdidos al reconectar el
+socket, así que `useKahootGame` (que solo recargaba en cada `postgres_changes`)
+dejaba al jugador CONGELADO en la pregunta que tenía cuando se cayó la red, sin
+saltar a la actual hasta que el host volvía a tocar la DB. Además un `reload()`
+fallido (poll sin internet) podía voltear la pantalla a estado de error.
+Ajuste (client-side, `use-kahoot-game.ts`):
+- Re-sincroniza el snapshot (`kahoot_get_state`) al (re)suscribir el canal
+  (status `SUBSCRIBED`, incluye reconexión), en `online`, al volver el foco/
+  visibilidad de la pestaña, y con un poll de respaldo cada 5 s.
+- Un `reload()` fallido ya NO descarta el último estado bueno: la pantalla se
+  mantiene y converge a la pregunta en vivo en cuanto la red regresa.
+- Server sin cambios: los jugadores no se podan al desconectar (solo el host
+  tiene heartbeat), `kahoot_join_game` upsertea y `kahoot_get_state` devuelve la
+  pregunta actual + `me` por `auth.uid()` — bastaba con re-pedir el snapshot.
+
 **Recordatorio de entregas: "1 hora antes", parametrizable y UNA sola vez.**
 Antes `notify_students_{workshop,project}_due_soon(24)` corría cada 2h con
 ventana de 24h y dedup de solo 6h → el alumno recibía el aviso al entrar en las
