@@ -38,6 +38,93 @@ export interface RichTextEditorHandle {
   insertHtml(html: string): void;
 }
 
+// ── Resaltado de variables {{...}} (SOLO en el editor) ───────────────────────
+// Por qué: el docente debe distinguir lo que es "referencia a la plataforma"
+// ({{curso.nombre}}, {{#each estudiantes}}, …) del texto fijo del template
+// importado. Antes se envolvía SÓLO lo insertado desde el catálogo en un
+// <span class="examlab-added">, pero (a) execCommand("insertHTML") no garantiza
+// preservar la clase y (b) las variables que YA venían en el .docx importado o
+// que el docente tipea a mano nunca se coloreaban. Solución: decorar TODO token
+// {{...}} en el DOM del editor, y MANTENER LIMPIO el `value` (HTML que se guarda
+// y exporta) quitando la decoración al emitir. Los <span data-ev> son puramente
+// visuales: nunca llegan al body_html guardado ni al .docx/PDF.
+const VAR_TOKEN_RE = /(\{\{[^{}]*\}\})/g;
+
+/** Envuelve cada token {{...}} en un span resaltado, sin tocar etiquetas/atributos. */
+export function decorateVars(html: string): string {
+  return html
+    .split(/(<[^>]+>)/) // separa etiquetas para no matchear dentro de atributos
+    .map((seg) =>
+      seg.startsWith("<")
+        ? seg
+        : seg.replace(VAR_TOKEN_RE, '<span class="examlab-added" data-ev="1">$1</span>'),
+    )
+    .join("");
+}
+
+/** Quita los wrappers de variable (cualquier `span.examlab-added`, con o sin
+ *  data-ev — incluye los de plantillas viejas), conservando el token. Deja
+ *  intactos los BLOQUES `div.examlab-added` (ej. contenido de IA, que sí
+ *  persiste en el body_html). */
+export function stripVarDecoration(html: string): string {
+  if (typeof document === "undefined") {
+    return html.replace(
+      /<span class="examlab-added"(?: data-ev="[^"]*")?>([\s\S]*?)<\/span>/g,
+      "$1",
+    );
+  }
+  const tmp = document.createElement("div");
+  tmp.innerHTML = html;
+  tmp.querySelectorAll("span.examlab-added").forEach((s) => {
+    s.replaceWith(...Array.from(s.childNodes));
+  });
+  return tmp.innerHTML;
+}
+
+/** Offset de texto (chars visibles) del caret dentro de `root`, o null. */
+function caretOffset(root: HTMLElement): number | null {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return null;
+  const range = sel.getRangeAt(0);
+  if (!root.contains(range.endContainer)) return null;
+  const pre = range.cloneRange();
+  pre.selectNodeContents(root);
+  pre.setEnd(range.endContainer, range.endOffset);
+  return pre.toString().length;
+}
+
+/** Reubica el caret en el offset de texto dado (la decoración no agrega texto,
+ *  así el offset es estable entre versión limpia y decorada). */
+function setCaretOffset(root: HTMLElement, offset: number) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let remaining = offset;
+  let last: Text | null = null;
+  let node = walker.nextNode() as Text | null;
+  while (node) {
+    const len = node.textContent?.length ?? 0;
+    if (remaining <= len) {
+      const r = document.createRange();
+      r.setStart(node, remaining);
+      r.collapse(true);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(r);
+      return;
+    }
+    remaining -= len;
+    last = node;
+    node = walker.nextNode() as Text | null;
+  }
+  if (last) {
+    const r = document.createRange();
+    r.setStart(last, last.textContent?.length ?? 0);
+    r.collapse(true);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(r);
+  }
+}
+
 interface Props {
   value: string;
   onChange: (html: string) => void;
@@ -55,14 +142,38 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, Props>(function R
   // (que ocurre tras hacer click en el sidebar y perder el foco del editor)
   // caiga donde el docente estaba escribiendo.
   const lastRange = useRef<Range | null>(null);
+  // true mientras el usuario compone con IME (acentos/teclados asiáticos): NO
+  // reescribir innerHTML en medio de la composición o se rompe.
+  const composing = useRef(false);
 
   // Sincroniza el innerHTML cuando `value` cambia DESDE AFUERA (importar un
-  // .docx, generar con IA, insertar variable). El guard `!== value` evita
-  // re-escribir mientras el docente tipea (eso movería el cursor al inicio).
+  // .docx, generar con IA, insertar variable). Comparamos la versión LIMPIA del
+  // DOM contra `value` (que siempre está limpio) para no reescribir mientras el
+  // docente tipea (eso movería el cursor). Al renderizar, decoramos los {{...}}.
   useEffect(() => {
     const el = elRef.current;
-    if (el && el.innerHTML !== value) el.innerHTML = value || "";
+    if (el && stripVarDecoration(el.innerHTML) !== value) {
+      el.innerHTML = decorateVars(value || "");
+    }
   }, [value]);
+
+  // Re-decora los {{...}} del editor preservando el caret, y emite el HTML
+  // LIMPIO al padre. Se llama tras tipear (al completar/editar un token) y tras
+  // insertar desde el catálogo o IA.
+  const redecorateAndEmit = () => {
+    const el = elRef.current;
+    if (!el) return;
+    const clean = stripVarDecoration(el.innerHTML);
+    if (!composing.current) {
+      const decorated = decorateVars(clean);
+      if (decorated !== el.innerHTML) {
+        const off = caretOffset(el);
+        el.innerHTML = decorated;
+        if (off != null) setCaretOffset(el, off);
+      }
+    }
+    onChange(clean);
+  };
 
   const saveSelection = () => {
     const sel = window.getSelection();
@@ -70,8 +181,6 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, Props>(function R
       lastRange.current = sel.getRangeAt(0).cloneRange();
     }
   };
-
-  const emit = () => onChange(elRef.current?.innerHTML ?? "");
 
   const exec = (cmd: string, arg?: string) => {
     const el = elRef.current;
@@ -87,7 +196,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, Props>(function R
     }
     document.execCommand(cmd, false, arg);
     saveSelection();
-    emit();
+    redecorateAndEmit();
   };
 
   const restoreSelection = () => {
@@ -109,14 +218,14 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, Props>(function R
       restoreSelection();
       document.execCommand("insertText", false, text);
       saveSelection();
-      emit();
+      redecorateAndEmit();
     },
     insertHtml(html: string) {
       if (!elRef.current) return;
       restoreSelection();
       document.execCommand("insertHTML", false, html);
       saveSelection();
-      emit();
+      redecorateAndEmit();
     },
   }));
 
@@ -169,10 +278,17 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, Props>(function R
         role="textbox"
         aria-multiline="true"
         data-placeholder={placeholder}
-        onInput={emit}
+        onInput={redecorateAndEmit}
+        onCompositionStart={() => {
+          composing.current = true;
+        }}
+        onCompositionEnd={() => {
+          composing.current = false;
+          redecorateAndEmit();
+        }}
         onBlur={() => {
           saveSelection();
-          emit();
+          redecorateAndEmit();
         }}
         onKeyUp={saveSelection}
         onMouseUp={saveSelection}

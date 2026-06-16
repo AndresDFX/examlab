@@ -219,28 +219,26 @@ export function TemplateEditor({
       // la selección guardada del editor visual sigue válida.
     }
     // En el cuerpo en modo Visual, insertamos en el cursor del editor WYSIWYG.
-    // Lo que se inserta DESDE LA PLATAFORMA (una variable o contenido de IA) se
-    // envuelve en `.examlab-added` para resaltarlo con otro color TEMPORALMENTE
-    // — sólo en el editor (la clase no tiene estilo en el preview ni en el
-    // .docx/PDF exportado), así el docente distingue lo agregado vs el template
-    // original. IA = bloque (div), variable = inline (span).
+    // El editor RESALTA todo token {{...}} en otro color por su cuenta (sólo en
+    // el editor — el body_html guardado/exportado va limpio), así que acá
+    // insertamos texto/markup PLANO. El contenido de IA sí se envuelve en un
+    // bloque `.examlab-added` (es texto libre, no un token detectable).
     if ((activeTab === "preview" || activeTab === "body") && bodyMode === "visual") {
       if (asHtml) {
-        // Contenido de IA = bloque.
+        // Contenido de IA = bloque resaltado.
         richRef.current?.insertHtml(`<div class="examlab-added">${snippet}</div>`);
       } else if (/\{\{[#/]/.test(snippet)) {
-        // Bloque de control ({{#each}}/{{#if}}): un <span> inline lo PARTE en
-        // contentEditable y rompe el par {{#each}}…{{/each}} → el preview no
-        // itera. Lo insertamos como bloques: apertura / línea editable / cierre,
-        // para que el par quede intacto y el docente escriba la fila en medio.
+        // Bloque de control ({{#each}}/{{#if}}): insertarlo como un <span> inline
+        // PARTE el par en contentEditable y rompe {{#each}}…{{/each}} → el
+        // preview no itera. Lo insertamos como bloques: apertura / línea editable
+        // / cierre, para que el par quede intacto y el docente escriba en medio.
+        // Los tokens los colorea el editor automáticamente.
         const open = snippet.split("\n")[0];
         const close = snippet.trim().split("\n").pop() ?? "{{/each}}";
-        richRef.current?.insertHtml(
-          `<div class="examlab-added">${open}</div><div><br></div><div class="examlab-added">${close}</div>`,
-        );
+        richRef.current?.insertHtml(`<div>${open}</div><div><br></div><div>${close}</div>`);
       } else {
-        // Variable escalar → span inline coloreado.
-        richRef.current?.insertHtml(`<span class="examlab-added">${snippet}</span>`);
+        // Variable escalar → texto plano; el editor la colorea como {{token}}.
+        richRef.current?.insertText(snippet);
       }
       return;
     }

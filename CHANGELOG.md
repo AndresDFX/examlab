@@ -45,6 +45,22 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-15
 
+**Informes — TODA variable `{{…}}` se resalta en el editor visual (no sólo las
+insertadas).** Antes el color sólo se aplicaba a lo insertado desde el catálogo,
+envuelto en un `<span class="examlab-added">` por `execCommand("insertHTML")` —
+frágil (no garantiza preservar la clase) y, sobre todo, NO coloreaba las
+variables ya horneadas en el `.docx` importado ni las tipeadas a mano (caso
+reportado: `{{curso.nombre}}` en la celda "Asignatura" salía en negro).
+- `RichTextEditor` ahora **decora todo token `{{…}}`** del DOM (incluye
+  `{{#each}}`/`{{/each}}`) preservando el caret por offset de texto; guard de IME.
+- El `body_html` que se **guarda y exporta va LIMPIO**: `stripVarDecoration` quita
+  los wrappers al emitir (también los `span.examlab-added` viejos de plantillas
+  previas). El resaltado es 100% del editor — el `.docx`/PDF conservan el formato
+  del template. Los bloques de IA (`div.examlab-added`) sí persisten, como antes.
+- El insert desde el catálogo mete texto/markup PLANO; el editor lo colorea.
+- Helpers `decorateVars`/`stripVarDecoration` con tests (round-trip, importadas,
+  bloques de control, atributos con llaves, limpieza de legacy).
+
 **Informes — cabecera de CUADROS DE TEXTO reconstruida (caso Camacho).** Con el
 .docx real (`diagnostico.docx`) se halló que la cabecera NO es una tabla sino 3
 **cuadros de texto flotantes** (`<w:drawing>`+`<w:txbxContent>`, anclados con
