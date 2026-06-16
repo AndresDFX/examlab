@@ -41,6 +41,8 @@ const UNIQUE_INDEX_MESSAGES: Record<string, string> = {
   // Actas: una sola por (curso, periodo). Regenerar exige borrar la anterior.
   idx_course_actas_unique:
     "Ya existe un acta para este curso y periodo. Bórrala desde la lista para generar una nueva.",
+  // Supresión de correos: una dirección por scope.
+  email_suppressions_email_tenant_uidx: "Esa dirección ya está en la lista de supresión.",
 };
 
 /**

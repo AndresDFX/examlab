@@ -12,10 +12,13 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { ErrorState } from "@/components/ui/empty-state";
+import { ErrorState, EmptyState } from "@/components/ui/empty-state";
+import { RowAction } from "@/components/ui/row-action";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import i18n from "@/i18n";
 import {
   Mail,
@@ -31,6 +34,9 @@ import {
   ListChecks,
   BookOpen,
   UserPlus,
+  MailX,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
 
@@ -143,13 +149,202 @@ const CATEGORIES: Array<{
   },
 ];
 
+// ── Lista de supresión (rebotes / bandeja llena) ────────────────────────────
+interface Suppression {
+  id: string;
+  email: string;
+  reason: string;
+  note: string | null;
+  tenant_id: string | null;
+  created_at: string;
+}
+
+const REASON_LABEL: Record<string, string> = {
+  manual: "Manual",
+  mailbox_full: "Bandeja llena",
+  hard_bounce: "Rebote",
+  complaint: "Queja",
+};
+
+function EmailSuppressionsCard({
+  isSuperAdmin,
+  tenantId,
+}: {
+  isSuperAdmin: boolean;
+  tenantId: string | null;
+}) {
+  const confirm = useConfirm();
+  const [rows, setRows] = useState<Suppression[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newEmail, setNewEmail] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [reloadNonce, setReloadNonce] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      const { data, error } = await db
+        .from("email_suppressions")
+        .select("id,email,reason,note,tenant_id,created_at")
+        .order("created_at", { ascending: false });
+      if (cancelled) return;
+      if (!error) setRows((data as Suppression[]) ?? []);
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadNonce]);
+
+  const add = async () => {
+    const email = newEmail.trim().toLowerCase();
+    // Validación básica de email (no exhaustiva — el envío real valida más).
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      toast.error("Ingresa un correo válido.");
+      return;
+    }
+    setAdding(true);
+    // Admin → su tenant; SuperAdmin → global (NULL). El enforcement del edge es
+    // por dirección sin importar el tenant, así que ambos casos cortan el envío.
+    const { error } = await db.from("email_suppressions").insert({
+      email,
+      reason: "manual",
+      tenant_id: isSuperAdmin ? null : tenantId,
+    });
+    if (error) {
+      toast.error(friendlyError(error));
+      setAdding(false);
+      return;
+    }
+    toast.success("Dirección agregada a la lista de supresión.");
+    void logEvent({
+      action: "email_suppression.added",
+      category: "system",
+      severity: "warning",
+      metadata: { email },
+    });
+    setNewEmail("");
+    setAdding(false);
+    setReloadNonce((n) => n + 1);
+  };
+
+  const remove = async (row: Suppression) => {
+    const ok = await confirm({
+      title: "Reactivar envíos a esta dirección",
+      description: `Se quitará ${row.email} de la lista de supresión y ExamLab volverá a enviarle correos. Hazlo solo si el buzón ya no rebota.`,
+      confirmLabel: "Quitar",
+      tone: "warning",
+    });
+    if (!ok) return;
+    const { error } = await db.from("email_suppressions").delete().eq("id", row.id);
+    if (error) {
+      toast.error(friendlyError(error));
+      return;
+    }
+    toast.success("Dirección reactivada.");
+    void logEvent({
+      action: "email_suppression.removed",
+      category: "system",
+      severity: "warning",
+      metadata: { email: row.email },
+    });
+    setReloadNonce((n) => n + 1);
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <MailX className="h-4 w-4 text-rose-500" />
+          Direcciones suprimidas (rebotes / bandeja llena)
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          ExamLab <strong>no enviará correos</strong> a estas direcciones. Útil cuando un buzón
+          rebota constantemente (Gmail "bandeja llena" / usuario inexistente) y la cuenta
+          remitente se llena de avisos de "Mail Delivery Subsystem". Las notificaciones in-app
+          siguen llegando. Quita la dirección cuando el buzón se libere.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            type="email"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void add();
+            }}
+            placeholder="correo@ejemplo.com"
+            className="flex-1 min-w-[180px] sm:min-w-48"
+          />
+          <Button size="sm" onClick={() => void add()} disabled={adding}>
+            {adding ? (
+              <Spinner size="sm" className="mr-1" />
+            ) : (
+              <Plus className="h-4 w-4 mr-1" />
+            )}
+            Suprimir
+          </Button>
+        </div>
+
+        {loading ? (
+          <div className="text-center text-muted-foreground py-4 text-sm">
+            <Spinner size="sm" /> Cargando…
+          </div>
+        ) : rows.length === 0 ? (
+          <EmptyState
+            icon={MailX}
+            text="Sin direcciones suprimidas"
+            hint="Cuando agregues una, dejará de recibir correos."
+          />
+        ) : (
+          <ul className="divide-y rounded-md border">
+            {rows.map((r) => (
+              <li key={r.id} className="flex items-center gap-3 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium truncate">{r.email}</span>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {REASON_LABEL[r.reason] ?? r.reason}
+                    </Badge>
+                    {r.tenant_id === null && (
+                      <Badge variant="outline" className="text-[10px]">
+                        Global
+                      </Badge>
+                    )}
+                  </div>
+                  {r.note && (
+                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">{r.note}</p>
+                  )}
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {formatDateTime(r.created_at)}
+                  </p>
+                </div>
+                <RowAction
+                  label="Quitar de la lista"
+                  icon={Trash2}
+                  tone="destructive"
+                  onClick={() => void remove(r)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function AdminEmailSettingsPanel() {
-  const { roles } = useAuth();
+  const { roles, profile } = useAuth();
   // El panel se abre tanto para Admin del tenant como para SuperAdmin
   // (que opera cross-tenant). La RLS de `email_settings` ya enforza
   // quién puede UPDATE — acá solo gateamos el LOAD inicial. Antes solo
   // aceptaba Admin y el SA no veía el panel — bug reportado.
-  const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
+  const isSuperAdmin = roles.includes("SuperAdmin");
+  const isAdmin = roles.includes("Admin") || isSuperAdmin;
   const [settings, setSettings] = useState<EmailSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -338,6 +533,8 @@ export function AdminEmailSettingsPanel() {
           Guardar cambios
         </Button>
       </div>
+
+      <EmailSuppressionsCard isSuperAdmin={isSuperAdmin} tenantId={profile?.tenant_id ?? null} />
     </div>
   );
 }

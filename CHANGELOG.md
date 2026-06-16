@@ -43,6 +43,27 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## Historial
 
+### 2026-06-16
+
+**Correos — lista de SUPRESIÓN (rebotes / bandeja llena).** Reportado (tenant
+Camacho): la cuenta remitente recibe "Mail Delivery Subsystem" todo el tiempo
+porque ExamLab sigue mandando notificaciones a una dirección con el buzón lleno
+(`452 4.2.2 out of storage` / `5.2.2 mailbox full`). El rebote es ASÍNCRONO
+(Gmail acepta con 250 y rebota un NDR horas después al remitente), así que el
+edge nunca lo ve en el envío. Fix: lista de supresión.
+- **Tabla `email_suppressions`** (mig `20260979000000`): el edge `send-email` NO
+  envía a direcciones de la lista (enforcement GLOBAL por dirección; in-app/push
+  siguen). RLS: SA todo; Admin su tenant. Email normalizado a minúsculas
+  (trigger) + índice único por (email, tenant). **Sembrada** `sebasegar2006@gmail.com`
+  (global) para alivio inmediato — el SA la quita del panel cuando el buzón se libere.
+- **Auto-supresión** en el edge: si el handshake SMTP rebota PERMANENTEMENTE
+  (5.x.x de buzón/usuario) agrega la dirección sola. NUNCA por 4.x transitorio.
+  Helper `isPermanentMailboxError` con tests (fuente de verdad en
+  `src/modules/notifications/email-bounce.ts`, réplica en el edge).
+- **UI**: sección "Direcciones suprimidas" en el panel de Config. de correos
+  (Admin + SuperAdmin) para agregar/quitar direcciones. `friendlyError` mapea el
+  índice único ("ya está en la lista").
+
 ### 2026-06-15
 
 **Informes — TODA variable `{{…}}` se resalta en el editor visual (no sólo las

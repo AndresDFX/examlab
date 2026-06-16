@@ -62,7 +62,32 @@ type SkipReason =
   | "user_opted_out"
   | "no_email"
   | "no_settings"
+  | "suppressed"
   | "provider_error";
+
+// ── Detección de rebote PERMANENTE de buzón/usuario ──────────────────
+// RÉPLICA de src/modules/notifications/email-bounce.ts (Deno edge no importa de
+// src/). Los tests de ese módulo son la fuente de verdad — si cambias la lógica
+// acá, sincroniza allá (y viceversa).
+//
+// Auto-suprime SÓLO direcciones definitivamente muertas: exige código 5.x.x
+// (permanente) — NUNCA 4.x (transitorio: un 452 "out of storage temporal" se
+// reintenta solo). Los rebotes ASÍNCRONOS (NDR que llega horas después al
+// remitente) no pasan por acá — esos los agrega el Admin a mano desde el panel.
+function isPermanentMailboxError(msg: string): boolean {
+  const m = (msg ?? "").toLowerCase();
+  const permanent = /\b5\.[12]\.\d\b/.test(m) || /\b55\d\b/.test(m);
+  const mailboxIssue =
+    /mailbox.*(full|unavailable|disabled)/.test(m) ||
+    /over.?quota/.test(m) ||
+    /out of storage/.test(m) ||
+    /(does not|doesn'?t) exist/.test(m) ||
+    /(user|recipient|mailbox|address|account).*(unknown|not found|disabled)/.test(m) ||
+    /no such (user|mailbox|recipient|address)/.test(m) ||
+    /recipient.*reject/.test(m) ||
+    /address rejected/.test(m);
+  return permanent && mailboxIssue;
+}
 
 function shouldSendEmail(params: {
   kind: string;
@@ -385,6 +410,37 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ ok: true, sent: false, reason: decision.reason });
   }
 
+  // 2.5) Lista de SUPRESIÓN: quitar destinatarios cuyo buzón rebota
+  // (bandeja llena / usuario inexistente). Enforcement GLOBAL por dirección —
+  // consultamos por email sin filtrar por tenant. Si TODOS los destinatarios
+  // están suprimidos, no enviamos. El email guardado ya está en minúsculas
+  // (trigger de normalización), así que el `.in` con minúsculas matchea.
+  {
+    const lowered = recipients.map((r) => r.toLowerCase());
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: supp } = await (adminClient as any)
+      .from("email_suppressions")
+      .select("email")
+      .in("email", lowered);
+    const suppressedSet = new Set<string>(
+      (supp ?? []).map((s: { email: string }) => s.email.toLowerCase()),
+    );
+    if (suppressedSet.size > 0) {
+      for (let i = recipients.length - 1; i >= 0; i--) {
+        if (suppressedSet.has(recipients[i].toLowerCase())) recipients.splice(i, 1);
+      }
+      if (recipients.length === 0) {
+        await markSkipped(notificationId, "suppressed");
+        await auditEmail(notificationId, "email.skipped", "info", {
+          reason: "suppressed",
+          suppressed: Array.from(suppressedSet),
+        });
+        return jsonResponse({ ok: true, sent: false, reason: "suppressed" });
+      }
+      // Quedó ≥1 destinatario válido (ej. el personal) → seguimos sólo con esos.
+    }
+  }
+
   // 3) Configuración SMTP. Por defecto el SMTP GLOBAL (env). Si el tenant del
   // DESTINATARIO tiene config propia (tenant_email_settings.use_custom_smtp con
   // credenciales completas), la usamos en su lugar — así cada institución
@@ -554,6 +610,29 @@ Deno.serve(async (req: Request) => {
     const msg = e instanceof Error ? e.message : String(e);
     const truncated = msg.slice(0, 200);
     await markSkipped(notificationId, `provider_error: ${truncated}`);
+    // Auto-supresión: si el handshake SMTP rebotó PERMANENTEMENTE por buzón/
+    // usuario (5.x.x), dejamos de golpear esa dirección. Sólo permanentes — un
+    // 4.x transitorio NO se suprime. Best-effort: si la tabla no existe (mig
+    // sin aplicar) o el insert choca con el índice único, lo ignoramos.
+    let autoSuppressed = false;
+    if (isPermanentMailboxError(truncated)) {
+      for (const r of recipients) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: insErr } = await (adminClient as any)
+            .from("email_suppressions")
+            .insert({
+              email: r.toLowerCase(),
+              reason: "hard_bounce",
+              note: `auto (send-email): ${truncated}`,
+              tenant_id: tenantId,
+            });
+          if (!insErr) autoSuppressed = true;
+        } catch {
+          // silencio — la auto-supresión nunca rompe el flujo de error
+        }
+      }
+    }
     await auditEmail(notificationId, "email.failed", "error", {
       reason: "provider_error",
       error: truncated,
@@ -561,6 +640,7 @@ Deno.serve(async (req: Request) => {
       smtp_port: port,
       smtp_source: smtpSource,
       smtp_ms: Date.now() - smtpStartMs,
+      auto_suppressed: autoSuppressed,
     });
     return jsonError(`SMTP send failed: ${truncated}`, 500);
   }
