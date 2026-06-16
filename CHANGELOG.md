@@ -45,6 +45,24 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-16
 
+**Recordatorio de entregas: "1 hora antes", parametrizable y UNA sola vez.**
+Antes `notify_students_{workshop,project}_due_soon(24)` corría cada 2h con
+ventana de 24h y dedup de solo 6h → el alumno recibía el aviso al entrar en las
+24h y luego otra vez cada 6h hasta el cierre (varios correos por la misma
+entrega). Ajuste (mig `20260980000000`):
+- **Ventana = lead configurable** (`app_settings.due_reminder_lead_hours`,
+  default **1 h**, rango 1–168). El arg explícito de la función sigue ganando
+  (compat); si es NULL lee el setting; si no hay, cae a 1.
+- **Dedup PERMANENTE**: un único aviso por (alumno, entrega) — ya no se repite.
+- **Cron** reagendado a cada 15 min (`workshop-due-reminder` / `project-due-reminder`,
+  reemplazan a `*-due-24h`); como el dedup es permanente, el alumno recibe UN
+  solo recordatorio aunque el cron corra seguido. Descripciones actualizadas en
+  el panel SuperAdmin.
+- **UI**: campo "Recordatorios de entregas → Avisar (horas antes)" en
+  Configuración → Parámetros (`AdminGeneralSettingsPanel`).
+- Solo aplica a talleres/proyectos no entregados (entrega = submission). El
+  recordatorio de inicio de examen (`*_exam_starting_soon`) no se tocó.
+
 **Correos — lista de SUPRESIÓN (rebotes / bandeja llena).** Reportado (tenant
 Camacho): la cuenta remitente recibe "Mail Delivery Subsystem" todo el tiempo
 porque ExamLab sigue mandando notificaciones a una dirección con el buzón lleno

@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Save, Info, Mail, FileText, GraduationCap } from "lucide-react";
+import { Save, Info, Mail, FileText, GraduationCap, BellRing } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
 
@@ -51,6 +51,10 @@ interface AppSettings {
   max_open_answer_chars: number;
   email_alert_threshold_24h: number;
   email_alert_cooldown_hours: number;
+  /** Horas antes del vencimiento en que se avisa al alumno (recordatorio de
+   *  entrega de taller/proyecto). Default 1. El cron revisa cada 15 min y
+   *  manda UN solo aviso por entrega. */
+  due_reminder_lead_hours: number;
   updated_at: string;
 }
 
@@ -74,7 +78,9 @@ export function AdminGeneralSettingsPanel() {
       return;
     }
     if (data) {
-      const r = data as AppSettings;
+      // Coalesce de campos que pueden faltar si la migración aún no se publicó
+      // (mantiene el Input controlado y no rompe el panel pre-Publish).
+      const r = { ...data, due_reminder_lead_hours: data.due_reminder_lead_hours ?? 1 } as AppSettings;
       setRow(r);
       setDraft(r);
     }
@@ -121,6 +127,14 @@ export function AdminGeneralSettingsPanel() {
       );
       return;
     }
+    if (draft.due_reminder_lead_hours < 1 || draft.due_reminder_lead_hours > 168) {
+      toast.error(
+        i18n.t("toast.modules_admin_AdminGeneralSettingsPanel.dueReminderLeadOutOfRange", {
+          defaultValue: "El recordatorio de entregas debe estar entre 1 y 168 horas antes.",
+        }),
+      );
+      return;
+    }
     setSaving(true);
     try {
       const { error } = await db
@@ -139,6 +153,7 @@ export function AdminGeneralSettingsPanel() {
           max_open_answer_chars: draft.max_open_answer_chars,
           email_alert_threshold_24h: draft.email_alert_threshold_24h,
           email_alert_cooldown_hours: draft.email_alert_cooldown_hours,
+          due_reminder_lead_hours: draft.due_reminder_lead_hours,
           updated_by: user.id,
         })
         .eq("id", row.id);
@@ -389,6 +404,48 @@ export function AdminGeneralSettingsPanel() {
           display_order del tab Módulos ya cubre el caso de forma
           consistente con el resto de toggles. Mantener dos UIs llevaba
           a confusión sobre cuál ganaba. */}
+
+      {/* Recordatorios de entregas */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <BellRing className="h-4 w-4 text-amber-500" />
+            {t("adminGeneralSettings.cardDueReminderTitle", {
+              defaultValue: "Recordatorios de entregas",
+            })}
+            <HelpHint>
+              {t("help.dueReminderLead", {
+                defaultValue:
+                  "Cuánto tiempo antes del vencimiento se avisa al alumno (taller/proyecto que aún no entrega). El sistema revisa cada 15 minutos y manda UN solo recordatorio por entrega — no se repite.",
+              })}
+            </HelpHint>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="max-w-xs">
+            <Label>
+              {t("adminGeneralSettings.labelDueReminderLead", {
+                defaultValue: "Avisar (horas antes del vencimiento)",
+              })}
+            </Label>
+            <Input
+              type="number"
+              min={1}
+              max={168}
+              value={draft.due_reminder_lead_hours}
+              onChange={(e) =>
+                setDraft({ ...draft, due_reminder_lead_hours: Number(e.target.value) })
+              }
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              {t("adminGeneralSettings.hintDueReminderLead", {
+                defaultValue:
+                  "Por defecto 1 hora. Rango 1–168 (hasta 7 días). Solo a quienes no han entregado.",
+              })}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Alerta de correos */}
       <Card>
