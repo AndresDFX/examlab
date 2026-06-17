@@ -58,3 +58,9 @@ supabase/.temp/
 /recordings/
 .env.recording
 .tmp.driveupload
+
+# Placeholders de Google Drive Desktop (.gdoc/.gsheet/.gslides) — atajos
+# locales con doc_id + email personal, NO contenido versionable.
+*.gdoc
+*.gsheet
+*.gslides
