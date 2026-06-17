@@ -398,7 +398,7 @@ export function AdminAcademicSubjectsPanel() {
 
   return (
     <Card>
-      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
+      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 flex-wrap">
         <CardTitle className="text-base flex items-center gap-2">
           <BookOpen className="h-4 w-4 text-cyan-500" />
           {t("academic.subjects.title")}

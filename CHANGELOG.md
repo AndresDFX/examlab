@@ -43,7 +43,19 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## Historial
 
-### 2026-06-16
+### 2026-06-17
+
+**Auditoría móvil (375–428px) + manejo de errores.** Revisión a detalle del
+diseño móvil contra las reglas del design system: el `DialogContent` base ya
+acota ancho (`w-[calc(100%-1rem)]`), alto (`dvh`) y padding (`p-4 sm:p-6`); no
+hay grids forzando 2/3 columnas en móvil, ni `max-h` en `vh` (solo `dvh`), ni
+touch targets <32px, y los elementos `fixed bottom` (bottom-nav, FAB) ya llevan
+`env(safe-area-inset-bottom)`. Corregido lo encontrado:
+- `flex-wrap` en los `CardHeader` (título + acción) de `AdminAcademicSubjectsPanel`,
+  `ActasManager` y `SupabaseCronPanel` — quedaban sin envolver (a diferencia de
+  los paneles hermanos), arriesgando overflow del título/botón a 375px.
+
+(Manejo de errores y bug de foros se commitearon aparte el mismo ciclo.)
 
 **Grids del docente: por defecto se ven activos + borradores; los completados se
 ocultan.** Antes los grids de actividades mostraban todo sin distinción de

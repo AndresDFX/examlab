@@ -230,7 +230,7 @@ export function ActasManager({ onPrintActa }: Props) {
           subtitle={t("hc_modulesReportsActasManager.generatingSubtitle")}
         />
       )}
-      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
+      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 flex-wrap">
         <CardTitle className="text-base flex items-center gap-2">
           <Stamp className="h-4 w-4 text-amber-500" />
           {t("hc_modulesReportsActasManager.officialActas")}
