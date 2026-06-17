@@ -42,3 +42,75 @@ export function isValidDateRange(start: DateRangeInput, end: DateRangeInput): bo
   if (Number.isNaN(s) || Number.isNaN(e)) return true;
   return e >= s;
 }
+
+// ──────────────────────────────────────────────────────────────────────
+// Tope de la fecha FIN de una actividad a la fecha FIN de su curso.
+//
+// Regla (goal): si una actividad (examen/taller/proyecto) está asociada a un
+// curso con fecha fin, su fecha fin NUNCA debe superar la del curso. Al elegir
+// el curso en el form se topa automáticamente; si ya era menor, se deja igual.
+// Esto NO reemplaza la validación inicio < fin (esa sigue aplicando aparte).
+//
+// `courses.end_date` es una columna DATE (`YYYY-MM-DD`, sin hora). La
+// interpretamos como el FIN de ese día en hora LOCAL (es-CO) — coherente con el
+// resto de la app, que formatea/compara en local. Así "vence el 30 sep" admite
+// una actividad que cierra el 30 sep 23:59 pero no el 1 oct 00:00.
+// ──────────────────────────────────────────────────────────────────────
+
+/** `YYYY-MM-DDTHH:MM` en hora LOCAL — el formato que consume `<input
+ *  type="datetime-local">` / `DateTimePicker`. */
+function toLocalDatetimeInput(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * Instante (Date local) del FIN del día de `courseEnd`. Para un DATE puro
+ * (`YYYY-MM-DD`) devuelve ese día a las 23:59 local; si trae hora, la respeta.
+ * `null` si está vacío o no parsea.
+ */
+export function courseEndOfDay(courseEnd: DateRangeInput): Date | null {
+  if (courseEnd == null || courseEnd === "") return null;
+  if (typeof courseEnd === "string") {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(courseEnd.trim());
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 23, 59, 0, 0);
+  }
+  const ms = toMs(courseEnd);
+  return Number.isNaN(ms) ? null : new Date(ms);
+}
+
+/**
+ * Topa `activityEnd` (valor del input, normalmente `YYYY-MM-DDTHH:MM` local) al
+ * fin de día de `courseEnd`. Devuelve:
+ *   • el valor original sin tocar si no hay courseEnd, si la actividad no tiene
+ *     fin, o si su fin ya está dentro del curso;
+ *   • el fin de día del curso en formato `YYYY-MM-DDTHH:MM` local si lo excede.
+ */
+export function capEndToCourseEnd(
+  activityEnd: string | null | undefined,
+  courseEnd: DateRangeInput,
+): string {
+  const current = activityEnd ?? "";
+  const max = courseEndOfDay(courseEnd);
+  if (!max) return current;
+  const curMs = toMs(current);
+  if (Number.isNaN(curMs) || curMs <= max.getTime()) return current;
+  return toLocalDatetimeInput(max);
+}
+
+/**
+ * De una lista de `end_date` de cursos, devuelve el `end_date` (crudo) del que
+ * termina ANTES — para que la actividad multi-curso quepa dentro de TODOS. Los
+ * vacíos/no parseables se ignoran. `null` si ninguno sirve.
+ */
+export function earliestCourseEnd(ends: Array<DateRangeInput>): string | null {
+  let best: { ms: number; raw: string } | null = null;
+  for (const e of ends) {
+    const d = courseEndOfDay(e);
+    if (!d) continue;
+    if (best === null || d.getTime() < best.ms) {
+      best = { ms: d.getTime(), raw: typeof e === "string" ? e : toLocalDatetimeInput(d) };
+    }
+  }
+  return best ? best.raw : null;
+}

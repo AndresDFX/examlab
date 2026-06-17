@@ -45,6 +45,24 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-16
 
+**La fecha FIN de una actividad nunca supera la fecha fin de su curso (front +
+datos).** Al asociar un examen/taller/proyecto a un curso con `end_date`, su
+fecha fin se topa automáticamente a ese día; si ya era menor, se deja igual. No
+salta la validación existente inicio < fin (sigue aplicando sobre el valor ya
+topado).
+- **Helper** `capEndToCourseEnd` / `courseEndOfDay` / `earliestCourseEnd` en
+  [date-range.ts](src/shared/lib/date-range.ts) (puros, con tests). El fin del
+  curso (columna DATE) se interpreta como 23:59 hora local es-CO. Multi-curso →
+  se topa al curso que termina ANTES (cabe en todos).
+- **Front**: al elegir/cambiar el curso (toggle) y al guardar, los 3 forms
+  (`app.teacher.exams.index` `end_time`, `app.teacher.workshops` /
+  `app.teacher.projects` `due_date`) topan la fecha fin. **Externos no se topan**
+  (la fecha es marcador del evento ya ocurrido; en examen además end=start).
+- **Datos** (mig `20260981000000`): trigger BEFORE INSERT/UPDATE que CLAMPa
+  `end_time`/`due_date` al fin del día del curso (America/Bogota, espejo del
+  front). Cubre import CSV, clonado, RPC y API directa. Helper SQL
+  `_course_end_instant`. Externos exentos.
+
 **Kahoot — reconexión: el jugador vuelve a la pregunta ACTUAL tras caída de
 internet.** Supabase Realtime no re-emite los eventos perdidos al reconectar el
 socket, así que `useKahootGame` (que solo recargaba en cada `postgres_changes`)

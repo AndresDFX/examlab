@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isValidDateRange } from "./date-range";
+import {
+  isValidDateRange,
+  capEndToCourseEnd,
+  courseEndOfDay,
+  earliestCourseEnd,
+} from "./date-range";
 
 describe("isValidDateRange", () => {
   it("permite cuando falta alguno de los extremos (nada que validar)", () => {
@@ -63,5 +68,66 @@ describe("isValidDateRange", () => {
   it("recorta espacios antes de comparar (Date tolera el padding)", () => {
     expect(isValidDateRange(" 2026-01-01 ", " 2026-01-02 ")).toBe(true);
     expect(isValidDateRange(" 2026-01-02 ", " 2026-01-01 ")).toBe(false);
+  });
+});
+
+describe("courseEndOfDay", () => {
+  it("DATE puro (YYYY-MM-DD) → 23:59 LOCAL de ese día", () => {
+    const d = courseEndOfDay("2026-09-30");
+    expect(d).not.toBeNull();
+    expect(d!.getFullYear()).toBe(2026);
+    expect(d!.getMonth()).toBe(8); // septiembre (0-based)
+    expect(d!.getDate()).toBe(30);
+    expect(d!.getHours()).toBe(23);
+    expect(d!.getMinutes()).toBe(59);
+  });
+
+  it("vacío / nullish → null", () => {
+    expect(courseEndOfDay(null)).toBeNull();
+    expect(courseEndOfDay(undefined)).toBeNull();
+    expect(courseEndOfDay("")).toBeNull();
+  });
+});
+
+describe("capEndToCourseEnd", () => {
+  it("sin fecha fin del curso → deja la actividad igual", () => {
+    expect(capEndToCourseEnd("2026-12-31T10:00", null)).toBe("2026-12-31T10:00");
+    expect(capEndToCourseEnd("2026-12-31T10:00", "")).toBe("2026-12-31T10:00");
+  });
+
+  it("fin de la actividad YA dentro del curso → se deja tal cual (no reformatea)", () => {
+    // Curso termina el 30 sep; la actividad cierra el 15 sep → intacta.
+    expect(capEndToCourseEnd("2026-09-15T10:00", "2026-09-30")).toBe("2026-09-15T10:00");
+    // Mismo día, antes de las 23:59 → dentro.
+    expect(capEndToCourseEnd("2026-09-30T08:00", "2026-09-30")).toBe("2026-09-30T08:00");
+  });
+
+  it("fin de la actividad EXCEDE el curso → se topa al 23:59 local del último día", () => {
+    // Actividad cerraba el 5 oct, curso termina el 30 sep → topada al 30 sep 23:59.
+    expect(capEndToCourseEnd("2026-10-05T10:00", "2026-09-30")).toBe("2026-09-30T23:59");
+    // Un minuto después del cierre del curso también se topa.
+    expect(capEndToCourseEnd("2026-10-01T00:00", "2026-09-30")).toBe("2026-09-30T23:59");
+  });
+
+  it("actividad sin fin → no inventa fecha", () => {
+    expect(capEndToCourseEnd("", "2026-09-30")).toBe("");
+    expect(capEndToCourseEnd(null, "2026-09-30")).toBe("");
+  });
+});
+
+describe("earliestCourseEnd", () => {
+  it("devuelve el end_date del curso que termina ANTES (cabe en todos)", () => {
+    expect(earliestCourseEnd(["2026-09-30", "2026-12-15", "2026-10-20"])).toBe("2026-09-30");
+  });
+
+  it("ignora vacíos / nullish", () => {
+    expect(earliestCourseEnd([null, "2026-11-01", undefined, ""])).toBe("2026-11-01");
+    expect(earliestCourseEnd([null, undefined, ""])).toBeNull();
+    expect(earliestCourseEnd([])).toBeNull();
+  });
+
+  it("integra con capEndToCourseEnd (multi-curso → tope al más temprano)", () => {
+    const earliest = earliestCourseEnd(["2026-12-15", "2026-09-30"]);
+    expect(capEndToCourseEnd("2026-11-01T10:00", earliest)).toBe("2026-09-30T23:59");
   });
 });

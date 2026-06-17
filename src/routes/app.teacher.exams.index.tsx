@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
-import { isValidDateRange } from "@/shared/lib/date-range";
+import { isValidDateRange, capEndToCourseEnd, earliestCourseEnd } from "@/shared/lib/date-range";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
@@ -89,7 +89,7 @@ Programación I,Quiz 1,Quiz corto sobre listas,2025-09-22T08:00,2025-09-22T08:30
 
 export const Route = createFileRoute("/app/teacher/exams/")({ component: TeacherExams });
 
-type Course = { id: string; name: string; period: string | null };
+type Course = { id: string; name: string; period: string | null; end_date: string | null };
 type Cut = { id: string; course_id: string; name: string; exam_weight?: number };
 type Exam = {
   id: string;
@@ -304,7 +304,7 @@ function TeacherExams() {
       await Promise.all([
         supabase
           .from("courses")
-          .select("id, name, period")
+          .select("id, name, period, end_date")
           // Ocultar cursos en papelera del selector de filtro.
           .is("deleted_at", null)
           .order("name"),
@@ -387,6 +387,15 @@ function TeacherExams() {
           ...f,
           course_id: first ?? f.course_id,
           cut_id: validCut ? f.cut_id : null,
+          // Topar la fecha/hora de fin al curso que termina ANTES entre los
+          // seleccionados (cabe en todos). Si ya es menor, se deja igual. No
+          // aplica a externos (la fecha es marcador del evento, end=start).
+          end_time: (f as any).is_external
+            ? f.end_time
+            : capEndToCourseEnd(
+                f.end_time,
+                earliestCourseEnd(arr.map((cid) => courses.find((c) => c.id === cid)?.end_date)),
+              ),
         };
       });
       setCourseCuts((prevCuts) => {
@@ -414,14 +423,26 @@ function TeacherExams() {
       );
       return;
     }
+    const courseIds = [...selectedCourseIds];
+    // Topar la fecha/hora de fin al fin del curso que termina ANTES entre los
+    // asociados (defensa al guardar: cubre edición y cambios tras elegir curso).
+    // La fecha fin nunca supera la del curso. No aplica a externos (end = start).
+    const cappedEnd = isExternal
+      ? form.end_time
+      : capEndToCourseEnd(
+          form.end_time,
+          earliestCourseEnd(courseIds.map((cid) => courses.find((c) => c.id === cid)?.end_date)),
+        );
+    if (!isExternal && cappedEnd !== (form.end_time ?? "")) {
+      setForm((f) => ({ ...f, end_time: cappedEnd }));
+    }
     // Regla cross-form (goal #10): la fecha/hora de fin no puede ser
-    // anterior a la de inicio (iguales OK). Solo aplica al examen en
-    // línea — el externo no tiene ventana de fin (end = start).
-    if (!isExternal && !isValidDateRange(form.start_time, form.end_time)) {
+    // anterior a la de inicio (iguales OK). El tope anterior NO salta esta
+    // validación: si el curso termina antes del inicio, el rango es inválido.
+    if (!isExternal && !isValidDateRange(form.start_time, cappedEnd)) {
       toast.error(t("common.endDateBeforeStart"));
       return;
     }
-    const courseIds = [...selectedCourseIds];
     // Para externos: start/end son la fecha de la actividad (ventana de
     // 0s, así el examen no se puede tomar pero sigue siendo un row válido
     // al que el docente le carga notas manualmente). Los campos de
@@ -430,7 +451,7 @@ function TeacherExams() {
     // contra "Could not find the 'X' column in schema cache" si alguna
     // columna fue añadida por migración reciente.
     const startIso = new Date(form.start_time!).toISOString();
-    const endIso = isExternal ? startIso : new Date(form.end_time!).toISOString();
+    const endIso = isExternal ? startIso : new Date(cappedEnd!).toISOString();
     const isMultiCourse = courseIds.length > 1;
     const basePayload: Record<string, any> = {
       title: form.title,

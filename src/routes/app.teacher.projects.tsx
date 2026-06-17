@@ -59,7 +59,7 @@ import { ProjectGroupsEditor } from "@/modules/projects/ProjectGroupsEditor";
 import { toast } from "sonner";
 import { logEvent } from "@/shared/lib/audit";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
-import { isValidDateRange } from "@/shared/lib/date-range";
+import { isValidDateRange, capEndToCourseEnd, earliestCourseEnd } from "@/shared/lib/date-range";
 import {
   Plus,
   Pencil,
@@ -147,6 +147,8 @@ type Course = {
   period: string | null;
   language?: string | null;
   grade_scale_max?: number | null;
+  /** Fecha fin del curso (DATE). La entrega del proyecto se topa a este día. */
+  end_date?: string | null;
 };
 type Cut = {
   id: string;
@@ -551,7 +553,7 @@ function TeacherProjects() {
     try {
       const cs = await db
         .from("courses")
-        .select("id, name, period, language, grade_scale_max")
+        .select("id, name, period, language, grade_scale_max, end_date")
         .is("deleted_at", null)
         .order("name");
       if (cs.error) throw new Error(`courses: ${cs.error.message}`);
@@ -886,7 +888,16 @@ function TeacherProjects() {
     }
     const next = Array.from(current);
     const primary = next.includes(form.course_id ?? "") ? form.course_id : next[0];
-    setForm({ ...form, linked_course_ids: next, course_id: primary });
+    // Topar la entrega (due_date) al fin del curso que termina ANTES entre los
+    // seleccionados (cabe en todos). Si ya es menor, se deja igual. No aplica a
+    // externos (la fecha es marcador del evento ya ocurrido).
+    const cappedDue = (form as any).is_external
+      ? form.due_date
+      : capEndToCourseEnd(
+          form.due_date,
+          earliestCourseEnd(next.map((cid) => courses.find((c) => c.id === cid)?.end_date)),
+        );
+    setForm({ ...form, linked_course_ids: next, course_id: primary, due_date: cappedDue });
     setCourseCuts((prev) => {
       const updated: Record<string, { cut_id: string | null; weight: number }> = {};
       for (const cid of next) {
@@ -909,10 +920,22 @@ function TeacherProjects() {
     const primaryCourse =
       form.course_id && linked.includes(form.course_id) ? form.course_id : linked[0];
     const isExternal = !!(form as any).is_external;
+    // Topar la entrega (due_date) al fin del curso que termina ANTES entre los
+    // asociados (defensa al guardar: cubre edición y cambios tras elegir curso).
+    // La fecha fin nunca supera la del curso. No aplica a externos.
+    const cappedDue = isExternal
+      ? (form.due_date ?? "")
+      : capEndToCourseEnd(
+          form.due_date,
+          earliestCourseEnd(linked.map((cid) => courses.find((c) => c.id === cid)?.end_date)),
+        );
+    if (!isExternal && cappedDue !== (form.due_date ?? "")) {
+      setForm((f) => ({ ...f, due_date: cappedDue }));
+    }
     // Regla cross-form (goal #10): la fecha de entrega (due_date) no puede
-    // ser anterior a la de inicio (start_date); iguales OK. Solo aplica al
-    // proyecto en línea — el externo solo registra la fecha del evento.
-    if (!isExternal && !isValidDateRange(form.start_date, form.due_date)) {
+    // ser anterior a la de inicio (start_date); iguales OK. El tope anterior NO
+    // salta esta validación: si el curso termina antes del inicio, es inválido.
+    if (!isExternal && !isValidDateRange(form.start_date, cappedDue)) {
       toast.error(t("common.endDateBeforeStart"));
       return;
     }
@@ -947,7 +970,7 @@ function TeacherProjects() {
     if (isExternal) {
       payload.is_external = true;
       // Para externos: due_date marca cuándo ocurrió, sin start.
-      payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
+      payload.due_date = cappedDue ? new Date(cappedDue).toISOString() : null;
     } else {
       payload.external_link = form.external_link || null;
       // Video introductorio obligatorio. Vacío → null (sin gate); URL →
@@ -958,7 +981,7 @@ function TeacherProjects() {
       // como fallback histórico.
       payload.code_intro_video_id = form.code_intro_video_id || null;
       payload.start_date = form.start_date ? new Date(form.start_date).toISOString() : null;
-      payload.due_date = form.due_date ? new Date(form.due_date).toISOString() : null;
+      payload.due_date = cappedDue ? new Date(cappedDue).toISOString() : null;
       // Modo de trabajo (individual / grupal / mixto). Solo aplica si NO
       // es externo — en externos no hay entrega digital.
       payload.group_mode = form.group_mode ?? "individual";

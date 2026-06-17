@@ -58,7 +58,7 @@ import { logEvent } from "@/shared/lib/audit";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
-import { isValidDateRange } from "@/shared/lib/date-range";
+import { isValidDateRange, capEndToCourseEnd, earliestCourseEnd } from "@/shared/lib/date-range";
 import {
   Plus,
   Pencil,
@@ -155,6 +155,8 @@ type Course = {
   grade_scale_min: number;
   grade_scale_max: number;
   passing_grade: number;
+  /** Fecha fin del curso (DATE). El plazo del taller se topa a este día. */
+  end_date: string | null;
 };
 type Workshop = {
   id: string;
@@ -599,7 +601,7 @@ function TeacherWorkshops() {
     ] = await Promise.all([
       supabase
         .from("courses")
-        .select("id, name, period, grade_scale_min, grade_scale_max, passing_grade")
+        .select("id, name, period, grade_scale_min, grade_scale_max, passing_grade, end_date")
         // Ocultar cursos en papelera del Select de curso del form/filtro.
         .is("deleted_at", null)
         .order("name"),
@@ -824,6 +826,15 @@ function TeacherWorkshops() {
           max_score: f.id
             ? f.max_score
             : (courses.find((c) => c.id === first)?.grade_scale_max ?? f.max_score),
+          // Topar el plazo (due_date) al fin del curso que termina ANTES entre
+          // los seleccionados — así cabe en TODOS. Si ya es menor, queda igual.
+          // No aplica a externos (la fecha es marcador del evento ya ocurrido).
+          due_date: (f as any).is_external
+            ? f.due_date
+            : capEndToCourseEnd(
+                f.due_date,
+                earliestCourseEnd([...next].map((id) => courses.find((c) => c.id === id)?.end_date)),
+              ),
         }));
       setCourseCuts((prevCuts) => {
         const updated: Record<string, { cut_id: string | null; weight: number }> = {};
@@ -897,10 +908,25 @@ function TeacherWorkshops() {
     }
 
     const isExternal = !!(form as any).is_external;
+    // Topar el plazo (due_date) al fin del curso que termina ANTES entre los
+    // asociados (defensa al guardar: cubre edición y cualquier cambio de fecha
+    // tras elegir el curso). La fecha fin nunca supera la del curso. No aplica a
+    // externos (la fecha es marcador del evento ya ocurrido).
+    const cappedDue = isExternal
+      ? (form.due_date ?? "")
+      : capEndToCourseEnd(
+          form.due_date,
+          earliestCourseEnd(courseIds.map((id) => courses.find((c) => c.id === id)?.end_date)),
+        );
+    if (!isExternal && cappedDue !== (form.due_date ?? "")) {
+      setForm((f) => ({ ...f, due_date: cappedDue }));
+    }
     // Regla cross-form (goal #10): el plazo (due_date) no puede ser
     // anterior a "Visible desde" (start_date); iguales OK. Solo aplica al
-    // taller en línea — el externo solo registra la fecha del evento.
-    if (!isExternal && !isValidDateRange((form as any).start_date, form.due_date)) {
+    // taller en línea — el externo solo registra la fecha del evento. El tope
+    // anterior NO salta esta validación: si el curso termina antes del inicio,
+    // el rango queda inválido y se avisa.
+    if (!isExternal && !isValidDateRange((form as any).start_date, cappedDue)) {
       toast.error(t("common.endDateBeforeStart"));
       return;
     }
@@ -918,7 +944,7 @@ function TeacherWorkshops() {
       start_date: (form as any).start_date
         ? new Date((form as any).start_date).toISOString()
         : null,
-      due_date: form.due_date ? new Date(form.due_date).toISOString() : null,
+      due_date: cappedDue ? new Date(cappedDue).toISOString() : null,
       max_score: Number(form.max_score) || 100,
       // Override de intentos máximos. NULL → hereda app_settings.default_workshop_max_attempts.
       max_attempts:
