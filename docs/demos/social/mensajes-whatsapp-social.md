@@ -121,10 +121,11 @@ Para cuando solo quieres mandarle el clip a alguien sin discurso. Manda el video
 ## 🎬 Bloque de videos y manual (pega los enlaces, borra lo que no uses)
 
 > 🎬 Conoce ExamLab a fondo:
-> 📹 Recorrido general: [ENLACE]
-> 🛠️ Funcionalidades — Administrador: [ENLACE]
-> 👩‍🏫 Funcionalidades — Docente: [ENLACE]
-> 🎓 Funcionalidades — Estudiante: [ENLACE]
+> 📹 Recorrido general: [Ver demo general](https://drive.google.com/file/d/1Hzl720ggUeavr5XUtOZNNlhraT9qhBpB/view?usp=sharing)
+> 🛠️ Funcionalidades — Administrador: [Ver serie completa](https://drive.google.com/file/d/1xTbj_XR-39isn_RMwp9KQO4rkubZe3XL/view?usp=sharing)
+> 👩‍🏫 Funcionalidades — Docente: [Ver serie completa](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing)
+> 🎓 Funcionalidades — Estudiante: [Ver serie completa](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing)
+> 📊 Presentación general: [Abrir presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
 > 📘 Manual de usuario: [ENLACE]
 
 > Úsalo cuando alguien pida ver más que el clip de 20 s (un colega que quiere el detalle, un directivo que pide material).
@@ -150,4 +151,4 @@ Para cuando solo quieres mandarle el clip a alguien sin discurso. Manda el video
 - Si además vas a **dar acceso de prueba**, manda en un mensaje aparte los datos del Excel [`../correos/ExamLab-Usuarios-Demo.xlsx`](../correos/ExamLab-Usuarios-Demo.xlsx) (usuario + contraseña genérica + URL) junto con el video de **cómo ingresar** ([`output/modulo-login.mp4`](output/modulo-login.mp4)).
 - Para una versión **más comercial/extensa** alrededor del video, usa las presentaciones en [`../presentacion/`](../presentacion/). Si quieres **más opciones de copy corto** para el mismo video, [`../correos/whatsapp-video-presentacion.md`](../correos/whatsapp-video-presentacion.md) tiene variantes alternativas (mismo registro, no más detallado).
 - Para **entregar la cuenta de prueba** a un docente, usa el mensaje dedicado en [`../correos/correo-entrega-cuenta-docente.md`](../correos/correo-entrega-cuenta-docente.md).
-- **Bloque de videos y manual** — reemplaza cada `[ENLACE]`: 📹 general → `../presentacion/output/modulo-overview.mp4` · 🛠️ Admin → `../admin/serie-admin-completa.mp4` · 👩‍🏫 Docente → `../teacher/serie-teacher-completa.mp4` · 🎓 Estudiante → `../student/serie-student-completa.mp4` · 📘 Manual → `../manual/manual.md`.
+- **Bloque de videos y presentación** — ya embebidos (Drive/Slides). Enlaces canónicos en [`../correos/_ENLACES-demos.md`](../correos/_ENLACES-demos.md). Solo falta el **manual**: sube `../manual/manual.md` (PDF/Drive/web) y reemplaza el `[ENLACE]` del manual. En WhatsApp el texto `[Ver](url)` no se renderiza como en el correo; al pegar, deja la URL clickeable.

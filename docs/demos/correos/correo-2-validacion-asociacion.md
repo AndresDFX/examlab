@@ -16,15 +16,15 @@ En corto: es una plataforma educativa donde la IA hace el trabajo pesado —gene
 Te dejo todo para que lo revises a tu ritmo:
 
 **1) Vistazo rápido (2 min) — demo general**
-👉 [ENLACE — Demo general]
+👉 [▶️ Ver el demo general](https://drive.google.com/file/d/1Hzl720ggUeavr5XUtOZNNlhraT9qhBpB/view?usp=sharing)
 
 **2) Demos completas por perfil (a fondo)**
-- Administrador: [ENLACE — Demo completo Administrador]
-- Docente: [ENLACE — Demo completo Docente]
-- Estudiante: [ENLACE — Demo completo Estudiante]
+- Administrador: [Ver recorrido completo](https://drive.google.com/file/d/1xTbj_XR-39isn_RMwp9KQO4rkubZe3XL/view?usp=sharing)
+- Docente: [Ver recorrido completo](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing)
+- Estudiante: [Ver recorrido completo](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing)
 
-**3) Presentaciones (adjuntas)**
-- **General** — qué es y qué hace la plataforma.
+**3) Presentaciones**
+- **[General](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)** — qué es y qué hace la plataforma.
 - **Comercial** — el modelo de planes (se diferencian por cantidad de usuarios; las funciones son las mismas en todos, y el API key de IA lo pone la institución) para que veamos números y viabilidad.
 
 **4) Manual de usuario (paso a paso, por rol)**
@@ -39,11 +39,7 @@ Gracias, en serio — me importa mucho tu lectura de esto. 🙌
 ---
 
 ### Notas para ti (borrar antes de enviar)
-- **Adjuntar:** `ExamLab-Presentacion-General.pptx` **y** `ExamLab-Presentacion-Comercial.pptx`.
-- **Reemplazar los `[ENLACE — …]`** por los links de cada video (Drive/YouTube):
-  - Demo general → `docs/demos/presentacion/output/modulo-overview.mp4`
-  - Demo completo Administrador → `docs/demos/admin/serie-admin-completa.mp4`
-  - Demo completo Docente → `docs/demos/teacher/serie-teacher-completa.mp4`
-  - Demo completo Estudiante → `docs/demos/student/serie-student-completa.mp4`
-  - Manual de usuario → `docs/demos/manual/manual.md` (PDF / Drive / web)
+- **Presentación general:** ya va embebida como enlace (Google Slides) en el cuerpo — es la que se comparte siempre por ahora. La **comercial** sí se adjunta como archivo (`ExamLab-Presentacion-Comercial.pptx`) o pega su enlace donde dice "Comercial".
+- **Videos ya embebidos** (Demo general, Administrador, Docente, Estudiante → Drive). Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md).
+- **Manual de usuario:** pendiente — sube `docs/demos/manual/manual.md` (PDF/Drive/web) y reemplaza el `[ENLACE — Manual de usuario]`.
 - En la **comercial** los precios son de referencia ($99 / $299 / $1.000 por mes, con un plan a la medida — "Contáctanos" — para más de 5.000 estudiantes) — ajústalos a tu política antes de mostrarlos.

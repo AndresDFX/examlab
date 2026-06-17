@@ -25,11 +25,12 @@ Para gente que **conoces** (no necesariamente del medio educativo): amigos, fami
 >
 > Ah, y un dato para enganchar: **por tiempo limitado hay licencia de docente gratis** para quien quiera **probarla de verdad** (con cuentas ya creadas, sin enredos). Así que si conoces a algún docente curioso, dile que la puede validar sin costo. 🎁
 >
-> **🎬 Por si alguien quiere ver más a fondo** (videos por perfil + manual):
-> - 📹 Recorrido general: [ENLACE]
-> - 🛠️ Funcionalidades — Administrador: [ENLACE]
-> - 👩‍🏫 Funcionalidades — Docente: [ENLACE]
-> - 🎓 Funcionalidades — Estudiante: [ENLACE]
+> **🎬 Por si alguien quiere ver más a fondo** (videos por perfil + presentación):
+> - 📹 Recorrido general: [Ver demo general](https://drive.google.com/file/d/1Hzl720ggUeavr5XUtOZNNlhraT9qhBpB/view?usp=sharing)
+> - 🛠️ Funcionalidades — Administrador: [Ver serie completa](https://drive.google.com/file/d/1xTbj_XR-39isn_RMwp9KQO4rkubZe3XL/view?usp=sharing)
+> - 👩‍🏫 Funcionalidades — Docente: [Ver serie completa](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing)
+> - 🎓 Funcionalidades — Estudiante: [Ver serie completa](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing)
+> - 📊 Presentación general: [Abrir presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
 > - 📘 Manual de usuario: [ENLACE]
 >
 > ¡Mil gracias de una vez! 🙏 Cualquier reenvío me suma muchísimo. Un abrazo,
@@ -49,7 +50,7 @@ Para gente que **conoces** (no necesariamente del medio educativo): amigos, fami
 > 🎁 Dato pa enganchar: **hay licencia de docente GRATIS por tiempo limitado** para quien quiera probarla de verdad. Si conoces algún profe curioso, ¡pásaselo!
 >
 > 🎬 Por si quieren ver más:
-> 📹 General: [ENLACE] · 🛠️ Admin: [ENLACE] · 👩‍🏫 Docente: [ENLACE] · 🎓 Estudiante: [ENLACE] · 📘 Manual: [ENLACE]
+> 📹 [General](https://drive.google.com/file/d/1Hzl720ggUeavr5XUtOZNNlhraT9qhBpB/view?usp=sharing) · 🛠️ [Admin](https://drive.google.com/file/d/1xTbj_XR-39isn_RMwp9KQO4rkubZe3XL/view?usp=sharing) · 👩‍🏫 [Docente](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing) · 🎓 [Estudiante](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing) · 📊 [Presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
 >
 > ¡Mil gracias! 🙏
 
@@ -59,7 +60,7 @@ Para gente que **conoces** (no necesariamente del medio educativo): amigos, fami
 >
 > 🎁 Y avisa que **hay licencia de docente gratis por tiempo limitado** pa quien quiera probarla. ¡Gracias! 🔥
 >
-> 🎬 Más info: 📹 General: [ENLACE] · 👩‍🏫 Docente: [ENLACE] · 🎓 Estudiante: [ENLACE] · 📘 Manual: [ENLACE]
+> 🎬 Más info: 📹 [General](https://drive.google.com/file/d/1Hzl720ggUeavr5XUtOZNNlhraT9qhBpB/view?usp=sharing) · 👩‍🏫 [Docente](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing) · 🎓 [Estudiante](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing) · 📊 [Presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
 
 ---
 
@@ -83,11 +84,7 @@ Para gente que **conoces** (no necesariamente del medio educativo): amigos, fami
 - Reemplaza `[Nombre]` y `[Tu nombre]`.
 - **El objetivo de este segmento es difusión**, no venta: el pedido es que **reenvíen / suban a estado**. No incluye precios ni planes (eso vive en la presentación comercial y en los correos de institución).
 - La **oferta vigente** ("licencia de docente gratis por tiempo limitado, con cuentas ya creadas") sale de [`correo-entrega-cuenta-docente.md`](correo-entrega-cuenta-docente.md). Si alguien quiere validar, entrégale la cuenta con ese mensaje (usuario del Excel [`ExamLab-Usuarios-Demo.xlsx`](ExamLab-Usuarios-Demo.xlsx) + clave `ExamlabDemo2026`) y el video de cómo ingresar [`../social/output/modulo-login.mp4`](../social/output/modulo-login.mp4).
-- **Reemplaza cada `[ENLACE]`** del bloque "Videos y manual" por el link real (Drive/YouTube/web):
-  - 📹 Recorrido general → `../presentacion/output/modulo-overview.mp4`
-  - 🛠️ Administrador → `../admin/serie-admin-completa.mp4`
-  - 👩‍🏫 Docente → `../teacher/serie-teacher-completa.mp4`
-  - 🎓 Estudiante → `../student/serie-student-completa.mp4`
-  - 📘 Manual de usuario → `../manual/manual.md`
+- **Videos y presentación ya embebidos** (Drive/Slides) en correo y ambos WhatsApp. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). Solo falta el **manual**: sube `../manual/manual.md` (PDF/Drive/web) y reemplaza el `[ENLACE]` del manual.
   - (Clip más corto para estado/redes, alternativa al promo: `../social/output/modulo-social.mp4`)
+- En WhatsApp el texto `[Ver](url)` no se renderiza como en el correo; al pegar, deja la URL clickeable o usa un acortador.
 - Para más variantes de copy corto alrededor del video social, ver [`../social/mensajes-whatsapp-social.md`](../social/mensajes-whatsapp-social.md).
