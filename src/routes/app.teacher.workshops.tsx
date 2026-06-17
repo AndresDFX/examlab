@@ -100,6 +100,12 @@ import {
 } from "@/components/ui/multi-select";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { ListFilters } from "@/components/ui/list-filters";
+import { ActivityStatusSelect } from "@/shared/components/ActivityStatusSelect";
+import {
+  matchesActivityStatus,
+  DEFAULT_ACTIVITY_STATUS_FILTER,
+  type ActivityStatusFilter,
+} from "@/shared/lib/status-filter";
 import { CourseListCell } from "@/components/ui/course-list-cell";
 import { StatCard } from "@/components/ui/stat-card";
 import { Lock } from "lucide-react";
@@ -288,9 +294,14 @@ function TeacherWorkshops() {
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
   const [cutFilter, setCutFilter] = useState<string | null>(null);
+  // Por defecto: activos + borradores; los cerrados se ocultan hasta cambiar
+  // el filtro de estado a "Cerrados" o "Todos".
+  const [statusFilter, setStatusFilter] = useState<ActivityStatusFilter>(
+    DEFAULT_ACTIVITY_STATUS_FILTER,
+  );
   // Filtra por título (ASCII case-insensitive), por course_id si hay
-  // curso seleccionado, y por cut_id si hay corte. Se usa tanto para
-  // el render de la tabla como para el multi-select (no queremos que
+  // curso seleccionado, por cut_id si hay corte, y por estado. Se usa tanto
+  // para el render de la tabla como para el multi-select (no queremos que
   // el "seleccionar todo" abarque filas ocultas por el filtro).
   const filteredWorkshops = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -304,9 +315,10 @@ function TeacherWorkshops() {
       }
       if (cutFilter && (w as any).cut_id !== cutFilter) return false;
       if (q && !w.title.toLowerCase().includes(q)) return false;
+      if (!matchesActivityStatus(w.status, statusFilter)) return false;
       return true;
     });
-  }, [workshops, search, courseFilter, cutFilter, workshopCourses]);
+  }, [workshops, search, courseFilter, cutFilter, statusFilter, workshopCourses]);
 
   // Quick-stats estables del listado completo (no se mueven al filtrar).
   // Cuatro tiles: borradores, publicados, cerrados, externos. La idea
@@ -361,7 +373,7 @@ function TeacherWorkshops() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_workshops",
-    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}|${statusFilter}|${sort.resetKey}`,
   });
 
   const handleBulkDelete = async (ids: string[]) => {
@@ -2669,6 +2681,8 @@ function TeacherWorkshops() {
         cuts={cuts}
         cutId={cutFilter}
         onCutChange={setCutFilter}
+        extra={<ActivityStatusSelect value={statusFilter} onChange={setStatusFilter} />}
+        onClearExtra={() => setStatusFilter(DEFAULT_ACTIVITY_STATUS_FILTER)}
       />
 
       <MultiSelectToolbar

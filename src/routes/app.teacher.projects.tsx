@@ -90,6 +90,12 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { ListFilters } from "@/components/ui/list-filters";
+import { ActivityStatusSelect } from "@/shared/components/ActivityStatusSelect";
+import {
+  matchesActivityStatus,
+  DEFAULT_ACTIVITY_STATUS_FILTER,
+  type ActivityStatusFilter,
+} from "@/shared/lib/status-filter";
 import { StatCard } from "@/components/ui/stat-card";
 import { CheckCircle2, Lock, ExternalLink, Video, Upload, FileUp } from "lucide-react";
 import { CourseListCell } from "@/components/ui/course-list-cell";
@@ -224,7 +230,12 @@ function TeacherProjects() {
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
   const [cutFilter, setCutFilter] = useState<string | null>(null);
-  // Proyectos filtrados por título, curso y corte. A diferencia de
+  // Por defecto: activos + borradores; los cerrados se ocultan hasta cambiar
+  // el filtro de estado a "Cerrados" o "Todos".
+  const [statusFilter, setStatusFilter] = useState<ActivityStatusFilter>(
+    DEFAULT_ACTIVITY_STATUS_FILTER,
+  );
+  // Proyectos filtrados por título, curso, corte y estado. A diferencia de
   // talleres/exámenes, un proyecto puede estar vinculado a N cursos
   // vía linked_course_ids — el match contra el filtro chequea esa
   // lista (cae al course_id legacy si no hay vínculos). El filtro de
@@ -238,9 +249,10 @@ function TeacherProjects() {
       }
       if (cutFilter && p.cut_id !== cutFilter) return false;
       if (q && !p.title.toLowerCase().includes(q)) return false;
+      if (!matchesActivityStatus(p.status, statusFilter)) return false;
       return true;
     });
-  }, [projects, search, courseFilter, cutFilter]);
+  }, [projects, search, courseFilter, cutFilter, statusFilter]);
 
   // Quick-stats estables del listado completo (no se mueven al filtrar).
   // Mismos cuatro tiles que talleres/exámenes — pulso rápido del estado
@@ -289,7 +301,7 @@ function TeacherProjects() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_projects",
-    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}|${statusFilter}|${sort.resetKey}`,
   });
 
   // Export CSV de la lista filtrada — solo lectura. No soportamos import
@@ -2353,6 +2365,8 @@ function TeacherProjects() {
         cuts={cuts}
         cutId={cutFilter}
         onCutChange={setCutFilter}
+        extra={<ActivityStatusSelect value={statusFilter} onChange={setStatusFilter} />}
+        onClearExtra={() => setStatusFilter(DEFAULT_ACTIVITY_STATUS_FILTER)}
       />
 
       <MultiSelectToolbar

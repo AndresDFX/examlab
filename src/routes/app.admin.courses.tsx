@@ -272,7 +272,11 @@ export function AdminCourses() {
   // "Todos". Valor DETERMINISTA constante (no leer storage en el init —
   // ver regla de hidratación React #418 en CLAUDE.md). Matchea contra el
   // estado de DISPLAY derivado (borrador | proximo | en_curso | finalizado).
-  const [statusFilterUi, setStatusFilterUi] = useState<string>("en_curso");
+  // Default: "activos" = todo lo que NO está finalizado (en curso + próximos +
+  // borradores). Antes era "en_curso" (solo en curso) — ahora los borradores
+  // también se ven por defecto; los finalizados se ocultan hasta cambiar el
+  // filtro a "Finalizados" o "Todos".
+  const [statusFilterUi, setStatusFilterUi] = useState<string>("activos");
 
   // Filtramos por nombre + período + descripción. Case-insensitive,
   // includes. El multi-select trabaja sobre la lista visible. Si hay
@@ -300,7 +304,14 @@ export function AdminCourses() {
       // c.status crudo) para que "Próximo" — que es en_curso + fecha
       // futura, no un valor persistido — sea filtrable por separado.
       const now = Date.now();
-      result = result.filter((c) => deriveCourseDisplayState(c, now) === statusFilterUi);
+      // "activos" (default) = todo lo que NO está finalizado (en curso +
+      // próximos + borradores). Los finalizados se ven solo con "Finalizados"
+      // o "Todos". El resto de valores son match exacto del estado derivado.
+      if (statusFilterUi === "activos") {
+        result = result.filter((c) => deriveCourseDisplayState(c, now) !== "finalizado");
+      } else {
+        result = result.filter((c) => deriveCourseDisplayState(c, now) === statusFilterUi);
+      }
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -1726,14 +1737,20 @@ export function AdminCourses() {
             placeholder={t("hc_routesAppAdminCourses.searchPlaceholder")}
           />
         </div>
-        {/* Filtro por estado del curso. Default "en_curso" (lo vigente);
-            el usuario abre "Todos" o un estado puntual cuando lo necesita.
-            Opera sobre el estado de DISPLAY derivado (incluye "proximo"). */}
+        {/* Filtro por estado del curso. Default "activos" = todo lo NO
+            finalizado (en curso + próximos + borradores); los finalizados se
+            ven con "Finalizados" o "Todos". Opera sobre el estado de DISPLAY
+            derivado (incluye "proximo"). */}
         <Select value={statusFilterUi} onValueChange={setStatusFilterUi}>
           <SelectTrigger className="w-full sm:w-44 h-9 text-xs">
             <SelectValue placeholder={t("hc_routesAppAdminCourses.statusFilterPlaceholder")} />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="activos">
+              {t("hc_routesAppAdminCourses.statusFilterActiveAndDrafts", {
+                defaultValue: "Activos y borradores",
+              })}
+            </SelectItem>
             <SelectItem value="all">{t("hc_routesAppAdminCourses.statusFilterAll")}</SelectItem>
             <SelectItem value="en_curso">{t("hc_routesAppAdminCourses.statusFilterActive")}</SelectItem>
             <SelectItem value="proximo">{t("hc_routesAppAdminCourses.statusFilterUpcoming")}</SelectItem>
@@ -1899,13 +1916,13 @@ export function AdminCourses() {
             <TableBody>
               {filteredCourses.length === 0 &&
                 (() => {
-                  // "Filtros activos" incluye el nuevo default de estado:
-                  // si hay cursos pero NINGUNO está "en_curso" (el default),
-                  // el listado sale vacío con texto accionable ("prueba el
-                  // filtro Todos") en vez del empty-state de "crea tu primer
-                  // curso", que confundiría (el curso existe, solo está
-                  // finalizado/borrador). search.trim(), statusFilterUi y los
-                  // filtros académicos cuentan como filtro activo.
+                  // "Filtros activos" incluye el default de estado "activos"
+                  // (todo lo NO finalizado): si hay cursos pero TODOS están
+                  // finalizados, el listado sale vacío con texto accionable
+                  // ("prueba el filtro Todos / Finalizados") en vez del
+                  // empty-state de "crea tu primer curso", que confundiría (el
+                  // curso existe, solo está finalizado). search.trim(),
+                  // statusFilterUi y los filtros académicos cuentan como filtro.
                   const hasActiveFilters =
                     !!search.trim() ||
                     statusFilterUi !== "all" ||

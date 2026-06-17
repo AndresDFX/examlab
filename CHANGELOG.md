@@ -45,6 +45,24 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-16
 
+**Grids del docente: por defecto se ven activos + borradores; los completados se
+ocultan.** Antes los grids de actividades mostraban todo sin distinción de
+estado, y cursos abría en "En curso" (sin borradores). Ahora, al abrir, el
+filtro por defecto muestra lo vigente Y los borradores; los cerrados/finalizados
+solo aparecen al cambiar el filtro a "Cerrados"/"Finalizados" o "Todos".
+- **Actividades** (exámenes, talleres, proyectos): nuevo filtro de estado en la
+  barra (`ActivityStatusSelect` en el slot `extra` de `ListFilters`), default
+  **"Activos y borradores"** (= no cerrados). Helper puro
+  [status-filter.ts](src/shared/lib/status-filter.ts) (`matchesActivityStatus`,
+  `DEFAULT_ACTIVITY_STATUS_FILTER`) con tests. El empty-state ya distingue
+  "sin resultados" (filtro) de "crea el primero" (sin datos).
+- **Cursos** ([app.admin.courses.tsx](src/routes/app.admin.courses.tsx)): opción
+  "Activos y borradores" (= todo lo NO finalizado: en curso + próximos +
+  borradores) como **default** (antes "En curso"). Los finalizados se ven con
+  "Finalizados" o "Todos".
+- El filtro se añade al `resetKey` de la paginación y `useMultiSelect` sigue
+  operando sobre lo filtrado (seleccionar-todo no abarca filas ocultas).
+
 **La fecha FIN de una actividad nunca supera la fecha fin de su curso (front +
 datos).** Al asociar un examen/taller/proyecto a un curso con `end_date`, su
 fecha fin se topa automáticamente a ese día; si ya era menor, se deja igual. No

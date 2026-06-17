@@ -76,6 +76,12 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { ListFilters } from "@/components/ui/list-filters";
+import { ActivityStatusSelect } from "@/shared/components/ActivityStatusSelect";
+import {
+  matchesActivityStatus,
+  DEFAULT_ACTIVITY_STATUS_FILTER,
+  type ActivityStatusFilter,
+} from "@/shared/lib/status-filter";
 import { StatCard } from "@/components/ui/stat-card";
 import { CourseListCell } from "@/components/ui/course-list-cell";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -125,7 +131,12 @@ function TeacherExams() {
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
   const [cutFilter, setCutFilter] = useState<string | null>(null);
-  // Filtra exámenes por título, curso y corte. Se aplica también al
+  // Por defecto: activos + borradores; los cerrados se ocultan hasta cambiar
+  // el filtro de estado a "Cerrados" o "Todos".
+  const [statusFilter, setStatusFilter] = useState<ActivityStatusFilter>(
+    DEFAULT_ACTIVITY_STATUS_FILTER,
+  );
+  // Filtra exámenes por título, curso, corte y estado. Se aplica también al
   // multi-select para que el "seleccionar todo" abarque solo lo visible.
   const filteredExams = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -133,9 +144,10 @@ function TeacherExams() {
       if (courseFilter && e.course_id !== courseFilter) return false;
       if (cutFilter && e.cut_id !== cutFilter) return false;
       if (q && !e.title.toLowerCase().includes(q)) return false;
+      if (!matchesActivityStatus((e as any).status, statusFilter)) return false;
       return true;
     });
-  }, [exams, search, courseFilter, cutFilter]);
+  }, [exams, search, courseFilter, cutFilter, statusFilter]);
 
   // Quick-stats estables del listado completo (no se mueven al filtrar).
   // Cuatro tiles: borradores, publicados, cerrados, externos. Igual que
@@ -192,7 +204,7 @@ function TeacherExams() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_exams",
-    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}|${statusFilter}|${sort.resetKey}`,
   });
 
   const handleBulkDelete = async (ids: string[]) => {
@@ -709,6 +721,8 @@ function TeacherExams() {
         cuts={cuts}
         cutId={cutFilter}
         onCutChange={setCutFilter}
+        extra={<ActivityStatusSelect value={statusFilter} onChange={setStatusFilter} />}
+        onClearExtra={() => setStatusFilter(DEFAULT_ACTIVITY_STATUS_FILTER)}
       />
 
       <MultiSelectToolbar
