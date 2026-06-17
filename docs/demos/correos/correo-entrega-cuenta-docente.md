@@ -37,7 +37,6 @@ Mensaje para **entregarle a un docente su cuenta de demo** (con credenciales e i
 > - 👩‍🏫 Todas las funcionalidades — Docente: [Ver serie completa](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing)
 > - 🎓 Todas las funcionalidades — Estudiante: [Ver serie completa](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing)
 > - 📊 Presentación general: [Abrir presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
-> - 📘 Manual de usuario: [ENLACE]
 >
 > Cualquier duda me escribes y lo vemos. ¡Que la disfrutes! 🙌
 
@@ -66,6 +65,6 @@ Mensaje para **entregarle a un docente su cuenta de demo** (con credenciales e i
 - **Adjunta** el video de cómo ingresar: [`../social/output/modulo-login.mp4`](../social/output/modulo-login.mp4).
 - **Reemplaza** `[Nombre]` y `[tu correo del demo …]` por el usuario real (fila del Excel [`ExamLab-Usuarios-Demo.xlsx`](ExamLab-Usuarios-Demo.xlsx)). Cada docente tiene su propio correo; la **contraseña genérica `ExamlabDemo2026`** es la misma para todos y **no caduca** al primer ingreso.
 - Asegúrate de que entiendan que deben elegir **ExamLab Demo** en el desplegable (hay otras instituciones en la lista).
-- **Videos y presentación ya embebidos** (Drive/Slides) en correo y WhatsApp. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). Solo falta el **manual**: sube `../manual/manual.md` (PDF/Drive/web) y reemplaza el `[ENLACE]` del manual.
+- **Videos y presentación ya embebidos** (Drive/Slides) en correo y WhatsApp. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). El **manual** no va en esta versión de los correos.
 - En WhatsApp el texto `[Ver](url)` no se renderiza como en el correo; al pegar, deja la URL clickeable o usa un acortador.
 - Para enganchar antes de entregar la cuenta, ver los correos [`correo-1-vistazo-institucion.md`](correo-1-vistazo-institucion.md) / [`correo-3-mi-institucion.md`](correo-3-mi-institucion.md) y el video social.

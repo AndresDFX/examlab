@@ -35,7 +35,6 @@ Para gente con la que **eres docente** (pares). Tono de colega a colega: que lo 
 > - 👩‍🏫 Todas las funcionalidades — Docente: [Ver serie completa](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing)
 > - 🎓 Todas las funcionalidades — Estudiante: [Ver serie completa](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing)
 > - 📊 Presentación general: [Abrir presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
-> - 📘 Manual de usuario: [ENLACE]
 >
 > Si después de verla te gusta y crees que a otros profes les serviría, **pásala** — ese es el mejor favor que me puedes hacer 🙌. Y cualquier comentario, por crudo que sea, lo recibo feliz.
 >
@@ -76,5 +75,5 @@ Para gente con la que **eres docente** (pares). Tono de colega a colega: que lo 
 - **Oferta vigente:** licencia de docente gratis **por tiempo limitado**, con cuentas ya creadas — no inventes precios ni fechas, deja "por tiempo limitado". Detalle del primer acceso en [`correo-entrega-cuenta-docente.md`](correo-entrega-cuenta-docente.md).
 - **Sé honesto con el testimonio:** el texto está redactado como *"la armé / quiero que la revisen"* (seguro aunque aún no la uses a diario). Si ya la usaste de verdad en tus clases, suma un dato propio (*"me ahorró X horas este corte"*).
 - **Adjuntar opcional:** el video de cómo ingresar [`../social/output/modulo-login.mp4`](../social/output/modulo-login.mp4). Para enganchar antes, manda primero el clip social [`../social/output/modulo-social.mp4`](../social/output/modulo-social.mp4) o el promo [`../social/output/modulo-promo.mp4`](../social/output/modulo-promo.mp4).
-- **Videos y presentación ya embebidos** (Drive/Slides) en el correo y en ambos WhatsApp. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). Solo falta el **manual**: sube `../manual/manual.md` (PDF/Drive/web) y reemplaza el `[ENLACE]` del manual.
+- **Videos y presentación ya embebidos** (Drive/Slides) en el correo y en ambos WhatsApp. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). El **manual** no va en esta versión de los correos.
 - En WhatsApp el texto `[Ver](url)` no se renderiza como en el correo; al pegar, deja la URL clickeable o usa un acortador.

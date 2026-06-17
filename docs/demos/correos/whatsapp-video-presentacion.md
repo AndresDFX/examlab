@@ -37,7 +37,7 @@
 
 ---
 
-## Bloque de videos y manual (pega los enlaces, borra lo que no uses)
+## Bloque de videos y presentación (pega los enlaces, borra lo que no uses)
 
 > 🎬 Mira ExamLab en video y la presentación:
 > 📹 Recorrido general: [Ver demo general](https://drive.google.com/file/d/1Hzl720ggUeavr5XUtOZNNlhraT9qhBpB/view?usp=sharing)
@@ -45,7 +45,6 @@
 > 👩‍🏫 Funcionalidades — Docente: [Ver serie completa](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing)
 > 🎓 Funcionalidades — Estudiante: [Ver serie completa](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing)
 > 📊 Presentación general: [Abrir presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
-> 📘 Manual de usuario: [ENLACE]
 
 ---
 
@@ -54,4 +53,4 @@
 - Reemplaza `[Nombre]`.
 - La frase *"lo estoy probando"* de la versión con más gancho: úsala solo si **de verdad** ya la probaste; si no, quítala.
 - Si vas a mandar también la cuenta de prueba, usa el mensaje dedicado [`correo-entrega-cuenta-docente.md`](correo-entrega-cuenta-docente.md) (o los datos del Excel [`ExamLab-Usuarios-Demo.xlsx`](ExamLab-Usuarios-Demo.xlsx) + el video de cómo ingresar `../social/output/modulo-login.mp4`) en un mensaje aparte.
-- **Bloque de videos y presentación** — ya embebidos (Drive/Slides). Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). Solo falta el **manual**: sube `../manual/manual.md` (PDF/Drive/web) y reemplaza el `[ENLACE]` del manual. En WhatsApp el texto `[Ver](url)` no se renderiza como en el correo; al pegar, deja la URL clickeable.
+- **Bloque de videos y presentación** — ya embebidos (Drive/Slides). Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). El **manual** no va en esta versión. En WhatsApp el texto `[Ver](url)` no se renderiza como en el correo; al pegar, deja la URL clickeable.

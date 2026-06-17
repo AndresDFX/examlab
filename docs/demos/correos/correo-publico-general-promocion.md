@@ -31,7 +31,6 @@ Para gente que **conoces** (no necesariamente del medio educativo): amigos, fami
 > - 👩‍🏫 Funcionalidades — Docente: [Ver serie completa](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing)
 > - 🎓 Funcionalidades — Estudiante: [Ver serie completa](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing)
 > - 📊 Presentación general: [Abrir presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
-> - 📘 Manual de usuario: [ENLACE]
 >
 > ¡Mil gracias de una vez! 🙏 Cualquier reenvío me suma muchísimo. Un abrazo,
 >
@@ -84,7 +83,7 @@ Para gente que **conoces** (no necesariamente del medio educativo): amigos, fami
 - Reemplaza `[Nombre]` y `[Tu nombre]`.
 - **El objetivo de este segmento es difusión**, no venta: el pedido es que **reenvíen / suban a estado**. No incluye precios ni planes (eso vive en la presentación comercial y en los correos de institución).
 - La **oferta vigente** ("licencia de docente gratis por tiempo limitado, con cuentas ya creadas") sale de [`correo-entrega-cuenta-docente.md`](correo-entrega-cuenta-docente.md). Si alguien quiere validar, entrégale la cuenta con ese mensaje (usuario del Excel [`ExamLab-Usuarios-Demo.xlsx`](ExamLab-Usuarios-Demo.xlsx) + clave `ExamlabDemo2026`) y el video de cómo ingresar [`../social/output/modulo-login.mp4`](../social/output/modulo-login.mp4).
-- **Videos y presentación ya embebidos** (Drive/Slides) en correo y ambos WhatsApp. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). Solo falta el **manual**: sube `../manual/manual.md` (PDF/Drive/web) y reemplaza el `[ENLACE]` del manual.
+- **Videos y presentación ya embebidos** (Drive/Slides) en correo y ambos WhatsApp. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). El **manual** no va en esta versión de los correos.
   - (Clip más corto para estado/redes, alternativa al promo: `../social/output/modulo-social.mp4`)
 - En WhatsApp el texto `[Ver](url)` no se renderiza como en el correo; al pegar, deja la URL clickeable o usa un acortador.
 - Para más variantes de copy corto alrededor del video social, ver [`../social/mensajes-whatsapp-social.md`](../social/mensajes-whatsapp-social.md).
