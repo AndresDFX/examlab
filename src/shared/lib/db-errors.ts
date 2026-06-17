@@ -108,7 +108,12 @@ export function friendlyError(error: AnyError, fallback?: string): string {
       return "No tienes permisos para realizar esta acción.";
     case "P0001": // raise_exception (raised by SQL functions)
       // El mensaje SUELE estar en español porque viene de RAISE EXCEPTION
-      // en funciones SQL nuestras. Lo mostramos tal cual.
+      // en funciones SQL nuestras. Algunos triggers legacy lo lanzan en
+      // inglés ("not authorized") — traducimos los de autorización comunes;
+      // el resto se muestra tal cual (ya está en español).
+      if (/\b(not authorized|unauthorized|not allowed|permission denied)\b/i.test(lowerMsg)) {
+        return "No tienes permisos para realizar esta acción.";
+      }
       return message || "Operación rechazada por el servidor.";
     case "PGRST116": // PostgREST: not found / no rows
       return "No se encontró el registro.";

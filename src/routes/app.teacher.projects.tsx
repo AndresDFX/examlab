@@ -1356,8 +1356,7 @@ function TeacherProjects() {
       setAssigned(new Set((asgn ?? []).map((a: { user_id: string }) => a.user_id)));
     } catch (e) {
       console.error("[projects] assignment load failed", e);
-      const message =
-        e instanceof Error ? e.message : t("hc_routesAppTeacherProjects.couldNotLoadStudents");
+      const message = friendlyError(e, t("hc_routesAppTeacherProjects.couldNotLoadStudents"));
       setAssignError(message);
       toast.error(message);
     } finally {

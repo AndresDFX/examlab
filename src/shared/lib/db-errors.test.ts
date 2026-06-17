@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { friendlyUniqueViolation } from "./db-errors";
+import { friendlyUniqueViolation, friendlyError } from "./db-errors";
 
 describe("friendlyUniqueViolation", () => {
   it("retorna null si el error es null/undefined", () => {
@@ -139,5 +139,62 @@ describe("friendlyUniqueViolation", () => {
       details: 'Key (...) already exists. Constraint: "exams_course_title_lower_uidx"',
     };
     expect(friendlyUniqueViolation(err)).toBe("Ya existe un examen con ese título en este curso.");
+  });
+});
+
+describe("friendlyError", () => {
+  it("nunca retorna vacío: null → genérico o fallback", () => {
+    expect(friendlyError(null)).toBe("Ocurrió un error inesperado");
+    expect(friendlyError(null, "Algo salió mal")).toBe("Algo salió mal");
+  });
+
+  it("traduce códigos SQLSTATE comunes al español", () => {
+    expect(friendlyError({ code: "23503" })).toMatch(/datos relacionados/);
+    expect(friendlyError({ code: "23502" })).toMatch(/campo obligatorio/);
+    expect(friendlyError({ code: "23514" })).toMatch(/reglas de validación/);
+    expect(friendlyError({ code: "42501" })).toBe("No tienes permisos para realizar esta acción.");
+    expect(friendlyError({ code: "PGRST116" })).toBe("No se encontró el registro.");
+  });
+
+  it("delega en unique_violation (23505)", () => {
+    expect(
+      friendlyError({
+        code: "23505",
+        message: "violates unique constraint exams_course_title_lower_uidx",
+      }),
+    ).toBe("Ya existe un examen con ese título en este curso.");
+  });
+
+  it("P0001 en español se muestra tal cual", () => {
+    expect(friendlyError({ code: "P0001", message: "El curso ya está cerrado." })).toBe(
+      "El curso ya está cerrado.",
+    );
+  });
+
+  it("P0001 'not authorized' (legacy en inglés) se traduce", () => {
+    expect(friendlyError({ code: "P0001", message: "not authorized" })).toBe(
+      "No tienes permisos para realizar esta acción.",
+    );
+    expect(friendlyError({ code: "P0001", message: "User is not allowed" })).toBe(
+      "No tienes permisos para realizar esta acción.",
+    );
+  });
+
+  it("traduce patrones de red / auth del mensaje", () => {
+    expect(friendlyError({ message: "Failed to fetch" })).toMatch(/Error de red/);
+    expect(friendlyError({ message: "Invalid login credentials" })).toBe(
+      "Correo o contraseña inválidos.",
+    );
+    expect(friendlyError({ message: "rate limit exceeded" })).toMatch(/Demasiados intentos/);
+  });
+
+  it("error no reconocido → usa el fallback en español (no el inglés crudo)", () => {
+    expect(
+      friendlyError(new Error("Database error creating new user"), "No se pudo crear el usuario."),
+    ).toBe("No se pudo crear el usuario.");
+  });
+
+  it("error no reconocido SIN fallback → muestra el mensaje original (último recurso)", () => {
+    expect(friendlyError(new Error("algo raro"))).toBe("algo raro");
   });
 });

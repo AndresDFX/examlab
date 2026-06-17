@@ -503,8 +503,7 @@ export function TeacherProjectFilesEditor({
       }
       void load();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : t("hc_modulesProjectsProjectFiles.errAi");
-      toast.error(msg);
+      toast.error(friendlyError(e, t("hc_modulesProjectsProjectFiles.errAi")));
     } finally {
       setAutoLoading(false);
     }

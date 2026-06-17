@@ -977,7 +977,17 @@ function AdminUsers() {
               }),
             );
           } else {
-            toast.error(result?.error ?? result?.reason ?? t("hc_routesAppAdminUsers.userCreateError"));
+            // `reason` ya viene en español del edge; `error` puede ser el
+            // mensaje crudo en inglés del trigger de auth ("Database error
+            // creating new user") → lo pasamos por friendlyError (cae al
+            // fallback en español si no lo reconoce).
+            toast.error(
+              result?.reason ??
+                friendlyError(
+                  result?.error ? new Error(String(result.error)) : null,
+                  t("hc_routesAppAdminUsers.userCreateError"),
+                ),
+            );
           }
           return;
         }

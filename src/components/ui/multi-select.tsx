@@ -63,6 +63,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Trash2, X, ChevronDown, ChevronRight } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
+import { friendlyError } from "@/shared/lib/db-errors";
 
 // ───────────────────────── Hook ─────────────────────────
 
@@ -313,8 +314,9 @@ export function BulkDeleteDialog({
       await onConfirm(items.map((i) => i.id));
       onOpenChange(false);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : `Error al ${actionLabel.toLowerCase()}`;
-      toast.error(msg);
+      // friendlyError traduce el error de Supabase/Postgres a español; el
+      // fallback cubre el caso sin code reconocido (no mostrar inglés crudo).
+      toast.error(friendlyError(e, `No se pudo ${actionLabel.toLowerCase()}.`));
     } finally {
       setSubmitting(false);
     }

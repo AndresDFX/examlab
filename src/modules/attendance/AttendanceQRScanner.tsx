@@ -15,6 +15,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { friendlyError } from "@/shared/lib/db-errors";
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
@@ -91,10 +92,12 @@ export function AttendanceQRScanner({ onDetected, onClose }: Props) {
         if (!cancelled) setStarting(false);
       } catch (e: unknown) {
         if (!cancelled) {
-          const message =
-            e instanceof Error
-              ? e.message
-              : t("hc_modulesAttendanceAttendanceQRScanner.cameraAccessError");
+          // El error de cámara / html5-qrcode viene en inglés técnico
+          // (NotAllowedError, etc.) → mostramos el mensaje en español.
+          const message = friendlyError(
+            e,
+            t("hc_modulesAttendanceAttendanceQRScanner.cameraAccessError"),
+          );
           setError(message);
           setStarting(false);
         }
