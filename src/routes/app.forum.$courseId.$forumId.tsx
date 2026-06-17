@@ -148,7 +148,7 @@ function ForumThreads() {
       db
         .from("forum_threads")
         .select(
-          "id, course_id, forum_id, author_id, title, body, tags, is_pinned, is_locked, official_reply_id, reply_count, upvotes, last_activity_at, created_at, author:profiles!forum_threads_author_id_fkey(full_name)",
+          "id, course_id, forum_id, author_id, title, body, tags, is_pinned, is_locked, official_reply_id, reply_count, upvotes, last_activity_at, created_at",
         )
         .eq("forum_id", forumId)
         .order("is_pinned", { ascending: false })
@@ -161,9 +161,26 @@ function ForumThreads() {
       setLoading(false);
       return;
     }
+    // Nombre del autor: NO se puede embeber `profiles` porque
+    // `forum_threads.author_id` apunta a `auth.users`, no a `profiles`
+    // (el embed devolvía PGRST200 y reventaba toda la query). Patrón 2-query.
+    const threadRows = (t ?? []) as Thread[];
+    const authorIds = [...new Set(threadRows.map((r) => r.author_id).filter(Boolean))] as string[];
+    const nameMap = new Map<string, string | null>();
+    if (authorIds.length > 0) {
+      const { data: profs } = await db.from("profiles").select("id, full_name").in("id", authorIds);
+      for (const p of (profs ?? []) as Array<{ id: string; full_name: string | null }>) {
+        nameMap.set(p.id, p.full_name);
+      }
+    }
     setCourse(c as { id: string; name: string } | null);
     setForum(f as Forum | null);
-    setThreads((t ?? []) as Thread[]);
+    setThreads(
+      threadRows.map((r) => ({
+        ...r,
+        author: { full_name: r.author_id ? (nameMap.get(r.author_id) ?? null) : null },
+      })),
+    );
     setLoading(false);
   };
 

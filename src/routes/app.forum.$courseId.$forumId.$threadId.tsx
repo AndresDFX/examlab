@@ -126,14 +126,14 @@ function ThreadDetail() {
       db
         .from("forum_threads")
         .select(
-          "id, course_id, author_id, title, body, tags, is_pinned, is_locked, official_reply_id, upvotes, reply_count, created_at, updated_at, author:profiles!forum_threads_author_id_fkey(full_name)",
+          "id, course_id, author_id, title, body, tags, is_pinned, is_locked, official_reply_id, upvotes, reply_count, created_at, updated_at",
         )
         .eq("id", threadId)
         .maybeSingle(),
       db
         .from("forum_replies")
         .select(
-          "id, thread_id, author_id, body, upvotes, is_official, created_at, updated_at, author:profiles!forum_replies_author_id_fkey(full_name)",
+          "id, thread_id, author_id, body, upvotes, is_official, created_at, updated_at",
         )
         .eq("thread_id", threadId)
         .order("is_official", { ascending: false })
@@ -157,8 +157,27 @@ function ThreadDetail() {
       setLoading(false);
       return;
     }
-    setThread(t as Thread | null);
-    setReplies((r ?? []) as Reply[]);
+    // Nombre del autor del hilo + de cada respuesta. NO se puede embeber
+    // `profiles` porque `forum_threads.author_id` / `forum_replies.author_id`
+    // apuntan a `auth.users` (el embed devolvía PGRST200 y reventaba la query).
+    // Patrón 2-query: una sola consulta a profiles para todos los autores.
+    const threadRow = t as Thread | null;
+    const replyRows = (r ?? []) as Reply[];
+    const authorIds = [
+      ...new Set([threadRow?.author_id, ...replyRows.map((x) => x.author_id)].filter(Boolean)),
+    ] as string[];
+    const nameMap = new Map<string, string | null>();
+    if (authorIds.length > 0) {
+      const { data: profs } = await db.from("profiles").select("id, full_name").in("id", authorIds);
+      for (const p of (profs ?? []) as Array<{ id: string; full_name: string | null }>) {
+        nameMap.set(p.id, p.full_name);
+      }
+    }
+    const authorOf = (aid: string | null | undefined) => ({
+      full_name: aid ? (nameMap.get(aid) ?? null) : null,
+    });
+    setThread(threadRow ? { ...threadRow, author: authorOf(threadRow.author_id) } : null);
+    setReplies(replyRows.map((x) => ({ ...x, author: authorOf(x.author_id) })));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setMyUpvotes(new Set(((u ?? []) as any[]).map((row) => row.target_id)));
     setForumOpen(f ? isForumOpen(f) : true);
