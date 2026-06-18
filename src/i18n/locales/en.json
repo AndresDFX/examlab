@@ -1860,7 +1860,11 @@
     "cannotChangeVote": "This poll does not allow changing your vote once submitted",
     "voteRecorded": "Vote recorded",
     "cannotUncheckMultiple": "In multiple-choice polls you cannot uncheck an option once voted.",
-    "responseCleared": "Your response was removed"
+    "responseCleared": "Your response was removed",
+    "draftSaving": "Saving…",
+    "draftDirty": "Unsaved",
+    "draftSaved": "Saved",
+    "unsavedChangesWarning": "You have unsaved responses. If you leave now they will be lost."
   },
   "videosPage": {
     "title": "Videos",

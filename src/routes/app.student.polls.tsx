@@ -823,6 +823,16 @@ function MixedPollCard({
     return init;
   });
   const savedTextRef = useRef<Record<string, string>>({ ...text });
+  // Mirror del `text` actual en un ref → permite que el handler de
+  // `beforeunload` (registrado UNA vez) lea la versión más reciente sin
+  // re-suscribirse en cada keystroke.
+  const textRef = useRef(text);
+  useEffect(() => {
+    textRef.current = text;
+  }, [text]);
+  // Timers de autosave debounced (1.5s) por pregunta abierta — se cancelan
+  // si el alumno sigue tipeando, dispara el RPC cuando hay pausa o blur.
+  const debounceTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   // Índice seleccionado de cada pregunta cerrada.
   const [selected, setSelected] = useState<Record<string, number | null>>(() => {
     const init: Record<string, number | null> = {};
@@ -836,6 +846,53 @@ function MixedPollCard({
 
   const setSavingFor = (qid: string, v: boolean) =>
     setSaving((prev) => ({ ...prev, [qid]: v }));
+
+  // Programar autosave de una pregunta abierta tras 1.5s sin teclear. Si el
+  // alumno sigue escribiendo, cada keystroke resetea el timer. `submitOpen`
+  // YA hace short-circuit si el texto no cambió respecto al último guardado.
+  const scheduleOpenSave = (qid: string) => {
+    const existing = debounceTimersRef.current.get(qid);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      debounceTimersRef.current.delete(qid);
+      void submitOpen(qid);
+    }, 1500);
+    debounceTimersRef.current.set(qid, timer);
+  };
+
+  // Limpiar timers pendientes al desmontar. Sin esto, si la card se desmonta
+  // mid-debounce (cambio de pestaña / cierre del modal), el setTimeout sigue
+  // vivo e intenta llamar `submitOpen` sobre estado liberado.
+  useEffect(() => {
+    const timers = debounceTimersRef.current;
+    return () => {
+      for (const t of timers.values()) clearTimeout(t);
+      timers.clear();
+    };
+  }, []);
+
+  // Beforeunload: si hay textareas con cambios sin guardar, avisar antes de
+  // cerrar la pestaña / navegar fuera (típico riesgo cuando el alumno escribe
+  // y nunca pierde el foco antes de cerrar). Solo activo si la encuesta está
+  // abierta — cerrada ya no admite cambios.
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      const hasDirty = questions.some((q) => {
+        if (q.type !== "abierta") return false;
+        const current = (textRef.current[q.id] ?? "").trim();
+        const saved = (savedTextRef.current[q.id] ?? "").trim();
+        return current !== saved;
+      });
+      if (!hasDirty) return;
+      e.preventDefault();
+      // Chrome/Edge/Firefox necesitan `returnValue` set para mostrar el prompt
+      // (el texto real lo decide el browser desde hace años; no es customizable).
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [open, questions]);
 
   const submitClosed = async (qid: string, index: number) => {
     if (saving[qid]) return;
@@ -870,7 +927,10 @@ function MixedPollCard({
         return;
       }
       savedTextRef.current[qid] = value;
-      toast.success(t("studentPolls.answerSaved", { defaultValue: "Respuesta guardada" }));
+      // SIN toast: el autosave dispara este RPC cada 1.5s mientras el alumno
+      // escribe → un toast por save satura. El indicador "✓ Guardado" debajo
+      // del textarea ya es feedback suficiente. (submitClosed sí toastea
+      // porque las preguntas cerradas no tienen indicador por pregunta.)
     } finally {
       setSavingFor(qid, false);
     }
@@ -886,6 +946,10 @@ function MixedPollCard({
       confirmLabel: t("studentPolls.removeVote", { defaultValue: "Quitar" }),
     });
     if (!ok) return;
+    // Cancelar autosaves pendientes — sino un debounce que se dispara DESPUÉS
+    // del clear re-pisaría la DB con el texto que el alumno acaba de borrar.
+    for (const t of debounceTimersRef.current.values()) clearTimeout(t);
+    debounceTimersRef.current.clear();
     setClearing(true);
     try {
       const { error } = await db.rpc("clear_poll_question_responses", { _poll_id: poll.id });
@@ -970,6 +1034,19 @@ function MixedPollCard({
               const maxLen = q.max_chars ?? 500;
               const value = text[q.id] ?? "";
               const near = value.length >= maxLen * 0.9;
+              // Estado del borrador (sin botón de submit explícito — autosave).
+              //   saving  → RPC en curso (gana sobre los otros)
+              //   dirty   → texto != último guardado (esperando debounce o falla previa)
+              //   saved   → todo persistido (solo si hay texto, para no ruido)
+              const savedText = (savedTextRef.current[q.id] ?? "").trim();
+              const dirty = value.trim() !== savedText;
+              const draftStatus: "saving" | "dirty" | "saved" | "none" = isSaving
+                ? "saving"
+                : value.trim() === "" && savedText === ""
+                  ? "none"
+                  : dirty
+                    ? "dirty"
+                    : "saved";
               return (
                 <div key={q.id} className="space-y-1 rounded-md border p-2.5">
                   <p className="text-sm font-medium">
@@ -980,16 +1057,43 @@ function MixedPollCard({
                     value={value}
                     maxLength={maxLen}
                     rows={3}
-                    disabled={!open || isSaving}
+                    disabled={!open}
                     placeholder={t("studentPolls.openAnswerPlaceholder", {
                       defaultValue: "Escribe tu respuesta…",
                     })}
-                    onChange={(e) => setText((prev) => ({ ...prev, [q.id]: e.target.value }))}
-                    onBlur={() => void submitOpen(q.id)}
+                    onChange={(e) => {
+                      setText((prev) => ({ ...prev, [q.id]: e.target.value }));
+                      scheduleOpenSave(q.id);
+                    }}
+                    onBlur={() => {
+                      // Cancelar el debounce y guardar inmediato — el usuario
+                      // explícitamente salió del campo, no hace falta esperar.
+                      const existing = debounceTimersRef.current.get(q.id);
+                      if (existing) {
+                        clearTimeout(existing);
+                        debounceTimersRef.current.delete(q.id);
+                      }
+                      void submitOpen(q.id);
+                    }}
                   />
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                      {isSaving && <Spinner size="xs" />}
+                    <span className="text-[10px] flex items-center gap-1">
+                      {draftStatus === "saving" && (
+                        <>
+                          <Spinner size="xs" />
+                          <span className="text-muted-foreground">{t("studentPolls.draftSaving")}</span>
+                        </>
+                      )}
+                      {draftStatus === "dirty" && (
+                        <span className="text-amber-600 dark:text-amber-400">
+                          ● {t("studentPolls.draftDirty")}
+                        </span>
+                      )}
+                      {draftStatus === "saved" && (
+                        <span className="text-emerald-600 dark:text-emerald-400">
+                          ✓ {t("studentPolls.draftSaved")}
+                        </span>
+                      )}
                     </span>
                     <span
                       className={`text-[10px] tabular-nums ${near ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}

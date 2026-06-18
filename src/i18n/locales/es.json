@@ -1860,7 +1860,11 @@
     "cannotChangeVote": "Esta encuesta no permite cambiar el voto una vez emitido",
     "voteRecorded": "Voto registrado",
     "cannotUncheckMultiple": "En encuestas de selección múltiple no podés desmarcar una opción una vez votada.",
-    "responseCleared": "Quitaste tu respuesta"
+    "responseCleared": "Quitaste tu respuesta",
+    "draftSaving": "Guardando…",
+    "draftDirty": "Sin guardar",
+    "draftSaved": "Guardado",
+    "unsavedChangesWarning": "Tienes respuestas sin guardar. Si sales ahora se perderán."
   },
   "videosPage": {
     "title": "Videos",
