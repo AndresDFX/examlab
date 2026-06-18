@@ -801,7 +801,8 @@ function MixedPollCard({
 }: {
   poll: Poll;
   highlight?: boolean;
-  /** Recarga la lista del padre tras "quitar mis respuestas". */
+  /** Recarga la lista del padre tras "quitar mis respuestas" o ante cualquier
+   *  evento realtime (el docente publica/despublica/cierra, etc.). */
   onChanged: () => void;
 }) {
   const { t } = useTranslation();
@@ -814,6 +815,13 @@ function MixedPollCard({
   }, [highlight]);
 
   const open = pollIsOpen(poll);
+  // Realtime: cuando el docente edita la encuesta (UPDATE en polls — típico:
+  // pasar de publicada a borrador, o cerrarla manualmente), pedimos al padre
+  // que recargue. Tras el refetch la RLS filtra los borradores (mig 20260986)
+  // y el alumno deja de ver la card. Sin esta línea las encuestas MIXTAS
+  // quedaban congeladas en el state local hasta refresh manual — solo PollCard
+  // estaba suscrita.
+  usePollRealtime(poll.id, onChanged, open);
   const questions = poll.questions ?? [];
   // Texto actual de cada pregunta abierta + lo último persistido (para
   // detectar cambios en blur y no re-guardar si no cambió).
