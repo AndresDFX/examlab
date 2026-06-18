@@ -24,6 +24,7 @@ import { usePollRealtime } from "@/modules/polls/use-poll-realtime";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
@@ -33,6 +34,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { KahootJoinCard } from "@/modules/polls/KahootJoinCard";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
 import { usePagination } from "@/hooks/use-pagination";
@@ -45,6 +47,7 @@ import {
   RefreshCw,
   Presentation,
   X,
+  MessageSquareText,
 } from "lucide-react";
 
 export const Route = createFileRoute("/app/student/polls")({
@@ -64,7 +67,7 @@ export const Route = createFileRoute("/app/student/polls")({
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-type PollType = "single" | "multiple" | "slot";
+type PollType = "single" | "multiple" | "slot" | "mixed";
 type ResultsVis = "always" | "after_close" | "never";
 
 interface PollOption {
@@ -74,6 +77,21 @@ interface PollOption {
   position: number;
   max_responses: number | null;
   responses_count: number;
+}
+
+/** Pregunta de una encuesta MIXTA (poll_type='mixed'). */
+interface MixedQuestion {
+  id: string;
+  type: "abierta" | "cerrada";
+  text: string;
+  required: boolean;
+  max_chars: number | null;
+  choices: string[];
+}
+/** Mi respuesta a una pregunta mixta (abierta o cerrada). */
+interface MyMixedAnswer {
+  answer_text: string | null;
+  selected_index: number | null;
 }
 
 interface Poll {
@@ -98,6 +116,9 @@ interface Poll {
   options: PollOption[];
   // option_ids que YO voté.
   my_votes: string[];
+  // Solo para poll_type='mixed': sus preguntas + mis respuestas.
+  questions?: MixedQuestion[];
+  my_answers?: Record<string, MyMixedAnswer>;
 }
 
 function pollIsOpen(p: Poll): boolean {
@@ -118,11 +139,16 @@ const TYPE_ICONS: Record<PollType, typeof ListChecks> = {
   single: ListChecks,
   multiple: CheckSquare,
   slot: CalendarRange,
+  mixed: MessageSquareText,
 };
 
 function getTypeHint(type: PollType): string {
   if (type === "single") return i18n.t("studentPolls.typeHintSingle");
   if (type === "multiple") return i18n.t("studentPolls.typeHintMultiple");
+  if (type === "mixed")
+    return i18n.t("studentPolls.typeHintMixed", {
+      defaultValue: "Responde cada pregunta. Tus respuestas se guardan al instante.",
+    });
   return i18n.t("studentPolls.typeHintSlot");
 }
 
@@ -248,6 +274,63 @@ function StudentPolls() {
           my_votes: myVotesByPoll.get(p.id) ?? [],
         };
       });
+      // Encuestas MIXTAS: sus preguntas viven en poll_questions y mis
+      // respuestas en poll_question_responses (no en poll_options). Las
+      // traemos aparte y se las adjuntamos a las polls mixtas.
+      const mixedIds = list.filter((p) => p.poll_type === "mixed").map((p) => p.id);
+      if (mixedIds.length > 0) {
+        const [qRes, aRes] = await Promise.all([
+          db
+            .from("poll_questions")
+            .select("id, poll_id, type, text, required, max_chars, options, position")
+            .in("poll_id", mixedIds)
+            .order("position"),
+          db
+            .from("poll_question_responses")
+            .select("poll_id, question_id, answer_text, selected_index")
+            .eq("user_id", user.id)
+            .in("poll_id", mixedIds),
+        ]);
+        if (cancelled) return;
+        const qByPoll = new Map<string, MixedQuestion[]>();
+        for (const q of (qRes.data ?? []) as Array<{
+          id: string;
+          poll_id: string;
+          type: "abierta" | "cerrada";
+          text: string;
+          required: boolean;
+          max_chars: number | null;
+          options: { choices?: string[] } | null;
+        }>) {
+          const arr = qByPoll.get(q.poll_id) ?? [];
+          arr.push({
+            id: q.id,
+            type: q.type,
+            text: q.text,
+            required: !!q.required,
+            max_chars: q.max_chars ?? null,
+            choices: Array.isArray(q.options?.choices) ? q.options!.choices! : [],
+          });
+          qByPoll.set(q.poll_id, arr);
+        }
+        const aByPoll = new Map<string, Record<string, MyMixedAnswer>>();
+        for (const a of (aRes.data ?? []) as Array<{
+          poll_id: string;
+          question_id: string;
+          answer_text: string | null;
+          selected_index: number | null;
+        }>) {
+          const m = aByPoll.get(a.poll_id) ?? {};
+          m[a.question_id] = { answer_text: a.answer_text, selected_index: a.selected_index };
+          aByPoll.set(a.poll_id, m);
+        }
+        for (const p of list) {
+          if (p.poll_type === "mixed") {
+            p.questions = qByPoll.get(p.id) ?? [];
+            p.my_answers = aByPoll.get(p.id) ?? {};
+          }
+        }
+      }
       // Ordenamos: abiertas primero (con voto pendiente arriba), luego
       // cerradas. Dentro de cada grupo por opens_at desc.
       list.sort((a, b) => {
@@ -428,18 +511,27 @@ function StudentPolls() {
                   <h2 className="text-sm font-medium text-muted-foreground">
                     {t("studentPolls.activeTitle")} ({activePolls.length})
                   </h2>
-                  {activePagination.paginatedItems.map((p) => (
-                    <PollCard
-                      key={p.id}
-                      poll={p}
-                      voting={voting === p.id}
-                      onVote={castVote}
-                      onToggleMultiple={toggleMultiple}
-                      onClear={clearMyVote}
-                      highlight={p.id === deepLinkId}
-                      onRealtimeChange={() => setRetryNonce((n) => n + 1)}
-                    />
-                  ))}
+                  {activePagination.paginatedItems.map((p) =>
+                    p.poll_type === "mixed" ? (
+                      <MixedPollCard
+                        key={p.id}
+                        poll={p}
+                        highlight={p.id === deepLinkId}
+                        onChanged={() => setRetryNonce((n) => n + 1)}
+                      />
+                    ) : (
+                      <PollCard
+                        key={p.id}
+                        poll={p}
+                        voting={voting === p.id}
+                        onVote={castVote}
+                        onToggleMultiple={toggleMultiple}
+                        onClear={clearMyVote}
+                        highlight={p.id === deepLinkId}
+                        onRealtimeChange={() => setRetryNonce((n) => n + 1)}
+                      />
+                    ),
+                  )}
                   <DataPagination state={activePagination} entityNamePlural="encuestas" />
                 </section>
               )}
@@ -448,18 +540,27 @@ function StudentPolls() {
                   <h2 className="text-sm font-medium text-muted-foreground">
                     {t("studentPolls.closedTitle")} ({closedPolls.length})
                   </h2>
-                  {closedPagination.paginatedItems.map((p) => (
-                    <PollCard
-                      key={p.id}
-                      poll={p}
-                      voting={false}
-                      onVote={castVote}
-                      onToggleMultiple={toggleMultiple}
-                      onClear={clearMyVote}
-                      highlight={p.id === deepLinkId}
-                      onRealtimeChange={() => setRetryNonce((n) => n + 1)}
-                    />
-                  ))}
+                  {closedPagination.paginatedItems.map((p) =>
+                    p.poll_type === "mixed" ? (
+                      <MixedPollCard
+                        key={p.id}
+                        poll={p}
+                        highlight={p.id === deepLinkId}
+                        onChanged={() => setRetryNonce((n) => n + 1)}
+                      />
+                    ) : (
+                      <PollCard
+                        key={p.id}
+                        poll={p}
+                        voting={false}
+                        onVote={castVote}
+                        onToggleMultiple={toggleMultiple}
+                        onClear={clearMyVote}
+                        highlight={p.id === deepLinkId}
+                        onRealtimeChange={() => setRetryNonce((n) => n + 1)}
+                      />
+                    ),
+                  )}
                   <DataPagination state={closedPagination} entityNamePlural="encuestas" />
                 </section>
               )}
@@ -674,6 +775,292 @@ function PollCard({
             {poll.results_visible_to_students === "never"
               ? i18n.t("studentPolls.resultsNever")
               : i18n.t("studentPolls.resultsAfterClose")}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * MixedPollCard — toma de una encuesta MIXTA (poll_type='mixed'). Renderiza
+ * cada pregunta: abierta = textarea (autosave al salir del campo), cerrada =
+ * botones de opción única (autosave al click). Cada respuesta se persiste por
+ * separado vía `submit_poll_question_response` (no hay "enviar" único — igual
+ * que el voto de single/slot). Las respuestas abiertas solo las ve el docente.
+ *
+ * Hidrata desde `poll.my_answers`. "Quitar mis respuestas" llama a
+ * `clear_poll_question_responses` (solo si abierta y allow_change_response).
+ */
+function MixedPollCard({
+  poll,
+  highlight = false,
+  onChanged,
+}: {
+  poll: Poll;
+  highlight?: boolean;
+  /** Recarga la lista del padre tras "quitar mis respuestas". */
+  onChanged: () => void;
+}) {
+  const { t } = useTranslation();
+  const confirm = useConfirm();
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (highlight && cardRef.current) {
+      cardRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlight]);
+
+  const open = pollIsOpen(poll);
+  const questions = poll.questions ?? [];
+  // Texto actual de cada pregunta abierta + lo último persistido (para
+  // detectar cambios en blur y no re-guardar si no cambió).
+  const [text, setText] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const q of questions) {
+      if (q.type === "abierta") init[q.id] = poll.my_answers?.[q.id]?.answer_text ?? "";
+    }
+    return init;
+  });
+  const savedTextRef = useRef<Record<string, string>>({ ...text });
+  // Índice seleccionado de cada pregunta cerrada.
+  const [selected, setSelected] = useState<Record<string, number | null>>(() => {
+    const init: Record<string, number | null> = {};
+    for (const q of questions) {
+      if (q.type === "cerrada") init[q.id] = poll.my_answers?.[q.id]?.selected_index ?? null;
+    }
+    return init;
+  });
+  const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [clearing, setClearing] = useState(false);
+
+  const setSavingFor = (qid: string, v: boolean) =>
+    setSaving((prev) => ({ ...prev, [qid]: v }));
+
+  const submitClosed = async (qid: string, index: number) => {
+    if (saving[qid]) return;
+    setSavingFor(qid, true);
+    try {
+      const { error } = await db.rpc("submit_poll_question_response", {
+        _question_id: qid,
+        _selected_index: index,
+      });
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      setSelected((prev) => ({ ...prev, [qid]: index }));
+      toast.success(t("studentPolls.answerSaved", { defaultValue: "Respuesta guardada" }));
+    } finally {
+      setSavingFor(qid, false);
+    }
+  };
+
+  const submitOpen = async (qid: string) => {
+    const value = (text[qid] ?? "").trim();
+    if (value === (savedTextRef.current[qid] ?? "").trim()) return; // sin cambios
+    setSavingFor(qid, true);
+    try {
+      const { error } = await db.rpc("submit_poll_question_response", {
+        _question_id: qid,
+        _answer_text: value,
+      });
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      savedTextRef.current[qid] = value;
+      toast.success(t("studentPolls.answerSaved", { defaultValue: "Respuesta guardada" }));
+    } finally {
+      setSavingFor(qid, false);
+    }
+  };
+
+  const clearAll = async () => {
+    const ok = await confirm({
+      title: t("studentPolls.clearAnswersTitle", { defaultValue: "¿Quitar tus respuestas?" }),
+      description: t("studentPolls.clearAnswersDesc", {
+        defaultValue: "Se borrarán todas tus respuestas a esta encuesta. Podrás volver a responder.",
+      }),
+      tone: "warning",
+      confirmLabel: t("studentPolls.removeVote", { defaultValue: "Quitar" }),
+    });
+    if (!ok) return;
+    setClearing(true);
+    try {
+      const { error } = await db.rpc("clear_poll_question_responses", { _poll_id: poll.id });
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      // Reset local: la card NO se remonta tras el refetch del padre (misma
+      // key), así que limpiamos su estado manualmente.
+      setSelected((prev) => {
+        const next: Record<string, number | null> = {};
+        for (const k of Object.keys(prev)) next[k] = null;
+        return next;
+      });
+      setText((prev) => {
+        const next: Record<string, string> = {};
+        for (const k of Object.keys(prev)) next[k] = "";
+        return next;
+      });
+      savedTextRef.current = {};
+      toast.success(t("studentPolls.responseCleared"));
+      onChanged();
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  const hasAnyAnswer =
+    Object.values(selected).some((v) => v != null) ||
+    Object.values(savedTextRef.current).some((v) => (v ?? "").trim().length > 0);
+
+  return (
+    <Card
+      ref={cardRef}
+      className={highlight ? "ring-2 ring-primary ring-offset-2 transition-shadow" : undefined}
+    >
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <CardTitle className="text-base flex items-center gap-2 min-w-0">
+              <MessageSquareText className="h-4 w-4 text-sky-500 shrink-0" />
+              <span className="truncate">{poll.title}</span>
+            </CardTitle>
+            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+              {poll.course_name && (
+                <p className="text-[11px] text-muted-foreground">{poll.course_name}</p>
+              )}
+              {poll.attendance_session_id && (
+                <Badge variant="outline" className="text-[10px] gap-1">
+                  <Presentation className="h-3 w-3" />
+                  {i18n.t("studentPolls.sessionBadge")}
+                </Badge>
+              )}
+            </div>
+            {poll.description && (
+              <p className="text-xs text-muted-foreground mt-1">{poll.description}</p>
+            )}
+          </div>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <Badge variant={open ? "default" : "secondary"} className="text-[10px]">
+              {open ? i18n.t("studentPolls.badgeOpen") : i18n.t("studentPolls.badgeClosed")}
+            </Badge>
+            {poll.closes_at && (
+              <span className="text-[10px] text-muted-foreground">
+                {open ? i18n.t("studentPolls.closesPrefix") : i18n.t("studentPolls.closedPrefix")}
+                <DateCell value={poll.closes_at} variant="datetime" />
+              </span>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-[11px] text-muted-foreground">{getTypeHint("mixed")}</p>
+        {questions.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            {t("studentPolls.mixedNoQuestions", { defaultValue: "Esta encuesta aún no tiene preguntas." })}
+          </p>
+        ) : (
+          questions.map((q, qi) => {
+            const isSaving = !!saving[q.id];
+            if (q.type === "abierta") {
+              const maxLen = q.max_chars ?? 500;
+              const value = text[q.id] ?? "";
+              const near = value.length >= maxLen * 0.9;
+              return (
+                <div key={q.id} className="space-y-1 rounded-md border p-2.5">
+                  <p className="text-sm font-medium">
+                    {qi + 1}. {q.text}
+                    {q.required && <span className="text-destructive ml-0.5">*</span>}
+                  </p>
+                  <Textarea
+                    value={value}
+                    maxLength={maxLen}
+                    rows={3}
+                    disabled={!open || isSaving}
+                    placeholder={t("studentPolls.openAnswerPlaceholder", {
+                      defaultValue: "Escribe tu respuesta…",
+                    })}
+                    onChange={(e) => setText((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                    onBlur={() => void submitOpen(q.id)}
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                      {isSaving && <Spinner size="xs" />}
+                    </span>
+                    <span
+                      className={`text-[10px] tabular-nums ${near ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}
+                    >
+                      {value.length} / {maxLen}
+                    </span>
+                  </div>
+                </div>
+              );
+            }
+            // cerrada — opción única (botones).
+            const sel = selected[q.id] ?? null;
+            const answered = sel != null;
+            return (
+              <div key={q.id} className="space-y-1.5 rounded-md border p-2.5">
+                <p className="text-sm font-medium">
+                  {qi + 1}. {q.text}
+                  {q.required && <span className="text-destructive ml-0.5">*</span>}
+                </p>
+                <div className="space-y-1.5">
+                  {q.choices.map((choice, ci) => {
+                    const mine = sel === ci;
+                    return (
+                      <Button
+                        key={ci}
+                        type="button"
+                        variant={mine ? "default" : "outline"}
+                        className="w-full justify-start h-auto py-2"
+                        // Si no se permite cambiar y ya respondió, bloqueamos las
+                        // opciones NO elegidas (el RPC también lo rechaza).
+                        disabled={
+                          !open ||
+                          isSaving ||
+                          (!poll.allow_change_response && answered && !mine)
+                        }
+                        onClick={() => void submitClosed(q.id, ci)}
+                      >
+                        <span className="truncate flex items-center gap-2 text-sm">
+                          {mine && <Check className="h-3.5 w-3.5" />}
+                          {choice}
+                        </span>
+                        {isSaving && mine && <Spinner size="xs" className="ml-auto" />}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })
+        )}
+
+        {open && poll.allow_change_response && hasAnyAnswer && (
+          <div className="flex justify-end pt-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-[11px] text-muted-foreground hover:text-destructive"
+              disabled={clearing}
+              onClick={() => void clearAll()}
+            >
+              {clearing ? <Spinner size="xs" className="mr-1" /> : <X className="h-3.5 w-3.5 mr-1" />}
+              {i18n.t("studentPolls.removeVote")}
+            </Button>
+          </div>
+        )}
+        {!open && (
+          <p className="text-[11px] text-muted-foreground">
+            {t("studentPolls.mixedClosedNote", {
+              defaultValue: "La encuesta está cerrada. Ya no puedes modificar tus respuestas.",
+            })}
           </p>
         )}
       </CardContent>

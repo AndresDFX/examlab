@@ -45,6 +45,39 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-18
 
+**Encuestas MIXTAS — nuevo `poll_type='mixed'` con mix de preguntas (abiertas + cerradas).**
+Una encuesta puede ahora tener N preguntas de distintos tipos, como un taller:
+`abierta` (texto libre, con tope opcional de caracteres) y `cerrada` (opción
+única). El modelo plano legacy (`single`/`multiple`/`slot`/`kahoot` sobre
+`poll_options`/`poll_responses`/`kahoot_*`) **coexiste intacto — cero migración
+de datos**; `poll_type` bifurca a las tablas hijas nuevas.
+- **DB** (migs `20260983000000` enum `mixed` aislado + `20260984000000` tablas
+  `poll_questions`/`poll_question_responses` + RLS, + `20260985000000` RPCs/triggers):
+  RLS reusa los helpers `_poll_*` AÑADIENDO guard de papelera (`deleted_at`).
+  Respuestas con **write directo DENEGADO** (solo vía RPC). `poll_question_responses`
+  NO se publica a realtime ni tiene `REPLICA IDENTITY FULL` (privacidad de las
+  respuestas abiertas). RPCs `submit_poll_question_response` (guards: papelera,
+  publicada, abierta, matrícula multi-curso vía `_poll_has_member`,
+  `allow_change_response` SOLO para cerradas ANTES del upsert, rango de
+  `selected_index`), `clear_poll_question_responses`,
+  `teacher_clear_poll_question_response_for_user`. Triggers: una mixta NO se
+  publica con 0 preguntas (`BEFORE INSERT OR UPDATE OF is_published`) + choices/tipo
+  inmutables si la pregunta ya tiene respuestas.
+- **Docente** ([PollQuestionsEditor.tsx](src/modules/polls/PollQuestionsEditor.tsx)
+  + [app.teacher.polls.tsx](src/routes/app.teacher.polls.tsx)): tipo `mixed` en el
+  form (nace en borrador, abre el editor de preguntas al crear); editor de
+  preguntas abiertas/cerradas (choices read-only con respuestas); "Preguntas" en el
+  menú de fila; `auto_close` oculto para mixed; tipo bloqueado en edición; resultados
+  por pregunta (cerradas = conteo, abiertas = lista con autor, nombres por 2-query,
+  borrar por alumno, aviso "solo el docente ve las abiertas"); duplicar copia las
+  preguntas (flag `copyQuestions`).
+- **Estudiante** ([app.student.polls.tsx](src/routes/app.student.polls.tsx),
+  `MixedPollCard`): responde cada pregunta con autosave (abierta = textarea al salir
+  del campo, cerrada = botones de opción única); hidrata sus respuestas; "Quitar mis
+  respuestas" si abierta + `allow_change_response`.
+- v1 difiere: `cerrada_multi`, realtime de respuestas abiertas, quiz (correct_index),
+  auto-cierre "todos respondieron" para mixed.
+
 **Difusión (notificaciones masivas) — no mostrar/usar cursos en la papelera.**
 El selector de cursos del diálogo de difusión (`/app/messages`) no filtraba
 `deleted_at`, así que aparecían cursos en la papelera. Fix en 3 capas (regla

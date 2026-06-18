@@ -32,7 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
-import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState, EmptyState } from "@/components/ui/empty-state";
 import { RowAction } from "@/components/ui/row-action";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DateCell } from "@/components/ui/date-cell";
@@ -54,7 +54,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
+import { SectionLoader } from "@/components/ui/loaders";
 import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDialog";
 import { ReopenClosedBanner } from "@/shared/components/ReopenClosedBanner";
 import {
@@ -92,9 +94,11 @@ import {
   ArrowRightLeft,
   Shuffle,
   Wand2,
+  MessageSquareText,
 } from "lucide-react";
 import { usePollRealtime } from "@/modules/polls/use-poll-realtime";
 import { KahootQuestionsEditor } from "@/modules/polls/KahootQuestionsEditor";
+import { PollQuestionsEditor } from "@/modules/polls/PollQuestionsEditor";
 import { GenerateKahootFromContentDialog } from "@/modules/polls/GenerateKahootFromContentDialog";
 import { optionFillPercent } from "@/modules/polls/poll-results";
 import { cn } from "@/shared/lib/utils";
@@ -107,7 +111,7 @@ export const Route = createFileRoute("/app/teacher/polls")({ component: TeacherP
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-type PollType = "single" | "multiple" | "slot" | "kahoot";
+type PollType = "single" | "multiple" | "slot" | "kahoot" | "mixed";
 type ResultsVis = "always" | "after_close" | "never";
 
 interface Poll {
@@ -173,6 +177,7 @@ const pollTypeLabel = (type: PollType): string =>
     multiple: i18n.t("teacherPolls.typeMultiple"),
     slot: i18n.t("teacherPolls.typeSlot"),
     kahoot: i18n.t("teacherPolls.typeKahoot"),
+    mixed: i18n.t("teacherPolls.typeMixed", { defaultValue: "Mixta (preguntas)" }),
   })[type];
 
 const POLL_TYPE_ICONS: Record<PollType, typeof ListChecks> = {
@@ -180,6 +185,7 @@ const POLL_TYPE_ICONS: Record<PollType, typeof ListChecks> = {
   multiple: CheckSquare,
   slot: CalendarRange,
   kahoot: Gamepad2,
+  mixed: MessageSquareText,
 };
 
 const visLabel = (vis: ResultsVis): string =>
@@ -234,6 +240,10 @@ function TeacherPolls() {
   const [duplicateFor, setDuplicateFor] = useState<Poll | null>(null);
   // Kahoot: encuesta cuyas preguntas se están editando (abre el editor).
   const [questionsFor, setQuestionsFor] = useState<Poll | null>(null);
+  // Mixta: encuesta cuyas preguntas (abiertas/cerradas) se están editando.
+  const [mixedQuestionsFor, setMixedQuestionsFor] = useState<{ id: string; title: string } | null>(
+    null,
+  );
   // Generar Kahoot con IA leyendo el contenido del curso (Goal #18).
   const [genKahootOpen, setGenKahootOpen] = useState(false);
   const [hosting, setHosting] = useState<string | null>(null);
@@ -506,7 +516,12 @@ function TeacherPolls() {
    *  DuplicatePollDialog (qué info interna copiar). */
   const duplicatePoll = async (
     p: Poll,
-    opts: { copyOptions: boolean; copyCourses: boolean; copyKahootQuestions: boolean },
+    opts: {
+      copyOptions: boolean;
+      copyCourses: boolean;
+      copyKahootQuestions: boolean;
+      copyQuestions: boolean;
+    },
   ) => {
     if (!user) return;
     try {
@@ -621,6 +636,48 @@ function TeacherPolls() {
               toast.error(friendlyError(oInsErr, t("teacherPolls.errCopyKahootOptions")));
               return;
             }
+          }
+        }
+      }
+      // Mixta: las preguntas viven en poll_questions (no en poll_options).
+      // Las clonamos preservando tipo/texto/opciones/posición SIN respuestas.
+      if (p.poll_type === "mixed" && opts.copyQuestions) {
+        const { data: srcQs, error: qErr } = await db
+          .from("poll_questions")
+          .select("type, text, required, max_chars, options, position")
+          .eq("poll_id", p.id)
+          .order("position");
+        if (qErr) {
+          await db.from("polls").delete().eq("id", newPoll.id);
+          toast.error(
+            friendlyError(qErr, t("teacherPolls.errReadKahootQuestions", { defaultValue: "No se pudieron leer las preguntas" })),
+          );
+          return;
+        }
+        const rows = ((srcQs ?? []) as Array<{
+          type: string;
+          text: string;
+          required: boolean;
+          max_chars: number | null;
+          options: unknown;
+          position: number;
+        }>).map((q, i) => ({
+          poll_id: newPoll.id,
+          type: q.type,
+          text: q.text,
+          required: q.required,
+          max_chars: q.max_chars,
+          options: q.options,
+          position: q.position ?? i,
+        }));
+        if (rows.length > 0) {
+          const { error: insErr } = await db.from("poll_questions").insert(rows);
+          if (insErr) {
+            await db.from("polls").delete().eq("id", newPoll.id);
+            toast.error(
+              friendlyError(insErr, t("teacherPolls.errCopyKahootQuestions", { defaultValue: "No se pudieron copiar las preguntas" })),
+            );
+            return;
           }
         }
       }
@@ -921,6 +978,15 @@ function TeacherPolls() {
                                   ]
                                 : [
                                     { label: t("teacherPolls.actionViewResults"), icon: Eye, onClick: () => setViewPoll(p) },
+                                    // Encuestas mixtas: editar sus preguntas
+                                    // (abiertas/cerradas). nullish → filtrado.
+                                    p.poll_type === "mixed" && {
+                                      label: i18n.t("teacherPolls.menuQuestions", {
+                                        defaultValue: "Preguntas",
+                                      }),
+                                      icon: MessageSquareText,
+                                      onClick: () => setMixedQuestionsFor({ id: p.id, title: p.title }),
+                                    },
                                     {
                                       label: t("teacherPolls.actionShareLink"),
                                       icon: Link2,
@@ -967,9 +1033,14 @@ function TeacherPolls() {
         courses={courses}
         userId={user?.id ?? null}
         editingPoll={editPoll}
-        onCreated={() => {
+        onCreated={(created) => {
           setEditPoll(null);
           setRetryNonce((n) => n + 1);
+          // Recién creada una encuesta mixta → abrir el editor de preguntas
+          // (sin preguntas no se puede publicar; el trigger DB lo bloquea).
+          if (created?.poll_type === "mixed") {
+            setMixedQuestionsFor({ id: created.id, title: created.title });
+          }
         }}
       />
       <ResultsDialog poll={viewPoll} onOpenChange={(open) => !open && setViewPoll(null)} />
@@ -993,6 +1064,29 @@ function TeacherPolls() {
                   param: "copyKahootQuestions",
                   label: t("teacherPolls.dupCopyKahootQuestionsLabel"),
                   hint: t("teacherPolls.dupCopyKahootQuestionsHint"),
+                },
+                {
+                  param: "copyCourses",
+                  label:
+                    (duplicateFor?.linked_courses?.length ?? 0) > 1
+                      ? t("teacherPolls.dupCopyCoursesLabelCount", {
+                          count: duplicateFor?.linked_courses?.length,
+                        })
+                      : t("teacherPolls.dupCopyCoursesLabel"),
+                  hint: t("teacherPolls.dupCopyCoursesHint"),
+                },
+              ]
+            : duplicateFor?.poll_type === "mixed"
+            ? [
+                {
+                  // Mixta: las preguntas viven en poll_questions.
+                  param: "copyQuestions",
+                  label: t("teacherPolls.dupCopyQuestionsLabel", {
+                    defaultValue: "Copiar preguntas",
+                  }),
+                  hint: t("teacherPolls.dupCopyQuestionsHint", {
+                    defaultValue: "Copia las preguntas abiertas/cerradas (sin las respuestas).",
+                  }),
                 },
                 {
                   param: "copyCourses",
@@ -1034,12 +1128,18 @@ function TeacherPolls() {
               copyOptions: flags.copyOptions !== false,
               copyCourses: flags.copyCourses !== false,
               copyKahootQuestions: flags.copyKahootQuestions !== false,
+              copyQuestions: flags.copyQuestions !== false,
             });
         }}
       />
       <KahootQuestionsEditor
         poll={questionsFor ? { id: questionsFor.id, title: questionsFor.title } : null}
         onOpenChange={(open) => !open && setQuestionsFor(null)}
+      />
+      <PollQuestionsEditor
+        poll={mixedQuestionsFor}
+        onOpenChange={(open) => !open && setMixedQuestionsFor(null)}
+        onSaved={() => setRetryNonce((n) => n + 1)}
       />
       <GenerateKahootFromContentDialog
         open={genKahootOpen}
@@ -1087,7 +1187,9 @@ function CreatePollDialog({
   onOpenChange: (v: boolean) => void;
   courses: Array<{ id: string; name: string }>;
   userId: string | null;
-  onCreated: () => void;
+  /** Se llama tras crear/editar. En CREATE recibe la fila nueva para que el
+   *  padre pueda, p.ej., abrir el editor de preguntas de una encuesta mixta. */
+  onCreated: (created?: { id: string; title: string; poll_type: PollType }) => void;
   /** Si está presente, el dialog opera en modo edición: hidrata todos
    *  los campos desde la fila, hace UPDATE en lugar de INSERT y
    *  sincroniza poll_courses (diff add/remove). Las OPCIONES quedan
@@ -1579,7 +1681,7 @@ function CreatePollDialog({
     // las opciones/slots libremente. El tipo 'kahoot' NO usa poll_options
     // (sus preguntas viven en kahoot_questions, editadas aparte) → se salta
     // toda la validación/manejo de opciones.
-    if (!optionsLocked && type !== "kahoot") {
+    if (!optionsLocked && type !== "kahoot" && type !== "mixed") {
       if (
         type === "slot" &&
         !options.some((o) => o.label.trim()) &&
@@ -1772,10 +1874,12 @@ function CreatePollDialog({
               return;
             }
           }
-        } else if (!optionsLocked) {
+        } else if (!optionsLocked && type !== "kahoot" && type !== "mixed") {
           // single/multiple SIN votos: seguro borrar + reinsertar porque
           // ningún poll_response referencia las opciones todavía. Con votos,
           // optionsLocked=true y este bloque se salta (quedan intactas).
+          // kahoot/mixed NO usan poll_options (sus preguntas viven en tablas
+          // hijas) → se saltan.
           const validOpts = effectiveOptions.filter((o) => o.label.trim());
           const { error: delOptErr } = await db
             .from("poll_options")
@@ -1823,7 +1927,11 @@ function CreatePollDialog({
           closes_at: closesAt ? new Date(closesAt).toISOString() : null,
           allow_change_response: allowChange,
           auto_close_when_all_responded: autoCloseAll,
-          is_published: isPublished,
+          // Una encuesta mixta NACE en borrador: aún no tiene preguntas (se
+          // agregan en el editor que abre tras crear). El trigger DB bloquea
+          // publicar mixtas con 0 preguntas; forzar draft evita ese error y
+          // deja al docente publicar desde "Editar" cuando ya tenga preguntas.
+          is_published: type === "mixed" ? false : isPublished,
           attendance_session_id: sessionId,
           created_by: userId,
         })
@@ -1849,9 +1957,10 @@ function CreatePollDialog({
         toast.error(friendlyError(jErr, t("teacherPolls.errLinkCourses")));
         return;
       }
-      // Kahoot no usa poll_options (sus preguntas van en kahoot_questions,
-      // que el docente agrega con el editor "Preguntas" tras crear).
-      if (type !== "kahoot") {
+      // Kahoot/mixta no usan poll_options (sus preguntas van en
+      // kahoot_questions / poll_questions, que el docente agrega con el
+      // editor "Preguntas" tras crear).
+      if (type !== "kahoot" && type !== "mixed") {
         const optionsPayload = validOptions.map((o, idx) => ({
           poll_id: pollRow.id,
           label: o.label.trim(),
@@ -1878,7 +1987,7 @@ function CreatePollDialog({
             }),
       );
       onOpenChange(false);
-      onCreated();
+      onCreated({ id: pollRow.id, title: title.trim(), poll_type: type });
     } finally {
       setSaving(false);
     }
@@ -2047,11 +2156,24 @@ function CreatePollDialog({
                     <strong>{t("teacherPolls.typeSlotDoodle")}:</strong>{" "}
                     {t("teacherPolls.typeHintSlot")}
                   </p>
+                  <p>
+                    <strong>
+                      {t("teacherPolls.typeMixed", { defaultValue: "Mixta (preguntas)" })}:
+                    </strong>{" "}
+                    {t("teacherPolls.typeHintMixed", {
+                      defaultValue:
+                        "Mezcla preguntas abiertas (texto libre) y cerradas (opción única), como un taller. Las respuestas abiertas solo las ve el docente.",
+                    })}
+                  </p>
                 </div>
               </HelpHint>
             </Label>
             <Select
               value={type}
+              // No se puede cambiar el tipo de una encuesta mixta/kahoot ya
+              // creada: sus preguntas viven en tablas hijas (poll_questions /
+              // kahoot_questions) y cambiar de tipo las dejaría huérfanas.
+              disabled={isEdit && (editingPoll?.poll_type === "mixed" || editingPoll?.poll_type === "kahoot")}
               onValueChange={(v) => {
                 const nextType = v as PollType;
                 setType(nextType);
@@ -2098,6 +2220,16 @@ function CreatePollDialog({
                     <span>{t("teacherPolls.typeKahoot")}</span>
                     <span className="text-[11px] text-muted-foreground">
                       {t("teacherPolls.typeOptionKahootDesc")}
+                    </span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="mixed">
+                  <div className="flex flex-col gap-0.5">
+                    <span>{t("teacherPolls.typeMixed", { defaultValue: "Mixta (preguntas)" })}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {t("teacherPolls.typeOptionMixedDesc", {
+                        defaultValue: "Preguntas abiertas y/o cerradas, como un taller",
+                      })}
                     </span>
                   </div>
                 </SelectItem>
@@ -2216,20 +2348,25 @@ function CreatePollDialog({
               <Switch checked={allowChange} onCheckedChange={setAllowChange} />
             </div>
 
-            <div className="flex items-start justify-between gap-3 pt-1 border-t">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1">
-                  <span className="text-sm font-medium">{t("teacherPolls.autoCloseTitle")}</span>
-                  <HelpHint>{t("help.pollAutoCloseAllRespondedHint")}</HelpHint>
+            {/* auto-cierre "cuando todos respondieron": el trigger legacy
+                corre sobre poll_responses, que las encuestas mixtas NO usan
+                (responden en poll_question_responses) — por eso se oculta. */}
+            {type !== "mixed" && (
+              <div className="flex items-start justify-between gap-3 pt-1 border-t">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm font-medium">{t("teacherPolls.autoCloseTitle")}</span>
+                    <HelpHint>{t("help.pollAutoCloseAllRespondedHint")}</HelpHint>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {autoCloseAll
+                      ? t("teacherPolls.autoCloseOn")
+                      : t("teacherPolls.autoCloseOff")}
+                  </p>
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {autoCloseAll
-                    ? t("teacherPolls.autoCloseOn")
-                    : t("teacherPolls.autoCloseOff")}
-                </p>
+                <Switch checked={autoCloseAll} onCheckedChange={setAutoCloseAll} />
               </div>
-              <Switch checked={autoCloseAll} onCheckedChange={setAutoCloseAll} />
-            </div>
+            )}
           </div>
           </>
           )}
@@ -2238,7 +2375,9 @@ function CreatePollDialog({
               alinearse con workshops/exams/projects (que ya usan
               draft/published vía Select). Se sale del bloque de
               Switches de comportamiento (allowChange / autoClose) que
-              SÍ son toggles booleanos. */}
+              SÍ son toggles booleanos. Se OCULTA al crear una mixta: nace
+              en borrador (no tiene preguntas aún) y se publica desde Editar. */}
+          {!(type === "mixed" && !isEdit) && (
           <div>
             <Label>
               {t("teacherPolls.fieldStatus")}{" "}
@@ -2278,6 +2417,7 @@ function CreatePollDialog({
               </SelectContent>
             </Select>
           </div>
+          )}
 
           {type === "kahoot" && (
             <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm space-y-1">
@@ -2289,7 +2429,27 @@ function CreatePollDialog({
             </div>
           )}
 
-          {type !== "kahoot" && (
+          {type === "mixed" && (
+            <div className="rounded-md border border-sky-500/30 bg-sky-500/5 p-3 text-sm space-y-1">
+              <p className="font-medium flex items-center gap-1.5">
+                <MessageSquareText className="h-4 w-4 text-sky-500" />
+                {t("teacherPolls.mixedInfoTitle", { defaultValue: "Encuesta con preguntas" })}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {isEdit
+                  ? t("teacherPolls.mixedInfoBodyEdit", {
+                      defaultValue:
+                        "Usa «Preguntas» en el menú de la encuesta para agregar/editar preguntas abiertas y cerradas.",
+                    })
+                  : t("teacherPolls.mixedInfoBody", {
+                      defaultValue:
+                        "Al guardar se abrirá el editor de preguntas para que agregues abiertas (texto) y/o cerradas (opción única). Necesitas al menos una para publicar.",
+                    })}
+              </p>
+            </div>
+          )}
+
+          {type !== "kahoot" && type !== "mixed" && (
           <div>
             <Label required>
               {t("teacherPolls.fieldOptions")}{" "}
@@ -2890,6 +3050,12 @@ function ResultsDialog({
   usePollRealtime(poll?.id ?? null, refetch, Boolean(poll));
 
   if (!poll) return null;
+  // Encuestas MIXTAS: resultados por pregunta (cerradas = conteo de opciones,
+  // abiertas = lista de textos). Viven en poll_questions/poll_question_responses,
+  // no en poll_options — vista propia.
+  if (poll.poll_type === "mixed") {
+    return <MixedResultsDialog poll={poll} onOpenChange={onOpenChange} />;
+  }
   // Si el realtime fetch ya pobló liveOptions, usamos esos; si todavía
   // no llegó (primer render), fallback a las del prop.
   const options = liveOptions.length > 0 ? liveOptions : (poll.options ?? []);
@@ -3065,6 +3231,284 @@ function ResultsDialog({
               {t("teacherPolls.assignRemaining")}
             </Button>
           )}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            {t("common.close")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * MixedResultsDialog — resultados de una encuesta MIXTA. Por cada pregunta:
+ *  - cerrada → barras de conteo por opción + chips de votantes (con nombre).
+ *  - abierta → lista de textos con autor (solo el docente las ve).
+ *
+ * No usa realtime de payload (la tabla poll_question_responses no se publica
+ * por privacidad de las respuestas abiertas) → botón "Actualizar" para refetch.
+ * Nombres por patrón 2-query (poll_question_responses.user_id → auth.users no
+ * es embebible a profiles).
+ */
+interface MixedQ {
+  id: string;
+  type: "abierta" | "cerrada";
+  text: string;
+  choices: string[];
+}
+interface MixedResp {
+  question_id: string;
+  user_id: string;
+  answer_text: string | null;
+  selected_index: number | null;
+  created_at: string;
+  full_name: string | null;
+}
+
+function MixedResultsDialog({
+  poll,
+  onOpenChange,
+}: {
+  poll: Poll;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const confirm = useConfirm();
+  const [loading, setLoading] = useState(false);
+  const [questions, setQuestions] = useState<MixedQ[]>([]);
+  const [responses, setResponses] = useState<MixedResp[]>([]);
+  const [clearing, setClearing] = useState<Set<string>>(new Set());
+
+  const refetch = useCallback(async () => {
+    setLoading(true);
+    const { data: qs } = await db
+      .from("poll_questions")
+      .select("id, type, text, options, position")
+      .eq("poll_id", poll.id)
+      .order("position");
+    const qrows = ((qs ?? []) as Array<{
+      id: string;
+      type: "abierta" | "cerrada";
+      text: string;
+      options: { choices?: string[] } | null;
+    }>).map((q) => ({
+      id: q.id,
+      type: q.type,
+      text: q.text,
+      choices: Array.isArray(q.options?.choices) ? q.options!.choices! : [],
+    }));
+    const { data: rs } = await db
+      .from("poll_question_responses")
+      .select("question_id, user_id, answer_text, selected_index, created_at")
+      .eq("poll_id", poll.id);
+    const rawResp = (rs ?? []) as Array<Omit<MixedResp, "full_name">>;
+    const userIds = Array.from(new Set(rawResp.map((r) => r.user_id)));
+    const nameById = new Map<string, string | null>();
+    if (userIds.length > 0) {
+      const { data: profs } = await db.from("profiles").select("id, full_name").in("id", userIds);
+      for (const p of (profs ?? []) as Array<{ id: string; full_name: string | null }>) {
+        nameById.set(p.id, p.full_name ?? null);
+      }
+    }
+    setQuestions(qrows);
+    setResponses(rawResp.map((r) => ({ ...r, full_name: nameById.get(r.user_id) ?? null })));
+    setLoading(false);
+  }, [poll.id]);
+
+  useEffect(() => {
+    void refetch();
+  }, [refetch]);
+
+  const clearOne = async (questionId: string, userId: string, name: string | null) => {
+    const key = `${questionId}:${userId}`;
+    if (clearing.has(key)) return;
+    const label = name ?? userId.slice(0, 8);
+    const ok = await confirm({
+      title: t("teacherPolls.confirmClearVoteTitle"),
+      description: t("teacherPolls.confirmClearVoteDescription", { label }),
+      tone: "destructive",
+      confirmLabel: t("teacherPolls.confirmClearVoteLabel"),
+    });
+    if (!ok) return;
+    setClearing((prev) => new Set(prev).add(key));
+    try {
+      const { error } = await db.rpc("teacher_clear_poll_question_response_for_user", {
+        _question_id: questionId,
+        _user_id: userId,
+      });
+      if (error) {
+        toast.error(friendlyError(error, t("teacherPolls.errClearResponse")));
+        return;
+      }
+      void refetch();
+    } finally {
+      setClearing((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90dvh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <MessageSquareText className="h-5 w-5 text-sky-500" />
+            {poll.title}
+          </DialogTitle>
+          <DialogDescription>
+            {t("teacherPolls.mixedResultsPrivacy", {
+              defaultValue: "Las respuestas abiertas solo las ve el docente.",
+            })}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={loading}>
+            <RefreshCw className="h-4 w-4 mr-1" />
+            {t("teacherPolls.refresh")}
+          </Button>
+        </div>
+
+        {loading && questions.length === 0 ? (
+          <SectionLoader text={t("teacherPolls.loadingResponses")} />
+        ) : questions.length === 0 ? (
+          <EmptyState
+            icon={ListChecks}
+            text={t("pollQuestions.empty", {
+              defaultValue: "Aún no hay preguntas. Agrega una abierta o una cerrada.",
+            })}
+          />
+        ) : (
+          <div className="space-y-5">
+            {questions.map((q, qi) => {
+              const qResp = responses.filter((r) => r.question_id === q.id);
+              return (
+                <div key={q.id} className="rounded-lg border p-3 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <span className="text-sm font-bold text-muted-foreground tabular-nums">
+                      {qi + 1}.
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{q.text}</p>
+                      <Badge variant="outline" className="text-[9px] mt-1">
+                        {q.type === "abierta"
+                          ? t("pollQuestions.typeOpen", { defaultValue: "Abierta (texto)" })
+                          : t("pollQuestions.typeClosed", { defaultValue: "Cerrada (opción única)" })}
+                        {" · "}
+                        {t("teacherPolls.responsesCount", { count: qResp.length })}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {q.type === "cerrada" ? (
+                    <div className="space-y-1.5 pl-6">
+                      {q.choices.map((choice, ci) => {
+                        const voters = qResp.filter((r) => r.selected_index === ci);
+                        const pct = qResp.length > 0 ? Math.round((voters.length / qResp.length) * 100) : 0;
+                        return (
+                          <div key={ci} className="space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="truncate" title={choice}>
+                                {choice}
+                              </span>
+                              <span className="text-muted-foreground tabular-nums">
+                                {voters.length} · {pct}%
+                              </span>
+                            </div>
+                            <div className="h-1.5 bg-muted rounded overflow-hidden">
+                              <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+                            </div>
+                            {voters.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {voters.map((v) => {
+                                  const display = v.full_name ?? v.user_id.slice(0, 8);
+                                  const key = `${q.id}:${v.user_id}`;
+                                  return (
+                                    <span
+                                      key={v.user_id}
+                                      className="inline-flex items-center gap-0.5 rounded border bg-muted/40 pl-1.5 pr-0.5 py-0.5 text-[10px]"
+                                    >
+                                      <span className="truncate max-w-[140px]" title={display}>
+                                        {display}
+                                      </span>
+                                      <Button
+                                        type="button"
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-4 w-4 shrink-0 text-muted-foreground hover:text-destructive"
+                                        disabled={clearing.has(key)}
+                                        onClick={() => void clearOne(q.id, v.user_id, v.full_name)}
+                                        title={t("teacherPolls.clearVoteTitle")}
+                                      >
+                                        {clearing.has(key) ? (
+                                          <Spinner size="xs" />
+                                        ) : (
+                                          <Trash2 className="h-2.5 w-2.5" />
+                                        )}
+                                      </Button>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 pl-6">
+                      {qResp.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          {t("teacherPolls.mixedNoAnswers", { defaultValue: "Sin respuestas todavía." })}
+                        </p>
+                      ) : (
+                        qResp.map((r) => {
+                          const display = r.full_name ?? r.user_id.slice(0, 8);
+                          const key = `${q.id}:${r.user_id}`;
+                          return (
+                            <div
+                              key={r.user_id}
+                              className="rounded border bg-muted/30 p-2 text-xs space-y-1"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-medium truncate" title={display}>
+                                  {display}
+                                </span>
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-5 w-5 shrink-0 text-muted-foreground hover:text-destructive"
+                                  disabled={clearing.has(key)}
+                                  onClick={() => void clearOne(q.id, r.user_id, r.full_name)}
+                                  title={t("teacherPolls.clearVoteTitle")}
+                                >
+                                  {clearing.has(key) ? (
+                                    <Spinner size="xs" />
+                                  ) : (
+                                    <Trash2 className="h-3 w-3" />
+                                  )}
+                                </Button>
+                              </div>
+                              <p className="whitespace-pre-wrap break-words text-muted-foreground">
+                                {r.answer_text}
+                              </p>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.close")}
           </Button>
