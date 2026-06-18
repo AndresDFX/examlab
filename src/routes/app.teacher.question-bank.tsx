@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Spinner } from "@/components/ui/spinner";
+import { PageLoader } from "@/components/ui/loaders";
 import { PageHeader } from "@/components/ui/page-header";
 import { RowAction } from "@/components/ui/row-action";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
@@ -136,7 +137,7 @@ const typeLabel = (type: QuestionType): string => i18n.t(TYPE_LABEL_KEY[type]);
 
 function QuestionBankPage() {
   const { t } = useTranslation();
-  const { user, roles } = useAuth();
+  const { user, roles, loading: authLoading } = useAuth();
   const confirm = useConfirm();
   const aiGate = useAiAuthorizationGate();
 
@@ -548,6 +549,11 @@ function QuestionBankPage() {
     }
   };
 
+  // Esperar a que useAuth termine de hidratar roles. Sin este guard el
+  // primer render evalúa `roles=[]` → flash de "Solo docentes y admins"
+  // durante ~500ms hasta que el profile carga (bug reportado al entrar
+  // al módulo como Admin).
+  if (authLoading) return <PageLoader />;
   if (!isAdmin && !isDocente && !isSuperAdmin) {
     return <p className="text-muted-foreground p-6">{t("questionBank.staffOnly")}</p>;
   }

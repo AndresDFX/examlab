@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Shield, AlertTriangle } from "lucide-react";
 import { AuditLogsView } from "@/modules/admin/AuditLogsView";
 import { ErrorsPanel } from "@/modules/admin/ErrorsPanel";
+import { PageLoader } from "@/components/ui/loaders";
 
 type AuditTab = "logs" | "errors";
 
@@ -32,11 +33,13 @@ export const Route = createFileRoute("/app/admin/audit-logs")({
 });
 
 function AdminAuditLogs() {
-  const { roles } = useAuth();
+  const { roles, loading: authLoading } = useAuth();
   const { t } = useTranslation();
   const search = useSearch({ from: "/app/admin/audit-logs" });
   const initialTab: AuditTab = search.tab ?? "logs";
 
+  // Esperar a useAuth para evitar flash del gate con roles=[] hidratando.
+  if (authLoading) return <PageLoader />;
   if (!roles.includes("Admin") && !roles.includes("SuperAdmin")) {
     return <p className="text-muted-foreground p-4 sm:p-8">Necesitas rol Admin o SuperAdmin.</p>;
   }

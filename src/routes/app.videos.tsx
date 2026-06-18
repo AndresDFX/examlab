@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { PageLoader } from "@/components/ui/loaders";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -147,7 +148,7 @@ function extFromMime(mime: string): string {
 
 function VideoLibrary() {
   const { t } = useTranslation();
-  const { user, roles } = useAuth();
+  const { user, roles, loading: authLoading } = useAuth();
   const activeRole = useActiveRole();
   const confirm = useConfirm();
   // SuperAdmin se considera "staff" para gestionar la biblioteca de
@@ -615,6 +616,8 @@ function VideoLibrary() {
     void load();
   };
 
+  // Esperar a useAuth para evitar flash del gate con roles=[] hidratando.
+  if (authLoading) return <PageLoader />;
   if (!isStaff) {
     return (
       <div className="p-6 text-sm text-muted-foreground">

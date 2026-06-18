@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
+import { PageLoader } from "@/components/ui/loaders";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -92,7 +93,7 @@ function AdminReportTemplates() {
 
 function Inner() {
   const { t } = useTranslation();
-  const { user, roles } = useAuth();
+  const { user, roles, loading: authLoading } = useAuth();
   const confirm = useConfirm();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
@@ -471,6 +472,8 @@ function Inner() {
     void load();
   };
 
+  // Esperar a useAuth para evitar flash del gate con roles=[] hidratando.
+  if (authLoading) return <PageLoader />;
   if (!isAdmin) {
     return <p className="text-muted-foreground p-4">{t("adminReportTemplates.needsAdmin")}</p>;
   }

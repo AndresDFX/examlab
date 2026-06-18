@@ -77,7 +77,7 @@ type CourseSummary = {
 
 function AdminStatistics() {
   const { t } = useTranslation();
-  const { roles } = useAuth();
+  const { roles, loading: authLoading } = useAuth();
   const activeRole = useActiveRole();
   const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
   // Filtro cross-tenant solo cuando actúa como SuperAdmin (no por solo
@@ -335,6 +335,8 @@ function AdminStatistics() {
   const globalAttendance =
     totals.enrollmentSum === 0 ? 0 : Math.round(totals.weightedAttendance / totals.enrollmentSum);
 
+  // Esperar a useAuth para evitar flash del gate con roles=[] hidratando.
+  if (authLoading) return <PageLoader />;
   if (!isAdmin) {
     return <p className="text-muted-foreground">{t("hc_routesAppAdminStatistics.needAdminRole")}</p>;
   }

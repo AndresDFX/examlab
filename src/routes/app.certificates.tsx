@@ -18,6 +18,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { PageLoader } from "@/components/ui/loaders";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -86,7 +87,7 @@ interface CertificateRow {
 
 function CertificatesAdmin() {
   const { t } = useTranslation();
-  const { user, roles } = useAuth();
+  const { user, roles, loading: authLoading } = useAuth();
   const activeRole = useActiveRole();
   const confirm = useConfirm();
   const [items, setItems] = useState<CertificateRow[]>([]);
@@ -301,6 +302,8 @@ function CertificatesAdmin() {
     setRetryNonce((n) => n + 1);
   };
 
+  // Esperar a useAuth para evitar flash del gate con roles=[] hidratando.
+  if (authLoading) return <PageLoader />;
   if (!isAdmin && !isDocente) {
     return <p className="text-muted-foreground p-6">{t("hc_routesAppCertificates.needRole")}</p>;
   }
