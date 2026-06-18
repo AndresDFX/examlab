@@ -470,7 +470,14 @@ function MessagesPage() {
       const roles = ((roleRows ?? []) as Array<{ role: string }>).map((r) => r.role);
       const isAdminLocal = roles.includes("Admin");
 
-      let coursesQuery = db.from("courses").select("id, name").order("name");
+      // Excluir cursos en PAPELERA (deleted_at): no deben aparecer en el
+      // selector de difusión (regla universal soft-delete — un curso en la
+      // papelera deja de ser visualizable/usable en CUALQUIER flujo).
+      let coursesQuery = db
+        .from("courses")
+        .select("id, name")
+        .is("deleted_at", null)
+        .order("name");
       if (!isAdminLocal) {
         // Filtra por cursos donde es teacher.
         const { data: ctRows } = await db
@@ -482,7 +489,12 @@ function MessagesPage() {
           setBroadcastCourses([]);
           return;
         }
-        coursesQuery = db.from("courses").select("id, name").in("id", courseIds).order("name");
+        coursesQuery = db
+          .from("courses")
+          .select("id, name")
+          .in("id", courseIds)
+          .is("deleted_at", null)
+          .order("name");
       }
       const { data: coursesData } = await coursesQuery;
       const courses = (coursesData ?? []) as Array<{ id: string; name: string }>;

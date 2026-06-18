@@ -45,6 +45,19 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-18
 
+**Difusión (notificaciones masivas) — no mostrar/usar cursos en la papelera.**
+El selector de cursos del diálogo de difusión (`/app/messages`) no filtraba
+`deleted_at`, así que aparecían cursos en la papelera. Fix en 3 capas (regla
+universal soft-delete — no usable en NINGÚN flujo):
+- **Front** ([app.messages.tsx](src/routes/app.messages.tsx)): ambas queries del
+  selector (Admin = todos, Docente = los que dicta) filtran `.is("deleted_at", null)`.
+- **Edge** `broadcast-course-message`: la verificación de cursos excluye los
+  soft-deleted → si llega un curso en papelera (stale, o enviado a la papelera
+  entre abrir el diálogo y el envío) aborta con 404 (sin difusiones parciales).
+- **Difusión programada** (mig `20260982000000`, `dispatch_scheduled_messages`):
+  si algún curso del broadcast quedó en papelera entre programar y despachar,
+  aborta la fila (`failed`) — consistente con la edge inmediata.
+
 **IA — respetar SIEMPRE la cola en modo batch + resolver el modo por tenant.**
 Revisión funcional (lectura del entorno de prueba) que destapó dos bugs en el
 despacho de IA:

@@ -139,14 +139,20 @@ Deno.serve(async (req) => {
     // El Admin bypassa; el Docente debe dictar CADA curso seleccionado
     // (un solo curso no autorizado aborta todo — evita difusiones
     // parciales silenciosas).
+    // Defensa: excluir cursos en PAPELERA (deleted_at). El selector del front
+    // ya los oculta, pero un curso pudo enviarse a la papelera ENTRE que se
+    // abrió el diálogo y el envío, o llegar un courseId stale → un curso en
+    // papelera cae fuera de `courseRows` y dispara el 404 de abajo (regla
+    // universal soft-delete: no usable en NINGÚN flujo).
     const { data: courseRows, error: courseErr } = await admin
       .from("courses")
       .select("id, name")
-      .in("id", courseIds);
+      .in("id", courseIds)
+      .is("deleted_at", null);
     if (courseErr) return jsonError(`No se pudieron leer cursos: ${courseErr.message}`, 500);
     const courses = (courseRows ?? []) as Array<{ id: string; name: string }>;
     if (courses.length !== courseIds.length) {
-      return jsonError("Uno o más cursos no existen", 404);
+      return jsonError("Uno o más cursos no existen o están en la papelera", 404);
     }
 
     if (!isAdmin) {
