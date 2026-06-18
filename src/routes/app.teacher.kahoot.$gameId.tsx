@@ -68,7 +68,15 @@ function KahootHost() {
     if (!gameId) return;
     let cancelled = false;
     const beat = () => {
-      void db.rpc("kahoot_host_heartbeat", { _game_id: gameId });
+      // supabase-js PostgrestBuilder es LAZY: `void db.rpc(...)` evalúa el
+      // builder pero nunca llama `.then()`, así que NO se dispara el fetch.
+      // El `.then(noop, noop)` fuerza la ejecución y swallowea errores
+      // (fire-and-forget intencional — un heartbeat perdido no debe romper
+      // la UI; el próximo a los 8s reintenta).
+      db.rpc("kahoot_host_heartbeat", { _game_id: gameId }).then(
+        () => {},
+        () => {},
+      );
     };
     beat();
     const id = setInterval(() => {
