@@ -73,7 +73,7 @@ type CourseOpt = { id: string; name: string; period: string | null };
 
 function TeacherStatistics() {
   const { t } = useTranslation();
-  const { roles, user } = useAuth();
+  const { roles, user, loading: authLoading } = useAuth();
   // SA accede a pantallas Docente para soporte / diagnóstico — sin SA
   // en el set, recibía "Necesitas rol Docente" silencioso al entrar.
   const isTeacher = isStaffRole(roles);
@@ -154,6 +154,8 @@ function TeacherStatistics() {
     };
   }, [courseId]);
 
+  // Esperar a useAuth para evitar flash del gate con roles=[] hidratando.
+  if (authLoading) return <PageLoader />;
   if (!isTeacher) {
     return <p className="text-muted-foreground">{t("statistics.noRole")}</p>;
   }

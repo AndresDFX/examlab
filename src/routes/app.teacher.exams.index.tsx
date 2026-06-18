@@ -7,6 +7,7 @@ import { isValidDateRange, capEndToCourseEnd, earliestCourseEnd } from "@/shared
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
+import { PageLoader } from "@/components/ui/loaders";
 import { isStaffRole } from "@/shared/lib/roles";
 import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
@@ -118,7 +119,7 @@ type Exam = {
 };
 
 function TeacherExams() {
-  const { user, roles } = useAuth();
+  const { user, roles, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [courses, setCourses] = useState<Course[]>([]);
@@ -595,6 +596,8 @@ function TeacherExams() {
     if (firstId) navigate({ to: "/app/teacher/exams/$examId", params: { examId: firstId } });
   };
 
+  // Esperar a useAuth para evitar flash del gate con roles=[] hidratando.
+  if (authLoading) return <PageLoader />;
   if (!isTeacher) return <p className="text-muted-foreground">{t("exam.needsTeacherRole")}</p>;
 
   if (loadError) {

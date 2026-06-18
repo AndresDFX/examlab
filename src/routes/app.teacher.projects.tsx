@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { cancelPendingAiJobsForTarget } from "@/modules/ai/ai-grading";
 import { useAuth } from "@/hooks/use-auth";
+import { PageLoader } from "@/components/ui/loaders";
 import { isStaffRole } from "@/shared/lib/roles";
 import { scoreCerradaMulti } from "@/modules/exams/question-scoring";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
@@ -199,7 +200,7 @@ type Project = {
 };
 
 function TeacherProjects() {
-  const { user, roles } = useAuth();
+  const { user, roles, loading: authLoading } = useAuth();
   const { t } = useTranslation();
   const confirm = useConfirm();
   // SA accede a pantallas Docente para soporte / diagnóstico — sin SA
@@ -2282,6 +2283,8 @@ function TeacherProjects() {
 
   const courseLanguage = (filesProject?.course?.language === "en" ? "en" : "es") as "es" | "en";
 
+  // Esperar a useAuth para evitar flash del gate con roles=[] hidratando.
+  if (authLoading) return <PageLoader />;
   if (!isTeacher) return <p className="text-muted-foreground">{t("project.needsTeacherRole")}</p>;
 
   if (loadError) {
