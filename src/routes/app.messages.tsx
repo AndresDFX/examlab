@@ -904,7 +904,12 @@ function MessagesPage() {
             // como leído automáticamente — es coherente con que estoy
             // VIENDO la conversación.
             if (m.sender_id !== myUserId) {
-              void db.rpc("mark_conversation_read", { _conv_id: activeConvId });
+              // `.then(noop, noop)` fuerza el builder lazy de supabase-js
+              // (ver kahoot heartbeat). Fire-and-forget intencional.
+              db.rpc("mark_conversation_read", { _conv_id: activeConvId }).then(
+                () => {},
+                () => {},
+              );
             }
           }
           void loadAll();

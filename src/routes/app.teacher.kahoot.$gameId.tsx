@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { PageLoader } from "@/components/ui/loaders";
 import { ErrorState } from "@/components/ui/empty-state";
 import { Spinner } from "@/components/ui/spinner";
@@ -34,7 +35,12 @@ import {
   Minimize,
   Users,
   Crown,
+  Zap,
 } from "lucide-react";
+
+// Clave de localStorage para la preferencia "auto-avanzar cuando todos
+// respondan". Compartida por todos los hosts del docente (no por juego).
+const AUTO_ADVANCE_STORAGE_KEY = "examlab_kahoot_auto_advance";
 
 export const Route = createFileRoute("/app/teacher/kahoot/$gameId")({ component: KahootHost });
 
@@ -49,8 +55,32 @@ function KahootHost() {
   const [advancing, setAdvancing] = useState(false);
   const [nowMs, setNowMs] = useState(0);
   const [isFs, setIsFs] = useState(false);
+  // Preferencia del docente: pasar a 'reveal' apenas todos respondan, sin
+  // esperar al timer. Default ON — el feature nace para acortar la espera.
+  // Hydration-safe: init determinístico, leemos localStorage post-mount.
+  const [autoAdvance, setAutoAdvance] = useState(true);
   const rootRef = useRef<HTMLDivElement>(null);
   const autoLockedRef = useRef<string | null>(null);
+
+  // Hidratar la preferencia desde localStorage al montar.
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(AUTO_ADVANCE_STORAGE_KEY);
+      if (stored !== null) setAutoAdvance(stored === "1");
+    } catch {
+      /* SSR / storage deshabilitado */
+    }
+  }, []);
+
+  // Persistir cada cambio sin un effect adicional (write-on-toggle).
+  const toggleAutoAdvance = (next: boolean) => {
+    setAutoAdvance(next);
+    try {
+      localStorage.setItem(AUTO_ADVANCE_STORAGE_KEY, next ? "1" : "0");
+    } catch {
+      /* no-op */
+    }
+  };
 
   // Reloj para el countdown (deterministic init=0; arranca post-mount).
   useEffect(() => {
@@ -68,7 +98,15 @@ function KahootHost() {
     if (!gameId) return;
     let cancelled = false;
     const beat = () => {
-      void db.rpc("kahoot_host_heartbeat", { _game_id: gameId });
+      // supabase-js PostgrestBuilder es LAZY: `void db.rpc(...)` evalúa el
+      // builder pero nunca llama `.then()`, así que NO se dispara el fetch.
+      // El `.then(noop, noop)` fuerza la ejecución y swallowea errores
+      // (fire-and-forget intencional — un heartbeat perdido no debe romper
+      // la UI; el próximo a los 8s reintenta).
+      db.rpc("kahoot_host_heartbeat", { _game_id: gameId }).then(
+        () => {},
+        () => {},
+      );
     };
     beat();
     const id = setInterval(() => {
@@ -139,6 +177,34 @@ function KahootHost() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [left, state?.game.status]);
 
+  // Auto-avanzar cuando TODOS respondieron (sin esperar al timer). Comparte
+  // `autoLockedRef` con el effect de tiempo agotado para evitar doble lock
+  // sobre la misma ronda (question_started_at identifica la ronda actual).
+  // El delay corto (800ms) deja que la UI muestre "x / x respondieron" un
+  // instante antes del corte — feedback visual antes del reveal.
+  // Decisión: solo automatiza el lock; reveal→leaderboard→next se controlan
+  // con clicks ("Ver posiciones" / "Siguiente pregunta") para no quitarle
+  // al docente el momento dramático y la lectura del aula.
+  useEffect(() => {
+    if (!autoAdvance) return;
+    if (!state) return;
+    if (state.game.status !== "question" || state.game.question_locked) return;
+    if (state.players.length === 0) return;
+    if (state.answer_count < state.players.length) return;
+    if (autoLockedRef.current === state.game.question_started_at) return;
+    autoLockedRef.current = state.game.question_started_at;
+    const id = setTimeout(() => void advance("lock"), 800);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    autoAdvance,
+    state?.answer_count,
+    state?.players.length,
+    state?.game.status,
+    state?.game.question_locked,
+    state?.game.question_started_at,
+  ]);
+
   if (loading) return <PageLoader />;
   if (error || !state) {
     return (
@@ -150,6 +216,13 @@ function KahootHost() {
 
   const { game, question, players, answer_count } = state;
   const ranked = [...players].sort((a, b) => b.score - a.score);
+  // "Todos respondieron" — habilita el highlight del botón Lock y dispara
+  // el auto-advance si el toggle está ON. Requiere al menos un jugador.
+  const allAnswered =
+    game.status === "question" &&
+    !game.question_locked &&
+    players.length > 0 &&
+    answer_count >= players.length;
 
   return (
     <div ref={rootRef} className="min-h-screen bg-gradient-to-b from-background to-muted/40 flex flex-col">
@@ -165,6 +238,17 @@ function KahootHost() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {/* Toggle "auto-avanzar cuando todos respondieron". Persistido en
+              localStorage. Cuando ON + status='question' + answer_count===players.length,
+              el effect llama advance("lock") tras 800 ms (ver useEffect). */}
+          <label
+            className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none"
+            title={t("kahoot.autoAdvanceHint")}
+          >
+            <Zap className="h-3.5 w-3.5 text-amber-500" />
+            <span>{t("kahoot.autoAdvance")}</span>
+            <Switch checked={autoAdvance} onCheckedChange={toggleAutoAdvance} />
+          </label>
           <Badge variant="outline" className="gap-1">
             <Users className="h-3 w-3" /> {players.length}
           </Badge>
@@ -254,16 +338,46 @@ function KahootHost() {
               })}
             </div>
 
-            <div className="flex justify-center gap-2">
+            <div className="flex flex-col items-center gap-2">
               {game.status === "question" && (
-                <Button size="lg" disabled={advancing} onClick={() => void advance("lock")}>
-                  <Lock className="h-5 w-5 mr-2" /> {t("kahoot.lockReveal")}
-                </Button>
+                <>
+                  <Button
+                    size="lg"
+                    disabled={advancing}
+                    onClick={() => void advance("lock")}
+                    className={allAnswered ? "animate-pulse ring-2 ring-amber-400" : ""}
+                  >
+                    <Lock className="h-5 w-5 mr-2" />
+                    {allAnswered ? t("kahoot.lockNow") : t("kahoot.lockReveal")}
+                  </Button>
+                  {allAnswered && (
+                    <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <Zap className="h-3 w-3" />
+                      {autoAdvance ? t("kahoot.autoAdvanceFiring") : t("kahoot.allAnswered")}
+                    </span>
+                  )}
+                </>
               )}
               {game.status === "reveal" && (
-                <Button size="lg" disabled={advancing} onClick={() => void advance("leaderboard")}>
-                  <Trophy className="h-5 w-5 mr-2" /> {t("kahoot.showLeaderboard")}
-                </Button>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    disabled={advancing}
+                    onClick={() => void advance("leaderboard")}
+                  >
+                    <Trophy className="h-5 w-5 mr-2" /> {t("kahoot.showLeaderboard")}
+                  </Button>
+                  {/* Atajo: saltar leaderboard y pasar directo a la siguiente
+                      pregunta (o al podio si era la última). Útil cuando el
+                      docente prefiere ritmo rápido sin pausa de ranking. */}
+                  <Button size="lg" disabled={advancing} onClick={() => void advance("next")}>
+                    <ChevronRight className="h-5 w-5 mr-2" />
+                    {game.current_index + 1 >= game.total_questions
+                      ? t("kahoot.showPodium")
+                      : t("kahoot.nextQuestion")}
+                  </Button>
+                </div>
               )}
             </div>
           </div>

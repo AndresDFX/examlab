@@ -4689,7 +4689,12 @@
     "enterPinHint": "Enter the PIN shown by your teacher to join a new game.",
     "hostAwayTitle": "Waiting for the teacher…",
     "hostAwayBody": "The teacher stepped away for a moment. Don't worry: you're still in the game and it will resume when they return.",
-    "editLockedLive": "This Kahoot has a live game. You can't edit the questions until the session ends."
+    "editLockedLive": "This Kahoot has a live game. You can't edit the questions until the session ends.",
+    "autoAdvance": "Auto-advance",
+    "autoAdvanceHint": "Move to the reveal as soon as all players have answered (don't wait for the timer).",
+    "autoAdvanceFiring": "Everyone answered — advancing…",
+    "allAnswered": "Everyone answered — you can advance",
+    "lockNow": "Advance now"
   },
   "questionBank": {
     "type": {

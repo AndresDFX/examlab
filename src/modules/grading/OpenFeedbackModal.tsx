@@ -376,11 +376,16 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
     );
     // Notify event para que el otro extremo (estudiante) vea el badge
     // actualizado y, si está, el FeedbackThread se cierre.
-    void db.rpc("notify_feedback_event", {
+    // `.then(noop, noop)` fuerza la ejecución del builder lazy de
+    // supabase-js (ver kahoot heartbeat) y swallowea errores fire-and-forget.
+    db.rpc("notify_feedback_event", {
       _thread_id: t.id,
       _event: "closed",
       _actor_role: "teacher",
-    });
+    }).then(
+      () => {},
+      () => {},
+    );
   };
 
   const goToThread = (t: ThreadRow) => {
