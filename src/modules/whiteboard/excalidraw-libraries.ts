@@ -558,3 +558,89 @@ export const DEFAULT_LIBRARY_ITEMS: Array<Record<string, any>> = [
     ],
   },
 ];
+
+// ──────────────────────────────────────────────────────────────────────
+// Distribución por CATEGORÍA para el panel propio de figuras.
+//
+// El panel "Library" nativo de Excalidraw muestra los items en una grilla
+// PLANA (sin encabezados ni agrupación). Para que el docente encuentre las
+// figuras de E-R, POO, flujo, etc. de forma organizada, el WhiteboardEditor
+// renderiza su propio panel con SECCIONES por categoría usando esta estructura.
+//
+// Las categorías se derivan del prefijo del `id` (no mutamos los items que van
+// a Excalidraw). El orden de `LIBRARY_CATEGORIES` es el orden visible.
+// ──────────────────────────────────────────────────────────────────────
+
+export interface LibraryCategory {
+  key: string;
+  label: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  items: Array<Record<string, any>>;
+}
+
+function pickByPrefix(prefixes: string[]) {
+  return DEFAULT_LIBRARY_ITEMS.filter((it) =>
+    prefixes.some((p) => String(it.id).startsWith(p)),
+  );
+}
+
+/** Figuras agrupadas por tema, en el orden en que se muestran en el panel. */
+export const LIBRARY_CATEGORIES: LibraryCategory[] = [
+  { key: "flujo", label: "Diagramas de flujo", items: pickByPrefix(["lib-flowchart-"]) },
+  { key: "er", label: "Bases de datos / E-R", items: pickByPrefix(["lib-db-"]) },
+  { key: "poo", label: "POO / UML", items: pickByPrefix(["lib-uml-", "lib-poo-"]) },
+  { key: "estructuras", label: "Estructuras de datos", items: pickByPrefix(["lib-ds-"]) },
+  { key: "aws", label: "AWS / Arquitectura", items: pickByPrefix(["lib-aws-"]) },
+];
+
+/** Quita el prefijo "Categoría · " del nombre para mostrar la etiqueta corta
+ *  en el panel (la categoría ya la da el encabezado de sección). */
+export function shortLibraryItemName(name: string): string {
+  const idx = name.indexOf("·");
+  return idx >= 0 ? name.slice(idx + 1).trim() : name.trim();
+}
+
+// Contador para ids únicos al instanciar (evita colisión si se inserta el
+// mismo template dos veces). Math.random/Date.now son OK acá: se ejecuta en
+// el click del usuario, NUNCA en render/SSR (no rompe hidratación).
+let _instSeq = 0;
+function instUid(prefix: string): string {
+  _instSeq += 1;
+  return `${prefix}-${Date.now().toString(36)}-${_instSeq}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/**
+ * Clona los elementos de un item de librería para insertarlos en el canvas,
+ * CENTRADOS en (centerX, centerY) (coordenadas de escena). Regenera ids/seed
+ * para no colisionar con inserciones previas y agrupa los elementos con un
+ * `groupId` común para que se muevan/seleccionen como una sola figura.
+ *
+ * Puro (sin API de Excalidraw) → testeable. El caller (WhiteboardEditor)
+ * resuelve el centro del viewport desde el appState y hace el `updateScene`.
+ */
+export function instantiateLibraryElements(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  elements: Array<Record<string, any>>,
+  centerX: number,
+  centerY: number,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Array<Record<string, any>> {
+  if (!elements.length) return [];
+  const minX = Math.min(...elements.map((e) => e.x));
+  const minY = Math.min(...elements.map((e) => e.y));
+  const maxX = Math.max(...elements.map((e) => e.x + (e.width ?? 0)));
+  const maxY = Math.max(...elements.map((e) => e.y + (e.height ?? 0)));
+  const dx = centerX - (minX + (maxX - minX) / 2);
+  const dy = centerY - (minY + (maxY - minY) / 2);
+  const groupId = instUid("grp");
+  return elements.map((e) => {
+    const clone = JSON.parse(JSON.stringify(e));
+    clone.id = instUid("el");
+    clone.x = e.x + dx;
+    clone.y = e.y + dy;
+    clone.seed = Math.floor(Math.random() * 1_000_000);
+    clone.versionNonce = Math.floor(Math.random() * 1_000_000);
+    clone.groupIds = [groupId];
+    return clone;
+  });
+}

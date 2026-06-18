@@ -45,6 +45,23 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-17
 
+**Pizarra — imágenes pegadas PERSISTEN + panel de figuras categorizado.**
+- **Persistencia de imágenes**: `WhiteboardEditor.onChange` solo capturaba
+  `(elements, appState)` y descartaba el 3er arg de Excalidraw, `files` (los
+  binarios de las imágenes pegadas). Resultado: la imagen se veía mientras la
+  pizarra estaba abierta y DESAPARECÍA al recargar (su element referenciaba un
+  `fileId` sin datos). Ahora se capturan y persisten los `files` en la escena
+  (`scene_json` / RPC `update_session_whiteboard_scene`; `initialData.files` ya
+  los cargaba). Dedup sigue sobre elements+appState (no stringificar MB de
+  base64 en cada trazo). El broadcast en vivo va SIN files (reenviar MB cada
+  200 ms saturaría Realtime; los peers ven la imagen al recargar desde DB).
+- **Figuras organizadas**: el panel "Library" nativo de Excalidraw es una grilla
+  plana. Se agregó un panel propio categorizado (Diagramas de flujo · Bases de
+  datos/E-R · POO/UML · Estructuras de datos · AWS) que inserta la figura
+  centrada en el viewport al click (`instantiateLibraryElements`: clona con
+  ids/seed nuevos + groupId común). Helpers puros con tests
+  (`LIBRARY_CATEGORIES`, `instantiateLibraryElements`, `shortLibraryItemName`).
+
 **Auditoría móvil (375–428px) + manejo de errores.** Revisión a detalle del
 diseño móvil contra las reglas del design system: el `DialogContent` base ya
 acota ancho (`w-[calc(100%-1rem)]`), alto (`dvh`) y padding (`p-4 sm:p-6`); no

@@ -33,14 +33,19 @@
  */
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { ComponentType } from "react";
-import { Eye, Maximize2, Minimize2, Users } from "lucide-react";
+import { Eye, Maximize2, Minimize2, Users, Shapes, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/shared/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { DEFAULT_LIBRARY_ITEMS } from "@/modules/whiteboard/excalidraw-libraries";
+import {
+  DEFAULT_LIBRARY_ITEMS,
+  LIBRARY_CATEGORIES,
+  instantiateLibraryElements,
+  shortLibraryItemName,
+} from "@/modules/whiteboard/excalidraw-libraries";
 
 /** Forma del JSON que serializamos. Es un subset del formato
  *  Excalidraw — guardamos `elements` (array de figuras) y
@@ -180,6 +185,10 @@ export function WhiteboardEditor({
   // fullscreenchange handler para sincronizar el state).
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Panel propio de figuras (categorizado). Excalidraw tiene su "Library"
+  // pero en grilla plana sin secciones; este panel agrupa por tema
+  // (Flujo, E-R, POO/UML, etc.) y se inserta al click.
+  const [paletteOpen, setPaletteOpen] = useState(false);
   // ¿El navegador soporta la Fullscreen API sobre elementos? iOS Safari en
   // iPhone NO la expone (solo en <video>), y algunos WebViews tampoco — ahí
   // `el.requestFullscreen` es `undefined` y llamarla CRASHEA (TypeError
@@ -351,6 +360,14 @@ export function WhiteboardEditor({
       // nueva API equivalente en versiones recientes de Excalidraw —
       // pasamos ambas para máxima compat.
       try {
+        // Si el broadcast trae binarios de imágenes, registrarlos ANTES del
+        // updateScene para que los elements tipo `image` encuentren su fileId.
+        // (Hoy el broadcast viaja sin files por peso; este guard queda por si
+        // en el futuro se envían — es inofensivo cuando no hay.)
+        if (payload.scene.files && typeof api.addFiles === "function") {
+          const arr = Object.values(payload.scene.files);
+          if (arr.length > 0) api.addFiles(arr);
+        }
         api.updateScene({
           elements: payload.scene.elements,
           appState: payload.scene.appState,
@@ -374,7 +391,7 @@ export function WhiteboardEditor({
 
   const handleChange = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (elements: readonly any[], appState: Record<string, any>) => {
+    (elements: readonly any[], appState: Record<string, any>, files?: Record<string, any>) => {
       // Persistir viewport en localStorage (no a DB) ANTES del early-return
       // de readOnly: cuando el alumno ve una pizarra read-only y panea/zoom,
       // queremos que al volver mantenga su vista. Independiente del save de
@@ -411,24 +428,38 @@ export function WhiteboardEditor({
         gridSize: appState.gridSize,
         // Sin: cursor, scrollX, scrollY, zoom, collaborators, etc.
       };
+      // Dedup sobre elements+appState (NO sobre files): el base64 de una
+      // imagen puede pesar MB y `onChange` se dispara en cada trazo —
+      // stringificarlo cada vez congelaría el canvas. Pegar una imagen agrega
+      // un element nuevo, así que el dedup igual detecta el cambio.
+      const dedupKey = JSON.stringify({
+        elements: Array.from(elements),
+        appState: persistedAppState,
+      });
+      if (dedupKey === lastSerializedRef.current) return;
+      lastSerializedRef.current = dedupKey;
+
+      // `files` = binarios de imágenes pegadas/insertadas (BinaryFiles de
+      // Excalidraw). Se PERSISTEN a DB; sin ellos una imagen se ve mientras la
+      // pizarra está abierta pero DESAPARECE al recargar (su element referencia
+      // un fileId sin datos) — bug reportado: "se ven temporal y luego ya no".
       const next: WhiteboardScene = {
         elements: Array.from(elements),
         appState: persistedAppState,
+        files: files && Object.keys(files).length > 0 ? files : undefined,
       };
-      const serialized = JSON.stringify(next);
-      if (serialized === lastSerializedRef.current) return;
-      lastSerializedRef.current = serialized;
 
-      // Broadcast del scene a otros clientes en el canal Realtime. 200ms
-      // de debounce para sub-segundo perceived latency sin saturar.
-      // El receptor ignora su propio clientId (config { broadcast.self:
-      // false } + check explícito en el handler).
+      // Broadcast en vivo: SOLO elements+appState (sin files). Reenviar MB de
+      // base64 en cada broadcast (cada 200ms mientras se dibuja) saturaría
+      // Realtime y rompería el sync del trazo. Los peers ven las imágenes al
+      // recargar (vienen de DB). El receptor ignora su propio clientId.
       if (channelRef.current) {
         if (broadcastTimerRef.current) clearTimeout(broadcastTimerRef.current);
         const channel = channelRef.current;
+        const liveScene: WhiteboardScene = { elements: next.elements, appState: next.appState };
         broadcastTimerRef.current = setTimeout(() => {
           broadcastTimerRef.current = null;
-          const payload: ScenePayload = { clientId: TAB_CLIENT_ID, scene: next };
+          const payload: ScenePayload = { clientId: TAB_CLIENT_ID, scene: liveScene };
           void channel.send({ type: "broadcast", event: "scene_update", payload });
         }, 200);
       }
@@ -452,6 +483,39 @@ export function WhiteboardEditor({
       }, 1500);
     },
     [readOnly, onPersist, viewportStorageKey],
+  );
+
+  // Inserta una figura del panel categorizado en el CENTRO del viewport
+  // actual. Clona el template (ids/seed nuevos + groupId común vía
+  // instantiateLibraryElements) y hace updateScene anexando a lo existente.
+  // El onChange de Excalidraw dispara el auto-save (incluye files si los hay).
+  const insertShape = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (item: Record<string, any>) => {
+      const api = excalidrawAPIRef.current;
+      if (!api) return;
+      try {
+        const st = typeof api.getAppState === "function" ? api.getAppState() : {};
+        const zoom =
+          typeof st?.zoom?.value === "number"
+            ? st.zoom.value
+            : typeof st?.zoom === "number"
+              ? st.zoom
+              : 1;
+        const w = typeof st?.width === "number" ? st.width : 800;
+        const h = typeof st?.height === "number" ? st.height : 600;
+        const cx = -(st?.scrollX ?? 0) + w / 2 / zoom;
+        const cy = -(st?.scrollY ?? 0) + h / 2 / zoom;
+        const newEls = instantiateLibraryElements(item.elements ?? [], cx, cy);
+        if (!newEls.length) return;
+        const current =
+          typeof api.getSceneElements === "function" ? api.getSceneElements() : [];
+        api.updateScene({ elements: [...current, ...newEls] });
+      } catch (err) {
+        console.warn("[WhiteboardEditor] insertShape failed", err);
+      }
+    },
+    [],
   );
 
   // Cleanup del timer de viewport al unmount — sin flush porque el último
@@ -589,6 +653,65 @@ export function WhiteboardEditor({
           <Users className="h-3 w-3" />
           Compartida en vivo
         </div>
+      )}
+      {/* Panel de FIGURAS categorizado (solo en edición). Excalidraw trae su
+          "Library" pero en grilla plana sin secciones; este agrupa por tema
+          (Flujo, E-R, POO/UML, Estructuras, AWS) y se inserta al click,
+          centrado en el viewport. Ancla abajo-derecha para no chocar con el
+          toolbar (arriba) ni el zoom de Excalidraw (abajo-izquierda). */}
+      {!readOnly && (
+        <>
+          <button
+            type="button"
+            onClick={() => setPaletteOpen((o) => !o)}
+            aria-label="Figuras"
+            aria-expanded={paletteOpen}
+            title="Insertar figuras (flujo, E-R, POO…)"
+            className={cn(
+              "absolute bottom-2 right-12 z-20 inline-flex items-center gap-1 rounded-md border border-border bg-background/90 backdrop-blur-sm px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-background transition-colors shadow-sm",
+              paletteOpen && "text-foreground bg-background",
+            )}
+          >
+            <Shapes className="h-4 w-4" />
+            <span className="hidden sm:inline">Figuras</span>
+          </button>
+          {paletteOpen && (
+            <div className="absolute bottom-12 right-2 z-30 w-56 max-h-[65%] overflow-y-auto rounded-md border border-border bg-background shadow-lg">
+              <div className="sticky top-0 flex items-center justify-between gap-2 border-b border-border bg-background px-3 py-2">
+                <span className="text-xs font-semibold">Figuras</span>
+                <button
+                  type="button"
+                  onClick={() => setPaletteOpen(false)}
+                  aria-label="Cerrar"
+                  className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="p-2 space-y-3">
+                {LIBRARY_CATEGORIES.map((cat) => (
+                  <div key={cat.key}>
+                    <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {cat.label}
+                    </p>
+                    <div className="flex flex-col">
+                      {cat.items.map((item) => (
+                        <button
+                          key={item.id as string}
+                          type="button"
+                          onClick={() => insertShape(item)}
+                          className="text-left rounded px-2 py-2 text-xs hover:bg-muted active:bg-muted/70 transition-colors"
+                        >
+                          {shortLibraryItemName(item.name as string)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
       {/* Botón de pantalla completa — abajo-derecha para no competir con
           el toolbar de Excalidraw (arriba) ni el "Solo lectura" badge.

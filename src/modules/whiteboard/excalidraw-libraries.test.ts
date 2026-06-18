@@ -7,7 +7,12 @@
  * "Library", lo cual es difícil de diagnosticar visualmente.
  */
 import { describe, expect, it } from "vitest";
-import { DEFAULT_LIBRARY_ITEMS } from "./excalidraw-libraries";
+import {
+  DEFAULT_LIBRARY_ITEMS,
+  LIBRARY_CATEGORIES,
+  instantiateLibraryElements,
+  shortLibraryItemName,
+} from "./excalidraw-libraries";
 
 describe("DEFAULT_LIBRARY_ITEMS", () => {
   it("no está vacío", () => {
@@ -108,5 +113,91 @@ describe("DEFAULT_LIBRARY_ITEMS", () => {
         }
       }
     }
+  });
+});
+
+describe("LIBRARY_CATEGORIES", () => {
+  it("toda figura del set queda asignada a EXACTAMENTE una categoría", () => {
+    const categorizedIds = LIBRARY_CATEGORIES.flatMap((c) => c.items.map((i) => i.id));
+    // Sin duplicados entre categorías.
+    expect(new Set(categorizedIds).size).toBe(categorizedIds.length);
+    // Cobertura total: cada item del set está en alguna categoría.
+    const allIds = new Set(DEFAULT_LIBRARY_ITEMS.map((i) => i.id));
+    expect(new Set(categorizedIds)).toEqual(allIds);
+  });
+
+  it("ninguna categoría está vacía y todas tienen etiqueta", () => {
+    for (const cat of LIBRARY_CATEGORIES) {
+      expect(cat.items.length).toBeGreaterThan(0);
+      expect(typeof cat.label).toBe("string");
+      expect(cat.label.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("POO/UML agrupa la clase UML junto a las figuras POO", () => {
+    const poo = LIBRARY_CATEGORIES.find((c) => c.key === "poo");
+    const ids = poo!.items.map((i) => i.id);
+    expect(ids).toContain("lib-uml-class");
+    expect(ids).toContain("lib-poo-interface");
+  });
+});
+
+describe("shortLibraryItemName", () => {
+  it("quita el prefijo de categoría", () => {
+    expect(shortLibraryItemName("DB · Entidad (ER)")).toBe("Entidad (ER)");
+    expect(shortLibraryItemName("POO · Interfaz")).toBe("Interfaz");
+  });
+  it("deja el nombre igual si no hay prefijo", () => {
+    expect(shortLibraryItemName("Entidad")).toBe("Entidad");
+  });
+});
+
+describe("instantiateLibraryElements", () => {
+  const sample = [
+    { id: "a", type: "rectangle", x: 0, y: 0, width: 100, height: 40, seed: 1, groupIds: [] },
+    { id: "b", type: "text", x: 10, y: 10, width: 80, height: 20, seed: 2, groupIds: [], text: "hi" },
+  ];
+
+  it("centra la figura en el punto dado (bbox center → center)", () => {
+    const out = instantiateLibraryElements(sample, 500, 300);
+    const minX = Math.min(...out.map((e) => e.x));
+    const maxX = Math.max(...out.map((e) => e.x + e.width));
+    const minY = Math.min(...out.map((e) => e.y));
+    const maxY = Math.max(...out.map((e) => e.y + e.height));
+    expect((minX + maxX) / 2).toBeCloseTo(500);
+    expect((minY + maxY) / 2).toBeCloseTo(300);
+  });
+
+  it("preserva las posiciones RELATIVAS entre elementos", () => {
+    const out = instantiateLibraryElements(sample, 500, 300);
+    // El text estaba +10/+10 respecto al rect; debe seguir igual.
+    expect(out[1].x - out[0].x).toBe(10);
+    expect(out[1].y - out[0].y).toBe(10);
+  });
+
+  it("regenera ids (no colisiona con el template ni entre inserciones)", () => {
+    const a = instantiateLibraryElements(sample, 0, 0);
+    const b = instantiateLibraryElements(sample, 0, 0);
+    const ids = [...a, ...b].map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).not.toContain("a");
+    expect(ids).not.toContain("b");
+  });
+
+  it("agrupa todos los elementos insertados bajo un mismo groupId nuevo", () => {
+    const out = instantiateLibraryElements(sample, 0, 0);
+    const groups = out.map((e) => e.groupIds[0]);
+    expect(new Set(groups).size).toBe(1);
+    expect(groups[0]).toMatch(/^grp-/);
+  });
+
+  it("no muta el template original", () => {
+    const before = JSON.stringify(sample);
+    instantiateLibraryElements(sample, 123, 456);
+    expect(JSON.stringify(sample)).toBe(before);
+  });
+
+  it("array vacío → []", () => {
+    expect(instantiateLibraryElements([], 0, 0)).toEqual([]);
   });
 });
