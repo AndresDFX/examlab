@@ -182,6 +182,9 @@ function KahootHost() {
   // sobre la misma ronda (question_started_at identifica la ronda actual).
   // El delay corto (800ms) deja que la UI muestre "x / x respondieron" un
   // instante antes del corte — feedback visual antes del reveal.
+  // Decisión: solo automatiza el lock; reveal→leaderboard→next se controlan
+  // con clicks ("Ver posiciones" / "Siguiente pregunta") para no quitarle
+  // al docente el momento dramático y la lectura del aula.
   useEffect(() => {
     if (!autoAdvance) return;
     if (!state) return;
@@ -356,9 +359,25 @@ function KahootHost() {
                 </>
               )}
               {game.status === "reveal" && (
-                <Button size="lg" disabled={advancing} onClick={() => void advance("leaderboard")}>
-                  <Trophy className="h-5 w-5 mr-2" /> {t("kahoot.showLeaderboard")}
-                </Button>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    disabled={advancing}
+                    onClick={() => void advance("leaderboard")}
+                  >
+                    <Trophy className="h-5 w-5 mr-2" /> {t("kahoot.showLeaderboard")}
+                  </Button>
+                  {/* Atajo: saltar leaderboard y pasar directo a la siguiente
+                      pregunta (o al podio si era la última). Útil cuando el
+                      docente prefiere ritmo rápido sin pausa de ranking. */}
+                  <Button size="lg" disabled={advancing} onClick={() => void advance("next")}>
+                    <ChevronRight className="h-5 w-5 mr-2" />
+                    {game.current_index + 1 >= game.total_questions
+                      ? t("kahoot.showPodium")
+                      : t("kahoot.nextQuestion")}
+                  </Button>
+                </div>
               )}
             </div>
           </div>
