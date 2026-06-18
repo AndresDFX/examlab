@@ -93,13 +93,11 @@ import {
   Play,
   ArrowRightLeft,
   Shuffle,
-  Wand2,
   MessageSquareText,
 } from "lucide-react";
 import { usePollRealtime } from "@/modules/polls/use-poll-realtime";
 import { KahootQuestionsEditor } from "@/modules/polls/KahootQuestionsEditor";
 import { PollQuestionsEditor } from "@/modules/polls/PollQuestionsEditor";
-import { GenerateKahootFromContentDialog } from "@/modules/polls/GenerateKahootFromContentDialog";
 import { optionFillPercent } from "@/modules/polls/poll-results";
 import { cn } from "@/shared/lib/utils";
 import { softDelete } from "@/modules/trash/soft-delete";
@@ -244,8 +242,6 @@ function TeacherPolls() {
   const [mixedQuestionsFor, setMixedQuestionsFor] = useState<{ id: string; title: string } | null>(
     null,
   );
-  // Generar Kahoot con IA leyendo el contenido del curso (Goal #18).
-  const [genKahootOpen, setGenKahootOpen] = useState(false);
   const [hosting, setHosting] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -741,16 +737,6 @@ function TeacherPolls() {
               {t("teacherPolls.refresh")}
             </Button>
             <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setGenKahootOpen(true)}
-              disabled={courses.length === 0}
-              data-tour-id="generate-kahoot-content"
-            >
-              <Wand2 className="h-4 w-4 mr-1" />
-              {t("kahootGen.button", { defaultValue: "Kahoot con IA" })}
-            </Button>
-            <Button
               size="sm"
               onClick={() => setDialogOpen(true)}
               disabled={courses.length === 0}
@@ -1140,20 +1126,6 @@ function TeacherPolls() {
         poll={mixedQuestionsFor}
         onOpenChange={(open) => !open && setMixedQuestionsFor(null)}
         onSaved={() => setRetryNonce((n) => n + 1)}
-      />
-      <GenerateKahootFromContentDialog
-        open={genKahootOpen}
-        onOpenChange={setGenKahootOpen}
-        courses={courses}
-        userId={user?.id ?? null}
-        onCreated={(pollId) => {
-          setRetryNonce((n) => n + 1);
-          // Abrir el editor de preguntas del Kahoot recién creado para que el
-          // docente revise/ajuste lo generado (o agregue manualmente si la cola
-          // aún no corrió). El título lo refresca el reload; mostramos el del
-          // dialog momentáneamente.
-          setQuestionsFor({ id: pollId, title: "" } as Poll);
-        }}
       />
     </div>
   );
