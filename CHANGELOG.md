@@ -43,7 +43,29 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## Historial
 
-### 2026-06-17
+### 2026-06-18
+
+**IA — respetar SIEMPRE la cola en modo batch + resolver el modo por tenant.**
+Revisión funcional (lectura del entorno de prueba) que destapó dos bugs en el
+despacho de IA:
+- **Admins se saltaban la cola en batch**: `AiAuthorizationGate.ensureAuthorized`
+  hacía `if (isAdmin) return "proceed-sync"` ANTES de mirar el modo → un
+  Admin/SuperAdmin generando con IA corría inline aunque el modo global fuera
+  `async` (batch). Ahora la decisión es pura y testeable (`resolveAiGateDecision`
+  en [ai-grading.ts](src/modules/ai/ai-grading.ts)): el admin sigue SIN ver el
+  dialog (no es ruido) pero en batch **encola** (`proceed-async`) en vez de
+  inline. Invariante: en batch nadie corre inline salvo modo `sync` o código
+  "IA inmediata" vigente. +tests.
+- **`getProcessingMode` ignoraba el tenant**: con `ai_model_settings` per-tenant
+  (una fila activa por tenant + platform-default `tenant_id IS NULL`), el
+  `.eq("is_active",true).maybeSingle()` rompía con >1 fila → `data` null → caía
+  a `async` SIEMPRE, ignorando el modo del tenant (un tenant en `sync` quedaba
+  forzado a la cola; ej. los docentes de FESNA no podían generar inline). Ahora
+  resuelve como el edge `getActiveAiModel`: prefiere la fila del propio tenant
+  sobre la platform-default (`order tenant_id NULLS LAST, limit 1`).
+
+`ai_model_settings` es GLOBAL/per-tenant (no se tocó dato en prod); el fix es de
+código. Validado local: tsc 0, IA 18/18.
 
 **Pizarra — imágenes pegadas PERSISTEN + panel de figuras categorizado.**
 - **Persistencia de imágenes**: `WhiteboardEditor.onChange` solo capturaba

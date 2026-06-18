@@ -51,7 +51,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Zap, Clock, X, KeyRound } from "lucide-react";
 import { useActiveRole } from "@/hooks/use-active-role";
-import { readOverrideExpiry, getProcessingMode } from "@/modules/ai/ai-grading";
+import { readOverrideExpiry, getProcessingMode, resolveAiGateDecision } from "@/modules/ai/ai-grading";
 import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
 import { useTranslation } from "react-i18next";
 
@@ -182,38 +182,29 @@ export function useAiAuthorizationGate() {
 
   const ensureAuthorized = useCallback(
     async (options?: GateOptions): Promise<GateDecision> => {
-      // Set por-llamada del flag que el dialog usa para condicionar el
-      // botón "Continuar en cola". Default true (compat con calificación).
-      setAllowQueue(options?.allowQueue !== false);
+      // Flag por-llamada que el dialog usa para condicionar el botón
+      // "Continuar en cola". Default true (compat con calificación).
+      const allowQueue = options?.allowQueue !== false;
+      setAllowQueue(allowQueue);
 
-      // 1) Admin: pasa siempre. Los admins gestionan los códigos, ven la
-      //    cola y entienden el modo async. Forzarlos a confirmar cada vez
-      //    sería ruido.
-      if (isAdmin) return "proceed-sync";
-
-      // 2) Modo global = sync: todo va sync, no hay gate que aplicar.
-      const mode = await getProcessingMode();
-      if (mode === "sync") return "proceed-sync";
-
-      // 3) Override activo localmente → bypass del dialog.
+      // Decisión pura (testeable). INVARIANTE: en modo batch (`async`) SIEMPRE
+      // se respeta la cola — nadie corre inline salvo modo global `sync` o un
+      // código "IA inmediata" vigente. El override local es la fuente de "el
+      // docente activó un código"; el cap real lo enforza
+      // `claim_ai_override_message` server-side en `aiGradeOrEnqueue`.
       //
-      //    Antes hacíamos un round-trip extra a `current_ai_override_status`
-      //    aquí para validar cap server-side. Resultado: si la RPC fallaba,
-      //    devolvía algo raro o el plan multi-tenant introducía RLS más
-      //    estricta, el gate caía al dialog y le pedía al docente entrar
-      //    el código OTRA VEZ aunque ya tenía uno válido.
-      //
-      //    Nueva estrategia: localStorage es la fuente para "el docente
-      //    activó un código". El cap real lo enforza
-      //    `claim_ai_override_message` en `aiGradeOrEnqueue` (atómico,
-      //    server-side, FOR UPDATE). Si el cap está agotado, el claim
-      //    devuelve `cap_reached`, el helper limpia el localStorage y cae
-      //    al path async de forma transparente — el docente ve "encolado"
-      //    en vez de un dialog molesto pidiendo otro código.
-      const localExp = readOverrideExpiry();
-      if (localExp) return "proceed-sync";
+      // Admin/SuperAdmin: NO ven el dialog (sería ruido), pero en batch SÍ
+      // encolan (`proceed-async`) en vez de correr inline — antes devolvían
+      // `proceed-sync` y se saltaban la cola aunque el modo fuera batch.
+      const outcome = resolveAiGateDecision({
+        isAdmin,
+        mode: await getProcessingMode(),
+        hasOverride: !!readOverrideExpiry(),
+        allowQueue,
+      });
+      if (outcome !== "dialog") return outcome;
 
-      // 4) Modo async + sin override → pedir confirmación.
+      // async + sin override (y no-admin, o admin sin cola) → pedir confirmación.
       return new Promise<GateDecision>((resolve) => {
         pendingRef.current = { resolve };
         setOpen(true);

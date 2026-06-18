@@ -66,18 +66,28 @@ export async function getProcessingMode(): Promise<"sync" | "async"> {
   const now = Date.now();
   if (cachedMode && now - cachedModeAt < MODE_CACHE_MS) return cachedMode;
   try {
+    // Multi-tenant: hay UNA fila `is_active` POR TENANT + la fila
+    // platform-default (`tenant_id IS NULL`). El `.maybeSingle()` viejo
+    // ROMPÍA (>1 fila → data null) y caía a "async", IGNORANDO el modo del
+    // tenant (ej. un tenant en `sync` quedaba forzado a la cola). Resolvemos
+    // como el edge `getActiveAiModel`: preferimos la fila del PROPIO tenant
+    // sobre la platform-default. La RLS ya acota a (filas del tenant del
+    // usuario + la platform-default), así que ordenar por `tenant_id` con los
+    // NULL al final pone la fila del tenant primero; `limit(1)` la elige.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await (supabase as any)
       .from("ai_model_settings")
-      .select("processing_mode")
+      .select("processing_mode, tenant_id")
       .eq("is_active", true)
-      .maybeSingle();
-    const mode = data?.processing_mode === "sync" ? "sync" : "async";
+      .order("tenant_id", { ascending: false, nullsFirst: false })
+      .limit(1);
+    const row = Array.isArray(data) ? data[0] : data;
+    const mode = row?.processing_mode === "sync" ? "sync" : "async";
     cachedMode = mode;
     cachedModeAt = now;
     return mode;
   } catch {
-    // Fallback conservador: async (encolar). Mejor un retraso de 1h que
+    // Fallback conservador: async (encolar). Mejor un retraso que
     // saturar la cuenta IA si algo está roto.
     return "async";
   }
@@ -86,6 +96,38 @@ export async function getProcessingMode(): Promise<"sync" | "async"> {
 /** Limpia el cache local — útil si admin acaba de cambiar el modo. */
 export function invalidateModeCache(): void {
   cachedMode = null;
+}
+
+/** Resultado puro de la decisión del gate de IA (generación). */
+export type AiGateOutcome = "proceed-sync" | "proceed-async" | "dialog";
+
+/**
+ * Decide el camino del gate de IA para GENERACIÓN, sin tocar React/DB
+ * (testeable). Invariante clave: en modo BATCH (`async`) SIEMPRE se respeta
+ * la cola — nadie corre inline salvo (a) modo global `sync`, o (b) un código
+ * "IA inmediata" vigente.
+ *
+ *   - `sync`            → inline (`proceed-sync`).
+ *   - override vigente  → inline (`proceed-sync`) — el cap real lo enforza
+ *                         `claim_ai_override_message` server-side.
+ *   - `async` sin override:
+ *       · Admin/SuperAdmin: NO se les muestra el dialog (sería ruido), pero
+ *         tampoco se les deja saltar la cola: se ENCOLA (`proceed-async`) si
+ *         el flujo soporta cola; si no, cae al dialog. Antes los admins
+ *         devolvían `proceed-sync` y corrían inline aunque el modo fuera
+ *         batch — eso violaba "respetar la cola en batch".
+ *       · Docente: dialog (cancelar / encolar / activar código).
+ */
+export function resolveAiGateDecision(args: {
+  isAdmin: boolean;
+  mode: "sync" | "async";
+  hasOverride: boolean;
+  allowQueue: boolean;
+}): AiGateOutcome {
+  if (args.mode === "sync") return "proceed-sync";
+  if (args.hasOverride) return "proceed-sync";
+  if (args.isAdmin) return args.allowQueue ? "proceed-async" : "dialog";
+  return "dialog";
 }
 
 export interface AiGradeTarget {
