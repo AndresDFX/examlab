@@ -950,23 +950,30 @@ function TeacherAttendance() {
       // check-in de asistencia. El link lleva al módulo del estudiante,
       // donde el card "Check-in disponible" aparece automáticamente.
       // Fire-and-forget — no bloqueamos el setProjector.
+      // `.then(noop, noop)` fuerza el builder lazy de supabase-js (ver
+      // kahoot heartbeat); sin él la RPC nunca se dispara.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      void (supabase as any).rpc("notify_course_students", {
-        _course_id: checkInConfigSession.course_id,
-        _title: t("teacherAttendance.checkInNotifyTitle"),
-        _body:
-          t("teacherAttendance.checkInNotifyBodyStart", {
-            date: checkInConfigSession.session_date,
-          }) +
-          (checkInConfigSession.title
-            ? t("teacherAttendance.checkInNotifyBodyTitle", {
-                title: checkInConfigSession.title,
-              })
-            : "") +
-          t("teacherAttendance.checkInNotifyBodyEnd", { count: checkInDuration }),
-        _kind: "exam",
-        _link: "/app/student/attendance",
-      });
+      (supabase as any)
+        .rpc("notify_course_students", {
+          _course_id: checkInConfigSession.course_id,
+          _title: t("teacherAttendance.checkInNotifyTitle"),
+          _body:
+            t("teacherAttendance.checkInNotifyBodyStart", {
+              date: checkInConfigSession.session_date,
+            }) +
+            (checkInConfigSession.title
+              ? t("teacherAttendance.checkInNotifyBodyTitle", {
+                  title: checkInConfigSession.title,
+                })
+              : "") +
+            t("teacherAttendance.checkInNotifyBodyEnd", { count: checkInDuration }),
+          _kind: "exam",
+          _link: "/app/student/attendance",
+        })
+        .then(
+          () => {},
+          () => {},
+        );
 
       setCheckInConfigSession(null);
       // Refresca listado para reflejar check_in_open=true

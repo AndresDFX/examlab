@@ -287,11 +287,18 @@ function AuthPage() {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setLoading(false);
+      // `.then(noop, noop)` fuerza el builder lazy de supabase-js (ver
+      // kahoot heartbeat); sin él el log de intento fallido no se dispara.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      void (supabase as any).rpc("log_failed_login", {
-        p_email: email,
-        p_reason: error.message,
-      });
+      (supabase as any)
+        .rpc("log_failed_login", {
+          p_email: email,
+          p_reason: error.message,
+        })
+        .then(
+          () => {},
+          () => {},
+        );
       toast.error(t("auth.invalidCredentials"));
       return;
     }
