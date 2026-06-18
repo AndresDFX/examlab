@@ -1864,7 +1864,12 @@
     "draftSaving": "Guardando…",
     "draftDirty": "Sin guardar",
     "draftSaved": "Guardado",
-    "unsavedChangesWarning": "Tienes respuestas sin guardar. Si sales ahora se perderán."
+    "unsavedChangesWarning": "Tienes respuestas sin guardar. Si sales ahora se perderán.",
+    "markComplete": "Listo, terminé",
+    "requiredMissing": "Te faltan {{n}} pregunta(s) obligatoria(s) por responder.",
+    "completeTitle": "¡Listo! Tu respuesta fue registrada",
+    "completeBody": "Gracias por participar. Tus respuestas ya están guardadas.",
+    "editAnswers": "Editar mis respuestas"
   },
   "videosPage": {
     "title": "Videos",

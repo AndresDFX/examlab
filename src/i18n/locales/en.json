@@ -1864,7 +1864,12 @@
     "draftSaving": "Saving…",
     "draftDirty": "Unsaved",
     "draftSaved": "Saved",
-    "unsavedChangesWarning": "You have unsaved responses. If you leave now they will be lost."
+    "unsavedChangesWarning": "You have unsaved responses. If you leave now they will be lost.",
+    "markComplete": "I'm done",
+    "requiredMissing": "You're missing {{n}} required question(s).",
+    "completeTitle": "Done! Your response was recorded",
+    "completeBody": "Thanks for participating. Your answers are already saved.",
+    "editAnswers": "Edit my answers"
   },
   "videosPage": {
     "title": "Videos",

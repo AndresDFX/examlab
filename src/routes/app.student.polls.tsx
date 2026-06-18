@@ -44,10 +44,12 @@ import {
   CheckSquare,
   CalendarRange,
   Check,
+  CheckCircle2,
   RefreshCw,
   Presentation,
   X,
   MessageSquareText,
+  Send,
 } from "lucide-react";
 
 export const Route = createFileRoute("/app/student/polls")({
@@ -843,6 +845,23 @@ function MixedPollCard({
   });
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [clearing, setClearing] = useState(false);
+  // Marker UX-only "el alumno ya confirmó que terminó la encuesta". NO se
+  // persiste en DB — las respuestas YA están guardadas individualmente. El
+  // flag vive en localStorage por poll para reemplazar el formulario con
+  // una pantalla "✓ Listo" + opción de editar (si el poll lo permite).
+  // Si el alumno cambia de dispositivo, ve el form abierto pero sus
+  // respuestas siguen ahí; con allow_change_response puede ajustar y volver
+  // a confirmar. Sin esa flag se vuelve un problema de DB (= migración).
+  const [isComplete, setIsComplete] = useState(false);
+  const [marking, setMarking] = useState(false);
+  // Hidratación post-mount (no en useState init para no romper SSR).
+  useEffect(() => {
+    try {
+      setIsComplete(localStorage.getItem(`examlab_mixed_poll_done:${poll.id}`) === "1");
+    } catch {
+      /* SSR / storage off */
+    }
+  }, [poll.id]);
 
   const setSavingFor = (qid: string, v: boolean) =>
     setSaving((prev) => ({ ...prev, [qid]: v }));
@@ -970,11 +989,92 @@ function MixedPollCard({
         return next;
       });
       savedTextRef.current = {};
+      // Si tenía el flag "ya confirmé" en localStorage, también lo borramos
+      // para que el alumno pueda volver a responder y cerrar de nuevo.
+      try {
+        localStorage.removeItem(`examlab_mixed_poll_done:${poll.id}`);
+      } catch {
+        /* no-op */
+      }
+      setIsComplete(false);
       toast.success(t("studentPolls.responseCleared"));
       onChanged();
     } finally {
       setClearing(false);
     }
+  };
+
+  // "Listo, terminé": valida required, fuerza saves pendientes y marca la
+  // encuesta como confirmada (flag en localStorage). NO es un submit real —
+  // las respuestas YA están en la DB. Es cierre UX para que el alumno tenga
+  // un momento de "terminé" en vez de quedar dudando si está completo.
+  const markComplete = async () => {
+    if (marking) return;
+    setMarking(true);
+    try {
+      // 1) Forzar save inmediato de cualquier textarea con cambios sin guardar
+      //    (debounce pendiente + textarea con foco que nunca disparó blur).
+      const pendingSaves: Promise<void>[] = [];
+      for (const q of questions) {
+        if (q.type !== "abierta") continue;
+        const current = (text[q.id] ?? "").trim();
+        const saved = (savedTextRef.current[q.id] ?? "").trim();
+        if (current === saved) continue;
+        const existing = debounceTimersRef.current.get(q.id);
+        if (existing) {
+          clearTimeout(existing);
+          debounceTimersRef.current.delete(q.id);
+        }
+        pendingSaves.push(submitOpen(q.id));
+      }
+      if (pendingSaves.length > 0) await Promise.all(pendingSaves);
+
+      // 2) Validar required (contra el state actual, no contra DB — el alumno
+      //    acaba de tipear/clickear, lo de DB es lo mismo modulo race).
+      const missing: { qid: string; index: number; text: string }[] = [];
+      questions.forEach((q, idx) => {
+        if (!q.required) return;
+        const answered =
+          q.type === "cerrada"
+            ? selected[q.id] != null
+            : (text[q.id] ?? "").trim().length > 0;
+        if (!answered) missing.push({ qid: q.id, index: idx, text: q.text });
+      });
+      if (missing.length > 0) {
+        toast.error(
+          t("studentPolls.requiredMissing", {
+            n: missing.length,
+            defaultValue: "Te faltan {{n}} pregunta(s) obligatoria(s) por responder.",
+          }),
+        );
+        // Scroll a la primera faltante (anclada por id).
+        const el = document.getElementById(`mixed-q-${missing[0].qid}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+
+      // 3) Marcar como completo (UX-only, localStorage).
+      try {
+        localStorage.setItem(`examlab_mixed_poll_done:${poll.id}`, "1");
+      } catch {
+        /* no-op */
+      }
+      setIsComplete(true);
+    } finally {
+      setMarking(false);
+    }
+  };
+
+  // "Editar mis respuestas": vuelve al formulario sin tocar la DB. Solo
+  // disponible cuando allow_change_response=true (sino la encuesta no admite
+  // ediciones y mostrar este botón sería un cebo cruel).
+  const editAnswers = () => {
+    try {
+      localStorage.removeItem(`examlab_mixed_poll_done:${poll.id}`);
+    } catch {
+      /* no-op */
+    }
+    setIsComplete(false);
   };
 
   const hasAnyAnswer =
@@ -1022,6 +1122,36 @@ function MixedPollCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Si la encuesta está abierta y el alumno ya confirmó que terminó,
+            mostramos la pantalla de éxito en vez del formulario. La encuesta
+            cerrada cae al render normal (preguntas en read-only + nota de
+            cerrada) para que el alumno pueda revisar lo que contestó. */}
+        {open && isComplete ? (
+          <>
+            <div className="rounded-md border border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30 p-5 text-center space-y-2">
+              <CheckCircle2 className="h-10 w-10 text-emerald-600 dark:text-emerald-400 mx-auto" />
+              <h3 className="font-semibold text-emerald-900 dark:text-emerald-100">
+                {t("studentPolls.completeTitle", {
+                  defaultValue: "¡Listo! Tu respuesta fue registrada",
+                })}
+              </h3>
+              <p className="text-sm text-emerald-800 dark:text-emerald-200">
+                {t("studentPolls.completeBody", {
+                  defaultValue:
+                    "Gracias por participar. Tus respuestas ya están guardadas.",
+                })}
+              </p>
+            </div>
+            {poll.allow_change_response && (
+              <div className="flex justify-center">
+                <Button variant="outline" size="sm" onClick={editAnswers}>
+                  {t("studentPolls.editAnswers", { defaultValue: "Editar mis respuestas" })}
+                </Button>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
         <p className="text-[11px] text-muted-foreground">{getTypeHint("mixed")}</p>
         {questions.length === 0 ? (
           <p className="text-xs text-muted-foreground">
@@ -1048,7 +1178,11 @@ function MixedPollCard({
                     ? "dirty"
                     : "saved";
               return (
-                <div key={q.id} className="space-y-1 rounded-md border p-2.5">
+                <div
+                  key={q.id}
+                  id={`mixed-q-${q.id}`}
+                  className="space-y-1 rounded-md border p-2.5 scroll-mt-20"
+                >
                   <p className="text-sm font-medium">
                     {qi + 1}. {q.text}
                     {q.required && <span className="text-destructive ml-0.5">*</span>}
@@ -1108,7 +1242,11 @@ function MixedPollCard({
             const sel = selected[q.id] ?? null;
             const answered = sel != null;
             return (
-              <div key={q.id} className="space-y-1.5 rounded-md border p-2.5">
+              <div
+                key={q.id}
+                id={`mixed-q-${q.id}`}
+                className="space-y-1.5 rounded-md border p-2.5 scroll-mt-20"
+              >
                 <p className="text-sm font-medium">
                   {qi + 1}. {q.text}
                   {q.required && <span className="text-destructive ml-0.5">*</span>}
@@ -1145,6 +1283,27 @@ function MixedPollCard({
           })
         )}
 
+        {/* "Listo, terminé" — cierre UX-only (las respuestas YA están en DB
+            por autosave). Valida required + fuerza saves pendientes + flip
+            a la pantalla de éxito. NO se muestra cuando la encuesta cerró
+            (no se puede modificar) ni cuando ya está marcada como completa. */}
+        {open && questions.length > 0 && (
+          <div className="pt-2">
+            <Button
+              type="button"
+              className="w-full"
+              disabled={marking || Object.values(saving).some(Boolean)}
+              onClick={() => void markComplete()}
+            >
+              {marking ? (
+                <Spinner size="sm" className="mr-2" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              {t("studentPolls.markComplete", { defaultValue: "Listo, terminé" })}
+            </Button>
+          </div>
+        )}
         {open && poll.allow_change_response && hasAnyAnswer && (
           <div className="flex justify-end pt-1">
             <Button
@@ -1166,6 +1325,8 @@ function MixedPollCard({
               defaultValue: "La encuesta está cerrada. Ya no puedes modificar tus respuestas.",
             })}
           </p>
+        )}
+          </>
         )}
       </CardContent>
     </Card>
