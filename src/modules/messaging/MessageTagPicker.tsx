@@ -68,9 +68,12 @@ export function MessageTagPicker({ open, onOpenChange, onPick }: Props) {
     void (async () => {
       setLoading(true);
       const def = TYPES.find((t) => t.value === activeType)!;
+      // exams/workshops/projects son entidades soft-delete: no listar en el
+      // picker de `#` los que estén en la papelera.
       const { data } = await db
         .from(def.table)
         .select(`id, ${def.titleCol}`)
+        .is("deleted_at", null)
         .order(def.titleCol)
         .limit(200);
       if (cancelled) return;

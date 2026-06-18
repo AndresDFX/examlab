@@ -218,7 +218,12 @@ function VideoLibrary() {
   useEffect(() => {
     void load();
     void (async () => {
-      const { data } = await db.from("courses").select("id, name").order("name");
+      // Excluir cursos en papelera del selector de curso del form de video.
+      const { data } = await db
+        .from("courses")
+        .select("id, name")
+        .is("deleted_at", null)
+        .order("name");
       setCourses((data ?? []) as CourseOption[]);
     })();
     // Tenants — solo el SuperAdmin los necesita para el Select.

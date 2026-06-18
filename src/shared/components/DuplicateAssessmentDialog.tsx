@@ -153,13 +153,15 @@ export function DuplicateAssessmentDialog({
     (async () => {
       let query;
       if (isAdmin) {
-        query = db.from("courses").select("id, name").order("name");
+        // Excluir cursos en papelera del selector "Curso destino".
+        query = db.from("courses").select("id, name").is("deleted_at", null).order("name");
       } else {
         // Solo cursos donde el docente está asignado (puede clonar a uno
-        // distinto al origen también).
+        // distinto al origen también). Sin los que estén en papelera.
         query = db
           .from("courses")
           .select("id, name, course_teachers!inner(user_id)")
+          .is("deleted_at", null)
           .order("name");
       }
       const { data, error } = await query;
