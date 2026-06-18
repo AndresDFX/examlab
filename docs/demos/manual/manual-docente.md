@@ -10,7 +10,7 @@ Como **Docente** en ExamLab tu trabajo es crear y evaluar: armas cursos, prepara
 
 Tu pantalla de inicio. Resume de un vistazo lo que tienes pendiente y lo que viene en los próximos días.
 
-- Cuatro indicadores arriba: **Notas pendientes**, **Cola IA**, **Pendientes mi respuesta** y **Sesiones de hoy**.
+- Cuatro indicadores arriba: **Notas pendientes**, **Cola (Pendientes)**, **Comentarios Pendientes de respuesta** y **Pendientes de calificación**.
 - Debajo, dos tarjetas: **Próximas clases** y **Próximos exámenes**. Toca cualquier dato para ir directo al módulo correspondiente.
 
 ![Panel](screenshots/docente/01-dashboard.png)
@@ -24,7 +24,18 @@ Vista de mes con todos tus eventos: clases, exámenes, entregas de talleres y pr
 
 ![Calendario](screenshots/docente/02-teacher_calendar.png)
 
-### Cron IA
+
+### Contenidos
+
+Sube y organiza el material del curso: documentos, presentaciones, imágenes, PDF, código y notebooks.
+
+- **🤖 Genera material didáctico con IA** a partir de un tema, o sube tus propios archivos y asígnalos a una sesión.
+- Imágenes y PDF se ven **en línea** (las imágenes se pueden anotar); el código y los notebooks `.ipynb` los estudiantes pueden **ejecutar** desde su tablero. Este material también nutre al **Tutor IA** del curso.
+
+![Contenidos](screenshots/docente/07-teacher_contents.png)
+
+
+### Cola (Cron IA)
 
 Aquí ves **todo lo que la IA hizo o tiene pendiente** sin salir de una sola pantalla: calificaciones y generaciones de contenido.
 
@@ -63,14 +74,6 @@ El centro de tu actividad: aquí están tus cursos y, dentro de cada uno, el **T
 
 ![Cursos (y Tablero)](screenshots/docente/06-teacher_courses.png)
 
-### Contenidos
-
-Sube y organiza el material del curso: documentos, presentaciones, imágenes, PDF, código y notebooks.
-
-- **🤖 Genera material didáctico con IA** a partir de un tema, o sube tus propios archivos y asígnalos a una sesión.
-- Imágenes y PDF se ven **en línea** (las imágenes se pueden anotar); el código y los notebooks `.ipynb` los estudiantes pueden **ejecutar** desde su tablero. Este material también nutre al **Tutor IA** del curso.
-
-![Contenidos](screenshots/docente/07-teacher_contents.png)
 
 ### Videos
 
@@ -137,6 +140,10 @@ Registra la asistencia de cada sesión, con **check-in por QR rotativo** para qu
 
 ![Asistencia](screenshots/docente/14-teacher_attendance.png)
 
+
+-- Estadisticas
+
+
 ### Certificaciones
 
 Consulta y gestiona los certificados emitidos a los estudiantes del curso.
@@ -146,7 +153,7 @@ Consulta y gestiona los certificados emitidos a los estudiantes del curso.
 
 ![Certificaciones](screenshots/docente/15-certificates.png)
 
-### Estudiantes
+### Usuarios (Estudiantes)
 
 El listado de tus estudiantes con su información de contacto y los cursos en que están matriculados.
 
@@ -182,15 +189,6 @@ Crea encuestas, votaciones tipo Doodle (slots de horario) y juegos **Kahoot** en
 
 ![Encuestas](screenshots/docente/19-teacher_polls.png)
 
-### Mensajes (encabezado superior)
-
-La mensajería con estudiantes y otros docentes vive en el **ícono de mensajes** del encabezado (junto a la campana de notificaciones), no en el menú lateral. Te muestra un badge con los no leídos.
-
-- **Chat 1-a-1**: abre una conversación con cualquier persona habilitada (estudiantes de tus cursos, otros docentes y administradores). Soporta adjuntos, edición y borrado de tus mensajes, y búsqueda dentro de la conversación.
-- **Etiquetar contenido con `#`**: dentro del mensaje, escribe `#` y elige un examen, taller, proyecto o archivo para insertarlo como **enlace clicable**. Es la forma rápida de mandar al estudiante directo a la actividad.
-- **Difusión a curso(s)**: con el botón **Difundir a curso** envías el mismo mensaje a **todos los estudiantes** de uno o varios cursos. Cada alumno lo recibe como **notificación**, **correo** y **mensaje 1-a-1** (sin duplicados, aunque esté en varios cursos).
-- **Programar envío**: tanto la difusión como un mensaje directo pueden **programarse a futuro** (la plataforma los despacha sola al llegar la hora). Desde el botón **Programados** puedes ver y cancelar los pendientes.
-
 ### Tutor IA (cómo lo perciben tus estudiantes)
 
 El estudiante tiene un **Tutor IA por curso** que responde sus dudas usando el **material real** que tú publicaste en *Contenidos* — incluyendo el texto extraído de `.docx`, `.pptx`, notebooks `.ipynb`, código fuente y notas en markdown. No es un chatbot genérico: cuanto más material subas, mejor responde.
@@ -206,3 +204,12 @@ Registro de actividad para revisar qué pasó y cuándo dentro del ámbito de tu
 - Útil para rastrear una acción puntual o entender un cambio inesperado.
 
 ![Auditoría](screenshots/docente/20-teacher_audit_logs.png)
+
+### Mensajes (Pie de pagina )
+
+La mensajería con estudiantes y otros docentes vive en el **ícono de mensajes** del pie de pagina (junto a la campana de notificaciones), no en el menú lateral. Te muestra un badge con los no leídos.
+
+- **Chat 1-a-1**: abre una conversación con cualquier persona habilitada (estudiantes de tus cursos, otros docentes y administradores). Soporta adjuntos, edición y borrado de tus mensajes, y búsqueda dentro de la conversación.
+- **Etiquetar contenido con `#`**: dentro del mensaje, escribe `#` y elige un examen, taller, proyecto o archivo para insertarlo como **enlace clicable**. Es la forma rápida de mandar al estudiante directo a la actividad.
+- **Difusión a curso(s)**: con el botón **Difundir a curso** envías el mismo mensaje a **todos los estudiantes** de uno o varios cursos. Cada alumno lo recibe como **notificación**, **correo** y **mensaje 1-a-1** (sin duplicados, aunque esté en varios cursos).
+- **Programar envío**: tanto la difusión como un mensaje directo pueden **programarse a futuro** (la plataforma los despacha sola al llegar la hora). Desde el botón **Programados** puedes ver y cancelar los pendientes.

@@ -189,7 +189,7 @@ Recuperación de elementos eliminados: nada se borra de inmediato, va a la papel
 
 ![Papelera](screenshots/administrador/17-trash.png)
 
-### Estructura académica
+### Académico
 
 Define el armazón institucional: carreras (programas), asignaturas y periodos académicos.
 
@@ -199,13 +199,6 @@ Define el armazón institucional: carreras (programas), asignaturas y periodos a
 
 ![Estructura académica](screenshots/administrador/18-admin_academic.png)
 
-### Mensajes (encabezado superior)
-
-La mensajería con docentes y estudiantes vive en el **ícono de mensajes** del encabezado (junto a la campana), no en el menú lateral. Como Admin puedes conversar con cualquier miembro del tenant para dar soporte interno.
-
-- **Chat 1-a-1** con cualquier persona de la institución, con adjuntos, edición/borrado de tus mensajes y búsqueda dentro de la conversación.
-- **Difusión a curso(s)** y **programar envíos** disponibles igual que para el docente.
-- Para **PQRS hacia el equipo de plataforma** usa el módulo **Soporte** del menú lateral (los SuperAdmin no son contactables por mensajes directos: el canal correcto es Soporte).
 
 ### Soporte
 
@@ -237,3 +230,11 @@ Centro de ajustes de la institución, organizado en pestañas.
 - **Modelo IA** y **Cola IA**: proveedor, modelo, claves y modo sync/async. **Auditoría**: retención. **Módulos**: qué módulos ve cada rol.
 
 ![Configuración](screenshots/administrador/21-admin_settings.png)
+
+### Mensajes (Pie de pagina)
+
+La mensajería con docentes y estudiantes vive en el **ícono de mensajes** del pie de paginar (junto a la campana), no en el menú lateral. Como Admin puedes conversar con cualquier miembro del tenant para dar soporte interno.
+
+- **Chat 1-a-1** con cualquier persona de la institución, con adjuntos, edición/borrado de tus mensajes y búsqueda dentro de la conversación.
+- **Difusión a curso(s)** y **programar envíos** disponibles igual que para el docente.
+- Para **PQRS hacia el equipo de plataforma** usa el módulo **Soporte** del menú lateral (los SuperAdmin no son contactables por mensajes directos: el canal correcto es Soporte).

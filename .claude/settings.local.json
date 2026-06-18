@@ -32,7 +32,16 @@
       "Bash(python3 -c ' *)",
       "Bash(grep 'monitor\\\\.\\\\$examId')",
       "Bash(grep -n \"ai-grade-submission\" \"d:\\\\Projects\\\\Personal\\\\examlab\\\\src\\\\routes\\\\app.student.take.\\\\$examId.tsx\" 2>/dev/null || grep -n \"ai-grade-submission\" d:/Projects/Personal/examlab/src/routes/*.tsx | grep student)",
-      "Bash(grep -B 10 -A 10 \"ai-grade-submission\" \"d:/Projects/Personal/examlab/src/routes/app.student.take.\\\\$examId.tsx\" | head -50)"
+      "Bash(grep -B 10 -A 10 \"ai-grade-submission\" \"d:/Projects/Personal/examlab/src/routes/app.student.take.\\\\$examId.tsx\" | head -50)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(grep -n \"^import\\\\|FastForward\\\\|Zap\\\\|Forward\" src/routes/app.teacher.kahoot.\\\\$gameId.tsx | head -20)",
+      "Read(//c/Users/jefer/OneDrive/Escritorio/Maestria/examlab/src/routes/**)",
+      "Bash(bun tsc *)",
+      "Bash(bunx tsc *)",
+      "Bash(echo \"---exit:$?---\")",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('src/i18n/locales/es.json','utf8'\\)\\); JSON.parse\\(require\\('fs'\\).readFileSync\\('src/i18n/locales/en.json','utf8'\\)\\); console.log\\('OK ambos JSON válidos'\\)\")",
+      "Bash(node -e ' *)"
     ]
   }
 }

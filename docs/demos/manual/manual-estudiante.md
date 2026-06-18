@@ -8,7 +8,7 @@ Bienvenido a ExamLab. Como estudiante, aquí aprendes con el material de tus cur
 
 Es tu pantalla de inicio: un vistazo rápido a lo que tienes pendiente y lo que viene.
 
-- Revisa los cuatro indicadores de arriba: exámenes, talleres y proyectos pendientes, y conversaciones por responder.
+- Revisa los cuatro indicadores de arriba: Proximos exámenes,Proximos talleres, proximos proyectos, y conversaciones por responder.
 - Usa el **calendario de eventos** (izquierda) y la **agenda** (próximas clases y próximos exámenes, derecha) para no perder fechas.
 - Haz clic en cualquier indicador o evento para ir directo a esa actividad.
 
@@ -124,9 +124,9 @@ Participa en encuestas y votaciones del curso, incluida la reserva de horarios t
 
 ![Encuestas](screenshots/estudiante/12-student_polls.png)
 
-### Mensajes (encabezado superior)
+### Mensajes (Pie de pagina)
 
-La mensajería con tus docentes y compañeros vive en el **ícono de mensajes** del encabezado, junto a la campana de notificaciones. El badge te marca los no leídos.
+La mensajería con tus docentes y compañeros vive en el **ícono de mensajes** del pie de pagina, junto a la campana de notificaciones. El badge te marca los no leídos.
 
 - **Chat 1-a-1** con tus docentes (y, según permisos, con compañeros): puedes escribir, adjuntar archivos y buscar dentro de la conversación.
 - **Avisos del docente**: cuando un profesor envía una difusión a todo el curso, te llega como **notificación**, **correo** y un mensaje en tu conversación con él (así puedes responderle directo si tienes dudas).
