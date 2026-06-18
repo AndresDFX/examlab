@@ -367,6 +367,31 @@ function TeacherPolls() {
         return;
       }
       const courseNameById = new Map(myCourses.map((c) => [c.id, c.name] as const));
+      // Para encuestas MIXTAS: las respuestas viven en poll_question_responses
+      // (no en poll_options), así que el sum(responses_count) sobre opciones
+      // siempre da 0 → la columna "Respuestas" mostraba 0 aunque los alumnos
+      // hubieran contestado (bug reportado). Hacemos una query extra para los
+      // poll_ids mixtos y contamos USUARIOS ÚNICOS que respondieron al menos
+      // una pregunta. Coherente con la semántica de la columna en los otros
+      // tipos (single/slot = 1 voto por alumno).
+      const mixedIds = ((pollRows ?? []) as Array<{ id: string; poll_type: string }>)
+        .filter((r) => r.poll_type === "mixed")
+        .map((r) => r.id);
+      const mixedRespondersByPoll = new Map<string, Set<string>>();
+      if (mixedIds.length > 0) {
+        const { data: pqrRows } = await db
+          .from("poll_question_responses")
+          .select("poll_id, user_id")
+          .in("poll_id", mixedIds);
+        for (const row of (pqrRows ?? []) as Array<{ poll_id: string; user_id: string }>) {
+          let set = mixedRespondersByPoll.get(row.poll_id);
+          if (!set) {
+            set = new Set<string>();
+            mixedRespondersByPoll.set(row.poll_id, set);
+          }
+          set.add(row.user_id);
+        }
+      }
       // El embed nested (poll_courses → courses) confunde la inferencia
       // de TS porque el shape de `linked_courses` aquí (Array<{course_id,
       // courses}>) es distinto al final (Array<{id, name}>). Casteamos
@@ -376,7 +401,10 @@ function TeacherPolls() {
         const options: PollOption[] = ((raw.options ?? []) as PollOption[])
           .slice()
           .sort((a, b) => a.position - b.position);
-        const total = options.reduce((acc, o) => acc + o.responses_count, 0);
+        const isMixed = raw.poll_type === "mixed";
+        const total = isMixed
+          ? (mixedRespondersByPoll.get(raw.id as string)?.size ?? 0)
+          : options.reduce((acc, o) => acc + o.responses_count, 0);
         const linked = (
           (raw.linked_courses ?? []) as Array<{
             course_id: string;
