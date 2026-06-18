@@ -4689,7 +4689,12 @@
     "enterPinHint": "Ingresa el PIN que muestra el docente para unirte a un juego nuevo.",
     "hostAwayTitle": "Esperando al docente…",
     "hostAwayBody": "El docente salió un momento. No te preocupes: sigues en el juego y se reanudará cuando vuelva.",
-    "editLockedLive": "Este Kahoot tiene un juego en vivo. No puedes editar las preguntas hasta terminar la sesión."
+    "editLockedLive": "Este Kahoot tiene un juego en vivo. No puedes editar las preguntas hasta terminar la sesión.",
+    "autoAdvance": "Auto-avanzar",
+    "autoAdvanceHint": "Pasar a la respuesta correcta apenas todos los jugadores hayan respondido (sin esperar al timer).",
+    "autoAdvanceFiring": "Todos respondieron — avanzando…",
+    "allAnswered": "Todos respondieron — puedes avanzar",
+    "lockNow": "Avanzar ahora"
   },
   "questionBank": {
     "type": {
