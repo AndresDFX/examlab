@@ -179,6 +179,34 @@ function StudentPolls() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  // Bandera de "ya cargó al menos una vez". Los refetch posteriores
+  // (poll de 30s, visibilitychange, realtime per-card) NO deben volver a
+  // mostrar el spinner global — eso causaría flicker cada vez. Solo el
+  // primer load ve el spinner; los siguientes son silenciosos.
+  const loadedOnceRef = useRef(false);
+  // Refetch periódico + on visibilitychange. Razón: Supabase Realtime filtra
+  // por RLS y NO emite eventos cuyo NUEVO estado deja la fila invisible
+  // (ej. is_published true→false cuando el docente vuelve la encuesta a
+  // borrador). Sin este poll, la card del alumno se queda viva hasta refresh
+  // manual. Las suscripciones realtime per-card siguen ahí para cambios
+  // VISIBLES (votos, cierre manual) — esto es el backstop para los
+  // invisible-transition. Patrón espejo del de use-kahoot-game.ts.
+  useEffect(() => {
+    const refetch = () => setRetryNonce((n) => n + 1);
+    // Al volver el foco a la pestaña, traer el estado fresco (cubre el
+    // caso "estaba en otra pestaña / dispositivo, vuelvo y veo lo último").
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refetch();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    // Poll de respaldo cada 30s para la pestaña activa — la encuesta no es
+    // tiempo real estricto (no es Kahoot), 30s es imperceptible y barato.
+    const id = setInterval(refetch, 30_000);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(id);
+    };
+  }, []);
   // Filtro compartido entre las dos listas (activas + cerradas). Busca
   // por título / descripción / nombre del curso.
   const [search, setSearch] = useState("");
@@ -190,7 +218,10 @@ function StudentPolls() {
     if (!user) return;
     let cancelled = false;
     void (async () => {
-      setLoading(true);
+      // Solo mostrar el spinner global en la PRIMERA carga. Los refetch
+      // posteriores (interval, visibility, realtime) son silenciosos para
+      // no parpadear el contenido cada 30s.
+      if (!loadedOnceRef.current) setLoading(true);
       setLoadError(null);
       // Cursos en los que estoy matriculado → IDs.
       const { data: enrolls, error: enrollErr } = await db
@@ -342,6 +373,7 @@ function StudentPolls() {
         return b.opens_at.localeCompare(a.opens_at);
       });
       setPolls(list);
+      loadedOnceRef.current = true;
       setLoading(false);
     })();
     return () => {
@@ -464,7 +496,13 @@ function StudentPolls() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setRetryNonce((n) => n + 1)}
+            // Click manual: forzamos `loading=true` para mostrar el spinner
+            // del botón. El poll periódico (cada 30s) NO toca `loading` para
+            // que no parpadee el contenido — solo el manual da feedback.
+            onClick={() => {
+              setLoading(true);
+              setRetryNonce((n) => n + 1);
+            }}
             disabled={loading}
           >
             <RefreshCw className="h-4 w-4 mr-1" />
