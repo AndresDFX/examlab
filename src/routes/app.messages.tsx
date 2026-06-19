@@ -229,7 +229,11 @@ function MessagesPage() {
   const isStaff = isStaffActive(activeRole, staffRoles);
   const [broadcastDialogOpen, setBroadcastDialogOpen] = useState(false);
   const [broadcastCourses, setBroadcastCourses] = useState<
-    Array<{ id: string; name: string; student_count?: number }>
+    // `recipient_count` excluye al creador (autor de la difusión) — la
+    // dispatch hace lo mismo (`AND e.user_id <> r.creator_id`). Si el
+    // único matriculado es el propio docente, este número es 0 y la
+    // difusión no va a llegar a nadie aunque "Programar" digiera success.
+    Array<{ id: string; name: string; recipient_count?: number }>
   >([]);
   // Multi-curso: el docente/admin puede difundir a varios cursos a la vez.
   // Los alumnos matriculados en >1 curso seleccionado reciben UNA sola
@@ -499,7 +503,10 @@ function MessagesPage() {
       const { data: coursesData } = await coursesQuery;
       const courses = (coursesData ?? []) as Array<{ id: string; name: string }>;
 
-      // 2) Conteo de estudiantes por curso (1 query agregada usando count).
+      // 2) Conteo de DESTINATARIOS reales por curso = matriculados EXCEPTO
+      // el creador. Sin el `.neq` el UI mostraba "1 est." en un curso donde
+      // el único matriculado era el propio docente — la difusión se "enviaba"
+      // pero a 0 destinatarios (la dispatch SQL excluye al creator).
       // Hacemos N queries individuales — N suele ser <20 cursos, vale la
       // pena por simplicidad vs. una RPC dedicada.
       const enriched = await Promise.all(
@@ -507,8 +514,9 @@ function MessagesPage() {
           const { count } = await db
             .from("course_enrollments")
             .select("user_id", { count: "exact", head: true })
-            .eq("course_id", c.id);
-          return { ...c, student_count: count ?? 0 };
+            .eq("course_id", c.id)
+            .neq("user_id", myUserId);
+          return { ...c, recipient_count: count ?? 0 };
         }),
       );
       setBroadcastCourses(enriched);
@@ -2527,10 +2535,25 @@ function MessagesPage() {
                         disabled={broadcastSending}
                       />
                       <span className="flex-1 truncate">{c.name}</span>
-                      {typeof c.student_count === "number" && (
-                        <span className="text-[11px] text-muted-foreground shrink-0">
-                          {t("hc_routesAppMessages.studentCountShort", {
-                            count: c.student_count,
+                      {typeof c.recipient_count === "number" && (
+                        <span
+                          className={`text-[11px] shrink-0 ${
+                            c.recipient_count === 0
+                              ? "text-amber-600 dark:text-amber-400"
+                              : "text-muted-foreground"
+                          }`}
+                          title={
+                            c.recipient_count === 0
+                              ? t("hc_routesAppMessages.recipientZeroHint", {
+                                  defaultValue:
+                                    "No hay destinatarios reales (solo vos estás matriculado).",
+                                })
+                              : undefined
+                          }
+                        >
+                          {t("hc_routesAppMessages.recipientCountShort", {
+                            count: c.recipient_count,
+                            defaultValue: "{{count}} dest.",
                           })}
                         </span>
                       )}
@@ -2545,6 +2568,25 @@ function MessagesPage() {
                   })}
                 </p>
               )}
+              {/* Warning explícito: total de destinatarios = 0 (sum-without-
+                  dedup, suficiente para detectar el caso "no llega a nadie").
+                  Aparece cuando hay cursos seleccionados pero ninguno tiene
+                  destinatarios reales. */}
+              {broadcastCourseIds.length > 0 &&
+                (() => {
+                  const totalRecipients = broadcastCourses
+                    .filter((c) => broadcastCourseIds.includes(c.id))
+                    .reduce((acc, c) => acc + (c.recipient_count ?? 0), 0);
+                  if (totalRecipients > 0) return null;
+                  return (
+                    <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 px-3 py-2 text-[11px] text-amber-900 dark:text-amber-100">
+                      {t("hc_routesAppMessages.broadcastNoRecipients", {
+                        defaultValue:
+                          "Esta difusión no tiene destinatarios: los cursos seleccionados no tienen alumnos matriculados (excluyendo a vos como autor).",
+                      })}
+                    </div>
+                  );
+                })()}
             </div>
 
             <div>
@@ -2612,6 +2654,13 @@ function MessagesPage() {
             </div>
           </div>
 
+          {/* Total real de destinatarios entre los cursos seleccionados — se
+              usa para deshabilitar el botón "Programar"/"Enviar" cuando es
+              cero (sino la difusión se "ejecuta" silenciosa sin notificar a
+              nadie, porque la dispatch SQL excluye al creator). Sum-without-
+              dedup: si un alumno está en 2 cursos seleccionados lo cuenta 2
+              veces. No importa para el gate (0 sigue siendo 0); el dispatch
+              real dedup por user_id. */}
           <div className="flex justify-end gap-2 pt-2">
             <Button
               variant="ghost"
@@ -2626,7 +2675,10 @@ function MessagesPage() {
                 broadcastSending ||
                 broadcastCourseIds.length === 0 ||
                 !broadcastSubject.trim() ||
-                !broadcastBody.trim()
+                !broadcastBody.trim() ||
+                broadcastCourses
+                  .filter((c) => broadcastCourseIds.includes(c.id))
+                  .reduce((acc, c) => acc + (c.recipient_count ?? 0), 0) === 0
               }
             >
               {broadcastSending ? (
