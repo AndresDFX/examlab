@@ -41,7 +41,9 @@
       "Bash(bunx tsc *)",
       "Bash(echo \"---exit:$?---\")",
       "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('src/i18n/locales/es.json','utf8'\\)\\); JSON.parse\\(require\\('fs'\\).readFileSync\\('src/i18n/locales/en.json','utf8'\\)\\); console.log\\('OK ambos JSON válidos'\\)\")",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(wc -l src/modules/polls/kahoot.ts src/modules/polls/KahootJoinCard.tsx src/modules/polls/KahootQuestionsEditor.tsx src/modules/polls/KahootShapeIcon.tsx src/modules/polls/GenerateKahootFromContentDialog.tsx src/modules/polls/use-kahoot-course-leaderboard.ts src/modules/polls/use-kahoot-game.ts src/routes/app.student.kahoot.\\\\$gameId.tsx src/routes/app.teacher.kahoot.\\\\$gameId.tsx 2>&1)",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('src/i18n/locales/es.json','utf8'\\)\\); console.log\\('es.json OK'\\)\")"
     ]
   }
 }
