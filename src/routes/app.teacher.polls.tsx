@@ -305,9 +305,13 @@ function TeacherPolls() {
           (tenantRows ?? []) as Array<{ id: string; slug: string; name: string }>,
         );
       } else {
+        // Embed PostgREST: traemos `deleted_at` del curso embebido y lo
+        // descartamos en JS. PostgREST no permite filtrar `deleted_at IS NULL`
+        // sobre embeds anidados directamente, así que el filtro va en código.
+        // Patrón documentado en CLAUDE.md (regla universal de papelera).
         const { data: courseRows, error: courseErr } = await db
           .from("course_teachers")
-          .select("course_id, courses(id, name)")
+          .select("course_id, courses(id, name, deleted_at)")
           .eq("user_id", user.id);
         if (cancelled) return;
         if (courseErr) {
@@ -316,10 +320,17 @@ function TeacherPolls() {
           return;
         }
         myCourses = (courseRows ?? [])
-          .map((r: { courses: { id: string; name: string } | null }) => r.courses)
-          .filter((c: { id: string; name: string } | null): c is { id: string; name: string } =>
-            Boolean(c),
-          );
+          .map(
+            (r: { courses: { id: string; name: string; deleted_at: string | null } | null }) =>
+              r.courses,
+          )
+          .filter(
+            (
+              c: { id: string; name: string; deleted_at: string | null } | null,
+            ): c is { id: string; name: string; deleted_at: string | null } =>
+              Boolean(c) && c!.deleted_at === null,
+          )
+          .map((c) => ({ id: c.id, name: c.name }));
       }
       setCourses(myCourses);
       // Polls de esos cursos + sus opciones. RLS ya filtra a los cursos
