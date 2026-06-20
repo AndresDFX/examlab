@@ -158,7 +158,7 @@ function KahootHost() {
       ? secondsLeft(state.game.question_started_at, state.question.time_limit_seconds, nowMs)
       : null;
   // "¡Prepárate!": question_started_at se fija unos segundos en el futuro
-  // (mig 20260986000000). Mientras tanto, splash de cuenta regresiva.
+  // (mig 20260989000000). Mientras tanto, splash de cuenta regresiva.
   const getReady =
     state?.question && state.game.status === "question"
       ? getReadySecondsLeft(state.game.question_started_at, nowMs)
@@ -357,7 +357,7 @@ function KahootHost() {
               {question.options.map((o) => {
                 const shape = KAHOOT_SHAPES[o.position] ?? KAHOOT_SHAPES[0];
                 const dim = game.status === "reveal" && o.is_correct === false;
-                // Quiénes eligieron esta opción (host-only, mig 20260986000000).
+                // Quiénes eligieron esta opción (host-only, mig 20260989000000).
                 const responders = responders_by_option?.[o.id] ?? [];
                 return (
                   <div

@@ -137,7 +137,7 @@ export function secondsLeft(
 
 /** Cuenta regresiva de "¡Prepárate!" antes de que la pregunta se abra.
  *  `kahoot_advance_game` fija question_started_at unos segundos EN EL FUTURO
- *  (mig 20260986000000): mientras `now < started`, esto devuelve los segundos
+ *  (mig 20260989000000): mientras `now < started`, esto devuelve los segundos
  *  que faltan (>0) para mostrar el splash; 0 = la pregunta ya abrió. null si
  *  no hay pregunta corriendo. El cronómetro real (secondsLeft) no se ve
  *  afectado: devuelve el límite completo durante este lapso. */

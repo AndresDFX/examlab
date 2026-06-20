@@ -103,7 +103,7 @@ function KahootPlayer() {
       ? secondsLeft(game.question_started_at, question.time_limit_seconds, nowMs)
       : null;
   // Cuenta regresiva "¡Prepárate!": question_started_at se fija unos segundos
-  // en el futuro (mig 20260986000000); mientras tanto NO mostramos las opciones,
+  // en el futuro (mig 20260989000000); mientras tanto NO mostramos las opciones,
   // solo el splash. El cronómetro real (left) ya devuelve el límite completo.
   const getReady =
     question && game.status === "question"
