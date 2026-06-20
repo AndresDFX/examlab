@@ -22,7 +22,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useKahootGame } from "@/modules/polls/use-kahoot-game";
-import { KAHOOT_SHAPES, secondsLeft, buildKahootJoinUrl } from "@/modules/polls/kahoot";
+import { KAHOOT_SHAPES, secondsLeft, getReadySecondsLeft, buildKahootJoinUrl } from "@/modules/polls/kahoot";
 import { KahootShapeIcon } from "@/modules/polls/KahootShapeIcon";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -36,6 +36,8 @@ import {
   Users,
   Crown,
   Zap,
+  Rocket,
+  CheckCircle2,
 } from "lucide-react";
 
 // Clave de localStorage para la preferencia "auto-avanzar cuando todos
@@ -155,6 +157,13 @@ function KahootHost() {
     state?.question && state.game.status === "question"
       ? secondsLeft(state.game.question_started_at, state.question.time_limit_seconds, nowMs)
       : null;
+  // "¡Prepárate!": question_started_at se fija unos segundos en el futuro
+  // (mig 20260986000000). Mientras tanto, splash de cuenta regresiva.
+  const getReady =
+    state?.question && state.game.status === "question"
+      ? getReadySecondsLeft(state.game.question_started_at, nowMs)
+      : null;
+  const inGetReady = getReady !== null && getReady > 0;
 
   // Auto-bloqueo cuando se acaba el tiempo (se siente como Kahoot real).
   useEffect(() => {
@@ -214,7 +223,7 @@ function KahootHost() {
     );
   }
 
-  const { game, question, players, answer_count } = state;
+  const { game, question, players, answer_count, responders_by_option } = state;
   const ranked = [...players].sort((a, b) => b.score - a.score);
   // "Todos respondieron" — habilita el highlight del botón Lock y dispara
   // el auto-advance si el toggle está ON. Requiere al menos un jugador.
@@ -302,14 +311,39 @@ function KahootHost() {
           </div>
         )}
 
+        {/* ── ¡PREPÁRATE! (cuenta regresiva antes de abrir la pregunta) ── */}
+        {game.status === "question" && question && inGetReady && (
+          <div
+            key={`ready-${question.id}`}
+            className="w-full max-w-3xl text-center space-y-6 animate-in fade-in zoom-in-95 duration-300"
+          >
+            <Rocket className="h-16 w-16 mx-auto text-primary animate-bounce" />
+            <p className="text-lg uppercase tracking-widest text-muted-foreground">
+              {t("kahoot.questionProgress", { n: game.current_index + 1, total: game.total_questions })}
+            </p>
+            <h1 className="text-3xl sm:text-5xl font-black">
+              {t("kahoot.getReady", { defaultValue: "¡Prepárate!" })}
+            </h1>
+            <p className="text-xl sm:text-2xl">{question.text}</p>
+            <div
+              key={`ready-n-${getReady}`}
+              className="mx-auto flex h-28 w-28 items-center justify-center rounded-full bg-primary text-primary-foreground text-6xl font-black tabular-nums shadow-xl animate-in zoom-in-50 duration-300"
+            >
+              {getReady}
+            </div>
+          </div>
+        )}
+
         {/* ── PREGUNTA (host ve la correcta) ── */}
-        {(game.status === "question" || game.status === "reveal") && question && (
-          <div className="w-full max-w-5xl space-y-6">
+        {(game.status === "question" || game.status === "reveal") && question && !inGetReady && (
+          <div className="w-full max-w-5xl space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="text-center space-y-3">
               <h1 className="text-2xl sm:text-4xl font-bold">{question.text}</h1>
               {game.status === "question" && (
                 <div className="flex items-center justify-center gap-4">
-                  <div className="h-16 w-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-black tabular-nums">
+                  <div
+                    className={`h-16 w-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-black tabular-nums ${left !== null && left <= 5 ? "animate-pulse ring-4 ring-primary/40" : ""}`}
+                  >
                     {left ?? "—"}
                   </div>
                   <Badge variant="outline" className="gap-1 text-base py-1">
@@ -323,15 +357,37 @@ function KahootHost() {
               {question.options.map((o) => {
                 const shape = KAHOOT_SHAPES[o.position] ?? KAHOOT_SHAPES[0];
                 const dim = game.status === "reveal" && o.is_correct === false;
+                // Quiénes eligieron esta opción (host-only, mig 20260986000000).
+                const responders = responders_by_option?.[o.id] ?? [];
                 return (
                   <div
                     key={o.id}
-                    className={`flex items-center gap-3 rounded-xl ${shape.bg} text-white px-4 py-5 text-lg font-semibold shadow ${dim ? "opacity-40" : ""}`}
+                    className={`flex flex-col gap-2 rounded-xl ${shape.bg} text-white px-4 py-5 shadow transition-opacity animate-in fade-in zoom-in-95 duration-300 ${dim ? "opacity-40" : ""}`}
                   >
-                    <KahootShapeIcon icon={shape.icon} className="h-7 w-7 shrink-0" />
-                    <span className="flex-1">{o.label}</span>
-                    {game.status === "reveal" && o.is_correct === true && (
-                      <Crown className="h-6 w-6 shrink-0" />
+                    <div className="flex items-center gap-3 text-lg font-semibold">
+                      <KahootShapeIcon icon={shape.icon} className="h-7 w-7 shrink-0" />
+                      <span className="flex-1">{o.label}</span>
+                      <span className="tabular-nums text-base opacity-90">{responders.length}</span>
+                      {game.status === "reveal" && o.is_correct === true && (
+                        <Crown className="h-6 w-6 shrink-0" />
+                      )}
+                    </div>
+                    {/* Quiénes respondieron esta opción — solo lo ve el host. */}
+                    {responders.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {responders.map((r) => (
+                          <span
+                            key={r.player_id}
+                            className="inline-flex max-w-[160px] items-center gap-1 truncate rounded bg-white/20 px-1.5 py-0.5 text-[11px] font-medium"
+                            title={r.nickname}
+                          >
+                            {game.status === "reveal" && r.is_correct && (
+                              <CheckCircle2 className="h-3 w-3 shrink-0" />
+                            )}
+                            <span className="truncate">{r.nickname}</span>
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
                 );

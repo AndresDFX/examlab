@@ -18,9 +18,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useKahootGame } from "@/modules/polls/use-kahoot-game";
-import { KAHOOT_SHAPES, secondsLeft } from "@/modules/polls/kahoot";
+import { KAHOOT_SHAPES, secondsLeft, getReadySecondsLeft } from "@/modules/polls/kahoot";
 import { KahootShapeIcon } from "@/modules/polls/KahootShapeIcon";
-import { CheckCircle2, XCircle, Trophy, Crown, Hourglass } from "lucide-react";
+import { CheckCircle2, XCircle, Trophy, Crown, Hourglass, Rocket } from "lucide-react";
 
 export const Route = createFileRoute("/app/student/kahoot/$gameId")({ component: KahootPlayer });
 
@@ -102,6 +102,14 @@ function KahootPlayer() {
     question && game.status === "question"
       ? secondsLeft(game.question_started_at, question.time_limit_seconds, nowMs)
       : null;
+  // Cuenta regresiva "¡Prepárate!": question_started_at se fija unos segundos
+  // en el futuro (mig 20260986000000); mientras tanto NO mostramos las opciones,
+  // solo el splash. El cronómetro real (left) ya devuelve el límite completo.
+  const getReady =
+    question && game.status === "question"
+      ? getReadySecondsLeft(game.question_started_at, nowMs)
+      : null;
+  const inGetReady = getReady !== null && getReady > 0;
   // Docente ausente (heartbeat stale) y el juego no terminó → "Esperando al
   // docente…" en vez de la fase activa. NO lo sacamos de la sesión: cuando el
   // docente vuelve, host_present pasa a true y se reanuda la fase normal.
@@ -150,12 +158,32 @@ function KahootPlayer() {
         </Card>
       )}
 
+      {/* ── ¡PREPÁRATE! (cuenta regresiva antes de abrir la pregunta) ── */}
+      {!hostAway && game.status === "question" && question && inGetReady && (
+        <div
+          key={`ready-${question.id}`}
+          className="w-full max-w-md text-center space-y-5 animate-in fade-in zoom-in-95 duration-300"
+        >
+          <Rocket className="h-12 w-12 mx-auto text-primary animate-bounce" />
+          <h1 className="text-2xl font-black">{t("kahoot.getReady", { defaultValue: "¡Prepárate!" })}</h1>
+          <p className="text-base text-muted-foreground">{question.text}</p>
+          <div
+            key={`ready-n-${getReady}`}
+            className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-primary text-primary-foreground text-5xl font-black tabular-nums shadow-lg animate-in zoom-in-50 duration-300"
+          >
+            {getReady}
+          </div>
+        </div>
+      )}
+
       {/* ── PREGUNTA ── */}
-      {!hostAway && game.status === "question" && question && (
-        <div className="w-full max-w-xl space-y-4">
+      {!hostAway && game.status === "question" && question && !inGetReady && (
+        <div className="w-full max-w-xl space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="text-center space-y-2">
             <h1 className="text-xl sm:text-2xl font-bold">{question.text}</h1>
-            <div className="h-12 w-12 mx-auto rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xl font-black tabular-nums">
+            <div
+              className={`h-12 w-12 mx-auto rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xl font-black tabular-nums ${left !== null && left <= 5 ? "animate-pulse ring-4 ring-primary/40" : ""}`}
+            >
               {left ?? "—"}
             </div>
           </div>
@@ -207,8 +235,8 @@ function KahootPlayer() {
                       type="button"
                       disabled={submitting}
                       onClick={onPick}
-                      className={`flex items-center gap-3 rounded-xl ${shape.bg} text-white px-4 py-6 text-lg font-semibold shadow active:scale-[0.98] transition-transform disabled:opacity-60 ${
-                        isSel ? "ring-4 ring-white/80" : ""
+                      className={`flex items-center gap-3 rounded-xl ${shape.bg} text-white px-4 py-6 text-lg font-semibold shadow transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 animate-in fade-in zoom-in-95 duration-300 ${
+                        isSel ? "ring-4 ring-white/80 scale-[1.02]" : ""
                       }`}
                     >
                       {submitting && isSel && !question.multi_select ? (
@@ -247,7 +275,7 @@ function KahootPlayer() {
 
       {/* ── REVEAL (resultado de mi respuesta) ── */}
       {!hostAway && game.status === "reveal" && me && (
-        <Card className="w-full max-w-md">
+        <Card className="w-full max-w-md animate-in fade-in zoom-in-95 duration-300">
           <CardContent className="p-4 sm:p-8 text-center space-y-3">
             {me.my_is_correct === true ? (
               <>
@@ -282,7 +310,7 @@ function KahootPlayer() {
 
       {/* ── LEADERBOARD ── */}
       {!hostAway && game.status === "leaderboard" && me && (
-        <Card className="w-full max-w-md">
+        <Card className="w-full max-w-md animate-in fade-in zoom-in-95 duration-300">
           <CardContent className="p-4 sm:p-8 text-center space-y-3">
             <Trophy className="h-12 w-12 mx-auto text-amber-500" />
             <p className="text-sm text-muted-foreground">{t("kahoot.yourPosition")}</p>
@@ -294,7 +322,7 @@ function KahootPlayer() {
 
       {/* ── PODIO / FIN ── */}
       {(game.status === "podium" || game.status === "ended") && (
-        <Card className="w-full max-w-md">
+        <Card className="w-full max-w-md animate-in fade-in zoom-in-95 duration-500">
           <CardContent className="p-4 sm:p-8 text-center space-y-3">
             {me && me.rank <= 3 ? (
               <Crown className="h-14 w-14 mx-auto text-amber-500" />

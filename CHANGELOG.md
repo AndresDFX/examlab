@@ -43,6 +43,16 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## Historial
 
+### 2026-06-19
+
+**Kahoot en vivo — experiencia mejorada (5 frentes).**
+- **Notificación global persistente + "login directo"** ([KahootLiveBanner](src/modules/polls/KahootLiveBanner.tsx), montado en [AppLayout](src/shared/components/AppLayout.tsx)): cuando hay un Kahoot en vivo en un curso del alumno, una barra animada arriba (en CUALQUIER pantalla) lo invita a entrar con **un click** — su cuenta institucional ES la credencial (matrícula), sin teclear PIN. Nueva RPC `kahoot_join_game_by_id` (mismos guards que `kahoot_join_game`: tenant, matrícula, host presente + lobby para nuevos, papelera, ended) — el PIN sigue para el QR / ingreso manual. La barra se auto-oculta dentro de la vista del juego y no aparece durante un examen.
+- **Cuenta regresiva "¡Prepárate!" + más animaciones** (Parts 3): `kahoot_advance_game` fija `question_started_at` 3s en el FUTURO; mientras tanto host y alumno ven un splash animado de cuenta regresiva (sin opciones). El cronómetro y la ventana de respuesta del servidor arrancan recién en ese instante, así que la espera NO le come tiempo a nadie (`secondsLeft` devuelve el límite completo; el server computa `elapsed=GREATEST(0,…)`). Transiciones de fase con `animate-in` (fade/zoom/slide) + pulso del cronómetro en los últimos 5s. Helper `getReadySecondsLeft` en [kahoot.ts](src/modules/polls/kahoot.ts).
+- **Tiempo por defecto 20s** (Part 4): `kahoot_questions.time_limit_seconds` DEFAULT 10→20 + `blankQuestion()` del editor a 20.
+- **Por opción, quién respondió** (Part 5): `kahoot_get_state` agrega `responders_by_option` (SOLO host; se atribuye por `option_ids`, cubre single y multi) → el host ve bajo cada opción los nombres de quienes la eligieron, en vivo y al revelar. Los alumnos NO lo reciben (no se filtran respuestas ajenas).
+- Migración [20260986000000_kahoot_live_experience.sql](supabase/migrations/20260986000000_kahoot_live_experience.sql) (default 20s + lead de inicio en `kahoot_advance_game` + `kahoot_join_game_by_id` + `responders_by_option` en `kahoot_get_state`).
+- Fix colateral: anotación de tipo en el `.map` del filtro de cursos en papelera de [app.teacher.polls.tsx](src/routes/app.teacher.polls.tsx) (implicit-any que rompía `tsc`, introducido en `6a1977b6`).
+
 ### 2026-06-18
 
 **Encuestas MIXTAS — nuevo `poll_type='mixed'` con mix de preguntas (abiertas + cerradas).**

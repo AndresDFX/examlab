@@ -65,6 +65,13 @@ export interface KahootStatePlayer {
   user_id: string;
 }
 
+/** Quién respondió cada opción (SOLO host). Mapa option_id → respondedores. */
+export interface KahootResponder {
+  player_id: string;
+  nickname: string;
+  is_correct: boolean | null;
+}
+
 export interface KahootStateMe {
   player_id: string;
   nickname: string;
@@ -98,6 +105,8 @@ export interface KahootState {
   answer_count: number;
   players: KahootStatePlayer[];
   me: KahootStateMe | null;
+  /** SOLO host: por cada option_id, quiénes la respondieron. null para alumnos. */
+  responders_by_option: Record<string, KahootResponder[]> | null;
 }
 
 /** Construye la URL del QR para unirse a un Kahoot (deep-link a la app del
@@ -124,4 +133,17 @@ export function secondsLeft(
   if (Number.isNaN(started)) return null;
   const elapsed = (nowMs - started) / 1000;
   return Math.max(0, Math.min(timeLimitSeconds, Math.ceil(timeLimitSeconds - elapsed)));
+}
+
+/** Cuenta regresiva de "¡Prepárate!" antes de que la pregunta se abra.
+ *  `kahoot_advance_game` fija question_started_at unos segundos EN EL FUTURO
+ *  (mig 20260986000000): mientras `now < started`, esto devuelve los segundos
+ *  que faltan (>0) para mostrar el splash; 0 = la pregunta ya abrió. null si
+ *  no hay pregunta corriendo. El cronómetro real (secondsLeft) no se ve
+ *  afectado: devuelve el límite completo durante este lapso. */
+export function getReadySecondsLeft(startedAtIso: string | null, nowMs: number): number | null {
+  if (!startedAtIso) return null;
+  const started = new Date(startedAtIso).getTime();
+  if (Number.isNaN(started)) return null;
+  return Math.max(0, Math.ceil((started - nowMs) / 1000));
 }

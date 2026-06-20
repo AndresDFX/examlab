@@ -49,6 +49,7 @@ import { setActiveRoleSignal } from "@/modules/tenants/active-role-signal";
 import { ImpersonationBanner } from "@/modules/admin/ImpersonationBanner";
 import { IMPERSONATION_TRANSITION_FLAG } from "@/modules/admin/impersonation";
 import { TenantOverrideBanner } from "@/modules/tenants/TenantOverrideBanner";
+import { KahootLiveBanner } from "@/modules/polls/KahootLiveBanner";
 import { OnboardingTour } from "@/modules/onboarding/OnboardingTour";
 import { useOnboarding } from "@/modules/onboarding/use-onboarding";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
@@ -1624,6 +1625,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             datos están filtrados a ese tenant y le da el botón "Salir
             del modo institución" para volver al estado cross-tenant. */}
         <TenantOverrideBanner />
+        {/* Notificación global de Kahoot en vivo: para el alumno, persistente
+            arriba en cualquier pantalla, con entrada de 1 click ("login
+            directo"). Se auto-oculta dentro de la vista del juego. No durante
+            un examen. El propio componente decide si hay algo que mostrar. */}
+        {activeRole === "Estudiante" && !isTakingExam && <KahootLiveBanner />}
         {/* Banner de solo-lectura para estudiantes graduados: pueden ver
             (certificados, notas) pero no crear entregas. No se muestra
             durante un examen. El bloqueo de escritura real lo impone RLS. */}

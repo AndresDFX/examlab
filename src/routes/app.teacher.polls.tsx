@@ -330,7 +330,7 @@ function TeacherPolls() {
             ): c is { id: string; name: string; deleted_at: string | null } =>
               Boolean(c) && c!.deleted_at === null,
           )
-          .map((c) => ({ id: c.id, name: c.name }));
+          .map((c: { id: string; name: string }) => ({ id: c.id, name: c.name }));
       }
       setCourses(myCourses);
       // Polls de esos cursos + sus opciones. RLS ya filtra a los cursos
