@@ -12,6 +12,7 @@ import {
   LIBRARY_CATEGORIES,
   instantiateLibraryElements,
   shortLibraryItemName,
+  libraryItemPreview,
 } from "./excalidraw-libraries";
 
 describe("DEFAULT_LIBRARY_ITEMS", () => {
@@ -126,17 +127,24 @@ describe("LIBRARY_CATEGORIES", () => {
     expect(new Set(categorizedIds)).toEqual(allIds);
   });
 
-  it("ninguna categoría está vacía y todas tienen etiqueta", () => {
+  it("ninguna categoría está vacía y todas tienen etiqueta, descripción e ícono", () => {
     for (const cat of LIBRARY_CATEGORIES) {
       expect(cat.items.length).toBeGreaterThan(0);
       expect(typeof cat.label).toBe("string");
       expect(cat.label.length).toBeGreaterThan(0);
+      // La descripción "para qué sirve" y el ícono son la clave de la
+      // claridad estilo draw.io — defendemos que no se omitan.
+      expect(typeof cat.description).toBe("string");
+      expect(cat.description.length).toBeGreaterThan(0);
+      expect(typeof cat.icon).toBe("string");
+      expect(cat.icon.length).toBeGreaterThan(0);
     }
   });
 
-  it("POO/UML agrupa la clase UML junto a las figuras POO", () => {
-    const poo = LIBRARY_CATEGORIES.find((c) => c.key === "poo");
-    const ids = poo!.items.map((i) => i.id);
+  it("el Diagrama de clases (UML) va PRIMERO y agrupa clase UML + figuras POO", () => {
+    expect(LIBRARY_CATEGORIES[0].key).toBe("clases");
+    expect(LIBRARY_CATEGORIES[0].label.toLowerCase()).toContain("clase");
+    const ids = LIBRARY_CATEGORIES[0].items.map((i) => i.id);
     expect(ids).toContain("lib-uml-class");
     expect(ids).toContain("lib-poo-interface");
   });
@@ -199,5 +207,83 @@ describe("instantiateLibraryElements", () => {
 
   it("array vacío → []", () => {
     expect(instantiateLibraryElements([], 0, 0)).toEqual([]);
+  });
+});
+
+describe("libraryItemPreview", () => {
+  it("array vacío → sin shapes pero con dimensiones de caja", () => {
+    const p = libraryItemPreview([], 84, 56);
+    expect(p.shapes).toEqual([]);
+    expect(p.width).toBe(84);
+    expect(p.height).toBe(56);
+  });
+
+  it("un rectángulo se escala DENTRO de la caja (con padding)", () => {
+    const p = libraryItemPreview(
+      [{ type: "rectangle", x: 0, y: 0, width: 200, height: 80, backgroundColor: "#e7f5ff" }],
+      84,
+      56,
+      5,
+    );
+    expect(p.shapes).toHaveLength(1);
+    const s = p.shapes[0];
+    expect(s.kind).toBe("rect");
+    if (s.kind === "rect") {
+      expect(s.x).toBeGreaterThanOrEqual(5 - 0.01);
+      expect(s.y).toBeGreaterThanOrEqual(5 - 0.01);
+      expect(s.x + s.w).toBeLessThanOrEqual(84 - 5 + 0.01);
+      expect(s.y + s.h).toBeLessThanOrEqual(56 - 5 + 0.01);
+      expect(s.fill).toBe("#e7f5ff");
+    }
+  });
+
+  it("preserva el aspecto (escala uniforme en x e y)", () => {
+    // Rect 200x80 (ratio 2.5). Tras escalar debe mantener el ratio ~2.5.
+    const p = libraryItemPreview(
+      [{ type: "rectangle", x: 0, y: 0, width: 200, height: 80 }],
+      84,
+      56,
+      5,
+    );
+    const s = p.shapes[0];
+    if (s.kind === "rect") {
+      expect(s.w / s.h).toBeCloseTo(2.5, 1);
+    }
+  });
+
+  it("mapea cada tipo de elemento a su primitiva SVG", () => {
+    const p = libraryItemPreview([
+      { type: "rectangle", x: 0, y: 0, width: 50, height: 50 },
+      { type: "ellipse", x: 60, y: 0, width: 40, height: 40 },
+      { type: "diamond", x: 0, y: 60, width: 50, height: 50 },
+      { type: "arrow", x: 0, y: 0, width: 100, height: 0, points: [[0, 0], [100, 0]] },
+      { type: "text", x: 0, y: 0, width: 50, height: 20, text: "Hola\nmundo", fontSize: 16 },
+    ]);
+    const kinds = p.shapes.map((s) => s.kind);
+    expect(kinds).toContain("rect");
+    expect(kinds).toContain("ellipse");
+    expect(kinds).toContain("diamond");
+    expect(kinds).toContain("polyline");
+    expect(kinds).toContain("text");
+    const arrow = p.shapes.find((s) => s.kind === "polyline");
+    if (arrow && arrow.kind === "polyline") expect(arrow.arrow).toBe(true);
+    // El texto solo conserva la PRIMERA línea (legibilidad en miniatura).
+    const text = p.shapes.find((s) => s.kind === "text");
+    if (text && text.kind === "text") expect(text.text).toBe("Hola");
+  });
+
+  it("transparent → fill 'none' (no pinta fondo)", () => {
+    const p = libraryItemPreview([
+      { type: "rectangle", x: 0, y: 0, width: 50, height: 50, backgroundColor: "transparent" },
+    ]);
+    const s = p.shapes[0];
+    if (s.kind === "rect") expect(s.fill).toBe("none");
+  });
+
+  it("genera miniatura no vacía para TODOS los items reales del set", () => {
+    for (const item of DEFAULT_LIBRARY_ITEMS) {
+      const p = libraryItemPreview(item.elements as Array<Record<string, unknown>>);
+      expect(p.shapes.length).toBeGreaterThan(0);
+    }
   });
 });

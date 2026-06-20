@@ -33,7 +33,21 @@
  */
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { ComponentType } from "react";
-import { Eye, Maximize2, Minimize2, Users, Shapes, X } from "lucide-react";
+import {
+  Eye,
+  Maximize2,
+  Minimize2,
+  Users,
+  Shapes,
+  X,
+  ChevronDown,
+  ChevronRight,
+  Boxes,
+  Workflow,
+  Database,
+  Binary,
+  Cloud,
+} from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
 import { useTheme } from "@/hooks/use-theme";
@@ -45,7 +59,112 @@ import {
   LIBRARY_CATEGORIES,
   instantiateLibraryElements,
   shortLibraryItemName,
+  libraryItemPreview,
 } from "@/modules/whiteboard/excalidraw-libraries";
+
+// Ícono lucide por categoría (la lib expone el NOMBRE; acá lo resolvemos para
+// no acoplar el módulo puro a componentes React).
+const CATEGORY_ICONS: Record<string, ComponentType<{ className?: string }>> = {
+  Boxes,
+  Workflow,
+  Database,
+  Binary,
+  Cloud,
+};
+
+/** Miniatura SVG de una figura de la paleta (estilo draw.io: se VE qué es). */
+function ShapePreview({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  item,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  item: Record<string, any>;
+}) {
+  const preview = libraryItemPreview(item.elements ?? []);
+  const markerId = `wb-arrow-${item.id}`;
+  return (
+    <svg
+      viewBox={`0 0 ${preview.width} ${preview.height}`}
+      className="h-12 w-full text-foreground"
+      role="img"
+      aria-hidden="true"
+    >
+      <defs>
+        <marker
+          id={markerId}
+          markerWidth="6"
+          markerHeight="6"
+          refX="5"
+          refY="3"
+          orient="auto"
+        >
+          <path d="M0,0 L6,3 L0,6 Z" fill="currentColor" />
+        </marker>
+      </defs>
+      {preview.shapes.map((s, i) => {
+        if (s.kind === "rect") {
+          return (
+            <rect
+              key={i}
+              x={s.x}
+              y={s.y}
+              width={s.w}
+              height={s.h}
+              rx={s.rounded ? 3 : 0}
+              fill={s.fill}
+              stroke="currentColor"
+              strokeWidth={1}
+              strokeDasharray={s.dashed ? "3 2" : undefined}
+            />
+          );
+        }
+        if (s.kind === "ellipse") {
+          return (
+            <ellipse
+              key={i}
+              cx={s.cx}
+              cy={s.cy}
+              rx={s.rx}
+              ry={s.ry}
+              fill={s.fill}
+              stroke="currentColor"
+              strokeWidth={1}
+            />
+          );
+        }
+        if (s.kind === "diamond") {
+          return <polygon key={i} points={s.points} fill={s.fill} stroke="currentColor" strokeWidth={1} />;
+        }
+        if (s.kind === "polyline") {
+          return (
+            <polyline
+              key={i}
+              points={s.points}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1}
+              strokeDasharray={s.dashed ? "3 2" : undefined}
+              markerEnd={s.arrow ? `url(#${markerId})` : undefined}
+            />
+          );
+        }
+        return (
+          <text
+            key={i}
+            x={s.x}
+            y={s.y}
+            fontSize={s.fontSize}
+            fill="currentColor"
+            textAnchor="middle"
+            dominantBaseline="middle"
+          >
+            {s.text}
+          </text>
+        );
+      })}
+    </svg>
+  );
+}
 
 /** Forma del JSON que serializamos. Es un subset del formato
  *  Excalidraw — guardamos `elements` (array de figuras) y
@@ -189,6 +308,20 @@ export function WhiteboardEditor({
   // pero en grilla plana sin secciones; este panel agrupa por tema
   // (Flujo, E-R, POO/UML, etc.) y se inserta al click.
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // Categorías expandidas en el panel (acordeón estilo draw.io). Todas abiertas
+  // por defecto para que el docente vea de una qué hay; puede colapsar las que
+  // no use. Estado determinístico (no toca storage) → hidratación segura.
+  const [openCats, setOpenCats] = useState<Set<string>>(
+    () => new Set(LIBRARY_CATEGORIES.map((c) => c.key)),
+  );
+  const toggleCat = useCallback((key: string) => {
+    setOpenCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
   // ¿El navegador soporta la Fullscreen API sobre elementos? iOS Safari en
   // iPhone NO la expone (solo en <video>), y algunos WebViews tampoco — ahí
   // `el.requestFullscreen` es `undefined` y llamarla CRASHEA (TypeError
@@ -654,11 +787,13 @@ export function WhiteboardEditor({
           Compartida en vivo
         </div>
       )}
-      {/* Panel de FIGURAS categorizado (solo en edición). Excalidraw trae su
-          "Library" pero en grilla plana sin secciones; este agrupa por tema
-          (Flujo, E-R, POO/UML, Estructuras, AWS) y se inserta al click,
-          centrado en el viewport. Ancla abajo-derecha para no chocar con el
-          toolbar (arriba) ni el zoom de Excalidraw (abajo-izquierda). */}
+      {/* Panel de FIGURAS por TIPO DE DIAGRAMA (solo en edición). Excalidraw
+          trae su "Library" pero en grilla plana sin secciones ni nombres claros;
+          este agrupa en secciones colapsables con ÍCONO + NOMBRE del diagrama
+          (Clases/UML, Flujo, E-R, Estructuras, AWS) + MINIATURA de cada figura
+          (estilo draw.io: se ve qué es), e inserta al click centrado en el
+          viewport. Ancla abajo-derecha para no chocar con el toolbar (arriba)
+          ni el zoom de Excalidraw (abajo-izquierda). */}
       {!readOnly && (
         <>
           <button
@@ -666,7 +801,7 @@ export function WhiteboardEditor({
             onClick={() => setPaletteOpen((o) => !o)}
             aria-label="Figuras"
             aria-expanded={paletteOpen}
-            title="Insertar figuras (flujo, E-R, POO…)"
+            title="Figuras por tipo de diagrama (clases, flujo, E-R…)"
             className={cn(
               "absolute bottom-2 right-12 z-20 inline-flex items-center gap-1 rounded-md border border-border bg-background/90 backdrop-blur-sm px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-background transition-colors shadow-sm",
               paletteOpen && "text-foreground bg-background",
@@ -676,38 +811,72 @@ export function WhiteboardEditor({
             <span className="hidden sm:inline">Figuras</span>
           </button>
           {paletteOpen && (
-            <div className="absolute bottom-12 right-2 z-30 w-56 max-h-[65%] overflow-y-auto rounded-md border border-border bg-background shadow-lg">
-              <div className="sticky top-0 flex items-center justify-between gap-2 border-b border-border bg-background px-3 py-2">
-                <span className="text-xs font-semibold">Figuras</span>
+            <div className="absolute bottom-12 right-2 z-30 w-72 max-w-[calc(100vw-1rem)] max-h-[72%] overflow-y-auto rounded-md border border-border bg-background shadow-lg">
+              <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-background px-3 py-2">
+                <div className="min-w-0">
+                  <span className="text-xs font-semibold">Figuras por tipo de diagrama</span>
+                  <p className="text-[10px] text-muted-foreground">Toca una para insertarla en el centro.</p>
+                </div>
                 <button
                   type="button"
                   onClick={() => setPaletteOpen(false)}
                   aria-label="Cerrar"
-                  className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
+                  className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <div className="p-2 space-y-3">
-                {LIBRARY_CATEGORIES.map((cat) => (
-                  <div key={cat.key}>
-                    <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      {cat.label}
-                    </p>
-                    <div className="flex flex-col">
-                      {cat.items.map((item) => (
-                        <button
-                          key={item.id as string}
-                          type="button"
-                          onClick={() => insertShape(item)}
-                          className="text-left rounded px-2 py-2 text-xs hover:bg-muted active:bg-muted/70 transition-colors"
-                        >
-                          {shortLibraryItemName(item.name as string)}
-                        </button>
-                      ))}
+              <div className="p-2 space-y-2">
+                {LIBRARY_CATEGORIES.map((cat) => {
+                  const CatIcon = CATEGORY_ICONS[cat.icon] ?? Shapes;
+                  const open = openCats.has(cat.key);
+                  return (
+                    <div key={cat.key} className="rounded-md border border-border/60">
+                      {/* Encabezado de sección: ícono + nombre del diagrama +
+                          conteo. Colapsable (acordeón estilo draw.io). */}
+                      <button
+                        type="button"
+                        onClick={() => toggleCat(cat.key)}
+                        aria-expanded={open}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted/60 transition-colors"
+                      >
+                        {open ? (
+                          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        )}
+                        <CatIcon className="h-4 w-4 shrink-0 text-primary" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-xs font-semibold leading-tight">{cat.label}</span>
+                          <span className="block text-[10px] text-muted-foreground leading-tight truncate">
+                            {cat.description}
+                          </span>
+                        </span>
+                        <span className="shrink-0 rounded-full bg-muted px-1.5 text-[10px] tabular-nums text-muted-foreground">
+                          {cat.items.length}
+                        </span>
+                      </button>
+                      {open && (
+                        <div className="grid grid-cols-2 gap-1.5 p-1.5 pt-0.5">
+                          {cat.items.map((item) => (
+                            <button
+                              key={item.id as string}
+                              type="button"
+                              onClick={() => insertShape(item)}
+                              title={shortLibraryItemName(item.name as string)}
+                              className="flex flex-col items-center gap-1 rounded-md border border-border/60 bg-card/40 p-1.5 hover:border-primary/50 hover:bg-muted active:bg-muted/70 transition-colors"
+                            >
+                              <ShapePreview item={item} />
+                              <span className="w-full truncate text-center text-[10px] leading-tight text-muted-foreground">
+                                {shortLibraryItemName(item.name as string)}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

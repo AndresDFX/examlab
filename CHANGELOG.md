@@ -45,6 +45,23 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-19
 
+**Pizarra (Excalidraw) — paleta de figuras estilo draw.io (categorías + miniaturas).**
+El panel "Figuras" agrupaba por tema pero era una lista de TEXTO en un panel
+angosto — no se veía qué era cada figura ni quedaba claro qué grupo es para un
+diagrama de clases. Rehecho ([WhiteboardEditor](src/modules/whiteboard/WhiteboardEditor.tsx)
++ [excalidraw-libraries.ts](src/modules/whiteboard/excalidraw-libraries.ts)):
+- **Secciones por TIPO DE DIAGRAMA** con ícono + nombre explícito + descripción
+  "para qué sirve" + conteo, **colapsables** (acordeón). Orden: **Diagrama de
+  clases (UML)** primero (clase/interfaz/abstracta/enum/herencia), luego Diagrama
+  de flujo, Entidad–Relación / BD, Estructuras de datos, Arquitectura AWS.
+- **Miniatura SVG de cada figura** (se VE qué es, como en draw.io). Helper PURO
+  `libraryItemPreview(elements, boxW, boxH)` que escala los elementos del template
+  a una caja, mantiene aspecto y mapea rect/ellipse/diamond/line/arrow/text a
+  primitivas SVG (sin rough.js ni dependencias). Strokes con `currentColor`
+  (respeta tema claro/oscuro). Tests del helper + metadata de categorías.
+- Panel más ancho (`w-72`), grilla de 2 columnas, responsive (`max-w-[calc(100vw-1rem)]`).
+- Sin migración ni cambios de DB — es solo front de la pizarra.
+
 **Kahoot en vivo — experiencia mejorada (5 frentes).**
 - **Notificación global persistente + "login directo"** ([KahootLiveBanner](src/modules/polls/KahootLiveBanner.tsx), montado en [AppLayout](src/shared/components/AppLayout.tsx)): cuando hay un Kahoot en vivo en un curso del alumno, una barra animada arriba (en CUALQUIER pantalla) lo invita a entrar con **un click** — su cuenta institucional ES la credencial (matrícula), sin teclear PIN. Nueva RPC `kahoot_join_game_by_id` (mismos guards que `kahoot_join_game`: tenant, matrícula, host presente + lobby para nuevos, papelera, ended) — el PIN sigue para el QR / ingreso manual. La barra se auto-oculta dentro de la vista del juego y no aparece durante un examen.
 - **Cuenta regresiva "¡Prepárate!" + más animaciones** (Parts 3): `kahoot_advance_game` fija `question_started_at` 3s en el FUTURO; mientras tanto host y alumno ven un splash animado de cuenta regresiva (sin opciones). El cronómetro y la ventana de respuesta del servidor arrancan recién en ese instante, así que la espera NO le come tiempo a nadie (`secondsLeft` devuelve el límite completo; el server computa `elapsed=GREATEST(0,…)`). Transiciones de fase con `animate-in` (fade/zoom/slide) + pulso del cronómetro en los últimos 5s. Helper `getReadySecondsLeft` en [kahoot.ts](src/modules/polls/kahoot.ts).

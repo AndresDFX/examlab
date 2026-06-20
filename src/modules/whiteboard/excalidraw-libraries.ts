@@ -573,7 +573,12 @@ export const DEFAULT_LIBRARY_ITEMS: Array<Record<string, any>> = [
 
 export interface LibraryCategory {
   key: string;
+  /** Título de la sección (estilo draw.io: nombra el tipo de diagrama). */
   label: string;
+  /** Una línea de "para qué sirve" — responde "¿qué figuras son para X?". */
+  description: string;
+  /** Nombre del ícono lucide que el panel resuelve (mapa en WhiteboardEditor). */
+  icon: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   items: Array<Record<string, any>>;
 }
@@ -584,13 +589,49 @@ function pickByPrefix(prefixes: string[]) {
   );
 }
 
-/** Figuras agrupadas por tema, en el orden en que se muestran en el panel. */
+/**
+ * Figuras agrupadas por TIPO DE DIAGRAMA, en el orden en que se muestran en el
+ * panel. Cada sección nombra explícitamente para qué sirve (estilo draw.io:
+ * "estas figuras son para un diagrama de clases", etc.) — el docente no tiene
+ * que adivinar. El "Diagrama de clases (UML)" va PRIMERO por ser el caso más
+ * pedido en clases de POO.
+ */
 export const LIBRARY_CATEGORIES: LibraryCategory[] = [
-  { key: "flujo", label: "Diagramas de flujo", items: pickByPrefix(["lib-flowchart-"]) },
-  { key: "er", label: "Bases de datos / E-R", items: pickByPrefix(["lib-db-"]) },
-  { key: "poo", label: "POO / UML", items: pickByPrefix(["lib-uml-", "lib-poo-"]) },
-  { key: "estructuras", label: "Estructuras de datos", items: pickByPrefix(["lib-ds-"]) },
-  { key: "aws", label: "AWS / Arquitectura", items: pickByPrefix(["lib-aws-"]) },
+  {
+    key: "clases",
+    label: "Diagrama de clases (UML)",
+    description: "Clase, interfaz, clase abstracta, enum y herencia.",
+    icon: "Boxes",
+    items: pickByPrefix(["lib-uml-", "lib-poo-"]),
+  },
+  {
+    key: "flujo",
+    label: "Diagrama de flujo",
+    description: "Proceso, decisión, inicio/fin y entrada/salida.",
+    icon: "Workflow",
+    items: pickByPrefix(["lib-flowchart-"]),
+  },
+  {
+    key: "er",
+    label: "Entidad–Relación / Base de datos",
+    description: "Tabla, entidad, relación y atributo.",
+    icon: "Database",
+    items: pickByPrefix(["lib-db-"]),
+  },
+  {
+    key: "estructuras",
+    label: "Estructuras de datos",
+    description: "Nodo, celda de arreglo y nodo de lista enlazada.",
+    icon: "Binary",
+    items: pickByPrefix(["lib-ds-"]),
+  },
+  {
+    key: "aws",
+    label: "Arquitectura en la nube (AWS)",
+    description: "EC2, S3, RDS, Lambda, API Gateway, VPC…",
+    icon: "Cloud",
+    items: pickByPrefix(["lib-aws-"]),
+  },
 ];
 
 /** Quita el prefijo "Categoría · " del nombre para mostrar la etiqueta corta
@@ -643,4 +684,105 @@ export function instantiateLibraryElements(
     clone.groupIds = [groupId];
     return clone;
   });
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Miniatura (thumbnail) de una figura para el panel — clave de claridad
+// "estilo draw.io": el docente VE la figura, no solo su nombre.
+//
+// `libraryItemPreview` es PURO (sin React, sin rough.js): toma los `elements`
+// del template y devuelve primitivas SVG simples ya escaladas para caber en una
+// caja (boxW × boxH). El WhiteboardEditor las pinta en un <svg>. No replica el
+// trazo "a mano alzada" de Excalidraw — es un esquema limpio y reconocible.
+// ──────────────────────────────────────────────────────────────────────
+
+export type PreviewShape =
+  | { kind: "rect"; x: number; y: number; w: number; h: number; fill: string; rounded: boolean; dashed: boolean }
+  | { kind: "ellipse"; cx: number; cy: number; rx: number; ry: number; fill: string }
+  | { kind: "diamond"; points: string; fill: string }
+  | { kind: "polyline"; points: string; dashed: boolean; arrow: boolean }
+  | { kind: "text"; x: number; y: number; text: string; fontSize: number };
+
+export interface ItemPreview {
+  width: number;
+  height: number;
+  shapes: PreviewShape[];
+}
+
+/** Puntos absolutos de un line/arrow (sus `points` son relativos a x,y). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function absPoints(e: Record<string, any>): Array<[number, number]> | null {
+  if ((e.type === "line" || e.type === "arrow") && Array.isArray(e.points)) {
+    return e.points.map((p: [number, number]) => [e.x + p[0], e.y + p[1]] as [number, number]);
+  }
+  return null;
+}
+
+/**
+ * Convierte los elementos de un item en primitivas SVG escaladas a una caja.
+ * Mantiene el aspecto (escala uniforme) y centra el dibujo. Puro → testeable.
+ */
+export function libraryItemPreview(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  elements: Array<Record<string, any>>,
+  boxW = 84,
+  boxH = 56,
+  pad = 5,
+): ItemPreview {
+  if (!elements || elements.length === 0) return { width: boxW, height: boxH, shapes: [] };
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const e of elements) {
+    const pts = absPoints(e);
+    if (pts) {
+      for (const [ax, ay] of pts) {
+        minX = Math.min(minX, ax); minY = Math.min(minY, ay);
+        maxX = Math.max(maxX, ax); maxY = Math.max(maxY, ay);
+      }
+    } else {
+      minX = Math.min(minX, e.x); minY = Math.min(minY, e.y);
+      maxX = Math.max(maxX, e.x + (e.width ?? 0)); maxY = Math.max(maxY, e.y + (e.height ?? 0));
+    }
+  }
+  const bw = Math.max(1, maxX - minX);
+  const bh = Math.max(1, maxY - minY);
+  const scale = Math.min((boxW - 2 * pad) / bw, (boxH - 2 * pad) / bh);
+  const offX = pad + ((boxW - 2 * pad) - bw * scale) / 2;
+  const offY = pad + ((boxH - 2 * pad) - bh * scale) / 2;
+  const tx = (x: number) => offX + (x - minX) * scale;
+  const ty = (y: number) => offY + (y - minY) * scale;
+
+  const shapes: PreviewShape[] = [];
+  for (const e of elements) {
+    const fill =
+      e.backgroundColor && e.backgroundColor !== "transparent" ? e.backgroundColor : "none";
+    const dashed = e.strokeStyle === "dashed";
+    const w = (e.width ?? 0) * scale;
+    const h = (e.height ?? 0) * scale;
+    if (e.type === "rectangle") {
+      shapes.push({ kind: "rect", x: tx(e.x), y: ty(e.y), w, h, fill, rounded: !!e.roundness, dashed });
+    } else if (e.type === "ellipse") {
+      shapes.push({ kind: "ellipse", cx: tx(e.x) + w / 2, cy: ty(e.y) + h / 2, rx: w / 2, ry: h / 2, fill });
+    } else if (e.type === "diamond") {
+      const x = tx(e.x), y = ty(e.y);
+      const points = `${x + w / 2},${y} ${x + w},${y + h / 2} ${x + w / 2},${y + h} ${x},${y + h / 2}`;
+      shapes.push({ kind: "diamond", points, fill });
+    } else if ((e.type === "line" || e.type === "arrow") && Array.isArray(e.points)) {
+      const points = e.points
+        .map((p: [number, number]) => `${tx(e.x + p[0])},${ty(e.y + p[1])}`)
+        .join(" ");
+      shapes.push({ kind: "polyline", points, dashed, arrow: e.type === "arrow" });
+    } else if (e.type === "text" && e.text) {
+      const firstLine = String(e.text).split("\n")[0];
+      const fontSize = Math.max(3.5, Math.min(9, (e.fontSize ?? 14) * scale));
+      shapes.push({
+        kind: "text",
+        x: tx(e.x) + w / 2,
+        y: ty(e.y) + h / 2,
+        text: firstLine,
+        fontSize,
+      });
+    }
+  }
+  return { width: boxW, height: boxH, shapes };
 }
