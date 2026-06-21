@@ -77,7 +77,7 @@ function StudentWhiteboards() {
       const [{ data: wbs, error: wbErr }, { data: enrollments }] = await Promise.all([
         db
           .from("whiteboards")
-          .select("id, name, description, course_id, is_shared_with_course, updated_at")
+          .select("id, name, description, course_id, is_shared_with_course, updated_at, status")
           .eq("is_shared_with_course", true)
           .is("deleted_at", null)
           .order("updated_at", { ascending: false }),
@@ -99,10 +99,14 @@ function StudentWhiteboards() {
         }
       }
       setCourses(myCourses);
-      const enriched = ((wbs ?? []) as SharedWhiteboard[]).map((w) => ({
-        ...w,
-        course_name: w.course_id ? courseMap.get(w.course_id) : undefined,
-      }));
+      const enriched = ((wbs ?? []) as SharedWhiteboard[])
+        // Una pizarra CERRADA no se le muestra al alumno (paridad con el resto:
+        // lo cerrado sale del listado activo). nullish ⇒ published (no cerrada).
+        .filter((w) => ((w as { status?: string | null }).status ?? "published") !== "closed")
+        .map((w) => ({
+          ...w,
+          course_name: w.course_id ? courseMap.get(w.course_id) : undefined,
+        }));
       setItems(enriched);
     } catch (e) {
       setLoadError(friendlyError(e, "No pudimos cargar las pizarras compartidas."));

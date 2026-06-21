@@ -45,6 +45,23 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-19
 
+**Pizarras — estado (borrador / activa / cerrada).**
+Las pizarras (`whiteboards`) ahora tienen `status` con el MISMO vocabulario que
+exámenes/talleres/proyectos (`draft | published | closed`, mig
+[20260990000000](supabase/migrations/20260990000000_whiteboards_status.sql),
+DEFAULT `published` → las existentes quedan activas sin backfill). Esto reusa el
+filtro compartido `matchesActivityStatus` (default oculta cerradas), el
+`StatusBadge` y el `ActivityStatusSelect`.
+- **Docente** ([app.teacher.whiteboards.index.tsx](src/routes/app.teacher.whiteboards.index.tsx)):
+  filtro de estado (Activos/Cerrados/Todos, default oculta cerradas) + columna
+  `StatusBadge` + acción de fila **Cerrar / Reabrir** (alterna published↔closed) +
+  4ª stat-card "Cerradas" (reemplaza "En curso"). Cerrar saca la pizarra del
+  listado activo sin borrarla (para archivar de verdad está la Papelera).
+- **Estudiante** ([app.student.whiteboards.index.tsx](src/routes/app.student.whiteboards.index.tsx)):
+  una pizarra cerrada NO se le muestra (nullish ⇒ published).
+- Base para que al cerrar un curso, sus pizarras (y demás) pasen a `closed` y
+  desaparezcan del listado activo.
+
 **Pizarra (Excalidraw) — paleta de figuras estilo draw.io (categorías + miniaturas).**
 El panel "Figuras" agrupaba por tema pero era una lista de TEXTO en un panel
 angosto — no se veía qué era cada figura ni quedaba claro qué grupo es para un

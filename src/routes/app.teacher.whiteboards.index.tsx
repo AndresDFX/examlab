@@ -54,6 +54,13 @@ import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { filterWhiteboards } from "@/modules/whiteboard/whiteboards-filter";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { ActivityStatusSelect } from "@/shared/components/ActivityStatusSelect";
+import {
+  matchesActivityStatus,
+  DEFAULT_ACTIVITY_STATUS_FILTER,
+  type ActivityStatusFilter,
+} from "@/shared/lib/status-filter";
 import {
   Select,
   SelectContent,
@@ -61,7 +68,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Palette, Globe, Lock, BookOpen, Copy, Eye } from "lucide-react";
+import { Plus, Trash2, Palette, Globe, Lock, Unlock, Copy, Eye } from "lucide-react";
 import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDialog";
 import { StatCard } from "@/components/ui/stat-card";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -98,6 +105,8 @@ interface Whiteboard {
   updated_at: string;
   course_id: string | null;
   is_shared_with_course: boolean;
+  /** draft | published | closed (mig 20260990000000). nullish ⇒ published. */
+  status: string | null;
 }
 
 function TeacherWhiteboards() {
@@ -110,6 +119,11 @@ function TeacherWhiteboards() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [search, setSearch] = useState("");
+  // Filtro de estado: por defecto "activos" (oculta las cerradas), igual que
+  // exámenes/talleres/proyectos. Mismo helper compartido `matchesActivityStatus`.
+  const [statusFilter, setStatusFilter] = useState<ActivityStatusFilter>(
+    DEFAULT_ACTIVITY_STATUS_FILTER,
+  );
   // Create dialog state.
   const [createOpen, setCreateOpen] = useState(false);
   const [draftName, setDraftName] = useState("");
@@ -211,7 +225,7 @@ function TeacherWhiteboards() {
     const { data, error } = await db
       .from("whiteboards")
       .select(
-        "id, owner_id, name, description, created_at, updated_at, course_id, is_shared_with_course",
+        "id, owner_id, name, description, created_at, updated_at, course_id, is_shared_with_course, status",
       )
       // Ocultar pizarras en papelera de la lista del docente.
       .is("deleted_at", null)
@@ -236,11 +250,21 @@ function TeacherWhiteboards() {
   // sobre la lista ya filtrada (flujo: filtrar → ORDENAR → paginar). El
   // accessor de curso resuelve el nombre desde `draftCourses` (cargado al
   // abrir el dialog de creación); si todavía está vacío, ordena por "".
-  const sort = useTableSort(filterWhiteboards(items, search), {
+  // Pipeline: buscar → filtrar por estado → ORDENAR → paginar. El filtro de
+  // estado usa el helper compartido (nullish ⇒ published).
+  const filtered = useMemo(
+    () =>
+      filterWhiteboards(items, search).filter((w) =>
+        matchesActivityStatus(w.status, statusFilter),
+      ),
+    [items, search, statusFilter],
+  );
+  const sort = useTableSort(filtered, {
     columns: {
       name: (w) => w.name,
       course: (w) => draftCourses.find((c) => c.id === w.course_id)?.name ?? "",
       shared: (w) => w.is_shared_with_course,
+      status: (w) => (w.status ?? "published") as string,
       updated_at: (w) => w.updated_at,
     },
     defaultSort: { key: "updated_at", dir: "desc" },
@@ -248,22 +272,21 @@ function TeacherWhiteboards() {
   });
 
   // Stats compactas arriba del listado — mismo patrón que proyectos /
-  // talleres / exámenes (4 tiles de cuenta por estado). Para pizarras
-  // los estados conceptuales son: total, compartidas con curso (visibles
-  // a los alumnos), privadas (solo el docente), y asociadas a un curso
-  // (con o sin compartir). NO hay draft/published — la persistencia
-  // es siempre real-time; el toggle "compartir" hace el rol de
-  // visibilidad para alumnos.
+  // talleres / exámenes (4 tiles de cuenta). Para pizarras: total,
+  // compartidas con curso (visibles a los alumnos), privadas (solo el
+  // docente), y CERRADAS (status='closed' — fuera del listado activo).
+  // La pizarra ahora tiene `status` (draft/published/closed, mig
+  // 20260990000000); "cerradas" reemplaza al viejo conteo "en curso".
   const whiteboardStats = useMemo(() => {
     let shared = 0;
     let priv = 0;
-    let inCourse = 0;
+    let closed = 0;
     for (const w of items) {
       if (w.is_shared_with_course) shared += 1;
       else priv += 1;
-      if (w.course_id) inCourse += 1;
+      if ((w.status ?? "published") === "closed") closed += 1;
     }
-    return { total: items.length, shared, priv, inCourse };
+    return { total: items.length, shared, priv, closed };
   }, [items]);
 
   // Paginación client-side — default de grids de listado (25 / 10-25-50-100),
@@ -271,7 +294,7 @@ function TeacherWhiteboards() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_whiteboards",
-    resetKey: `${search}|${sort.resetKey}`,
+    resetKey: `${search}|${statusFilter}|${sort.resetKey}`,
   });
 
   // Multi-selección + bulk delete — mismo patrón que cursos, usuarios,
@@ -407,6 +430,31 @@ function TeacherWhiteboards() {
     }
   };
 
+  /** Cambia el estado de la pizarra (publicar / cerrar / borrador). Cerrar la
+   *  saca del listado activo (del docente y del alumno) sin eliminarla — para
+   *  archivarla hay que usar la Papelera. Optimista + recarga. */
+  const setWhiteboardStatus = async (w: Whiteboard, status: string) => {
+    try {
+      const { error } = await db.from("whiteboards").update({ status }).eq("id", w.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(
+        status === "closed"
+          ? t("hc_routesAppTeacherWhiteboardsIndex.statusClosedToast", {
+              defaultValue: "Pizarra cerrada",
+            })
+          : t("hc_routesAppTeacherWhiteboardsIndex.statusReopenedToast", {
+              defaultValue: "Pizarra reabierta",
+            }),
+      );
+      setItems((prev) => prev.map((p) => (p.id === w.id ? { ...p, status } : p)));
+    } catch (e) {
+      toast.error(friendlyError(e));
+    }
+  };
+
   /** Duplica una pizarra: crea una fila nueva (mía, en borrador de
    *  contenido) y, según los flags, copia las hojas (whiteboard_pages) y la
    *  asociación al curso. NUNCA copia el vínculo a la sesión (es de la
@@ -529,18 +577,23 @@ function TeacherWhiteboards() {
           value={whiteboardStats.priv}
         />
         <StatCard
-          icon={BookOpen}
-          label={t("hc_routesAppTeacherWhiteboardsIndex.statInCourse")}
-          value={whiteboardStats.inCourse}
+          icon={Lock}
+          label={t("hc_routesAppTeacherWhiteboardsIndex.statClosed", { defaultValue: "Cerradas" })}
+          value={whiteboardStats.closed}
         />
       </div>
 
-      <div className="flex-1 min-w-0">
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          placeholder={t("hc_routesAppTeacherWhiteboardsIndex.searchPlaceholder")}
-        />
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder={t("hc_routesAppTeacherWhiteboardsIndex.searchPlaceholder")}
+          />
+        </div>
+        {/* Filtro de estado: por defecto oculta las cerradas (mismo control y
+            comportamiento que exámenes/talleres/proyectos). */}
+        <ActivityStatusSelect value={statusFilter} onChange={setStatusFilter} />
       </div>
 
       {/* Toolbar de bulk delete — solo se renderiza cuando hay items
@@ -575,6 +628,9 @@ function TeacherWhiteboards() {
                   <SortableHead sortKey="course" sort={sort} className="hidden sm:table-cell w-40">
                     {t("hc_routesAppTeacherWhiteboardsIndex.colCourse")}
                   </SortableHead>
+                  <SortableHead sortKey="status" sort={sort} className="hidden sm:table-cell w-28">
+                    {t("hc_routesAppTeacherWhiteboardsIndex.colStatus", { defaultValue: "Estado" })}
+                  </SortableHead>
                   <SortableHead sortKey="shared" sort={sort} className="hidden md:table-cell w-28">
                     {t("hc_routesAppTeacherWhiteboardsIndex.colVisibility")}
                   </SortableHead>
@@ -593,7 +649,7 @@ function TeacherWhiteboards() {
               <TableBody>
                 {sort.sorted.length === 0 ? (
                   <TableEmpty
-                    colSpan={6}
+                    colSpan={7}
                     icon={Palette}
                     text={
                       search.trim()
@@ -649,6 +705,9 @@ function TeacherWhiteboards() {
                           {courseName}
                         </div>
                       </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        <StatusBadge status={w.status ?? "published"} />
+                      </TableCell>
                       <TableCell className="hidden md:table-cell">
                         <Badge variant={w.is_shared_with_course ? "default" : "secondary"}>
                           {w.is_shared_with_course
@@ -673,6 +732,24 @@ function TeacherWhiteboards() {
                               icon: Copy,
                               onClick: () => setDuplicateFor(w),
                             },
+                            // Cerrar / Reabrir: alterna published↔closed. Cerrada
+                            // sale del listado activo (docente y alumno) sin
+                            // borrarla. nullish ⇒ published (no cerrada).
+                            (w.status ?? "published") === "closed"
+                              ? {
+                                  label: t("hc_routesAppTeacherWhiteboardsIndex.actionReopen", {
+                                    defaultValue: "Reabrir",
+                                  }),
+                                  icon: Unlock,
+                                  onClick: () => void setWhiteboardStatus(w, "published"),
+                                }
+                              : {
+                                  label: t("hc_routesAppTeacherWhiteboardsIndex.actionClose", {
+                                    defaultValue: "Cerrar",
+                                  }),
+                                  icon: Lock,
+                                  onClick: () => void setWhiteboardStatus(w, "closed"),
+                                },
                             {
                               label: t("hc_routesAppTeacherWhiteboardsIndex.actionDelete"),
                               icon: Trash2,
