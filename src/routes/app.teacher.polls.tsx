@@ -220,6 +220,12 @@ function TeacherPolls() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [courseFilter, setCourseFilter] = useState<string>("all");
+  // Filtro de estado del grid: por defecto "abiertas" (oculta las cerradas,
+  // incl. las que el cascade cerró al finalizar el curso). Paridad con los
+  // demás grids docentes (que ocultan lo cerrado por defecto).
+  const [pollStatusFilter, setPollStatusFilter] = useState<"abiertas" | "cerradas" | "todas">(
+    "abiertas",
+  );
   // SuperAdmin cross-tenant: filtro por institución que acota la query
   // de cursos al tenant elegido. Si NO está activo o está en "all", la
   // RLS deja al SuperAdmin ver cross-tenant. Mismo patrón que en
@@ -448,15 +454,25 @@ function TeacherPolls() {
   }, [user, retryNonce, tenantFilter, isSuperAdminCaller]);
 
   const filteredPolls = useMemo(() => {
-    if (courseFilter === "all") return polls;
-    // El filtro por curso ahora matchea contra el set linkeado (no solo
-    // el ancla). Una encuesta multi-curso aparece en el filtro de
-    // cualquiera de sus cursos.
-    return polls.filter(
-      (p) =>
-        p.course_id === courseFilter || (p.linked_courses ?? []).some((c) => c.id === courseFilter),
-    );
-  }, [polls, courseFilter]);
+    let arr = polls;
+    if (courseFilter !== "all") {
+      // El filtro por curso ahora matchea contra el set linkeado (no solo
+      // el ancla). Una encuesta multi-curso aparece en el filtro de
+      // cualquiera de sus cursos.
+      arr = arr.filter(
+        (p) =>
+          p.course_id === courseFilter ||
+          (p.linked_courses ?? []).some((c) => c.id === courseFilter),
+      );
+    }
+    // Filtro de estado abierta/cerrada (default "abiertas" → oculta las
+    // cerradas, p.ej. las que cerró el cascade al finalizar el curso).
+    if (pollStatusFilter !== "todas") {
+      const wantOpen = pollStatusFilter === "abiertas";
+      arr = arr.filter((p) => pollIsOpen(p) === wantOpen);
+    }
+    return arr;
+  }, [polls, courseFilter, pollStatusFilter]);
 
   // Orden por columna (asc/desc al clic en el encabezado), persistido.
   const sort = useTableSort(filteredPolls, {
@@ -812,8 +828,30 @@ function TeacherPolls() {
         <StatCard icon={CalendarRange} label={t("teacherPolls.statDoodle")} value={pollStats.slot} />
       </div>
 
-      {(courses.length > 1 || (isSuperAdminCaller && tenants.length > 0)) && (
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Filtro de estado: por defecto "abiertas" (oculta cerradas, incl. las
+            que el cascade cerró al finalizar el curso). Siempre visible. */}
+        <Select
+          value={pollStatusFilter}
+          onValueChange={(v) => setPollStatusFilter(v as "abiertas" | "cerradas" | "todas")}
+        >
+          <SelectTrigger className="w-full sm:w-40 h-9 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="abiertas">
+              {t("teacherPolls.filterOpen", { defaultValue: "Abiertas" })}
+            </SelectItem>
+            <SelectItem value="cerradas">
+              {t("teacherPolls.filterClosed", { defaultValue: "Cerradas" })}
+            </SelectItem>
+            <SelectItem value="todas">
+              {t("teacherPolls.filterAll", { defaultValue: "Todas" })}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        {(courses.length > 1 || (isSuperAdminCaller && tenants.length > 0)) && (
+          <>
           {courses.length > 1 && (
             <Select value={courseFilter} onValueChange={setCourseFilter}>
               <SelectTrigger className="w-full sm:w-64 h-9 text-xs">
@@ -849,8 +887,9 @@ function TeacherPolls() {
               </SelectContent>
             </Select>
           )}
-        </div>
-      )}
+          </>
+        )}
+      </div>
 
       {loading ? (
         <div className="p-4 sm:p-8 flex items-center justify-center text-sm text-muted-foreground">

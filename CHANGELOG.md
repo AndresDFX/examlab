@@ -28,6 +28,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   - `finalizado` se llega SÓLO explícitamente (manual vía `set_course_status`, o cron diario `auto_finalize_courses` cuando `end_date` pasó). NO se infiere "finalizado" de una fecha pasada en la vista.
   - `proximo` es una sub-vista por fecha DENTRO de `en_curso` (no es un estado persistido).
   - Finalizar es acción de docente del curso o Admin/SuperAdmin (validado en la RPC).
+  - **Cascade al finalizar** (mig `20260991000000`): un trigger `AFTER UPDATE OF status` cierra en cascada lo asociado — exámenes/pizarras (`status='closed'`), talleres/proyectos/encuestas (cerrados SOLO si NINGÚN otro curso ligado sigue `<> 'finalizado'` — caveat M:N), foros (`manually_closed_at`), juegos Kahoot en vivo (`ended`), ventanas de check-in QR. NO cierra sesiones de asistencia ni contenidos/videos (histórico/consultable). NO auto-reabre al reabrir el curso. Funciones `close_*_for_course` son `SECURITY DEFINER` y **REVOCADAS de PUBLIC** (internas). Al agregar una entidad nueva ligada a curso con estado cerrado, sumar su `close_*` al orquestador.
 - **Filtros de grids**: el filtro de ESTADO abre por defecto en lo vigente/activo (no "Todos"); el usuario puede cambiar a Todos/cerrados. (`c3271a5`)
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
 - **Escala de calificación**: se hereda de la asignatura/curso; la vista de calificaciones muestra SIEMPRE la escala del curso. La "Nota" usa `toScale(raw, max_score)`; el "Puntaje" se normaliza a `grade_scale_max` en PRESENTACIÓN (`rescaleScore`), sin tocar datos. NO normalizar `max_score` de items legacy por migración masiva (riesgo de re-interpretar notas bajas de items /100). Items nuevos default `max_score = grade_scale_max`.
@@ -44,6 +45,38 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 ## Historial
 
 ### 2026-06-19
+
+**Cascade de cierre al finalizar un curso.**
+Cuando un curso pasa a `status='finalizado'` (por `set_course_status` manual O
+por el cron `auto_finalize_courses` — ambos hacen `UPDATE courses.status`), todo
+lo asociado pasa a su estado CERRADO, sobre todo para que en cada módulo **lo
+cerrado deje de aparecer en los listados activos** por defecto. Diseño vía
+workflow (8 agentes mapearon entidad×vista). Mig
+[20260991000000](supabase/migrations/20260991000000_cascade_close_on_course_finalized.sql):
+- **UN trigger** `AFTER UPDATE OF status ON courses WHEN (NEW='finalizado' AND
+  OLD IS DISTINCT FROM 'finalizado')` → 7 funciones `close_*_for_course`
+  (`SECURITY DEFINER`, **REVOKE de PUBLIC** — internas; sin eso un authenticated
+  podría cerrar contenido de otro curso/tenant). Cada paso en su propio
+  `BEGIN/EXCEPTION`: un fallo de cascade NUNCA aborta la finalización del curso.
+- **Cascadea**: exámenes (1:1) y pizarras (1:1) → `status='closed'`; talleres,
+  proyectos y encuestas/Kahoot (**M:N**) → cerrados SOLO si ningún otro curso
+  ligado sigue `<> 'finalizado'`; Kahoot en vivo → `status='ended'`; foros →
+  `manually_closed_at` (bloquea postear, el historial se sigue leyendo);
+  ventanas de check-in QR abiertas → cerradas (NO se borran/cierran sesiones —
+  su histórico es necesario para la nota por corte).
+- **NO cascadea**: `attendance_sessions` (date-based, sin estado closed; el
+  histórico debe preservarse), `generated_contents`/`videos` (sin estado closed;
+  desvincular sería destructivo y el material debe seguir consultable).
+- **NO auto-reabre**: la transición `finalizado→en_curso` no dispara nada
+  (reabrir es granular y deliberado por ítem). Idempotente (re-finalizar no
+  re-toca). Defensiva `to_regclass` en cada función + en el `CREATE TRIGGER`.
+- **Front**: los grids docentes de exámenes/talleres/proyectos/pizarras ya
+  ocultan `closed` por defecto (`matchesActivityStatus`) → caen solos al
+  cerrarse. Se agregó filtro de estado (Abiertas/Cerradas/Todas, default
+  "abiertas") al grid docente de encuestas ([app.teacher.polls.tsx](src/routes/app.teacher.polls.tsx))
+  — era el único módulo docente que no ocultaba lo cerrado.
+- **Nota de producto**: cerrar encuestas con `results_visible_to_students='after_close'`
+  revela los conteos al alumno (esperable en un curso finalizado; documentado).
 
 **Pizarras — estado (borrador / activa / cerrada).**
 Las pizarras (`whiteboards`) ahora tienen `status` con el MISMO vocabulario que
