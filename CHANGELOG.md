@@ -46,6 +46,18 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-19
 
+**Revisión e2e por módulo (loop "siguiente módulo y rol") — Asistencia + Foros.**
+Pasadas de revisión e2e en vivo (Demo Global Corp, sin IA/costo):
+- **Asistencia** (docente+estudiante): el invariante crítico `compute_attendance_code`
+  (SQL) ↔ `computeAttendanceCode` (JS) verificado **bit-a-bit** en 5 casos; RPCs
+  `teacher_open/close_attendance_check_in` + `student_check_in_attendance` vivas; el
+  guard `check_in_closed` funciona. **Limpio, sin cambios.**
+- **Foros** (docente+estudiante): el invariante de "foro abierto" en 3 capas
+  (`is_forum_open` SQL ↔ `isForumOpen` ↔ `computeForumState`) verificado en vivo
+  (4 estados: abierto/programado/auto-cerrado/cierre-manual, SQL==JS) y estático.
+  Único hallazgo: `src/modules/forum/forum-state.ts` no tenía tests (helper puro
+  correctness-critical) → se agregaron ([forum-state.test.ts](src/modules/forum/forum-state.test.ts), 8 casos).
+
 **Kahoot — fixes de la auditoría adversarial de los 6 ajustes (workflow + e2e).**
 Una auditoría por workflow (1 agente por ajuste) + e2e live (Demo Global Corp)
 destapó 3 issues reales en los ajustes ya implementados (commit `2fbfd291`):
