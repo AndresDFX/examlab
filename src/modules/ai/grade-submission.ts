@@ -202,7 +202,15 @@ export async function enqueueAiGradeForSubmission(opts: {
         .eq("id", submissionId);
       const r = await aiGradeOrEnqueue(
         {
-          kind: "exam_full",
+          // DEBE ser "exam_submission" (igual que el submit del alumno en
+          // app.student.take.$examId.tsx). El dedup de ai_grading_queue es por
+          // (target_table, target_row_id, KIND): con "exam_full" un regrade del
+          // docente NO deduplicaba contra el job "exam_submission" del alumno
+          // → la MISMA entrega se calificaba DOS veces (doble gasto de IA), y
+          // los jobs "exam_full" salían sin etiqueta en el panel de la cola.
+          // El worker no ramifica por kind (rutea por invoke_target+target_table),
+          // así que unificar el label es inocuo a nivel de procesamiento.
+          kind: "exam_submission",
           body: { submissionId },
           target: {
             table: "submissions",

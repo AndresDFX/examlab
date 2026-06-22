@@ -1587,7 +1587,12 @@ function ExamMonitor() {
             .update({ ai_feedback: PENDING_AI_FEEDBACK, ai_grade: null })
             .eq("id", sub.id);
           const result = await aiGradeOrEnqueue({
-            kind: "exam_full",
+            // "exam_submission" (NO "exam_full") para deduplicar contra el job
+            // del submit del alumno: el dedup de ai_grading_queue es por
+            // (target_table, target_row_id, KIND). Con kinds distintos la misma
+            // entrega se calificaba dos veces (doble gasto IA). El worker no
+            // ramifica por kind. Ver grade-submission.ts.
+            kind: "exam_submission",
             invokeTarget: "ai-grade-submission",
             body: { submissionId: sub.id },
             target: {
