@@ -385,34 +385,36 @@ Deno.serve(async (req) => {
           //     pero válido), se asigna ese. Si es cross-tenant puro
           //     (tenant_id=NULL), el profile importado también queda NULL
           //     — el SA luego puede asignarles tenant desde la UI.
-          if (callerTenantId) {
-            const { error: tenantErr } = await adminClient
-              .from("profiles")
-              .update({ tenant_id: callerTenantId })
-              .eq("id", userId);
-            if (tenantErr) {
-              // No abortamos: el usuario ya está creado en auth.users.
-              // Quedaría sin tenant y el admin puede asignarlo manual.
-              console.warn(
-                "[bulk-import-users] tenant_id assignment failed for",
-                institutional_email,
-                tenantErr,
-              );
-            }
-          }
           // Usuario nuevo: por default le exigimos cambiar la contraseña
-          // en el primer login (la contraseña inicial la conoció el
-          // admin que lo creó). Si el caller pasó `force_password_change:
-          // false` explícitamente en la row, respetamos esa intención
-          // — útil para cuentas de sistema/integraciones donde la
-          // contraseña inicial es la definitiva. `undefined` → true por
-          // backward-compat con el CSV importer y callers viejos.
+          // en el primer login (la contraseña inicial la conoció el admin
+          // que lo creó). `force_password_change:false` explícito respeta
+          // la intención (cuentas de sistema). `undefined` → true.
           const mustChange = force_password_change !== false;
-          if (mustChange) {
-            await adminClient
-              .from("profiles")
-              .update({ must_change_password: true })
-              .eq("id", userId);
+          // PERF (import masivo): tenant_id + must_change_password en UN solo
+          // UPDATE al profile recién creado, en vez de dos round-trips separados
+          // al MISMO row. Menos round-trips por usuario = menos presión sobre
+          // Auth/DB durante lotes grandes (lo que disparaba "Database error
+          // creating new user" + lentitud). Va ANTES del upsert de roles porque
+          // el quota trigger de user_roles lee profiles.tenant_id.
+          {
+            const newUserPatch: Record<string, unknown> = {};
+            if (callerTenantId) newUserPatch.tenant_id = callerTenantId;
+            if (mustChange) newUserPatch.must_change_password = true;
+            if (Object.keys(newUserPatch).length > 0) {
+              const { error: patchErr } = await adminClient
+                .from("profiles")
+                .update(newUserPatch)
+                .eq("id", userId);
+              if (patchErr) {
+                // No abortamos: el usuario ya está creado en auth.users; el
+                // admin puede ajustar tenant/flag manualmente.
+                console.warn(
+                  "[bulk-import-users] profile patch (tenant_id/must_change) failed for",
+                  institutional_email,
+                  patchErr.message,
+                );
+              }
+            }
           }
 
           // Guardar la contraseña temporal en claro para que el Admin/SA
