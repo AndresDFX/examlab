@@ -46,6 +46,23 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-19
 
+**Validación e2e post-Publish + hotfix de seguridad del cascade.**
+Tras publicar, validé en vivo (Demo Global Corp) lo que estaba pendiente:
+- **Kahoot P0** ✓: responder durante el splash "¡Prepárate!" ahora se **rechaza**
+  ("La pregunta aún no está abierta", HTTP 400); tras el lead se acepta normal.
+- **Kahoot P1** ✓: `kahoot_my_live_games` devuelve el juego con título (el banner
+  ya descubre Kahoots aunque estén en borrador).
+- **Cascade** ✓ (7/7): finalizar un curso cerró su examen (`status=closed`),
+  pizarra (`status=closed`) y encuesta (`closed_manually=true`).
+- 🔴 **Hallazgo de seguridad → hotfix** (mig
+  [20260993000000](supabase/migrations/20260993000000_cascade_close_revoke_authenticated.sql)):
+  las 7 funciones `close_*_for_course` (SECURITY DEFINER, internas) eran
+  **ejecutables por `authenticated`** pese al `REVOKE FROM PUBLIC` — en Supabase
+  `authenticated`/`anon` tienen EXECUTE concedido aparte. Cualquier usuario podía
+  cerrar contenido de otro curso/tenant (escritura cross-tenant). Fix: `REVOKE`
+  también de `authenticated` y `anon`. El trigger sigue funcionando (corre como
+  owner). **Requiere un nuevo Publish.**
+
 **Revisión e2e por módulo (loop "siguiente módulo y rol") — Asistencia + Foros.**
 Pasadas de revisión e2e en vivo (Demo Global Corp, sin IA/costo):
 - **Asistencia** (docente+estudiante): el invariante crítico `compute_attendance_code`
