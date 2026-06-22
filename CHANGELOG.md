@@ -46,6 +46,26 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-19
 
+**Auditoría de módulos (workflows en paralelo) — Exámenes + Talleres + fix de calificación.**
+Dos workflows adversariales en paralelo auditaron Exámenes y Talleres. Hallazgos
+serios verificados (ver reporte); este commit cierra el más acotado y de impacto
+en notas:
+- 🔴 **Auto-grade regalaba puntos** — en `ai-grade-submission` la rama `cerrada`
+  hacía `userAnswer === correctIdx`; una pregunta `cerrada` con `correct_index`
+  ausente (config corrupta/legacy) + SIN responder daba `undefined === undefined`
+  → **puntaje completo por una pregunta en blanco**. Fix: guard de tipo (ambos
+  deben ser `number` finito) en el edge + helper puro `scoreCerradaSingle` en
+  [question-scoring.ts](src/modules/exams/question-scoring.ts) (mirror, con tests
+  del caso en-blanco/config-corrupta). +8 tests.
+- Pendiente (reportado, remediación de seguridad aparte): fuga columnar de
+  respuestas correctas en `questions`/`workshop_questions` (RLS filtra filas, no
+  columnas) y varios leaks cross-tenant por `has_role` sin scope de tenant
+  (`workshop_submission_answers` ← PII, `workshop_assignments`,
+  `exam_timer_controls`, `code_executions`, ramas Admin de RPCs de cola IA /
+  clone_workshop / add_questions_from_bank). + bug funcional: miembros de grupo
+  no pueden editar respuestas de la entrega compartida (RLS de
+  `workshop_submission_answers` sin rama de grupo).
+
 **Validación e2e post-Publish + hotfix de seguridad del cascade.**
 Tras publicar, validé en vivo (Demo Global Corp) lo que estaba pendiente:
 - **Kahoot P0** ✓: responder durante el splash "¡Prepárate!" ahora se **rechaza**

@@ -1,5 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { scoreCerradaMulti, validateCerradaMultiSelection } from "./question-scoring";
+import {
+  scoreCerradaMulti,
+  scoreCerradaSingle,
+  validateCerradaMultiSelection,
+} from "./question-scoring";
+
+describe("scoreCerradaSingle — todo-o-nada + guard de config corrupta", () => {
+  it("respuesta correcta → puntaje completo", () => {
+    expect(scoreCerradaSingle(2, 2, 10)).toBe(10);
+  });
+  it("respuesta incorrecta → 0", () => {
+    expect(scoreCerradaSingle(1, 2, 10)).toBe(0);
+  });
+  it("[BUG FIX] en blanco (undefined) + correct_index ausente (undefined) → 0, NO puntaje completo", () => {
+    expect(scoreCerradaSingle(undefined, undefined, 10)).toBe(0);
+  });
+  it("en blanco con correct_index válido → 0", () => {
+    expect(scoreCerradaSingle(undefined, 1, 10)).toBe(0);
+  });
+  it("correct_index ausente pero el alumno respondió → 0 (no regala puntos)", () => {
+    expect(scoreCerradaSingle(0, undefined, 10)).toBe(0);
+  });
+  it("correct_index tipo string no cuenta como match", () => {
+    expect(scoreCerradaSingle(2, "2" as unknown, 10)).toBe(0);
+  });
+  it("points NaN/negativo → 0", () => {
+    expect(scoreCerradaSingle(2, 2, NaN)).toBe(0);
+    expect(scoreCerradaSingle(2, 2, -5)).toBe(0);
+  });
+  it("índice 0 correcto (no es falsy-trap)", () => {
+    expect(scoreCerradaSingle(0, 0, 5)).toBe(5);
+  });
+});
 
 describe("scoreCerradaMulti — proporcional positivo", () => {
   it("100% cuando marca exactamente las correctas", () => {

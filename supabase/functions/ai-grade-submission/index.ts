@@ -2414,7 +2414,20 @@ Idioma de salida: ${langName}.`,
 
       if (q.type === "cerrada") {
         const correctIdx = q.options?.correct_index;
-        const got = userAnswer === correctIdx ? Number(q.points) : 0;
+        // GUARD (fix auditoría): exigir que AMBOS sean number finito. Sin esto,
+        // una `cerrada` con correct_index ausente + sin responder daba
+        // `undefined === undefined` → puntaje completo por una pregunta en
+        // blanco. MIRROR de scoreCerradaSingle en
+        // src/modules/exams/question-scoring.ts.
+        const pts = Math.max(0, Number(q.points) || 0);
+        const got =
+          typeof correctIdx === "number" &&
+          Number.isFinite(correctIdx) &&
+          typeof userAnswer === "number" &&
+          Number.isFinite(userAnswer) &&
+          userAnswer === correctIdx
+            ? pts
+            : 0;
         earned += got;
         breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: got });
       } else if (q.type === "cerrada_multi") {

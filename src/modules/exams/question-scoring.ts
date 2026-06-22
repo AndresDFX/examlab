@@ -89,6 +89,30 @@ export function scoreCerradaMulti(opts: CerradaMultiOptions): CerradaMultiResult
 }
 
 /**
+ * Calcula el puntaje de una pregunta `cerrada` (opción única): todo-o-nada.
+ *
+ * GUARD CRÍTICO (fix de auditoría): exige que TANTO `userAnswer` COMO
+ * `correctIndex` sean `number`. Sin esto, una pregunta con `correct_index`
+ * ausente (config corrupta / legacy / el docente nunca eligió la correcta) y
+ * SIN responder daba `undefined === undefined` → true → ¡puntaje completo por
+ * una pregunta en blanco! El guard de tipo cierra ese agujero (y también
+ * protege contra `correctIndex` tipo string). `points` NaN → 0.
+ *
+ * MIRROR: replicado en supabase/functions/ai-grade-submission/index.ts (rama
+ * `cerrada`). Si cambias esta lógica, sincroniza el edge.
+ */
+export function scoreCerradaSingle(
+  userAnswer: unknown,
+  correctIndex: unknown,
+  points: number,
+): number {
+  const pts = Math.max(0, Number(points) || 0);
+  const correct = typeof correctIndex === "number" && Number.isFinite(correctIndex);
+  const answered = typeof userAnswer === "number" && Number.isFinite(userAnswer);
+  return correct && answered && userAnswer === correctIndex ? pts : 0;
+}
+
+/**
  * Valida que las marcadas del estudiante respeten min/max.
  * Usado por la UI antes de "Siguiente" o "Entregar" para mostrar feedback.
  */
