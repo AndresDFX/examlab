@@ -146,6 +146,10 @@ const EMPTY_NEW: Row = {
 //   - course_name: debe coincidir EXACTO con un curso existente del
 //     tenant (case-insensitive). Si no matchea, la fila se rechaza con
 //     mensaje claro.
+//   - documento / cohorte / estado: identidad estudiantil OPCIONAL.
+//     documento = cédula/ID; cohorte = texto libre (ej. "2026-1");
+//     estado ∈ {activo, retirado, graduado, aplazado} (otro valor se
+//     ignora). Solo se aplican al rol Estudiante; vacíos no tocan nada.
 const USERS_TEMPLATE_CSV = toCSV([
   {
     full_name: "Juan Pérez",
@@ -155,6 +159,9 @@ const USERS_TEMPLATE_CSV = toCSV([
     roles: "Estudiante",
     student_code: "2026100123",
     course_name: "Programación II",
+    documento: "1234567890",
+    cohorte: "2026-1",
+    estado: "activo",
   },
 ]);
 
@@ -952,6 +959,15 @@ function AdminUsers() {
                 personal_email: editing.personal_email || null,
                 password,
                 roles: editing.roles.join("|"),
+                // Identidad estudiantil opcional: el formulario ya tiene estos
+                // inputs, pero antes NO se mandaban al crear (solo el path de
+                // edición los guardaba) → al crear un estudiante se perdían.
+                // La edge los persiste si el role incluye Estudiante.
+                student_code: editing.student_code?.trim() || null,
+                documento: editing.documento?.trim() || null,
+                cohorte: editing.cohorte?.trim() || null,
+                estado: editing.estado || null,
+                codigo: editing.codigo?.trim() || null,
                 // Pasamos explícitamente true/false para que el edge no
                 // tenga que adivinar la intención. Si el caller fuera
                 // legacy (CSV viejo) sin este campo, la edge cae al

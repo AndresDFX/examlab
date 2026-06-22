@@ -143,6 +143,14 @@ Deno.serve(async (req) => {
         roles: rolesStr,
         course_name,
         student_code,
+        // Identidad estudiantil OPCIONAL (mig 20260612000000): documento de
+        // identidad (cédula/ID), cohorte (texto libre "YYYY-N"), estado
+        // (activo/retirado/graduado/aplazado) y codigo (matrícula legacy).
+        // Solo se persisten si el role incluye Estudiante. Vacíos → no se tocan.
+        documento,
+        cohorte,
+        estado,
+        codigo,
         // Opcional, default true: si true, al crear se marca
         // `must_change_password=true` para que el primer login pida
         // cambio. El admin puede pasar false para cuentas de sistema /
@@ -475,6 +483,62 @@ Deno.serve(async (req) => {
             }
           } catch (codeEx) {
             console.warn(`[bulk-import-users] student_code update threw`, codeEx);
+          }
+        }
+
+        // Identidad estudiantil opcional (documento/cohorte/estado). Igual que
+        // student_code: solo para Estudiante; vacíos no se tocan. documento y
+        // cohorte son texto libre; estado se valida contra la CHECK
+        // (activo/retirado/graduado/aplazado) — un valor inválido se OMITE en
+        // vez de abortar (no rompemos el import por un typo del admin).
+        if (roleList.includes("Estudiante")) {
+          const trim = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+          const documentoRaw = trim(documento);
+          const cohorteRaw = trim(cohorte);
+          const estadoRaw = trim(estado).toLowerCase();
+          const VALID_ESTADOS = ["activo", "retirado", "graduado", "aplazado"];
+          const identityPatch: Record<string, string> = {};
+          if (documentoRaw.length > 0) identityPatch.documento = documentoRaw;
+          if (cohorteRaw.length > 0) identityPatch.cohorte = cohorteRaw;
+          if (estadoRaw.length > 0 && VALID_ESTADOS.includes(estadoRaw)) {
+            identityPatch.estado = estadoRaw;
+          }
+          if (Object.keys(identityPatch).length > 0) {
+            try {
+              const { error: identErr } = await adminClient
+                .from("profiles")
+                .update(identityPatch)
+                .eq("id", userId);
+              if (identErr) {
+                console.warn(
+                  `[bulk-import-users] no se pudo setear identidad ${JSON.stringify(identityPatch)} para ${institutional_email}:`,
+                  identErr.message,
+                );
+              }
+            } catch (identEx) {
+              console.warn(`[bulk-import-users] identity update threw`, identEx);
+            }
+          }
+
+          // codigo (matrícula legacy, UNIQUE por (programa_id, lower(codigo))):
+          // se actualiza aparte con su propio try/catch — un clash NO debe
+          // tumbar el patch de documento/cohorte/estado de arriba.
+          const codigoRaw = typeof codigo === "string" ? codigo.trim() : "";
+          if (codigoRaw.length > 0) {
+            try {
+              const { error: codigoErr } = await adminClient
+                .from("profiles")
+                .update({ codigo: codigoRaw })
+                .eq("id", userId);
+              if (codigoErr) {
+                console.warn(
+                  `[bulk-import-users] no se pudo setear codigo "${codigoRaw}" para ${institutional_email}:`,
+                  codigoErr.message,
+                );
+              }
+            } catch (codigoEx) {
+              console.warn(`[bulk-import-users] codigo update threw`, codigoEx);
+            }
           }
         }
 
