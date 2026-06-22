@@ -282,6 +282,52 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  // ── Auth (verify_jwt=false → se valida acá). Antes la función estaba ABIERTA:
+  // cualquiera con la anon key (pública) podía invocarla con un id de contenido
+  // y disparar generación IA (costo) + sobreescribir archivos de cualquier
+  // tenant (el adminClient bypassa RLS). Llamadas válidas:
+  //   (a) worker/edge con Bearer = SERVICE_ROLE_KEY (drain de la cola), o
+  //   (b) usuario autenticado que PUEDE VER este generated_content por RLS
+  //       (dueño / docente del curso / admin del tenant). Mismo patrón que
+  //       ai-generate-questions / ai-grade-submission.
+  const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  const isServiceRole =
+    bearer.length > 0 && bearer === (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
+  if (!isServiceRole) {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "No autenticado" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: u } = await userClient.auth.getUser();
+    if (!u?.user) {
+      return new Response(JSON.stringify({ error: "Token inválido" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    // RLS de generated_contents: solo devuelve la fila si el usuario puede verla
+    // (dueño/docente del curso/admin del tenant). 0 filas → 403.
+    const { data: visible } = await userClient
+      .from("generated_contents")
+      .select("id")
+      .eq("id", body.id)
+      .maybeSingle();
+    if (!visible) {
+      return new Response(JSON.stringify({ error: "No autorizado sobre este contenido" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
+
   // Cargamos la fila de generación + la marca activa de la institución
   // en paralelo. La marca puede estar vacía si Admin no la configuró
   // todavía — en ese caso interpolamos strings vacíos pero sin romper.
