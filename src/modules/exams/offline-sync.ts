@@ -91,17 +91,29 @@ export async function syncPendingAnswers(): Promise<number> {
 
   for (const { examId, data } of pending) {
     try {
-      const { error } = await supabase
+      // CRÍTICO: solo sincronizar contra una entrega que SIGA `en_progreso`.
+      // Sin el filtro de status, un pending local rezagado (ej. el docente
+      // borró/cerró la sesión, el alumno ya entregó, o la ventana cerró)
+      // SOBREESCRIBÍA las answers de una entrega YA enviada/calificada con
+      // datos viejos → corrupción de la entrega. El `.select("id")` nos deja
+      // distinguir "escribí 1 fila" de "matcheó 0" (entrega ya no en progreso).
+      const { data: updated, error } = await supabase
         .from("submissions")
         .update({
           answers: data.answers,
           focus_warnings: data.warnings,
         })
-        .eq("id", data.submissionId);
+        .eq("id", data.submissionId)
+        .eq("status", "en_progreso")
+        .select("id");
 
       if (!error) {
+        // Limpiamos el local pase lo que pase (sin error): si matcheó la fila
+        // ya quedó sincronizada; si matcheó 0 el pending es obsoleto y no tiene
+        // sentido reintentarlo eternamente. Pero SOLO contamos como
+        // "sincronizada" (→ toast) cuando de verdad se escribió una fila.
         await clearLocalAnswers(examId);
-        synced++;
+        if (Array.isArray(updated) && updated.length > 0) synced++;
       }
     } catch {
       // Will retry on next online event

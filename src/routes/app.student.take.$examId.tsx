@@ -905,6 +905,12 @@ function TakeExam() {
         return;
       }
 
+      // Entrega confirmada en el servidor → el respaldo local (línea ~865) ya
+      // no hace falta. Sin esto quedaba un pending que syncPendingAnswers
+      // intentaría re-aplicar (hoy inofensivo por el guard `status='en_progreso'`,
+      // pero mejor no dejar estado obsoleto que dispare un sync sin efecto).
+      await clearLocalAnswers(examId);
+
       // Optimización: la UI debe responder rápido (~300ms del update
       // anterior). La notificación al docente y la calificación con IA
       // son tareas de servidor que el alumno no necesita esperar — las
