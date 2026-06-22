@@ -285,10 +285,14 @@ Deno.serve(async (req) => {
             continue;
           }
           // Sin course_name: nada aditivo que hacer → rechazo de duplicado.
+          // Devolvemos userId para que el caller (ej. la creación individual,
+          // que NO manda course_name) pueda matricular al usuario existente
+          // a un curso elegido en el form si lo desea.
           result.push({
             email: institutional_email,
             ok: false,
             duplicate: true,
+            userId,
             reason: "Ya existe un usuario con este email institucional",
           });
           continue;

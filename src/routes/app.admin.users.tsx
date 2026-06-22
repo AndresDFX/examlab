@@ -985,6 +985,42 @@ function AdminUsers() {
         const result = (data?.result ?? [])[0];
         if (!result?.ok) {
           if (result?.duplicate) {
+            // El usuario ya existe. Si el admin eligió un curso y el usuario
+            // es estudiante, lo matriculamos al curso existente (operación
+            // aditiva, no-destructiva) en vez de solo reportar "duplicado" —
+            // misma intención que el import CSV: "ya existe pero no está en
+            // el curso → matricularlo".
+            const existingUserId = (result as { userId?: string })?.userId;
+            if (existingUserId && enrollCourseId && editing.roles.includes("Estudiante")) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const { error: enrollErr } = await (supabase as any)
+                .from("course_enrollments")
+                .upsert(
+                  { course_id: enrollCourseId, user_id: existingUserId },
+                  { onConflict: "course_id,user_id" },
+                );
+              if (!enrollErr) {
+                void logEvent({
+                  action: "enrollment.added",
+                  category: "course",
+                  actorRole: roles[0],
+                  entityType: "course",
+                  entityId: enrollCourseId,
+                  metadata: { user_id: existingUserId, source: "user_create_dialog_existing" },
+                });
+                toast.success(
+                  i18n.t("toast.routes_app_admin_users.existingUserEnrolled", {
+                    defaultValue:
+                      "El usuario ya existía; se matriculó al curso seleccionado.",
+                  }),
+                );
+                setDialogOpen(false);
+                setEditing(null);
+                load();
+                return;
+              }
+              // Si la matrícula falla, caemos al toast de duplicado de abajo.
+            }
             toast.error(
               i18n.t("toast.routes_app_admin_users.createDuplicateEmail", {
                 defaultValue:
