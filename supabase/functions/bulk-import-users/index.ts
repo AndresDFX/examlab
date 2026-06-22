@@ -128,7 +128,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    const result: { email: string; ok: boolean; reason?: string; duplicate?: boolean }[] = [];
+    const result: {
+      email: string;
+      ok: boolean;
+      reason?: string;
+      duplicate?: boolean;
+      userId?: string;
+      /** El usuario ya existía y solo se lo matriculó al curso (no se creó). */
+      enrolledExisting?: boolean;
+    }[] = [];
     const seenInBatch = new Set<string>();
     // Contador de createUser ya intentados — usado para el throttle
     // entre creates (skipea sleep para el primero, espera 200ms para los
@@ -226,7 +234,57 @@ Deno.serve(async (req) => {
       try {
         let userId = emailToId.get(emailKey);
         if (userId && !allowExisting) {
-          // Reject duplicates by default — caller must opt-in to update existing
+          // El usuario ya existe y NO pedimos actualizarlo (allowExisting=false,
+          // el default). NO tocamos su perfil/roles, PERO matricularlo a un
+          // curso es ADITIVO/no-destructivo: si la fila trae un course_name y
+          // el usuario todavía NO está en ese curso, lo matriculamos en vez de
+          // saltar la fila. Caso reportado: "importo un usuario que ya existe
+          // pero no está matriculado en el curso → debe quedar matriculado".
+          if (resolvedCourseId) {
+            const { data: alreadyEnrolled } = await adminClient
+              .from("course_enrollments")
+              .select("course_id")
+              .eq("course_id", resolvedCourseId)
+              .eq("user_id", userId)
+              .maybeSingle();
+            if (!alreadyEnrolled) {
+              const { error: enrollErr } = await adminClient
+                .from("course_enrollments")
+                .upsert(
+                  { course_id: resolvedCourseId, user_id: userId },
+                  { onConflict: "course_id,user_id" },
+                );
+              if (!enrollErr) {
+                result.push({
+                  email: institutional_email,
+                  ok: true,
+                  userId,
+                  enrolledExisting: true,
+                  reason: "Usuario ya existía; se matriculó al curso indicado.",
+                });
+                continue;
+              }
+              // Si la matrícula falla, caemos al rechazo de duplicado de abajo
+              // (con el error real para que el admin lo vea).
+              result.push({
+                email: institutional_email,
+                ok: false,
+                duplicate: true,
+                reason: `El usuario ya existe y no se pudo matricular al curso: ${enrollErr.message}`,
+              });
+              continue;
+            }
+            // Ya estaba matriculado: reportarlo como tal (no es un error
+            // accionable, pero sí informa que no había nada que hacer).
+            result.push({
+              email: institutional_email,
+              ok: false,
+              duplicate: true,
+              reason: "El usuario ya existe y ya estaba matriculado en el curso.",
+            });
+            continue;
+          }
+          // Sin course_name: nada aditivo que hacer → rechazo de duplicado.
           result.push({
             email: institutional_email,
             ok: false,
