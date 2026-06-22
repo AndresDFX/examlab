@@ -64,32 +64,29 @@ export function KahootJoinCard({
       return;
     }
     void (async () => {
-      // Existencia de juegos activos (sin PIN) + mis filas de jugador, en
-      // paralelo. La RLS recorta a juegos de mis cursos; filtramos
-      // estado/papelera en JS.
-      const [liveRes, mineRes] = await Promise.all([
-        db
-          .from("kahoot_games")
-          .select("id, status, poll:polls(deleted_at)")
-          .neq("status", "ended"),
-        db
-          .from("kahoot_players")
-          .select("game:kahoot_games(id, status, poll:polls(title, deleted_at))")
-          .eq("user_id", user.id),
-      ]);
+      // Descubrimiento vía RPC SECURITY DEFINER (kahoot_my_live_games, mig
+      // 20260992). Antes se hacía con un SELECT a kahoot_games + embed
+      // poll:polls(...), pero la RLS de polls del alumno exige is_published=TRUE
+      // → un Kahoot en BORRADOR (caso típico, se hospeda sin publicar) volvía
+      // poll=null y se descartaba: hasLive=false y reconectar desaparecía. La
+      // RPC trae los juegos vivos de mis cursos con título (bypassa esa RLS) +
+      // guard de papelera server-side. El ingreso a un juego NUEVO sigue por PIN.
+      const { data } = await db.rpc("kahoot_my_live_games");
       if (cancelled) return;
-      const liveRows = ((liveRes.data ?? []) as { poll: { deleted_at: string | null } | null }[]).filter(
-        (g) => g.poll && !g.poll.deleted_at,
-      );
-      setHasLive(liveRows.length > 0);
-      const rows = ((mineRes.data ?? []) as { game: { id: string; status: string; poll: { title: string; deleted_at: string | null } | null } | null }[])
-        .map((r) => r.game)
-        .filter((g): g is { id: string; status: string; poll: { title: string; deleted_at: string | null } | null } =>
-          !!g && g.status !== "ended" && !!g.poll && !g.poll.deleted_at,
-        )
-        .map((g) => ({ id: g.id, title: g.poll!.title }));
+      const rows = (data ?? []) as Array<{
+        game_id: string;
+        poll_title: string | null;
+        status: string;
+        am_i_player: boolean;
+      }>;
+      setHasLive(rows.length > 0);
       const seen = new Set<string>();
-      setMyGames(rows.filter((g) => (seen.has(g.id) ? false : (seen.add(g.id), true))));
+      setMyGames(
+        rows
+          .filter((g) => g.am_i_player)
+          .filter((g) => (seen.has(g.game_id) ? false : (seen.add(g.game_id), true)))
+          .map((g) => ({ id: g.game_id, title: g.poll_title ?? "" })),
+      );
     })();
     return () => {
       cancelled = true;

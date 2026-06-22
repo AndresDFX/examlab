@@ -1281,7 +1281,9 @@ Idioma de salida obligatorio: ${langName}.`;
           .insert({
             poll_id: targetId,
             text: String(q.text).slice(0, 500),
-            time_limit_seconds: 10,
+            // time_limit_seconds OMITIDO a propósito → hereda el DEFAULT 20 de
+            // la columna (mig 20260989). Antes insertaba 10 literal, saltándose
+            // el default (fix de auditoría del ajuste "tiempo por defecto 20s").
             points: 1000,
             multi_select: multi,
             position: ++kpos,

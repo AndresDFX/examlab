@@ -59,34 +59,30 @@ export function KahootLiveBanner() {
     let cancelled = false;
 
     const load = async () => {
-      const [liveRes, mineRes] = await Promise.all([
-        db
-          .from("kahoot_games")
-          .select("id, status, poll:polls(title, deleted_at)")
-          .neq("status", "ended"),
-        db.from("kahoot_players").select("game_id").eq("user_id", user.id),
-      ]);
+      // Descubrimiento vía RPC SECURITY DEFINER (kahoot_my_live_games, mig
+      // 20260992): NO usar el embed poll:polls(...) porque la RLS de polls del
+      // alumno exige is_published=TRUE, y un Kahoot se hospeda en BORRADOR (el
+      // caso típico) → el embed volvía null y el banner descartaba el juego, así
+      // que NUNCA aparecía. La RPC trae los juegos vivos de mis cursos con título
+      // (bypassa esa RLS) + guard de papelera server-side.
+      const { data } = await db.rpc("kahoot_my_live_games");
       if (cancelled) return;
-      const mine = new Set(
-        ((mineRes.data ?? []) as { game_id: string }[]).map((r) => r.game_id),
-      );
-      const live = ((liveRes.data ?? []) as {
-        id: string;
+      const rows = (data ?? []) as Array<{
+        game_id: string;
+        poll_title: string | null;
         status: string;
-        poll: { title: string; deleted_at: string | null } | null;
-      }[])
-        .filter((g) => g.poll && !g.poll.deleted_at)
-        .map((g) => ({
-          id: g.id,
-          status: g.status,
-          title: g.poll!.title,
-          amIPlayer: mine.has(g.id),
-        }))
+        am_i_player: boolean;
+      }>;
+      const live = rows
         // Mostrable: ya soy jugador (reconectar) o está en lobby (puedo entrar).
-        .filter((g) => g.amIPlayer || g.status === "lobby")
+        .filter((g) => g.am_i_player || g.status === "lobby")
         // Preferir un juego donde ya estoy (reconexión) sobre un lobby nuevo.
-        .sort((a, b) => Number(b.amIPlayer) - Number(a.amIPlayer));
-      setGame(live[0] ? { id: live[0].id, title: live[0].title, amIPlayer: live[0].amIPlayer } : null);
+        .sort((a, b) => Number(b.am_i_player) - Number(a.am_i_player));
+      setGame(
+        live[0]
+          ? { id: live[0].game_id, title: live[0].poll_title ?? "", amIPlayer: live[0].am_i_player }
+          : null,
+      );
     };
     loadRef.current = () => void load();
     void load();

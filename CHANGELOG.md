@@ -46,6 +46,33 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-06-19
 
+**Kahoot — fixes de la auditoría adversarial de los 6 ajustes (workflow + e2e).**
+Una auditoría por workflow (1 agente por ajuste) + e2e live (Demo Global Corp)
+destapó 3 issues reales en los ajustes ya implementados (commit `2fbfd291`):
+- **P0 (integridad de puntaje)** — `kahoot_submit_answer` no rechazaba responder
+  mientras `now() < question_started_at`. Con el lead de 3s de "¡Prepárate!"
+  (mig `20260989`), responder durante el splash daba **puntaje máximo**
+  (`elapsed = GREATEST(0, now-started) = 0`). Fix: guard `IF now() <
+  question_started_at THEN RAISE` (mig
+  [20260992000000](supabase/migrations/20260992000000_kahoot_audit_fixes.sql)).
+- **P1 (banner inoperante en el caso típico)** — `KahootLiveBanner` y
+  `KahootJoinCard` descubrían juegos con embed `poll:polls(...)`, pero la RLS de
+  `polls` del alumno exige `is_published=TRUE` y un Kahoot se hospeda **en
+  borrador** → el embed volvía `null` y se descartaba el juego: la notificación
+  **nunca aparecía** (ni el botón reconectar). Fix: nueva RPC
+  `kahoot_my_live_games()` `SECURITY DEFINER` (trae los juegos vivos de mis
+  cursos con título, bypassa esa RLS, guard de papelera + `_poll_has_member`);
+  el banner y el card ahora la usan.
+- **P2 (default 20s incompleto)** — dos flujos reinyectaban `time_limit_seconds=10`
+  saltándose el DEFAULT: el edge `ai-generate-questions` (ahora omite la columna)
+  y `add_questions_from_bank_to_kahoot` (CREATE OR REPLACE en `20260992` que omite
+  la columna → hereda el DEFAULT 20).
+- **Menores**: gate del splash con `nowMs>0` (evita un frame con número gigante);
+  tests de `getReadySecondsLeft`; 4 claves i18n del banner (es+en).
+- **Confirmado OK por la auditoría** (sin cambios): animaciones (tw-animate-css),
+  responders-by-option (privacidad host-only server-side), gating del banner. El
+  join 1-click sin PIN se confirma como decisión de producto intencional.
+
 **Cascade de cierre al finalizar un curso.**
 Cuando un curso pasa a `status='finalizado'` (por `set_course_status` manual O
 por el cron `auto_finalize_courses` — ambos hacen `UPDATE courses.status`), todo

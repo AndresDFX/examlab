@@ -109,7 +109,10 @@ function KahootPlayer() {
     question && game.status === "question"
       ? getReadySecondsLeft(game.question_started_at, nowMs)
       : null;
-  const inGetReady = getReady !== null && getReady > 0;
+  // nowMs arranca en 0 (init determinista SSR-safe); hasta que el effect ponga
+  // Date.now() NO evaluamos el splash, si no el primer frame mostraría un número
+  // gigante (getReadySecondsLeft(started, 0) ≈ epoch/1000).
+  const inGetReady = nowMs > 0 && getReady !== null && getReady > 0;
   // Docente ausente (heartbeat stale) y el juego no terminó → "Esperando al
   // docente…" en vez de la fase activa. NO lo sacamos de la sesión: cuando el
   // docente vuelve, host_present pasa a true y se reanuda la fase normal.

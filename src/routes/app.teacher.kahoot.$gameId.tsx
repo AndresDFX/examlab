@@ -163,7 +163,9 @@ function KahootHost() {
     state?.question && state.game.status === "question"
       ? getReadySecondsLeft(state.game.question_started_at, nowMs)
       : null;
-  const inGetReady = getReady !== null && getReady > 0;
+  // nowMs arranca en 0 hasta que el effect ponga Date.now(); sin este gate, el
+  // primer frame mostraría un número gigante en el splash (epoch/1000).
+  const inGetReady = nowMs > 0 && getReady !== null && getReady > 0;
 
   // Auto-bloqueo cuando se acaba el tiempo (se siente como Kahoot real).
   useEffect(() => {

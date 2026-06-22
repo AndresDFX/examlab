@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { kahootPoints, secondsLeft, KAHOOT_SHAPES, buildKahootJoinUrl } from "./kahoot";
+import {
+  kahootPoints,
+  secondsLeft,
+  getReadySecondsLeft,
+  KAHOOT_SHAPES,
+  buildKahootJoinUrl,
+} from "./kahoot";
 
 describe("kahootPoints", () => {
   it("incorrect answer is always 0", () => {
@@ -61,6 +67,38 @@ describe("secondsLeft", () => {
 
   it("returns null for an invalid date", () => {
     expect(secondsLeft("not-a-date", 20, startMs)).toBeNull();
+  });
+
+  it("returns the FULL limit while now < started (durante el lead de '¡Prepárate!')", () => {
+    // started 3s en el futuro respecto a now → debe mostrar el límite completo.
+    expect(secondsLeft(start, 20, startMs - 3000)).toBe(20);
+  });
+});
+
+describe("getReadySecondsLeft", () => {
+  const start = "2026-06-09T10:00:00.000Z";
+  const startMs = new Date(start).getTime();
+
+  it("returns null when no start time", () => {
+    expect(getReadySecondsLeft(null, startMs)).toBeNull();
+  });
+
+  it("returns null for an invalid date", () => {
+    expect(getReadySecondsLeft("not-a-date", startMs)).toBeNull();
+  });
+
+  it("returns the seconds remaining while now < started (lead activo)", () => {
+    expect(getReadySecondsLeft(start, startMs - 3000)).toBe(3);
+    expect(getReadySecondsLeft(start, startMs - 1500)).toBe(2); // ceil
+  });
+
+  it("returns 0 once started has passed (sin lead → la pregunta ya abrió)", () => {
+    expect(getReadySecondsLeft(start, startMs)).toBe(0);
+    expect(getReadySecondsLeft(start, startMs + 5000)).toBe(0);
+  });
+
+  it("clamps a 0 (nunca negativo)", () => {
+    expect(getReadySecondsLeft(start, startMs + 100000)).toBe(0);
   });
 });
 
