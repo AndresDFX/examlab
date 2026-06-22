@@ -111,12 +111,20 @@ export function AdminAiGradingPanel() {
 
   const loadMode = async () => {
     setLoadingMode(true);
+    // Multi-tenant: la RLS expone DOS filas is_active al Admin — la del PROPIO
+    // tenant + la platform-default (tenant_id IS NULL). El `.maybeSingle()`
+    // viejo devolvía null con >1 fila (PGRST116) y el panel MOSTRABA "async"
+    // aunque el tenant estuviera en "sync" — confundía al admin (creía que su
+    // sync no aplicaba). Resolvemos igual que getProcessingMode/getActiveAiModel:
+    // ordenar por tenant_id con los NULL al final → la fila del tenant primero.
     const { data } = await db
       .from("ai_model_settings")
-      .select("processing_mode")
+      .select("processing_mode, tenant_id")
       .eq("is_active", true)
-      .maybeSingle();
-    setMode((data?.processing_mode as "sync" | "async") ?? "async");
+      .order("tenant_id", { ascending: false, nullsFirst: false })
+      .limit(1);
+    const row = Array.isArray(data) ? data[0] : data;
+    setMode((row?.processing_mode as "sync" | "async") ?? "async");
     setLoadingMode(false);
   };
 
