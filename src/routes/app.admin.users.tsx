@@ -1247,19 +1247,57 @@ function AdminUsers() {
               : { ...r, course_name: defaultCourse.name },
           )
         : parsed;
-      const { data, error } = await supabase.functions.invoke("bulk-import-users", {
-        body: { rows },
-      });
-      if (error) {
-        const detail = await extractEdgeError(error, data);
-        throw new Error(detail || t("hc_routesAppAdminUsers.bulkImportError"));
+      // Batching client-side: mandar TODAS las filas en UN solo invoke hacía
+      // que, para lotes grandes (ej. ~90 estudiantes), el edge excediera su
+      // wall-clock (~1.3s+ por usuario: createUser + round-trips + retries) y
+      // la plataforma lo cortara a mitad → la UI no recibía `result` y parecía
+      // "se demoró mucho y no cargó". Partimos en chunks chicos: cada request
+      // cabe sobrado en el timeout, los resultados se ACUMULAN, y si un chunk
+      // falla SEGUIMOS con los demás (los éxitos parciales sobreviven en vez de
+      // perderse todo el lote). Además, lotes chicos reducen la presión sobre
+      // el Auth admin API (causa del "Database error creating new user").
+      type ImportResult = { email: string; ok: boolean; reason?: string; duplicate?: boolean };
+      const CHUNK_SIZE = 15;
+      const results: ImportResult[] = [];
+      const progressId = toast.loading(
+        i18n.t("toast.routes_app_admin_users.importProgress", {
+          defaultValue: "Importando {{done}}/{{total}}…",
+          done: 0,
+          total: rows.length,
+        }),
+      );
+      try {
+        for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+          const chunk = rows.slice(i, i + CHUNK_SIZE);
+          const { data, error } = await supabase.functions.invoke("bulk-import-users", {
+            body: { rows: chunk },
+          });
+          if (error) {
+            // El chunk falló (timeout/red): marcamos sus filas como error y
+            // CONTINUAMOS — no abortamos el lote completo por un chunk.
+            const detail = await extractEdgeError(error, data);
+            for (const r of chunk) {
+              results.push({
+                email: (r.institutional_email as string) ?? "(sin email)",
+                ok: false,
+                reason: detail || t("hc_routesAppAdminUsers.bulkImportError"),
+              });
+            }
+          } else {
+            results.push(...((data?.result ?? []) as ImportResult[]));
+          }
+          toast.loading(
+            i18n.t("toast.routes_app_admin_users.importProgress", {
+              defaultValue: "Importando {{done}}/{{total}}…",
+              done: Math.min(i + chunk.length, rows.length),
+              total: rows.length,
+            }),
+            { id: progressId },
+          );
+        }
+      } finally {
+        toast.dismiss(progressId);
       }
-      const results = (data.result ?? []) as Array<{
-        email: string;
-        ok: boolean;
-        reason?: string;
-        duplicate?: boolean;
-      }>;
       const ok = results.filter((r) => r.ok).length;
       const duplicates = results.filter((r) => !r.ok && r.duplicate);
       const otherFails = results.filter((r) => !r.ok && !r.duplicate);
