@@ -50,6 +50,10 @@ type ExamRow = {
     max_attempts?: number | null;
     /** Necesario para el filtro por curso del listado del estudiante. */
     course_id: string;
+    /** Estado del examen: draft/published/closed. Un `closed` (cierre manual
+     *  o cascade al finalizar el curso) no es tomable aunque la ventana siga
+     *  abierta — lo refleja getExamDisplayStatus. */
+    status?: string | null;
     course: {
       id: string;
       name: string;
@@ -93,8 +97,17 @@ function cmpDate(a: Date | null, b: Date | null, asc: boolean): number {
 
 function getExamDisplayStatus(row: ExamRow, now: number): ExamDisplayStatus {
   const s = row.submission?.status;
-  if (s === "en_progreso") return "in_progress";
+  // Una entrega ya calificada/terminada siempre permite REVISAR (read-only),
+  // incluso si el examen luego se cerró → mantener "completed" primero.
   if (s === "completado" || s === "sospechoso") return "completed";
+  // El examen cerrado explícitamente (cierre manual del docente o cascade al
+  // finalizar el curso) NO es tomable aunque su ventana de fechas siga abierta
+  // — la pantalla de toma lo rechaza con status!=='published'. Reflejar ese
+  // bloqueo en el listado para no mostrar un botón "Tomar" que luego falla.
+  // Precede a en_progreso: un intento en curso tampoco se puede reanudar si el
+  // examen quedó cerrado.
+  if (row.exam.status === "closed") return "closed";
+  if (s === "en_progreso") return "in_progress";
   const start = new Date(row.exam.start_time).getTime();
   const end = new Date(row.exam.end_time).getTime();
   if (now < start) return "upcoming";

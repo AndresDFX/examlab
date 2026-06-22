@@ -48,6 +48,7 @@ import {
   isExamOpen,
 } from "@/modules/exams/exam-time";
 import { MAX_WARNINGS, shouldMarkSuspicious, warningLabel } from "@/modules/exams/proctoring";
+import { seededShuffle, examShuffleSeed } from "@/modules/exams/shuffle";
 import { useCourseLanguage } from "@/hooks/use-course-language";
 import { useApprovedExamNote } from "@/modules/exams/ExamNotesManager";
 import { logEvent } from "@/shared/lib/audit";
@@ -472,7 +473,10 @@ function TakeExam() {
         .select("*")
         .eq("exam_id", examId)
         .order("position");
-      if (e.shuffle_enabled && qs) qs = [...qs].sort(() => Math.random() - 0.5);
+      // Mezcla DETERMINÍSTICA por (examen, alumno): estable entre recargas
+      // (antes un sort+random re-ordenaba en cada carga y rompía la
+      // navegación al reanudar) y distinta por alumno (anti-copia).
+      if (e.shuffle_enabled && qs) qs = seededShuffle(qs, examShuffleSeed(examId, user.id));
       setQuestions(qs ?? []);
 
       // Reintentos: contar todas las submissions del estudiante para este examen
