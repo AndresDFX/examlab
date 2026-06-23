@@ -2301,14 +2301,32 @@ Idioma de salida: ${langName}.`,
       .single();
     if (sErr || !sub) throw new Error("Submission no encontrada");
 
-    // Authz: el caller debe ser el dueño de la submission (caso normal:
-    // el alumno dispara grading al entregar) O docente/admin (recalificar
-    // desde el monitor). Si no, 403.
-    if (sub.user_id !== callerId && !callerIsTeacherOrAdmin) {
-      return new Response(JSON.stringify({ error: "No tienes permiso sobre esta entrega" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Authz: dueño de la entrega (el alumno al entregar), worker/cron, O alguien
+    // que PUEDE VER la entrega por RLS (docente del curso / admin del tenant / SA).
+    // Antes se usaba `callerIsTeacherOrAdmin` GLOBAL → un docente/admin de OTRO
+    // tenant podía disparar grading de una entrega ajena (costo IA + escritura
+    // cross-tenant; la lectura del resultado ya la bloquea la RLS). Ahora la
+    // autorización del staff se delega a la RLS de `submissions` (paridad exacta
+    // con quién puede leerla): si el caller no puede SELECT-earla con su propio
+    // JWT, no está autorizado. Mismo patrón que el gate de generate-contents.
+    if (!isSystemTrigger && sub.user_id !== callerId) {
+      const authHeader = req.headers.get("Authorization");
+      const rlsClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!,
+        { global: { headers: { Authorization: authHeader ?? "" } } },
+      );
+      const { data: visibleSub } = await rlsClient
+        .from("submissions")
+        .select("id")
+        .eq("id", submissionId)
+        .maybeSingle();
+      if (!visibleSub) {
+        return new Response(JSON.stringify({ error: "No tienes permiso sobre esta entrega" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     const { data: questions, error: qErr } = await admin
