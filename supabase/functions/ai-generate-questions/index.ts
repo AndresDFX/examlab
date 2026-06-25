@@ -87,14 +87,25 @@ async function aiChatCompletion(body: {
   const finalModel = body.modelOverride ?? m.model;
   const { modelOverride: _ignore, ...rest } = body;
   void _ignore;
-  return fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ model: finalModel, ...rest }),
-  });
+  const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
+  const payload = JSON.stringify({ model: finalModel, ...rest });
+  // Retry-with-backoff para rate-limit/transitorios del proveedor IA. Un 429
+  // suele ser un pico de tasa por segundo que se libera enseguida; en el path
+  // SÍNCRONO de generación, reintentar absorbe el blip y la generación SUCEDE
+  // en vez de mostrarle el error al docente. Errores NO transitorios
+  // (400/401/402) NO se reintentan (fallan al toque). Si tras los reintentos
+  // sigue 429 (ej. cuota por-minuto agotada), se devuelve el 429 y el caller
+  // muestra el mensaje amigable. Respeta Retry-After (capeado a 8s).
+  const TRANSIENT = new Set([429, 502, 503, 504]);
+  const MAX_ATTEMPTS = 3;
+  let res = await fetch(url, { method: "POST", headers, body: payload });
+  for (let attempt = 1; attempt < MAX_ATTEMPTS && TRANSIENT.has(res.status); attempt++) {
+    const ra = Number(res.headers.get("retry-after"));
+    const waitMs = Number.isFinite(ra) && ra > 0 ? Math.min(ra * 1000, 8000) : attempt * 1500;
+    await new Promise((r) => setTimeout(r, waitMs));
+    res = await fetch(url, { method: "POST", headers, body: payload });
+  }
+  return res;
 }
 
 /**
