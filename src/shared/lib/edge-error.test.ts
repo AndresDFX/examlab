@@ -4,16 +4,25 @@ import { extractEdgeError, extractEdgeErrorSync } from "./edge-error";
 // Helper para construir un FunctionsHttpError-like sin tener que importar
 // la clase real de supabase-js. Solo necesitamos el shape:
 // `{ message, name, context: { response } }`.
-function makeFunctionsHttpError(body: string, contentType = "application/json") {
+function makeFunctionsHttpError(body: string, contentType = "application/json", status = 500) {
   const response = new Response(body, {
-    status: 500,
+    status,
     headers: { "content-type": contentType },
   });
+  // Shape histórico/nested: `context: { response }` (versiones viejas / wrappers).
   return {
     name: "FunctionsHttpError",
     message: "Edge Function returned a non-2xx status code",
     context: { response },
   };
+}
+
+// Shape REAL de supabase-js v2: `error.context` ES el Response (functions-js
+// hace `throw new FunctionsHttpError(response)`). Este es el caso que el bug
+// histórico no manejaba (leía `.context.response` → undefined → genérico).
+function makeRealFunctionsHttpError(body: string, status = 429, contentType = "application/json") {
+  const context = new Response(body, { status, headers: { "content-type": contentType } });
+  return { name: "FunctionsHttpError", message: "Edge Function returned a non-2xx status code", context };
 }
 
 describe("extractEdgeError", () => {
@@ -43,12 +52,31 @@ describe("extractEdgeError", () => {
     expect(await extractEdgeError(err)).toBe("plain text fail");
   });
 
-  it("regression: body string vacío cae al .message original (no string vacío silencioso)", async () => {
-    // Sin texto en el body, el helper debe fallar al .message del error.
+  it("body vacío + status 500 → mensaje por status (NO el genérico inútil)", async () => {
     const err = makeFunctionsHttpError("");
     expect(await extractEdgeError(err)).toBe(
-      "Edge Function returned a non-2xx status code",
+      "El servicio tuvo un error temporal. Reintenta en un momento.",
     );
+  });
+
+  it("[BUG FIX] shape REAL (context ES el Response, no .context.response): lee el body", async () => {
+    // Antes el helper leía `.context.response` (undefined en supabase-js v2) →
+    // todo caía al genérico. Este es el caso del 429 de Kahoot reportado.
+    const err = makeRealFunctionsHttpError(
+      JSON.stringify({ error: "Límite de uso de IA. Intenta en un momento." }),
+      429,
+    );
+    expect(await extractEdgeError(err)).toBe("Límite de uso de IA. Intenta en un momento.");
+  });
+
+  it("[BUG FIX] 429 con body vacío → fallback de rate-limit por status", async () => {
+    expect(await extractEdgeError(makeRealFunctionsHttpError("", 429))).toContain(
+      "Límite de uso de IA",
+    );
+  });
+
+  it("402 con body vacío → 'Sin créditos'", async () => {
+    expect(await extractEdgeError(makeRealFunctionsHttpError("", 402))).toBe("Sin créditos de IA.");
   });
 
   it("error null/undefined sin data → string vacío", async () => {
@@ -67,8 +95,10 @@ describe("extractEdgeError", () => {
     expect(await extractEdgeError(pgErr)).toBe("duplicate key");
   });
 
-  it("fallback final: 'Error desconocido' cuando nada coincide", async () => {
-    expect(await extractEdgeError({})).toBe("Error desconocido");
+  it("fallback final cuando nada coincide (no el genérico de supabase)", async () => {
+    expect(await extractEdgeError({})).toBe(
+      "No se pudo completar la operación. Reintenta en un momento.",
+    );
   });
 });
 
