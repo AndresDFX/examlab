@@ -71,6 +71,10 @@ interface EditQuestion {
 function blankQuestion(): EditQuestion {
   return {
     text: "",
+    // 20s: alineado con el default de la columna SQL
+    // (kahoot_questions.time_limit_seconds DEFAULT 20) y con el RPC
+    // `add_questions_from_bank_to_kahoot`. Antes era 10s — quedaba muy
+    // corto para preguntas con código o enunciados largos.
     time_limit_seconds: 20,
     points: 1000,
     multi_select: false,
