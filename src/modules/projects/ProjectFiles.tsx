@@ -480,10 +480,11 @@ export function TeacherProjectFilesEditor({
           courseLanguage,
         },
       });
-      if (error) {
-        toast.error(friendlyError(error, t("hc_modulesProjectsProjectFiles.errGeneratingAi")));
-      } else if (data?.error) {
-        toast.error(data.error);
+      if (error || data?.error) {
+        // Mostrar el motivo REAL del edge (ej. "Límite de uso de IA" 429) en vez
+        // del genérico "non-2xx" de supabase.invoke. Igual que el generador de Kahoot.
+        const detail = await extractEdgeError(error, data);
+        toast.error(detail || friendlyError(error, t("hc_modulesProjectsProjectFiles.errGeneratingAi")));
       } else if (data?.inserted) {
         toast.success(
           i18n.t("toast.modules_projects_ProjectFiles.questionsGeneratedWithCode", {
