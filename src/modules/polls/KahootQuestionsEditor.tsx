@@ -40,6 +40,7 @@ import {
 import { Plus, Trash2, Check, Gamepad2, Wand2, Library } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
@@ -338,9 +339,14 @@ export function KahootQuestionsEditor({
         },
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const edgeErr = error ?? (data as any)?.error;
-      if (edgeErr) {
-        toast.error(friendlyError(edgeErr));
+      if (error || (data as any)?.error) {
+        // El edge devuelve el MOTIVO real en el body (ej. "Sin créditos de IA",
+        // "Límite de uso de IA", o el error del proveedor). supabase.invoke deja
+        // `error` como el genérico "Edge Function returned a non-2xx status code"
+        // y NO lee el body → el docente solo veía ese genérico inútil. extractEdgeError
+        // lee el JSON del body (error.context) y muestra el motivo accionable.
+        const detail = await extractEdgeError(error, data);
+        toast.error(detail || friendlyError(error));
         return;
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
