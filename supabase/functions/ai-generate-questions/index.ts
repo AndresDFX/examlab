@@ -519,17 +519,18 @@ Deno.serve(async (req) => {
           },
         ],
       });
+      // Caller-aware (ver bloque principal): worker → status real; sync → 200+{error}.
       if (aiResD.status === 429) {
-        return new Response(JSON.stringify({ error: "Límite de uso de IA. Intenta luego." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ ok: false, error: "Límite de uso de IA. Intenta en un momento.", rate_limited: true }),
+          { status: isServiceRoleCaller ? 429 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
       if (aiResD.status === 402) {
-        return new Response(JSON.stringify({ error: "Sin créditos de IA." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ ok: false, error: "Sin créditos de IA. Agrega créditos en Settings → Workspace → Usage.", no_credits: true }),
+          { status: isServiceRoleCaller ? 402 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
       if (!aiResD.ok) {
         throw new Error(await describeAiError(aiResD));
@@ -594,17 +595,18 @@ Idioma obligatorio: ${langName}.`,
         tool_choice: { type: "function", function: { name: "build_project_statement" } },
       });
 
+      // Caller-aware (ver bloque principal): worker → status real; sync → 200+{error}.
       if (aiRes.status === 429) {
-        return new Response(JSON.stringify({ error: "Límite de uso de IA. Intenta luego." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ ok: false, error: "Límite de uso de IA. Intenta en un momento.", rate_limited: true }),
+          { status: isServiceRoleCaller ? 429 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
       if (aiRes.status === 402) {
-        return new Response(JSON.stringify({ error: "Sin créditos de IA." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ ok: false, error: "Sin créditos de IA. Agrega créditos en Settings → Workspace → Usage.", no_credits: true }),
+          { status: isServiceRoleCaller ? 402 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
       if (!aiRes.ok) {
         throw new Error(await describeAiError(aiRes));
@@ -722,17 +724,18 @@ Idioma obligatorio: ${langName}.`,
         },
       });
 
+      // Caller-aware (ver bloque principal): worker → status real; sync → 200+{error}.
       if (aiResPQA.status === 429) {
-        return new Response(JSON.stringify({ error: "Límite de uso de IA. Intenta luego." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ ok: false, error: "Límite de uso de IA. Intenta en un momento.", rate_limited: true }),
+          { status: isServiceRoleCaller ? 429 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
       if (aiResPQA.status === 402) {
-        return new Response(JSON.stringify({ error: "Sin créditos de IA." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ ok: false, error: "Sin créditos de IA. Agrega créditos en Settings → Workspace → Usage.", no_credits: true }),
+          { status: isServiceRoleCaller ? 402 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
       if (!aiResPQA.ok) {
         throw new Error(await describeAiError(aiResPQA));
@@ -888,17 +891,18 @@ Idioma obligatorio: ${pfLangName}.`,
         tool_choice: { type: "function", function: { name: "build_project_files" } },
       });
 
+      // Caller-aware (ver bloque principal): worker → status real; sync → 200+{error}.
       if (aiRes.status === 429) {
-        return new Response(JSON.stringify({ error: "Límite de uso de IA. Intenta luego." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ ok: false, error: "Límite de uso de IA. Intenta en un momento.", rate_limited: true }),
+          { status: isServiceRoleCaller ? 429 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
       if (aiRes.status === 402) {
-        return new Response(JSON.stringify({ error: "Sin créditos de IA." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ ok: false, error: "Sin créditos de IA. Agrega créditos en Settings → Workspace → Usage.", no_credits: true }),
+          { status: isServiceRoleCaller ? 402 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
       if (!aiRes.ok) {
         throw new Error(await describeAiError(aiRes));
@@ -1221,18 +1225,33 @@ Idioma de salida obligatorio: ${langName}.`;
       },
     });
 
-    if (aiRes.status === 429)
-      return new Response(
-        JSON.stringify({ error: "Límite de uso de IA. Intenta en un momento." }),
-        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    if (aiRes.status === 402)
-      return new Response(
-        JSON.stringify({
-          error: "Sin créditos de IA. Agrega créditos en Settings → Workspace → Usage.",
-        }),
-        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    // Rate-limit / sin-créditos del proveedor IA. Respuesta CONSCIENTE DEL CALLER:
+    //  - Worker (service_role): status REAL (429/402) para que su lógica de
+    //    retry/requeue actúe normalmente.
+    //  - Caller SÍNCRONO (docente en el form): 200 con el error en el body.
+    //    Motivo: supabase.functions.invoke envuelve los no-2xx en un
+    //    FunctionsHttpError cuyo body el cliente DESPLEGADO no lee (el fix de
+    //    extractEdgeError que lee el body de un 429 aún no está publicado en el
+    //    frontend), así que el docente veía el genérico "non-2xx". Con 200+{error}
+    //    el path `data.error` del cliente —que SÍ funciona en el build actual—
+    //    muestra el motivo real SIN requerir deploy del frontend. Es un "soft
+    //    error" para que el cliente lo presente; el éxito se distingue por
+    //    `data.inserted`, no por el status. Cuando se publique el fix de
+    //    extractEdgeError este 200-para-sync sigue siendo compatible.
+    if (aiRes.status === 429) {
+      const msg = "Límite de uso de IA. Intenta en un momento.";
+      return new Response(JSON.stringify({ ok: false, error: msg, rate_limited: true }), {
+        status: isServiceRoleCaller ? 429 : 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (aiRes.status === 402) {
+      const msg = "Sin créditos de IA. Agrega créditos en Settings → Workspace → Usage.";
+      return new Response(JSON.stringify({ ok: false, error: msg, no_credits: true }), {
+        status: isServiceRoleCaller ? 402 : 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     if (!aiRes.ok) {
       throw new Error(await describeAiError(aiRes));
     }
