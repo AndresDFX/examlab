@@ -7,6 +7,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { describeAiError } from "../_shared/ai-error.ts";
 import {
   getActiveAiModel as resolveActiveModel,
+  aiChatCompletionFailover,
   type ActiveModel,
 } from "../_shared/ai-model.ts";
 
@@ -40,22 +41,8 @@ async function getActiveAiModel(): Promise<ActiveModel> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function aiChatCompletion(body: { messages: any[]; tools?: any[]; tool_choice?: any }) {
   const m = await getActiveAiModel();
-  let url: string;
-  let key: string | undefined;
-  if (m.provider === "openai") {
-    url = "https://api.openai.com/v1/chat/completions";
-    key = m.openai_api_key ?? Deno.env.get("OPENAI_API_KEY");
-    if (!key) throw new Error("Falta la API key de OpenAI");
-  } else {
-    url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-    key = m.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
-    if (!key) throw new Error("GEMINI_API_KEY missing");
-  }
-  return fetch(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: m.model, ...body }),
-  });
+  // Failover de API keys (principal → respaldo → env) + retry transitorio.
+  return aiChatCompletionFailover(m, { model: m.model, ...body });
 }
 
 async function resolveSystemPrompt(

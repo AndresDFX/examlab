@@ -20,7 +20,7 @@
 //    entregas. Si se necesita, se hace en una v2.
 import { adminClient as admin, userClientFromRequest } from "../_shared/admin.ts";
 import { auditFromEdge } from "../_shared/audit.ts";
-import { getActiveAiModel } from "../_shared/ai-model.ts";
+import { getActiveAiModel, aiChatCompletionFailover } from "../_shared/ai-model.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -335,21 +335,10 @@ Deno.serve(async (req) => {
     // Resolver provider/key/modelo activo del tenant (vía courseId).
     // Si el tenant no tiene config o la key falta, getActiveAiModel cae a
     // fallback hardcoded (Gemini) y el fetch fallará con mensaje claro.
+    // El failover (`aiChatCompletionFailover`) resuelve URL + rota las keys
+    // (principal → respaldo → env). Si no hay ninguna configurada, lanza un
+    // error accionable ("Falta la API key de …").
     const activeModel = await getActiveAiModel({ courseId: refCourseId });
-    let aiUrl: string;
-    let aiKey: string | undefined;
-    if (activeModel.provider === "openai") {
-      aiUrl = "https://api.openai.com/v1/chat/completions";
-      aiKey = activeModel.openai_api_key ?? Deno.env.get("OPENAI_API_KEY");
-    } else {
-      aiUrl = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-      aiKey = activeModel.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
-    }
-    if (!aiKey) {
-      throw new Error(
-        `Falta la API key de ${activeModel.provider}. Configúrala en Admin → IA → Modelo.`,
-      );
-    }
 
     // Borrado idempotente: cualquier corrida re-genera los pares
     // PENDIENTES de revisar. Los pares ya marcados como revisados
@@ -388,10 +377,7 @@ Deno.serve(async (req) => {
       const items = group.items.slice(0, MAX_ITEMS_PER_CALL);
       const idxList = items.map((it, i) => `[${i}]\n${it.text}`).join("\n\n---\n\n");
 
-      const aiRes = await fetch(aiUrl, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${aiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const aiRes = await aiChatCompletionFailover(activeModel, {
           model: activeModel.model,
           messages: [
             {
@@ -435,7 +421,6 @@ Deno.serve(async (req) => {
             },
           ],
           tool_choice: { type: "function", function: { name: "report_pairs" } },
-        }),
       });
 
       if (aiRes.status === 429) {

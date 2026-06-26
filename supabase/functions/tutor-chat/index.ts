@@ -18,7 +18,10 @@
  */
 import { adminClient as admin, corsHeaders, userClientFromRequest } from "../_shared/admin.ts";
 import { buildTutorSystemPrompt, truncateHistory, type ChatMessage } from "./tutor-prompt.ts";
-import { getActiveAiModel as resolveActiveModel } from "../_shared/ai-model.ts";
+import {
+  getActiveAiModel as resolveActiveModel,
+  aiChatCompletionFailover,
+} from "../_shared/ai-model.ts";
 import {
   docxXmlToText,
   isNotebook,
@@ -228,7 +231,8 @@ function setRequestModelHint(h: { courseId?: string | null; authHeader?: string 
  * vio antes el JSON crudo `[{"error":{"code":500,...}}]`; con retry
  * típicamente ni se entera del fallo transitorio.
  */
-const MAX_AI_RETRIES = 3;
+// El retry transitorio + failover de keys vive en aiChatCompletionFailover;
+// acá RETRYABLE_STATUS solo clasifica el status FINAL para el mensaje friendly.
 const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 
 function isRetryableAiBody(text: string): boolean {
@@ -249,75 +253,44 @@ async function callAi(messages: Array<{ role: string; content: string }>) {
   // Resolve modelo + API keys per-tenant (tutor-chat usa el shared helper
   // que incluye openai/gemini keys del tenant).
   const m = await resolveActiveModel(requestModelHint);
-  let url: string;
-  let key: string | undefined;
-  if (m.provider === "openai") {
-    url = "https://api.openai.com/v1/chat/completions";
-    key = m.openai_api_key ?? Deno.env.get("OPENAI_API_KEY");
-  } else {
-    url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-    key = m.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
+  // Failover de API keys (principal → respaldo → env) + retry transitorio en
+  // el helper compartido. callAi solo post-procesa la respuesta FINAL: si tras
+  // rotar todas las keys sigue fallando, traducimos el status a un mensaje
+  // friendly (key inválida / proveedor saturado / error genérico).
+  const res = await aiChatCompletionFailover(m, { model: m.model, messages });
+  if (res.ok) {
+    const json = await res.json();
+    const content = json.choices?.[0]?.message?.content ?? "";
+    const usage = json.usage ?? {};
+    return {
+      content,
+      promptTokens: usage.prompt_tokens ?? null,
+      completionTokens: usage.completion_tokens ?? null,
+    };
   }
-  if (!key) throw new Error(`API key del provider ${m.provider} no configurada`);
-
-  let lastErr: { status: number; text: string } | null = null;
-  for (let attempt = 1; attempt <= MAX_AI_RETRIES; attempt++) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: m.model, messages }),
-    });
-    if (res.ok) {
-      const json = await res.json();
-      const content = json.choices?.[0]?.message?.content ?? "";
-      const usage = json.usage ?? {};
-      return {
-        content,
-        promptTokens: usage.prompt_tokens ?? null,
-        completionTokens: usage.completion_tokens ?? null,
-      };
-    }
-    const errText = await res.text();
-    lastErr = { status: res.status, text: errText };
-
-    // API key inválida → error terminal, no reintentar (no se va a
-    // arreglar mágicamente entre intentos).
-    const isKeyInvalid =
-      res.status === 401 ||
-      res.status === 403 ||
-      errText.includes("API_KEY_INVALID") ||
-      errText.includes("invalid_api_key") ||
-      errText.toLowerCase().includes("invalid api key");
-    if (isKeyInvalid) {
-      throw new Error(
-        `La API key del proveedor de IA (${m.provider}) está inválida o expirada. ` +
-          `Pídele al administrador que actualice el secret correspondiente ` +
-          `(${m.provider === "openai" ? "OPENAI_API_KEY" : "GEMINI_API_KEY"}) ` +
-          `o que cambie el proveedor activo desde Admin → IA → Modelo.`,
-      );
-    }
-
-    // Reintentar en transientes (5xx, 429) o body con marca de overload.
-    const shouldRetry =
-      attempt < MAX_AI_RETRIES && (RETRYABLE_STATUS.has(res.status) || isRetryableAiBody(errText));
-    if (!shouldRetry) break;
-
-    // Backoff exponencial: 800ms, 1600ms, 3200ms.
-    const backoff = 800 * Math.pow(2, attempt - 1);
-    await new Promise((r) => setTimeout(r, backoff));
+  const errText = await res.text();
+  // 401/403 tras agotar todas las keys → TODAS inválidas/expiradas.
+  const isKeyInvalid =
+    res.status === 401 ||
+    res.status === 403 ||
+    errText.includes("API_KEY_INVALID") ||
+    errText.includes("invalid_api_key") ||
+    errText.toLowerCase().includes("invalid api key");
+  if (isKeyInvalid) {
+    throw new Error(
+      `La API key del proveedor de IA (${m.provider}) está inválida o expirada. ` +
+        `Pídele al administrador que actualice el secret correspondiente ` +
+        `(${m.provider === "openai" ? "OPENAI_API_KEY" : "GEMINI_API_KEY"}) ` +
+        `o que cambie el proveedor activo desde Admin → IA → Modelo.`,
+    );
   }
-
-  // Si llegamos acá agotamos los retries. Mensaje friendly según patrón.
-  if (lastErr) {
-    const isOverload = RETRYABLE_STATUS.has(lastErr.status) || isRetryableAiBody(lastErr.text);
-    if (isOverload) {
-      throw new Error(
-        "El proveedor de IA está saturado en este momento. Intenta de nuevo en unos segundos.",
-      );
-    }
-    throw new Error(`AI error ${lastErr.status}: ${lastErr.text.slice(0, 500)}`);
+  const isOverload = RETRYABLE_STATUS.has(res.status) || isRetryableAiBody(errText);
+  if (isOverload) {
+    throw new Error(
+      "El proveedor de IA está saturado en este momento. Intenta de nuevo en unos segundos.",
+    );
   }
-  throw new Error("AI sin respuesta tras 3 intentos.");
+  throw new Error(`AI error ${res.status}: ${errText.slice(0, 500)}`);
 }
 
 // ── Resolver del system prompt del Tutor ──

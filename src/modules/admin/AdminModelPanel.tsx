@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Save, Info, Cpu, AlertTriangle } from "lucide-react";
+import { Save, Info, Cpu, AlertTriangle, Plus, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -51,6 +51,10 @@ type ModelRow = {
   is_active: boolean;
   openai_api_key: string | null;
   gemini_api_key: string | null;
+  // Listas de keys de respaldo (failover). El edge intenta la principal y, si
+  // falla (429/401/402/403/5xx), rota a estas en orden.
+  gemini_fallback_keys: string[] | null;
+  openai_fallback_keys: string[] | null;
 };
 
 const PROVIDER_LABELS: Record<Provider, string> = {
@@ -88,6 +92,11 @@ export function AdminModelPanel() {
   // Cualquier otro string la reemplaza; "" la borra.
   const [draftOpenaiKey, setDraftOpenaiKey] = useState<string>("__keep");
   const [draftGeminiKey, setDraftGeminiKey] = useState<string>("__keep");
+  // Listas de keys de respaldo (failover) por provider. Se cargan con los
+  // valores reales (el Admin tiene RLS de lectura sobre su fila); el
+  // PasswordInput las oculta por defecto. Al guardar se escriben completas.
+  const [draftGeminiFallback, setDraftGeminiFallback] = useState<string[]>([]);
+  const [draftOpenaiFallback, setDraftOpenaiFallback] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -103,7 +112,9 @@ export function AdminModelPanel() {
     // `.maybeSingle()` se rompería con multiple rows.
     let q = db
       .from("ai_model_settings")
-      .select("id, provider, model, is_active, openai_api_key, gemini_api_key")
+      .select(
+        "id, provider, model, is_active, openai_api_key, gemini_api_key, gemini_fallback_keys, openai_fallback_keys",
+      )
       .eq("is_active", true);
     if (isGlobalScope) {
       q = q.is("tenant_id", null);
@@ -132,6 +143,8 @@ export function AdminModelPanel() {
       setDraftModel(normalizedModel);
       setDraftOpenaiKey("__keep");
       setDraftGeminiKey("__keep");
+      setDraftGeminiFallback(row.gemini_fallback_keys ?? []);
+      setDraftOpenaiFallback(row.openai_fallback_keys ?? []);
     } else {
       // Sin fila para este scope — limpiar el activeRow para que el
       // formulario muestre los defaults y la siguiente save haga INSERT
@@ -139,6 +152,8 @@ export function AdminModelPanel() {
       setActiveRow(null);
       setDraftOpenaiKey("__keep");
       setDraftGeminiKey("__keep");
+      setDraftGeminiFallback([]);
+      setDraftOpenaiFallback([]);
     }
     setLoading(false);
   };
@@ -149,12 +164,33 @@ export function AdminModelPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryNonce, isGlobalScope, scopeTenantId]);
 
+  // Limpia una lista de keys: trim + descarta vacíos + dedup, preservando orden.
+  const cleanKeyList = (xs: string[]): string[] => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const x of xs) {
+      const v = x.trim();
+      if (v && !seen.has(v)) {
+        seen.add(v);
+        out.push(v);
+      }
+    }
+    return out;
+  };
+  const listsEqual = (a: string[], b: string[]): boolean => {
+    const ca = cleanKeyList(a);
+    const cb = cleanKeyList(b);
+    return ca.length === cb.length && ca.every((v, i) => v === cb[i]);
+  };
+
   const dirty =
     !activeRow ||
     draftProvider !== activeRow.provider ||
     draftModel !== activeRow.model ||
     draftOpenaiKey !== "__keep" ||
-    draftGeminiKey !== "__keep";
+    draftGeminiKey !== "__keep" ||
+    !listsEqual(draftGeminiFallback, activeRow.gemini_fallback_keys ?? []) ||
+    !listsEqual(draftOpenaiFallback, activeRow.openai_fallback_keys ?? []);
 
   // Helper para mostrar "••••XXXX" cuando hay una key guardada pero el
   // admin no la está editando. Si la key no existe, muestra placeholder.
@@ -211,6 +247,12 @@ export function AdminModelPanel() {
         draftOpenaiKey === "__keep" ? (activeRow?.openai_api_key ?? null) : draftOpenaiKey || null;
       const nextGeminiKey =
         draftGeminiKey === "__keep" ? (activeRow?.gemini_api_key ?? null) : draftGeminiKey || null;
+      // Listas de respaldo: limpiadas (sin vacíos/duplicados). Array vacío → null
+      // para no guardar `{}` en la columna text[].
+      const cleanedGeminiFallback = cleanKeyList(draftGeminiFallback);
+      const cleanedOpenaiFallback = cleanKeyList(draftOpenaiFallback);
+      const nextGeminiFallback = cleanedGeminiFallback.length ? cleanedGeminiFallback : null;
+      const nextOpenaiFallback = cleanedOpenaiFallback.length ? cleanedOpenaiFallback : null;
 
       // UPSERT correcto: si la fila del scope ya existe, hacemos UPDATE.
       // Si no, INSERT. Antes hacíamos UPDATE-to-false + INSERT, que con
@@ -227,6 +269,8 @@ export function AdminModelPanel() {
             updated_by: user.id,
             openai_api_key: nextOpenaiKey,
             gemini_api_key: nextGeminiKey,
+            gemini_fallback_keys: nextGeminiFallback,
+            openai_fallback_keys: nextOpenaiFallback,
           })
           .eq("id", activeRow.id);
         if (updErr) {
@@ -241,6 +285,8 @@ export function AdminModelPanel() {
           updated_by: user.id,
           openai_api_key: nextOpenaiKey,
           gemini_api_key: nextGeminiKey,
+          gemini_fallback_keys: nextGeminiFallback,
+          openai_fallback_keys: nextOpenaiFallback,
         };
         if (isGlobalScope) insertPayload.tenant_id = null;
         const { error: insErr } = await db.from("ai_model_settings").insert(insertPayload);
@@ -469,6 +515,13 @@ export function AdminModelPanel() {
             help={t("hc_modulesAdminAdminModelPanel.apiKeyHelpOpenai")}
           />
         )}
+        {draftProvider === "openai" && (
+          <FallbackKeysEditor
+            providerLabel={PROVIDER_LABELS.openai}
+            keys={draftOpenaiFallback}
+            onChange={setDraftOpenaiFallback}
+          />
+        )}
         {draftProvider === "gemini" && (
           <ApiKeyInput
             label={t("hc_modulesAdminAdminModelPanel.apiKeyLabelGemini")}
@@ -507,6 +560,13 @@ export function AdminModelPanel() {
             help={t("hc_modulesAdminAdminModelPanel.apiKeyHelpGemini")}
           />
         )}
+        {draftProvider === "gemini" && (
+          <FallbackKeysEditor
+            providerLabel={PROVIDER_LABELS.gemini}
+            keys={draftGeminiFallback}
+            onChange={setDraftGeminiFallback}
+          />
+        )}
 
         {tenantNeedsKey && (
           <Alert variant="destructive">
@@ -532,6 +592,8 @@ export function AdminModelPanel() {
                 setDraftModel(activeRow.model);
                 setDraftOpenaiKey("__keep");
                 setDraftGeminiKey("__keep");
+                setDraftGeminiFallback(activeRow.gemini_fallback_keys ?? []);
+                setDraftOpenaiFallback(activeRow.openai_fallback_keys ?? []);
               }}
               disabled={saving}
             >
@@ -628,6 +690,93 @@ function ApiKeyInput({
         )}
       </div>
       {help && <p className="text-[11px] text-muted-foreground mt-1">{help}</p>}
+    </div>
+  );
+}
+
+/**
+ * FallbackKeysEditor — lista editable de keys de RESPALDO (failover) del
+ * provider activo. El edge intenta la clave principal y, si falla
+ * (límite de uso 429, inválida 401/403, sin créditos 402, o caída 5xx),
+ * rota a estas EN ORDEN. Así un docente no se queda sin IA cuando una clave
+ * agota su cuota del momento.
+ *
+ * Cada fila es un PasswordInput (oculto por defecto) + botón eliminar.
+ * "Agregar clave" añade una fila vacía. El parent limpia/dedup al guardar.
+ */
+function FallbackKeysEditor({
+  providerLabel,
+  keys,
+  onChange,
+}: {
+  providerLabel: string;
+  keys: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const { t } = useTranslation();
+  const setAt = (i: number, v: string) => onChange(keys.map((k, idx) => (idx === i ? v : k)));
+  const removeAt = (i: number) => onChange(keys.filter((_, idx) => idx !== i));
+  const add = () => onChange([...keys, ""]);
+  const count = keys.filter((k) => k.trim()).length;
+  return (
+    <div className="rounded-md border border-dashed border-muted-foreground/30 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-xs mb-0">
+          {t("aiModel.fallbackKeysLabel", {
+            provider: providerLabel,
+            defaultValue: `Claves de respaldo de ${providerLabel}`,
+          })}{" "}
+          <HelpHint>
+            {t("aiModel.fallbackKeysHelp", {
+              defaultValue:
+                "Si la clave principal falla (límite de uso, inválida, sin créditos o caída del proveedor), la IA reintenta automáticamente con estas claves, en orden. Útil para no quedarte sin IA cuando una clave agota su cuota del momento.",
+            })}
+          </HelpHint>
+        </Label>
+        <Badge variant="secondary" className="text-[10px]">
+          {t("aiModel.fallbackKeysCount", {
+            count,
+            defaultValue: `${count} configurada(s)`,
+          })}
+        </Badge>
+      </div>
+      {keys.length === 0 && (
+        <p className="text-[11px] text-muted-foreground">
+          {t("aiModel.fallbackKeysEmpty", {
+            defaultValue: "Sin claves de respaldo. Solo se usa la principal.",
+          })}
+        </p>
+      )}
+      {keys.map((k, i) => (
+        // eslint-disable-next-line react/no-array-index-key
+        <div key={i} className="flex items-center gap-2">
+          <span className="text-[11px] text-muted-foreground w-5 shrink-0 text-right">
+            {i + 1}.
+          </span>
+          <PasswordInput
+            value={k}
+            placeholder={t("aiModel.fallbackKeysPlaceholder", {
+              defaultValue: "Pegá una clave de respaldo",
+            })}
+            onChange={(e) => setAt(i, e.target.value)}
+            wrapperClassName="flex-1"
+            className="font-mono text-xs"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 text-destructive shrink-0"
+            onClick={() => removeAt(i)}
+            title={t("aiModel.fallbackKeysRemove", { defaultValue: "Eliminar esta clave" })}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ))}
+      <Button variant="outline" size="sm" onClick={add} className="w-full">
+        <Plus className="h-4 w-4 mr-1" />
+        {t("aiModel.fallbackKeysAdd", { defaultValue: "Agregar clave de respaldo" })}
+      </Button>
     </div>
   );
 }

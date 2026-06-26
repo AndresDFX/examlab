@@ -5,6 +5,7 @@ import { enforceRateLimit } from "../_shared/rate-limit.ts";
 import { describeAiError } from "../_shared/ai-error.ts";
 import {
   getActiveAiModel as resolveActiveModel,
+  aiChatCompletionFailover,
   type ActiveModel,
   type AiProvider,
 } from "../_shared/ai-model.ts";
@@ -77,31 +78,9 @@ async function aiChatCompletion(body: {
   tool_choice?: any;
 }): Promise<Response> {
   const m = await getActiveAiModel();
-  let url: string;
-  let key: string | undefined;
-  // Per-tenant first, env como fallback legacy. Cada Admin (institución)
-  // gestiona su propia API key + sus propios costos.
-  if (m.provider === "openai") {
-    url = "https://api.openai.com/v1/chat/completions";
-    key = m.openai_api_key ?? Deno.env.get("OPENAI_API_KEY");
-    if (!key)
-      throw new Error("Falta la API key de OpenAI. Configúrala en Configuración → Modelo IA.");
-  } else {
-    // default: gemini directo (los providers legacy ya fueron normalizados
-    // por _shared/ai-model.ts; cualquier valor distinto de 'openai' cae acá).
-    url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-    key = m.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
-    if (!key)
-      throw new Error("Falta la API key de Gemini. Configúrala en Configuración → Modelo IA.");
-  }
-  return fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ model: m.model, ...body }),
-  });
+  // Failover de API keys (principal → respaldo → env) + retry transitorio en
+  // el helper compartido. Cada Admin gestiona su propia key + respaldos.
+  return aiChatCompletionFailover(m, { model: m.model, ...body });
 }
 
 /**

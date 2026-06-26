@@ -66,23 +66,15 @@ export async function getProcessingMode(): Promise<"sync" | "async"> {
   const now = Date.now();
   if (cachedMode && now - cachedModeAt < MODE_CACHE_MS) return cachedMode;
   try {
-    // Multi-tenant: hay UNA fila `is_active` POR TENANT + la fila
-    // platform-default (`tenant_id IS NULL`). El `.maybeSingle()` viejo
-    // ROMPÍA (>1 fila → data null) y caía a "async", IGNORANDO el modo del
-    // tenant (ej. un tenant en `sync` quedaba forzado a la cola). Resolvemos
-    // como el edge `getActiveAiModel`: preferimos la fila del PROPIO tenant
-    // sobre la platform-default. La RLS ya acota a (filas del tenant del
-    // usuario + la platform-default), así que ordenar por `tenant_id` con los
-    // NULL al final pone la fila del tenant primero; `limit(1)` la elige.
+    // `ai_model_settings` guarda las API keys (secretos) → su SELECT directo
+    // quedó restringido a Admin/SA (mig 20261010000000). El resto de roles
+    // (Docente generando) resuelve el modo por el RPC SECURITY DEFINER
+    // `get_active_processing_mode`, que devuelve sync|async del tenant del
+    // caller (fallback platform-default → async) sin exponerle las keys.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any)
-      .from("ai_model_settings")
-      .select("processing_mode, tenant_id")
-      .eq("is_active", true)
-      .order("tenant_id", { ascending: false, nullsFirst: false })
-      .limit(1);
-    const row = Array.isArray(data) ? data[0] : data;
-    const mode = row?.processing_mode === "sync" ? "sync" : "async";
+    const { data, error } = await (supabase as any).rpc("get_active_processing_mode");
+    if (error) throw error;
+    const mode = data === "sync" ? "sync" : "async";
     cachedMode = mode;
     cachedModeAt = now;
     return mode;

@@ -19,6 +19,7 @@
 
 import { adminClient } from "./admin.ts";
 import { type AiProvider, normalizeProvider, normalizeModel } from "./ai-model-normalize.ts";
+import { dedupeNonEmpty, runKeyFailover } from "./ai-failover.ts";
 
 // "lovable" se DEPRECÓ (mig 20260824000000) — el Lovable AI Gateway
 // usaba una key compartida que ya no se mantiene. Los providers
@@ -29,9 +30,14 @@ export { normalizeProvider, normalizeModel };
 export interface ActiveModel {
   provider: AiProvider;
   model: string;
-  /** API keys per-tenant. NULL → la edge cae al env legacy. */
+  /** API key PRINCIPAL per-tenant. NULL → la edge cae al env legacy. */
   gemini_api_key: string | null;
   openai_api_key: string | null;
+  /** Lista ORDENADA de candidatos por provider = [principal, ...respaldo].
+   *  El failover (`aiChatCompletionFailover`) las intenta en orden y, al
+   *  final, agrega la env key legacy como último recurso. NO incluye la env. */
+  gemini_api_keys: string[];
+  openai_api_keys: string[];
   /** Tenant resolved (null si fallback hardcoded). Útil para logging. */
   tenant_id: string | null;
 }
@@ -43,6 +49,8 @@ const DEFAULT_MODEL: ActiveModel = {
   model: "gemini-2.5-flash",
   gemini_api_key: null,
   openai_api_key: null,
+  gemini_api_keys: [],
+  openai_api_keys: [],
   tenant_id: null,
 };
 
@@ -119,6 +127,8 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
     model: string;
     gemini_api_key: string | null;
     openai_api_key: string | null;
+    gemini_fallback_keys: string[] | null;
+    openai_fallback_keys: string[] | null;
   };
   const toActive = (row: Row, scope: "tenant" | "platform"): ActiveModel => {
     const p = normalizeProvider(row.provider);
@@ -127,6 +137,9 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
       model: normalizeModel(row.model, p),
       gemini_api_key: row.gemini_api_key,
       openai_api_key: row.openai_api_key,
+      // Lista ordenada [principal, ...respaldo] sin vacíos ni duplicados.
+      gemini_api_keys: dedupeNonEmpty([row.gemini_api_key, ...(row.gemini_fallback_keys ?? [])]),
+      openai_api_keys: dedupeNonEmpty([row.openai_api_key, ...(row.openai_fallback_keys ?? [])]),
       tenant_id: scope === "tenant" ? tenantId : null,
     };
   };
@@ -139,7 +152,9 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
   if (tenantId) {
     const { data } = await adminClient
       .from("ai_model_settings")
-      .select("provider, model, gemini_api_key, openai_api_key")
+      .select(
+        "provider, model, gemini_api_key, openai_api_key, gemini_fallback_keys, openai_fallback_keys",
+      )
       .eq("is_active", true)
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -167,7 +182,9 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
   {
     const { data } = await adminClient
       .from("ai_model_settings")
-      .select("provider, model, gemini_api_key, openai_api_key")
+      .select(
+        "provider, model, gemini_api_key, openai_api_key, gemini_fallback_keys, openai_fallback_keys",
+      )
       .eq("is_active", true)
       .is("tenant_id", null)
       .maybeSingle();
@@ -186,4 +203,73 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
 /** Limpia el cache. Útil cuando el admin cambia el provider del tenant. */
 export function clearAiModelCache(): void {
   cache.clear();
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Chat completion con FAILOVER de API keys.
+//
+// Todos los providers hablan el formato OpenAI chat-completions, así que el
+// `payload` (que ya incluye `model`) viaja idéntico — solo cambian endpoint
+// + Authorization. Esta función intenta cada key candidata en orden:
+//   1. principal del tenant (gemini_api_key / openai_api_key)
+//   2. las de respaldo (gemini_fallback_keys / openai_fallback_keys)
+//   3. la env legacy (GEMINI_API_KEY / OPENAI_API_KEY) como último recurso
+// Si una key falla con un status "rotable" (la falla es de esa key/cuenta o
+// transitoria del provider) y quedan más keys, rota a la siguiente. En la
+// ÚLTIMA key aplica el retry-with-backoff transitorio clásico (absorbe blips).
+// ──────────────────────────────────────────────────────────────────────
+
+const GEMINI_CHAT_URL =
+  "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+const OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions";
+
+/**
+ * Lista de candidatos de key para el provider del modelo: principal +
+ * respaldo (de DB) + env legacy, deduplicada y sin vacíos.
+ */
+export function candidateKeysFor(model: ActiveModel): string[] {
+  const fromDb = model.provider === "openai" ? model.openai_api_keys : model.gemini_api_keys;
+  const envKey = Deno.env.get(model.provider === "openai" ? "OPENAI_API_KEY" : "GEMINI_API_KEY");
+  return dedupeNonEmpty([...fromDb, envKey]);
+}
+
+/**
+ * Ejecuta un chat-completion con failover de keys. `payload` ya debe incluir
+ * `model` (y messages/tools/tool_choice). Devuelve la primera respuesta OK o,
+ * si todas las keys fallan, la última respuesta (para que el caller muestre el
+ * error real). Lanza solo si NO hay ninguna key configurada, o si la última
+ * key produce un error de red. La política de rotación vive en `ai-failover.ts`
+ * (pura, testeable); acá solo se inyectan el fetch real y el sleep.
+ */
+export async function aiChatCompletionFailover(
+  model: ActiveModel,
+  // deno-lint-ignore no-explicit-any
+  payload: Record<string, any>,
+): Promise<Response> {
+  const url = model.provider === "openai" ? OPENAI_CHAT_URL : GEMINI_CHAT_URL;
+  const keys = candidateKeysFor(model);
+  if (keys.length === 0) {
+    const name = model.provider === "openai" ? "OpenAI" : "Gemini";
+    throw new Error(`Falta la API key de ${name}. Configúrala en Configuración → Modelo IA.`);
+  }
+  const body = JSON.stringify(payload);
+  return runKeyFailover<Response>(keys, {
+    fetchWithKey: (key) =>
+      fetch(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body,
+      }),
+    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+    onEvent: (ev) => {
+      if (ev.kind === "rotate")
+        console.warn(
+          `[ai-model] key #${ev.index + 1}/${ev.total} falló (status ${ev.status}); rotando.`,
+        );
+      else if (ev.kind === "network-error")
+        console.warn(`[ai-model] key #${ev.index + 1}/${ev.total} error de red.`);
+      else if (ev.kind === "resolved" && ev.index > 0)
+        console.log(`[ai-model] failover: resuelto con key #${ev.index + 1}/${ev.total}.`);
+    },
+  });
 }

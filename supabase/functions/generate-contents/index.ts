@@ -16,6 +16,7 @@ import { auditFromEdge } from "../_shared/audit.ts";
 import { describeAiError } from "../_shared/ai-error.ts";
 import {
   getActiveAiModel as resolveActiveModel,
+  aiChatCompletionFailover,
   type ActiveModel,
 } from "../_shared/ai-model.ts";
 
@@ -41,24 +42,8 @@ async function getActiveAiModel(): Promise<ActiveModel> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function aiChat(messages: any[]): Promise<Response> {
   const m = await getActiveAiModel();
-  let url: string;
-  let key: string | undefined;
-  if (m.provider === "openai") {
-    url = "https://api.openai.com/v1/chat/completions";
-    key = m.openai_api_key ?? Deno.env.get("OPENAI_API_KEY");
-  } else {
-    url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-    key = m.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
-  }
-  if (!key) throw new Error(`${m.provider.toUpperCase()}_API_KEY missing`);
-  return fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ model: m.model, messages }),
-  });
+  // Failover de API keys (principal → respaldo → env) + retry transitorio.
+  return aiChatCompletionFailover(m, { model: m.model, messages });
 }
 
 /**

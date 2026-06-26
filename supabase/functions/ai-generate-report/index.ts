@@ -25,7 +25,7 @@ import {
   jsonResponse,
   userClientFromRequest,
 } from "../_shared/admin.ts";
-import { getActiveAiModel } from "../_shared/ai-model.ts";
+import { getActiveAiModel, aiChatCompletionFailover } from "../_shared/ai-model.ts";
 
 // System prompt por defecto de la Generación IA de informes. DEBE quedar
 // byte-idéntico con DEFAULT_REPORT_GENERATION_PROMPT (src/modules/reports/
@@ -70,7 +70,8 @@ async function resolveReportSystemPrompt(courseId: string | null): Promise<strin
   return sorted[0]?.system_prompt || FALLBACK_REPORT_PROMPT;
 }
 
-const MAX_AI_RETRIES = 3;
+// El retry transitorio + failover de keys vive en aiChatCompletionFailover;
+// acá RETRYABLE_STATUS solo clasifica el status FINAL para el mensaje friendly.
 const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 
 function isRetryableAiBody(text: string): boolean {
@@ -94,61 +95,34 @@ async function callAi(
   hint: { courseId?: string | null; authHeader?: string | null },
 ): Promise<string> {
   const m = await getActiveAiModel(hint);
-  let url: string;
-  let key: string | undefined;
-  if (m.provider === "openai") {
-    url = "https://api.openai.com/v1/chat/completions";
-    key = m.openai_api_key ?? Deno.env.get("OPENAI_API_KEY");
-  } else {
-    url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-    key = m.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
+  // Failover de API keys (principal → respaldo → env) + retry transitorio en
+  // el helper compartido. Acá solo post-procesamos la respuesta FINAL.
+  const res = await aiChatCompletionFailover(m, { model: m.model, messages });
+  if (res.ok) {
+    const json = await res.json();
+    return json.choices?.[0]?.message?.content ?? "";
   }
-  if (!key) throw new Error(`API key del provider ${m.provider} no configurada`);
-
-  let lastErr: { status: number; text: string } | null = null;
-  for (let attempt = 1; attempt <= MAX_AI_RETRIES; attempt++) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: m.model, messages }),
-    });
-    if (res.ok) {
-      const json = await res.json();
-      return json.choices?.[0]?.message?.content ?? "";
-    }
-    const errText = await res.text();
-    lastErr = { status: res.status, text: errText };
-
-    const isKeyInvalid =
-      res.status === 401 ||
-      res.status === 403 ||
-      errText.includes("API_KEY_INVALID") ||
-      errText.includes("invalid_api_key") ||
-      errText.toLowerCase().includes("invalid api key");
-    if (isKeyInvalid) {
-      throw new Error(
-        `La API key del proveedor de IA (${m.provider}) está inválida o expirada. ` +
-          `Pídele al administrador que actualice el secret o cambie el proveedor activo ` +
-          `desde Admin → IA → Modelo.`,
-      );
-    }
-
-    const shouldRetry =
-      attempt < MAX_AI_RETRIES && (RETRYABLE_STATUS.has(res.status) || isRetryableAiBody(errText));
-    if (!shouldRetry) break;
-    await new Promise((r) => setTimeout(r, 800 * Math.pow(2, attempt - 1)));
+  const errText = await res.text();
+  const isKeyInvalid =
+    res.status === 401 ||
+    res.status === 403 ||
+    errText.includes("API_KEY_INVALID") ||
+    errText.includes("invalid_api_key") ||
+    errText.toLowerCase().includes("invalid api key");
+  if (isKeyInvalid) {
+    throw new Error(
+      `La API key del proveedor de IA (${m.provider}) está inválida o expirada. ` +
+        `Pídele al administrador que actualice el secret o cambie el proveedor activo ` +
+        `desde Admin → IA → Modelo.`,
+    );
   }
-
-  if (lastErr) {
-    const isOverload = RETRYABLE_STATUS.has(lastErr.status) || isRetryableAiBody(lastErr.text);
-    if (isOverload) {
-      throw new Error(
-        "El proveedor de IA está saturado en este momento. Intenta de nuevo en unos segundos.",
-      );
-    }
-    throw new Error(`AI error ${lastErr.status}: ${lastErr.text.slice(0, 500)}`);
+  const isOverload = RETRYABLE_STATUS.has(res.status) || isRetryableAiBody(errText);
+  if (isOverload) {
+    throw new Error(
+      "El proveedor de IA está saturado en este momento. Intenta de nuevo en unos segundos.",
+    );
   }
-  throw new Error("AI sin respuesta tras 3 intentos.");
+  throw new Error(`AI error ${res.status}: ${errText.slice(0, 500)}`);
 }
 
 Deno.serve(async (req: Request) => {

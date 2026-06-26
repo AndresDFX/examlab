@@ -7,6 +7,7 @@ import { enforceRateLimit } from "../_shared/rate-limit.ts";
 import { describeAiError as describeSharedAiError } from "../_shared/ai-error.ts";
 import {
   getActiveAiModel as resolveActiveModel,
+  aiChatCompletionFailover,
   type ActiveModel,
   type AiProvider,
 } from "../_shared/ai-model.ts";
@@ -69,43 +70,15 @@ async function aiChatCompletion(body: {
   modelOverride?: string;
 }): Promise<Response> {
   const m = await getActiveAiModel();
-  let url: string;
-  let key: string | undefined;
-  // Per-tenant primero, env como fallback legacy.
-  if (m.provider === "openai") {
-    url = "https://api.openai.com/v1/chat/completions";
-    key = m.openai_api_key ?? Deno.env.get("OPENAI_API_KEY");
-    if (!key)
-      throw new Error("Falta la API key de OpenAI. Configúrala en Configuración → Modelo IA.");
-  } else {
-    url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-    key = m.gemini_api_key ?? Deno.env.get("GEMINI_API_KEY");
-    if (!key)
-      throw new Error("Falta la API key de Gemini. Configúrala en Configuración → Modelo IA.");
-  }
   // El `model` final: si el caller pasó override, lo usa; si no, el de settings.
   const finalModel = body.modelOverride ?? m.model;
   const { modelOverride: _ignore, ...rest } = body;
   void _ignore;
-  const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
-  const payload = JSON.stringify({ model: finalModel, ...rest });
-  // Retry-with-backoff para rate-limit/transitorios del proveedor IA. Un 429
-  // suele ser un pico de tasa por segundo que se libera enseguida; en el path
-  // SÍNCRONO de generación, reintentar absorbe el blip y la generación SUCEDE
-  // en vez de mostrarle el error al docente. Errores NO transitorios
-  // (400/401/402) NO se reintentan (fallan al toque). Si tras los reintentos
-  // sigue 429 (ej. cuota por-minuto agotada), se devuelve el 429 y el caller
-  // muestra el mensaje amigable. Respeta Retry-After (capeado a 8s).
-  const TRANSIENT = new Set([429, 502, 503, 504]);
-  const MAX_ATTEMPTS = 3;
-  let res = await fetch(url, { method: "POST", headers, body: payload });
-  for (let attempt = 1; attempt < MAX_ATTEMPTS && TRANSIENT.has(res.status); attempt++) {
-    const ra = Number(res.headers.get("retry-after"));
-    const waitMs = Number.isFinite(ra) && ra > 0 ? Math.min(ra * 1000, 8000) : attempt * 1500;
-    await new Promise((r) => setTimeout(r, waitMs));
-    res = await fetch(url, { method: "POST", headers, body: payload });
-  }
-  return res;
+  // Failover de API keys (principal → respaldo → env) + retry-with-backoff
+  // transitorio en la última key viven en el helper compartido. Si TODAS las
+  // keys agotan cuota (429), devuelve el 429 final y el caller (handlers de
+  // abajo) muestra el mensaje amigable / 200-para-sync.
+  return aiChatCompletionFailover(m, { model: finalModel, ...rest });
 }
 
 /**
