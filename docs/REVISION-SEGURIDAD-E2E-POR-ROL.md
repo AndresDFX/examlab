@@ -188,3 +188,29 @@ Fix: `REVOKE ALL FROM PUBLIC, anon, authenticated` + `GRANT EXECUTE TO service_r
 | Diferidos (decisión/schema) | `ai_override_codes`/`_activations` (sin tenant_id), `notifications` INSERT |
 
 Migraciones de esta sesión: `20261011000000` (RLS) + `20261012000000` (SECDEF lockdown), ambas aplicadas + verificadas en prod.
+
+---
+
+## Auditoría exhaustiva de Storage (storage.objects) — 2026-06-28
+
+Introspección de los **9 buckets** + **32 policies** de `storage.objects` (la superficie RLS de archivos, no cubierta antes esta sesión).
+
+| Bucket | público | Scope de acceso | Veredicto |
+| --- | --- | --- | --- |
+| `db-backups` | no | `is_super_admin()` | OK (SA-only) |
+| `feedback-attachments` | no | carpeta propia (`auth.uid()`) + relación de ticket | OK |
+| `generated-contents` | no | dueño (`foldername[1]=uid`) **O** `Admin AND storage_owner_in_my_tenant(owner)` **O** SA; alumno: vía `content_course_assignments`+`course_enrollments` (publicado) | OK (tenant-scoped) |
+| `message-attachments` | no | carpeta propia + relación de mensaje | OK |
+| `project-files` | no | dueño **O** miembro del grupo | OK (restrictivo) |
+| `support-attachments` | no | SA **O** creador del ticket | OK |
+| `tenant-logos` | **sí** | SELECT abierto (logos públicos); write `Admin AND foldername=current_tenant_id` | OK |
+| `videos` | **sí** | SELECT abierto (bucket público); write `(Docente\|Admin) AND storage_owner_in_my_tenant` | OK |
+| `workshop-files` | no | dueño **O** miembro del grupo | OK |
+
+- `storage_owner_in_my_tenant(_owner)` = `EXISTS(profiles p WHERE p.id=_owner AND p.tenant_id=current_tenant_id())` → ata el acceso staff al tenant del DUEÑO del archivo.
+- Las 2 policies "abiertas" (`tenant-logos`/`videos` SELECT) son sobre buckets `public=true` → archivos servidos públicamente por diseño, no es leak.
+- **0 policies over-permissive cross-tenant.**
+
+**Verificado e2e**: docente de `examlab-demo` lista la carpeta de contenido de un owner de FESNA (28 archivos) → **0 objetos** (RLS los oculta). Aislamiento de storage confirmado.
+
+**Conclusión Storage: sin hallazgos.** Cierra la última superficie RLS mayor (tablas + funciones SECDEF + storage = exhaustivo).
