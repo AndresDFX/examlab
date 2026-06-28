@@ -17,7 +17,7 @@ Forma rigurosa de cada prueba de aislamiento: **SA ve >0 filas** (la entidad exi
 | **Admin** | ✅ 7 PASS / 0 leaks cross-tenant | ✅ ve TODO su tenant (7/7 paridad) | ✅ crea en suyo, denegado ajeno (42501) | **OK** |
 | **SuperAdmin** | ✅ frontera OK (no-SA no escala) | ✅ cross-tenant legítimo (ground truth) | ✅ RPCs/destructivas SA-only | **OK** |
 
-**Resultado del sweep: 0 hallazgos de seguridad nuevos.** El endurecimiento RLS (rounds 1-13) se confirma empíricamente para los 4 roles. 1 falso-positivo descartado (`platform_settings`).
+**Sweep e2e por muestreo (roles + módulos): 0 hallazgos.** Auditoría EXHAUSTIVA posterior (pg_policies, TODAS las tablas): **1 leak cross-tenant CONFIRMADO y CORREGIDO** (`project_assignments`), 1 policy mal scopeada corregida (`video_views`), 2 ítems diferidos (ver "Auditoría exhaustiva" abajo).
 
 ---
 
@@ -133,3 +133,28 @@ Probados 1-a-1 en la forma rigurosa (SA ve >0, usuario sin derecho ve 0). **5 PA
 - Tablas cubiertas (alta sensibilidad): courses, exams/questions, workshops/workshop_questions, projects/project_files, submissions/workshop_submissions, exam_assignments, attendance_sessions, grade_cuts, whiteboards, polls, question_bank, course_enrollments, course_teachers, profiles, ai_model_settings, audit_logs, support_tickets, platform_settings, **certificates, videos, code_executions, conversations, messages**.
 - Cross-course **dentro del mismo tenant** para Docente no se pudo probar en vivo (el tenant demo del docente tiene 1 solo curso); cubierto por diseño (RLS por `course_teachers`) y por la denegación de escritura cross-tenant.
 - `forums` / `forum_threads` sin datos en ningún tenant → no concluyente vía e2e (cubierto por rounds previos). Pendiente para cuando haya datos.
+
+---
+
+## Auditoría exhaustiva de RLS (pg_policies) — 2026-06-28
+
+Complemento al sweep por muestreo: introspección de `pg_catalog` sobre **las 121 tablas** de `public`.
+
+- **Tablas sin RLS: 0** — todas tienen RLS habilitado.
+- **Tablas con RLS y sin policies (deny-all): 5** — `calendar_oauth_states`, `email_change_tokens`, `password_reset_tokens`, `push_config`, `rate_limit_events`. Correcto: tablas de tokens/estado que solo toca `service_role` desde edges.
+- **Policies `USING(true)` (SELECT): 6** — todas revisadas, NO sensibles: `content_brand_config` (branding), `cron_job_descriptions` (texto), `email_settings` (toggles `enabled_kinds`, sin secretos — SMTP vive en env), `forum_upvotes`, `platform_settings` (toggle), `system_settings` (cuotas db/storage). UPDATE de cada una es Admin/SA. Diseño global-readable intencional.
+
+### 🔴 Hallazgo CORREGIDO — `project_assignments` leak cross-tenant
+
+`..._manage_staff [ALL]` estaba bien scopeada (`project_in_my_tenant`), pero convivía con `..._owner_or_staff [SELECT]` = `user_id=auth.uid() OR has_role('Docente') OR has_role('Admin')` (rama de rol **sin scope**). RLS combina con OR → cualquier Docente/Admin leía TODAS las asignaciones. **Verificado e2e**: docente de un tenant sin proyectos veía 17 filas de otros tenants. **Corregido** (mig `20261011000000`): drop de la policy rota + SELECT solo dueño + `is_super_admin`. Post-fix: docente=0, SA=17. → ver [migración](../supabase/migrations/20261011000000_fix_project_assignments_video_views_rls.sql).
+
+### 🟠 Corregido preventivo — `video_views`
+
+Mismo anti-patrón (`read_self` con `has_role` sin scope), 0 filas hoy. Re-scopeado: dueño ve las suyas, staff solo las de videos de SU tenant, SA todo. (Misma migración.)
+
+### 🟡 Diferidos (no son leak de datos de alumno; requieren decisión/mig de schema)
+
+- **`ai_override_codes` [ALL] + `ai_override_activations` [SELECT]**: `has_role('Admin')` sin scope; las tablas NO tienen `tenant_id` (pool global de códigos "IA inmediata"). Un Admin de un tenant puede ver/gestionar códigos de otro. Solo Admins (no alumnos), sin datos académicos. Para scopear hace falta agregar `tenant_id` + backfill por `created_by` → **decisión de producto pendiente** (ya estaba diferido de sesiones previas).
+- **`notifications` [INSERT]**: el `with_check` deja a un Docente insertar una notificación a cualquier `user_id` (kinds limitados) sin verificar tenant. Severidad baja (spam de notificación, no exfiltración; el SELECT es recipient-only). Las notifs normalmente se crean por RPC SECURITY DEFINER, no INSERT directo. Pendiente analizar callers antes de endurecer.
+
+**Falsos positivos del grep [4] descartados:** la mayoría de las policies marcadas scopean vía `EXISTS(course_teachers ...)` o `*_in_my_tenant(...)` (el regex no los detectó). Confirmado en `submissions`/`workshop_submissions`/`project_submissions`/`question_bank`/`grade_cuts`/etc. — ya validados e2e con 0 leaks arriba.
