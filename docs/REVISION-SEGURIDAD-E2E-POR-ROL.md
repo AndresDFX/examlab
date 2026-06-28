@@ -214,3 +214,30 @@ Introspección de los **9 buckets** + **32 policies** de `storage.objects` (la s
 **Verificado e2e**: docente de `examlab-demo` lista la carpeta de contenido de un owner de FESNA (28 archivos) → **0 objetos** (RLS los oculta). Aislamiento de storage confirmado.
 
 **Conclusión Storage: sin hallazgos.** Cierra la última superficie RLS mayor (tablas + funciones SECDEF + storage = exhaustivo).
+
+---
+
+## Auditoría exhaustiva de Edge Functions (verify_jwt=false) — 2026-06-28
+
+Las edges con `verify_jwt=false` NO son filtradas por el gateway → DEBEN validar al caller dentro del handler. Revisadas las **13** con esa config:
+
+| Edge | Estrategia de auth | Veredicto |
+| --- | --- | --- |
+| `calendar` | `cron_sync_recordings`→service_role; resto→`getUserIdFromRequest` o 401 | OK |
+| `calendar-oauth-callback` | público (redirect de Google); valida `state` contra `calendar_oauth_states` | OK (por diseño) |
+| `send-push` | shared secret `PUSH_TRIGGER_SECRET` | OK |
+| `retry-failed-ai-gradings` | shared secret `X-Trigger-Secret` | OK |
+| `ai-grading-worker` | service_role O user JWT Admin/Docente → 401 | OK |
+| `generate-contents` | service_role O RLS de `generated_contents` (gate agregado en sesión previa) | OK |
+| `ai-generate-questions` | service_role O user JWT | OK |
+| `ai-grade-submission` | X-Trigger-Secret / service_role / user JWT | OK |
+| `request-password-reset` | público; token single-use + no-enumeration | OK (por diseño) |
+| `confirm-password-reset` | público; valida token | OK (por diseño) |
+| `db-backup-runner` | service_role O user Admin → 401 | OK |
+| **`ai-generation-worker`** | **NINGUNA (era endpoint ABIERTO)** | **🔴 CORREGIDO** |
+
+### 🔴 Hallazgo CORREGIDO — `ai-generation-worker` endpoint abierto
+
+A diferencia de su gemelo `ai-grading-worker`, NO tenía gate de caller: pasaba de OPTIONS/method directo a drenar `ai_generation_queue` con `adminClient` (service_role, bypassa RLS). Con `verify_jwt=false`, **cualquiera** podía invocarlo. **Verificado e2e**: anon (solo apikey) → `200 {processed:0}` (handler ejecutó). Con jobs pending en tenants `sync` habría disparado generación IA on-demand (consumo de cuota del tenant). **Corregido** (commit `2308684e`): gate idéntico al de `ai-grading-worker` (service_role O Admin/Docente/SuperAdmin → 401). → anon ahora recibe 401.
+
+**Conclusión Edge-auth: 1 endpoint abierto corregido; las otras 12 OK.** Surface de edges cerrada.
