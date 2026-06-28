@@ -158,3 +158,33 @@ Mismo anti-patrón (`read_self` con `has_role` sin scope), 0 filas hoy. Re-scope
 - **`notifications` [INSERT]**: el `with_check` deja a un Docente insertar una notificación a cualquier `user_id` (kinds limitados) sin verificar tenant. Severidad baja (spam de notificación, no exfiltración; el SELECT es recipient-only). Las notifs normalmente se crean por RPC SECURITY DEFINER, no INSERT directo. Pendiente analizar callers antes de endurecer.
 
 **Falsos positivos del grep [4] descartados:** la mayoría de las policies marcadas scopean vía `EXISTS(course_teachers ...)` o `*_in_my_tenant(...)` (el regex no los detectó). Confirmado en `submissions`/`workshop_submissions`/`project_submissions`/`question_bank`/`grade_cuts`/etc. — ya validados e2e con 0 leaks arriba.
+
+---
+
+## Auditoría exhaustiva de funciones SECURITY DEFINER — 2026-06-28
+
+Introspección de las **261 funciones SECDEF** de `public` + sus ACL de EXECUTE.
+
+- **Trigger functions** (`_audit_*`, `_notify_*`, `_forum_*`, …): SECDEF + PUBLIC, pero no invocables vía PostgREST (requieren contexto de trigger) → no son superficie de ataque.
+- **Helpers de RLS** (`_poll_*`, `course_in_my_tenant`, `current_tenant_id`, …): deben ser callable por authenticated (las policies los invocan); read-only.
+- **`admin_*` / destructivas CON guard interno** (4): `admin_list_push_subscriptions`, `admin_update_my_tenant`, `reset_onboarding` (self-scoped), `hard_delete_tenant` (SA-only) — todas verifican `is_super_admin`/`has_role`/`auth.uid()` en el body. Callable por authenticated PERO guardadas → **OK**.
+
+### 🔴 Hallazgo CORREGIDO — 6 funciones cron-only con EXECUTE a PUBLIC
+
+Estas asumían "solo cron" y NO tenían guard de caller, pero su ACL otorgaba EXECUTE a PUBLIC → cualquier `authenticated` las invocaba vía `/rpc`. La crítica:
+
+- **`purge_deleted_items(interval)`** — hard-DELETE de la papelera de TODOS los tenants (incl. `tenants` por cascade). **Verificado e2e**: un Docente la ejecutó (TTL=100 años → 0 borrados, pero con el default de 30d habría purgado todo). **Corregido** (mig `20261012000000`) → Docente ahora recibe `42501 permission denied`.
+- `auto_finalize_courses`, `notify_students_course_closing`, `notify_students_cut_closing`, `notify_teachers_pending_grading`, `notify_teachers_workshop_due_tomorrow` — batch por fecha, 0 llamadas `.rpc()` reales en front/edge.
+
+Fix: `REVOKE ALL FROM PUBLIC, anon, authenticated` + `GRANT EXECUTE TO service_role`. pg_cron (postgres/service_role) conserva acceso → jobs intactos. → ver [migración](../supabase/migrations/20261012000000_lockdown_cron_only_secdef_funcs.sql).
+
+### Resumen de la revisión (sesión 2026-06-28)
+
+| Capa | Resultado |
+| --- | --- |
+| e2e por muestreo (4 roles + 5 módulos) | 0 hallazgos (RLS rounds 1-13 confirmados) |
+| Auditoría exhaustiva RLS (121 tablas) | **1 leak corregido** (`project_assignments`) + 1 preventivo (`video_views`) |
+| Auditoría exhaustiva SECDEF (261 funcs) | **1 hallazgo crítico corregido** (`purge_deleted_items` + 5 cron-only) |
+| Diferidos (decisión/schema) | `ai_override_codes`/`_activations` (sin tenant_id), `notifications` INSERT |
+
+Migraciones de esta sesión: `20261011000000` (RLS) + `20261012000000` (SECDEF lockdown), ambas aplicadas + verificadas en prod.
