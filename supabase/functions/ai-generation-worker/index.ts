@@ -32,6 +32,7 @@
  * Response:
  *   { processed: number, succeeded: number, failed: number }
  */
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { adminClient, corsHeaders, jsonError, jsonResponse } from "../_shared/admin.ts";
 import { isTransientError } from "../_shared/transient-errors.ts";
 
@@ -324,6 +325,43 @@ async function processOne(job: QueueRow): Promise<{
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return jsonError("method_not_allowed", 405);
+
+  // Auth interna. El gateway corre con verify_jwt=false (config.toml) porque el
+  // service_role key con que lo llama el cron no siempre es un JWT parseable.
+  // La decisión real se toma acá (mismo patrón que ai-grading-worker):
+  //   - Bearer == service_role key → cron / edge caller server-side.
+  //   - Bearer == user JWT de un Admin/Docente/SuperAdmin → botón "Procesar
+  //     ahora"/"Procesar este job" del módulo Cola IA.
+  // Sin ninguno → 401. Sin esto, con verify_jwt off, CUALQUIERA podía drenar la
+  // cola de generación y disparar IA (consumo de cuota/créditos del tenant).
+  {
+    const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    let authorized = bearer.length > 0 && bearer === serviceRoleKey;
+    if (!authorized && bearer.length > 0) {
+      const userClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? "",
+        { global: { headers: { Authorization: `Bearer ${bearer}` } } },
+      );
+      const { data: u } = await userClient.auth.getUser();
+      if (u.user) {
+        const { data: roles } = await (adminClient as any)
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", u.user.id);
+        authorized = ((roles ?? []) as { role: string }[]).some(
+          (r) => r.role === "Admin" || r.role === "Docente" || r.role === "SuperAdmin",
+        );
+      }
+    }
+    if (!authorized) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "No autorizado para procesar la cola de generación IA" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+  }
 
   let body: { jobId?: string };
   try {
