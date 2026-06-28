@@ -115,9 +115,21 @@ El SA legítimamente opera cross-tenant (`is_super_admin()` bypassa RLS) — con
 
 ---
 
+## Módulos adicionales — 2026-06-28
+
+Probados 1-a-1 en la forma rigurosa (SA ve >0, usuario sin derecho ve 0). **5 PASS / 0 leaks:**
+
+| Módulo | Prueba | SA | Probe | Resultado |
+| --- | --- | --- | --- | --- |
+| **Certificados** | Admin DGC lee certs de cursos de otro tenant | 16 | 0 | PASS (certs de alumnos no se filtran cross-tenant) |
+| **Videos** | Admin DGC lee videos `tenant_id != DGC` | 2 | 0 | PASS |
+| **Ejecución de código** | Docente1 lee `code_executions` de OTROS usuarios | 13 | 0 | PASS (no ve el código de otros) |
+| **Mensajería — conversación** | Docente1 lee una conversación en la que NO participa | 1 | 0 | PASS |
+| **Mensajería — mensajes** | Docente1 lee mensajes de esa conversación ajena | 1 | 0 | PASS (privacidad 1-a-1 intacta) |
+
 ## Cobertura y limitaciones
 
 - Probado e2e vía REST con tokens reales (respeta RLS) contra **producción**.
-- Tablas cubiertas (alta sensibilidad): courses, exams/questions, workshops/workshop_questions, projects/project_files, submissions/workshop_submissions, exam_assignments, attendance_sessions, grade_cuts, whiteboards, polls, question_bank, course_enrollments, course_teachers, profiles, ai_model_settings, audit_logs, support_tickets, platform_settings.
+- Tablas cubiertas (alta sensibilidad): courses, exams/questions, workshops/workshop_questions, projects/project_files, submissions/workshop_submissions, exam_assignments, attendance_sessions, grade_cuts, whiteboards, polls, question_bank, course_enrollments, course_teachers, profiles, ai_model_settings, audit_logs, support_tickets, platform_settings, **certificates, videos, code_executions, conversations, messages**.
 - Cross-course **dentro del mismo tenant** para Docente no se pudo probar en vivo (el tenant demo del docente tiene 1 solo curso); cubierto por diseño (RLS por `course_teachers`) y por la denegación de escritura cross-tenant.
-- Módulos no probados explícitamente vía REST (mismo patrón RLS, cubiertos en rounds previos): foros, mensajería 1-a-1, certificados, videos, ejecución de código. Candidatos para la siguiente iteración.
+- `forums` / `forum_threads` sin datos en ningún tenant → no concluyente vía e2e (cubierto por rounds previos). Pendiente para cuando haya datos.
