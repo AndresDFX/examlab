@@ -241,3 +241,33 @@ Las edges con `verify_jwt=false` NO son filtradas por el gateway → DEBEN valid
 A diferencia de su gemelo `ai-grading-worker`, NO tenía gate de caller: pasaba de OPTIONS/method directo a drenar `ai_generation_queue` con `adminClient` (service_role, bypassa RLS). Con `verify_jwt=false`, **cualquiera** podía invocarlo. **Verificado e2e**: anon (solo apikey) → `200 {processed:0}` (handler ejecutó). Con jobs pending en tenants `sync` habría disparado generación IA on-demand (consumo de cuota del tenant). **Corregido** (commit `2308684e`): gate idéntico al de `ai-grading-worker` (service_role O Admin/Docente/SuperAdmin → 401). → anon ahora recibe 401.
 
 **Conclusión Edge-auth: 1 endpoint abierto corregido; las otras 12 OK.** Surface de edges cerrada.
+
+---
+
+## Auditoría de Realtime — 2026-06-28
+
+- **`realtime.messages` policies: 0** → la app NO usa canales *private* (Realtime Authorization); todos los canales son públicos.
+- **Casi todos los canales usan `postgres_changes`** (notifications, timer, kahoot-game, attendance check-in, colas IA, support, polls): Supabase entrega solo las filas que el subscriptor puede `SELECT` → **RLS-gated** (cubierto por la auditoría de tablas). Seguros.
+- **Único canal `broadcast`: la pizarra compartida** (`WhiteboardEditor`, topic `wb_session:<sessionId>`, `broadcast self:false`). Al ser público + sin Realtime Authorization, quien conozca el UUID de la sesión podría suscribirse y observar/inyectar trazos.
+
+### 🟡 Defensa-en-profundidad (diferido, bajo riesgo) — broadcast de pizarra
+
+NO es leak cross-tenant activo: el topic es el `session_id` (UUID), y `attendance_sessions` está aislada por tenant (verificado: un docente de otro tenant ve 0 sesiones → no puede aprender el UUID). Para explotarlo haría falta el UUID, que no se expone cross-tenant. **Recomendación**: migrar la pizarra a un canal *private* con `realtime.messages` RLS (Realtime Authorization) que valide matrícula/docencia del curso de la sesión. Es cambio arquitectónico (riesgo de romper la colaboración en vivo) → se deja como mejora, no hotfix.
+
+---
+
+## Resumen de cobertura de superficies (sesión 2026-06-28)
+
+Las **5 superficies mayores de autorización** quedaron auditadas exhaustivamente:
+
+| Superficie | Método | Resultado |
+| --- | --- | --- |
+| Tablas (RLS) | pg_policies, 121 tablas + e2e por rol | **1 leak corregido** (`project_assignments`) + `video_views` preventivo |
+| Funciones SECURITY DEFINER | 261 funcs + ACL | **1 crítico corregido** (`purge_deleted_items` + 5 cron-only) |
+| Storage | 9 buckets, 32 policies + e2e | 0 leaks |
+| Edge functions (verify_jwt=false) | 13 edges | **1 endpoint abierto corregido** (`ai-generation-worker`) |
+| Realtime | realtime.messages + canales | 0 leaks activos; 1 defensa-en-profundidad diferida (pizarra) |
+
+**Migraciones/commits de seguridad de la sesión:** `20261011` (project_assignments/video_views), `20261012` (lockdown SECDEF cron), `2308684e` (ai-generation-worker auth). Todas aplicadas + verificadas en prod + desplegadas por CI.
+
+**Diferidos (decisión de producto / cambio arquitectónico):** `ai_override_codes`/`_activations` tenant-scoping, `notifications` INSERT cross-tenant, Realtime Authorization de la pizarra.
