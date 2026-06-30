@@ -89,7 +89,7 @@ function GradingConfigPage() {
   const loadAll = useCallback(async () => {
     setLoadError(null);
     const [courseRes, cfgRes, cutsRes, examsRes, workshopsRes] = await Promise.all([
-      supabase.from("courses").select("name").eq("id", courseId).single(),
+      supabase.from("courses").select("name").eq("id", courseId).is("deleted_at", null).maybeSingle(),
       db.from("course_grading_config").select("*").eq("course_id", courseId).maybeSingle(),
       db.from("grade_cuts").select("*").eq("course_id", courseId).order("position"),
       supabase.from("exams").select("id, title").eq("course_id", courseId).is("deleted_at", null),
@@ -100,7 +100,17 @@ function GradingConfigPage() {
       setLoadError(friendlyError(firstErr, t("hc_routesAppTeacherGradingCourseId.loadConfigError")));
       return;
     }
-    if (courseRes.data) setCourseName(courseRes.data.name);
+    if (!courseRes.data) {
+      // Curso inexistente o en papelera → no resolver/editar su config de notas
+      // (mismo patrón que board.$courseId / review.$examId).
+      setLoadError(
+        t("hc_routesAppTeacherGradingCourseId.courseUnavailable", {
+          defaultValue: "Este curso no está disponible (no existe o fue movido a la papelera).",
+        }),
+      );
+      return;
+    }
+    setCourseName(courseRes.data.name);
     if (cfgRes.data) {
       setConfig({
         final_project_weight: Number(cfgRes.data.final_project_weight),
