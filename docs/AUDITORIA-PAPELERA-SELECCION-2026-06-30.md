@@ -191,6 +191,29 @@ aplica limpio + lógica espejo del patrón verificado.
   los agentes leen source de migración vieja sin chequear el estado vigente — por
   eso TODA fuga RLS se verifica contra `pg_policies` de prod antes de tocarla.
 
+## 7º pase — el ABUELO curso (loop-until-dry)
+
+El completeness-critic detectó el último eslabón: **el soft-delete de un curso NO
+cascadea** (`softDelete` = UPDATE de una tabla; verificado en el handler). Así un
+curso en papelera deja sus exams/workshops/projects/sessions/whiteboards con
+`deleted_at=NULL`, y las policies de pases previos solo gateaban el **padre
+inmediato**, no el **abuelo curso**. Un alumno matriculado leía por REST el
+contenido (incl. answer keys/rúbricas/instructions) de la assessment / la
+escena de la pizarra / el código de clase de un CURSO en papelera.
+
+**10 policies extendidas con el guard del abuelo:**
+- mig `20261023000000`: questions, workshop_questions, project_files (JOIN courses
+  + `c.deleted_at IS NULL`) + exams, workshops, projects entity (`AND NOT
+  _course_in_papelera(course_id)`).
+- mig `20261024000000`: attendance_sessions, whiteboards entity + whiteboard_pages,
+  session_code_snippets hijas (`AND NOT _course_in_papelera(...)`).
+
+`polls`/`generated_contents` quedan **N/A** (multi-curso vía junction → abuelo
+ambiguo; ya gateados por su propio `deleted_at`).
+
+**Verificado vs prod** (`SET ROLE`, tx ROLLBACK) trasheando el CURSO: alumno pierde
+exams/questions/attendance_sessions/whiteboards (→0), staff conserva (Papelera).
+
 ## Deploy confirmado
 
 CI aplicó `20261016000000` en prod (los 5 guards RPC verificados vivos).
@@ -204,13 +227,11 @@ Cobertura multi-ángulo: selección (workflow 8 finders) + funciones server-side
 notificación (1 fuga) + RPCs de interacción poll/sesión (2 fugas) + embeds
 cliente (saltan trashed) + deep-links (exam-take, foros) + edges (calendar/ICS).
 
-**31 fugas reales corregidas + 2 falsos positivos descartados + 1 bug
-pre-existente** (clone_workshop/project created_by). Migraciones: `20261016`
-(live), `20261017`–`20261022`. Src: 4 archivos (requieren Publish). Casos extremos
-sin daño documentados como aceptados (kahoot mid-game, teacher-only).
+**31 fugas (caso directo) + 10 policies extendidas (abuelo curso) + 2 falsos
+positivos descartados + 1 bug pre-existente** (clone_workshop/project created_by).
+Migraciones: `20261016` (live), `20261017`–`20261024`. Src: 4 archivos (Publish).
+Casos extremos sin daño documentados como aceptados (kahoot mid-game, teacher-only).
 
-Loop-until-dry: pase 3 → 2, pase 4 → 8, pase 5 → 9, pase 6 → 1 real (+1 FP). Pase 7
-(re-sweep final + completeness critic) corriendo para confirmar la auditoría SECA.
-La fuerte convergencia (clase única: RLS/RPC sin gate de `deleted_at` del padre en
-la rama no-staff) y el único hallazgo del pase 6 siendo el hermano obvio omitido
-sugieren que el pase 7 cerrará seco.
+Loop-until-dry: pase 3 → 2, pase 4 → 8, pase 5 → 9, pase 6 → 1 real (+1 FP), pase 7
+→ abuelo-curso (10 policies). Pase 8 (re-sweep exhaustivo final + completeness
+critic, con el fixed-list completo directo+abuelo) corriendo para confirmar SECA.
