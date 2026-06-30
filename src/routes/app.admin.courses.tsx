@@ -1,7 +1,8 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
+import { softDeleteCourseCascade } from "@/modules/trash/soft-delete";
+import { DeleteCourseDialog } from "@/modules/courses/DeleteCourseDialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { logEvent } from "@/shared/lib/audit";
@@ -395,16 +396,29 @@ export function AdminCourses() {
   };
 
   const handleBulkDelete = async (ids: string[]) => {
-    // Soft-delete a papelera. La fila queda invisible para las listas
-    // (filtran is('deleted_at', null)) pero recuperable desde /app/trash
-    // hasta que el cron de purga (30 días) la borre físicamente. Como
-    // NO hacemos DELETE físico ya, los hijos (examenes/talleres/etc.)
-    // tampoco se borran — el restore reactiva el árbol intacto.
-    const { error } = await softDeleteMany("courses", ids);
-    if (error) throw new Error(error.message);
+    // Bulk: cascada por defecto (curso + su contenido a la papelera con el MISMO
+    // timestamp, restaurable en bloque vía restore_course_cascade) → no deja
+    // huérfanos. El borrado individual (acción de fila) abre un diálogo que deja
+    // ELEGIR qué hacer con el contenido; el bulk toma la opción segura.
+    let ok = 0;
+    let firstErr: { name?: string; message: string } | null = null;
+    for (const id of ids) {
+      const course = courses.find((c) => c.id === id);
+      const { error } = await softDeleteCourseCascade(id, true);
+      if (error) {
+        if (!firstErr) firstErr = { name: course?.name, message: error.message };
+        continue;
+      }
+      ok++;
+    }
+    if (firstErr) {
+      throw new Error(
+        `${ok} ok, ${ids.length - ok} con error. Primero: "${firstErr.name ?? "?"}" — ${friendlyError(firstErr)}`,
+      );
+    }
     toast.success(
       i18n.t("toast.routes_app_admin_courses.coursesSentToTrash", {
-        defaultValue: "{{count}} curso(s) enviado(s) a papelera",
+        defaultValue: "{{count}} curso(s) y su contenido enviados a papelera",
         count: ids.length,
       }),
     );
@@ -413,7 +427,7 @@ export function AdminCourses() {
       category: "course",
       actorRole: roles[0],
       severity: "warning",
-      metadata: { count: ids.length, ids },
+      metadata: { count: ids.length, ids, cascade: true },
     });
     sel.clear();
     load();
@@ -1124,17 +1138,25 @@ export function AdminCourses() {
     load();
   };
 
-  const remove = async (id: string) => {
-    const ok = await confirm({
-      title: t("course.deleteTitle"),
-      description: t("course.deleteBody"),
-      confirmLabel: t("common.delete"),
-      tone: "destructive",
-    });
-    if (!ok) return;
+  // Borrado individual: abre el diálogo con advertencia de contenido huérfano +
+  // la opción de cascada (el usuario elige qué hacer con el contenido).
+  const [deleteTarget, setDeleteTarget] = useState<{ ids: string[]; label: string } | null>(null);
+
+  const remove = (id: string) => {
     const course = courses.find((c) => c.id === id);
-    const { error } = await softDelete("courses", id);
-    if (error) return toast.error(friendlyError(error));
+    setDeleteTarget({ ids: [id], label: course?.name ?? "curso" });
+  };
+
+  // Ejecuta el borrado elegido en el diálogo. `cascade` lo decide el usuario:
+  // true = curso + contenido; false = solo el curso (contenido huérfano/oculto).
+  const performCourseDelete = async (ids: string[], cascade: boolean) => {
+    const id = ids[0];
+    const course = courses.find((c) => c.id === id);
+    const { error } = await softDeleteCourseCascade(id, cascade);
+    if (error) {
+      toast.error(friendlyError(error));
+      throw new Error(error.message); // mantiene el diálogo abierto para reintentar
+    }
     toast.success(t("course.deletedToast"));
     void logEvent({
       action: "course.deleted",
@@ -1144,6 +1166,7 @@ export function AdminCourses() {
       entityType: "course",
       entityId: id,
       entityName: course?.name,
+      metadata: { cascade },
     });
     load();
   };
@@ -3029,9 +3052,21 @@ export function AdminCourses() {
         items={selectedCourseItems}
         entityNameSingular={t("hc_routesAppAdminCourses.entityCourseSingular")}
         entityNamePlural={t("hc_routesAppAdminCourses.entityCoursePlural")}
-        extraWarning={t("hc_routesAppAdminCourses.bulkDeleteWarning")}
+        extraWarning="El contenido de cada curso (exámenes, talleres, proyectos, sesiones, pizarras, contenidos y encuestas) también se moverá a la papelera, y se restaurará junto con el curso."
         onConfirm={handleBulkDelete}
       />
+
+      {deleteTarget && (
+        <DeleteCourseDialog
+          open={!!deleteTarget}
+          onOpenChange={(o) => {
+            if (!o) setDeleteTarget(null);
+          }}
+          courseIds={deleteTarget.ids}
+          courseLabel={deleteTarget.label}
+          onConfirm={(cascade) => performCourseDelete(deleteTarget.ids, cascade)}
+        />
+      )}
 
       <CourseCertificateSettingsDialog
         course={certForCourse}

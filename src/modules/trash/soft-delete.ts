@@ -61,6 +61,60 @@ interface SoftDeleteResult {
   error: { message: string } | null;
 }
 
+/** Conteo del contenido asociado a un curso — para advertir antes de borrarlo.
+ *  Lo sirve la RPC course_content_summary (SECURITY DEFINER, autz docente/admin). */
+export interface CourseContentSummary {
+  exams: number;
+  workshops: number;
+  projects: number;
+  sessions: number;
+  whiteboards: number;
+  contents: number;
+  polls: number;
+  enrollments: number;
+  forums: number;
+}
+
+export async function courseContentSummary(
+  courseId: string,
+): Promise<{ data: CourseContentSummary | null; error: { message: string } | null }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const { data, error } = await db.rpc("course_content_summary", { _course_id: courseId });
+  return {
+    data: (data as CourseContentSummary) ?? null,
+    error: error ? { message: error.message } : null,
+  };
+}
+
+/** ¿Hay algún contenido (no solo matrículas) que quedaría huérfano? */
+export function courseHasContent(s: CourseContentSummary | null): boolean {
+  if (!s) return false;
+  return (
+    s.exams + s.workshops + s.projects + s.sessions + s.whiteboards + s.contents + s.polls > 0
+  );
+}
+
+/**
+ * Soft-delete del curso con cascada OPCIONAL. `cascade=true` manda el curso y
+ * todo su contenido (exámenes/talleres/proyectos/sesiones/pizarras/contenidos/
+ * encuestas) a la papelera con el MISMO timestamp (restaurable en bloque con
+ * restore_course_cascade). `cascade=false` borra solo el curso (el contenido
+ * queda huérfano pero oculto por las RLS de abuelo-curso).
+ */
+export async function softDeleteCourseCascade(
+  courseId: string,
+  cascade: boolean,
+): Promise<SoftDeleteResult> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const { error } = await db.rpc("soft_delete_course_cascade", {
+    _course_id: courseId,
+    _cascade: cascade,
+  });
+  return { error: error ? { message: error.message } : null };
+}
+
 /**
  * Marca una fila como borrada (soft-delete). Setea `deleted_at = now()`
  * y `deleted_by = auth.uid()`. La fila queda invisible para las queries
@@ -128,6 +182,13 @@ export async function restoreItem(table: TrashTable, id: string): Promise<SoftDe
   const db = supabase as any;
   if (table === "tenants") {
     const { error } = await db.rpc("restore_tenant", { _tenant_id: id });
+    return { error: error ? { message: error.message } : null };
+  }
+  // Cursos: restore_course_cascade desempaca los children borrados en la misma
+  // operación de cascada (mismo deleted_at). Restaurar el curso vuelve a traer
+  // su contenido. Los borrados individuales previos quedan en papelera.
+  if (table === "courses") {
+    const { error } = await db.rpc("restore_course_cascade", { _course_id: id });
     return { error: error ? { message: error.message } : null };
   }
   const { error } = await db.rpc("trash_restore_item", { _table: table, _id: id });
