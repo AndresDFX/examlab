@@ -17,7 +17,12 @@
  * `course_actas` (notas, cohorte, cortes calculados al cierre).
  */
 import { supabase } from "@/integrations/supabase/client";
-import { computeWeightedGrade, type GradedItem } from "@/modules/grading/grade";
+import {
+  computeWeightedGrade,
+  countsAsPresent,
+  scaleAttendance,
+  type GradedItem,
+} from "@/modules/grading/grade";
 import { formatDate } from "@/shared/lib/format";
 import {
   formatScheduleText,
@@ -97,7 +102,7 @@ function attendanceFor(
   const total = sessionIds.length;
   if (total === 0) return { presentes: 0, ausentes: 0, total: 0, porcentaje: 0 };
   const mine = records.filter((r) => r.user_id === userId && sessionIds.includes(r.session_id));
-  const presentes = mine.filter((r) => r.status === "presente" || r.status === "tarde").length;
+  const presentes = mine.filter((r) => countsAsPresent(r.status)).length;
   const ausentes = total - presentes;
   const porcentaje = Math.round((presentes / total) * 100);
   return { presentes, ausentes, total, porcentaje };
@@ -126,7 +131,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
   const { data: courseRow } = await db
     .from("courses")
     .select(
-      "id, name, code, semestre, grupo, period, period_id, grade_scale_max, passing_grade, program_id, subject_id, program:academic_programs(name, code, faculty), periodo_obj:academic_periods!courses_period_id_fkey(code, name, start_date, end_date, status), subject:academic_subjects(name, code, semestre, credits)",
+      "id, name, code, semestre, grupo, period, period_id, grade_scale_min, grade_scale_max, passing_grade, program_id, subject_id, program:academic_programs(name, code, faculty), periodo_obj:academic_periods!courses_period_id_fkey(code, name, start_date, end_date, status), subject:academic_subjects(name, code, semestre, credits)",
     )
     .eq("id", courseId)
     .maybeSingle();
@@ -282,6 +287,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
 
   // ── Construir StudentCtx por usuario ─────────────────────────────
   const escalaMax = Number(courseRow.grade_scale_max ?? 5);
+  const escalaMin = Number((courseRow as { grade_scale_min?: number }).grade_scale_min ?? 0);
   // Nota mínima para aprobar (usada en plantilla de Acta para marcar
   // 'Aprobado' / 'Reprobado'). Default 3 — coincide con el default del
   // form de cursos en app.admin.courses.tsx.
@@ -338,6 +344,10 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     const asistencia = attendanceFor(userId, sessIds, (attRecs ?? []) as Array<{ session_id: string; user_id: string; status: string }>);
 
     // Cortes: nota del corte = ponderado de items + asistencia DEL corte
+    // Acumula TODOS los items (de todos los cortes + asistencias) para la nota
+    // final PLANA — mismo algoritmo que el gradebook/estudiante (evita el doble
+    // redondeo/re-escala del promedio-de-cortes). G1/G5.
+    const allFinalItems: GradedItem[] = [];
     const cortes: CutCtx[] = ((cuts ?? []) as Array<{ id: string; name: string; weight: number; attendance_weight: number }>).map((cut) => {
       const cutExams = (exams ?? []).filter((e: { cut_id: string | null }) => e.cut_id === cut.id);
       const cutWs = (workshops ?? []).filter((w: { cut_id: string | null }) => w.cut_id === cut.id);
@@ -365,19 +375,22 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
         );
         items.push({ weight: Number(p2.weight ?? 0), score: effectiveScore(sub ?? null) });
       }
-      // Asistencia del corte
+      // Asistencia del corte — escala al rango [min,max] del curso (G2; antes
+      // usaba pct*max e ignoraba grade_scale_min).
       if (cutSessIds.length > 0 && cut.attendance_weight > 0) {
         const cutAtt = attendanceFor(userId, cutSessIds, (attRecs ?? []) as Array<{ session_id: string; user_id: string; status: string }>);
-        const attScore = (cutAtt.porcentaje / 100) * escalaMax;
+        const attScore = scaleAttendance(cutAtt.porcentaje / 100, escalaMin, escalaMax);
         items.push({ weight: Number(cut.attendance_weight ?? 0), score: attScore });
       }
+      allFinalItems.push(...items);
       const nota = computeWeightedGrade(items);
       return { nombre: cut.name, peso: Number(cut.weight ?? 0), nota };
     });
 
-    // Nota final del curso (a partir de los cortes)
-    const finalItems: GradedItem[] = cortes.map((c) => ({ weight: c.peso, score: c.nota }));
-    const notaFinal = computeWeightedGrade(finalItems);
+    // Nota final del curso = promedio ponderado PLANO de TODOS los items +
+    // asistencias (NO promedio de las notas de corte). Igual que el gradebook
+    // y la vista del estudiante (G1/G5).
+    const notaFinal = computeWeightedGrade(allFinalItems);
 
     // Calcular estado de aprobación. notaFinal null = "Sin nota".
     const aprobado = notaFinal != null && notaFinal >= passingGrade;

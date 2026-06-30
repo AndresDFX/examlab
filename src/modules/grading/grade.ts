@@ -180,3 +180,26 @@ export function computeCourseFinalGrade(cuts: CutResult[]): number | null {
   return Number((weighted / totalWeight).toFixed(2));
 }
 
+/**
+ * ¿Un `status` de attendance_records cuenta como "presente" para la nota de
+ * asistencia? Decisión de producto (2026-06-30): una llegada 'tarde' SÍ cuenta
+ * (el alumno asistió). INVARIANTE cross-file: debe coincidir con el filtro del
+ * acta SQL (`generate_course_acta`: status IN ('presente','tarde')) y con
+ * report-context.ts (boletín). Usar este helper en TODA cuenta de asistencia
+ * del front (gradebook consolidado + por-corte, vista del estudiante) para no
+ * volver a divergir.
+ */
+export function countsAsPresent(status: string | null | undefined): boolean {
+  return status === "presente" || status === "tarde";
+}
+
+/**
+ * Escala un porcentaje de asistencia [0..1] al rango de la escala del curso
+ * [min..max]: `min + pct*(max-min)`. INVARIANTE cross-file: el acta SQL y
+ * report-context DEBEN usar la misma fórmula (antes usaban `pct*max`, que
+ * ignora el min y subestima la asistencia en escalas que no empiezan en 0).
+ */
+export function scaleAttendance(pct: number, scaleMin: number, scaleMax: number): number {
+  return scaleMin + pct * (scaleMax - scaleMin);
+}
+

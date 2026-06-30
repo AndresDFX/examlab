@@ -65,7 +65,7 @@ import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { startImpersonate } from "@/modules/admin/impersonation";
 import { downloadCSV, toCSV } from "@/shared/lib/csv";
 import { toXLSX, downloadXLSX } from "@/shared/lib/xlsx";
-import { computeWeightedGrade, type GradedItem } from "@/modules/grading/grade";
+import { computeWeightedGrade, countsAsPresent, type GradedItem } from "@/modules/grading/grade";
 import { computeAttemptGrade, type RetryMode } from "@/modules/exams/exam-attempts";
 import {
   downloadCertificate,
@@ -988,8 +988,8 @@ function Gradebook() {
           // el docente la asigna al crear la sesión.
           const sessionsInCut = attSessions.filter((s) => s.cut_id === cut.id);
           if (sessionsInCut.length === 0) return null;
-          const present = sessionsInCut.filter(
-            (s) => recordsBySessionUser.get(`${s.id}::${stu.id}`) === "presente",
+          const present = sessionsInCut.filter((s) =>
+            countsAsPresent(recordsBySessionUser.get(`${s.id}::${stu.id}`)),
           ).length;
           const attAvg = min + (present / sessionsInCut.length) * (max - min);
           return {
@@ -2098,8 +2098,8 @@ function renderCutDetailGrouped({
 
   // Asistencia por estudiante para este corte.
   const attendanceFor = (studentId: string) => {
-    const present = sessionsInCut.filter(
-      (ses) => recordsBySessionUser.get(`${ses.id}::${studentId}`) === "presente",
+    const present = sessionsInCut.filter((ses) =>
+      countsAsPresent(recordsBySessionUser.get(`${ses.id}::${studentId}`)),
     ).length;
     const total = sessionsInCut.length;
     const pct = total > 0 ? present / total : 0;
@@ -2313,10 +2313,10 @@ function renderStudentCutDetail({
 }) {
   // Filtro por cut_id explícito (migración 20260509020000).
   const sessionsInCut = attSessions.filter((s) => s.cut_id === cut.id);
-  const presentCount = sessionsInCut.filter(
-    (ses) =>
-      attRecords.find((r) => r.session_id === ses.id && r.user_id === studentId)?.status ===
-      "presente",
+  const presentCount = sessionsInCut.filter((ses) =>
+    countsAsPresent(
+      attRecords.find((r) => r.session_id === ses.id && r.user_id === studentId)?.status,
+    ),
   ).length;
   const totalSess = sessionsInCut.length;
   const attPct = totalSess > 0 ? presentCount / totalSess : 0;

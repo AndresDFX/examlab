@@ -10,6 +10,8 @@ import {
   type GradedItem,
   type ManualOverride,
   type QuestionPoints,
+  countsAsPresent,
+  scaleAttendance,
 } from "./grade";
 
 const qs: QuestionPoints[] = [
@@ -286,5 +288,75 @@ describe("computeCourseFinalGrade", () => {
       { weight: 50, grade: null },
     ]);
     expect(r).toBeNull();
+  });
+});
+
+describe("countsAsPresent (invariante de asistencia — decisión 2026-06-30: 'tarde' cuenta)", () => {
+  it("'presente' y 'tarde' cuentan; el resto no", () => {
+    expect(countsAsPresent("presente")).toBe(true);
+    expect(countsAsPresent("tarde")).toBe(true);
+    expect(countsAsPresent("ausente")).toBe(false);
+    expect(countsAsPresent("excusado")).toBe(false);
+    expect(countsAsPresent(null)).toBe(false);
+    expect(countsAsPresent(undefined)).toBe(false);
+    expect(countsAsPresent("")).toBe(false);
+  });
+});
+
+describe("scaleAttendance (escala al rango [min,max] del curso)", () => {
+  it("escala 0%/50%/100% en una escala 0..5", () => {
+    expect(scaleAttendance(0, 0, 5)).toBe(0);
+    expect(scaleAttendance(0.5, 0, 5)).toBe(2.5);
+    expect(scaleAttendance(1, 0, 5)).toBe(5);
+  });
+  it("respeta grade_scale_min > 0 (el bug G2: pct*max lo ignoraba)", () => {
+    // Escala 1..5, 50% asistencia → 1 + 0.5*(5-1) = 3.0  (pct*max daría 2.5)
+    expect(scaleAttendance(0.5, 1, 5)).toBe(3);
+    // 0% asistencia en escala 1..5 → la nota mínima (1), no 0
+    expect(scaleAttendance(0, 1, 5)).toBe(1);
+    expect(scaleAttendance(1, 1, 5)).toBe(5);
+  });
+});
+
+describe("nota final: PLANO vs avg-de-cortes (G1/G5 — por qué deben unificarse)", () => {
+  // Caracteriza la divergencia que motivó alinear acta/boletín al gradebook.
+  // Con asignación PARCIAL de pesos (los items de un corte NO suman el peso del
+  // corte), el promedio plano ≠ el promedio de las notas de corte.
+  it("coinciden cuando los pesos de items suman exactamente el peso del corte", () => {
+    // Corte A (peso 50): 2 items de 25+25=50. Corte B (peso 50): 1 item de 50.
+    const flat = computeWeightedGrade([
+      { weight: 25, score: 4 },
+      { weight: 25, score: 2 },
+      { weight: 50, score: 5 },
+    ]);
+    const cutA = computeWeightedGrade([
+      { weight: 25, score: 4 },
+      { weight: 25, score: 2 },
+    ]); // = 3
+    const cutB = 5;
+    const avgOfCuts = computeCourseFinalGrade([
+      { weight: 50, grade: cutA },
+      { weight: 50, grade: cutB },
+    ]);
+    expect(flat).toBe(4); // (4*25+2*25+5*50)/100 = 400/100
+    expect(avgOfCuts).toBe(4); // (3*50+5*50)/100 — coinciden
+  });
+
+  it("DIVERGEN con asignación parcial (items NO suman el peso del corte)", () => {
+    // Corte A peso 60 pero solo tiene 1 item de peso 20 (40 sin asignar).
+    // Corte B peso 40 con 1 item de peso 40.
+    const flat = computeWeightedGrade([
+      { weight: 20, score: 5 }, // corte A (item)
+      { weight: 40, score: 0 }, // corte B (item)
+    ]); // = (5*20 + 0*40)/60 = 100/60 = 1.67
+    const cutA = 5; // único item del corte A
+    const cutB = 0;
+    const avgOfCuts = computeCourseFinalGrade([
+      { weight: 60, grade: cutA },
+      { weight: 40, grade: cutB },
+    ]); // = (5*60 + 0*40)/100 = 3.0
+    expect(flat).toBe(1.67);
+    expect(avgOfCuts).toBe(3);
+    expect(flat).not.toBe(avgOfCuts); // ← el acta usaba avg-de-cortes; el gradebook usa flat
   });
 });

@@ -45,7 +45,7 @@ import {
   FolderKanban,
   CalendarCheck,
 } from "lucide-react";
-import { computeWeightedGrade } from "@/modules/grading/grade";
+import { computeWeightedGrade, countsAsPresent } from "@/modules/grading/grade";
 import { computeAttemptGrade, type RetryMode } from "@/modules/exams/exam-attempts";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ErrorState } from "@/components/ui/empty-state";
@@ -414,8 +414,8 @@ function StudentGrades() {
             // el docente asigna el corte al crear la sesión.
             const sessionsInCut = allSessions.filter((s) => s.cut_id === cut.id);
             if (sessionsInCut.length > 0) {
-              const present = sessionsInCut.filter(
-                (s) => recordsBySession.get(s.id) === "presente",
+              const present = sessionsInCut.filter((s) =>
+                countsAsPresent(recordsBySession.get(s.id)),
               ).length;
               const pct = present / sessionsInCut.length;
               const attendanceAvg =

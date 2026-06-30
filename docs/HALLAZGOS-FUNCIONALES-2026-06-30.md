@@ -85,11 +85,11 @@ Segundo workflow (subagents disponibles tras reset 12pm): verificó adversarialm
 | M2 | med | low | ✅ CORREGIDO: paginado enrollments (.range) + chunk profiles.in(500) + chunk conversations.or(150) |
 | C6 | med | medium | ✅ CORREGIDO: helper syncParentAfterFileRegrade en las 3 ramas de aiRegradeSubFile |
 | M1 | low | low | ⬜ nueva migración: CREATE OR REPLACE dispatch_scheduled_messages re-insertando rama `kind='group'` |
-| G2 | med | **medium** | ⬜ acta+report-context: asistencia `min+pct*(max-min)` (cargar grade_scale_min) — alinear al UI |
-| G5 | med | **medium** | ⬜ report-context: nota final = avg-PLANO de items (no avg-de-cortes) |
-| G3 | low | low | ⬜ **decisión de producto**: ¿'tarde' cuenta como presente? (verify recomienda alinear UI→documentos = SÍ cuenta) |
-| G1 | high | **high** | ⬜ acta SQL: final = avg-PLANO (canónico confirmado = computeWeightedGrade flat). Migración del documento sellado |
-| G6 | med | **high** | ⬜ acta SQL: colapsar intentos por examen respetando retry_mode antes del jsonb_agg (evitar ponderar ×N) |
+| G2 | med | **medium** | ✅ CORREGIDO (cluster acta/boletín 2026-06-30) |
+| G5 | med | **medium** | ✅ CORREGIDO (cluster acta/boletín 2026-06-30) |
+| G3 | low | low | ✅ CORREGIDO (cluster acta/boletín 2026-06-30) |
+| G1 | high | **high** | ✅ CORREGIDO (cluster acta/boletín 2026-06-30) |
+| G6 | med | **high** | ✅ CORREGIDO (cluster acta/boletín 2026-06-30) |
 
 **El cluster del acta/boletín (G1/G2/G3/G5/G6)** es UNA pasada cohesiva: alinear los documentos generados (acta sellada SQL + boletín PDF) al algoritmo canónico del gradebook (avg-plano + escala con min + decidir 'tarde'). Requiere migración de `generate_course_acta` + cambios en `report-context.ts` + tests de `grade.ts` con casos de asignación parcial de pesos. NO se debe apresurar (toca un documento legal sellado con hash y la nota de todos los expedientes).
 
