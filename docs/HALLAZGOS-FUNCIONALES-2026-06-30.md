@@ -43,7 +43,7 @@ workshops-groups, projects (parcial), messaging-broadcast, exam-ai (parcial), tu
 | # | Sev | Título | Archivo |
 |---|---|---|---|
 | W1 | **HIGH** | Aprobar nota IA / guardar nota por-pregunta finaliza la calificación SIN notificar al estudiante ni al grupo | `app.teacher.workshops.tsx:2342-2377` (approveAIGrade), `1655-1708` (saveAnswerGrade) |
-| W2 | med | attemptsExhausted ignora el default global de intentos (`?? 1` en vez de `wsMax ?? globalMax ?? 1`) | `app.student.workshops.tsx:585` |
+| W2 | med | ✅ CORREGIDO: listado lee app_settings.default_workshop_max_attempts (3-tier como WorkshopQuestions) | `app.student.workshops.tsx` |
 | W3 | med | Race: 2 miembros del grupo entregando a la vez crean DOS submissions (sin UNIQUE workshop_id+group_id) | `WorkshopQuestions.tsx:1467-1532` |
 | W4 | low | Miembros de grupo no matriculados quedan invisibles en el editor (conteo/eliminación incorrectos) | `WorkshopGroupsEditor.tsx:114-122,156,344-363` |
 | W5 | low | moveUser no atómico: si el INSERT al nuevo grupo falla tras el DELETE, el alumno queda sin grupo | `WorkshopGroupsEditor.tsx:196-217` |

@@ -1701,6 +1701,9 @@ function TeacherWorkshops() {
             max: gradingWs?.max_score ?? 100,
           }),
         );
+        // Guardar la nota por pregunta finaliza la calificación (status
+        // 'calificado') → notificar al alumno/grupo, igual que saveGrade (W1).
+        void notifyWorkshopGraded(subId, Number(newFinal ?? 0));
       }
     } finally {
       setSavingAnswerId(null);
@@ -2364,6 +2367,9 @@ function TeacherWorkshops() {
       ),
     );
     toast.success(t("workshop.gradeApproved"));
+    // Aprobar la nota IA finaliza la calificación → notificar al alumno/grupo
+    // (igual que saveGrade; antes este camino cerraba sin avisar — W1).
+    void notifyWorkshopGraded(subId, Number(sub.ai_grade ?? 0));
     // Aprobar la nota de IA finaliza la calificación → volver a la lista
     // para pasar al siguiente (mismo criterio que saveGrade).
     setViewingSubId(null);
@@ -2455,6 +2461,46 @@ function TeacherWorkshops() {
     );
   };
 
+  // Notifica al estudiante (o a TODOS los miembros del grupo) que su taller fue
+  // calificado. Compartido por los 3 caminos de cierre — saveGrade,
+  // approveAIGrade y saveAnswerGrade — para que los tres notifiquen igual.
+  // Antes solo saveGrade lo hacía: "Aprobar nota IA" y "Guardar nota por
+  // pregunta" finalizaban la calificación SIN avisar al alumno/grupo (W1).
+  const notifyWorkshopGraded = async (subId: string, grade: number) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dbAny = supabase as any;
+    const { data: row } = await dbAny
+      .from("workshop_submissions")
+      .select("group_id, user_id")
+      .eq("id", subId)
+      .maybeSingle();
+    if (!row) return;
+    let recipients: string[] = [];
+    if (row.group_id) {
+      const { data: ms } = await dbAny
+        .from("workshop_group_members")
+        .select("user_id")
+        .eq("group_id", row.group_id);
+      recipients = ((ms ?? []) as { user_id: string }[]).map((m) => m.user_id);
+    } else if (row.user_id) {
+      recipients = [row.user_id];
+    }
+    // Excluir al docente que califica (multi-rol con el mismo id no se auto-notifica).
+    const myId = user?.id;
+    recipients = Array.from(new Set(recipients)).filter((uid) => uid && uid !== myId);
+    if (recipients.length === 0) return;
+    const wsTitle = gradingWs?.title ?? i18n.t("hc_routesAppTeacherWorkshops.theWorkshop");
+    await supabase.from("notifications").insert(
+      recipients.map((uid) => ({
+        user_id: uid,
+        title: i18n.t("hc_routesAppTeacherWorkshops.notifyGradedTitle"),
+        body: i18n.t("hc_routesAppTeacherWorkshops.notifyGradedBody", { title: wsTitle, grade }),
+        kind: "grade",
+        link: "/app/student/workshops",
+      })),
+    );
+  };
+
   const saveGrade = async (subId: string, grade: number) => {
     const { data, error } = await supabase
       .from("workshop_submissions")
@@ -2512,44 +2558,8 @@ function TeacherWorkshops() {
       "Cancelado: el docente calificó manualmente el taller.",
     );
 
-    // Notificar al estudiante (o a todos los miembros del grupo si la
-    // entrega es grupal). El RPC notify_course_students no aplica acá
-    // porque va a TODOS los del curso; insertamos directo en
-    // notifications con RLS de Docente/Admin.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const subData = data as any;
-    const wsTitle = gradingWs?.title ?? i18n.t("hc_routesAppTeacherWorkshops.theWorkshop");
-    let recipients: string[] = [];
-    if (subData.group_id) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const dbAny = supabase as any;
-      const { data: ms } = await dbAny
-        .from("workshop_group_members")
-        .select("user_id")
-        .eq("group_id", subData.group_id);
-      recipients = ((ms ?? []) as { user_id: string }[]).map((m) => m.user_id);
-    } else if (subData.user_id) {
-      recipients = [subData.user_id];
-    }
-    // Excluir al propio docente que califica: un usuario multi-rol
-    // (Docente + Estudiante con el MISMO id) NO debe auto-notificarse al
-    // calificar su propia entrega.
-    const myId = user?.id;
-    recipients = Array.from(new Set(recipients)).filter((uid) => uid && uid !== myId);
-    if (recipients.length > 0) {
-      await supabase.from("notifications").insert(
-        recipients.map((uid) => ({
-          user_id: uid,
-          title: i18n.t("hc_routesAppTeacherWorkshops.notifyGradedTitle"),
-          body: i18n.t("hc_routesAppTeacherWorkshops.notifyGradedBody", {
-            title: wsTitle,
-            grade,
-          }),
-          kind: "grade",
-          link: "/app/student/workshops",
-        })),
-      );
-    }
+    // Notificar al estudiante / grupo (lógica compartida — ver notifyWorkshopGraded).
+    await notifyWorkshopGraded(subId, grade);
   };
 
   const deleteSubmission = async (subId: string, studentName: string) => {

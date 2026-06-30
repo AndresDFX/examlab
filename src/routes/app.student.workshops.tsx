@@ -170,6 +170,11 @@ function StudentWorkshops() {
   // ErrorState con botón "Reintentar" en vez de una grilla vacía.
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  // Default global de intentos (app_settings.default_workshop_max_attempts).
+  // workshops.max_attempts NULL hereda este valor — igual que el punto de
+  // enforcement en WorkshopQuestions. Sin esto el listado usaba `?? 1` y podía
+  // marcar "intentos agotados" antes de tiempo, bloqueando el CTA "Actualizar".
+  const [globalWorkshopMax, setGlobalWorkshopMax] = useState(1);
 
   /** Borra la entrega del estudiante (RLS restringe a dentro del plazo).
    *  Las respuestas asociadas caen por CASCADE (FK añadida en
@@ -202,6 +207,15 @@ function StudentWorkshops() {
     // refresque la tipificación generada de Supabase.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = supabase as any;
+    // Default global de intentos (best-effort; si falla, queda en 1).
+    const { data: appCfg } = await client
+      .from("app_settings")
+      .select("default_workshop_max_attempts")
+      .limit(1)
+      .maybeSingle();
+    if (appCfg?.default_workshop_max_attempts != null) {
+      setGlobalWorkshopMax(Number(appCfg.default_workshop_max_attempts) || 1);
+    }
     const { data: asg, error: asgErr } = await client
       .from("workshop_assignments")
       .select(
@@ -582,7 +596,8 @@ function StudentWorkshops() {
           // intento (puede re-editar) → no se considera agotado.
           const attemptsExhausted =
             !!submission &&
-            Number(submission.attempt_count ?? 0) >= Number(workshop.max_attempts ?? 1) &&
+            Number(submission.attempt_count ?? 0) >=
+              Number(workshop.max_attempts ?? globalWorkshopMax ?? 1) &&
             (submission.status === "calificado" || submission.final_grade != null);
           return (
             <Card key={workshop.id}>
