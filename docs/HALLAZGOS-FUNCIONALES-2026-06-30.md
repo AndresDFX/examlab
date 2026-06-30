@@ -65,7 +65,7 @@ workshops-groups, projects (parcial), messaging-broadcast, exam-ai (parcial), tu
 | # | Sev | Título | Archivo |
 |---|---|---|---|
 | T1 (=C11) | med | respuesta IA vacía/>20000 viola CHECK → ✅ CORREGIDO | `tutor-chat/index.ts` |
-| T2 | low | formatTopics sobrecuenta 'N temas más' cuando hay títulos en blanco | `tutor-prompt.ts:146` |
+| T2 | low | ✅ CORREGIDO: cuenta sobre `lines` filtradas + índice (src + copia Deno) | `tutor-prompt.ts` |
 
 **Total del workflow: ~30 hallazgos.** Corregidos esta sesión: 11 (C1-C5, C8, C9, C11, G4, G7). Pendientes de verificar+corregir en pasada dedicada (subagents disponibles post-12pm): W1, P1 (HIGH); M1, M2, W2, W3, G1/G2/G3/G5/G6 (med); resto low.
 

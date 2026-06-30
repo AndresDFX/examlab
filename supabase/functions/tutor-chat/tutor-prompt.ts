@@ -78,15 +78,19 @@ function safeText(s: string | null | undefined, fallback: string): string {
 }
 
 function formatTopics(topics: readonly string[], maxChars: number): string {
-  if (topics.length === 0) return "";
   const lines = topics
     .map((t) => t.trim())
     .filter(Boolean)
     .map((t) => `- ${t}`);
+  if (lines.length === 0) return "";
   let result = "";
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     if (result.length + line.length + 1 > maxChars) {
-      result += `\n- (… ${topics.length - result.split("\n").length} temas más, truncados por longitud)`;
+      // Conteo sobre `lines` (ya sin blancos) y el índice actual. Antes usaba
+      // topics.length (incluía títulos en blanco) menos result.split, lo que
+      // sobrecontaba "N temas más".
+      result += `\n- (… ${lines.length - i} temas más, truncados por longitud)`;
       break;
     }
     result += (result ? "\n" : "") + line;
