@@ -34,3 +34,37 @@ Workflow `functional-validation-sweep` (9 módulos, review + verify adversarial)
 
 ## Pendientes de recuperar (otros módulos con verify fallido)
 workshops-groups, projects (parcial), messaging-broadcast, exam-ai (parcial), tutor (parcial) — revisar transcripts si quedan hallazgos no listados arriba.
+
+## Recuperados adicionales de transcripts (verify falló) — otros módulos
+
+> Hallazgos de los REVIEW agents cuyo verify adversarial no corrió (límite de sesión). **NO verificados adversarialmente** — verificar inline antes de corregir (la experiencia con grading mostró que el verify a veces baja la severidad).
+
+### Talleres + grupos
+| # | Sev | Título | Archivo |
+|---|---|---|---|
+| W1 | **HIGH** | Aprobar nota IA / guardar nota por-pregunta finaliza la calificación SIN notificar al estudiante ni al grupo | `app.teacher.workshops.tsx:2342-2377` (approveAIGrade), `1655-1708` (saveAnswerGrade) |
+| W2 | med | attemptsExhausted ignora el default global de intentos (`?? 1` en vez de `wsMax ?? globalMax ?? 1`) | `app.student.workshops.tsx:585` |
+| W3 | med | Race: 2 miembros del grupo entregando a la vez crean DOS submissions (sin UNIQUE workshop_id+group_id) | `WorkshopQuestions.tsx:1467-1532` |
+| W4 | low | Miembros de grupo no matriculados quedan invisibles en el editor (conteo/eliminación incorrectos) | `WorkshopGroupsEditor.tsx:114-122,156,344-363` |
+| W5 | low | moveUser no atómico: si el INSERT al nuevo grupo falla tras el DELETE, el alumno queda sin grupo | `WorkshopGroupsEditor.tsx:196-217` |
+
+### Mensajería + difusión + programados
+| # | Sev | Título | Archivo |
+|---|---|---|---|
+| M1 | med | `dispatch_scheduled_messages` perdió la rama `kind='group'` en migraciones posteriores (drift SQL) → mensajes programados de grupo no se despachan | `20260982000000_...sql:33-142` |
+| M2 | med | Broadcast inmediato puede dejar fuera destinatarios por el límite por defecto de filas de PostgREST en SELECTs sin paginar (cursos >1000 alumnos) | `broadcast-course-message/index.ts:179-205, 278-283` |
+
+### Proyectos + sustentación
+| # | Sev | Título | Archivo |
+|---|---|---|---|
+| P1 | **HIGH** | Re-submit del estudiante NO limpia `defense_factor` → el trigger re-aplica el factor de sustentación VIEJO a la entrega NUEVA → nota final incorrecta | `ProjectFiles.tsx:2495-2506` + `20260955000000_...sql:84-86` |
+| P2 (=C6) | med | aiRegradeSubFile deja submission_grade/final_grade obsoletos en el state local | `app.teacher.projects.tsx:2031-2045,2136-2143` |
+| P3 | low | En modo async, submission_grade se persiste como 0 hasta que el worker drena | `ProjectFiles.tsx:2489-2506` |
+
+### Tutor
+| # | Sev | Título | Archivo |
+|---|---|---|---|
+| T1 (=C11) | med | respuesta IA vacía/>20000 viola CHECK → ✅ CORREGIDO | `tutor-chat/index.ts` |
+| T2 | low | formatTopics sobrecuenta 'N temas más' cuando hay títulos en blanco | `tutor-prompt.ts:146` |
+
+**Total del workflow: ~30 hallazgos.** Corregidos esta sesión: 11 (C1-C5, C8, C9, C11, G4, G7). Pendientes de verificar+corregir en pasada dedicada (subagents disponibles post-12pm): W1, P1 (HIGH); M1, M2, W2, W3, G1/G2/G3/G5/G6 (med); resto low.
