@@ -119,6 +119,39 @@ vistas derivadas. **2 fugas reales + 1 falso positivo:**
 Nota: `generated_contents_owner [ALL]` ve trashed a propósito (staff lo necesita
 en la Papelera para restaurar) — no es fuga.
 
+## 4º pase — RLS de tablas HIJAS (loop-until-dry, workflow 6 lentes)
+
+**8 fugas RLS** (mig `20261020000000`): un alumno leía por REST directo (la UI
+filtra, la RLS no) contenido cuyo PADRE estaba en papelera:
+
+| Policy | Qué exponía | Sev |
+|---|---|---|
+| `questions_select_in_tenant` | content + **options (clave de respuesta)** + rubric de examen en papelera | HIGH |
+| `workshop_questions_select_in_tenant` | idem para talleres | HIGH |
+| `whiteboards_select` (rama alumno) | header de pizarra compartida en papelera | HIGH |
+| `whiteboard_pages_select` (rama alumno) | **escena/dibujos** de pizarra en papelera | HIGH |
+| `poll_options_select` | opciones + responses_count de encuesta en papelera | MED |
+| `polls_select_course_members` (rama alumno) | header de encuesta en papelera | MED |
+| `session_code_snippets_select` (rama alumno) | **código de clase** de sesión en papelera | MED |
+| `attendance_sessions_select_in_tenant` | whiteboard_scene/meeting/recording de sesión en papelera | MED |
+
+**Fix:** gatear SOLO la ruta no-staff con `<padre>.deleted_at IS NULL`; el staff
+conserva acceso (Papelera/restore) vía sus policies `*_staff_manage`/`*_write_*`.
+
+**Sutileza RLS crítica detectada en la verificación:** el patrón `NOT
+EXISTS(polls WHERE deleted_at IS NOT NULL)` se evalúa BAJO la RLS de polls del
+usuario; al gatear `polls` para ocultar trashed al alumno, ese subquery deja de
+ver la poll en papelera → **falla ABIERTO**. Afectaba a `poll_options` (nuevo) y
+a `poll_questions_select` + `pqr_select` (YA existentes — solo "funcionaban"
+porque `polls` aún filtraba mal). Se introdujo helper SECURITY DEFINER
+`_poll_in_papelera` (RLS-inmune) y se migraron las 3. Sin esto, mi fix de `polls`
+habría roto silenciosamente 2 guards existentes en prod.
+
+**Verificado vs prod con `SET ROLE authenticated`** (tx ROLLBACK): las 9 policies
+→ alumno ve activo pero NO trashed; staff sigue viendo trashed (Papelera intacta).
+(Detecté que el conn de pg era superusuario y bypassa RLS — repetí TODA la
+verificación RLS con `SET ROLE authenticated` para que fuera real.)
+
 ## Deploy confirmado
 
 CI aplicó `20261016000000` en prod (los 5 guards RPC verificados vivos).
@@ -132,12 +165,13 @@ Cobertura multi-ángulo: selección (workflow 8 finders) + funciones server-side
 notificación (1 fuga) + RPCs de interacción poll/sesión (2 fugas) + embeds
 cliente (saltan trashed) + deep-links (exam-take, foros) + edges (calendar/ICS).
 
-**13 fugas reales corregidas** (3 cliente sel. + 5 guards RPC + 1 cron +
-poll_is_open central + check-in + RLS via-sesión + deep-link grading) **+ 1 bug
+**21 fugas reales corregidas** (3 cliente sel. + 5 guards RPC + 1 cron +
+poll_is_open + check-in + RLS via-sesión + deep-link grading + 8 RLS de hijas +
+helper _poll_in_papelera que ademas repara 2 guards existentes) **+ 1 bug
 pre-existente** (clone_workshop/project created_by). Migraciones: `20261016`
-(live), `20261017`, `20261018`, `20261019`. Src: 4 archivos (requieren Publish).
+(live), `20261017`, `20261018`, `20261019`, `20261020`. Src: 4 archivos (Publish).
 Casos extremos sin daño documentados como aceptados (kahoot mid-game, teacher-only).
 
-Loop-until-dry: el 3er pase aún encontró 2 fugas → se lanza un 4º pase enfocado
-en RLS de tablas HIJAS (questions/options/submissions/grupos/etc.) antes de
-declarar la auditoría seca.
+Loop-until-dry: pase 3 → 2 fugas; pase 4 → 8 fugas (clase RLS de hijas). Se lanza
+pase 5 (kahoot answer-keys + children restantes + completeness critic) para
+confirmar dryness antes de declarar la auditoría seca.
