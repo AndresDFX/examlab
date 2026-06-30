@@ -1638,6 +1638,37 @@ function TeacherProjects() {
     return Number(((earned / totalPoints) * Number(gradingProject.max_score)).toFixed(2));
   };
 
+  // Tras recalificar UN archivo con IA, sincroniza submission_grade/final_grade
+  // del PADRE en el state local (gradingSubs), igual que saveSubFileGrade. El
+  // trigger SQL ya recomputa server-side, pero sin esto el state local queda
+  // stale → el header y la baseline del DefensePanel muestran la nota vieja y, si
+  // el docente guarda la sustentación con el input vacío, saveDefense usa el
+  // submission_grade obsoleto como base (C6). Usa `newFileGrade` explícito porque
+  // recomputeProjectGrade leería gradingAnsBySub aún sin el patch de este tick.
+  const syncParentAfterFileRegrade = (subId: string, fileId: string, newFileGrade: number) => {
+    const totalPoints = gradingFiles.reduce((s, f) => s + Number(f.points || 0), 0);
+    if (totalPoints <= 0) return;
+    const earned = gradingFiles.reduce((s, f) => {
+      const a = (gradingAnsBySub[subId] ?? []).find((x) => x.file_id === f.id);
+      const g = f.id === fileId ? newFileGrade : Number(a?.ai_grade ?? 0) || 0;
+      return s + Math.min(Number(g) || 0, Number(f.points) || 0);
+    }, 0);
+    const newSubGrade = Number(
+      ((earned / totalPoints) * Number(gradingProject?.max_score ?? 0)).toFixed(2),
+    );
+    setGradingSubs((prev) =>
+      prev.map((s) => {
+        if (s.id !== subId) return s;
+        const factor = s.defense_factor;
+        // El trigger recalcula final_grade solo si hay defense_factor; si no, lo
+        // deja como está. Espejamos esa semántica.
+        const newFinal =
+          factor != null ? Number((newSubGrade * factor).toFixed(2)) : s.final_grade;
+        return { ...s, submission_grade: newSubGrade, final_grade: newFinal };
+      }),
+    );
+  };
+
   const patchSubFile = (subId: string, fileId: string, patch: Partial<SubFile>) => {
     setGradingAnsBySub((prev) => {
       const list = (prev[subId] ?? []).slice();
@@ -2043,6 +2074,7 @@ function TeacherProjects() {
             ai_reasons: newAiReasons,
           })
           .eq("id", ans.id);
+        syncParentAfterFileRegrade(subId, file.id, newGrade);
         toast.success(
           i18n.t("toast.routes_app_teacher_projects.regradeReady", {
             defaultValue: "Recalificación lista: {{grade}} / {{points}}",
@@ -2088,6 +2120,7 @@ function TeacherProjects() {
           .from("project_submission_files")
           .update({ ai_grade: result.earned, ai_feedback: newFeedback })
           .eq("id", ans.id);
+        syncParentAfterFileRegrade(subId, file.id, result.earned);
         toast.success(
           i18n.t("toast.routes_app_teacher_projects.recomputedLocally", {
             defaultValue: "Recalculado localmente (sin IA)",
@@ -2148,6 +2181,7 @@ function TeacherProjects() {
           ai_reasons: newAiReasons,
         })
         .eq("id", ans.id);
+      syncParentAfterFileRegrade(subId, file.id, newGrade);
       toast.success(
         i18n.t("toast.routes_app_teacher_projects.fileRegradedWithAi", {
           defaultValue: "Archivo recalificado con IA",
