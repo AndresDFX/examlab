@@ -84,7 +84,7 @@ Segundo workflow (subagents disponibles tras reset 12pm): verificó adversarialm
 | W3 | med | low* | ✅ CORREGIDO (mig 20261014): índice UNIQUE parcial talleres+proyectos (0 dupes existentes → seguro). Upsert cliente = pulido opcional |
 | M2 | med | low | ✅ CORREGIDO: paginado enrollments (.range) + chunk profiles.in(500) + chunk conversations.or(150) |
 | C6 | med | medium | ✅ CORREGIDO: helper syncParentAfterFileRegrade en las 3 ramas de aiRegradeSubFile |
-| M1 | low | low | ⬜ nueva migración: CREATE OR REPLACE dispatch_scheduled_messages re-insertando rama `kind='group'` |
+| M1 | low | low | ✅ CORREGIDO (mig 20261015): rama group reinsertada; verificado runtime (rolled back) |
 | G2 | med | **medium** | ✅ CORREGIDO (cluster acta/boletín 2026-06-30) |
 | G5 | med | **medium** | ✅ CORREGIDO (cluster acta/boletín 2026-06-30) |
 | G3 | low | low | ✅ CORREGIDO (cluster acta/boletín 2026-06-30) |
