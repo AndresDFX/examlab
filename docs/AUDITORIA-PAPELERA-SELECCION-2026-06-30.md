@@ -214,6 +214,30 @@ ambiguo; ya gateados por su propio `deleted_at`).
 **Verificado vs prod** (`SET ROLE`, tx ROLLBACK) trasheando el CURSO: alumno pierde
 exams/questions/attendance_sessions/whiteboards (→0), staff conserva (Papelera).
 
+## 8º pase + enumeración autoritativa → SECA
+
+**Pase 8** (workflow) encontró otra familia de hijas de workshops/projects sin
+ningún gate de `deleted_at`: grupos, miembros de grupo (PII) y videos intro.
+Corregidas en `20261025000000` (6 policies) + la config de notas estudiantil
+(`course_grading_config`/`grade_cuts`/`grade_cut_items`) en `20261026000000`.
+
+**Cierre autoritativo (no muestreado):** en vez de un 9º pase LLM, se enumeró
+directamente `pg_policies`:
+- **57 tablas con FK directa a las 8** + **17 nietas** (FK a las hijas).
+- Tras los fixes, **0 policies SELECT de nietas** sin gate; y en las hijas, las
+  únicas SELECT no-staff sin gate de papelera son **plumbing aceptado**
+  (`course_enrollments`, `course_teachers`, `poll_courses`, `project_courses`,
+  `workshop_courses`, `course_certificate_settings` — membresía/junction/config,
+  no contenido sensible; gatear enrollments/teachers tiene blast radius
+  cross-policy) + lecturas **own-data** (`submissions`/`workshop_submissions`/
+  `poll_responses`/`exam_notes`/`notifications`/… = el alumno ve su PROPIA fila,
+  no es fuga) + staff-only (`question_bank`) + global (`ai_prompts` default).
+
+Confirmado: ningún contenido sensible (preguntas+clave, rúbricas, instructions,
+escenas de pizarra, código de clase, opciones/resultados de encuesta, grupos+PII,
+videos intro, config de notas) de una entidad —o su curso abuelo— en papelera es
+legible/usable por un NO-staff. **Auditoría de papelera: SECA.**
+
 ## Deploy confirmado
 
 CI aplicó `20261016000000` en prod (los 5 guards RPC verificados vivos).
@@ -227,11 +251,14 @@ Cobertura multi-ángulo: selección (workflow 8 finders) + funciones server-side
 notificación (1 fuga) + RPCs de interacción poll/sesión (2 fugas) + embeds
 cliente (saltan trashed) + deep-links (exam-take, foros) + edges (calendar/ICS).
 
-**31 fugas (caso directo) + 10 policies extendidas (abuelo curso) + 2 falsos
-positivos descartados + 1 bug pre-existente** (clone_workshop/project created_by).
-Migraciones: `20261016` (live), `20261017`–`20261024`. Src: 4 archivos (Publish).
-Casos extremos sin daño documentados como aceptados (kahoot mid-game, teacher-only).
+**AUDITORÍA SECA.** ~40 fixes (policies RLS + RPCs) en **11 migraciones
+`20261016`–`20261026`** + 4 archivos `src/` (requieren Publish) + **1 bug
+pre-existente** (clone_workshop/project created_by, "Duplicar" roto) + **2 falsos
+positivos** correctamente descartados (gc_student_read_via_session, storage zip).
+Cada fix SQL verificado contra prod en transacción con ROLLBACK (las RLS con
+`SET ROLE authenticated`). Cierre confirmado por enumeración autoritativa de
+`pg_policies` (hijas + nietas), no por muestreo.
 
-Loop-until-dry: pase 3 → 2, pase 4 → 8, pase 5 → 9, pase 6 → 1 real (+1 FP), pase 7
-→ abuelo-curso (10 policies). Pase 8 (re-sweep exhaustivo final + completeness
-critic, con el fixed-list completo directo+abuelo) corriendo para confirmar SECA.
+Loop-until-dry: pase 3→2, 4→8, 5→9, 6→1, 7→abuelo-curso (10), 8→grupos/videos+
+config-notas (9) → enumeración autoritativa = SECA. Residual aceptado (documentado):
+plumbing de membresía/junction/config + lecturas own-data + staff-only.
