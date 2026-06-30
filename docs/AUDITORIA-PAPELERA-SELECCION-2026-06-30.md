@@ -238,7 +238,23 @@ escenas de pizarra, código de clase, opciones/resultados de encuesta, grupos+PI
 videos intro, config de notas) de una entidad —o su curso abuelo— en papelera es
 legible/usable por un NO-staff. **Auditoría de papelera: SECA.**
 
-## Deploy confirmado
+## Dimensión ESCRITURA (no solo lectura)
+
+Cerrado el lado lectura, se auditó la escritura (enumeración autoritativa de
+policies INSERT/UPDATE). Casi todas eran no-op (`CHK false` = solo-RPC), own-data
+o staff. Gap real: las INSERT de `submissions`/`workshop_submissions`/
+`project_submissions`/`tutor_chat_sessions` no gateaban el `deleted_at` del padre
+→ con un id stale, un alumno podía CREAR por REST una entrega bajo un examen/
+taller/proyecto (o curso abuelo) en papelera, o una sesión de tutor de un curso
+en papelera. **Corregido** en `20261027000000` (gate de la rama estudiante con
+padre+curso activos; ramas staff intactas; el take-flow no se afecta porque solo
+inserta sobre activos). Verificado vs prod (`SET ROLE`).
+
+**UPDATE NO se gatea a propósito**: si el docente trashea el examen mientras el
+alumno lo resuelve, bloquear el autosave/entrega le haría perder el trabajo. El
+gate de INSERT ya evita huérfanos nuevos.
+
+## Deploy confirmado (11 migraciones + escritura = 12 verificadas vivas)
 
 CI aplicó `20261016000000` en prod (los 5 guards RPC verificados vivos).
 `20261017000000` + `20261018000000` pusheados (CI los aplica). Los fixes de
