@@ -59,7 +59,7 @@ workshops-groups, projects (parcial), messaging-broadcast, exam-ai (parcial), tu
 |---|---|---|---|
 | P1 | **HIGH** | ✅ CORREGIDO: re-submit limpia defense_factor/at/notes → la re-entrega exige sustentación fresca | `ProjectFiles.tsx` |
 | P2 (=C6) | med | aiRegradeSubFile deja submission_grade/final_grade obsoletos en el state local | `app.teacher.projects.tsx:2031-2045,2136-2143` |
-| P3 | low | En modo async, submission_grade se persiste como 0 hasta que el worker drena | `ProjectFiles.tsx:2489-2506` |
+| P3 | low | ✅ CORREGIDO: en async persiste submission_grade=null (pendiente), no 0 prematuro | `ProjectFiles.tsx` |
 
 ### Tutor
 | # | Sev | Título | Archivo |

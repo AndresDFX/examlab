@@ -2488,6 +2488,10 @@ export function StudentProjectTaker({
 
       const submissionScore =
         totalPoints > 0 ? Number(((totalEarned / totalPoints) * Number(maxScore)).toFixed(2)) : 0;
+      // P3: si hay items encolados a IA (async), la nota TODAVÍA no está
+      // calculada → persistir null (pendiente) en vez de un 0 prematuro y
+      // engañoso. El worker/trigger de recompute la completará al calificar.
+      const submissionGradeToPersist: number | null = totalQueued > 0 ? null : submissionScore;
 
       // submission_grade = nota de la entrega. final_grade queda null
       // hasta que el docente registre la sustentación (defense_factor).
@@ -2502,8 +2506,8 @@ export function StudentProjectTaker({
       await db
         .from("project_submissions")
         .update({
-          ai_grade: submissionScore,
-          submission_grade: submissionScore,
+          ai_grade: submissionGradeToPersist,
+          submission_grade: submissionGradeToPersist,
           final_grade: null,
           defense_factor: null,
           defense_at: null,
