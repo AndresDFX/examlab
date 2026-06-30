@@ -68,3 +68,32 @@ workshops-groups, projects (parcial), messaging-broadcast, exam-ai (parcial), tu
 | T2 | low | formatTopics sobrecuenta 'N temas más' cuando hay títulos en blanco | `tutor-prompt.ts:146` |
 
 **Total del workflow: ~30 hallazgos.** Corregidos esta sesión: 11 (C1-C5, C8, C9, C11, G4, G7). Pendientes de verificar+corregir en pasada dedicada (subagents disponibles post-12pm): W1, P1 (HIGH); M1, M2, W2, W3, G1/G2/G3/G5/G6 (med); resto low.
+
+---
+
+## Verificación adversarial (workflow verify-recovered-findings) — 11/11 confirmados
+
+Segundo workflow (subagents disponibles tras reset 12pm): verificó adversarialmente los hallazgos recuperados. **0 refutados.** Severidad + riesgo de fix ajustados por el verificador (leyendo el código real):
+
+| # | Sev (verify) | fix_risk | Estado |
+|---|---|---|---|
+| W1 | med | low | ✅ CORREGIDO (74948ed7) |
+| W2 | med | low | ✅ CORREGIDO (74948ed7) |
+| P1 | high | low | ✅ CORREGIDO (cda8871f) |
+| G4 | high | — | ✅ CORREGIDO (119b4e5c) |
+| W3 | med | **medium** | ⬜ requiere índice UNIQUE parcial `(workshop_id, group_id) WHERE group_id IS NOT NULL` + upsert (simétrico talleres/proyectos) |
+| M2 | med | low | ⬜ paginar 3 SELECTs del edge (course_enrollments + profiles.in + conversations chunk ~300 UUIDs); media-complejidad, dejar coherente |
+| C6 | med | medium | ⬜ aiRegradeSubFile debe espejar saveSubFileGrade (recompute + setGradingSubs) |
+| M1 | low | low | ⬜ nueva migración: CREATE OR REPLACE dispatch_scheduled_messages re-insertando rama `kind='group'` |
+| G2 | med | **medium** | ⬜ acta+report-context: asistencia `min+pct*(max-min)` (cargar grade_scale_min) — alinear al UI |
+| G5 | med | **medium** | ⬜ report-context: nota final = avg-PLANO de items (no avg-de-cortes) |
+| G3 | low | low | ⬜ **decisión de producto**: ¿'tarde' cuenta como presente? (verify recomienda alinear UI→documentos = SÍ cuenta) |
+| G1 | high | **high** | ⬜ acta SQL: final = avg-PLANO (canónico confirmado = computeWeightedGrade flat). Migración del documento sellado |
+| G6 | med | **high** | ⬜ acta SQL: colapsar intentos por examen respetando retry_mode antes del jsonb_agg (evitar ponderar ×N) |
+
+**El cluster del acta/boletín (G1/G2/G3/G5/G6)** es UNA pasada cohesiva: alinear los documentos generados (acta sellada SQL + boletín PDF) al algoritmo canónico del gradebook (avg-plano + escala con min + decidir 'tarde'). Requiere migración de `generate_course_acta` + cambios en `report-context.ts` + tests de `grade.ts` con casos de asignación parcial de pesos. NO se debe apresurar (toca un documento legal sellado con hash y la nota de todos los expedientes).
+
+### Resumen del esfuerzo (sesión 2026-06-30)
+- 2 workflows (functional sweep 9 módulos + verify adversarial 11 hallazgos).
+- ~30 hallazgos totales; **14 CORREGIDOS** (C1-C5, C8, C9, C11, G4, G7, P1, W1, W2) — tsc=0, suite 2055/2055, pusheados; 3 edges desplegados por CI.
+- 11 restantes verificados con diseño de fix + riesgo, listos para pasada dedicada.
