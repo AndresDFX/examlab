@@ -1122,11 +1122,15 @@ function Gradebook() {
       if (!ok) return;
       setIssuingId(studentId);
       try {
-        // 1) Revocar el vigente.
-        const { error: revErr } = await db
-          .from("certificates")
-          .update({ revoked_at: new Date().toISOString(), revoke_reason: "regenerado" })
-          .eq("id", existing.id);
+        // 1) Revocar el vigente. DEBE ir por la RPC SECURITY DEFINER: la tabla
+        // certificates NO tiene policy de UPDATE (todas las escrituras van por
+        // RPC), así que un UPDATE directo del cliente afecta 0 filas SIN error
+        // → la revocación no ocurría y la re-emisión fallaba con "Ya existe un
+        // certificado vigente". Mismo patrón que app.certificates.tsx.
+        const { error: revErr } = await db.rpc("revoke_certificate", {
+          _certificate_id: existing.id,
+          _reason: "regenerado",
+        });
         if (revErr) {
           toast.error(
             i18n.t("toast.routes_app_teacher_gradebook.revocationFailed", {

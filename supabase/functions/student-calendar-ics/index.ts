@@ -91,7 +91,10 @@ Deno.serve(async (req) => {
     const exam = row.exams;
     if (!exam || !exam.start_time || !exam.end_time) continue;
     if (exam.deleted_at) continue; // en papelera → no se exporta
-    if (exam.status && exam.status !== "publicado") continue;
+    // El valor real del estado es "published" (no "publicado"); el typo previo
+    // descartaba TODO examen publicado del feed ICS. Consistente con
+    // app.student.calendar.tsx: solo se excluyen borrador/cerrado.
+    if ((exam.status ?? "published") !== "published") continue;
     const courseName = exam.courses?.name ?? "Curso";
     events.push({
       uid: `exam-${exam.id}@examlab`,
