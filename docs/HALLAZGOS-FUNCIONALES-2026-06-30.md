@@ -82,7 +82,7 @@ Segundo workflow (subagents disponibles tras reset 12pm): verificó adversarialm
 | P1 | high | low | ✅ CORREGIDO (cda8871f) |
 | G4 | high | — | ✅ CORREGIDO (119b4e5c) |
 | W3 | med | **medium** | ⬜ requiere índice UNIQUE parcial `(workshop_id, group_id) WHERE group_id IS NOT NULL` + upsert (simétrico talleres/proyectos) |
-| M2 | med | low | ⬜ paginar 3 SELECTs del edge (course_enrollments + profiles.in + conversations chunk ~300 UUIDs); media-complejidad, dejar coherente |
+| M2 | med | low | ✅ CORREGIDO: paginado enrollments (.range) + chunk profiles.in(500) + chunk conversations.or(150) |
 | C6 | med | medium | ✅ CORREGIDO: helper syncParentAfterFileRegrade en las 3 ramas de aiRegradeSubFile |
 | M1 | low | low | ⬜ nueva migración: CREATE OR REPLACE dispatch_scheduled_messages re-insertando rama `kind='group'` |
 | G2 | med | **medium** | ⬜ acta+report-context: asistencia `min+pct*(max-min)` (cargar grade_scale_min) — alinear al UI |

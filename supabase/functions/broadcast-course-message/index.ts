@@ -176,15 +176,25 @@ Deno.serve(async (req) => {
     // schema cache de PostgREST (no hay FK declarada course_enrollments→
     // profiles). El dedup réplica `dedupeRecipients` de
     // src/modules/messaging/broadcast.ts.
-    const { data: enrollRows, error: enrollErr } = await admin
-      .from("course_enrollments")
-      .select("user_id")
-      .in("course_id", courseIds);
-    if (enrollErr) return jsonError(`No se pudo leer matrículas: ${enrollErr.message}`, 500);
+    // Paginar: PostgREST capa por defecto a 1000 filas en SELECTs no paginados.
+    // Un curso con >1000 matriculados perdería silenciosamente destinatarios.
+    const ENROLL_PAGE = 1000;
+    const enrollRows: Array<{ user_id?: string | null }> = [];
+    for (let from = 0; ; from += ENROLL_PAGE) {
+      const { data, error: enrollErr } = await admin
+        .from("course_enrollments")
+        .select("user_id")
+        .in("course_id", courseIds)
+        .order("user_id", { ascending: true })
+        .range(from, from + ENROLL_PAGE - 1);
+      if (enrollErr) return jsonError(`No se pudo leer matrículas: ${enrollErr.message}`, 500);
+      enrollRows.push(...((data ?? []) as Array<{ user_id?: string | null }>));
+      if (!data || data.length < ENROLL_PAGE) break;
+    }
 
     const seenIds = new Set<string>();
     const userIds: string[] = [];
-    for (const r of (enrollRows ?? []) as Array<{ user_id?: string | null }>) {
+    for (const r of enrollRows) {
       const id = r.user_id;
       if (typeof id !== "string" || !id || id === actorId || seenIds.has(id)) continue;
       seenIds.add(id);
@@ -195,14 +205,21 @@ Deno.serve(async (req) => {
       return jsonError("Los cursos seleccionados no tienen estudiantes inscritos", 400);
     }
 
-    const { data: profileRows, error: profileErr } = await admin
-      .from("profiles")
-      .select("id, full_name, institutional_email, personal_email")
-      .in("id", userIds);
-    if (profileErr) {
-      return jsonError(`No se pudieron leer perfiles: ${profileErr.message}`, 500);
+    // Trocear el .in(userIds): además del cap de 1000 filas, un .in con miles de
+    // UUIDs choca contra el límite de longitud de URL de PostgREST.
+    const PROFILE_CHUNK = 500;
+    const students: StudentProfile[] = [];
+    for (let i = 0; i < userIds.length; i += PROFILE_CHUNK) {
+      const slice = userIds.slice(i, i + PROFILE_CHUNK);
+      const { data: profileRows, error: profileErr } = await admin
+        .from("profiles")
+        .select("id, full_name, institutional_email, personal_email")
+        .in("id", slice);
+      if (profileErr) {
+        return jsonError(`No se pudieron leer perfiles: ${profileErr.message}`, 500);
+      }
+      students.push(...((profileRows ?? []) as StudentProfile[]));
     }
-    const students: StudentProfile[] = (profileRows ?? []) as StudentProfile[];
 
     if (students.length === 0) {
       return jsonError("Los cursos no tienen estudiantes con perfil válido", 400);
@@ -274,28 +291,33 @@ Deno.serve(async (req) => {
         //    sender es UNO de los participantes — la otra parte queda en
         //    el set de alumnos del curso. Evita traer conversaciones
         //    ajenas (estudiante-estudiante) que comparten user_id.
-        const otherIds = studentIdsForMessages.join(",");
-        const { data: convRows, error: convFetchErr } = await admin
-          .from("conversations")
-          .select("id, user_a, user_b")
-          .or(
-            `and(user_a.eq.${actorId},user_b.in.(${otherIds})),and(user_b.eq.${actorId},user_a.in.(${otherIds}))`,
-          );
-        if (convFetchErr) {
-          throw new Error(`fetch conversations: ${convFetchErr.message}`);
-        }
-
         // 5) Map student_id → conversation_id (escogemos la conv donde
-        //    el otro participante es el sender actual).
+        //    el otro participante es el sender actual). Troceamos el
+        //    `.in(otherIds)`: con miles de alumnos chocaría contra el cap de
+        //    1000 filas Y el límite de longitud de URL del filtro `.or`.
+        const CONV_CHUNK = 150;
+        const studentIdSet = new Set(studentIdsForMessages);
         const convByStudent = new Map<string, string>();
-        for (const row of (convRows ?? []) as Array<{
-          id: string;
-          user_a: string;
-          user_b: string;
-        }>) {
-          const other = row.user_a === actorId ? row.user_b : row.user_a;
-          if (other !== actorId && studentIdsForMessages.includes(other)) {
-            convByStudent.set(other, row.id);
+        for (let i = 0; i < studentIdsForMessages.length; i += CONV_CHUNK) {
+          const otherIds = studentIdsForMessages.slice(i, i + CONV_CHUNK).join(",");
+          const { data: convRows, error: convFetchErr } = await admin
+            .from("conversations")
+            .select("id, user_a, user_b")
+            .or(
+              `and(user_a.eq.${actorId},user_b.in.(${otherIds})),and(user_b.eq.${actorId},user_a.in.(${otherIds}))`,
+            );
+          if (convFetchErr) {
+            throw new Error(`fetch conversations: ${convFetchErr.message}`);
+          }
+          for (const row of (convRows ?? []) as Array<{
+            id: string;
+            user_a: string;
+            user_b: string;
+          }>) {
+            const other = row.user_a === actorId ? row.user_b : row.user_a;
+            if (other !== actorId && studentIdSet.has(other)) {
+              convByStudent.set(other, row.id);
+            }
           }
         }
 
