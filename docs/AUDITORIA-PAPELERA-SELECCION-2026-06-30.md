@@ -176,6 +176,21 @@ ve activo, NO trashed, staff ve trashed; `kahoot_games`/`get_state` → alumno
 bloqueado en papelera. Foros: 0 filas en prod (no testeable con datos); migración
 aplica limpio + lógica espejo del patrón verificado.
 
+## 6º pase — confirmación (3 lentes): 1 real + 1 falso positivo
+
+- **`project_files_select_in_tenant`** (mig `20261022000000`): el HERMANO que
+  faltó. project_files (hija de projects) expone instrucciones + **expected_rubric
+  (clave de evaluación)** por REST a un alumno cuando el proyecto está en papelera
+  — paralelo exacto de questions/workshop_questions (gateados en pase 4, este se
+  omitió). Fix idéntico. Verificado vs prod (`SET ROLE`): alumno activo=8,
+  trashed=0, staff=8.
+- **FALSO POSITIVO #2** — policy de Storage "Project owner or teacher can read
+  zip" (workshop-files) que el agente reportó como leak cross-tenant YA NO existe
+  en prod (0 policies con "zip"; reemplazada por `workshop_files_select`, scoped a
+  owner/grupo/staff-tenant/SA). Verificado en `pg_policies`. Lección recurrente:
+  los agentes leen source de migración vieja sin chequear el estado vigente — por
+  eso TODA fuga RLS se verifica contra `pg_policies` de prod antes de tocarla.
+
 ## Deploy confirmado
 
 CI aplicó `20261016000000` en prod (los 5 guards RPC verificados vivos).
@@ -189,12 +204,13 @@ Cobertura multi-ángulo: selección (workflow 8 finders) + funciones server-side
 notificación (1 fuga) + RPCs de interacción poll/sesión (2 fugas) + embeds
 cliente (saltan trashed) + deep-links (exam-take, foros) + edges (calendar/ICS).
 
-**30 fugas reales corregidas** (3 cliente sel. + 5 guards RPC + 1 cron +
-poll_is_open + check-in + RLS via-sesión + deep-link grading + 8 RLS de hijas +
-helper _poll_in_papelera [repara 2 guards] + 9 entidad/kahoot/foros) **+ 1 bug
+**31 fugas reales corregidas + 2 falsos positivos descartados + 1 bug
 pre-existente** (clone_workshop/project created_by). Migraciones: `20261016`
-(live), `20261017`–`20261021`. Src: 4 archivos (requieren Publish). Casos extremos
+(live), `20261017`–`20261022`. Src: 4 archivos (requieren Publish). Casos extremos
 sin daño documentados como aceptados (kahoot mid-game, teacher-only).
 
-Loop-until-dry: pase 3 → 2, pase 4 → 8, pase 5 → 9. Pase 6 (children no-flagged +
-storage + completeness critic final) corriendo para confirmar la auditoría SECA.
+Loop-until-dry: pase 3 → 2, pase 4 → 8, pase 5 → 9, pase 6 → 1 real (+1 FP). Pase 7
+(re-sweep final + completeness critic) corriendo para confirmar la auditoría SECA.
+La fuerte convergencia (clase única: RLS/RPC sin gate de `deleted_at` del padre en
+la rama no-staff) y el único hallazgo del pase 6 siendo el hermano obvio omitido
+sugieren que el pase 7 cerrará seco.
