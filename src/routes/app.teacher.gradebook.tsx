@@ -925,14 +925,26 @@ function Gradebook() {
       // calcular el promedio del corte y el final.
       const allItems: Array<{ cutId: string | null; score: number | null; weight: number }> = [];
 
-      // Exams (con makeup fallback)
+      // Exams (con makeup fallback). Respeta retry_mode (last/average/highest)
+      // vía computeAttemptGrade — IGUAL que getGrade. Antes tomaba un sub
+      // arbitrario con .find() ignorando retry_mode, así que la nota
+      // consolidada, la nota por corte y el CERTIFICADO que se emite desde
+      // este consolidado podían basarse en el intento equivocado.
       for (const e of allExams.filter((x) => !x.parent_exam_id)) {
-        let sub = examSubs.find((s) => s.user_id === stu.id && s.exam_id === e.id);
-        if (!sub) {
-          const makeups = allExams.filter((m) => m.parent_exam_id === e.id).map((m) => m.id);
-          sub = examSubs.find((s) => s.user_id === stu.id && makeups.includes(s.exam_id));
+        const mode = ((e as any).retry_mode as RetryMode) ?? "last";
+        const own = examSubs.filter((s) => s.user_id === stu.id && s.exam_id === e.id);
+        let raw: number | null = own.length ? computeAttemptGrade(own, mode) : null;
+        if (raw == null && !own.length) {
+          // Sin intentos directos → recuperaciones (parent_exam_id), cada una
+          // con su propio retry_mode.
+          for (const m of allExams.filter((mk) => mk.parent_exam_id === e.id)) {
+            const subs = examSubs.filter((s) => s.user_id === stu.id && s.exam_id === m.id);
+            if (subs.length) {
+              raw = computeAttemptGrade(subs, ((m as any).retry_mode as RetryMode) ?? "last");
+              break;
+            }
+          }
         }
-        const raw = sub ? (sub.final_override_grade ?? sub.ai_grade) : null;
         allItems.push({
           cutId: e.cut_id ?? null,
           weight: Math.max(0, Number((e as any).weight ?? 1) || 0),
@@ -2415,7 +2427,7 @@ function renderStudentCutDetail({
                           <DecimalInput
                             min={selectedCourse?.grade_scale_min ?? 0}
                             max={
-                              col.kind === "exam"
+                              col.kind === "exam" || col.isExternal
                                 ? (selectedCourse?.grade_scale_max ?? 100)
                                 : (col.maxScore ?? 100)
                             }
@@ -2657,7 +2669,9 @@ function renderEditableGrid({
                         <DecimalInput
                           min={selectedCourse?.grade_scale_min ?? 0}
                           max={
-                            col.kind === "workshop"
+                            // Los items externos guardan la nota en la ESCALA DEL
+                            // CURSO (no en max_score), igual que en el consolidado.
+                            col.kind === "workshop" && !col.isExternal
                               ? (col.maxScore ?? 100)
                               : (selectedCourse?.grade_scale_max ?? 100)
                           }
