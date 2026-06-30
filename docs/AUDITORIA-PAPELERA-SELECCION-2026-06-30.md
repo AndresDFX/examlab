@@ -55,9 +55,41 @@ Spot-checks directos que confirman al finder (devolvieron 0 sospechosos):
 - Diálogos de snippet/pizarra de sesión leen una sesión YA elegida desde la grilla
   de asistencia (que filtra) por `eq(id)` — no son contextos de selección.
 
-## Estado
+## 2º pase (server-side + embeds, manual en el loop principal)
 
-Iteración completa. Pendiente: 2º pase complementario (RPCs/edges que resuelven
-las 8 entidades server-side + embeds/vistas derivadas, todos los roles) cuando el
-límite de subagentes se reinicie (16:40 America/Bogota) — patrón "completeness
-critic" para maximizar cobertura.
+Hecho sin subagentes (estaban rate-limited). Tres ángulos:
+
+1. **Crons de notificación** (los 5 recordatorios + resúmenes que leen las 8
+   entidades): todos filtraban `deleted_at` EXCEPTO
+   `notify_teachers_pending_exam_notes_before_exam` (cron `teacher-exam-prep-1h`,
+   cada 10 min) → recordaba notas de apoyo de un examen en papelera. **Corregido**
+   en mig `20261017000000` (`AND e.deleted_at IS NULL`), verificado vs prod.
+
+2. **Escaneo amplio de funciones** (`pg_get_functiondef` de TODAS las funciones
+   public que leen una de las 8 entidades por FROM/JOIN): **0** funciones sin
+   referencia a `deleted_at` tras los fixes. Surface server-side limpia.
+
+3. **Embeds cliente** (`exam_assignments→exams`, `courses→workshops/projects`,
+   etc. + calendarios del estudiante/dashboard): todos traen `deleted_at` en el
+   select Y **saltan en JS** (`if (x.deleted_at) continue`). Verificado en
+   `app.student.exams` (`!e.deleted_at`), `app.student.calendar`,
+   `StudentEventsCalendar`. Limpio.
+
+### Edges (service_role, bypassa RLS)
+
+`calendar` y `calendar-ics` filtran `deleted_at` en la generación de eventos +
+guard de poll (`poll.deleted_at → 404`). `student-calendar-ics` corregido aparte
+(typo `"publicado"`→`"published"`, commit `07a3fcf0`). Resto de edges leen por id
+en flujos internos (grading/generación) donde el chooser ya filtró.
+
+## Deploy confirmado
+
+CI aplicó `20261016000000` en prod (los 5 guards RPC verificados vivos).
+`20261017000000` pusheado. Los fixes de `src/` (3 cliente) requieren Publish.
+
+## Estado: AUDITORÍA COMPLETA
+
+Cobertura multi-ángulo: selección (workflow 8 finders) + funciones server-side
+(escaneo: 0 restantes) + guards RPC (5, verificados) + embeds cliente (saltan
+trashed) + deep-links (exam-take, foros). 9 fugas reales corregidas + 1 bug
+pre-existente (clone created_by). Nada pendiente de fuga conocida.
