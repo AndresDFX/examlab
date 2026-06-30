@@ -152,6 +152,30 @@ habría roto silenciosamente 2 guards existentes en prod.
 (Detecté que el conn de pg era superusuario y bypassa RLS — repetí TODA la
 verificación RLS con `SET ROLE authenticated` para que fuera real.)
 
+## 5º pase — entidades raíz + kahoot + foros (loop-until-dry, 4 lentes)
+
+El completeness-critic detectó la **asimetría**: el pase 4 gateó
+whiteboards/polls/attendance a nivel entidad pero dejó las demás raíz + kahoot +
+foros. **9 fugas** (mig `20261021000000`):
+
+- **Entidades raíz** `exams/workshops/projects/courses _select_in_tenant`: un
+  alumno del tenant leía por REST el HEADER de un examen/taller/proyecto/curso en
+  papelera (workshops/projects exponían **INSTRUCTIONS** completas). Gate
+  `deleted_at IS NULL OR <staff>`.
+- **Kahoot**: `kahoot_get_state` (RPC; exponía el **answer key** `is_correct` en
+  reveal/ended de un juego cuya encuesta fue a papelera) + `kahoot_games_select`
+  + `kahoot_players_select`. Gate con `_poll_in_papelera` en la rama miembro.
+- **Foros**: `forums/forum_threads/forum_replies` SELECT **+ INSERT** — un alumno
+  LEÍA y ESCRIBÍA en el foro de un curso en papelera (`is_forum_open` no mira
+  `courses.deleted_at`; la matrícula sobrevive). Gate con nuevo helper
+  `_course_in_papelera` (SECURITY DEFINER, RLS-inmune) SIN tocar `is_forum_open`
+  (preserva su invariante cross-file con los espejos en JS).
+
+**Verificado vs prod** (`SET ROLE authenticated`, tx ROLLBACK): entidades → alumno
+ve activo, NO trashed, staff ve trashed; `kahoot_games`/`get_state` → alumno
+bloqueado en papelera. Foros: 0 filas en prod (no testeable con datos); migración
+aplica limpio + lógica espejo del patrón verificado.
+
 ## Deploy confirmado
 
 CI aplicó `20261016000000` en prod (los 5 guards RPC verificados vivos).
@@ -165,13 +189,12 @@ Cobertura multi-ángulo: selección (workflow 8 finders) + funciones server-side
 notificación (1 fuga) + RPCs de interacción poll/sesión (2 fugas) + embeds
 cliente (saltan trashed) + deep-links (exam-take, foros) + edges (calendar/ICS).
 
-**21 fugas reales corregidas** (3 cliente sel. + 5 guards RPC + 1 cron +
+**30 fugas reales corregidas** (3 cliente sel. + 5 guards RPC + 1 cron +
 poll_is_open + check-in + RLS via-sesión + deep-link grading + 8 RLS de hijas +
-helper _poll_in_papelera que ademas repara 2 guards existentes) **+ 1 bug
+helper _poll_in_papelera [repara 2 guards] + 9 entidad/kahoot/foros) **+ 1 bug
 pre-existente** (clone_workshop/project created_by). Migraciones: `20261016`
-(live), `20261017`, `20261018`, `20261019`, `20261020`. Src: 4 archivos (Publish).
-Casos extremos sin daño documentados como aceptados (kahoot mid-game, teacher-only).
+(live), `20261017`–`20261021`. Src: 4 archivos (requieren Publish). Casos extremos
+sin daño documentados como aceptados (kahoot mid-game, teacher-only).
 
-Loop-until-dry: pase 3 → 2 fugas; pase 4 → 8 fugas (clase RLS de hijas). Se lanza
-pase 5 (kahoot answer-keys + children restantes + completeness critic) para
-confirmar dryness antes de declarar la auditoría seca.
+Loop-until-dry: pase 3 → 2, pase 4 → 8, pase 5 → 9. Pase 6 (children no-flagged +
+storage + completeness critic final) corriendo para confirmar la auditoría SECA.
