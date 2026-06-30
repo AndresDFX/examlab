@@ -98,6 +98,27 @@ guard de poll (`poll.deleted_at → 404`). `student-calendar-ics` corregido apar
 (typo `"publicado"`→`"published"`, commit `07a3fcf0`). Resto de edges leen por id
 en flujos internos (grading/generación) donde el chooser ya filtró.
 
+## 3er pase — confirmación adversaria (workflow, 6 lentes)
+
+Workflow `papelera-confirm-pass`: storage, RPC-por-id, deep-link, RLS, realtime,
+vistas derivadas. **2 fugas reales + 1 falso positivo:**
+
+1. **RLS `generated_contents_student_via_session`** (mig `20261019000000`): no
+   filtraba `deleted_at` → un alumno matriculado leía por REST directo un
+   contenido EN PAPELERA (título + files[] con body inline). La hermana
+   `via_course` sí filtra. Fix: recrear con `deleted_at IS NULL` (contenido) +
+   `s.deleted_at IS NULL` (sesión). **Verificado con `SET ROLE authenticated`
+   vs prod**: SIN fix trashed_visible=SÍ; CON fix=NO; activo sigue visible.
+2. **Deep-link `app.teacher.grading.$courseId`**: resolvía el curso con
+   `.single()` sin `deleted_at` → staff abría/EDITABA config de notas de un curso
+   en papelera. Fix: `.is("deleted_at",null).maybeSingle()` + ErrorState.
+3. **FALSO POSITIVO** — `gc_student_read_via_session` (Storage) que el agente
+   reportó YA NO existe en prod (reemplazada por `gc_student_read_via_course`,
+   guardada). Verificado en `pg_policies`. Sin fix.
+
+Nota: `generated_contents_owner [ALL]` ve trashed a propósito (staff lo necesita
+en la Papelera para restaurar) — no es fuga.
+
 ## Deploy confirmado
 
 CI aplicó `20261016000000` en prod (los 5 guards RPC verificados vivos).
@@ -111,7 +132,12 @@ Cobertura multi-ángulo: selección (workflow 8 finders) + funciones server-side
 notificación (1 fuga) + RPCs de interacción poll/sesión (2 fugas) + embeds
 cliente (saltan trashed) + deep-links (exam-take, foros) + edges (calendar/ICS).
 
-**11 fugas reales corregidas** (3 cliente + 5 guards RPC + 1 cron + poll_is_open
-central + check-in) **+ 1 bug pre-existente** (clone_workshop/project created_by).
-Migraciones: `20261016`, `20261017`, `20261018`. Nada pendiente de fuga conocida;
-casos extremos sin daño documentados como aceptados (kahoot mid-game, teacher-only).
+**13 fugas reales corregidas** (3 cliente sel. + 5 guards RPC + 1 cron +
+poll_is_open central + check-in + RLS via-sesión + deep-link grading) **+ 1 bug
+pre-existente** (clone_workshop/project created_by). Migraciones: `20261016`
+(live), `20261017`, `20261018`, `20261019`. Src: 4 archivos (requieren Publish).
+Casos extremos sin daño documentados como aceptados (kahoot mid-game, teacher-only).
+
+Loop-until-dry: el 3er pase aún encontró 2 fugas → se lanza un 4º pase enfocado
+en RLS de tablas HIJAS (questions/options/submissions/grupos/etc.) antes de
+declarar la auditoría seca.
