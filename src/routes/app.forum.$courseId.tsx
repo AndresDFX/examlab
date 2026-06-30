@@ -153,7 +153,9 @@ function ForumsList() {
       { data: f, error: fErr },
       { data: s },
     ] = await Promise.all([
-      db.from("courses").select("id, name").eq("id", courseId).maybeSingle(),
+      // Curso por id para el header. Excluimos la papelera: un curso borrado no
+      // debe resolverse — su foro deja de ser accesible incluso por deep-link.
+      db.from("courses").select("id, name").eq("id", courseId).is("deleted_at", null).maybeSingle(),
       // Trae foros + conteo de hilos via group-by manual abajo
       db
         .from("forums")
@@ -177,6 +179,16 @@ function ForumsList() {
     ]);
     if (cErr || fErr) {
       setLoadError(friendlyError(cErr ?? fErr, t("hc_routesAppForumCourseId.loadForumsError")));
+      setLoading(false);
+      return;
+    }
+    if (!c) {
+      // Curso inexistente o en papelera → no resolvemos el foro por deep-link.
+      setLoadError(
+        t("forum.courseUnavailable", {
+          defaultValue: "Este curso no está disponible (no existe o fue movido a la papelera).",
+        }),
+      );
       setLoading(false);
       return;
     }

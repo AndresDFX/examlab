@@ -137,7 +137,9 @@ function ForumThreads() {
       { data: f, error: fErr },
       { data: t, error: tErr },
     ] = await Promise.all([
-      db.from("courses").select("id, name").eq("id", courseId).maybeSingle(),
+      // Curso por id. Excluimos la papelera: un foro de un curso borrado no
+      // debe resolverse ni accederse por deep-link.
+      db.from("courses").select("id, name").eq("id", courseId).is("deleted_at", null).maybeSingle(),
       db
         .from("forums")
         .select(
@@ -157,6 +159,16 @@ function ForumThreads() {
     if (cErr || fErr || tErr) {
       setLoadError(
         friendlyError(cErr ?? fErr ?? tErr, t("hc_routesAppForumCourseIdForumId.loadForumError")),
+      );
+      setLoading(false);
+      return;
+    }
+    if (!c) {
+      // Curso inexistente o en papelera → el foro deja de ser accesible.
+      setLoadError(
+        t("forumThreads.courseUnavailable", {
+          defaultValue: "Este curso no está disponible (no existe o fue movido a la papelera).",
+        }),
       );
       setLoading(false);
       return;

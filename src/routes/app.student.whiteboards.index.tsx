@@ -81,7 +81,10 @@ function StudentWhiteboards() {
           .eq("is_shared_with_course", true)
           .is("deleted_at", null)
           .order("updated_at", { ascending: false }),
-        db.from("course_enrollments").select("course_id, courses(id, name)").eq("user_id", user.id),
+        db
+          .from("course_enrollments")
+          .select("course_id, courses(id, name, deleted_at)")
+          .eq("user_id", user.id),
       ]);
       if (wbErr) {
         setLoadError(friendlyError(wbErr, "No pudimos cargar las pizarras compartidas."));
@@ -90,16 +93,25 @@ function StudentWhiteboards() {
       // Enriquecer con nombre de curso. Mapa courseId → name.
       const courseMap = new Map<string, string>();
       const myCourses: Array<{ id: string; name: string }> = [];
+      // Cursos en papelera: NO ofrecerlos en el filtro <Select> ni mostrar sus
+      // pizarras (un curso borrado deja de existir para el alumno en todo flujo).
+      const trashedCourseIds = new Set<string>();
       for (const r of (enrollments ?? []) as Array<{
-        courses: { id: string; name: string } | null;
+        courses: { id: string; name: string; deleted_at: string | null } | null;
       }>) {
         if (r.courses) {
+          if (r.courses.deleted_at) {
+            trashedCourseIds.add(r.courses.id);
+            continue;
+          }
           courseMap.set(r.courses.id, r.courses.name);
           myCourses.push(r.courses);
         }
       }
       setCourses(myCourses);
       const enriched = ((wbs ?? []) as SharedWhiteboard[])
+        // Pizarra de un curso en papelera: el curso ya no existe para el alumno.
+        .filter((w) => !w.course_id || !trashedCourseIds.has(w.course_id))
         // Una pizarra CERRADA no se le muestra al alumno (paridad con el resto:
         // lo cerrado sale del listado activo). nullish ⇒ published (no cerrada).
         .filter((w) => ((w as { status?: string | null }).status ?? "published") !== "closed")
