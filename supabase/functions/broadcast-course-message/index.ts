@@ -3,6 +3,9 @@
 // inscritos en UNO O MÁS cursos. Admin (cualquier curso) o Docente (solo
 // cursos que dicta — debe dictar TODOS los seleccionados).
 //
+// Recipientes resueltos con paginación/troceo (ver M2) para no perder alumnos
+// en cursos grandes por el cap de 1000 filas de PostgREST.
+//
 // Multi-curso: un alumno matriculado en >1 curso seleccionado recibe UNA
 // sola notif/correo/mensaje (dedup por user_id).
 //
