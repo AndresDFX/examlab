@@ -27,10 +27,10 @@ Workflow `functional-validation-sweep` (9 módulos, review + verify adversarial)
 | G1 | **HIGH** | Acta oficial calcula final como avg-de-CORTES; gradebook/estudiante usan avg-PLANO de items | `20260978000000_generate_course_acta_fixes.sql:180-187` vs `app.teacher.gradebook.tsx:1001-1008` / `app.student.grades.tsx:503-524` |
 | G2 | **HIGH** | Asistencia en acta+boletín usa `pct*max` (ignora grade_scale_min); UI usa `min+pct*(max-min)` | acta `:163-164`, `report-context.ts:371` vs gradebook `:982` / student `:421-422` |
 | G3 | **HIGH** | 'tarde' cuenta como presente en acta+boletín pero NO en gradebook/estudiante | `report-context.ts:100`, acta `:162` vs gradebook `:980` / student `:418` |
-| G4 | **HIGH** | Consolidado del gradebook (final+certificado) ignora retry_mode: `.find()` arbitrario en vez de computeAttemptGrade | `app.teacher.gradebook.tsx:930-935` |
+| G4 | **HIGH** | ✅ CORREGIDO (119b4e5c): consolidado usa computeAttemptGrade(own, retry_mode) como getGrade | `app.teacher.gradebook.tsx` |
 | G5 | med | Boletín PDF calcula final como avg-de-cortes (no como gradebook) | `report-context.ts:379-380` |
 | G6 | med | Acta SQL: LEFT JOIN a submissions duplica el examen con múltiples intentos → pondera N veces | `20260978000000_...sql:109-120` |
-| G7 | low | DecimalInput max usa max_score en vez de escala del curso para items externos | `app.teacher.gradebook.tsx:2417-2421, 2659-2663` |
+| G7 | low | ✅ CORREGIDO (119b4e5c): externos usan grade_scale_max en ambos grids editables | `app.teacher.gradebook.tsx` |
 
 ## Pendientes de recuperar (otros módulos con verify fallido)
 workshops-groups, projects (parcial), messaging-broadcast, exam-ai (parcial), tutor (parcial) — revisar transcripts si quedan hallazgos no listados arriba.
