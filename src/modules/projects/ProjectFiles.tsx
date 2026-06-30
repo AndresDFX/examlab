@@ -2492,12 +2492,22 @@ export function StudentProjectTaker({
       // submission_grade = nota de la entrega. final_grade queda null
       // hasta que el docente registre la sustentación (defense_factor).
       // Status pasa a 'entregado' (no 'calificado') porque falta sustentar.
+      //
+      // CRÍTICO: limpiar defense_factor/at/notes en el RE-SUBMIT. Una entrega
+      // previa ya sustentada deja defense_factor seteado; el trigger de recompute
+      // (`_recompute_project_submission_grade`, mig 20260955000000) re-aplica ese
+      // factor VIEJO a la nota NUEVA cuando se guardan los archivos de la
+      // re-entrega → final_grade = nota_nueva × factor_viejo. Al limpiarlos, la
+      // nueva entrega exige una sustentación fresca (final_grade queda null).
       await db
         .from("project_submissions")
         .update({
           ai_grade: submissionScore,
           submission_grade: submissionScore,
           final_grade: null,
+          defense_factor: null,
+          defense_at: null,
+          defense_notes: null,
           ai_feedback: t("hc_modulesProjectsProjectFiles.submissionAutoFeedback", {
             max: maxScore,
           }),
