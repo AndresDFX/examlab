@@ -589,8 +589,10 @@ function TakeExam() {
           ? existingAnswers.__warning_events
           : [];
         warningEventsRef.current = persistedEvents;
-        // Restaurar la pregunta donde el estudiante se quedó
-        const persistedIdx = restoreQuestionIndex(existingAnswers);
+        // Restaurar la pregunta donde el estudiante se quedó, acotada al total
+        // actual de preguntas (el docente pudo eliminar preguntas entre sesiones
+        // → un índice fuera de rango dejaría la pantalla en blanco sin navegación).
+        const persistedIdx = restoreQuestionIndex(existingAnswers, qs?.length);
         setCurrentIdx(persistedIdx);
         currentIdxRef.current = persistedIdx;
         setExam(e);
@@ -1156,6 +1158,23 @@ function TakeExam() {
     }, 1500);
     return () => clearTimeout(t);
   }, [answers, warnings, started, saveAnswersNow]);
+
+  // Heartbeat del session-lock. El autosave de arriba es un DEBOUNCE: solo se
+  // re-arma cuando cambian `answers`/`warnings`, así que un alumno INACTIVO
+  // (leyendo una pregunta larga, pensando, una pregunta de código sin tocar)
+  // dejaría de refrescar `submissions.updated_at`. El lock usa una ventana de
+  // 10s sobre updated_at, así que sin un heartbeat periódico otro dispositivo
+  // podría "robar" el intento tras >10s de inactividad. Este intervalo persiste
+  // periódicamente mientras el examen está activo (y no pausado/entregado),
+  // manteniendo updated_at fresco aunque el alumno no escriba.
+  useEffect(() => {
+    if (!started) return;
+    const id = setInterval(() => {
+      if (submittedRef.current || isPaused || !submissionIdRef.current) return;
+      void saveAnswersNow();
+    }, 5000);
+    return () => clearInterval(id);
+  }, [started, isPaused, saveAnswersNow]);
 
   // Proctoring: focus tracking, contextmenu/key blocking, fullscreen enforcement
   useEffect(() => {
@@ -2156,7 +2175,14 @@ function TakeExam() {
           // siempre. En libre solo cuando está en la primera pregunta.
           disabled={exam.navigation_type === "secuencial" || currentIdx === 0}
           onClick={() => {
-            setCurrentIdx((i) => i - 1);
+            const next = currentIdx - 1;
+            // Sincronizar el ref ANTES del save: saveAnswersNow lee
+            // currentIdxRef.current de forma síncrona y el effect que
+            // sincroniza el ref corre DESPUÉS del commit del render, así que
+            // sin esto persistiríamos el índice ANTERIOR (mismo patrón que
+            // answersRef en updateAnswer).
+            currentIdxRef.current = next;
+            setCurrentIdx(next);
             // Push inmediato del nuevo índice al monitor — el autosave
             // de 1.5s también lo haría pero perdemos el "instante" de
             // navegación si el docente está mirando justo ahí.
@@ -2171,7 +2197,9 @@ function TakeExam() {
               if (exam.navigation_type === "secuencial") {
                 setConfirmNextOpen(true);
               } else {
-                setCurrentIdx((i) => i + 1);
+                const next = currentIdx + 1;
+                currentIdxRef.current = next; // sincronizar ref antes del save síncrono
+                setCurrentIdx(next);
                 void saveAnswersNow();
               }
             }}
@@ -2216,7 +2244,9 @@ function TakeExam() {
               type="button"
               onClick={() => {
                 setConfirmNextOpen(false);
-                setCurrentIdx((i) => i + 1);
+                const next = currentIdx + 1;
+                currentIdxRef.current = next; // sincronizar ref antes del save síncrono
+                setCurrentIdx(next);
                 void saveAnswersNow();
               }}
             >

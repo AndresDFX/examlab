@@ -454,6 +454,20 @@ Deno.serve(async (req) => {
     // Llamar IA
     const result = await callAi(aiMessages);
 
+    // Sanear el contenido del asistente contra el CHECK de tutor_chat_messages
+    // (length BETWEEN 1 AND 20000). Sin esto, una respuesta VACÍA (filtro de
+    // seguridad / respuesta solo-tool) o EXCESIVAMENTE LARGA viola el constraint
+    // y, como el INSERT es un batch atómico [user, assistant], se pierde TAMBIÉN
+    // el mensaje del usuario (rollback) → el alumno tiene que re-escribir.
+    const MAX_ASSISTANT_CHARS = 20000;
+    let assistantContent = (result.content ?? "").trim();
+    if (!assistantContent) {
+      assistantContent =
+        "No pude generar una respuesta en este momento. Por favor reformula tu pregunta o inténtalo de nuevo.";
+    } else if (assistantContent.length > MAX_ASSISTANT_CHARS) {
+      assistantContent = assistantContent.slice(0, MAX_ASSISTANT_CHARS - 1) + "…";
+    }
+
     // Persistir: mensaje del usuario + respuesta del asistente
     const nowIso = new Date().toISOString();
     const { data: inserted, error: insErr } = await admin
@@ -468,7 +482,7 @@ Deno.serve(async (req) => {
         {
           session_id: sessionId,
           role: "assistant",
-          content: result.content,
+          content: assistantContent,
           prompt_tokens: result.promptTokens,
           completion_tokens: result.completionTokens,
           // +1ms para garantizar orden estable cuando insert batch usa la misma marca de tiempo
@@ -489,7 +503,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         ok: true,
-        response: result.content,
+        response: assistantContent,
         messageId: assistantMsg?.id ?? null,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },

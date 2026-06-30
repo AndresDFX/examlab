@@ -31,10 +31,21 @@ export function applyExtraTime(endTime: string, extraSeconds: number): string {
 /**
  * Devuelve el índice de pregunta persistido en answers.__current_idx,
  * o 0 si no existe, no es número, o es negativo.
+ *
+ * `questionCount` (opcional) acota el índice a [0, questionCount-1]: si el
+ * docente eliminó preguntas entre dos sesiones del alumno, un índice persistido
+ * fuera de rango dejaría la pantalla sin pregunta visible (y en modo secuencial,
+ * sin forma de volver atrás). Pasarlo siempre que se conozca el total.
  */
-export function restoreQuestionIndex(answers: Record<string, unknown>): number {
+export function restoreQuestionIndex(
+  answers: Record<string, unknown>,
+  questionCount?: number,
+): number {
   const idx = answers.__current_idx;
   if (typeof idx !== "number" || idx < 0) return 0;
+  if (typeof questionCount === "number" && questionCount > 0) {
+    return Math.min(idx, questionCount - 1);
+  }
   return idx;
 }
 

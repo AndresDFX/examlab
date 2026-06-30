@@ -69,7 +69,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DateTimePicker, DatePicker } from "@/components/ui/date-picker";
-import { generateSlotsForDates, suggestSlotCupo, formatSlotLabel } from "@/modules/polls/slot-generation";
+import { generateSlotsForDates, suggestSlotCupo, formatSlotLabel, slotsPerDayCount } from "@/modules/polls/slot-generation";
 import { formatSessionLabel } from "@/shared/lib/format";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -1407,7 +1407,10 @@ function CreatePollDialog({
     const endMin = eh * 60 + em;
     const validWindow =
       Number.isFinite(startMin) && Number.isFinite(endMin) && endMin > startMin && step > 0;
-    const slotsPerDay = validWindow ? Math.floor((endMin - startMin) / step) : 0;
+    // ceil para coincidir con el loop de generateSlotsForDates (end-exclusivo);
+    // Math.floor subestimaba en ventanas no divisibles por el paso → el resumen
+    // mostraba menos slots/capacidad de los que realmente se generan.
+    const slotsPerDay = validWindow ? slotsPerDayCount(startMin, endMin, step) : 0;
     const days = slotDates.length;
     const totalSlots = days * slotsPerDay;
     const totalCapacity = totalSlots * cupo;

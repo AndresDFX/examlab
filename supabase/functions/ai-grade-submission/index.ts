@@ -2348,17 +2348,17 @@ Idioma de salida: ${langName}.`,
     // máximo al final.
     const startedAt = sub.started_at ? new Date(sub.started_at).getTime() : null;
     const submittedAt = sub.submitted_at ? new Date(sub.submitted_at).getTime() : Date.now();
-    const timeLimitSec = Number((examMeta as any)?.course?.time_limit_minutes ?? 0) || 0;
     let actualSec = 0;
     if (startedAt) actualSec = Math.max(0, Math.floor((submittedAt - startedAt) / 1000));
-    // El time_limit_minutes vive en exams, no en course; lo cargamos
-    // explícitamente para no acoplar el join.
+    // El time_limit_minutes vive en exams (NO en courses), así que lo cargamos
+    // explícitamente. (Antes había un fallback a `course.time_limit_minutes` que
+    // nunca se seleccionaba en el join → siempre 0 → código muerto; removido.)
     const { data: examTimeRow } = await admin
       .from("exams")
       .select("time_limit_minutes")
       .eq("id", sub.exam_id)
       .maybeSingle();
-    const expectedSec = Number((examTimeRow as any)?.time_limit_minutes ?? timeLimitSec) * 60 || 0;
+    const expectedSec = Number((examTimeRow as any)?.time_limit_minutes ?? 0) * 60 || 0;
 
     const answers: Record<string, any> = sub.answers || {};
     const prevBreakdown: any[] = Array.isArray(answers.__breakdown) ? answers.__breakdown : [];

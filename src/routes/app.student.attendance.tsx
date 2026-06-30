@@ -445,8 +445,13 @@ function StudentAttendance() {
     url.searchParams.delete("session");
     url.searchParams.delete("code");
     window.history.replaceState({}, "", url.toString());
-    void submitCheckIn(sessionId, code);
-  }, [user, submitCheckIn]);
+    // Tras el check-in por deep-link, refrescar la lista igual que los caminos
+    // del scanner y del código manual — si no, la tarjeta "Check-in disponible"
+    // queda visible hasta que el realtime propague el INSERT (o una recarga).
+    void submitCheckIn(sessionId, code).then((ok) => {
+      if (ok) void loadOpenSessions();
+    });
+  }, [user, submitCheckIn, loadOpenSessions]);
 
   const recordBySession = useMemo(() => {
     const map = new Map<string, Record_>();

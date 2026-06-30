@@ -504,12 +504,12 @@ Deno.serve(async (req) => {
       actorId: auditActorId,
       action: "fraud.plagiarism_detected",
       category: "fraud",
-      severity: inserted > 0 ? "warning" : "info",
+      severity: inserted.length > 0 ? "warning" : "info",
       entityType: auditKind ?? undefined,
       entityId: auditRefId,
       metadata: {
         kind: auditKind,
-        pairs_found: inserted,
+        pairs_found: inserted.length,
         groups_compared: groups.length,
       },
     });

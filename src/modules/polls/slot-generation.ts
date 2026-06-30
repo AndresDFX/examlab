@@ -168,6 +168,21 @@ export function formatSlotLabel(dateStr: string, time: string): string {
 }
 
 /**
+ * Cantidad de slots que `generateSlotsForDates` produce por día para una
+ * ventana [startMin, endMin) con paso `stepMin`. DEBE coincidir con el conteo
+ * del loop `for (m = startMin; m < endMin; m += stepMin)` (end-exclusivo) =
+ * `ceil((endMin - startMin) / stepMin)`. Usar este helper en TODA estimación de
+ * conteo de slots (cupo sugerido, panel de resumen) para no divergir del loop:
+ * `Math.floor` subestimaba en ventanas no divisibles por el paso (ej. 60min/25
+ * → loop genera 3, floor decía 2).
+ */
+export function slotsPerDayCount(startMin: number, endMin: number, stepMin: number): number {
+  if (!Number.isFinite(startMin) || !Number.isFinite(endMin) || endMin <= startMin) return 0;
+  if (!Number.isFinite(stepMin) || stepMin <= 0) return 0;
+  return Math.ceil((endMin - startMin) / stepMin);
+}
+
+/**
  * Calcula el cupo sugerido (ceil de matriculados / total de slots) para
  * que TODOS los matriculados quepan en al menos un slot. Si no hay
  * matriculados o el set de slots está vacío, retorna 1.
@@ -188,7 +203,7 @@ export function suggestSlotCupo(
   const endMin = parseTimeToMinutes(timeEnd);
   if (startMin == null || endMin == null || endMin <= startMin) return 1;
   if (!Number.isFinite(stepMin) || stepMin <= 0) return 1;
-  const slotsPerDay = Math.floor((endMin - startMin) / stepMin);
+  const slotsPerDay = slotsPerDayCount(startMin, endMin, stepMin);
   if (slotsPerDay <= 0) return 1;
   // Dedup count
   const uniq = new Set(dates.filter((d) => typeof d === "string" && d.trim()));

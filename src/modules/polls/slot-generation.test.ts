@@ -1,5 +1,45 @@
 import { describe, expect, it } from "vitest";
-import { generateSlotsForDates, suggestSlotCupo, formatSlotLabel } from "./slot-generation";
+import {
+  generateSlotsForDates,
+  suggestSlotCupo,
+  formatSlotLabel,
+  slotsPerDayCount,
+} from "./slot-generation";
+
+describe("slotsPerDayCount (debe coincidir con el loop de generateSlotsForDates)", () => {
+  it("ventana divisible por el paso: floor == ceil", () => {
+    expect(slotsPerDayCount(540, 600, 15)).toBe(4); // 09:00–10:00 / 15 → 4
+    expect(slotsPerDayCount(540, 780, 30)).toBe(8); // 09:00–13:00 / 30 → 8
+  });
+  it("ventana NO divisible: ceil (el caso que floor subestimaba)", () => {
+    // 09:00–10:00 (60min) / paso 25 → loop genera 9:00, 9:25, 9:50 = 3 (floor daba 2)
+    expect(slotsPerDayCount(540, 600, 25)).toBe(3);
+    expect(slotsPerDayCount(0, 100, 30)).toBe(4); // ceil(100/30)=4
+  });
+  it("coincide BIT-A-BIT con la cantidad real generada por generateSlotsForDates", () => {
+    for (const [start, end, step] of [
+      ["09:00", "10:00", 25],
+      ["08:00", "12:30", 40],
+      ["09:00", "10:00", 15],
+    ] as const) {
+      const gen = generateSlotsForDates({ dates: ["2026-06-10"], timeStart: start, timeEnd: end, stepMin: step, cupo: 1 });
+      const [sh, sm] = start.split(":").map(Number);
+      const [eh, em] = end.split(":").map(Number);
+      expect(gen.length).toBe(slotsPerDayCount(sh * 60 + sm, eh * 60 + em, step));
+    }
+  });
+  it("ventana inválida o paso ≤0 → 0", () => {
+    expect(slotsPerDayCount(600, 540, 15)).toBe(0);
+    expect(slotsPerDayCount(540, 600, 0)).toBe(0);
+  });
+});
+
+describe("suggestSlotCupo con ventana NO divisible (regresión del floor)", () => {
+  it("60min/25 con 1 fecha y 9 matriculados → 3 slots → cupo 3 (no 5 del floor=2)", () => {
+    // floor(60/25)=2 → ceil(9/2)=5; ceil(60/25)=3 → ceil(9/3)=3
+    expect(suggestSlotCupo(["2026-06-10"], "09:00", "10:00", 25, 9)).toBe(3);
+  });
+});
 
 describe("generateSlotsForDates", () => {
   describe("entrada inválida", () => {
