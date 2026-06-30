@@ -66,8 +66,24 @@ Hecho sin subagentes (estaban rate-limited). Tres ángulos:
    en mig `20261017000000` (`AND e.deleted_at IS NULL`), verificado vs prod.
 
 2. **Escaneo amplio de funciones** (`pg_get_functiondef` de TODAS las funciones
-   public que leen una de las 8 entidades por FROM/JOIN): **0** funciones sin
-   referencia a `deleted_at` tras los fixes. Surface server-side limpia.
+   public que leen una de las 8 entidades por FROM/JOIN): tras los fixes, **0**
+   funciones sin referencia a `deleted_at`. Surface server-side limpia.
+
+2b. **RPCs de interacción alumno con poll/sesión** (mig `20261018000000`):
+   - `poll_is_open(_poll)` NO miraba `deleted_at` → un alumno con deep-link
+     `?poll=` podía VOTAR (`vote_poll_option`), quitar voto
+     (`clear_poll_response`) o el docente asignar slots
+     (`teacher_assign_remaining_to_slots`) sobre una encuesta en papelera dentro
+     de su ventana. **Corregido en un solo lugar** (`AND _poll.deleted_at IS
+     NULL`, sigue IMMUTABLE, ninguna RLS la usa) → cubre las 5 funciones que la
+     consumen. Verificado: `poll_is_open` activa=true→trashed=false.
+   - `student_check_in_attendance` marcaba asistencia por QR/deep-link sobre una
+     sesión en papelera si `check_in_open` quedó en true al borrarla. **Guard
+     añadido** → `session_not_found`. Verificado vs prod.
+   - **No tocado** (aceptado): `kahoot_submit_answer` (el JOIN ya filtra papelera;
+     borrar en medio de un juego en vivo = caso extremo sin daño) y 3 funciones
+     teacher-only de gestión de respuestas (sobre su propia encuesta, sin
+     exposición a alumnos/cross-tenant). `kahoot_join_game`/`_by_id` ya guardan ✓.
 
 3. **Embeds cliente** (`exam_assignments→exams`, `courses→workshops/projects`,
    etc. + calendarios del estudiante/dashboard): todos traen `deleted_at` en el
@@ -85,11 +101,17 @@ en flujos internos (grading/generación) donde el chooser ya filtró.
 ## Deploy confirmado
 
 CI aplicó `20261016000000` en prod (los 5 guards RPC verificados vivos).
-`20261017000000` pusheado. Los fixes de `src/` (3 cliente) requieren Publish.
+`20261017000000` + `20261018000000` pusheados (CI los aplica). Los fixes de
+`src/` (3 cliente) requieren Publish en Lovable.
 
 ## Estado: AUDITORÍA COMPLETA
 
 Cobertura multi-ángulo: selección (workflow 8 finders) + funciones server-side
-(escaneo: 0 restantes) + guards RPC (5, verificados) + embeds cliente (saltan
-trashed) + deep-links (exam-take, foros). 9 fugas reales corregidas + 1 bug
-pre-existente (clone created_by). Nada pendiente de fuga conocida.
+(escaneo: 0 restantes) + guards RPC (5 clone/sesión, verificados) + crons de
+notificación (1 fuga) + RPCs de interacción poll/sesión (2 fugas) + embeds
+cliente (saltan trashed) + deep-links (exam-take, foros) + edges (calendar/ICS).
+
+**11 fugas reales corregidas** (3 cliente + 5 guards RPC + 1 cron + poll_is_open
+central + check-in) **+ 1 bug pre-existente** (clone_workshop/project created_by).
+Migraciones: `20261016`, `20261017`, `20261018`. Nada pendiente de fuga conocida;
+casos extremos sin daño documentados como aceptados (kahoot mid-game, teacher-only).
