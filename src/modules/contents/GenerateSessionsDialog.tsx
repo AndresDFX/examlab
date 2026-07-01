@@ -6,19 +6,16 @@
  *   1. **Desde un contenido generado** (Módulo Contenidos): recibe el
  *      `content` y reusa los datos detectados (clases, títulos). Cada
  *      sesión queda asociada al contenido (`content_id`) + clase
- *      correspondiente (`content_class_index`).
+ *      correspondiente (`content_class_index`). Preview read-only.
  *
- *   2. **Desde el Tablero de Asistencia**: el docente quiere agendar N
- *      sesiones del curso sin contenido pre-existente. `content` viene
- *      null, `courseId` viene del selector de curso del tablero, y el
- *      docente edita `sessionCount` manualmente. Las sesiones quedan
- *      sin `content_id` (el docente puede asignar contenido después
- *      desde el mismo tablero).
+ *   2. **Desde el Tablero de Asistencia** (`content` null): el docente agenda
+ *      sesiones del curso. Este modo PREFIJA los días + horarios desde el
+ *      horario del curso (`course_schedules`), marca los FESTIVOS de Colombia
+ *      (omitir / mover / incluir) y muestra una PREVIEW EDITABLE por fila
+ *      (fecha, título, hora, duración). Al crear, las sesiones quedan en el
+ *      tablero de Asistencia con su hora y duración.
  *
- * Si hay sesiones existentes en el curso, ofrecemos:
- *   - **Reusar** (default cuando hay content) — asigna `content_id` a
- *     las primeras N existentes. Solo disponible en modo 1.
- *   - **Crear** — agrega N nuevas con las fechas calculadas.
+ * Si hay sesiones existentes (modo 1) ofrecemos Reusar / Crear.
  */
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,7 +36,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Spinner } from "@/components/ui/spinner";
-import { CalendarPlus } from "lucide-react";
+import { CalendarPlus, X } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
   availableClassNumbers,
@@ -52,6 +49,13 @@ import {
   toLocalIsoDate,
   WEEKDAYS_ES,
 } from "@/modules/contents/session-dates";
+import {
+  buildSessionPlan,
+  type HolidayPolicy,
+  type SessionPlanRow,
+} from "@/modules/contents/session-plan";
+import { isCoHoliday, coHolidayName } from "@/modules/schedules/co-holidays";
+import type { CourseScheduleBlock } from "@/modules/schedules/course-schedule";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -93,6 +97,12 @@ interface GenerateSessionsDialogProps {
   onCreated: () => void;
 }
 
+const HOLIDAY_POLICIES: { value: HolidayPolicy; label: string }[] = [
+  { value: "skip", label: "Omitir y recompletar" },
+  { value: "move", label: "Mover al siguiente día hábil" },
+  { value: "include", label: "Incluir festivos" },
+];
+
 export function GenerateSessionsDialog({
   open,
   content,
@@ -104,14 +114,19 @@ export function GenerateSessionsDialog({
   const { t } = useTranslation();
   const { user } = useAuth();
   const [startDate, setStartDate] = useState<string>("");
-  // Default: Lun + Mié (patrón común universitario). El docente edita.
+  // Default: Lun + Mié (patrón común universitario). El docente edita — o se
+  // prefija desde el horario del curso al abrir (modo tablero).
   const [days, setDays] = useState<Set<number>>(new Set([1, 3]));
   const [conflictMode, setConflictMode] = useState<"reuse" | "create">("reuse");
   const [existingSessions, setExistingSessions] = useState<ExistingSessionRow[]>([]);
   const [saving, setSaving] = useState(false);
-  /** Solo se usa en modo "vacías" (content null). Cuando hay content, N
-   *  viene del propio contenido y el input se oculta. */
   const [sessionCountInput, setSessionCountInput] = useState<number>(defaultSessionCount);
+  // Modo tablero (content null): horario del curso + política de festivos +
+  // preview editable.
+  const [schedules, setSchedules] = useState<CourseScheduleBlock[]>([]);
+  const [scheduleLoaded, setScheduleLoaded] = useState(false);
+  const [holidayPolicy, setHolidayPolicy] = useState<HolidayPolicy>("skip");
+  const [rows, setRows] = useState<SessionPlanRow[]>([]);
 
   const effectiveCourseId = content?.course_id ?? courseId ?? "";
 
@@ -121,16 +136,13 @@ export function GenerateSessionsDialog({
   );
   const isCursoCompleto = content?.mode === "curso_completo";
 
-  // Cuántas sesiones se crean. Cuando hay content: derivado del contenido
-  // (no editable). Cuando NO: el input editable.
   const sessionCount = content
     ? isCursoCompleto
       ? Math.max(classNumbers.length, 1)
       : 1
     : Math.max(1, sessionCountInput);
 
-  // Carga sesiones existentes del curso al abrir, para mostrar el
-  // conflict-prompt. Se re-ejecuta al cambiar contenido o curso.
+  // Carga sesiones existentes + horario del curso al abrir.
   useEffect(() => {
     if (!open || !effectiveCourseId) {
       setExistingSessions([]);
@@ -138,11 +150,11 @@ export function GenerateSessionsDialog({
     }
     setStartDate(toLocalIsoDate(new Date()));
     if (!content) {
-      // Reset N al abrir en modo vacío para no arrastrar valor previo.
       setSessionCountInput(defaultSessionCount);
+      setConflictMode("create");
+      setHolidayPolicy("skip");
     }
-    // En modo vacío forzamos "create" — no hay content_id que reusar.
-    if (!content) setConflictMode("create");
+    setScheduleLoaded(false);
     void (async () => {
       const { data } = await db
         .from("attendance_sessions")
@@ -151,16 +163,54 @@ export function GenerateSessionsDialog({
         .is("deleted_at", null)
         .order("session_date", { ascending: true });
       setExistingSessions((data ?? []) as ExistingSessionRow[]);
+
+      // Horario del curso: prefija días + horas (solo en modo tablero).
+      const { data: sch } = await db
+        .from("course_schedules")
+        .select("id, day_of_week, start_time, end_time, aula, modalidad, notes")
+        .eq("course_id", effectiveCourseId)
+        .order("day_of_week", { ascending: true })
+        .order("start_time", { ascending: true });
+      const blocks = (sch ?? []) as CourseScheduleBlock[];
+      setSchedules(blocks);
+      if (!content && blocks.length > 0) {
+        setDays(new Set(blocks.map((b) => b.day_of_week)));
+      }
+      setScheduleLoaded(true);
     })();
     // defaultSessionCount intencional fuera del array — solo importa al abrir.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, effectiveCourseId, content?.id]);
 
+  // Recompute del plan editable (modo tablero). Al cambiar cualquier input
+  // base se regenera (se descartan ediciones manuales previas — el docente
+  // ajusta filas como paso final). Espera a que el horario haya cargado para
+  // no recomputar dos veces (default → prefijado).
+  useEffect(() => {
+    if (content || !open) return;
+    if (!scheduleLoaded || !startDate || days.size === 0) {
+      setRows([]);
+      return;
+    }
+    setRows(
+      buildSessionPlan({
+        start: parseLocalIsoDate(startDate),
+        days,
+        count: sessionCount,
+        schedules,
+        policy: holidayPolicy,
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content, open, scheduleLoaded, startDate, days, sessionCount, holidayPolicy, schedules]);
+
   if (!open) return null;
 
-  const previewDates = startDate
-    ? computeSessionDates(parseLocalIsoDate(startDate), days, sessionCount)
-    : [];
+  // Fechas para el modo CONTENIDO (read-only). En modo tablero usamos `rows`.
+  const previewDates =
+    content && startDate
+      ? computeSessionDates(parseLocalIsoDate(startDate), days, sessionCount)
+      : [];
 
   const toggleDay = (idx: number) => {
     setDays((prev) => {
@@ -170,6 +220,15 @@ export function GenerateSessionsDialog({
       return next;
     });
   };
+
+  const updateRow = (key: string, patch: Partial<SessionPlanRow>) =>
+    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  const removeRow = (key: string) => setRows((prev) => prev.filter((r) => r.key !== key));
+
+  // Habilitación del botón crear según modo.
+  const canSubmit = content
+    ? !!startDate && days.size > 0 && previewDates.length >= sessionCount
+    : rows.length > 0;
 
   const submit = async () => {
     if (!user || !effectiveCourseId) return;
@@ -181,25 +240,16 @@ export function GenerateSessionsDialog({
       toast.error(t("contents.generateSessionsErrDays", { defaultValue: "Selecciona al menos un día." }));
       return;
     }
-    if (previewDates.length < sessionCount) {
-      toast.error(t("contents.generateSessionsErrCount", { defaultValue: "No se pudieron calcular suficientes fechas." }));
-      return;
-    }
     setSaving(true);
     try {
-      // RAMA "REUSAR": solo aplica si hay content + sesiones existentes.
-      // Asigna content+class_index a las primeras N existentes (orden
-      // cronológico). No tocamos session_date.
+      // RAMA "REUSAR" (solo modo contenido con sesiones existentes).
       if (content && conflictMode === "reuse" && existingSessions.length > 0) {
         const target = existingSessions.slice(0, sessionCount);
         for (let i = 0; i < target.length; i++) {
           const cls = isCursoCompleto ? (classNumbers[i] ?? null) : null;
           const { error } = await db
             .from("attendance_sessions")
-            .update({
-              content_id: content.id,
-              content_class_index: cls ?? 0,
-            })
+            .update({ content_id: content.id, content_class_index: cls ?? 0 })
             .eq("id", target[i].id);
           if (error) throw new Error(error.message);
         }
@@ -213,38 +263,63 @@ export function GenerateSessionsDialog({
         return;
       }
 
-      // RAMA "CREAR": insert N sesiones nuevas. Si hay content, asigna
-      // content_id + class_index. Si no, queda solo el shell de sesión.
-      const files = content?.files ?? [];
-      const rows = previewDates.map((d, i) => {
-        const cls = isCursoCompleto ? (classNumbers[i] ?? null) : null;
-        const extracted =
-          content && cls != null ? extractClassTitle(files, cls) : null;
-        const title = content
-          ? // Fallback al NOMBRE del contenido (display_name), no al tema de
-            // generación (topic) — coherente con que el tablero etiqueta con
-            // display_name (#17). Cae a topic solo si display_name vacío.
-            (extracted ??
-            (cls != null ? `Clase ${cls}` : content.display_name?.trim() || content.topic))
-          : `Sesión ${i + 1}`;
-        const base: Record<string, unknown> = {
-          course_id: effectiveCourseId,
-          session_date: toLocalIsoDate(d),
-          title,
-          created_by: user.id,
-        };
-        if (content) {
-          base.content_id = content.id;
-          base.content_class_index = cls ?? 0;
+      let insertRows: Record<string, unknown>[];
+      if (content) {
+        // RAMA "CREAR" modo contenido (sin horarios/festivos — igual que antes).
+        if (previewDates.length < sessionCount) {
+          toast.error(
+            t("contents.generateSessionsErrCount", {
+              defaultValue: "No se pudieron calcular suficientes fechas.",
+            }),
+          );
+          setSaving(false);
+          return;
         }
-        return base;
-      });
-      const { error } = await db.from("attendance_sessions").insert(rows);
+        const files = content.files ?? [];
+        insertRows = previewDates.map((d, i) => {
+          const cls = isCursoCompleto ? (classNumbers[i] ?? null) : null;
+          const extracted = cls != null ? extractClassTitle(files, cls) : null;
+          const title =
+            extracted ??
+            (cls != null ? `Clase ${cls}` : content.display_name?.trim() || content.topic);
+          return {
+            course_id: effectiveCourseId,
+            session_date: toLocalIsoDate(d),
+            title,
+            created_by: user.id,
+            content_id: content.id,
+            content_class_index: cls ?? 0,
+          };
+        });
+      } else {
+        // RAMA "CREAR" modo tablero: usa el plan editable con horarios.
+        if (rows.length === 0) {
+          toast.error(
+            t("contents.generateSessionsErrCount", {
+              defaultValue: "No se pudieron calcular suficientes fechas.",
+            }),
+          );
+          setSaving(false);
+          return;
+        }
+        insertRows = rows.map((r) => ({
+          course_id: effectiveCourseId,
+          session_date: r.iso,
+          title: r.title?.trim() || null,
+          // start_time TIME sin TZ ("HH:MM:00"); duration solo si hay hora
+          // (mismo contrato que createSession — no inventar duración sin hora).
+          start_time: r.startTime ? `${r.startTime}:00` : null,
+          duration_minutes: r.startTime ? (r.durationMin ?? 90) : null,
+          created_by: user.id,
+        }));
+      }
+
+      const { error } = await db.from("attendance_sessions").insert(insertRows);
       if (error) throw new Error(error.message);
       toast.success(
         t("contents.generateSessionsCreatedToast", {
-          count: rows.length,
-          defaultValue: `${rows.length} sesión(es) creadas`,
+          count: insertRows.length,
+          defaultValue: `${insertRows.length} sesión(es) creadas`,
         }),
       );
       onCreated();
@@ -255,17 +330,16 @@ export function GenerateSessionsDialog({
     }
   };
 
-  // Subtítulo del dialog según modo.
   const subtitle = content
     ? t("contents.generateSessionsSubtitle", {
         count: sessionCount,
         defaultValue: `Se programarán ${sessionCount} sesión(es) para este contenido.`,
       })
-    : `Se programarán ${sessionCount} sesión(es) del curso, sin contenido asociado. Podrás asignarles contenido luego desde el mismo tablero.`;
+    : `Se programarán las sesiones del curso con su horario. Podrás editar cada fecha antes de crearlas.`;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl" hideCloseButton>
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl" hideCloseButton>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarPlus className="h-5 w-5 text-primary" />
@@ -290,11 +364,11 @@ export function GenerateSessionsDialog({
             </div>
             <div className="space-y-1.5 sm:col-span-1">
               <Label required>
-                {t("contents.generateSessionsDays", { defaultValue: "Días" })}
+                {t("contents.generateSessionsDays", { defaultValue: "Días de la semana" })}
                 <HelpHint>
                   {t("contents.generateSessionsDaysHint", {
                     defaultValue:
-                      "Días de la semana en que se programan las sesiones. Combina varios para cursos con 2-3 sesiones/semana.",
+                      "Días en que se programan las sesiones. En el tablero se prefijan desde el horario del curso.",
                   })}
                 </HelpHint>
               </Label>
@@ -318,12 +392,18 @@ export function GenerateSessionsDialog({
                   );
                 })}
               </div>
+              {!content && schedules.length > 0 && (
+                <p className="text-[10px] text-muted-foreground">
+                  {t("contents.generateSessionsFromSchedule", {
+                    defaultValue: "Días y horarios tomados del horario del curso.",
+                  })}
+                </p>
+              )}
             </div>
-            {/* Input cantidad de sesiones — solo en modo "vacías". */}
             {!content && (
               <div className="space-y-1.5 sm:col-span-1">
                 <Label required>
-                  Cantidad de sesiones
+                  {t("contents.generateSessionsCount", { defaultValue: "Cantidad de sesiones" })}
                   <HelpHint>{t("help.sessionCountHint")}</HelpHint>
                 </Label>
                 <Input
@@ -332,21 +412,119 @@ export function GenerateSessionsDialog({
                   max={60}
                   value={sessionCountInput}
                   onChange={(e) =>
-                    setSessionCountInput(
-                      Math.max(1, Math.min(60, Number(e.target.value) || 1)),
-                    )
+                    setSessionCountInput(Math.max(1, Math.min(60, Number(e.target.value) || 1)))
                   }
                 />
               </div>
             )}
           </div>
 
-          {/* Vista previa: lista de fechas calculadas con título extraído. */}
+          {/* Política de festivos (solo modo tablero). */}
+          {!content && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">
+                {t("contents.generateSessionsHolidays", { defaultValue: "Festivos de Colombia" })}
+                <HelpHint>
+                  {t("contents.generateSessionsHolidaysHint", {
+                    defaultValue:
+                      "Qué hacer con las fechas que caen en festivo colombiano: omitirlas (y agregar más al final para llegar a la cantidad), moverlas al siguiente día hábil, o dejarlas.",
+                  })}
+                </HelpHint>
+              </Label>
+              <div className="flex flex-wrap gap-3 text-[11px]">
+                {HOLIDAY_POLICIES.map((p) => (
+                  <label key={p.value} className="flex items-center gap-1 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="holiday-policy"
+                      checked={holidayPolicy === p.value}
+                      onChange={() => setHolidayPolicy(p.value)}
+                    />
+                    <span>{p.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Vista previa. Modo tablero: EDITABLE por fila. Modo contenido: read-only. */}
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">
-              {t("contents.generateSessionsPreview", { defaultValue: "Vista previa" })}
+              {t("contents.generateSessionsPreview", { defaultValue: "Vista previa de fechas" })}
             </Label>
-            {previewDates.length === 0 ? (
+
+            {!content ? (
+              rows.length === 0 ? (
+                <div className="rounded-md border bg-muted/30 p-3 text-[11px] text-muted-foreground">
+                  {t("contents.generateSessionsPreviewEmpty", {
+                    defaultValue: "Selecciona fecha y días para ver las sesiones.",
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-md border max-h-[260px] overflow-y-auto divide-y">
+                  {rows.map((r) => (
+                    <div key={r.key} className="flex items-center gap-2 px-2 py-1.5">
+                      <div className="w-32 shrink-0">
+                        <DatePicker
+                          value={r.iso}
+                          onChange={(v) =>
+                            updateRow(r.key, {
+                              iso: v,
+                              isHoliday: isCoHoliday(v),
+                              holidayName: coHolidayName(v),
+                            })
+                          }
+                        />
+                      </div>
+                      <Input
+                        className="h-8 flex-1 text-[11px]"
+                        value={r.title}
+                        onChange={(e) => updateRow(r.key, { title: e.target.value })}
+                        placeholder={t("contents.generateSessionsTitlePh", { defaultValue: "Título" })}
+                      />
+                      <Input
+                        type="time"
+                        className="h-8 w-[92px] text-[11px]"
+                        value={r.startTime ?? ""}
+                        onChange={(e) => updateRow(r.key, { startTime: e.target.value || null })}
+                      />
+                      <Input
+                        type="number"
+                        min={15}
+                        max={480}
+                        className="h-8 w-16 text-[11px]"
+                        value={r.durationMin ?? ""}
+                        placeholder="min"
+                        onChange={(e) =>
+                          updateRow(r.key, {
+                            durationMin: e.target.value
+                              ? Math.min(480, Math.max(15, Number(e.target.value)))
+                              : null,
+                          })
+                        }
+                      />
+                      {r.isHoliday && (
+                        <span
+                          className="text-[10px] text-amber-600 dark:text-amber-400 whitespace-nowrap"
+                          title={r.holidayName ?? undefined}
+                        >
+                          ⚠ {t("contents.generateSessionsHolidayBadge", { defaultValue: "Festivo" })}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeRow(r.key)}
+                        className="text-muted-foreground hover:text-destructive shrink-0 p-1"
+                        title={t("common.remove", { defaultValue: "Quitar" })}
+                        aria-label={t("common.remove", { defaultValue: "Quitar" })}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : previewDates.length === 0 ? (
               <div className="rounded-md border bg-muted/30 p-3 text-[11px] text-muted-foreground">
                 {t("contents.generateSessionsPreviewEmpty", {
                   defaultValue: "Selecciona fecha y días para ver las sesiones.",
@@ -355,15 +533,11 @@ export function GenerateSessionsDialog({
             ) : (
               <div className="rounded-md border max-h-[200px] overflow-y-auto divide-y">
                 {previewDates.map((d, i) => {
-                  const cls = content && isCursoCompleto ? (classNumbers[i] ?? null) : null;
-                  const extracted =
-                    content && cls != null ? extractClassTitle(content.files, cls) : null;
+                  const cls = isCursoCompleto ? (classNumbers[i] ?? null) : null;
+                  const extracted = cls != null ? extractClassTitle(content.files, cls) : null;
                   const dayShort = WEEKDAYS_ES.find((x) => x.idx === d.getDay())?.short ?? "";
-                  const titleLabel = content
-                    ? cls != null
-                      ? `Clase ${cls}`
-                      : (content.display_name ?? content.topic)
-                    : `Sesión ${i + 1}`;
+                  const titleLabel =
+                    cls != null ? `Clase ${cls}` : (content.display_name ?? content.topic);
                   return (
                     <div key={i} className="flex items-center gap-3 px-3 py-1.5 text-[11px]">
                       <span className="tabular-nums text-foreground/80 w-32 shrink-0">
@@ -380,10 +554,7 @@ export function GenerateSessionsDialog({
             )}
           </div>
 
-          {/* Conflict prompt: si el curso ya tiene sesiones y HAY content,
-              ofrecemos reusar las primeras N o crear nuevas. Default
-              "reuse" para evitar duplicar. En modo vacío, NO mostramos —
-              siempre creamos nuevas. */}
+          {/* Conflict prompt (solo modo contenido con sesiones existentes). */}
           {content && existingSessions.length > 0 && (
             <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-3 space-y-2">
               <div className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
@@ -403,9 +574,7 @@ export function GenerateSessionsDialog({
                   />
                   <span>
                     <span className="font-medium">
-                      {t("contents.generateSessionsReuseLabel", {
-                        defaultValue: "Reusar las existentes",
-                      })}
+                      {t("contents.generateSessionsReuseLabel", { defaultValue: "Reusar las existentes" })}
                     </span>
                     <span className="block text-muted-foreground">
                       {t("contents.generateSessionsReuseHint", {
@@ -425,9 +594,7 @@ export function GenerateSessionsDialog({
                   />
                   <span>
                     <span className="font-medium">
-                      {t("contents.generateSessionsCreateLabel", {
-                        defaultValue: "Crear nuevas",
-                      })}
+                      {t("contents.generateSessionsCreateLabel", { defaultValue: "Crear nuevas" })}
                     </span>
                     <span className="block text-muted-foreground">
                       {t("contents.generateSessionsCreateHint", {
@@ -446,16 +613,7 @@ export function GenerateSessionsDialog({
           <Button variant="ghost" onClick={onClose}>
             {t("common.cancel", { defaultValue: "Cancelar" })}
           </Button>
-          <Button
-            onClick={submit}
-            disabled={
-              saving ||
-              !effectiveCourseId ||
-              !startDate ||
-              days.size === 0 ||
-              previewDates.length < sessionCount
-            }
-          >
+          <Button onClick={submit} disabled={saving || !effectiveCourseId || !canSubmit}>
             {saving ? (
               <Spinner size="sm" className="mr-1" />
             ) : (
@@ -464,12 +622,8 @@ export function GenerateSessionsDialog({
             {saving
               ? t("contents.generateSessionsSaving", { defaultValue: "Guardando..." })
               : content && conflictMode === "reuse" && existingSessions.length > 0
-                ? t("contents.generateSessionsReuseSubmit", {
-                    defaultValue: "Reusar y asignar",
-                  })
-                : t("contents.generateSessionsCreateSubmit", {
-                    defaultValue: "Crear sesiones",
-                  })}
+                ? t("contents.generateSessionsReuseSubmit", { defaultValue: "Reusar y asignar" })
+                : t("contents.generateSessionsCreateSubmit", { defaultValue: "Crear sesiones" })}
           </Button>
         </DialogFooter>
       </DialogContent>
