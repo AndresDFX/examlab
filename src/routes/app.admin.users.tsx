@@ -522,9 +522,13 @@ function AdminUsers() {
       const { data, error } = await supabase.functions.invoke("admin-set-user-active", {
         body: { userId: r.id, active },
       });
-      const respErr = (data as { error?: string } | null)?.error;
-      if (error || respErr) {
-        toast.error(respErr ?? friendlyError(error, "No se pudo cambiar el estado del usuario"));
+      if (error || (data as { error?: string } | null)?.error) {
+        // Los errores de negocio de la edge son non-2xx (403 authz, 409 sin
+        // cupo) → el body vive en FunctionsHttpError.context, no en data.
+        // extractEdgeError lo desempaca para mostrar el motivo real (ej. "No
+        // hay cupo de docentes (5/5)…"). Mismo patrón que las otras invokes.
+        const detail = await extractEdgeError(error, data);
+        toast.error(detail || "No se pudo cambiar el estado del usuario");
         return;
       }
       toast.success(

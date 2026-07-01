@@ -87,6 +87,22 @@ export function friendlyUniqueViolation(error: AnyError): string | null {
 export function friendlyError(error: AnyError, fallback?: string): string {
   if (!error) return fallback ?? "Ocurrió un error inesperado";
 
+  // 0) El error puede llegar como STRING plano — p.ej. edges que reportan
+  //    fallos por-usuario en `failed[]` con `error: string` ("Cuenta SSO: …",
+  //    "No autorizado para este usuario"). Sin esta rama, más abajo `error.code`
+  //    y `error.message` son undefined → message="" → caía al genérico
+  //    "Ocurrió un error inesperado", perdiendo el motivo real. Los mensajes de
+  //    nuestras edges ya vienen en español, así que se muestran tal cual.
+  if (typeof error === "string") {
+    const trimmed = error.trim();
+    if (!trimmed) return fallback ?? "Ocurrió un error inesperado";
+    const lower = trimmed.toLowerCase();
+    if (/\b(not authorized|unauthorized|not allowed|permission denied)\b/.test(lower)) {
+      return "No tienes permisos para realizar esta acción.";
+    }
+    return trimmed;
+  }
+
   // 1) unique violation con mensaje específico
   const unique = friendlyUniqueViolation(error);
   if (unique) return unique;

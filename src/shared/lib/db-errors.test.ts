@@ -197,4 +197,27 @@ describe("friendlyError", () => {
   it("error no reconocido SIN fallback → muestra el mensaje original (último recurso)", () => {
     expect(friendlyError(new Error("algo raro"))).toBe("algo raro");
   });
+
+  // String plano (edges que reportan failed[].error como string) — antes caía
+  // al genérico "Ocurrió un error inesperado" perdiendo el motivo real.
+  it("string plano en español → se muestra tal cual", () => {
+    expect(friendlyError("Cuenta SSO: el cambio de contraseña no aplica")).toBe(
+      "Cuenta SSO: el cambio de contraseña no aplica",
+    );
+    expect(friendlyError("No autorizado para este usuario")).toBe(
+      "No autorizado para este usuario",
+    );
+  });
+
+  it("string en inglés de auth → se traduce", () => {
+    expect(friendlyError("Not authorized")).toBe("No tienes permisos para realizar esta acción.");
+    expect(friendlyError("permission denied for table foo")).toBe(
+      "No tienes permisos para realizar esta acción.",
+    );
+  });
+
+  it("string vacío → fallback / genérico", () => {
+    expect(friendlyError("   ", "No se pudo")).toBe("No se pudo");
+    expect(friendlyError("")).toBe("Ocurrió un error inesperado");
+  });
 });
