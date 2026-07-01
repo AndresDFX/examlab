@@ -96,7 +96,19 @@ export function ImportExportMenu({
     const file = e.target.files?.[0];
     if (!file || !onImport) return;
     try {
-      const text = await file.text();
+      // Detección de charset: `file.text()` SIEMPRE decodifica como UTF-8, pero
+      // Excel en Windows (es-CO) guarda "CSV delimitado por comas" en
+      // Windows-1252/Latin-1 → tildes y ñ salían como mojibake (Cárdenas →
+      // "CÃ¡rdenas") en profiles/certificados/actas. Intentamos UTF-8 estricto;
+      // si los bytes NO son UTF-8 válido, es un CSV Latin-1 de Excel → windows-1252.
+      const buf = await file.arrayBuffer();
+      let text: string;
+      try {
+        text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
+      } catch {
+        text = new TextDecoder("windows-1252").decode(buf);
+      }
+      if (text.charCodeAt(0) === 0xfeff) text = text.slice(1); // BOM defensivo
       const rows = parseCSV(text);
       if (!rows.length) {
         toast.error(i18n.t("toast.shared_components_ImportExportMenu.fileNoData", { defaultValue: "El archivo no contiene datos" }));

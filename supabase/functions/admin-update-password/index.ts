@@ -94,6 +94,38 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── Scope de tenant (defensa server-side) ──────────────────────────
+    // has_role es GLOBAL: sin este chequeo, un Admin de CUALQUIER institución
+    // podía resetear la contraseña de un usuario de OTRA (escalación
+    // cross-tenant). El SuperAdmin opera cross-tenant; un Admin solo sobre SU
+    // tenant y NUNCA sobre un SuperAdmin. El self-reset (caller === target)
+    // pasa trivialmente (mismo perfil/tenant). Mismo patrón que
+    // admin-set-user-active / bulk-set-passwords.
+    const callerIsSA = roleCheck.some((r: { role: string }) => r.role === "SuperAdmin");
+    if (!callerIsSA && caller.user.id !== userId) {
+      const [{ data: callerProf }, { data: targetProf }, { data: targetRoles }] =
+        await Promise.all([
+          adminClient.from("profiles").select("tenant_id").eq("id", caller.user.id).maybeSingle(),
+          adminClient.from("profiles").select("tenant_id").eq("id", userId).maybeSingle(),
+          adminClient.from("user_roles").select("role").eq("user_id", userId),
+        ]);
+      const targetIsSA = (targetRoles ?? []).some((r: { role: string }) => r.role === "SuperAdmin");
+      if (targetIsSA) {
+        return new Response(
+          JSON.stringify({ error: "No puedes cambiar la contraseña de un SuperAdmin" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const callerTenant = (callerProf as { tenant_id?: string | null } | null)?.tenant_id ?? null;
+      const targetTenant = (targetProf as { tenant_id?: string | null } | null)?.tenant_id ?? null;
+      if (!callerTenant || !targetTenant || callerTenant !== targetTenant) {
+        return new Response(
+          JSON.stringify({ error: "El usuario pertenece a otra institución" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
     // Update the password
     const { error } = await adminClient.auth.admin.updateUserById(userId, {
       password: newPassword,
