@@ -33,16 +33,18 @@ La institución obtiene su **espacio propio en ExamLab** (con su marca), y **yo 
 
 ## Planes — el valor escala con la cantidad de usuarios
 
-Se cobra por **total de usuarios activos** (docentes + estudiantes). Los usuarios **desactivados no cuentan**. Todos los planes incluyen **todas las funciones + la administración completa**.
+Mismas franjas que la suscripción estándar de ExamLab (por cantidad de usuarios), **más la administración por mi cuenta**. Los usuarios **desactivados no cuentan** para la franja. Todas las funciones incluidas en todos los planes.
 
-| Plan | Usuarios activos | Valor mensual *(referencia — ajustar)* |
-|---|---|---|
-| **Inicial** | hasta 100 | desde **$XXX/mes** |
-| **Estándar** | 101 – 500 | desde **$XXX/mes** |
-| **Institucional** | 501 – 2.000 | desde **$X.XXX/mes** |
-| **A medida** | + 2.000 | **Contáctanos** (valor por rangos o por usuario) |
+| Plan | Estudiantes | Docentes | Mensual | Anual *(2 meses gratis)* | Montaje inicial |
+|---|---|---|---|---|---|
+| **Esencial administrado** | hasta 250 | hasta 5 | **$249** | **$2.490** | incluido |
+| **Profesional administrado** ⭐ | hasta 1.500 | hasta 20 | **$649** | **$6.490** | $200 |
+| **Institucional administrado** | hasta 5.000 | hasta 100 | **$1.900** | **$19.000** | $500 |
+| **A medida** | +5.000 | ilimitado | **Contáctanos** *(por rango o ~$0,35–$0,50 por estudiante/mes)* | — | cotizado |
 
-> **Cómo fijar el valor:** el modelo comercial base de ExamLab usa **$99 / $299 / $1.000 al mes** por franjas de usuarios (plataforma con auto-administración). Como esta propuesta **incluye además la administración por mi cuenta**, el valor va **por encima de esa base** (el diferencial cubre mi tiempo de operación y soporte). Define el número final o una **tarifa por usuario/mes** (ej. $X por usuario activo) antes de presentarlo.
+*Valores en USD/mes, de referencia — ajustables a tu política. El **anual** paga 10 meses (2 gratis).*
+
+> **De dónde salen los números:** la suscripción estándar de ExamLab (plataforma con **auto-administración**) cuesta **$99 / $299 / $1.000** al mes en esas mismas franjas. Esta propuesta **agrega la administración por mi cuenta**, por eso los valores van por encima — **$249 / $649 / $1.900**. El diferencial (~**$150 / $350 / $900** al mes) cubre el montaje, la gestión de usuarios, la configuración, el soporte y la operación. **IA:** la institución pone su propia API key (sin costo de IA para mí) o se incluye como **add-on** medido por consumo.
 
 **Condiciones:**
 - **Facturación mensual o anual** (anual con descuento). Sin cuota de entrada más allá del onboarding.
@@ -89,7 +91,7 @@ Se cobra por **total de usuarios activos** (docentes + estudiantes). Los usuario
 
 ## Notas para ti (borrar antes de enviar)
 
-- **Fija los precios reales** en la tabla (los `$XXX` son marcadores). Base de referencia del modelo ExamLab: **$99 / $299 / $1.000/mes** por franjas — esta propuesta va **por encima** porque incluye tu administración/operación. Decide si cobras por **franja** o por **usuario/mes** y mantenlo sincronizado con la presentación comercial (`ExamLab-Presentacion-Comercial.pptx`).
+- **Precios ya concretos** ($249 / $649 / $1.900), calculados como la base de ExamLab ($99/$299/$1.000) **+ el diferencial de administración**. Ajústalos si tu política difiere y mantenlos sincronizados con la presentación comercial administrada (`ExamLab-Presentacion-Comercial-Administrada.pptx`) y con la estándar (`ExamLab-Presentacion-Comercial.pptx`).
 - **Reemplaza** `[Institución]`, `[Nombre]`, `[Tu nombre]` y `[correo / WhatsApp]`.
 - **IA:** decide si el cliente pone su API key (sin costo de IA para ti) o si la incluyes como add-on medido — impacta el margen.
 - **Onboarding:** define si el montaje inicial va incluido o como valor único (según tamaño de la institución).
