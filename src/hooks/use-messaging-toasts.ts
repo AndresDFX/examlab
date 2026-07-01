@@ -50,6 +50,14 @@ export function useMessagingToasts(myUserId: string | null | undefined) {
           if (m.sender_id === myUserId) return;
           // Si estoy ya en /app/messages no toaster — el panel pinta en vivo.
           if (pathRef.current.startsWith("/app/messages")) return;
+          // Los mensajes de DIFUSIÓN (broadcast) se replican como mensaje 1-a-1
+          // solo para que aparezcan en /app/messages, pero YA generan su propio
+          // toast '📢 <asunto>' vía use-notifications (notificación kind=
+          // 'broadcast'). Sin este guard el alumno veía DOS toasts por el mismo
+          // anuncio: el 📢 correcto + este 💬 espurio. El cuerpo replicado
+          // siempre arranca con "📢 " (broadcast-course-message + el dispatch
+          // SQL de mensajes programados lo construyen así).
+          if (m.body.startsWith("📢 ")) return;
           // Verificar que la conversación es mía. La policy SELECT de
           // messages ya filtra al cliente pero el realtime channel manda
           // payloads sin filtro RLS — así que volvemos a chequear.

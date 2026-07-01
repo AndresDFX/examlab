@@ -35,13 +35,26 @@ vi.mock("idb-keyval", () => ({
 const mockSync = vi.hoisted(() => ({
   result: { data: [{ id: "sub-1" }] as Array<{ id: string }>, error: null as unknown },
 }));
+// Resultado del read de sesión que syncPendingAnswers hace ANTES del update
+// (`.select("answers").eq("id",...).maybeSingle()`). Default: fila sin sesión →
+// el guard anti-sobreescritura no dispara y se procede al update (comportamiento
+// legacy). Un test lo configura para simular "otra sesión activa".
+const mockServer = vi.hoisted(() => ({
+  result: { data: null as { answers?: Record<string, unknown> } | null },
+}));
 vi.mock("@/integrations/supabase/client", () => {
   const makeChain = () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const chain: any = {
       update: () => chain,
+      select: () => chain,
       eq: () => chain,
-      select: () => Promise.resolve(mockSync.result),
+      // Read del guard de sesión (terminal .maybeSingle()).
+      maybeSingle: () => Promise.resolve(mockServer.result),
+      // El update termina en `.select("id")` y se hace `await`: la cadena es
+      // thenable y resuelve al resultado del update.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      then: (resolve: (v: unknown) => unknown) => resolve(mockSync.result),
     };
     return chain;
   };
@@ -63,6 +76,8 @@ beforeEach(() => {
   localStorage.clear();
   // Default: el UPDATE matcheó 1 fila (entrega en_progreso) → sync exitoso.
   mockSync.result = { data: [{ id: "sub-1" }], error: null };
+  // Default: el read de sesión no encuentra otra sesión → guard no dispara.
+  mockServer.result = { data: null };
 });
 
 describe("saveAnswersLocally / getPendingSyncs", () => {
@@ -212,6 +227,35 @@ describe("syncPendingAnswers", () => {
     const synced = await syncPendingAnswers();
     expect(synced).toBe(0);
     expect(idbStore.has("pending-sync-exam-stale")).toBe(false);
+  });
+
+  it("OTRA sesión activa en el servidor: descarta el pending sin sobreescribir", async () => {
+    // El alumno reanudó en otro dispositivo (sesión "B"); el servidor tiene
+    // answers.__session_id="B". Este pending local es de la sesión "A" → NO debe
+    // pisar el estado de B. Se descarta (clear) y NO cuenta como sincronizado.
+    mockServer.result = { data: { answers: { __session_id: "B" } } };
+    await saveAnswersLocally("exam-othersession", {
+      submissionId: "sub-a",
+      answers: { __session_id: "A", q1: "viejo" },
+      warnings: 0,
+      timestamp: 0,
+    });
+    const synced = await syncPendingAnswers();
+    expect(synced).toBe(0);
+    expect(idbStore.has("pending-sync-exam-othersession")).toBe(false);
+  });
+
+  it("MISMA sesión: procede al update normal (sync exitoso)", async () => {
+    mockServer.result = { data: { answers: { __session_id: "A" } } };
+    await saveAnswersLocally("exam-samesession", {
+      submissionId: "sub-a",
+      answers: { __session_id: "A", q1: "nuevo" },
+      warnings: 0,
+      timestamp: 0,
+    });
+    const synced = await syncPendingAnswers();
+    expect(synced).toBe(1);
+    expect(idbStore.has("pending-sync-exam-samesession")).toBe(false);
   });
 
   it("error de red/DB: NO limpia el pending (se reintenta en el próximo online)", async () => {

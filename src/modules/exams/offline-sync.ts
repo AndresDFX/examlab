@@ -91,6 +91,25 @@ export async function syncPendingAnswers(): Promise<number> {
 
   for (const { examId, data } of pending) {
     try {
+      // Guard anti-sobreescritura por SESIÓN: no pisar el estado de OTRA sesión
+      // activa con un pending local rezagado. Si el alumno reanudó en otro
+      // dispositivo/pestaña, esa sesión (con su __session_id) es la vigente y ya
+      // escribió sus answers en el servidor; este pending es de una sesión vieja.
+      // Comparamos el __session_id embebido en answers: si difieren, descartamos
+      // sin escribir. (NO usamos updated_at como guard: la escritura de
+      // extra_seconds del docente lo bumpea y descartaría answers offline válidas
+      // de la MISMA sesión → falso positivo con pérdida de trabajo.)
+      const { data: serverRow } = await supabase
+        .from("submissions")
+        .select("answers")
+        .eq("id", data.submissionId)
+        .maybeSingle();
+      const serverSession = (serverRow?.answers as Record<string, unknown> | null)?.__session_id;
+      const localSession = (data.answers as Record<string, unknown> | null)?.__session_id;
+      if (serverSession && localSession && serverSession !== localSession) {
+        await clearLocalAnswers(examId);
+        continue;
+      }
       // CRÍTICO: solo sincronizar contra una entrega que SIGA `en_progreso`.
       // Sin el filtro de status, un pending local rezagado (ej. el docente
       // borró/cerró la sesión, el alumno ya entregó, o la ventana cerró)

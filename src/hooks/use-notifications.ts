@@ -205,6 +205,12 @@ export function useNotifications(userId: string | undefined, viewerRole?: string
           ) {
             navigator.serviceWorker.controller.postMessage({
               type: "examlab:notify",
+              // El id permite al SW usar tag `examlab:<id>` y COLAPSAR duplicados:
+              // el hook se monta en 2-4 lugares (bell desktop/mobile + dashboard),
+              // cada uno con su canal realtime, así que el mismo INSERT llega
+              // varias veces. Sin id el tag era `examlab:<Date.now()>` (único por
+              // instancia) → N push notifications por una sola notificación.
+              id: n.id,
               title: n.title ?? "Notificación",
               body: n.body ?? "",
               link: n.link ?? "/app",
