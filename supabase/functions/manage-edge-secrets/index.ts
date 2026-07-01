@@ -121,11 +121,16 @@ Deno.serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", u.user.id);
-    const isAdmin = (rolesRows ?? []).some(
-      (r: { role: string }) => r.role === "Admin" || r.role === "SuperAdmin",
+    // SOLO SuperAdmin: los Edge Function Secrets son PLATAFORMA-GLOBALES (SMTP,
+    // VAPID, API keys de IA, OAuth) — no per-tenant. La UI (AdminEdgeSecretsPanel)
+    // ya se movió a /app/superadmin/system; un Admin de tenant NO debe poder
+    // listarlos/rotarlos por invoke directo (has_role es rol GLOBAL sin scope de
+    // tenant → sería escalación cross-tenant). Paridad con el fix de db-backups.
+    const isSuperAdmin = (rolesRows ?? []).some(
+      (r: { role: string }) => r.role === "SuperAdmin",
     );
-    if (!isAdmin) {
-      return jsonResponse(403, { error: "Solo Admin puede gestionar secrets" });
+    if (!isSuperAdmin) {
+      return jsonResponse(403, { error: "Solo SuperAdmin puede gestionar secrets de plataforma" });
     }
 
     // ── Config: PAT + project ref ──

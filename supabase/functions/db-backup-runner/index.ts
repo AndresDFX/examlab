@@ -69,13 +69,11 @@ Deno.serve(async (req) => {
           .from("user_roles")
           .select("role")
           .eq("user_id", u.user.id);
-        // SuperAdmin hereda capacidades operativas de Admin (CLAUDE.md
-        // convención). Sin esto, un SuperAdmin invocando "Procesar
-        // ahora" desde la UI recibe 401 — bug reportado al crear
-        // backup manual desde el panel del SA.
-        authorized = (roles ?? []).some(
-          (r: { role: string }) => r.role === "Admin" || r.role === "SuperAdmin",
-        );
+        // SOLO SuperAdmin: los backups son infra PLATAFORMA-WIDE (exportan
+        // todos los tenants). La UI ya es SA-only y las RPCs/RLS se cerraron a
+        // is_super_admin (mig 20261031). Un Admin de tenant NO debe disparar
+        // backups de toda la plataforma por invoke directo (has_role es global).
+        authorized = (roles ?? []).some((r: { role: string }) => r.role === "SuperAdmin");
       }
     }
     if (!authorized) {
