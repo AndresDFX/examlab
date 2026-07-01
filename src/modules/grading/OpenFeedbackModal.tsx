@@ -157,15 +157,17 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
       const examIds = Array.from(new Set(Array.from(examQMap.values()).map((x) => x.exam_id)));
       const wsIds = Array.from(new Set(Array.from(wsQMap.values()).map((x) => x.workshop_id)));
       const pjIds = Array.from(new Set(Array.from(pjFMap.values()).map((x) => x.project_id)));
+      // Regla Papelera: exámenes/talleres/proyectos en papelera (deleted_at) NO
+      // deben resolver título → sus threads quedan huérfanos y se ocultan abajo.
       const [exams, workshops, projects] = await Promise.all([
         examIds.length
-          ? db.from("exams").select("id, title, course_id").in("id", examIds)
+          ? db.from("exams").select("id, title, course_id").in("id", examIds).is("deleted_at", null)
           : Promise.resolve({ data: [] }),
         wsIds.length
-          ? db.from("workshops").select("id, title, course_id").in("id", wsIds)
+          ? db.from("workshops").select("id, title, course_id").in("id", wsIds).is("deleted_at", null)
           : Promise.resolve({ data: [] }),
         pjIds.length
-          ? db.from("projects").select("id, title, course_id").in("id", pjIds)
+          ? db.from("projects").select("id, title, course_id").in("id", pjIds).is("deleted_at", null)
           : Promise.resolve({ data: [] }),
       ]);
       const examInfoById = new Map<string, { title: string; course_id: string | null }>();
@@ -257,7 +259,7 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
         ((profs ?? []) as any[]).forEach((p) => nameById.set(p.id, p.full_name));
       }
 
-      const enriched: ThreadRow[] = rows.map((r) => {
+      const enrichedAll: ThreadRow[] = rows.map((r) => {
         let refId: string | undefined;
         let refTitle: string | undefined;
         let qContent: string | undefined;
@@ -303,6 +305,17 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
               }
             : null,
         };
+      });
+
+      // Regla Papelera (universal): si el examen/taller/proyecto padre está en
+      // papelera, su query filtró por deleted_at → el ref no está en el info map
+      // (aunque refId siga resuelto vía la pregunta, que no es soft-delete). Ese
+      // thread queda huérfano y NO debe verse ni navegarse en este flujo derivado.
+      const enriched: ThreadRow[] = enrichedAll.filter((r) => {
+        if (r.refId == null) return true; // sin ref resoluble → comportamiento previo
+        if (r.parent_kind === "exam") return examInfoById.has(r.refId);
+        if (r.parent_kind === "workshop") return wsInfoById.has(r.refId);
+        return pjInfoById.has(r.refId);
       });
 
       // Filtrado por modo.
