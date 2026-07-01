@@ -111,8 +111,12 @@ Deno.serve(async (req: Request) => {
   // dos consultas en paralelo y unimos por id.
   const [enrRes, teachRes] = await Promise.all([
     adminClient.from("course_enrollments").select("course_id").eq("user_id", userId),
-    adminClient.from("course_teachers").select("course_id").eq("teacher_id", userId),
+    // course_teachers usa `user_id` (NO existe `teacher_id`): con el nombre
+    // viejo la query fallaba y el docente recibía un feed VACÍO en silencio.
+    adminClient.from("course_teachers").select("course_id").eq("user_id", userId),
   ]);
+  if (enrRes.error) console.error("[calendar-ics] enrollments query:", enrRes.error.message);
+  if (teachRes.error) console.error("[calendar-ics] course_teachers query:", teachRes.error.message);
   const courseIds = Array.from(
     new Set([
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

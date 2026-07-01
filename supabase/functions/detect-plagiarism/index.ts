@@ -135,6 +135,48 @@ Deno.serve(async (req) => {
     if (typeof refId !== "string" || !UUID_RE.test(refId)) {
       throw new Error("refId inválido");
     }
+
+    // Scope de CURSO/TENANT: has_role es global — sin este chequeo un docente
+    // de tenant A ejecutaría detección sobre exámenes/talleres de tenant B. El
+    // SuperAdmin opera cross-tenant; el resto debe ser docente del curso del ref
+    // o Admin de SU tenant.
+    {
+      const callerIsSA = (roles ?? []).some((r: { role: string }) => r.role === "SuperAdmin");
+      if (!callerIsSA) {
+        const refTbl = kind === "exam" ? "exams" : kind === "workshop" ? "workshops" : "projects";
+        const { data: rr } = await admin
+          .from(refTbl)
+          .select("course_id")
+          .eq("id", refId)
+          .maybeSingle();
+        const cid = (rr as { course_id?: string } | null)?.course_id ?? null;
+        let allowed = false;
+        if (cid) {
+          const { data: ct } = await admin
+            .from("course_teachers")
+            .select("course_id")
+            .eq("course_id", cid)
+            .eq("user_id", u.user.id)
+            .maybeSingle();
+          if (ct) allowed = true;
+          else if ((roles ?? []).some((r: { role: string }) => r.role === "Admin")) {
+            const [{ data: cp }, { data: crs }] = await Promise.all([
+              admin.from("profiles").select("tenant_id").eq("id", u.user.id).maybeSingle(),
+              admin.from("courses").select("tenant_id").eq("id", cid).maybeSingle(),
+            ]);
+            const ctn = (cp as { tenant_id?: string | null } | null)?.tenant_id ?? null;
+            const ttn = (crs as { tenant_id?: string | null } | null)?.tenant_id ?? null;
+            if (ctn && ttn && ctn === ttn) allowed = true;
+          }
+        }
+        if (!allowed) {
+          return new Response(
+            JSON.stringify({ error: "No autorizado para este curso" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+      }
+    }
     // Filtro opcional: si el cliente manda submissionIds, solo se
     // analizan esas entregas (típicamente el último intento de cada
     // alumno). Reduce el cap de 30 items/llamada y evita comparar contra

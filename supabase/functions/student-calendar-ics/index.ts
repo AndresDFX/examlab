@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     admin
       .from("exam_assignments")
       .select(
-        "exam_id, exams(id, title, start_time, end_time, course_id, status, deleted_at, courses(name))",
+        "exam_id, exams(id, title, start_time, end_time, course_id, status, deleted_at, courses(name, deleted_at))",
       )
       .eq("user_id", userId)
       .gte("exams.end_time", lookbackIso),
@@ -64,21 +64,21 @@ Deno.serve(async (req) => {
     admin
       .from("course_enrollments")
       .select(
-        "course_id, courses(id, name, workshops(id, title, due_date, status, deleted_at))",
+        "course_id, courses(id, name, deleted_at, workshops(id, title, due_date, status, deleted_at))",
       )
       .eq("user_id", userId),
     // PROYECTOS: vía project_assignments + project_courses + course_enrollments (mixto)
     admin
       .from("course_enrollments")
       .select(
-        "course_id, courses(id, name, projects(id, title, due_date, status, deleted_at))",
+        "course_id, courses(id, name, deleted_at, projects(id, title, due_date, status, deleted_at))",
       )
       .eq("user_id", userId),
     // SESIONES de asistencia: solo de cursos donde el estudiante está matriculado
     admin
       .from("course_enrollments")
       .select(
-        "course_id, courses(id, name, attendance_sessions(id, session_date, start_time, title, meeting_url, deleted_at))",
+        "course_id, courses(id, name, deleted_at, attendance_sessions(id, session_date, start_time, duration_minutes, title, meeting_url, deleted_at))",
       )
       .eq("user_id", userId),
   ]);
@@ -91,6 +91,7 @@ Deno.serve(async (req) => {
     const exam = row.exams;
     if (!exam || !exam.start_time || !exam.end_time) continue;
     if (exam.deleted_at) continue; // en papelera → no se exporta
+    if (exam.courses?.deleted_at) continue; // curso en papelera → no se exporta
     // El valor real del estado es "published" (no "publicado"); el typo previo
     // descartaba TODO examen publicado del feed ICS. Consistente con
     // app.student.calendar.tsx: solo se excluyen borrador/cerrado.
@@ -111,7 +112,8 @@ Deno.serve(async (req) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const enr of (workshopsRes.data ?? []) as any[]) {
     const course = enr.courses;
-    if (!course?.workshops) continue;
+    if (!course || course.deleted_at) continue; // curso en papelera → no se exporta
+    if (!course.workshops) continue;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const ws of course.workshops as any[]) {
       if (ws.deleted_at) continue; // en papelera → no se exporta
@@ -138,7 +140,8 @@ Deno.serve(async (req) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const enr of (projectsRes.data ?? []) as any[]) {
     const course = enr.courses;
-    if (!course?.projects) continue;
+    if (!course || course.deleted_at) continue; // curso en papelera → no se exporta
+    if (!course.projects) continue;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const pj of course.projects as any[]) {
       if (pj.deleted_at) continue; // en papelera → no se exporta
@@ -163,7 +166,8 @@ Deno.serve(async (req) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const enr of (sessionsRes.data ?? []) as any[]) {
     const course = enr.courses;
-    if (!course?.attendance_sessions) continue;
+    if (!course || course.deleted_at) continue; // curso en papelera → no se exporta
+    if (!course.attendance_sessions) continue;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const s of course.attendance_sessions as any[]) {
       if (s.deleted_at) continue; // en papelera → no se exporta
@@ -181,7 +185,12 @@ Deno.serve(async (req) => {
         summary,
         description: `Curso: ${course.name}`,
         start,
-        end: timeStr ? new Date(start.getTime() + 90 * 60_000) : undefined,
+        end: timeStr
+          ? new Date(
+              start.getTime() +
+                (s.duration_minutes && s.duration_minutes > 0 ? s.duration_minutes : 90) * 60_000,
+            )
+          : undefined,
         allDay: !timeStr,
         location: s.meeting_url ?? undefined,
         url: s.meeting_url ?? undefined,

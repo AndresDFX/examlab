@@ -302,6 +302,33 @@ export function GenerateSessionsDialog({
           setSaving(false);
           return;
         }
+        // Pre-validación de colisiones con el índice único
+        // (course_id, session_date, LOWER(COALESCE(title,''))): un INSERT masivo
+        // aborta las N filas si UNA choca (con una sesión existente o entre sí).
+        // Avisamos con la fecha para que el docente edite antes de crear.
+        const normKey = (iso: string, title: string | null) =>
+          `${iso}::${(title ?? "").trim().toLowerCase()}`;
+        const existingKeys = new Set(
+          existingSessions.map((s) => normKey(s.session_date, s.title)),
+        );
+        const seen = new Set<string>();
+        const collisions: string[] = [];
+        for (const r of rows) {
+          const k = normKey(r.iso, r.title);
+          if (existingKeys.has(k) || seen.has(k)) collisions.push(r.iso);
+          seen.add(k);
+        }
+        if (collisions.length > 0) {
+          const shown = collisions.slice(0, 3).join(", ");
+          toast.error(
+            t("contents.generateSessionsErrDup", {
+              dates: shown + (collisions.length > 3 ? "…" : ""),
+              defaultValue: `Hay sesiones con la misma fecha y título (${shown}${collisions.length > 3 ? "…" : ""}). Cambia el título o la fecha de esas filas antes de crear.`,
+            }),
+          );
+          setSaving(false);
+          return;
+        }
         insertRows = rows.map((r) => ({
           course_id: effectiveCourseId,
           session_date: r.iso,

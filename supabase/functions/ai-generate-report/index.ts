@@ -135,6 +135,19 @@ Deno.serve(async (req: Request) => {
   const { data: u } = await userClient.auth.getUser();
   if (!u?.user?.id) return jsonError("no_autenticado", 401);
 
+  // Gate de rol: los informes con IA los generan docentes/admins. Sin esto,
+  // cualquier usuario autenticado (incl. estudiantes) podía invocar el modelo
+  // con un prompt arbitrario → abuso de cuota IA del tenant.
+  const { data: callerRoles } = await admin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", u.user.id);
+  const isStaff = (callerRoles ?? []).some(
+    (r: { role: string }) =>
+      r.role === "Docente" || r.role === "Admin" || r.role === "SuperAdmin",
+  );
+  if (!isStaff) return jsonError("solo_docentes_o_admins", 403);
+
   let body: { system?: string; user?: string; courseId?: string | null };
   try {
     body = await req.json();
