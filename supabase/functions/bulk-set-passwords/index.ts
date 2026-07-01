@@ -136,6 +136,15 @@ Deno.serve(async (req) => {
         failed.push({ userId: id, error: "No autorizado para este usuario" });
         continue;
       }
+      // Cuenta SSO-only (sin identidad 'email'/password): el login real es por
+      // el proveedor externo (OAuth/SAML), así que setear una contraseña sería
+      // un no-op confuso o un backdoor de password. Se salta y se reporta.
+      const { data: full } = await adminClient.auth.admin.getUserById(id);
+      const identities = (full?.user?.identities ?? []) as Array<{ provider?: string }>;
+      if (identities.length > 0 && !identities.some((i) => i.provider === "email")) {
+        failed.push({ userId: id, error: "Cuenta SSO: el cambio de contraseña no aplica" });
+        continue;
+      }
       const { error: upErr } = await adminClient.auth.admin.updateUserById(id, {
         password: newPassword,
       });

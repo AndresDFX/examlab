@@ -67,6 +67,9 @@ function TeacherStudentsInner() {
   const [courseFilter, setCourseFilter] = useState<string>("all");
   const [impersonating, setImpersonating] = useState<string | null>(null);
   const [bulkPasswordOpen, setBulkPasswordOpen] = useState(false);
+  // Reset de contraseña individual (acción de fila). Reusa el mismo diálogo/edge
+  // que el bulk (bulk-set-passwords ya autoriza al docente por sus cursos).
+  const [resetPasswordFor, setResetPasswordFor] = useState<Student | null>(null);
 
   const load = async () => {
     if (!user) return;
@@ -255,6 +258,17 @@ function TeacherStudentsInner() {
         onDone={sel.clear}
       />
 
+      {/* Reset individual desde la acción de fila (mismo edge + autz por curso).
+          Si el estudiante es SSO-only, la edge lo reporta en `failed`. */}
+      <BulkPasswordDialog
+        open={!!resetPasswordFor}
+        onOpenChange={(o) => {
+          if (!o) setResetPasswordFor(null);
+        }}
+        userIds={resetPasswordFor ? [resetPasswordFor.id] : []}
+        onDone={() => setResetPasswordFor(null)}
+      />
+
       <Card>
         <CardContent className="p-4 space-y-3">
           {/* Tabla */}
@@ -344,6 +358,16 @@ function TeacherStudentsInner() {
                                 hint: t("teacherStudents.impersonateHint", { name: s.full_name }),
                                 onClick: () => void handleImpersonate(s),
                                 disabled: impersonating === s.id,
+                              },
+                              {
+                                label: t("teacherStudents.actionResetPassword", {
+                                  defaultValue: "Resetear contraseña",
+                                }),
+                                icon: KeyRound,
+                                hint: t("teacherStudents.resetPasswordHint", {
+                                  defaultValue: `Asignar una nueva contraseña a ${s.full_name}`,
+                                }),
+                                onClick: () => setResetPasswordFor(s),
                               },
                             ]}
                           />
