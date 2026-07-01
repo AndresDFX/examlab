@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +19,6 @@ import {
   courseHasContent,
   type CourseContentSummary,
 } from "@/modules/trash/soft-delete";
-import { friendlyError } from "@/shared/lib/db-errors";
 
 interface DeleteCourseDialogProps {
   open: boolean;
@@ -45,6 +45,18 @@ const EMPTY: Aggregate = {
   forums: 0,
 };
 
+// Claves de entidad para las líneas de conteo (el label sale de i18n:
+// deleteCourseDialog.entities.<key>).
+const ENTITY_KEYS: Array<[keyof Aggregate, string]> = [
+  ["exams", "exams"],
+  ["workshops", "workshops"],
+  ["projects", "projects"],
+  ["sessions", "sessions"],
+  ["whiteboards", "whiteboards"],
+  ["contents", "contents"],
+  ["polls", "polls"],
+];
+
 /** Diálogo de borrado de curso(s) con advertencia de contenido huérfano + la
  *  opción de qué hacer con él (cascada a papelera vs. solo el curso). */
 export function DeleteCourseDialog({
@@ -54,6 +66,7 @@ export function DeleteCourseDialog({
   courseLabel,
   onConfirm,
 }: DeleteCourseDialogProps) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<Aggregate>(EMPTY);
   const [cascade, setCascade] = useState(true);
@@ -86,17 +99,10 @@ export function DeleteCourseDialog({
 
   const hasContent = courseHasContent(summary);
 
-  // Líneas de conteo (solo las > 0) para la advertencia.
-  const items: Array<[string, number]> = [
-    ["exámenes", summary.exams],
-    ["talleres", summary.workshops],
-    ["proyectos", summary.projects],
-    ["sesiones", summary.sessions],
-    ["pizarras", summary.whiteboards],
-    ["contenidos", summary.contents],
-    ["encuestas", summary.polls],
-  ];
-  const contentLines = items.filter(([, n]) => n > 0);
+  // Líneas de conteo (solo las > 0) para la advertencia — el label es traducible.
+  const contentLines = ENTITY_KEYS.map(([field, key]) => ({ key, n: summary[field] })).filter(
+    ({ n }) => n > 0,
+  );
 
   const handleConfirm = async () => {
     setSubmitting(true);
@@ -118,35 +124,51 @@ export function DeleteCourseDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Trash2 className="h-5 w-5 text-destructive" />
-            {multi ? `Eliminar ${courseLabel}` : `Eliminar curso «${courseLabel}»`}
+            {multi
+              ? t("deleteCourseDialog.titleMulti", { label: courseLabel })
+              : t("deleteCourseDialog.title", { label: courseLabel })}
           </DialogTitle>
           <DialogDescription>
-            {multi
-              ? "Los cursos seleccionados se moverán a la papelera."
-              : "El curso se moverá a la papelera (recuperable durante 30 días)."}
+            {multi ? t("deleteCourseDialog.descMulti") : t("deleteCourseDialog.descSingle")}
           </DialogDescription>
         </DialogHeader>
 
         {loading ? (
           <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-            <Spinner size="sm" /> Revisando el contenido asociado…
+            <Spinner size="sm" /> {t("deleteCourseDialog.checking")}
           </div>
         ) : !hasContent ? (
           <p className="py-2 text-sm text-muted-foreground">
-            {multi ? "Los cursos no tienen" : "Este curso no tiene"} contenido asociado
-            {summary.enrollments > 0 ? ` (sí ${summary.enrollments} matrícula(s), que se ocultarán)` : ""}.
+            {multi
+              ? t("deleteCourseDialog.noContentMulti")
+              : t("deleteCourseDialog.noContentSingle")}
+            {summary.enrollments > 0
+              ? t("deleteCourseDialog.enrollmentsHidden", { n: summary.enrollments })
+              : ""}
+            .
           </p>
         ) : (
           <div className="space-y-4">
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                {multi ? "Estos cursos tienen" : "Este curso tiene"} contenido asociado:{" "}
+                {multi
+                  ? t("deleteCourseDialog.hasContentMulti")
+                  : t("deleteCourseDialog.hasContentSingle")}{" "}
                 <strong>
-                  {contentLines.map(([label, n]) => `${n} ${label}`).join(" · ")}
+                  {contentLines
+                    .map(({ key, n }) =>
+                      t("deleteCourseDialog.line", {
+                        n,
+                        label: t(`deleteCourseDialog.entities.${key}`),
+                      }),
+                    )
+                    .join(" · ")}
                 </strong>
-                {summary.enrollments > 0 ? ` · ${summary.enrollments} matrícula(s)` : ""}. Elegí
-                qué hacer con él.
+                {summary.enrollments > 0
+                  ? t("deleteCourseDialog.enrollmentsSuffix", { n: summary.enrollments })
+                  : ""}
+                {t("deleteCourseDialog.chooseWhat")}
               </AlertDescription>
             </Alert>
 
@@ -158,20 +180,18 @@ export function DeleteCourseDialog({
               <div className="flex items-start gap-2">
                 <RadioGroupItem value="cascade" id="opt-cascade" className="mt-0.5" />
                 <Label htmlFor="opt-cascade" className="font-normal cursor-pointer">
-                  <span className="font-medium">Mover el curso y todo su contenido a la papelera</span>
+                  <span className="font-medium">{t("deleteCourseDialog.cascadeTitle")}</span>
                   <span className="block text-xs text-muted-foreground mt-0.5">
-                    Recomendado. Todo se puede restaurar junto desde la papelera (al restaurar el
-                    curso vuelve su contenido).
+                    {t("deleteCourseDialog.cascadeHint")}
                   </span>
                 </Label>
               </div>
               <div className="flex items-start gap-2">
                 <RadioGroupItem value="course_only" id="opt-course-only" className="mt-0.5" />
                 <Label htmlFor="opt-course-only" className="font-normal cursor-pointer">
-                  <span className="font-medium">Eliminar solo el curso</span>
+                  <span className="font-medium">{t("deleteCourseDialog.courseOnlyTitle")}</span>
                   <span className="block text-xs text-muted-foreground mt-0.5">
-                    El contenido queda huérfano: oculto para todos (alumnos y staff) hasta que
-                    restaures el curso, pero no se envía a la papelera.
+                    {t("deleteCourseDialog.courseOnlyHint")}
                   </span>
                 </Label>
               </div>
@@ -181,11 +201,13 @@ export function DeleteCourseDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Cancelar
+            {t("deleteCourseDialog.cancel")}
           </Button>
           <Button variant="destructive" onClick={handleConfirm} disabled={loading || submitting}>
             {submitting ? <Spinner size="sm" className="mr-2" /> : null}
-            {hasContent && cascade ? "Eliminar curso y contenido" : "Eliminar curso"}
+            {hasContent && cascade
+              ? t("deleteCourseDialog.confirmWithContent")
+              : t("deleteCourseDialog.confirm")}
           </Button>
         </DialogFooter>
       </DialogContent>

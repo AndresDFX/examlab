@@ -1,4 +1,35 @@
 {
+  "deleteCourseDialog": {
+    "title": "Delete course «{{label}}»",
+    "titleMulti": "Delete {{label}}",
+    "descSingle": "The course will be moved to the trash (recoverable for 30 days).",
+    "descMulti": "The selected courses will be moved to the trash.",
+    "checking": "Checking associated content…",
+    "noContentSingle": "This course has no associated content",
+    "noContentMulti": "These courses have no associated content",
+    "enrollmentsHidden": " ({{n}} enrollment(s) will be hidden)",
+    "enrollmentsSuffix": " · {{n}} enrollment(s)",
+    "hasContentSingle": "This course has associated content:",
+    "hasContentMulti": "These courses have associated content:",
+    "chooseWhat": ". Choose what to do with it.",
+    "line": "{{n}} {{label}}",
+    "entities": {
+      "exams": "exams",
+      "workshops": "workshops",
+      "projects": "projects",
+      "sessions": "sessions",
+      "whiteboards": "whiteboards",
+      "contents": "contents",
+      "polls": "polls"
+    },
+    "cascadeTitle": "Move the course and all its content to the trash",
+    "cascadeHint": "Recommended. Everything can be restored together from the trash (restoring the course brings back its content).",
+    "courseOnlyTitle": "Delete only the course",
+    "courseOnlyHint": "The content is orphaned: hidden from everyone (students and staff) until you restore the course, but not sent to the trash.",
+    "cancel": "Cancel",
+    "confirmWithContent": "Delete course and content",
+    "confirm": "Delete course"
+  },
   "common": {
     "loading": "Loading…",
     "save": "Save",

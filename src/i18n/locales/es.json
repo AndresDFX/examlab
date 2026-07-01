@@ -1,4 +1,35 @@
 {
+  "deleteCourseDialog": {
+    "title": "Eliminar curso «{{label}}»",
+    "titleMulti": "Eliminar {{label}}",
+    "descSingle": "El curso se moverá a la papelera (recuperable durante 30 días).",
+    "descMulti": "Los cursos seleccionados se moverán a la papelera.",
+    "checking": "Revisando el contenido asociado…",
+    "noContentSingle": "Este curso no tiene contenido asociado",
+    "noContentMulti": "Los cursos no tienen contenido asociado",
+    "enrollmentsHidden": " (sí {{n}} matrícula(s), que se ocultarán)",
+    "enrollmentsSuffix": " · {{n}} matrícula(s)",
+    "hasContentSingle": "Este curso tiene contenido asociado:",
+    "hasContentMulti": "Estos cursos tienen contenido asociado:",
+    "chooseWhat": ". Elegí qué hacer con él.",
+    "line": "{{n}} {{label}}",
+    "entities": {
+      "exams": "exámenes",
+      "workshops": "talleres",
+      "projects": "proyectos",
+      "sessions": "sesiones",
+      "whiteboards": "pizarras",
+      "contents": "contenidos",
+      "polls": "encuestas"
+    },
+    "cascadeTitle": "Mover el curso y todo su contenido a la papelera",
+    "cascadeHint": "Recomendado. Todo se puede restaurar junto desde la papelera (al restaurar el curso vuelve su contenido).",
+    "courseOnlyTitle": "Eliminar solo el curso",
+    "courseOnlyHint": "El contenido queda huérfano: oculto para todos (alumnos y staff) hasta que restaures el curso, pero no se envía a la papelera.",
+    "cancel": "Cancelar",
+    "confirmWithContent": "Eliminar curso y contenido",
+    "confirm": "Eliminar curso"
+  },
   "common": {
     "loading": "Cargando…",
     "save": "Guardar",
