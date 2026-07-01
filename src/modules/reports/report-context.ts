@@ -23,6 +23,11 @@ import {
   scaleAttendance,
   type GradedItem,
 } from "@/modules/grading/grade";
+import {
+  computeAttemptGrade,
+  type AttemptForGrade,
+  type RetryMode,
+} from "@/modules/exams/exam-attempts";
 import { formatDate } from "@/shared/lib/format";
 import {
   formatScheduleText,
@@ -189,7 +194,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
   };
 
   // ── Cortes + items + asistencia (mismas queries del gradebook) ──
-  const [{ data: cuts }, { data: exams }, { data: workshops }, { data: pcRows }, { data: sessions }] =
+  const [{ data: cuts }, { data: examsAll }, { data: workshopsAll }, { data: pcRows }, { data: sessions }] =
     await Promise.all([
       db
         .from("grade_cuts")
@@ -198,17 +203,17 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
         .order("position"),
       db
         .from("exams")
-        .select("id, title, cut_id, weight, parent_exam_id")
+        .select("id, title, cut_id, weight, parent_exam_id, retry_mode, status")
         .eq("course_id", courseId)
         .is("deleted_at", null),
       db
         .from("workshops")
-        .select("id, title, cut_id, weight, max_score")
+        .select("id, title, cut_id, weight, max_score, status")
         .eq("course_id", courseId)
         .is("deleted_at", null),
       db
         .from("project_courses")
-        .select("cut_id, weight, project:projects(id, title, max_score, deleted_at)")
+        .select("cut_id, weight, project:projects(id, title, max_score, deleted_at, status)")
         .eq("course_id", courseId),
       db
         .from("attendance_sessions")
@@ -217,12 +222,37 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
         .is("deleted_at", null),
     ]);
 
-  const projects = ((pcRows ?? []) as Array<{ cut_id: string | null; weight: number; project: { id: string; title: string; max_score: number; deleted_at: string | null } | null }>)
-    .filter((r): r is { cut_id: string | null; weight: number; project: { id: string; title: string; max_score: number; deleted_at: string | null } } => r.project != null && !r.project.deleted_at)
+  // Excluir BORRADORES (status='draft') de TODO el cálculo — paridad con el
+  // gradebook docente y la vista del estudiante, que usan `(status ??
+  // 'published') !== 'draft'`. Un item en borrador (default status) con peso +
+  // corte pero SIN entregas → score null → contaría como 0 y BAJARÍA la nota
+  // del boletín/acta respecto de lo que el docente y el alumno ven en pantalla.
+  // Tratamos status NULL como 'published' (legacy) → NO se excluye.
+  const isDraft = (s?: string | null) => (s ?? "published") === "draft";
+  const exams = ((examsAll ?? []) as Array<{
+    id: string;
+    title: string;
+    cut_id: string | null;
+    weight: number;
+    parent_exam_id: string | null;
+    retry_mode: string | null;
+    status: string | null;
+  }>).filter((e) => !isDraft(e.status));
+  const workshops = ((workshopsAll ?? []) as Array<{
+    id: string;
+    title: string;
+    cut_id: string | null;
+    weight: number;
+    max_score: number;
+    status: string | null;
+  }>).filter((w) => !isDraft(w.status));
+
+  const projects = ((pcRows ?? []) as Array<{ cut_id: string | null; weight: number; project: { id: string; title: string; max_score: number; deleted_at: string | null; status: string | null } | null }>)
+    .filter((r): r is { cut_id: string | null; weight: number; project: { id: string; title: string; max_score: number; deleted_at: string | null; status: string | null } } => r.project != null && !r.project.deleted_at && !isDraft(r.project.status))
     .map((r) => ({ id: r.project.id, title: r.project.title, cut_id: r.cut_id, weight: r.weight }));
 
   // Filtrar exámenes sin parent (los make-up children se agregan al original)
-  const examOriginals = (exams ?? []).filter((e: { parent_exam_id: string | null }) => !e.parent_exam_id);
+  const examOriginals = exams.filter((e) => !e.parent_exam_id);
 
   // ── Estudiantes (uno o todos) ────────────────────────────────────
   let userIds: string[];
@@ -258,7 +288,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       examIds.length
         ? db
             .from("submissions")
-            .select("exam_id, user_id, ai_grade, final_override_grade, status")
+            .select("exam_id, user_id, ai_grade, final_override_grade, status, created_at")
             .in("exam_id", examIds)
             .in("user_id", userIds)
         : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
@@ -293,6 +323,37 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
   // form de cursos en app.admin.courses.tsx.
   const passingGrade = Number(courseRow.passing_grade ?? 3);
 
+  // Nota efectiva de un examen para un alumno, RESPETANDO retry_mode
+  // (last/average/highest) sobre TODOS sus intentos + fallback a las
+  // recuperaciones (parent_exam_id) cuando no hay intentos directos. Es el
+  // MISMO algoritmo del gradebook (getGrade + consolidado) y del acta SQL.
+  // Antes el boletín tomaba un intento arbitrario con `.find()` ignorando
+  // retry_mode → la nota impresa podía basarse en el intento equivocado
+  // (ej. un examen "highest" con un reintento mejor mostraba el peor).
+  const allExamSubs = (examSubs ?? []) as Array<{
+    exam_id: string;
+    user_id: string;
+    ai_grade: number | null;
+    final_override_grade: number | null;
+    status: string | null;
+    created_at: string;
+  }>;
+  const resolveExamGrade = (
+    examId: string,
+    retryMode: RetryMode,
+    userId: string,
+  ): number | null => {
+    const own = allExamSubs.filter((s) => s.exam_id === examId && s.user_id === userId);
+    if (own.length) return computeAttemptGrade(own as AttemptForGrade[], retryMode);
+    // Sin intentos directos → recuperaciones, cada una con su propio retry_mode.
+    for (const m of exams.filter((mk) => mk.parent_exam_id === examId)) {
+      const subs = allExamSubs.filter((s) => s.exam_id === m.id && s.user_id === userId);
+      if (subs.length)
+        return computeAttemptGrade(subs as AttemptForGrade[], (m.retry_mode as RetryMode) ?? "last");
+    }
+    return null;
+  };
+
   const buildStudent = (p: {
     id: string;
     full_name: string;
@@ -306,17 +367,12 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     const userId = p.id;
 
     // Items por tipo (con su nota efectiva)
-    const examenes: ItemCtx[] = examOriginals.map((e: { id: string; title: string; weight: number }) => {
-      const sub = (examSubs ?? []).find(
-        (s: { exam_id: string; user_id: string }) => s.exam_id === e.id && s.user_id === userId,
-      );
-      return {
-        titulo: e.title,
-        nota: effectiveScore(sub ?? null),
-        peso: Number(e.weight ?? 0),
-        tipo: "examen" as const,
-      };
-    });
+    const examenes: ItemCtx[] = examOriginals.map((e) => ({
+      titulo: e.title,
+      nota: resolveExamGrade(e.id, (e.retry_mode as RetryMode) ?? "last", userId),
+      peso: Number(e.weight ?? 0),
+      tipo: "examen" as const,
+    }));
     const talleres: ItemCtx[] = (workshops ?? []).map((w: { id: string; title: string; weight: number }) => {
       const sub = (wsSubs ?? []).find(
         (s: { workshop_id: string; user_id: string }) => s.workshop_id === w.id && s.user_id === userId,
@@ -349,8 +405,11 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     // redondeo/re-escala del promedio-de-cortes). G1/G5.
     const allFinalItems: GradedItem[] = [];
     const cortes: CutCtx[] = ((cuts ?? []) as Array<{ id: string; name: string; weight: number; attendance_weight: number }>).map((cut) => {
-      const cutExams = (exams ?? []).filter((e: { cut_id: string | null }) => e.cut_id === cut.id);
-      const cutWs = (workshops ?? []).filter((w: { cut_id: string | null }) => w.cut_id === cut.id);
+      // Solo exámenes ORIGINALES por corte (los make-up children se colapsan en
+      // el original vía resolveExamGrade) — evita doble conteo si un child tiene
+      // cut_id + weight propios.
+      const cutExams = examOriginals.filter((e) => e.cut_id === cut.id);
+      const cutWs = workshops.filter((w) => w.cut_id === cut.id);
       const cutPrjs = projects.filter((p2) => p2.cut_id === cut.id);
       const cutSessIds = ((sessions ?? []) as Array<{ id: string; cut_id: string | null }>)
         .filter((s) => s.cut_id === cut.id)
@@ -358,10 +417,10 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
 
       const items: GradedItem[] = [];
       for (const e of cutExams) {
-        const sub = (examSubs ?? []).find(
-          (s: { exam_id: string; user_id: string }) => s.exam_id === e.id && s.user_id === userId,
-        );
-        items.push({ weight: Number(e.weight ?? 0), score: effectiveScore(sub ?? null) });
+        items.push({
+          weight: Number(e.weight ?? 0),
+          score: resolveExamGrade(e.id, (e.retry_mode as RetryMode) ?? "last", userId),
+        });
       }
       for (const w of cutWs) {
         const sub = (wsSubs ?? []).find(

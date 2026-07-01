@@ -1323,18 +1323,31 @@ function Gradebook() {
       if (!ok) return;
       setBulkIssuing(true);
       try {
-        // 1a) En modo regenerar, revocar todos los vigentes primero.
+        // 1a) En modo regenerar, revocar todos los vigentes primero. DEBE ir por
+        // la RPC SECURITY DEFINER `revoke_certificate` fila por fila: la tabla
+        // certificates NO tiene policy de UPDATE (todas las escrituras van por
+        // RPC), así que un UPDATE directo del cliente afectaba 0 filas SIN error
+        // → la revocación masiva no ocurría y la re-emisión fallaba con "Ya
+        // existe un certificado vigente". Mismo patrón que el regenerar
+        // individual (arriba). certByUserId ya solo contiene vigentes
+        // (reloadCertificates filtra .is("revoked_at", null)).
         if (regenerate && existingCount > 0) {
-          const { error: revErr } = await db
-            .from("certificates")
-            .update({ revoked_at: new Date().toISOString(), revoke_reason: "regenerado en lote" })
-            .eq("course_id", courseId)
-            .is("revoked_at", null);
-          if (revErr) {
+          const vigentes = (Object.values(certByUserId) as Array<{ id?: string }>).filter(
+            (c) => c && c.id,
+          );
+          let firstRevErr: unknown = null;
+          for (const cert of vigentes) {
+            const { error: revErr } = await db.rpc("revoke_certificate", {
+              _certificate_id: cert.id,
+              _reason: "regenerado en lote",
+            });
+            if (revErr && !firstRevErr) firstRevErr = revErr;
+          }
+          if (firstRevErr) {
             toast.error(
               i18n.t("toast.routes_app_teacher_gradebook.bulkRevocationFailed", {
                 defaultValue: "Revocación masiva falló: {{error}}",
-                error: friendlyError(revErr),
+                error: friendlyError(firstRevErr),
               }),
             );
             return;

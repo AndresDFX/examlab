@@ -511,15 +511,25 @@ Deno.serve(async (req) => {
           // de privilegios lateral protegida acá Y por la RLS de
           // user_roles (que valida is_super_admin()). Si un Admin manda
           // SuperAdmin en el CSV, lo ignoramos silenciosamente.
-          if (r === "SuperAdmin") {
-            if (!callerIsSuperAdmin) continue;
-            await adminClient
+          if (r === "SuperAdmin" && !callerIsSuperAdmin) continue;
+          if (r === "SuperAdmin" || ["Admin", "Docente", "Estudiante"].includes(r)) {
+            // CRÍTICO: capturar el { error } del upsert. Los query builders de
+            // supabase-js NO tiran — retornan { data, error } — así que un fallo
+            // se tragaba en silencio y la fila se reportaba `ok: true` aunque el
+            // rol NO se asignó. El caso más común: el trigger
+            // tg_check_tenant_user_quota lanza P0001 'Cuota de X alcanzada (n/m)'
+            // cuando el tenant supera max_students/max_teachers/max_admins.
+            // Lanzamos para que el catch de la fila registre `ok: false` con el
+            // mensaje real (visible en el resultado del import y en el audit log)
+            // en vez de un falso éxito. El profile/auth ya están creados; el
+            // admin libera cupo (o desactiva usuarios) y re-importa — la rama de
+            // usuario EXISTENTE re-vincula sin duplicar.
+            const { error: roleErr } = await adminClient
               .from("user_roles")
               .upsert({ user_id: userId, role: r }, { onConflict: "user_id,role" });
-          } else if (["Admin", "Docente", "Estudiante"].includes(r)) {
-            await adminClient
-              .from("user_roles")
-              .upsert({ user_id: userId, role: r }, { onConflict: "user_id,role" });
+            if (roleErr) {
+              throw new Error(`No se pudo asignar el rol ${r}: ${roleErr.message}`);
+            }
           }
         }
         // student_code: solo persistir si el role asignado incluye
