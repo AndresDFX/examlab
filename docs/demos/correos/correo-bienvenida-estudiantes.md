@@ -12,6 +12,8 @@ Mensaje para que el **docente/administrador le dé la bienvenida a sus estudiant
 
 > ¡Hola [Nombre]! 👋
 >
+> ⚠️ **Antes que nada:** ExamLab es una **plataforma alterna de apoyo** para nuestro curso (la administra tu docente). **No es la plataforma institucional oficial de [tu institución]** — úsala solo para las actividades de esta materia.
+>
 > Ya tienes tu cuenta lista. Así ingresas y aquí te dejo un **video con el recorrido completo** de todo lo que puedes hacer.
 >
 > **🔑 Cómo ingresar:**
@@ -50,6 +52,8 @@ Mensaje para que el **docente/administrador le dé la bienvenida a sus estudiant
 
 > ¡Hola [Nombre]! 👋 Te doy la bienvenida a **ExamLab** 🎓
 >
+> ⚠️ Ojo: es una **plataforma alterna de apoyo** para nuestro curso (no es la plataforma oficial de [tu institución]); úsala solo para esta materia.
+>
 > 🔗 https://examlab.lovable.app/auth
 > 🏫 Institución: *[tu institución]*
 > 👤 Usuario: **tu correo institucional** (con el que te matriculamos)
@@ -63,6 +67,8 @@ Mensaje para que el **docente/administrador le dé la bienvenida a sus estudiant
 
 ## Notas para ti (borrar antes de enviar)
 
+- ⚠️ **El aviso "plataforma alterna / no oficial" es intencional** — deja claro a los estudiantes que ExamLab **no reemplaza la plataforma institucional oficial** y que su uso es solo para tu curso. No lo quites.
+- **Versiones por institución** con dominio de correo real y pantallazos: [`correo-bienvenida-estudiantes-fesna.md`](correo-bienvenida-estudiantes-fesna.md) y [`correo-bienvenida-estudiantes-uniajc.md`](correo-bienvenida-estudiantes-uniajc.md).
 - **Reemplaza** `[Nombre]`, `[tu institución]` y `[Tu nombre / Docente]` por los datos reales. El **usuario es el correo institucional** de cada estudiante (no una clave genérica de demo).
 - **Cómo enviarlo a todo el curso de una:** ExamLab → **Mensajes → "Difundir a curso"** (manda un correo con todos los estudiantes en copia oculta + les llega también como notificación in-app). O usa tu propio correo con los estudiantes en **CCO**.
 - **Video del recorrido:** se usa la **Serie Estudiante** de Drive (enlace canónico en [`_ENLACES-demos.md`](_ENLACES-demos.md)). Si más adelante grabas un recorrido propio para tu institución, reemplaza ese enlace.
