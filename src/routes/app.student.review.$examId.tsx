@@ -8,6 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ArrowLeft, AlertTriangle, MessageSquareText } from "lucide-react";
+import {
+  computeAttemptGrade,
+  retryModeLabel,
+  type AttemptForGrade,
+  type RetryMode,
+} from "@/modules/exams/exam-attempts";
 import { FeedbackThread } from "@/modules/grading/FeedbackThread";
 import { PageHeader } from "@/components/ui/page-header";
 import { ErrorState } from "@/components/ui/empty-state";
@@ -58,6 +64,7 @@ type ExamLoaded = {
   start_time: string | null;
   end_time: string | null;
   status: string | null;
+  retry_mode: string | null;
   course: { name: string; grade_scale_min: number; grade_scale_max: number } | null;
 };
 
@@ -84,6 +91,13 @@ function StudentExamReview() {
     submitted_at: string | null;
     teacher_feedback?: string | null;
   } | null>(null);
+  // Nota EFECTIVA del examen según retry_mode (last/average/highest) sobre TODOS
+  // los intentos — es la que aporta al curso (igual que app.student.grades.tsx).
+  // El breakdown de abajo sigue mostrando el ÚLTIMO intento; el "Resultado
+  // global" muestra esta. `attemptCount` para saber si aclarar la diferencia.
+  const [effectiveGrade, setEffectiveGrade] = useState<number | null>(null);
+  const [retryMode, setRetryMode] = useState<RetryMode>("last");
+  const [attemptCount, setAttemptCount] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -158,7 +172,7 @@ function StudentExamReview() {
           supabase
             .from("exams")
             .select(
-              "id, title, description, start_time, end_time, status, course:courses(name, grade_scale_min, grade_scale_max)",
+              "id, title, description, start_time, end_time, status, retry_mode, course:courses(name, grade_scale_min, grade_scale_max)",
             )
             .eq("id", examId)
             .is("deleted_at", null)
@@ -227,6 +241,21 @@ function StudentExamReview() {
         if (qsErr) {
           console.warn("[exam-review] questions query error:", qsErr);
         }
+
+        // Nota efectiva por retry_mode: TODOS los intentos del alumno en los
+        // exam_ids relacionados (no solo el último). Espeja app.student.grades.
+        const { data: allSubs } = await supabase
+          .from("submissions")
+          .select("status, ai_grade, final_override_grade, created_at")
+          .in("exam_id", relatedExamIds)
+          .eq("user_id", user.id);
+        const mode = ((ex as { retry_mode?: string | null }).retry_mode ?? "last") as RetryMode;
+        const finished = ((allSubs ?? []) as AttemptForGrade[]).filter((a) =>
+          a.status == null ? true : isFinalStatus(a.status),
+        );
+        setRetryMode(mode);
+        setAttemptCount(finished.length);
+        setEffectiveGrade(computeAttemptGrade((allSubs ?? []) as AttemptForGrade[], mode));
 
         setExam(ex as ExamLoaded);
         setSubmission(
@@ -400,8 +429,22 @@ function StudentExamReview() {
           </div>
           <div className="text-right">
             <div className="text-2xl font-semibold tabular-nums">
-              {finalGrade != null ? `${finalGrade} / ${gradeMax}` : "—"}
+              {(effectiveGrade ?? finalGrade) != null
+                ? `${effectiveGrade ?? finalGrade} / ${gradeMax}`
+                : "—"}
             </div>
+            {/* Multi-intento con modo highest/average: la nota que cuenta para
+                el curso NO es la del último intento (el detalle de abajo). Se
+                aclara para que el alumno no vea "dos notas distintas". */}
+            {retryMode !== "last" && attemptCount > 1 && (
+              <div className="text-[10px] text-muted-foreground">
+                {t("exam.review.retryModeNote", {
+                  defaultValue: `Nota ${retryModeLabel(retryMode)} de ${attemptCount} intentos · el detalle es el último`,
+                  mode: retryModeLabel(retryMode),
+                  count: attemptCount,
+                })}
+              </div>
+            )}
             {submission.final_override_grade != null &&
               submission.ai_grade != null &&
               submission.final_override_grade !== submission.ai_grade && (

@@ -96,6 +96,7 @@ type Exam = {
   cut_id?: string | null;
   weight?: number | null;
   retry_mode?: string | null;
+  status?: string | null;
 };
 type Workshop = {
   id: string;
@@ -105,6 +106,7 @@ type Workshop = {
   cut_id?: string | null;
   weight?: number | null;
   is_external?: boolean | null;
+  status?: string | null;
 };
 type Project = {
   id: string;
@@ -114,6 +116,7 @@ type Project = {
   cut_id: string | null;
   weight?: number | null;
   is_external?: boolean | null;
+  status?: string | null;
 };
 type Cut = {
   id: string;
@@ -271,12 +274,19 @@ function Gradebook() {
     if (!courseId) return;
 
     // Exams (incluye cut_id para el consolidado de cortes)
-    const { data: exams } = await (supabase as any)
+    const { data: examsRaw } = await (supabase as any)
       .from("exams")
-      .select("id, title, parent_exam_id, course_id, cut_id, weight, retry_mode")
+      .select("id, title, parent_exam_id, course_id, cut_id, weight, retry_mode, status")
       .eq("course_id", courseId)
       .is("deleted_at", null)
       .order("start_time");
+    // Excluir borradores (status='draft') — igual que app.student.grades.tsx.
+    // Un examen en borrador no tiene entregas → score null → computeWeightedGrade
+    // lo cuenta como 0 con su peso, arrastrando la nota final HACIA ABAJO. El
+    // alumno NO lo ve, así que sin este filtro el consolidado docente + los
+    // certificados divergían de la nota real del estudiante. Invariante
+    // gradebook ↔ app.student.grades (ver CLAUDE.md): ambos deben excluir draft.
+    const exams = ((examsRaw ?? []) as Exam[]).filter((e) => (e.status ?? "published") !== "draft");
 
     // Workshops: query via workshop_courses (M:N) para incluir los talleres
     // COMPARTIDOS a este curso como SECUNDARIO y usar el cut_id/weight POR
@@ -287,11 +297,16 @@ function Gradebook() {
     const { data: wcData } = await db
       .from("workshop_courses")
       .select(
-        "cut_id, weight, workshop:workshops(id, title, course_id, max_score, is_external, deleted_at)",
+        "cut_id, weight, workshop:workshops(id, title, course_id, max_score, is_external, deleted_at, status)",
       )
       .eq("course_id", courseId);
     const workshops = (wcData ?? [])
-      .filter((wc: any) => wc.workshop && !wc.workshop.deleted_at) // en papelera → excluido
+      .filter(
+        (wc: any) =>
+          wc.workshop &&
+          !wc.workshop.deleted_at && // en papelera → excluido
+          (wc.workshop.status ?? "published") !== "draft", // borrador → no cuenta (paridad estudiante)
+      )
       .map((wc: any) => ({
         ...wc.workshop,
         cut_id: wc.cut_id,
@@ -311,10 +326,17 @@ function Gradebook() {
     // cut_id/weight por curso en vez del global de projects.
     const { data: pcData } = await db
       .from("project_courses")
-      .select("cut_id, weight, project:projects(id, title, course_id, max_score, is_external, deleted_at)")
+      .select(
+        "cut_id, weight, project:projects(id, title, course_id, max_score, is_external, deleted_at, status)",
+      )
       .eq("course_id", courseId);
     const projectsData = (pcData ?? [])
-      .filter((pc: any) => pc.project && !pc.project.deleted_at) // en papelera → excluido
+      .filter(
+        (pc: any) =>
+          pc.project &&
+          !pc.project.deleted_at && // en papelera → excluido
+          (pc.project.status ?? "published") !== "draft", // borrador → no cuenta (paridad estudiante)
+      )
       .map((pc: any) => ({
         ...pc.project,
         cut_id: pc.cut_id,

@@ -41,11 +41,20 @@ export function computeSecondsLeftRelative(
   timeLimitMinutes: number,
   endTime: string | Date | null | undefined,
   now: number = Date.now(),
+  // Tiempo extra concedido por el docente (segundos). Debe extender la deadline
+  // PERSONAL (started + límite) — en exámenes relativos con ventana amplia esa
+  // es la restricción vinculante, NO end_time. El caller ya extiende `endTime`
+  // (applyExtraTime), así que el extra NO se re-suma a windowEnd (evita
+  // doble-conteo). Resultado = min(started+límite, end_time_original) + extra,
+  // idéntico a computeAttemptEnd del monitor. Sin este parámetro el +5m del
+  // docente se perdía al recargar en exámenes relativos.
+  extraSeconds: number = 0,
 ): number {
   if (!startedAt) return 0;
   const started = toMs(startedAt);
   if (Number.isNaN(started)) return 0;
-  const personal = started + Math.max(0, timeLimitMinutes) * 60_000;
+  const extraMs = Math.max(0, extraSeconds) * 1000;
+  const personal = started + Math.max(0, timeLimitMinutes) * 60_000 + extraMs;
   const windowEnd = endTime ? toMs(endTime) : personal;
   const target = Math.min(personal, Number.isNaN(windowEnd) ? personal : windowEnd);
   return Math.max(0, Math.floor((target - now) / 1000));

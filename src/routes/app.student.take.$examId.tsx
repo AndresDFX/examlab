@@ -181,6 +181,10 @@ function TakeExam() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [submissionStartedAt, setSubmissionStartedAt] = useState<string | null>(null);
+  // Tiempo extra concedido por el docente (segundos), acumulado de
+  // exam_timer_controls. En exámenes RELATIVOS extiende la deadline personal
+  // (started+límite), no solo end_time — ver computeSecondsLeftRelative.
+  const [examExtraSeconds, setExamExtraSeconds] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [started, setStarted] = useState(false);
   // Bandera global (app_settings.require_exam_fullscreen). Si el Admin la
@@ -320,6 +324,10 @@ function TakeExam() {
   useEffect(() => {
     submissionStartedAtRef.current = submissionStartedAt;
   }, [submissionStartedAt]);
+  const examExtraSecondsRef = useRef(0);
+  useEffect(() => {
+    examExtraSecondsRef.current = examExtraSeconds;
+  }, [examExtraSeconds]);
 
   // Update state AND ref synchronously so blur/suspend handlers never read
   // stale answers between a keystroke and the next render commit.
@@ -425,6 +433,10 @@ function TakeExam() {
       if (extraSeconds > 0) {
         e = { ...e, end_time: applyExtraTime(e.end_time, extraSeconds) };
       }
+      // Guardar el extra para el cálculo del timer relativo (extiende la
+      // deadline personal, no solo la ventana end_time ya extendida arriba).
+      setExamExtraSeconds(extraSeconds);
+      examExtraSecondsRef.current = extraSeconds;
 
       if (!isExamOpen({ start_time: e.start_time, end_time: e.end_time })) {
         toast.error(
@@ -1073,6 +1085,8 @@ function TakeExam() {
           submissionStartedAt,
           exam?.time_limit_minutes ?? 0,
           exam?.end_time,
+          Date.now(),
+          examExtraSeconds,
         )
       : computeSecondsLeft(exam?.end_time);
 
@@ -1123,7 +1137,13 @@ function TakeExam() {
           const newScheduleType = (updated.schedule_type as string | undefined) ?? e.schedule_type;
           const newSeconds =
             newScheduleType === "relativo"
-              ? computeSecondsLeftRelative(submissionStartedAtRef.current, newLimit, newEndTime)
+              ? computeSecondsLeftRelative(
+                  submissionStartedAtRef.current,
+                  newLimit,
+                  newEndTime,
+                  Date.now(),
+                  examExtraSecondsRef.current,
+                )
               : computeSecondsLeft(newEndTime);
           syncToSeconds(Math.max(0, newSeconds));
           setExam((prev) =>

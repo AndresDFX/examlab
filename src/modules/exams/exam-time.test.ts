@@ -102,6 +102,23 @@ describe("computeSecondsLeftRelative", () => {
     const startedAt = new Date(NOW).toISOString();
     expect(computeSecondsLeftRelative(startedAt, 30, "not-a-date", NOW)).toBe(30 * 60);
   });
+
+  it("extraSeconds del docente extiende la deadline PERSONAL (ventana amplia)", () => {
+    const startedAt = new Date(NOW).toISOString();
+    const in1h = new Date(NOW + 60 * 60_000).toISOString();
+    // personal = 30 min (binding, la ventana es amplia). +5 min extra → 35 min.
+    expect(computeSecondsLeftRelative(startedAt, 30, in1h, NOW, 300)).toBe(35 * 60);
+    // sin extra sigue siendo 30
+    expect(computeSecondsLeftRelative(startedAt, 30, in1h, NOW, 0)).toBe(30 * 60);
+  });
+
+  it("extraSeconds no rescata si la VENTANA (endTime) es la restricción vinculante", () => {
+    const startedAt = new Date(NOW).toISOString();
+    const in5min = new Date(NOW + 5 * 60_000).toISOString();
+    // La ventana (5 min) es menor que personal+extra (60+5) → gana la ventana.
+    // (El caller extiende endTime aparte vía applyExtraTime; aquí endTime crudo.)
+    expect(computeSecondsLeftRelative(startedAt, 60, in5min, NOW, 300)).toBe(5 * 60);
+  });
 });
 
 describe("isExamOpen", () => {
