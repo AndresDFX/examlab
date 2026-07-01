@@ -760,6 +760,35 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   // escrituras). Staff nunca se bloquea. Ver access-control.ts. El
   // enforcement real de escritura está en RLS (mig 20260711000000);
   // esto es la cara de UX.
+  // Cuenta desactivada por un Admin/SuperAdmin (is_active=false). Gate
+  // INDEPENDIENTE del rol (a diferencia de accessLevel, que exime al staff). El
+  // bloqueo REAL del login es el ban GoTrue de admin-set-user-active; esto es la
+  // cara de UX para una sesión viva residual (el access token expira solo).
+  if (profile && profile.is_active === false) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <div className="max-w-md text-center space-y-4">
+          <div className="mx-auto h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center">
+            <ShieldEllipsis className="h-6 w-6 text-destructive" />
+          </div>
+          <h1 className="text-xl font-semibold">
+            {t("appLayout.deactivatedTitle", { defaultValue: "Cuenta desactivada" })}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {t("appLayout.deactivatedBody", {
+              defaultValue:
+                "Tu cuenta fue desactivada. Contactá al administrador de tu institución para reactivarla.",
+            })}
+          </p>
+          <Button variant="outline" onClick={signOut}>
+            <LogOut className="h-4 w-4 mr-1.5" />
+            {t("hc_sharedComponentsAppLayout.signOut")}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const accessLevel = studentAccessLevel(profile?.estado, roles);
   if (accessLevel === "blocked") {
     return (

@@ -59,6 +59,8 @@ import {
   ShieldCheck,
   KeyRound,
   Copy,
+  UserX,
+  UserCheck,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { DateCell } from "@/components/ui/date-cell";
@@ -114,6 +116,9 @@ type Row = {
    *  le asignó el Admin/SA al crearlo o resetearla. Cuando es true existe
    *  (normalmente) una fila en `admin_visible_passwords` re-visible. */
   must_change_password?: boolean | null;
+  /** Cuenta activa. false = desactivada (no inicia sesión, no consume licencia).
+   *  Mig 20261029000000. */
+  is_active?: boolean | null;
 };
 
 const ALL_ROLES: AppRole[] = ["Admin", "Docente", "Estudiante", "SuperAdmin"];
@@ -286,6 +291,7 @@ function AdminUsers() {
   // SuperAdmin pero el caller no lo tiene, el Select no muestra esa
   // opción (filtered abajo en el render).
   const [roleFilter, setRoleFilter] = useState<"all" | AppRole>("all");
+  const [activeFilter, setActiveFilter] = useState<"all" | "active" | "inactive">("all");
   const filteredRows = useMemo(() => {
     let out = rows;
     if (search.trim()) {
@@ -301,8 +307,14 @@ function AdminUsers() {
     if (roleFilter !== "all") {
       out = out.filter((r) => r.roles.includes(roleFilter));
     }
+    if (activeFilter !== "all") {
+      // is_active nullish ⇒ activo (compat con filas pre-migración).
+      out = out.filter((r) =>
+        activeFilter === "inactive" ? r.is_active === false : r.is_active !== false,
+      );
+    }
     return out;
-  }, [rows, search, roleFilter]);
+  }, [rows, search, roleFilter, activeFilter]);
   // Orden por columna (click en el encabezado alterna asc/desc). Va ENTRE
   // el filtro y la paginación: filtrar → ordenar → paginar.
   const sort = useTableSort(filteredRows, {
@@ -334,7 +346,7 @@ function AdminUsers() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:admin_users",
-    resetKey: `${search}|${roleFilter}|${tenantFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${roleFilter}|${activeFilter}|${tenantFilter}|${sort.resetKey}`,
   });
 
   // Stats 4-card sobre los usuarios visibles al caller. Se calcula
@@ -482,6 +494,55 @@ function AdminUsers() {
       // startImpersonate dispara window.location.href → no llegamos aquí.
     } catch (e) {
       toast.error(friendlyError(e, t("hc_routesAppAdminUsers.impersonateStartError")));
+    }
+  };
+
+  // Desactivar / reactivar un usuario vía edge admin-set-user-active (ban GoTrue
+  // + espejo is_active + conteo de licencia). La autz fina la re-valida la edge;
+  // acá solo confirmamos y mostramos feedback.
+  const handleSetActive = async (r: Row, active: boolean) => {
+    const ok = await confirm({
+      title: active
+        ? t("adminUsers.reactivateTitle", { defaultValue: `Reactivar a ${r.full_name}` })
+        : t("adminUsers.deactivateTitle", { defaultValue: `Desactivar a ${r.full_name}` }),
+      description: active
+        ? t("adminUsers.reactivateDesc", {
+            defaultValue:
+              "Volverá a poder iniciar sesión y ocupará de nuevo su cupo de licencia (si hay cupo).",
+          })
+        : t("adminUsers.deactivateDesc", {
+            defaultValue:
+              "No podrá iniciar sesión y libera su cupo de licencia. Su sesión se invalida al expirar el token. Podés reactivarlo luego.",
+          }),
+      confirmLabel: active ? t("common.reactivate", { defaultValue: "Reactivar" }) : t("common.deactivate", { defaultValue: "Desactivar" }),
+      tone: active ? "warning" : "destructive",
+    });
+    if (!ok) return;
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-set-user-active", {
+        body: { userId: r.id, active },
+      });
+      const respErr = (data as { error?: string } | null)?.error;
+      if (error || respErr) {
+        toast.error(respErr ?? friendlyError(error, "No se pudo cambiar el estado del usuario"));
+        return;
+      }
+      toast.success(
+        active
+          ? t("adminUsers.reactivatedToast", { defaultValue: "Usuario reactivado" })
+          : t("adminUsers.deactivatedToast", { defaultValue: "Usuario desactivado" }),
+      );
+      void logEvent({
+        action: active ? "user.reactivated" : "user.deactivated",
+        category: "user",
+        severity: "warning",
+        entityType: "user",
+        entityId: r.id,
+        entityName: r.full_name,
+      });
+      load();
+    } catch (e) {
+      toast.error(friendlyError(e, "No se pudo cambiar el estado del usuario"));
     }
   };
 
@@ -1483,6 +1544,20 @@ function AdminUsers() {
             ))}
           </SelectContent>
         </Select>
+        {/* Filtro por estado de cuenta (activo/inactivo). */}
+        <Select
+          value={activeFilter}
+          onValueChange={(v) => setActiveFilter(v as "all" | "active" | "inactive")}
+        >
+          <SelectTrigger className="sm:w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("adminUsers.filterActiveAll", { defaultValue: "Activos e inactivos" })}</SelectItem>
+            <SelectItem value="active">{t("adminUsers.filterActiveOnly", { defaultValue: "Solo activos" })}</SelectItem>
+            <SelectItem value="inactive">{t("adminUsers.filterInactiveOnly", { defaultValue: "Solo inactivos" })}</SelectItem>
+          </SelectContent>
+        </Select>
         {/* Filtro de institución — visible para el SuperAdmin siempre que
             haya tenants cargados. Admin normal no lo ve. */}
         {showTenantUI && (
@@ -1626,8 +1701,15 @@ function AdminUsers() {
                       </TableCell>
                       <TableCell className="font-medium">
                         <div className="flex flex-col gap-1 min-w-0">
-                          <span className="truncate" title={r.full_name}>
-                            {r.full_name}
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            <span className="truncate" title={r.full_name}>
+                              {r.full_name}
+                            </span>
+                            {r.is_active === false && (
+                              <Badge variant="destructive" className="text-[10px] shrink-0">
+                                {t("adminUsers.inactiveBadge", { defaultValue: "Inactivo" })}
+                              </Badge>
+                            )}
                           </span>
                           <span className="text-xs text-muted-foreground sm:hidden truncate">
                             {r.institutional_email}
@@ -1716,6 +1798,25 @@ function AdminUsers() {
                                   onClick: () => void openViewPassword(r),
                                 }
                               : null,
+                            // Desactivar / Reactivar cuenta. Oculto para: uno
+                            // mismo (evita lockout), un SuperAdmin (nunca se
+                            // desactiva), y un Admin cuando el caller NO es
+                            // SuperAdmin (solo un SA desactiva Admins). La edge
+                            // admin-set-user-active re-valida todo server-side.
+                            (() => {
+                              if (r.id === profile?.id) return null;
+                              if (r.roles.includes("SuperAdmin")) return null;
+                              if (r.roles.includes("Admin") && !isSuperAdminCaller) return null;
+                              const inactive = r.is_active === false;
+                              return {
+                                label: inactive
+                                  ? t("common.reactivate", { defaultValue: "Reactivar" })
+                                  : t("common.deactivate", { defaultValue: "Desactivar" }),
+                                icon: inactive ? UserCheck : UserX,
+                                tone: inactive ? undefined : ("destructive" as const),
+                                onClick: () => void handleSetActive(r, inactive),
+                              };
+                            })(),
                             {
                               label: t("common.delete"),
                               icon: Trash2,

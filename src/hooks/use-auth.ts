@@ -24,6 +24,11 @@ export interface Profile {
    *  lectura (ver access-control.ts). NULL para staff o estudiantes sin
    *  estado. Columna mig 20260612000000. */
   estado?: string | null;
+  /** Cuenta activa. false = desactivada por un Admin/SuperAdmin: no inicia
+   *  sesión (ban GoTrue) y no consume licencia. El AppLayout muestra una
+   *  pantalla bloqueante cuando es false. Columna mig 20261029000000;
+   *  opcional por compat con entornos sin la migración (default true). */
+  is_active?: boolean;
 }
 
 export function useAuth() {
