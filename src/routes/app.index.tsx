@@ -1641,7 +1641,7 @@ function Stat({
       <CardContent className="p-4">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <div className="text-xs text-muted-foreground truncate">{label}</div>
+            <div className="text-xs text-muted-foreground line-clamp-2 leading-tight">{label}</div>
             <div className="text-2xl font-semibold tabular-nums">{value}</div>
             {sub && (
               <div className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">{sub}</div>
