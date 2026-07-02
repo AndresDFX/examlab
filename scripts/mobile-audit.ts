@@ -121,20 +121,24 @@ async function login(page: Page): Promise<void> {
 }
 
 async function switchRole(page: Page, role: string): Promise<void> {
-  // Mobile: abrir el drawer (hamburguesa) → role-switcher dentro del Sheet.
+  // Mobile: abrir el drawer (hamburguesa, primer botón visible del header fijo
+  // superior con ícono Menu) → role-switcher dentro del Sheet (role=dialog).
   try {
-    const burger = page.locator('button:has(svg.lucide-menu), header button').first();
-    await burger.click({ timeout: 4000 });
-    await page.waitForTimeout(600);
-    const trigger = page.locator('[data-tour-id="role-switcher"] [role="combobox"]').first();
-    await trigger.click({ timeout: 4000 });
-    await page.waitForTimeout(400);
-    await page.getByRole("option", { name: role, exact: false }).first().click({ timeout: 4000 });
-    await page.waitForTimeout(1500);
-    await page.keyboard.press("Escape").catch(() => {});
+    await page.locator('button:has(svg.lucide-menu)').first().click({ timeout: 5000 });
+    await page.waitForSelector('[role="dialog"]', { timeout: 4000 });
     await page.waitForTimeout(500);
+    const combo = page
+      .locator('[role="dialog"] [role="combobox"], [data-tour-id="role-switcher"] [role="combobox"]')
+      .first();
+    await combo.click({ timeout: 5000 });
+    await page.waitForTimeout(500);
+    await page.getByRole("option", { name: new RegExp(role, "i") }).first().click({ timeout: 5000 });
+    await page.waitForTimeout(1800);
+    // Cerrar el drawer si sigue abierto (para que la screenshot muestre el contenido).
+    await page.keyboard.press("Escape").catch(() => {});
+    await page.waitForTimeout(600);
   } catch (e) {
-    console.log(`  ! no pude cambiar a rol ${role}: ${(e as Error).message}`);
+    console.log(`  ! no pude cambiar a rol ${role}: ${(e as Error).message.split("\n")[0]}`);
   }
 }
 
