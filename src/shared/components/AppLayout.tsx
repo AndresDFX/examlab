@@ -454,6 +454,44 @@ const NAV: NavItem[] = [
   },
 ];
 
+// Bottom-nav de MÓVIL: destinos más frecuentes por rol activo (los 5 que van
+// "a un tap" en la barra inferior). Antes se usaba `visibleNav.slice(0,5)`, que
+// tomaba los primeros 5 del array/orden → para el Docente surgía Calendario/Cola/
+// Prompts/Banco antes que Exámenes/Talleres/Proyectos. Se prioriza por `to` (no
+// por índice) para no depender del orden de NAV ni del orden configurable de
+// módulos, y degrada con gracia: un path oculto por visibilidad de módulo se
+// saltea y se rellena con el resto de `visibleNav` en su orden natural.
+const BOTTOM_NAV_PRIORITY: Partial<Record<AppRole, string[]>> = {
+  Estudiante: [
+    "/app",
+    "/app/student/exams",
+    "/app/student/workshops",
+    "/app/student/courses",
+    "/app/student/grades",
+  ],
+  Docente: [
+    "/app",
+    "/app/teacher/exams",
+    "/app/teacher/workshops",
+    "/app/teacher/projects",
+    "/app/teacher/attendance",
+  ],
+  Admin: [
+    "/app",
+    "/app/admin/users",
+    "/app/admin/courses",
+    "/app/admin/academic",
+    "/app/admin/statistics",
+  ],
+  SuperAdmin: [
+    "/app",
+    "/app/superadmin/tenants",
+    "/app/admin/users",
+    "/app/admin/courses",
+    "/app/superadmin/support",
+  ],
+};
+
 const ROLE_CONFIG: Record<
   AppRole,
   {
@@ -980,6 +1018,34 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     const ob = mb ? getModuleOrder(moduleOrder, mb, activeRole as RoleKey) : 9999;
     return oa - ob;
   });
+
+  // Bottom-nav de móvil: 5 destinos priorizados por rol (ver BOTTOM_NAV_PRIORITY).
+  // Toma los del set de prioridad presentes en visibleNav (en ese orden) y rellena
+  // con el resto de visibleNav si faltan slots. Fallback a los primeros 5 si el rol
+  // no tiene set o aún no hidrató.
+  const bottomNavItems: NavItem[] = (() => {
+    const priority = activeRole ? BOTTOM_NAV_PRIORITY[activeRole] : undefined;
+    if (!priority) return visibleNav.slice(0, 5);
+    const byPath = new Map(visibleNav.map((n) => [n.to, n]));
+    const picked: NavItem[] = [];
+    const seen = new Set<string>();
+    for (const to of priority) {
+      const item = byPath.get(to);
+      if (item && !seen.has(to)) {
+        picked.push(item);
+        seen.add(to);
+      }
+      if (picked.length === 5) break;
+    }
+    for (const n of visibleNav) {
+      if (picked.length === 5) break;
+      if (!seen.has(n.to)) {
+        picked.push(n);
+        seen.add(n.to);
+      }
+    }
+    return picked;
+  })();
   const activeCfg = activeRole ? ROLE_CONFIG[activeRole] : null;
   const ActiveIcon = activeCfg?.icon ?? GraduationCap;
 
@@ -1710,7 +1776,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
             aria-label={t("hc_sharedComponentsAppLayout.mainNavigation")}
           >
-            {visibleNav.slice(0, 5).map((item) => {
+            {bottomNavItems.map((item) => {
               const Icon = item.icon;
               const isActive =
                 location.pathname === item.to ||

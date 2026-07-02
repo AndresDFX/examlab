@@ -201,7 +201,14 @@ async function main(): Promise<void> {
       if (!EMAIL || !PASSWORD) throw new Error("MOB_EMAIL / MOB_PASSWORD requeridos");
       await login(page);
     }
-    if (SWITCH_ROLE) await switchRole(page, SWITCH_ROLE);
+    if (SWITCH_ROLE) {
+      await switchRole(page, SWITCH_ROLE);
+      // El active role es state en memoria (se pierde al recargar), así que
+      // capturamos AQUÍ el bottom-nav del rol recién activado antes de cualquier
+      // goto que lo revierta al default.
+      await page.waitForTimeout(1000);
+      await page.screenshot({ path: join(OUT, "00-after-switch.png"), fullPage: false }).catch(() => {});
+    }
 
     for (const r of cfg.routes) {
       try {
