@@ -2519,16 +2519,24 @@ export function StudentProjectTaker({
         })
         .eq("id", submissionId);
 
-      setGraded({ grade: submissionScore });
-      onGraded?.(submissionScore);
-      toast.success(
-        i18n.t("toast.modules_projects_ProjectFiles.submissionGraded", {
-          defaultValue:
-            "Entrega calificada: {{score}} / {{max}}. La nota final se calcula tras la sustentación.",
-          score: submissionScore,
-          max: maxScore,
-        }),
-      );
+      if (totalQueued > 0) {
+        // Nota pendiente de IA (async): NO mostrar un 0 engañoso ni el toast
+        // "calificada". El toast.info QUEUED_STUDENT_TITLE (arriba) ya avisó que
+        // quedó encolada; en DB submission_grade = null y en reload el card no se
+        // muestra (status='entregado', grade null).
+        onGraded?.(0); // el padre solo usa esto para disparar reload; ignora el valor
+      } else {
+        setGraded({ grade: submissionScore });
+        onGraded?.(submissionScore);
+        toast.success(
+          i18n.t("toast.modules_projects_ProjectFiles.submissionGraded", {
+            defaultValue:
+              "Entrega calificada: {{score}} / {{max}}. La nota final se calcula tras la sustentación.",
+            score: submissionScore,
+            max: maxScore,
+          }),
+        );
+      }
     } finally {
       setSubmitting(false);
     }

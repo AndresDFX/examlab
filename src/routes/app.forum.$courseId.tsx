@@ -294,7 +294,12 @@ function ForumsList() {
     // manually_closed_at (que dejaría el closes_at viejo ya vencido y el
     // foro se re-cerraría de inmediato), abrimos un mini-dialog para fijar
     // un nuevo plazo. Prefijamos el plazo a ahora + 7 días.
-    const isClosed = computeForumState(forum).kind !== "open";
+    // "scheduled" (programado, opens_at futuro) se trata como ABIERTO → ofrece
+    // cierre manual real, NO el diálogo de reapertura. Antes kind!=="open" incluía
+    // "scheduled" → el botón abría reabrir y no se podía cancelar un foro programado
+    // (y podía violar el CHECK opens_at<closes_at). Solo los realmente cerrados van a reabrir.
+    const st = computeForumState(forum).kind;
+    const isClosed = st === "closed_auto" || st === "closed_manual";
     if (isClosed) {
       const inSevenDays = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       setReopenClosesAt(dateToDatetimeLocal(inSevenDays));
@@ -557,7 +562,10 @@ function ForumRow({
   onDelete: () => void;
 }) {
   const state = computeForumState(forum);
-  const isClosed = state.kind !== "open";
+  // "scheduled" cuenta como abierto para el botón de acción (mostrar "Cerrar"/Lock,
+  // no "Reabrir") — un foro programado se puede cancelar con cierre manual. Solo los
+  // realmente cerrados muestran "Reabrir". El badge de estado sí distingue scheduled.
+  const isClosed = state.kind === "closed_auto" || state.kind === "closed_manual";
 
   return (
     <Card className={isClosed ? "opacity-90" : undefined}>

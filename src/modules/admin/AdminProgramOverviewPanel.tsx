@@ -81,10 +81,16 @@ function computeStats({
   programs: Program[];
   subjects: Array<{ program_id: string | null; active: boolean }>;
   courses: Array<{ id: string; program_id: string | null; period_id: string | null }>;
-  enrollments: Array<{ user_id: string; course: { program_id: string | null } | null }>;
-  teachers: Array<{ user_id: string; course: { program_id: string | null } | null }>;
+  enrollments: Array<{
+    user_id: string;
+    course: { program_id: string | null; period_id: string | null } | null;
+  }>;
+  teachers: Array<{
+    user_id: string;
+    course: { program_id: string | null; period_id: string | null } | null;
+  }>;
   filterPeriodId: string | null;
-}): ProgramStats[] {
+}): { perProgram: ProgramStats[]; uniqueStudents: number; uniqueTeachers: number } {
   const byProgram = new Map<string, ProgramStats>();
   for (const p of programs) {
     byProgram.set(p.id, {
@@ -112,40 +118,54 @@ function computeStats({
       st.coursesInPeriod += 1;
     }
   }
-  // Estudiantes DISTINTOS por programa (un alumno en 2 cursos del
-  // mismo programa cuenta una vez).
+  // Estudiantes DISTINTOS por programa (un alumno en 2 cursos del mismo programa
+  // cuenta una vez). Cuando hay filtro de periodo, solo cuentan matrículas de
+  // cursos de ESE periodo (antes el filtro solo aplicaba al conteo de cursos).
+  // `globalStudents` es el set INSTITUCIONAL (dedup cross-programa) para el tile
+  // superior — sumar los studentsDistinct por programa sobrecontaba a un alumno
+  // matriculado en cursos de dos programas.
   const studentsByProgram = new Map<string, Set<string>>();
+  const globalStudents = new Set<string>();
   for (const e of enrollments) {
     const pid = e.course?.program_id;
     if (!pid) continue;
+    if (filterPeriodId && e.course?.period_id !== filterPeriodId) continue;
     let set = studentsByProgram.get(pid);
     if (!set) {
       set = new Set();
       studentsByProgram.set(pid, set);
     }
     set.add(e.user_id);
+    globalStudents.add(e.user_id);
   }
   for (const [pid, set] of studentsByProgram.entries()) {
     const st = byProgram.get(pid);
     if (st) st.studentsDistinct = set.size;
   }
-  // Docentes DISTINTOS por programa (mismo principio).
+  // Docentes DISTINTOS por programa (mismo principio + filtro de periodo + set global).
   const teachersByProgram = new Map<string, Set<string>>();
+  const globalTeachers = new Set<string>();
   for (const t of teachers) {
     const pid = t.course?.program_id;
     if (!pid) continue;
+    if (filterPeriodId && t.course?.period_id !== filterPeriodId) continue;
     let set = teachersByProgram.get(pid);
     if (!set) {
       set = new Set();
       teachersByProgram.set(pid, set);
     }
     set.add(t.user_id);
+    globalTeachers.add(t.user_id);
   }
   for (const [pid, set] of teachersByProgram.entries()) {
     const st = byProgram.get(pid);
     if (st) st.teachersDistinct = set.size;
   }
-  return Array.from(byProgram.values());
+  return {
+    perProgram: Array.from(byProgram.values()),
+    uniqueStudents: globalStudents.size,
+    uniqueTeachers: globalTeachers.size,
+  };
 }
 
 export function AdminProgramOverviewPanel() {
@@ -153,6 +173,9 @@ export function AdminProgramOverviewPanel() {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [periods, setPeriods] = useState<Period[]>([]);
   const [stats, setStats] = useState<ProgramStats[]>([]);
+  // Conteos INSTITUCIONALES dedup (no la suma de los por-programa, que sobrecuenta
+  // alumnos/docentes en varios programas). Respetan el filtro de periodo.
+  const [globalCounts, setGlobalCounts] = useState({ uniqueStudents: 0, uniqueTeachers: 0 });
   const [periodFilter, setPeriodFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -176,8 +199,8 @@ export function AdminProgramOverviewPanel() {
         db.from("courses").select("id, program_id, period_id"),
         // Enrollment → course (program_id via embed). El embed sigue
         // funcionando aunque el curso no tenga program_id (queda null).
-        db.from("course_enrollments").select("user_id, course:courses(program_id)"),
-        db.from("course_teachers").select("user_id, course:courses(program_id)"),
+        db.from("course_enrollments").select("user_id, course:courses(program_id, period_id)"),
+        db.from("course_teachers").select("user_id, course:courses(program_id, period_id)"),
       ]);
       if (cancelled) return;
       const firstErr =
@@ -204,15 +227,19 @@ export function AdminProgramOverviewPanel() {
         }>,
         enrollments: (enrRes.data ?? []) as Array<{
           user_id: string;
-          course: { program_id: string | null } | null;
+          course: { program_id: string | null; period_id: string | null } | null;
         }>,
         teachers: (teachRes.data ?? []) as Array<{
           user_id: string;
-          course: { program_id: string | null } | null;
+          course: { program_id: string | null; period_id: string | null } | null;
         }>,
         filterPeriodId: periodFilter === "all" ? null : periodFilter,
       });
-      setStats(computed);
+      setStats(computed.perProgram);
+      setGlobalCounts({
+        uniqueStudents: computed.uniqueStudents,
+        uniqueTeachers: computed.uniqueTeachers,
+      });
       setLoading(false);
     })();
     return () => {
@@ -223,18 +250,23 @@ export function AdminProgramOverviewPanel() {
 
   const totals = useMemo(() => {
     // Agregado total del cuadro de arriba.
-    return stats.reduce(
+    const base = stats.reduce(
       (acc, s) => {
         acc.subjects += s.subjectsActive;
         acc.courses += s.coursesTotal;
         acc.coursesInPeriod += s.coursesInPeriod;
-        acc.students += s.studentsDistinct;
-        acc.teachers += s.teachersDistinct;
         return acc;
       },
-      { subjects: 0, courses: 0, coursesInPeriod: 0, students: 0, teachers: 0 },
+      { subjects: 0, courses: 0, coursesInPeriod: 0 },
     );
-  }, [stats]);
+    // students/teachers desde el conteo institucional dedup (no la suma por
+    // programa, que contaría 2× a un alumno matriculado en cursos de 2 programas).
+    return {
+      ...base,
+      students: globalCounts.uniqueStudents,
+      teachers: globalCounts.uniqueTeachers,
+    };
+  }, [stats, globalCounts]);
 
   const showInPeriodColumn = periodFilter !== "all";
 

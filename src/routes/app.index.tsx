@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
@@ -104,15 +104,21 @@ function Dashboard() {
     if (last) window.location.replace(last);
   }, []);
 
+  // Toast de bienvenida con los no leídos: se dispara UNA vez tras la PRIMERA
+  // carga (useNotifications resuelve async → con deps [] el efecto corría con
+  // notifications=[] y nunca mostraba nada). El ref evita que polling/realtime
+  // lo re-disparen.
+  const welcomeShownRef = useRef(false);
   useEffect(() => {
-    if (unreadCount > 0) {
-      const recent = notifications.filter((n) => !n.read).slice(0, 3);
-      recent.forEach((n) => {
+    if (welcomeShownRef.current || unreadCount === 0) return;
+    welcomeShownRef.current = true;
+    notifications
+      .filter((n) => !n.read)
+      .slice(0, 3)
+      .forEach((n) => {
         toast.info(n.title, { description: n.body, duration: 5000 });
       });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [unreadCount, notifications]);
 
   return (
     // Layout flex-col. En desktop (lg+) CAPEAMOS la altura al viewport

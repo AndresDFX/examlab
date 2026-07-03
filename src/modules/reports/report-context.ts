@@ -530,6 +530,11 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
         programa: s.programa,
       },
       nota_final: s.nota_final,
+      // aprobado / estado_aprobacion: se calculan por alumno en buildStudent y el
+      // catálogo de variables los anuncia, pero el scope 'estudiante' los omitía →
+      // {{estado_aprobacion}} y {{#if aprobado}} salían vacíos en constancias/actas.
+      aprobado: s.aprobado,
+      estado_aprobacion: s.estado_aprobacion,
       cortes: s.cortes,
       examenes: s.examenes,
       talleres: s.talleres,

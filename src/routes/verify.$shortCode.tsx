@@ -15,7 +15,6 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
   CheckCircle2,
@@ -28,7 +27,6 @@ import {
   Hash,
 } from "lucide-react";
 import { formatDateLong } from "@/shared/lib/format";
-import { downloadCertificate } from "@/modules/certificates/certificate-pdf";
 
 export const Route = createFileRoute("/verify/$shortCode")({
   head: ({ params }) => ({
@@ -184,24 +182,11 @@ function RevokedCard({ data }: { data: VerifyResult }) {
 
 function ValidCard({ data }: { data: VerifyResult }) {
   const { t } = useTranslation();
-  const handleDownload = async () => {
-    if (!data.short_code || !data.student_full_name || !data.course_name) return;
-    await downloadCertificate({
-      shortCode: data.short_code,
-      studentFullName: data.student_full_name,
-      courseName: data.course_name,
-      coursePeriod: data.course_period,
-      finalGrade: Number(data.final_grade ?? 0),
-      gradeScaleMax: Number(data.grade_scale_max ?? 5),
-      teacherNames: data.teacher_names ?? [],
-      universityName: data.university_name,
-      universityLogoUrl: data.university_logo_url,
-      issuedAt: data.issued_at ?? new Date().toISOString(),
-      payloadHash: data.payload_hash ?? "",
-      revokedAt: null,
-    });
-  };
-
+  // Sin botón "Descargar PDF": la RPC pública verify_certificate NO devuelve las
+  // columnas de snapshot (firma/mensaje/pie/identificación), así que el PDF salía
+  // degradado (texto por defecto, sin firma). El rol de la página pública es
+  // VERIFICAR (detalles en pantalla + QR), no distribuir el certificado — eso lo
+  // hace el dueño/staff autenticado desde su vista de certificados.
   return (
     <Card className="border-emerald-500/40 bg-emerald-500/5">
       <CardHeader className="text-center pb-3">
@@ -214,11 +199,6 @@ function ValidCard({ data }: { data: VerifyResult }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <SnapshotDetails data={data} />
-        <div className="flex flex-wrap gap-2 justify-end pt-2">
-          <Button onClick={() => void handleDownload()} size="sm">
-            {t("verifyCertificate.downloadPdf")}
-          </Button>
-        </div>
       </CardContent>
     </Card>
   );

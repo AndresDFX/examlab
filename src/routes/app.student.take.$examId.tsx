@@ -803,7 +803,16 @@ function TakeExam() {
   // Skip cuando el Admin desactivó el FS obligatorio.
   useEffect(() => {
     if (!started) return;
-    if (!requireFullscreen) return;
+    if (!requireFullscreen) {
+      // Reanudar/recargar entra a started=true SIN pasar por startExam, así que
+      // hasEverEnteredFullscreenRef quedaba en false y el proctoring (blur/
+      // beforeunload) se auto-suprimía toda la sesión cuando el FS obligatorio
+      // está desactivado. Con FS off no hay overlay de re-entrada que lo active,
+      // así que lo marcamos acá. Este effect re-corre cuando requireFullscreen
+      // resuelve desde app_settings; no-op en arranque fresco (startExam ya lo puso).
+      hasEverEnteredFullscreenRef.current = true;
+      return;
+    }
     if (!document.fullscreenElement) {
       setFsExited(true);
     }
@@ -1143,22 +1152,27 @@ function TakeExam() {
           const newLimit =
             (updated.time_limit_minutes as number | undefined) ?? e.time_limit_minutes;
           const newScheduleType = (updated.schedule_type as string | undefined) ?? e.schedule_type;
+          // payload.new.end_time es el valor CRUDO de la DB (nunca contiene el
+          // tiempo extra por-alumno de exam_timer_controls). Extendemos con el
+          // extra acumulado — igual que el load effect (líneas 433-439) — para no
+          // encoger el timer y forzar una auto-entrega prematura.
+          const effEnd = applyExtraTime(newEndTime, examExtraSecondsRef.current);
           const newSeconds =
             newScheduleType === "relativo"
               ? computeSecondsLeftRelative(
                   submissionStartedAtRef.current,
                   newLimit,
-                  newEndTime,
+                  effEnd,
                   Date.now(),
                   examExtraSecondsRef.current,
                 )
-              : computeSecondsLeft(newEndTime);
+              : computeSecondsLeft(effEnd);
           syncToSeconds(Math.max(0, newSeconds));
           setExam((prev) =>
             prev
               ? {
                   ...prev,
-                  end_time: newEndTime,
+                  end_time: effEnd,
                   start_time: newStartTime,
                   time_limit_minutes: newLimit,
                   schedule_type: newScheduleType,
@@ -1565,8 +1579,16 @@ function TakeExam() {
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.key === "PrintScreen") recordScreenshotAttempt();
     };
+    // Cambio de pestaña / cambio de app: algunos navegadores (sobre todo mobile)
+    // disparan visibilitychange pero NO window blur → sin este listener el alumno
+    // escapaba el proctoring. recordWarning ya deduplica con blurLockUntil (500ms)
+    // cuando desktop dispara ambos, y usa el tipo dedicado visibility_hidden.
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") recordWarning("visibility_hidden");
+    };
     window.addEventListener("beforeunload", onBeforeUnload);
     window.addEventListener("blur", onBlur);
+    document.addEventListener("visibilitychange", onVisibility);
     document.addEventListener("contextmenu", onContext);
     document.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("keyup", onKeyUp, true);
@@ -1579,6 +1601,7 @@ function TakeExam() {
       window.removeEventListener("popstate", onPopstate, true);
       window.removeEventListener("beforeunload", onBeforeUnload);
       window.removeEventListener("blur", onBlur);
+      document.removeEventListener("visibilitychange", onVisibility);
       document.removeEventListener("contextmenu", onContext);
       document.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("keyup", onKeyUp, true);

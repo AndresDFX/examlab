@@ -398,7 +398,17 @@ export function KahootQuestionsEditor({
             toast.error(friendlyError(uErr));
             return;
           }
-          await db.from("kahoot_question_options").delete().eq("question_id", questionId);
+          // Chequear el error del DELETE antes de re-insertar: si el DELETE falla
+          // y seguimos al INSERT, la pregunta queda con opciones duplicadas o (si
+          // el INSERT falla luego) con CERO opciones → pregunta injugable en vivo.
+          const { error: dErr } = await db
+            .from("kahoot_question_options")
+            .delete()
+            .eq("question_id", questionId);
+          if (dErr) {
+            toast.error(friendlyError(dErr));
+            return;
+          }
         } else {
           const { data: ins, error: iErr } = await db
             .from("kahoot_questions")

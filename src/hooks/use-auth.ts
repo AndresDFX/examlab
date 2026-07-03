@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
+import { removePushSubscription } from "@/modules/notifications/push-subscription";
 
 export type AppRole = "Admin" | "Docente" | "Estudiante" | "SuperAdmin";
 
@@ -96,6 +97,17 @@ export function useAuth() {
   }, [loadExtras]);
 
   const signOut = async () => {
+    // Limpiar la suscripción push ANTES del signOut: el DELETE de
+    // push_subscriptions es owner-only (RLS user_id = auth.uid()), así que debe
+    // correr mientras auth.uid() sigue siendo el usuario que sale. Además hace
+    // sub.unsubscribe() → mata el endpoint en el push service, así el próximo
+    // usuario del navegador obtiene uno nuevo (aísla las notificaciones entre
+    // usuarios). Best-effort: no bloquea el logout si falla.
+    try {
+      await removePushSubscription();
+    } catch {
+      // ignore
+    }
     // `scope: 'local'` es CRÍTICO. Sin esto, Supabase v2 usa scope
     // 'global' por default e invalida los refresh tokens del usuario
     // en TODOS sus dispositivos. Resultado: el alumno cierra sesión en
