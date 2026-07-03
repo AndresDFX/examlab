@@ -1379,8 +1379,15 @@ function MessagesPage() {
         unread: 0,
       },
     });
-    await loadAll();
+    // setActiveConvId en el MISMO batch síncrono que setPendingOpen (antes del
+    // await): si se seteara después de loadAll, durante la espera commitea un
+    // render con activeConvId viejo → el effect de limpieza ve
+    // `activeConvId !== pendingOpen.convId` y borra pendingOpen antes de tiempo,
+    // anulando el fallback justo en el caso objetivo. Con ambos en el mismo
+    // batch, el guard los ve coincidir y preserva el fallback. Seleccionar antes
+    // de loadAll es seguro: activeConv cae a pendingOpen hasta que la lista carga.
     setActiveConvId(convId);
+    await loadAll();
   };
 
   const toggleConvSelected = (id: string) => {
