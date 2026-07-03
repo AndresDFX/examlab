@@ -13,6 +13,7 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { previewBody } from "@/modules/messaging/messaging";
+import { humanizeTags } from "@/modules/messaging/broadcast";
 
 // `messages`/`conversations` aún no están en types.ts generados.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -77,7 +78,9 @@ export function useMessagingToasts(myUserId: string | null | undefined) {
           const senderName: string =
             profile?.full_name ?? profile?.institutional_email ?? "Alguien";
           toast(`💬 ${senderName}`, {
-            description: previewBody(m.body, 80) || "(adjuntos)",
+            // humanizeTags: el toast no renderiza chips → mostrar #label en vez
+            // del token crudo [[T:...]] (paralelo al trigger SQL y a broadcast).
+            description: previewBody(humanizeTags(m.body), 80) || "(adjuntos)",
             action: {
               label: "Ver",
               onClick: () => {

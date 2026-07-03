@@ -75,7 +75,11 @@ export function TenantQuotaCard({
     let cancelled = false;
     void (async () => {
       setLoading(true);
-      const { data } = await db.rpc("tenant_user_counts");
+      // Pasar el tenant resuelto por useTenant (respeta "Ver como X") para que el
+      // numerador salga del MISMO tenant que el denominador (max_*). El RPC valida
+      // que sea el propio tenant o SuperAdmin. Sin el arg usaría current_tenant_id()
+      // (NULL para el SA en override) → mostraba "0 / N".
+      const { data } = await db.rpc("tenant_user_counts", { _tenant_id: tenant.id });
       if (cancelled) return;
       const c = data as { admins?: number; teachers?: number; students?: number } | null;
       setCounts(

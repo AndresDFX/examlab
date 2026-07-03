@@ -420,21 +420,25 @@ function StudentPolls() {
     }
     setVoting(poll.id);
     try {
-      // Para single/slot: si ya voté algo distinto, limpiamos primero
-      // (la RPC `clear_poll_response` borra mi voto previo). El trigger
-      // de `_tg_poll_response_enforce_single` rechazaría el INSERT si
-      // no lo hacemos.
+      // Para single/slot con voto previo: cambio ATÓMICO server-side
+      // (change_poll_response = DELETE+INSERT en una transacción con claim del
+      // cupo). Antes eran 2 RPCs (clear + vote): si el 2º fallaba, el alumno
+      // quedaba SIN respuesta y su cupo liberado se lo llevaba otro.
       if (poll.poll_type !== "multiple" && poll.my_votes.length > 0) {
-        const { error: clearErr } = await db.rpc("clear_poll_response", { _poll_id: poll.id });
-        if (clearErr) {
-          toast.error(friendlyError(clearErr));
+        const { error } = await db.rpc("change_poll_response", {
+          _poll_id: poll.id,
+          _new_option_id: optionId,
+        });
+        if (error) {
+          toast.error(friendlyError(error));
           return;
         }
-      }
-      const { error } = await db.rpc("vote_poll_option", { _option_id: optionId });
-      if (error) {
-        toast.error(friendlyError(error));
-        return;
+      } else {
+        const { error } = await db.rpc("vote_poll_option", { _option_id: optionId });
+        if (error) {
+          toast.error(friendlyError(error));
+          return;
+        }
       }
       toast.success(t("studentPolls.voteRecorded"));
       setRetryNonce((n) => n + 1);
