@@ -192,6 +192,16 @@ function MessagesPage() {
   const [contactsLoadError, setContactsLoadError] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationEnriched[]>([]);
   const [conversationsLoadError, setConversationsLoadError] = useState<string | null>(null);
+  // Fallback para reabrir un chat que YO "eliminé para mí" sin mensajes nuevos:
+  // open_conversation devuelve el id existente pero NO resetea cleared_at (por
+  // diseño), así que loadAll lo filtra de la lista (cleared + sin lastMessage) y
+  // activeConv quedaría null → panel sin composer (y stuck en mobile). Guardamos
+  // un enriched sintético para que el composer se renderice; enviar un mensaje
+  // resucita la conversación (created_at > cleared_at) respetando "borrado para mí".
+  const [pendingOpen, setPendingOpen] = useState<{
+    convId: string;
+    enriched: ConversationEnriched;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   /** IDs de conversaciones seleccionadas para acciones bulk. Cuando hay
@@ -1342,6 +1352,33 @@ function MessagesPage() {
     const convId = data as string;
     setNewDialogOpen(false);
     setContactSearch("");
+    // Preparar el fallback ANTES de loadAll: si la conv fue "eliminada para mí"
+    // sin mensajes nuevos, loadAll la excluye y activeConv caería a null.
+    const other = contacts.find((c) => c.user_id === otherUserId) ?? {
+      user_id: otherUserId,
+      full_name: null,
+      email: null,
+      role_label: "Usuario" as const,
+    };
+    const [ua, ub] = myUserId < otherUserId ? [myUserId, otherUserId] : [otherUserId, myUserId];
+    setPendingOpen({
+      convId,
+      enriched: {
+        conv: {
+          id: convId,
+          user_a: ua,
+          user_b: ub,
+          user_a_cleared_at: null,
+          user_b_cleared_at: null,
+          user_a_last_read_at: null,
+          user_b_last_read_at: null,
+          created_at: new Date().toISOString(),
+        },
+        other,
+        lastMessage: null,
+        unread: 0,
+      },
+    });
     await loadAll();
     setActiveConvId(convId);
   };
@@ -1456,7 +1493,16 @@ function MessagesPage() {
     });
   }, [contacts, contactSearch]);
 
-  const activeConv = conversations.find((c) => c.conv.id === activeConvId) ?? null;
+  const activeConv =
+    conversations.find((c) => c.conv.id === activeConvId) ??
+    (pendingOpen && pendingOpen.convId === activeConvId ? pendingOpen.enriched : null);
+  // Limpiar el fallback cuando la conversación real ya aparece en la lista (p.ej.
+  // tras enviar el primer mensaje que la resucita) o al cambiar de conversación.
+  useEffect(() => {
+    if (!pendingOpen) return;
+    const realExists = conversations.some((c) => c.conv.id === pendingOpen.convId);
+    if (realExists || activeConvId !== pendingOpen.convId) setPendingOpen(null);
+  }, [conversations, activeConvId, pendingOpen]);
   // Mensajes filtrados por búsqueda local.
   const visibleMessages = useMemo(
     () => searchMessages(messages, searchQuery),

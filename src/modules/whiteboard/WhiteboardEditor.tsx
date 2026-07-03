@@ -462,6 +462,14 @@ export function WhiteboardEditor({
   // Canal Realtime activo. Lo guardamos para emitir broadcasts desde
   // handleChange sin pasar el canal por args.
   const channelRef = useRef<RealtimeChannel | null>(null);
+  // True mientras aplicamos un scene RECIBIDO por broadcast. El updateScene
+  // dispara onChange igual que una edición local; sin este guard el receptor
+  // RE-persiste el scene ajeno — pero su store de `files` está vacío (el
+  // broadcast no trae binarios), así que sobreescribe en DB la escena del autor
+  // (con imagen) por una SIN el binario (last-write-wins) → la imagen se pierde
+  // para todos al recargar. Con el guard, solo el autor (que sí tiene los files)
+  // persiste; el receptor no re-persiste ni re-emite.
+  const applyingRemoteRef = useRef(false);
   // Debounce para el broadcast — independiente del persist (1500ms) y
   // del viewport (500ms). 200ms es el sweet spot para "sub-segundo
   // perceived latency" sin saturar Supabase (Realtime tiene quotas).
@@ -501,13 +509,21 @@ export function WhiteboardEditor({
           const arr = Object.values(payload.scene.files);
           if (arr.length > 0) api.addFiles(arr);
         }
+        // Marcar que el onChange que dispare este updateScene es REMOTO, para
+        // que handleChange NO lo re-persista ni re-emita (ver applyingRemoteRef).
+        applyingRemoteRef.current = true;
         api.updateScene({
           elements: payload.scene.elements,
           appState: payload.scene.appState,
           commitToHistory: false,
           captureUpdate: "never",
         });
+        // Limpiar tras el ciclo actual (fallback por si updateScene no dispara onChange).
+        setTimeout(() => {
+          applyingRemoteRef.current = false;
+        }, 0);
       } catch (err) {
+        applyingRemoteRef.current = false;
         console.warn("[WhiteboardEditor] updateScene remote failed", err);
       }
     });
@@ -571,6 +587,11 @@ export function WhiteboardEditor({
       });
       if (dedupKey === lastSerializedRef.current) return;
       lastSerializedRef.current = dedupKey;
+
+      // Si este cambio vino de un broadcast REMOTO, no re-emitir ni re-persistir:
+      // solo el cliente que ORIGINÓ el cambio (que posee los binarios de `files`)
+      // escribe a DB. Actualizamos el dedup ref arriba para mantenerlo consistente.
+      if (applyingRemoteRef.current) return;
 
       // `files` = binarios de imágenes pegadas/insertadas (BinaryFiles de
       // Excalidraw). Se PERSISTEN a DB; sin ellos una imagen se ve mientras la

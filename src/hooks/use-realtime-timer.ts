@@ -39,6 +39,21 @@ export function useRealtimeTimer({
   const initializedRef = useRef(initialSeconds > 0);
   const prevSecondsRef = useRef<number | null>(null);
   const timeUpFiredRef = useRef(false);
+  // IDs de controles add_time YA reflejados en secondsLeft (dedup por id entre
+  // el load inicial, el handler Realtime y el poll de respaldo). Robusto ante
+  // eventos duplicados / tardíos / fuera de orden.
+  const appliedAddTimeRef = useRef<Set<string>>(new Set());
+  // El poll no aplica add_time hasta que el load inicial sembró el baseline
+  // (los add_time pre-existentes YA vienen en initialSeconds); evita que el poll
+  // los re-sume por una carrera con el load.
+  const baselineLoadedRef = useRef(false);
+  // onTimeAdded via ref: el poll NO puede tenerlo en sus deps (el padre lo pasa
+  // inline y re-renderiza cada segundo por el tick → resetearía el interval de 4s
+  // y el fallback nunca dispararía).
+  const onTimeAddedRef = useRef(onTimeAdded);
+  useEffect(() => {
+    onTimeAddedRef.current = onTimeAdded;
+  }, [onTimeAdded]);
 
   // Initialize secondsLeft once initialSeconds becomes available (exam loaded after mount)
   useEffect(() => {
@@ -98,20 +113,21 @@ export function useRealtimeTimer({
         .or(`target_user_id.is.null,target_user_id.eq.${userId}`)
         .order("created_at", { ascending: true });
 
-      if (!data?.length) return;
-
       // Solo recuperamos el estado de pausa/resume del historial.
       // NO sumamos add_time aquí: el componente padre ya extendió end_time
       // (vía computeExtraSeconds + applyExtraTime) antes de calcular
       // initialSeconds, así que el extra ya está reflejado. Sumarlo de
       // nuevo causaría doble conteo en cada recarga (5 min concedidos →
-      // 10 min recibidos por el estudiante).
+      // 10 min recibidos por el estudiante). Marcamos sus ids como aplicados
+      // para que el poll de respaldo tampoco los re-sume.
       let paused = false;
-      for (const ctrl of data as TimerControl[]) {
+      for (const ctrl of (data ?? []) as TimerControl[]) {
         if (ctrl.action === "pause") paused = true;
-        if (ctrl.action === "resume") paused = false;
+        else if (ctrl.action === "resume") paused = false;
+        else if (ctrl.action === "add_time") appliedAddTimeRef.current.add(ctrl.id);
       }
       setIsPaused(paused);
+      baselineLoadedRef.current = true; // habilita el poll (baseline sembrado)
     })();
   }, [examId, userId]);
 
@@ -142,8 +158,12 @@ export function useRealtimeTimer({
               onResume?.();
               break;
             case "add_time":
-              setSecondsLeft((s) => s + ctrl.extra_seconds);
-              onTimeAdded?.(ctrl.extra_seconds);
+              // Dedup por id: si el poll ya lo aplicó, no re-sumar.
+              if (!appliedAddTimeRef.current.has(ctrl.id)) {
+                appliedAddTimeRef.current.add(ctrl.id);
+                setSecondsLeft((s) => s + ctrl.extra_seconds);
+                onTimeAdded?.(ctrl.extra_seconds);
+              }
               break;
           }
         },
@@ -161,6 +181,9 @@ export function useRealtimeTimer({
     if (!examId || !userId) return;
 
     const poll = async () => {
+      // Esperar a que el load inicial siembre el baseline de add_time ya
+      // reflejados en initialSeconds (si no, el poll los re-sumaría).
+      if (!baselineLoadedRef.current) return;
       const { data } = await supabase
         .from("exam_timer_controls")
         .select("*")
@@ -184,13 +207,24 @@ export function useRealtimeTimer({
 
       if (!all?.length) return;
       let paused = false;
-      let extraTime = 0;
+      // Aplicar SOLO los add_time que Realtime no entregó (no en el set).
+      // Antes este extraTime se calculaba y se DESCARTABA → si Realtime perdía
+      // el evento, el alumno nunca recibía el tiempo extra concedido y el timer
+      // expiraba antes → auto-entrega prematura.
+      let newExtra = 0;
       for (const ctrl of all as TimerControl[]) {
         if (ctrl.action === "pause") paused = true;
-        if (ctrl.action === "resume") paused = false;
-        if (ctrl.action === "add_time") extraTime += ctrl.extra_seconds;
+        else if (ctrl.action === "resume") paused = false;
+        else if (ctrl.action === "add_time" && !appliedAddTimeRef.current.has(ctrl.id)) {
+          appliedAddTimeRef.current.add(ctrl.id);
+          newExtra += ctrl.extra_seconds;
+        }
       }
       setIsPaused(paused);
+      if (newExtra > 0) {
+        setSecondsLeft((s) => s + newExtra);
+        onTimeAddedRef.current?.(newExtra);
+      }
     };
 
     const id = setInterval(poll, 4000);

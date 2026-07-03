@@ -571,7 +571,7 @@ function TeacherAttendance() {
       if (opts.copySnippets) {
         const { data: snips } = await (supabase as any)
           .from("session_code_snippets")
-          .select("position, title, language, source_code")
+          .select("id, position, title, language, source_code")
           .eq("session_id", s.id)
           .order("position");
         if (snips && snips.length > 0) {
@@ -582,14 +582,54 @@ function TeacherAttendance() {
             language: sn.language,
             source_code: sn.source_code,
           }));
-          const { error: snErr } = await (supabase as any)
+          const { data: newSnips, error: snErr } = await (supabase as any)
             .from("session_code_snippets")
-            .insert(rows);
+            .insert(rows)
+            .select("id, position");
           if (snErr) {
             // No abortamos: la sesión ya se creó; avisamos que faltaron snippets.
             toast.warning(
               friendlyError(snErr, t("teacherAttendance.duplicateSnippetsFailed")),
             );
+          } else if (newSnips) {
+            // Copiar también session_snippet_files: son la FUENTE DE VERDAD del
+            // contenido multi-archivo (source_code es solo un fallback legacy
+            // sincronizado con el 1er archivo). Sin esto, la copia pierde los
+            // archivos secundarios y el filename real (cae a "Main.java").
+            const oldIds = (snips as Array<{ id: string }>).map((sn) => sn.id);
+            const { data: files } = await (supabase as any)
+              .from("session_snippet_files")
+              .select("snippet_id, filename, content, position")
+              .in("snippet_id", oldIds);
+            if (files && files.length > 0) {
+              const posByOldId = new Map(
+                (snips as Array<{ id: string; position: number }>).map((sn) => [sn.id, sn.position]),
+              );
+              const newIdByPos = new Map(
+                (newSnips as Array<{ id: string; position: number }>).map((sn) => [sn.position, sn.id]),
+              );
+              const fileRows = (
+                files as Array<{ snippet_id: string; filename: string; content: string; position: number }>
+              )
+                .map((f) => {
+                  const pos = posByOldId.get(f.snippet_id);
+                  const newId = pos != null ? newIdByPos.get(pos) : undefined;
+                  return newId
+                    ? { snippet_id: newId, filename: f.filename, content: f.content, position: f.position }
+                    : null;
+                })
+                .filter(Boolean);
+              if (fileRows.length > 0) {
+                const { error: fErr } = await (supabase as any)
+                  .from("session_snippet_files")
+                  .insert(fileRows);
+                if (fErr) {
+                  toast.warning(
+                    friendlyError(fErr, t("teacherAttendance.duplicateSnippetsFailed")),
+                  );
+                }
+              }
+            }
           }
         }
       }
