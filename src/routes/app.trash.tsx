@@ -271,7 +271,16 @@ function TrashPage() {
         toast.error(friendlyError(error, "No se pudo restaurar"));
         return;
       }
-      setItems((prev) => prev.filter((i) => i.id !== item.id));
+      // Restaurar un curso/tenant cascadea a sus hijos (exámenes/talleres/
+      // sesiones/etc. borrados con el mismo timestamp) vía restore_*_cascade →
+      // esos hijos ya NO están en papelera pero seguirían visibles como filas
+      // separadas si solo filtráramos el id clicado. Recargamos para reflejar
+      // el estado real y evitar hard-deletes sobre filas fantasma.
+      if (item.table === "courses" || item.table === "tenants") {
+        void load();
+      } else {
+        setItems((prev) => prev.filter((i) => i.id !== item.id));
+      }
       toast.success(
         i18n.t("toast.routes_app_trash.itemRestored", {
           defaultValue: "{{type}}: {{name}} restaurado",
@@ -344,8 +353,17 @@ function TrashPage() {
       const successIds = new Set(
         results.filter((r) => !r.error).map((r) => `${r.item.table}:${r.item.id}`),
       );
-      setItems((prev) => prev.filter((i) => !successIds.has(`${i.table}:${i.id}`)));
+      // Si alguna restauración exitosa fue de curso/tenant, cascadeó a hijos que
+      // seguirían apareciendo como filas fantasma → recargar en vez de filtrar ids.
+      const cascaded = results.some(
+        (r) => !r.error && (r.item.table === "courses" || r.item.table === "tenants"),
+      );
       sel.clear();
+      if (cascaded) {
+        void load();
+      } else {
+        setItems((prev) => prev.filter((i) => !successIds.has(`${i.table}:${i.id}`)));
+      }
       if (failed.length === 0) {
         toast.success(
           i18n.t("toast.routes_app_trash.bulkRestoreSuccess", {

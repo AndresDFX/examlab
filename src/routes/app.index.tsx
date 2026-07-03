@@ -5,7 +5,7 @@ import i18n from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { useNotifications } from "@/hooks/use-notifications";
-import { formatDate, formatDateTime } from "@/shared/lib/format";
+import { formatDate, formatDateOnly, formatDateTime } from "@/shared/lib/format";
 import { sessionIsUpcoming } from "@/shared/lib/session-time";
 import { consumeBootLastRoute } from "@/shared/lib/last-route";
 import { supabase } from "@/integrations/supabase/client";
@@ -1129,7 +1129,9 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                 </p>
               ) : (
                 upcomingSessions.map((s: any) => {
-                  const dateLabel = formatDate(s.session_date);
+                  // session_date es DATE (YYYY-MM-DD sin TZ): formatDateOnly ancla a
+                  // mediodía local para evitar el corrimiento UTC -1 día.
+                  const dateLabel = formatDateOnly(s.session_date);
                   const timeLabel = s.start_time ? ` · ${s.start_time.slice(0, 5)}` : "";
                   return (
                     <EventRow

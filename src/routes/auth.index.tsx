@@ -326,7 +326,12 @@ function AuthPage() {
       let targetSlug: string | null;
       if (selectedSlug === SUPERADMIN_CROSS_TENANT) {
         if (!isSuperAdmin) {
-          await supabase.auth.signOut();
+          // scope:"local" — descartar SOLO la sesión recién creada en este
+          // dispositivo. El signOut global revoca los refresh tokens de TODAS
+          // las sesiones del usuario (celular, etc.) — elegir mal la institución
+          // NO debe cerrarle sesión en sus otros dispositivos. Igual patrón que
+          // use-auth.ts e impersonation.ts.
+          await supabase.auth.signOut({ scope: "local" });
           setLoading(false);
           toast.error(
             t("auth.crossTenantOnlySuperAdmin", {
@@ -342,7 +347,7 @@ function AuthPage() {
         // User normal: el tenant elegido DEBE coincidir con su profile.
         const selected = tenants.find((tn) => tn.slug === selectedSlug);
         if (!selected || !userTenantId || selected.id !== userTenantId) {
-          await supabase.auth.signOut();
+          await supabase.auth.signOut({ scope: "local" }); // ver nota arriba
           setLoading(false);
           toast.error(
             t("auth.tenantMismatch", {
@@ -420,7 +425,7 @@ function AuthPage() {
       window.location.href = consumeReturnTo() ?? "/app";
     } catch (err) {
       console.error("[auth] post-login validation failed", err);
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: "local" }); // ver nota arriba
       setLoading(false);
       toast.error(friendlyError(err, "No se pudo validar la sesión"));
     }

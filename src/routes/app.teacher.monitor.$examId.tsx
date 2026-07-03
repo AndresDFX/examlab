@@ -1405,18 +1405,12 @@ function ExamMonitor() {
     Number((exam as any).max_attempts ?? exam.course?.max_exam_attempts ?? 1) || 1,
   );
 
-  // Selecciona el último intento finalizado por estudiante. "Finalizado"
-  // incluye calificado, ai_revisado, entregado, sospechoso, suspendido —
-  // cualquier estado que NO sea en_progreso ni iniciado. El docente puede
-  // querer recalificar incluso un "sospechoso" para regenerar feedback.
-  const FINAL_FOR_REGRADE = new Set([
-    "entregado",
-    "calificado",
-    "ai_revisado",
-    "sospechoso",
-    "suspendido",
-    "requiere_revision",
-  ]);
+  // "Finalizado" para examen = cualquier estado que NO sea en_progreso. El
+  // vocabulario real de la tabla `submissions` es solo `completado`/`sospechoso`
+  // (mig 20260419051958); usamos isFinalStatus (helper único del archivo). El set
+  // previo copiaba estados de talleres/proyectos (entregado/calificado/...) y OMITÍA
+  // `completado` — el estado normal de un examen entregado — dejando muerta la
+  // recalificación batch y la detección de copias para exámenes limpios.
 
   // Detecta si una submission YA tiene feedback que documenta penalidad
   // por uso de IA — en cuyo caso re-escanear con IA es desperdicio de
@@ -1438,7 +1432,7 @@ function ExamMonitor() {
     const targets: Submission[] = [];
     const skipped: Submission[] = [];
     for (const r of studentRows) {
-      if (!r.latest || !FINAL_FOR_REGRADE.has(r.latest.status)) continue;
+      if (!r.latest || !isFinalStatus(r.latest.status)) continue;
       if (opts.skipAiPenalized && submissionHasAiPenaltyFeedback(r.latest)) {
         skipped.push(r.latest);
         continue;

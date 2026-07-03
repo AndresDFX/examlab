@@ -93,12 +93,26 @@ function ResetPasswordPage() {
       body: { token, password },
     });
     setLoading(false);
-    // La edge devuelve 4xx con un "error" string en el body cuando el
-    // token es inválido / expirado / password corta. Lo mapeamos a
-    // mensajes amigables.
+    // La edge devuelve 4xx con un {error} string en el body cuando el token es
+    // inválido/expirado o la password es corta. functions.invoke NO parsea ese
+    // body a `data` en respuestas non-2xx (data queda null) — expone el Response
+    // crudo en error.context. Lo leemos para recuperar el código real; sin esto
+    // `code` era el genérico "Edge Function returned a non-2xx status code" y los
+    // branches token_invalid/token_expired quedaban muertos (nunca cambiaba a la
+    // pantalla de enlace inválido).
     const respError = (data as { error?: string } | null)?.error;
-    if (error || respError) {
-      const code = respError ?? error?.message ?? "";
+    let code = respError ?? "";
+    if (error && !code) {
+      const ctx = (error as { context?: Response }).context;
+      try {
+        const bodyJson = ctx ? await ctx.clone().json() : null;
+        code = (bodyJson as { error?: string } | null)?.error ?? "";
+      } catch {
+        /* body no-JSON */
+      }
+      if (!code) code = error.message ?? "";
+    }
+    if (error || code) {
       if (code === "token_invalid") {
         toast.error(
           t("auth.reset.tokenInvalid", {

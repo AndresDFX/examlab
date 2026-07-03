@@ -543,8 +543,11 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
   // y deshabilita las filas individuales mientras corre.
   const [bulkApplying, setBulkApplying] = useState(false);
 
+  // Devuelve true si la nota se aplicó, false si falló (para que
+  // applyAllInSection cuente fallos correctamente — applyPenalty NUNCA lanza,
+  // así que un try/catch alrededor jamás contaría los fallos).
   const applyPenalty = useCallback(
-    async (userId: string, gradeToApply: number | null) => {
+    async (userId: string, gradeToApply: number | null): Promise<boolean> => {
       const snap = gradesByUser[userId];
       if (!snap) {
         toast.error(
@@ -552,7 +555,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
             defaultValue: "No se encontró la entrega del estudiante",
           }),
         );
-        return;
+        return false;
       }
       if (gradeToApply == null || Number.isNaN(gradeToApply)) {
         toast.error(
@@ -560,7 +563,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
             defaultValue: "Ingresa un valor numérico para la nota",
           }),
         );
-        return;
+        return false;
       }
       // Validación dura: nota dentro del rango permitido por la entrega
       // (0 a maxScore). El docente puede haber editado el input a un
@@ -572,7 +575,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
             max: snap.maxScore,
           }),
         );
-        return;
+        return false;
       }
       setApplying((p) => ({ ...p, [userId]: true }));
       try {
@@ -583,7 +586,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
           .select("id");
         if (error) {
           toast.error(friendlyError(error));
-          return;
+          return false;
         }
         if (!data || (data as unknown as { id: string }[]).length === 0) {
           toast.error(
@@ -592,7 +595,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                 "No se pudo aplicar (sin permisos o la entrega ya no existe). Recarga e intenta de nuevo.",
             }),
           );
-          return;
+          return false;
         }
         setGradesByUser((prev) => ({
           ...prev,
@@ -605,6 +608,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
             grade: gradeToApply.toFixed(2),
           }),
         );
+        return true;
       } finally {
         setApplying((p) => ({ ...p, [userId]: false }));
       }
@@ -653,12 +657,11 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
       let okCount = 0;
       let failCount = 0;
       for (const r of applicable) {
-        try {
-          await applyPenalty(r.userId, r.suggested);
-          okCount += 1;
-        } catch (_) {
-          failCount += 1;
-        }
+        // applyPenalty NUNCA lanza (todas sus rutas de error hacen toast+return
+        // false), así que contamos según su retorno booleano — no por excepción.
+        const applied = await applyPenalty(r.userId, r.suggested);
+        if (applied) okCount += 1;
+        else failCount += 1;
       }
       setBulkApplying(false);
       if (okCount > 0) {

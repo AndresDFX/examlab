@@ -433,8 +433,10 @@ function StudentGrades() {
               };
             } else {
               // Bucket de asistencia con peso > 0 pero sin sesiones
-              // asignadas a este corte: grade=null. computeWeightedGrade
-              // ignora null sin reescalar pesos vecinos.
+              // asignadas a este corte: grade=null. OJO: computeWeightedGrade
+              // NO ignora los null — los cuenta como 0 con su peso completo.
+              // Por eso el memo de finalGrade SALTA explícitamente este item
+              // (kind attendance + grade null), espejando al gradebook docente.
               attItem = {
                 id: `attendance-${cut.id}`,
                 title: i18n.t("studentGrades.attendanceNoSessions"),
@@ -509,6 +511,14 @@ function StudentGrades() {
     const items: { score: number | null; weight: number }[] = [];
     for (const cb of cutsBreakdown) {
       for (const it of cb.items) {
+        // Asistencia de un corte SIN sesiones asignadas (grade=null) NO es "nota
+        // perdida": el gradebook docente la OMITE (gradebook.tsx:1012) y el
+        // certificado se emite con ese consolidado. computeWeightedGrade NO ignora
+        // los null — los cuenta como 0 con su peso completo — así que incluirla
+        // deflactaría la nota del estudiante vs su certificado (rompe la paridad
+        // docente↔estudiante↔certificado). Los demás null (examen/taller/proyecto)
+        // SÍ cuentan como 0 (nota perdida), igual que el docente → no se saltan.
+        if (it.kind === "attendance" && it.grade == null) continue;
         items.push({ score: it.grade, weight: it.weight ?? 1 });
       }
     }

@@ -742,15 +742,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   /**
    * Handler unificado del Select de rol (desktop + mobile drawer).
-   * Cuando el usuario cambia explícitamente a SuperAdmin, limpiamos
-   * cualquier `examlab_tenant_override` que pudo quedar en localStorage
-   * de un "Ver como X" anterior — sin esto, `useTenant()` seguía
-   * resolviendo al tenant del override y el branding (logo + colores)
-   * persistía aunque el rol activo fuera SuperAdmin.
+   * En CUALQUIER cambio de rol limpiamos el `examlab_tenant_override` que pudo
+   * quedar de un "Ver como X" anterior. El override es un concepto EXCLUSIVO del
+   * modo SuperAdmin activo (solo se setea deliberadamente desde el botón "Ver
+   * como" del panel SA); antes solo se limpiaba al ENTRAR a SuperAdmin, así que
+   * al SALIR hacia Admin/Docente el override sobrevivía y `useTenant()` (que lo
+   * gatea por rol POSEÍDO, no activo) seguía resolviendo al tenant X — branding y
+   * contexto equivocados para un usuario multi-rol SuperAdmin+Admin.
    */
   const handleRoleChange = (v: string) => {
     setActiveRole(v as AppRole);
-    if (v === "SuperAdmin") setTenantOverride(null);
+    setTenantOverride(null);
     navigate({ to: "/app" });
   };
 

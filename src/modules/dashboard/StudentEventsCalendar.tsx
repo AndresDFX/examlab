@@ -46,7 +46,7 @@ import {
   CheckCircle2,
   Lock,
 } from "lucide-react";
-import { formatDate } from "@/shared/lib/format";
+import { formatDate, formatDateOnly } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -792,7 +792,9 @@ function DayCell({
       </PopoverTrigger>
       <PopoverContent align="center" className="w-72 p-3 space-y-2">
         <div className="text-xs font-medium text-muted-foreground">
-          {formatDate(events[0].date)}
+          {/* events[].date es YYYY-MM-DD (DATE sin TZ): formatDateOnly ancla a
+              mediodía local para evitar el corrimiento UTC -1 día. */}
+          {formatDateOnly(events[0].date)}
         </div>
         <ul className="space-y-1.5">
           {events.map((e) => {
