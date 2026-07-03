@@ -31,7 +31,7 @@ describe("combineFilesForExec", () => {
     expect(out).toBe("print(1)");
   });
 
-  it("python multi-archivo: concatena con encabezado por archivo", () => {
+  it("python multi-archivo: encabezado con `#` (no `//`, que es SyntaxError en Python)", () => {
     const out = combineFilesForExec(
       [
         { filename: "a.py", content: "import b" },
@@ -39,7 +39,19 @@ describe("combineFilesForExec", () => {
       ],
       "python",
     );
-    expect(out).toBe("// ─── a.py ───\nimport b\n\n// ─── b.py ───\ndef f(): pass");
+    expect(out).toBe("# ─── a.py ───\nimport b\n\n# ─── b.py ───\ndef f(): pass");
+    expect(out).not.toContain("//");
+  });
+
+  it("javascript multi-archivo: mantiene encabezado con `//`", () => {
+    const out = combineFilesForExec(
+      [
+        { filename: "a.js", content: "const x = 1;" },
+        { filename: "b.js", content: "const y = 2;" },
+      ],
+      "javascript",
+    );
+    expect(out).toBe("// ─── a.js ───\nconst x = 1;\n\n// ─── b.js ───\nconst y = 2;");
   });
 
   it("java multi-archivo: pone primero la clase con main y degrada public en secundarios", () => {

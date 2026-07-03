@@ -55,6 +55,9 @@ export function combineFilesForExec(files: ExecFile[], language: string): string
     return parts.join("\n\n");
   }
 
-  // Lenguajes script: concatenación con encabezado por archivo.
-  return list.map((f) => `// ─── ${f.filename} ───\n${f.content}`).join("\n\n");
+  // Lenguajes script: concatenación con encabezado por archivo. El marcador de
+  // comentario depende del lenguaje: `//` en Python es división entera (no
+  // comentario) → una línea que empieza con `//` es SyntaxError. Usar `#`.
+  const commentPrefix = language === "python" ? "#" : "//";
+  return list.map((f) => `${commentPrefix} ─── ${f.filename} ───\n${f.content}`).join("\n\n");
 }

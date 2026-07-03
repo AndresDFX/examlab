@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { rows, allowExisting } = await req.json();
+    const { rows, allowExisting, tenantId: bodyTenantId } = await req.json();
     if (!Array.isArray(rows)) throw new Error("rows[] requerido");
 
     // Pre-fetch all auth users once for O(1) duplicate lookups
@@ -78,12 +78,29 @@ Deno.serve(async (req) => {
       .maybeSingle();
     const callerTenantId = callerProfile?.tenant_id as string | null;
 
+    // Tenant DESTINO del import. El SuperAdmin (tenant_id NULL) puede importar a
+    // un tenant específico elegido en el filtro de institución del UI (bodyTenantId);
+    // sin esto, courseNameToId quedaba vacío (callerTenantId NULL) → toda fila con
+    // course_name se rechazaba, y el profile importado quedaba sin institución.
+    // Autorización del destino: SA a cualquiera; Admin solo a SU propio tenant.
+    let effectiveTenantId = callerTenantId;
+    if (bodyTenantId && typeof bodyTenantId === "string") {
+      if (callerIsSuperAdmin || (callerIsAdmin && bodyTenantId === callerTenantId)) {
+        effectiveTenantId = bodyTenantId;
+      } else {
+        return new Response(
+          JSON.stringify({ error: "No autorizado para importar a esa institución" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
     const courseNameToId = new Map<string, string>();
-    if (callerTenantId) {
+    if (effectiveTenantId) {
       const { data: coursesList } = await adminClient
         .from("courses")
         .select("id, name")
-        .eq("tenant_id", callerTenantId)
+        .eq("tenant_id", effectiveTenantId)
         .is("deleted_at", null);
       for (const c of (coursesList ?? []) as Array<{ id: string; name: string }>) {
         courseNameToId.set(c.name.trim().toLowerCase(), c.id);
@@ -398,7 +415,7 @@ Deno.serve(async (req) => {
           // el quota trigger de user_roles lee profiles.tenant_id.
           {
             const newUserPatch: Record<string, unknown> = {};
-            if (callerTenantId) newUserPatch.tenant_id = callerTenantId;
+            if (effectiveTenantId) newUserPatch.tenant_id = effectiveTenantId;
             if (mustChange) newUserPatch.must_change_password = true;
             if (Object.keys(newUserPatch).length > 0) {
               const { error: patchErr } = await adminClient
@@ -429,7 +446,7 @@ Deno.serve(async (req) => {
               .upsert(
                 {
                   user_id: userId,
-                  tenant_id: callerTenantId,
+                  tenant_id: effectiveTenantId,
                   password: password || "Cambiar#123",
                   set_by: u.user.id,
                 },
@@ -698,7 +715,7 @@ Deno.serve(async (req) => {
           // del tenant destino, no solo en el panel del SA. Pasamos
           // explícito `tenantId: callerTenantId` (calculado al inicio
           // de la edge desde el profile o el override del SA).
-          tenantId: callerTenantId,
+          tenantId: effectiveTenantId,
           action: "user.bulk_import_row_failed",
           category: "user",
           severity: "error",
@@ -738,7 +755,7 @@ Deno.serve(async (req) => {
     const failed = result.filter((r) => !r.ok).length;
     void auditFromEdge(adminClient, {
       actorId: u.user.id,
-      tenantId: callerTenantId,
+      tenantId: effectiveTenantId,
       action: "user.bulk_imported",
       category: "user",
       severity: "warning",

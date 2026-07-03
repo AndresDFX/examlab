@@ -374,6 +374,23 @@ async function resolveSystemPrompt(
     }
     const { data, error } = await q;
     if (error || !data || data.length === 0) return fallback;
+    // Scope de tenant (adminClient bypasea RLS): la capa "tenant global"
+    // (course_id NULL, tenant_id != NULL) debe matchear SOLO el tenant del curso.
+    // Sin esto, el prompt global de OTRO tenant (rank 2) podía usarse para
+    // calificar entregas de este curso. Resolvemos el tenant del curso 1 vez.
+    let courseTenantId: string | null = null;
+    if (courseId && isUuid(courseId)) {
+      const { data: c } = await adminClient
+        .from("courses")
+        .select("tenant_id")
+        .eq("id", courseId)
+        .maybeSingle();
+      courseTenantId = (c as { tenant_id?: string | null } | null)?.tenant_id ?? null;
+    }
+    const scoped = data.filter(
+      (r) => (courseId && r.course_id === courseId) || r.tenant_id === courseTenantId || r.tenant_id === null,
+    );
+    if (scoped.length === 0) return fallback;
     // Ranking: course override (3) > tenant global (2) > platform
     // default (1). Tomamos la fila con mejor ranking.
     const rank = (row: { course_id: string | null; tenant_id: string | null }): number => {
@@ -381,7 +398,7 @@ async function resolveSystemPrompt(
       if (row.tenant_id) return 2;
       return 1;
     };
-    const sorted = [...data].sort((a, b) => rank(b) - rank(a));
+    const sorted = [...scoped].sort((a, b) => rank(b) - rank(a));
     return sorted[0]?.system_prompt || fallback;
   } catch (e) {
     console.warn("[ai_prompts] resolve failed, using fallback:", e);

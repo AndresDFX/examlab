@@ -304,7 +304,10 @@ async function callAi(messages: Array<{ role: string; content: string }>) {
 // `admin` bypasea RLS, así que traemos TODAS las filas potencialmente
 // relevantes y rankeamos en JS (PostgREST no ordena null-last sobre
 // multi-columna de forma directa, y el ranking es de 3 niveles).
-async function resolveTutorTemplate(courseId: string): Promise<string> {
+async function resolveTutorTemplate(
+  courseId: string,
+  courseTenantId: string | null,
+): Promise<string> {
   const isUuid = (s: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
   let q = admin
@@ -320,12 +323,19 @@ async function resolveTutorTemplate(courseId: string): Promise<string> {
   }
   const { data, error } = await q;
   if (error || !data || data.length === 0) return FALLBACK_TEMPLATE;
+  // Scope de tenant (admin bypasea RLS): la capa "tenant global" (course_id NULL,
+  // tenant_id != NULL) debe matchear SOLO el tenant del curso. Sin esto, el prompt
+  // global de OTRO tenant (rank 2) podía servirse al tutor de este curso.
+  const scoped = data.filter(
+    (r) => r.course_id === courseId || r.tenant_id === courseTenantId || r.tenant_id === null,
+  );
+  if (scoped.length === 0) return FALLBACK_TEMPLATE;
   const rank = (row: { course_id: string | null; tenant_id: string | null }): number => {
     if (row.course_id) return 3;
     if (row.tenant_id) return 2;
     return 1;
   };
-  const sorted = [...data].sort((a, b) => rank(b) - rank(a));
+  const sorted = [...scoped].sort((a, b) => rank(b) - rank(a));
   return sorted[0]?.system_prompt || FALLBACK_TEMPLATE;
 }
 
@@ -387,7 +397,7 @@ Deno.serve(async (req) => {
     // Cargar contexto del curso
     const { data: course } = await admin
       .from("courses")
-      .select("name, description")
+      .select("name, description, tenant_id")
       .eq("id", session.course_id)
       .maybeSingle();
 
@@ -432,7 +442,10 @@ Deno.serve(async (req) => {
     }).format(new Date());
 
     // Construir prompt
-    const template = await resolveTutorTemplate(session.course_id);
+    const template = await resolveTutorTemplate(
+      session.course_id,
+      (course as { tenant_id?: string | null } | null)?.tenant_id ?? null,
+    );
     const systemPrompt = buildTutorSystemPrompt({
       template,
       courseName: course?.name ?? "el curso",

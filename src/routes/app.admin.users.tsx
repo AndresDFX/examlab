@@ -1011,6 +1011,12 @@ function AdminUsers() {
         }
         const { data, error } = await supabase.functions.invoke("bulk-import-users", {
           body: {
+            // SuperAdmin creando en una institución específica (filtro activo):
+            // la edge resuelve curso + asigna tenant contra ESE tenant destino.
+            tenantId:
+              isSuperAdminCaller && tenantFilter !== "all" && tenantFilter !== "none"
+                ? tenantFilter
+                : undefined,
             rows: [
               {
                 full_name: editing.full_name,
@@ -1335,7 +1341,16 @@ function AdminUsers() {
         for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
           const chunk = rows.slice(i, i + CHUNK_SIZE);
           const { data, error } = await supabase.functions.invoke("bulk-import-users", {
-            body: { rows: chunk },
+            body: {
+              rows: chunk,
+              // SuperAdmin importando a una institución específica (filtro activo):
+              // sin esto, callerTenantId=NULL → cursos no resuelven y los usuarios
+              // quedaban sin institución.
+              tenantId:
+                isSuperAdminCaller && tenantFilter !== "all" && tenantFilter !== "none"
+                  ? tenantFilter
+                  : undefined,
+            },
           });
           if (error) {
             // El chunk falló (timeout/red): marcamos sus filas como error y

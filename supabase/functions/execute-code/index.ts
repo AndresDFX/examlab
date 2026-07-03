@@ -95,8 +95,12 @@ function combineFiles(files: CodeFile[], language: string): string {
     return parts.join("\n\n");
   }
 
-  // Lenguajes script: concatenación con encabezado por archivo.
-  return list.map((f) => `// ─── ${f.filename} ───\n${f.content}`).join("\n\n");
+  // Lenguajes script: concatenación con encabezado por archivo. El marcador de
+  // comentario depende del lenguaje: `//` en Python es división entera (no
+  // comentario) → una línea que empieza con `//` es SyntaxError. Usar `#`.
+  // INVARIANTE: idéntico a combine-files.ts del cliente (ver CLAUDE.md).
+  const commentPrefix = language === "python" ? "#" : "//";
+  return list.map((f) => `${commentPrefix} ─── ${f.filename} ───\n${f.content}`).join("\n\n");
 }
 
 /** Providers válidos para el override del cliente. Debe coincidir con
@@ -607,10 +611,16 @@ Deno.serve(async (req) => {
           ? await executeWithAwsLambda(sourceCode, language, stdin)
           : await executeWithOnlineCompiler(sourceCode, language, stdin);
 
-    // Persistir ejecución
-    await admin.from("code_executions").insert({
+    // Persistir ejecución. question_id es FK a questions(id): SOLO el flujo de
+    // EXAMEN pasa un questions.id genuino (y siempre trae submissionId). Los
+    // runners de snippet de sesión / contenido / notebook pasan un id que NO es
+    // de questions (o undefined) → enlazar question_id ahí violaba el FK/NOT NULL
+    // y la ejecución nunca se persistía (falla silenciosa). Solo lo enlazamos
+    // cuando hay submissionId (examen); si no, queda NULL (columna nullable tras
+    // la migración de code_executions).
+    const { error: insErr } = await admin.from("code_executions").insert({
       submission_id: submissionId || null,
-      question_id: questionId,
+      question_id: submissionId ? questionId : null,
       user_id: u.user.id,
       language,
       source_code: sourceCode,
@@ -621,6 +631,16 @@ Deno.serve(async (req) => {
       execution_time_ms: result.executionTimeMs,
       status: result.exitCode === 0 ? "completed" : "error",
     });
+    if (insErr) {
+      void auditFromEdge(admin, {
+        actorId: u.user.id,
+        action: "code.execution_persist_failed",
+        category: "system",
+        severity: "warning",
+        entityType: "code_execution",
+        metadata: { ...requestContext, error: insErr.message },
+      });
+    }
 
     // Audit de éxito (info — para historial general)
     void auditFromEdge(admin, {

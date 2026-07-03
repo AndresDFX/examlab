@@ -148,7 +148,10 @@ Deno.serve(async (req: Request) => {
   }
 
   const [coursesRes, sessionsRes] = await Promise.all([
-    adminClient.from("courses").select("id, name").in("id", courseIds),
+    // Papelera: excluir cursos en soft-delete. Una sesión cuyo curso está en
+    // papelera (borrado sin cascada → la sesión queda con deleted_at NULL) NO
+    // debe exportarse. Abajo se saltan las sesiones cuyo curso no esté en el mapa.
+    adminClient.from("courses").select("id, name").in("id", courseIds).is("deleted_at", null),
     adminClient
       .from("attendance_sessions")
       .select("id, course_id, session_date, start_time, duration_minutes, title, meeting_url")
@@ -188,6 +191,8 @@ Deno.serve(async (req: Request) => {
   ];
 
   for (const s of sessions) {
+    // Curso en papelera (no está en el mapa filtrado por deleted_at) → no exportar.
+    if (!courseById.has(s.course_id)) continue;
     const start = toIcsTime(s.session_date, s.start_time);
     // Construye la fecha de inicio con la MISMA lógica que toIcsTime
     // para que start + duración produzcan un end consistente. Si la
