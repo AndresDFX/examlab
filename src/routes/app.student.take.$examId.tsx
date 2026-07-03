@@ -827,13 +827,21 @@ function TakeExam() {
   // Persistir respuestas inmediatamente (autosave, entrega, tiempo agotado)
   const saveAnswersNow = useCallback(async () => {
     if (!submissionIdRef.current) return;
+    // __saved_at: marca de versión del CONTENIDO de las respuestas. Se escribe
+    // IDÉNTICA en el server y en el snapshot local, así el sync offline puede
+    // descartar un pending rezagado cuando el server tiene answers más nuevas de
+    // la MISMA sesión (student siguió trabajando online). Es inmune a extra_seconds
+    // (que bumpea updated_at pero NO answers.__saved_at).
+    const savedAt = Date.now();
     const currentAnswers = {
       ...answersRef.current,
       // Persistimos el índice de la pregunta visible para que el
       // monitor del docente pueda mostrar "Pregunta X de Y" en tiempo
       // real para los intentos en curso (vía postgres_changes).
       __current_idx: currentIdxRef.current,
+      __saved_at: savedAt,
     };
+    answersRef.current = currentAnswers;
     const currentWarnings = warningsRef.current;
     if (isOnline()) {
       await supabase
@@ -845,7 +853,7 @@ function TakeExam() {
       submissionId: submissionIdRef.current,
       answers: currentAnswers,
       warnings: currentWarnings,
-      timestamp: Date.now(),
+      timestamp: savedAt,
     });
   }, [examId]);
 
@@ -1249,6 +1257,9 @@ function TakeExam() {
       const updatedAnswers = {
         ...answersRef.current,
         __warning_events: warningEventsRef.current,
+        // Avanza la marca de versión de answers (ver saveAnswersNow) para que un
+        // sync offline rezagado no pise esta escritura del server.
+        __saved_at: Date.now(),
       };
       answersRef.current = updatedAnswers;
       setAnswers(updatedAnswers);
@@ -1321,6 +1332,9 @@ function TakeExam() {
       const updatedAnswers = {
         ...answersRef.current,
         __warning_events: warningEventsRef.current,
+        // Avanza la marca de versión de answers (ver saveAnswersNow) para que un
+        // sync offline rezagado no pise esta escritura del server.
+        __saved_at: Date.now(),
       };
       answersRef.current = updatedAnswers;
       setAnswers(updatedAnswers);
@@ -1370,6 +1384,9 @@ function TakeExam() {
       const updatedAnswers = {
         ...answersRef.current,
         __warning_events: warningEventsRef.current,
+        // Avanza la marca de versión de answers (ver saveAnswersNow) para que un
+        // sync offline rezagado no pise esta escritura del server.
+        __saved_at: Date.now(),
       };
       answersRef.current = updatedAnswers;
       setAnswers(updatedAnswers);

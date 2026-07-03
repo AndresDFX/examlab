@@ -104,9 +104,24 @@ export async function syncPendingAnswers(): Promise<number> {
         .select("answers")
         .eq("id", data.submissionId)
         .maybeSingle();
-      const serverSession = (serverRow?.answers as Record<string, unknown> | null)?.__session_id;
-      const localSession = (data.answers as Record<string, unknown> | null)?.__session_id;
+      const serverAnswers = serverRow?.answers as Record<string, unknown> | null;
+      const localAnswers = data.answers as Record<string, unknown> | null;
+      const serverSession = serverAnswers?.__session_id;
+      const localSession = localAnswers?.__session_id;
       if (serverSession && localSession && serverSession !== localSession) {
+        await clearLocalAnswers(examId);
+        continue;
+      }
+      // Guard de FRESCURA: no pisar answers del server MÁS NUEVAS con un pending
+      // local rezagado de la MISMA sesión (el alumno siguió trabajando online tras
+      // el snapshot offline). __saved_at se escribe idéntico en server+local en
+      // cada autosave/evento; si el server es >= al local, ya tiene esto o algo más
+      // nuevo → descartamos el pending sin sobreescribir. Inmune a extra_seconds
+      // (que NO toca answers.__saved_at). Solo aplica cuando ambos lo tienen; si
+      // falta (entregas viejas), caemos al comportamiento previo.
+      const serverSavedAt = Number(serverAnswers?.__saved_at ?? 0);
+      const localSavedAt = Number(localAnswers?.__saved_at ?? 0);
+      if (serverSavedAt > 0 && localSavedAt > 0 && serverSavedAt >= localSavedAt) {
         await clearLocalAnswers(examId);
         continue;
       }
