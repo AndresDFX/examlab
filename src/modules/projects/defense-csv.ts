@@ -13,8 +13,10 @@
  * - `student_email`     OBLIGATORIO. Cualquier formato email básico
  *                       (matcheamos contra `profiles.institutional_email`
  *                       en el caller; el parser solo valida shape).
- * - `defense_factor`    OBLIGATORIO. Número 0..1 (inclusive). Acepta
- *                       coma decimal `0,8` y punto `0.8` (es-CO).
+ * - `defense_factor`    OBLIGATORIO. Número 0..1 (inclusive). El separador
+ *                       decimal DEBE ser PUNTO (`0.8`) — la coma es el
+ *                       delimitador de columnas del CSV, así que `0,8` partiría
+ *                       la fila en 2 columnas y desalinearía todo.
  * - `defense_notes`     OPCIONAL. <= 2000 chars. Si excede → error
  *                       (no truncamos en silencio para que el docente
  *                       sepa que su nota fue cortada).
@@ -27,13 +29,14 @@
  *     ANTES de pegarle a la DB.
  *   - El parser no decide qué hacer con los emails: solo valida shape.
  *     El caller resuelve email → profile.id → submission.
- *   - Aceptamos coma decimal porque la UI usa `DecimalInput` con coma —
- *     un docente que copie pega de Excel-es va a tener "0,8".
+ *   - El separador decimal del CSV es PUNTO. La coma es el delimitador de
+ *     columnas — `0,8` rompería la fila. El guard de conteo de columnas del
+ *     caller rechaza filas desalineadas (ej. si alguien pega "0,8" desde Excel-es).
  */
 
 /** Header + filas demo del template descargable. */
 export const DEFENSES_TEMPLATE = `student_email,defense_factor,defense_notes,defense_video_url
-alumno1@correo.edu.co,0,8,Defendió bien la arquitectura y respondió todas las preguntas,https://drive.google.com/file/d/xxxx/view
+alumno1@correo.edu.co,0.8,Defendió bien la arquitectura y respondió todas las preguntas,https://drive.google.com/file/d/xxxx/view
 alumno2@correo.edu.co,1,Sustentación impecable,
 alumno3@correo.edu.co,0.5,Confundió algunos conceptos clave,`;
 

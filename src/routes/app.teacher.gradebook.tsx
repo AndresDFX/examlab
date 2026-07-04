@@ -135,6 +135,7 @@ type AttRecord = { session_id: string; user_id: string; status: string };
 type ProjectSub = {
   project_id: string;
   user_id: string;
+  group_id: string | null;
   ai_grade: number | null;
   final_grade: number | null;
   status: string;
@@ -159,6 +160,7 @@ type WsSub = {
   id: string;
   workshop_id: string;
   user_id: string;
+  group_id: string | null;
   ai_grade: number | null;
   final_grade: number | null;
   status: string;
@@ -203,6 +205,11 @@ function Gradebook() {
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectSubs, setProjectSubs] = useState<ProjectSub[]>([]);
+  // Membresía de grupo por usuario (taller/proyecto): userId → set de group_ids.
+  // Necesario porque una entrega grupal tiene user_id = solo el "último editor";
+  // los demás miembros se resuelven por su pertenencia al group_id de la submission.
+  const [wsGroupsByUser, setWsGroupsByUser] = useState<Map<string, Set<string>>>(new Map());
+  const [prjGroupsByUser, setPrjGroupsByUser] = useState<Map<string, Set<string>>>(new Map());
   const [attSessions, setAttSessions] = useState<AttSession[]>([]);
   const [attRecords, setAttRecords] = useState<AttRecord[]>([]);
   const [edits, setEdits] = useState<EditMap>({});
@@ -427,11 +434,30 @@ function Gradebook() {
     if (wsIds.length) {
       const { data: ws } = await supabase
         .from("workshop_submissions")
-        .select("id, workshop_id, user_id, ai_grade, final_grade, status")
+        .select("id, workshop_id, user_id, group_id, ai_grade, final_grade, status")
         .in("workshop_id", wsIds);
       setWsSubs((ws ?? []) as WsSub[]);
+      // Membresía de grupos de estos talleres → userId → set(group_id).
+      const wsMap = new Map<string, Set<string>>();
+      const { data: wgroups } = await (supabase as any)
+        .from("workshop_groups")
+        .select("id")
+        .in("workshop_id", wsIds);
+      const wgIds = ((wgroups ?? []) as Array<{ id: string }>).map((g) => g.id);
+      if (wgIds.length) {
+        const { data: wmembers } = await (supabase as any)
+          .from("workshop_group_members")
+          .select("group_id, user_id")
+          .in("group_id", wgIds);
+        for (const m of (wmembers ?? []) as Array<{ group_id: string; user_id: string }>) {
+          if (!wsMap.has(m.user_id)) wsMap.set(m.user_id, new Set());
+          wsMap.get(m.user_id)!.add(m.group_id);
+        }
+      }
+      setWsGroupsByUser(wsMap);
     } else {
       setWsSubs([]);
+      setWsGroupsByUser(new Map());
     }
 
     // Project submissions (todos los estudiantes)
@@ -439,11 +465,29 @@ function Gradebook() {
     if (prjIds.length && userIds.length) {
       const { data: ps } = await db
         .from("project_submissions")
-        .select("project_id, user_id, ai_grade, final_grade, status")
+        .select("project_id, user_id, group_id, ai_grade, final_grade, status")
         .in("project_id", prjIds);
       setProjectSubs((ps ?? []) as ProjectSub[]);
+      const prjMap = new Map<string, Set<string>>();
+      const { data: pgroups } = await (db as any)
+        .from("project_groups")
+        .select("id")
+        .in("project_id", prjIds);
+      const pgIds = ((pgroups ?? []) as Array<{ id: string }>).map((g) => g.id);
+      if (pgIds.length) {
+        const { data: pmembers } = await (db as any)
+          .from("project_group_members")
+          .select("group_id, user_id")
+          .in("group_id", pgIds);
+        for (const m of (pmembers ?? []) as Array<{ group_id: string; user_id: string }>) {
+          if (!prjMap.has(m.user_id)) prjMap.set(m.user_id, new Set());
+          prjMap.get(m.user_id)!.add(m.group_id);
+        }
+      }
+      setPrjGroupsByUser(prjMap);
     } else {
       setProjectSubs([]);
+      setPrjGroupsByUser(new Map());
     }
 
     // Attendance records (todas las sesiones del curso)
@@ -504,7 +548,12 @@ function Gradebook() {
       }
       return { grade: null, isMakeup: false };
     } else if (col.kind === "workshop") {
-      const sub = wsSubs.find((s) => s.user_id === studentId && s.workshop_id === col.id);
+      const sub = wsSubs.find(
+        (s) =>
+          s.workshop_id === col.id &&
+          (s.user_id === studentId ||
+            (!!s.group_id && !!wsGroupsByUser.get(studentId)?.has(s.group_id))),
+      );
       if (sub)
         return {
           grade: sub.final_grade ?? sub.ai_grade,
@@ -515,7 +564,12 @@ function Gradebook() {
       return { grade: null, isMakeup: false };
     } else {
       // project
-      const sub = projectSubs.find((s) => s.user_id === studentId && s.project_id === col.id);
+      const sub = projectSubs.find(
+        (s) =>
+          s.project_id === col.id &&
+          (s.user_id === studentId ||
+            (!!s.group_id && !!prjGroupsByUser.get(studentId)?.has(s.group_id))),
+      );
       if (sub)
         return {
           grade: sub.final_grade ?? sub.ai_grade,
@@ -977,7 +1031,12 @@ function Gradebook() {
       // Workshops — para is_external la nota está en escala del curso
       // (la captura ExternalGradesEditor con cap = grade_scale_max).
       for (const w of allWorkshops) {
-        const sub = wsSubs.find((s) => s.user_id === stu.id && s.workshop_id === w.id);
+        const sub = wsSubs.find(
+          (s) =>
+            s.workshop_id === w.id &&
+            (s.user_id === stu.id ||
+              (!!s.group_id && !!wsGroupsByUser.get(stu.id)?.has(s.group_id))),
+        );
         const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
         const wMax = w.is_external ? max : (w.max_score ?? 100);
         allItems.push({
@@ -989,7 +1048,12 @@ function Gradebook() {
 
       // Projects — misma regla que workshops para is_external.
       for (const p of projects) {
-        const sub = projectSubs.find((s) => s.user_id === stu.id && s.project_id === p.id);
+        const sub = projectSubs.find(
+          (s) =>
+            s.project_id === p.id &&
+            (s.user_id === stu.id ||
+              (!!s.group_id && !!prjGroupsByUser.get(stu.id)?.has(s.group_id))),
+        );
         const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
         const pMax = p.is_external ? max : (p.max_score ?? 100);
         allItems.push({

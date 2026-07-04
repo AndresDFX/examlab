@@ -194,14 +194,14 @@ function StudentGrades() {
           // el join (workshop_courses no tiene status). Espejo de flatProjects.
           db
             .from("workshop_courses")
-            .select("cut_id, weight, workshop:workshops(id, title, max_score, is_external, status, deleted_at)")
+            .select("cut_id, weight, workshop:workshops(id, title, max_score, is_external, status, deleted_at, group_mode)")
             .eq("course_id", courseId),
           // Proyectos via project_courses para incluir secundarios y usar
           // cut_id/weight por curso. El filtro de draft se aplica abajo
           // sobre el join (project_courses no tiene status).
           db
             .from("project_courses")
-            .select("cut_id, weight, project:projects(id, title, max_score, is_external, status, deleted_at)")
+            .select("cut_id, weight, project:projects(id, title, max_score, is_external, status, deleted_at, group_mode)")
             .eq("course_id", courseId),
           db
             .from("attendance_sessions")
@@ -229,6 +229,9 @@ function StudentGrades() {
             weight: wc.weight ?? 1,
           }));
         const wsIds = flatWorkshops.map((w: { id: string }) => w.id);
+        const groupWsIds = flatWorkshops
+          .filter((w: any) => (w.group_mode ?? "individual") !== "individual")
+          .map((w: { id: string }) => w.id);
         // Flatten project_courses rows → per-course cut_id/weight override.
         // Excluimos drafts: si el proyecto está en borrador no debe pesar
         // todavía en la nota del estudiante.
@@ -243,10 +246,17 @@ function StudentGrades() {
             weight: pc.weight ?? 1,
           }));
         const prjIds = flatProjects.map((p: { id: string }) => p.id);
+        const groupPrjIds = flatProjects
+          .filter((p: any) => (p.group_mode ?? "individual") !== "individual")
+          .map((p: { id: string }) => p.id);
         const sessIds = ((sessions ?? []) as { id: string }[]).map((s) => s.id);
 
-        const [{ data: examSubs }, { data: wsSubs }, { data: prjSubs }, { data: attRecords }] =
-          await Promise.all([
+        const [
+          { data: examSubs },
+          { data: wsSubsIndiv },
+          { data: prjSubsIndiv },
+          { data: attRecords },
+        ] = await Promise.all([
             examIds.length
               ? supabase
                   .from("submissions")
@@ -276,6 +286,56 @@ function StudentGrades() {
                   .eq("user_id", user.id)
               : Promise.resolve({ data: [] as any[] }),
           ]);
+
+        // Trabajo en grupo: la entrega grupal tiene user_id = solo el "último
+        // editor", así que la query por user_id de arriba NO trae la nota para los
+        // demás miembros → su taller/proyecto grupal contaba como 0 en la nota final.
+        // Traemos las entregas por group_id de los grupos a los que pertenece el
+        // alumno y las fusionamos (la grupal PRECEDE a cualquier individual del
+        // mismo item, espejo del acta). Solo corre si hay items en modo grupo.
+        const fetchGroupSubs = async (
+          groupItemIds: string[],
+          groupsTable: string,
+          membersTable: string,
+          subsTable: string,
+          fkCol: string,
+        ): Promise<any[]> => {
+          if (!groupItemIds.length) return [];
+          const { data: groups } = await (db as any)
+            .from(groupsTable)
+            .select("id")
+            .in(fkCol, groupItemIds);
+          const gIds = ((groups ?? []) as Array<{ id: string }>).map((g) => g.id);
+          if (!gIds.length) return [];
+          const { data: mem } = await (db as any)
+            .from(membersTable)
+            .select("group_id")
+            .in("group_id", gIds)
+            .eq("user_id", user.id);
+          const myGIds = ((mem ?? []) as Array<{ group_id: string }>).map((m) => m.group_id);
+          if (!myGIds.length) return [];
+          const { data: gsubs } = await (db as any)
+            .from(subsTable)
+            .select(`${fkCol}, group_id, ai_grade, final_grade, status`)
+            .in("group_id", myGIds);
+          return (gsubs ?? []) as any[];
+        };
+        const [wsGroupSubs, prjGroupSubs] = await Promise.all([
+          fetchGroupSubs(groupWsIds, "workshop_groups", "workshop_group_members", "workshop_submissions", "workshop_id"),
+          fetchGroupSubs(groupPrjIds, "project_groups", "project_group_members", "project_submissions", "project_id"),
+        ]);
+        const wsSubs = [
+          ...wsGroupSubs,
+          ...((wsSubsIndiv ?? []) as any[]).filter(
+            (s) => !wsGroupSubs.some((g) => g.workshop_id === s.workshop_id),
+          ),
+        ];
+        const prjSubs = [
+          ...prjGroupSubs,
+          ...((prjSubsIndiv ?? []) as any[]).filter(
+            (s) => !prjGroupSubs.some((g) => g.project_id === s.project_id),
+          ),
+        ];
 
         // Helper: escala una calificación raw (0..max) a la escala del curso.
         const toScale = (raw: number, max: number) => {

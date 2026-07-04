@@ -29,9 +29,11 @@ describe("DEFENSES_TEMPLATE", () => {
     expect(header).toBe(DEFENSES_CSV_COLUMNS.join(","));
   });
 
-  it("incluye filas demo con factor en formato coma Y punto", () => {
-    expect(DEFENSES_TEMPLATE).toContain("0,8");
+  it("usa PUNTO decimal en el factor (la coma es delimitador del CSV, 0,8 desalinearía)", () => {
+    expect(DEFENSES_TEMPLATE).toContain("0.8");
     expect(DEFENSES_TEMPLATE).toContain("0.5");
+    // El template NO debe traer coma decimal en el factor demo.
+    expect(DEFENSES_TEMPLATE).not.toContain("0,8");
   });
 
   it("expone las 4 columnas esperadas", () => {

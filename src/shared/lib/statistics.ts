@@ -111,8 +111,12 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
     // en borrador todavía no se considera parte del progreso del curso.
     // Closed sí cuenta — fue una actividad real que se cerró.
     supabase
+      // `exams` NO tiene columna max_score (a diferencia de workshops/projects):
+      // seleccionarla daba PostgREST 400 → TODOS los exámenes desaparecían de las
+      // estadísticas en silencio. Las notas de examen ya están en la escala del
+      // curso, así que abajo fijamos max_score = grade_scale_max (reescalado identidad).
       .from("exams")
-      .select("id, course_id, cut_id, max_score, is_external, status")
+      .select("id, course_id, cut_id, is_external, status")
       .eq("course_id", courseId)
       .neq("status", "draft")
       .is("deleted_at", null),
@@ -229,7 +233,9 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
         ref_id: String(s.exam_id),
         course_id: parent?.course_id ?? courseId,
         cut_id: parent?.cut_id ?? null,
-        max_score: Number(parent?.max_score ?? 100),
+        // Examen no tiene max_score propio; su nota ya está en la escala del curso.
+        // Fijar a grade_scale_max hace que el reescalado (g/max)*scale sea identidad.
+        max_score: Number(course?.grade_scale_max ?? 1),
         is_external: !!parent?.is_external,
       };
     },

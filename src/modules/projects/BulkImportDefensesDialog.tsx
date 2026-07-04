@@ -151,8 +151,39 @@ export function BulkImportDefensesDialog({
         return;
       }
       const { rows, errors } = parseDefenseCsv(csvRows);
-      setParsedRows(rows);
-      setParseErrors(errors);
+      // Guard anti-desalineación de columnas: el CSV es delimitado por coma, así que
+      // un factor con coma decimal ("0,8") parte la fila en columnas de más y el
+      // factor quedaría en "0" → nota final 0 EN SILENCIO. Rechazamos toda fila SIN
+      // comillas cuyo número de campos difiera del header (las filas con comillas las
+      // maneja parseCSV; no las tocamos para no dar falsos positivos con notas que
+      // legítimamente contengan comas entre comillas).
+      const rawLines = text
+        .replace(/\r\n/g, "\n")
+        .split("\n")
+        .filter((l) => l.trim().length > 0);
+      const headerCount = (rawLines[0] ?? "").split(",").length;
+      const colErrors: DefenseCsvError[] = [];
+      for (let i = 1; i < rawLines.length; i++) {
+        const line = rawLines[i];
+        if (line.includes('"')) continue;
+        const n = line.split(",").length;
+        if (n !== headerCount) {
+          colErrors.push({
+            line: i + 1,
+            message: t("hc_bulkImportDefenses.colCountError", {
+              defaultValue:
+                "Fila {{line}}: número de columnas inesperado ({{got}} vs {{exp}}) — ¿usaste coma decimal? Usa punto (ej. 0.8).",
+              line: i + 1,
+              got: n,
+              exp: headerCount,
+            }),
+          });
+        }
+      }
+      const badLines = new Set(colErrors.map((e) => e.line));
+      const safeRows = rows.filter((r) => !badLines.has(r.line));
+      setParsedRows(safeRows);
+      setParseErrors([...errors, ...colErrors].sort((a, b) => a.line - b.line));
 
       // Resolver email → submission usando submissions ya cargadas en el
       // dialog padre (NO hace falta query). Para grupos, todos los miembros
@@ -354,7 +385,7 @@ export function BulkImportDefensesDialog({
             <p className="text-[11px] text-muted-foreground">
               {t("hc_bulkImportDefenses.step1Hint", {
                 defaultValue:
-                  "Columnas: student_email (obligatorio), defense_factor (0..1, obligatorio), defense_notes (opcional, máx. 2000 chars), defense_video_url (opcional). Decimales con coma o punto. Para grupos, basta UN miembro por grupo.",
+                  "Columnas: student_email (obligatorio), defense_factor (0..1, obligatorio, decimal con PUNTO — ej. 0.8), defense_notes (opcional, máx. 2000 chars), defense_video_url (opcional). Para grupos, basta UN miembro por grupo.",
               })}
             </p>
             <Button
