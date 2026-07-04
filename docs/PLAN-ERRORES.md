@@ -9,7 +9,7 @@
 > se confirma lo reproducible). Los fixes se aplican con `tsc` EXIT=0 + tests dirigidos +
 > migraciones verificadas en tx rolled-back y aplicadas live a prod (`docker/restore.env`).
 >
-> **Última actualización**: 2026-07-04 (rondas 1-2 cerradas; ronda 3 en curso).
+> **Última actualización**: 2026-07-04 (rondas 1-2 cerradas; ronda 3: 5 HIGH cerrados, 14 med/low pendientes).
 
 ---
 
@@ -62,13 +62,40 @@ decisión de producto, no corrección.
 
 ---
 
-## Ronda 3 — 🔄 EN CURSO (workflow `wyjc0fh78`)
+## Ronda 3 — 🔄 5 HIGH cerrados, 14 pendientes (workflow `wyjc0fh78`, 19 confirmados)
 
-Módulos transversales aún no cubiertos a fondo: cron/tareas programadas · pipeline de email ·
-ciclo de vida de storage · suscripciones realtime · trabajo en grupo · actividades externas ·
-duplicar/clonar · import/export · videos+gate · i18n/hydration.
+Módulos: cron · email · storage · realtime · trabajo en grupo · actividades externas ·
+duplicar · import/export · videos+gate · i18n. **0 critical, 5 HIGH, 8 medium, 6 low.**
 
-_(Se completa al terminar el workflow: hallazgos confirmados + estado.)_
+### ✅ HIGH cerrados (commit `5851be25`; acta `20261060` live)
+- **H1/H2/H3 [trabajo en grupo]** — la entrega grupal tiene `user_id`=solo el "último editor";
+  los demás miembros se resolvían por `user_id` → su taller/proyecto grupal contaba como 0.
+  Fix en las 3 vías de consolidación: acta/certificado (`generate_course_acta` por membresía),
+  gradebook docente (celda vacía), "Mis calificaciones" del alumno.
+- **H4 [estadísticas]** — `statistics.ts` seleccionaba `exams.max_score` (inexistente) → 400 →
+  todos los exámenes desaparecían de las estadísticas. Quitada la columna + `max_score`=escala.
+- **H5 [import sustentaciones]** — template con factor `0,8` (coma) en CSV coma-delimitado →
+  fila desalineada → factor 0 → nota final 0 SILENCIOSA. Template a `0.8` + guard de columnas.
+
+### ⏳ MEDIA pendientes (8)
+- **cron** `admin_list_cron_jobs` recreado sin `description`/JOIN → panel nunca muestra descripciones.
+- **email** `kind='support'` pasa el predicado SQL pero `send-email` lo descarta → correos de soporte no salen.
+- **realtime** `useRealtimeTimer` re-suscribe el canal CADA SEGUNDO (deps inestables) → causa raíz de eventos add_time perdidos (el poll ya lo mitiga; conviene usar refs para las callbacks del canal).
+- **trabajo en grupo (mixto)** asignar grupo a quien ya entregó individual oculta su entrega y viola UNIQUE.
+- **actividades externas** el reescalado de `statistics.ts` (workshops/projects) ignora `is_external`.
+- **import** `parseCSV` divide por saltos de línea ANTES de comillas → campos con newline corrompen round-trip.
+- **video** gate de MP4/WebM/MOV sin fallback ante error de carga → video no reproducible bloquea la entrega.
+- **i18n** default de fecha de nueva sesión de asistencia usa UTC (adelanta un día de noche en CO).
+
+### ⏳ BAJA pendientes (6)
+- **email** `kind='attendance'` quedó fuera del predicado SQL → correos de check-in nunca disparan.
+- **storage** borrar un comentario de feedback no borra sus adjuntos (huérfanos).
+- **storage** reemplazar/quitar logo de tenant/certificado deja objetos huérfanos.
+- **import** `BulkImportDefensesDialog` usa `file.text()` (solo UTF-8) → mojibake en `defense_notes`.
+- **video** `toEmbedUrl` rompe URLs ya-embed de Vimeo (`player.vimeo.com/video/<id>`).
+- **i18n** toasts hardcodeados en español en `AdminEmailSettingsPanel`.
+
+_Detalle completo (repro + fix) en el output del workflow `wyjc0fh78`._
 
 ---
 
