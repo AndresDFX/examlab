@@ -816,9 +816,9 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-module="polls"]',
     route: "/app/teacher/polls",
     escapeBefore: true,
-    title: "Encuestas y Kahoot",
+    title: "Encuestas y retos en vivo",
     description:
-      "Cuatro tipos en un solo lugar: <strong>opción única</strong> o <strong>múltiple</strong> para votar en clase, <strong>cupo (Doodle)</strong> para coordinar fechas, y <strong>Kahoot</strong> — un quiz en vivo gamificado. Desde el menú de cada fila podés <strong>duplicarla</strong>, <strong>compartir un enlace único</strong> y en <em>Ver resultados</em> ver <strong>qué eligió cada alumno</strong>. Tip: clic en el encabezado de una columna ordena el grid.",
+      "Cuatro tipos en un solo lugar: <strong>opción única</strong> o <strong>múltiple</strong> para votar en clase, <strong>cupo (Doodle)</strong> para coordinar fechas, y <strong>retos en vivo</strong> — un quiz gamificado en tiempo real. Desde el menú de cada fila podés <strong>duplicarla</strong>, <strong>compartir un enlace único</strong> y en <em>Ver resultados</em> ver <strong>qué eligió cada alumno</strong>. Tip: clic en el encabezado de una columna ordena el grid.",
     side: "right",
   },
   // ─── Demo INTERACTIVA del modal "Nueva encuesta" ────────────────────
@@ -851,7 +851,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="poll-field-type"]',
     title: "Tipo de encuesta",
     description:
-      "<strong>Opción única</strong> (una respuesta), <strong>múltiple</strong> (varias), <strong>cupo (Doodle)</strong> — cada opción tiene cupo limitado, ideal para repartir slots de sustentación — y <strong>Kahoot</strong>, un quiz en vivo gamificado (más abajo te muestro cómo funciona).",
+      "<strong>Opción única</strong> (una respuesta), <strong>múltiple</strong> (varias), <strong>cupo (Doodle)</strong> — cada opción tiene cupo limitado, ideal para repartir slots de sustentación — y <strong>Reto en vivo</strong>, un quiz gamificado en tiempo real (más abajo te muestro cómo funciona).",
     side: "left",
     align: "start",
   },
@@ -866,9 +866,9 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="create-poll"]',
     route: "/app/teacher/polls",
     escapeBefore: true,
-    title: "Kahoot: quiz en vivo",
+    title: "Reto en vivo: quiz gamificado",
     description:
-      "<p>Un Kahoot es un juego de preguntas en tiempo real:</p><ol><li>Creá una encuesta tipo <em>Kahoot</em>.</li><li>En su menú, abrí <em>Preguntas</em> y armá el cuestionario — a mano o <strong>con IA</strong> (única o varias respuestas correctas).</li><li>Click <em>Hospedar en vivo</em>: se genera un <strong>PIN</strong> + <strong>QR</strong> que proyectás.</li><li>Los alumnos entran con el PIN/QR y esperan en la sala.</li><li>Avanzás pregunta por pregunta viendo el puntaje acumulado.</li></ol>",
+      "<p>Un reto en vivo es un juego de preguntas en tiempo real:</p><ol><li>Creá una encuesta tipo <em>Reto en vivo</em>.</li><li>En su menú, abrí <em>Preguntas</em> y armá el cuestionario — a mano o <strong>con IA</strong> (única o varias respuestas correctas).</li><li>Click <em>Hospedar en vivo</em>: se genera un <strong>PIN</strong> + <strong>QR</strong> que proyectás.</li><li>Los alumnos entran con el PIN/QR y esperan en la sala.</li><li>Avanzás pregunta por pregunta viendo el puntaje acumulado.</li></ol>",
     side: "bottom",
     align: "end",
   },
@@ -1108,9 +1108,9 @@ export const STUDENT_TOUR: TourStep[] = [
   {
     element: '[data-tour-module="polls"]',
     route: "/app/student/polls",
-    title: "Encuestas y Kahoot",
+    title: "Encuestas y retos en vivo",
     description:
-      "Votás encuestas del docente (única, múltiple o por cupo tipo Doodle). Si lo permite, podés <strong>cambiar</strong> o <strong>quitar</strong> tu respuesta.<br><strong>Para unirte a un Kahoot en vivo:</strong><ol><li>Cuando el docente lo inicie, aparece arriba una tarjeta de juego.</li><li>Escaneá el <strong>QR</strong> o tipeá el <strong>PIN</strong> que él proyecta.</li><li>Esperá en la <em>sala</em> a que arranque.</li><li>Respondé cada pregunta a tiempo — ganás puntos por acertar rápido.</li></ol>",
+      "Votás encuestas del docente (única, múltiple o por cupo tipo Doodle). Si lo permite, podés <strong>cambiar</strong> o <strong>quitar</strong> tu respuesta.<br><strong>Para unirte a un reto en vivo:</strong><ol><li>Cuando el docente lo inicie, aparece arriba una tarjeta de juego.</li><li>Escaneá el <strong>QR</strong> o tipeá el <strong>PIN</strong> que él proyecta.</li><li>Esperá en la <em>sala</em> a que arranque.</li><li>Respondé cada pregunta a tiempo — ganás puntos por acertar rápido.</li></ol>",
     side: "right",
   },
 

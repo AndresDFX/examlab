@@ -300,7 +300,7 @@ async function resolveKahootMaterial(
       return {
         material: "",
         error:
-          "El curso no tiene material legible asociado. Genera o sube contenido, o genera el Kahoot por temas.",
+          "El curso no tiene material legible asociado. Genera o sube contenido, o genera el reto en vivo por temas.",
       };
     }
     return { material, error: null };
@@ -319,7 +319,7 @@ async function resolveKahootMaterial(
     return {
       material: "",
       error:
-        "La sesión no tiene material asociado. Asígnale un contenido en Asistencia o genera el Kahoot por temas.",
+        "La sesión no tiene material asociado. Asígnale un contenido en Asistencia o genera el reto en vivo por temas.",
     };
   }
   const { data: rows } = await adminClient
@@ -352,7 +352,7 @@ async function resolveKahootMaterial(
     return {
       material: "",
       error:
-        "El material de la sesión está vacío o no es legible. Asígnale contenido con texto, o genera el Kahoot por temas.",
+        "El material de la sesión está vacío o no es legible. Asígnale contenido con texto, o genera el reto en vivo por temas.",
     };
   }
   return { material, error: null };

@@ -1702,7 +1702,7 @@ function StudentKahootRanking({
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <Trophy className="h-4 w-4 text-amber-500" />
-          {t("dashboard.kahootRanking", { defaultValue: "Ranking Kahoot" })}
+          {t("dashboard.kahootRanking", { defaultValue: "Ranking de retos" })}
         </CardTitle>
         {courses.length > 0 && (
           <Select value={courseId ?? undefined} onValueChange={setCourseId}>
@@ -1730,7 +1730,7 @@ function StudentKahootRanking({
           ) : rows.length === 0 ? (
             <p className="text-sm text-muted-foreground py-2">
               {t("dashboard.kahootNoGames", {
-                defaultValue: "Aún no hay puntajes de Kahoot en este curso.",
+                defaultValue: "Aún no hay puntajes de retos en este curso.",
               })}
             </p>
           ) : (

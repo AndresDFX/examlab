@@ -140,7 +140,7 @@ export function KahootLiveBanner() {
         <Gamepad2 className="h-5 w-5 text-primary shrink-0" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold truncate">
-            {t("kahoot.liveBannerTitle", { defaultValue: "¡Kahoot en vivo!" })}
+            {t("kahoot.liveBannerTitle", { defaultValue: "¡Reto en vivo!" })}
             {game.title ? ` · ${game.title}` : ""}
           </p>
           <p className="text-[11px] text-muted-foreground truncate">
