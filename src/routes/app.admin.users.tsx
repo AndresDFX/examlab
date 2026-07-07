@@ -503,8 +503,14 @@ function AdminUsers() {
   const handleSetActive = async (r: Row, active: boolean) => {
     const ok = await confirm({
       title: active
-        ? t("adminUsers.reactivateTitle", { defaultValue: `Reactivar a ${r.full_name}` })
-        : t("adminUsers.deactivateTitle", { defaultValue: `Desactivar a ${r.full_name}` }),
+        ? t("adminUsers.reactivateTitle", {
+            name: r.full_name,
+            defaultValue: "Reactivar a {{name}}",
+          })
+        : t("adminUsers.deactivateTitle", {
+            name: r.full_name,
+            defaultValue: "Desactivar a {{name}}",
+          }),
       description: active
         ? t("adminUsers.reactivateDesc", {
             defaultValue:

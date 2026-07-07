@@ -105,7 +105,9 @@
     "register_action": "Register",
     "clearSelection": "Clear selection",
     "remove": "Remove",
-    "endDateBeforeStart": "The end date cannot be earlier than the start date."
+    "endDateBeforeStart": "The end date cannot be earlier than the start date.",
+    "reactivate": "Reactivate",
+    "deactivate": "Deactivate"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -483,7 +485,15 @@
     "actionReopenConfirmBody": "The course will return to In progress. If its end date has passed, the automatic finalization will close it again the next day unless you update the end date.",
     "actionMoveToDraft": "Move to draft",
     "statusFormLabel": "Course status",
-    "statusFormHint": "Finalization is automatic when the end date passes, or manual from the actions menu."
+    "statusFormHint": "Finalization is automatic when the end date passes, or manual from the actions menu.",
+    "boardImportUnmatchedCuts": " ({{count}} grading period(s) from the CSV didn't match those in the course)",
+    "boardSessionsData": "Sessions",
+    "boardSessionsResource": "sessions",
+    "boardGenerateTooltip": "Schedule several sessions from the course schedule, flagging holidays",
+    "boardGenerateSessions": "Generate sessions",
+    "boardScheduleTitle": "Course schedule",
+    "boardScheduleEdit": "Edit schedule",
+    "boardScheduleEmpty": "Define the course schedule to speed up creating sessions."
   },
   "users": {
     "title": "Users",
@@ -936,7 +946,8 @@
       "noAccess": "You don't have access to this exam or it isn't assigned to your account.",
       "notFound": "Exam not found.",
       "loadError": "Loading exam result…",
-      "mustSignIn": "Sign in to see your results."
+      "mustSignIn": "Sign in to see your results.",
+      "retryModeNote": "{{mode}} grade of {{count}} attempts · the detail shows the last one"
     },
     "deleteTitle": "Send to trash",
     "deleted": "Exam sent to trash",
@@ -1290,7 +1301,14 @@
     "uploadAndCreate": "Upload and create content",
     "uploadExternal": "Upload external",
     "editExternalAction": "Edit (mode / name / topic)",
-    "duplicateAction": "Duplicate"
+    "duplicateAction": "Duplicate",
+    "generateSessionsFromSchedule": "Days and times taken from the course schedule.",
+    "generateSessionsCount": "Number of sessions",
+    "generateSessionsHolidays": "Colombian holidays",
+    "generateSessionsHolidaysHint": "What to do with dates that fall on a Colombian holiday: skip them (and add more at the end to reach the count), move them to the next business day, or leave them.",
+    "generateSessionsTitlePh": "Title",
+    "generateSessionsHolidayBadge": "Holiday",
+    "generateSessionsErrDup": "There are sessions with the same date and title ({{dates}}). Change the title or date of those rows before creating."
   },
   "courseBoard": {
     "indexSubtitle": "Select a course to see its sessions, content and deliverables board.",
@@ -1557,7 +1575,14 @@
     "scopeGlobalBody": "What you save here is used by internal platform jobs. Institutions do NOT inherit this configuration: each Admin must paste their own API key in their panel.",
     "scopeTenant": "Required configuration for your institution.",
     "scopeTenantBody": "Paste the API key for the provider you'll use — billed to your account. AI grading won't work until it's configured.",
-    "subtitle": "Defines which model the AI grading edge function uses."
+    "subtitle": "Defines which model the AI grading edge function uses.",
+    "fallbackKeysHelp": "If the primary key fails (usage limit, invalid, out of credits, or provider outage), the AI automatically retries with these keys, in order. Useful to avoid running out of AI when one key exhausts its current quota.",
+    "fallbackKeysEmpty": "No backup keys. Only the primary one is used.",
+    "fallbackKeysPlaceholder": "Paste a backup key",
+    "fallbackKeysRemove": "Remove this key",
+    "fallbackKeysAdd": "Add backup key",
+    "fallbackKeysLabel": "Backup keys for {{provider}}",
+    "fallbackKeysCount": "{{count}} configured"
   },
   "certSettings": {
     "resolutionHelp": "How each field is resolved when issuing:",
@@ -1655,7 +1680,8 @@
     "edgeFunctionSecretsDescription": "Environment variables visible to Supabase edge functions. Edit API keys here (Gemini, OpenAI, OnlineCompiler, AWS Runner, etc.) without going to the Supabase dashboard or redeploying.",
     "backupSnapshotsExplanation": "Logical snapshots of the tables to a ZIP in Storage. The cron `db-backup-weekly` runs on Sundays at 03:05 UTC and creates one with all tables; the \"Create backup\" button lets you generate a manual one choosing which tables to include. There is NO restore from the UI for safety reasons — download the ZIP and apply it via SQL if needed.",
     "privateUrlWarning": "This URL is PRIVATE — anyone who has it can see your events. If you shared it by mistake press \"Regenerate URL\".",
-    "retentionHelp": "Defines how many days to keep records of each severity level. 0 = no limit (default). Purging is triggered by a monthly cron configured in Supabase."
+    "retentionHelp": "Defines how many days to keep records of each severity level. 0 = no limit (default). Purging is triggered by a monthly cron configured in Supabase.",
+    "dueReminderLead": "How long before the deadline the student is notified (workshop/project not yet submitted). The system checks every 15 minutes and sends a SINGLE reminder per submission — it does not repeat."
   },
   "forum": {
     "title": "Forums",
@@ -1702,7 +1728,8 @@
     "confirmDeleteTitle": "Delete this forum?",
     "confirmDeleteDesc": "\"{{title}}\" and ALL its threads and replies ({{count}} threads) will be deleted. This action cannot be undone.",
     "confirmDeleteLabel": "Delete",
-    "reopenFutureDate": "The new close date must be in the future."
+    "reopenFutureDate": "The new close date must be in the future.",
+    "courseUnavailable": "This course is not available (it doesn't exist or was moved to the trash)."
   },
   "forumThreads": {
     "defaultTitle": "Forum",
@@ -1735,7 +1762,8 @@
     "formBody": "Body",
     "formTags": "Tags (comma-separated)",
     "cancel": "Cancel",
-    "publish": "Publish"
+    "publish": "Publish",
+    "courseUnavailable": "This course is not available (it doesn't exist or was moved to the trash)."
   },
   "forumThread": {
     "loading": "Loading…",
@@ -1901,7 +1929,14 @@
     "requiredMissing": "You're missing {{n}} required question(s).",
     "completeTitle": "Done! Your response was recorded",
     "completeBody": "Thanks for participating. Your answers are already saved.",
-    "editAnswers": "Edit my answers"
+    "editAnswers": "Edit my answers",
+    "typeHintMixed": "Answer each question. Your answers are saved instantly.",
+    "answerSaved": "Answer saved",
+    "clearAnswersTitle": "Clear your answers?",
+    "clearAnswersDesc": "All your answers to this poll will be deleted. You'll be able to answer again.",
+    "mixedNoQuestions": "This poll has no questions yet.",
+    "openAnswerPlaceholder": "Write your answer…",
+    "mixedClosedNote": "The poll is closed. You can no longer change your answers."
   },
   "videosPage": {
     "title": "Videos",
@@ -2364,7 +2399,9 @@
     "impersonateError": "Error starting impersonation",
     "bulkEntity": "student",
     "bulkEntityPlural": "students",
-    "bulkPasswordAction": "Change password"
+    "bulkPasswordAction": "Change password",
+    "actionResetPassword": "Reset password",
+    "resetPasswordHint": "Assign a new password to {{name}}"
   },
   "toast": {
     "modules_admin_AdminAcademicPeriodsPanel": {
@@ -2428,7 +2465,8 @@
       "passingGradeOutOfRange": "The minimum passing grade must be between {{min}} and {{max}}",
       "maxGradeMustExceedMin": "The maximum grade must be greater than the minimum",
       "openAnswerCharsOutOfRange": "Max. open-answer characters must be between 100 and 50000",
-      "savedOk": "Settings saved"
+      "savedOk": "Settings saved",
+      "dueReminderLeadOutOfRange": "The submission reminder must be between 1 and 168 hours before."
     },
     "modules_admin_AdminModelPanel": {
       "specifyModel": "Specify a model",
@@ -2811,10 +2849,18 @@
       "userCreated": "User created successfully",
       "importSuccess": "Imported successfully: {{count}}",
       "importPartial": "Imported: {{ok}} · Duplicates: {{duplicates}} · Errors: {{errors}}",
-      "emailChangeFailed": "Couldn't change the login email"
+      "emailChangeFailed": "Couldn't change the login email",
+      "existingUserEnrolled": "The user already existed; they were enrolled in the selected course.",
+      "importProgress": "Importing {{done}}/{{total}}…"
     },
     "routes_app_certificates": {
-      "verifyLinkCopied": "Verification link copied"
+      "verifyLinkCopied": "Verification link copied",
+      "revokeReasonPrompt": "Reason for revocation (optional, shown on the public page):",
+      "revokeTitle": "Revoke certificate",
+      "revokeDescription": "The certificate will be marked as NOT VALID in the public verification. The student will receive a notification. This action cannot be undone from the UI.",
+      "revokeConfirm": "Revoke",
+      "revokedOk": "Certificate revoked",
+      "revokeAction": "Revoke"
     },
     "messages": {
       "pageTitle": "Messages",
@@ -3878,7 +3924,17 @@
     "viewPwDescSuffix": "Share it securely — the user must change it on their first login.",
     "viewPwEmptyPrefix": "No saved password for this user. They probably already changed it, or were created via SSO / before this feature. You can assign a new one from",
     "viewPwEmptySuffix": ".",
-    "bulkPasswordAction": "Change password"
+    "bulkPasswordAction": "Change password",
+    "reactivateDesc": "They will be able to sign in again and will take up a license seat once more (if a seat is available).",
+    "deactivateDesc": "They won't be able to sign in and their license seat is freed. Their session is invalidated when the token expires. You can reactivate them later.",
+    "reactivatedToast": "User reactivated",
+    "deactivatedToast": "User deactivated",
+    "filterActiveAll": "Active and inactive",
+    "filterActiveOnly": "Active only",
+    "filterInactiveOnly": "Inactive only",
+    "inactiveBadge": "Inactive",
+    "reactivateTitle": "Reactivate {{name}}",
+    "deactivateTitle": "Deactivate {{name}}"
   },
   "projectFiles": {
     "tabList": "Questions ({{count}})",
@@ -4447,7 +4503,10 @@
     "hintCooldown": "Prevents alert bursts if the issue persists.",
     "alertCronNote": "The check runs automatically every 30 min via cron email-alert-threshold. Make sure the cron is active in Admin → System → Scheduled tasks.",
     "btnCancel": "Cancel",
-    "btnSave": "Save parameters"
+    "btnSave": "Save parameters",
+    "cardDueReminderTitle": "Submission reminders",
+    "labelDueReminderLead": "Notify (hours before the deadline)",
+    "hintDueReminderLead": "Default 1 hour. Range 1–168 (up to 7 days). Only to those who haven't submitted."
   },
   "superadminSupport": {
     "title": "Support",
@@ -4718,7 +4777,8 @@
     "autoAdvanceHint": "Move to the reveal as soon as all players have answered (don't wait for the timer).",
     "autoAdvanceFiring": "Everyone answered — advancing…",
     "allAnswered": "Everyone answered — you can advance",
-    "lockNow": "Advance now"
+    "lockNow": "Advance now",
+    "getReady": "Get ready!"
   },
   "questionBank": {
     "type": {
@@ -5006,7 +5066,22 @@
     "slotEditWithVotesNote": "You can add new dates, increase capacity and reopen the poll (set a future close). Dates that already have reservations can't be deleted.",
     "slotHasReservations": "This date has reservations and can't be deleted",
     "slotReservationsCount_one": "{{count}} reservation",
-    "slotReservationsCount_other": "{{count}} reservations"
+    "slotReservationsCount_other": "{{count}} reservations",
+    "typeMixed": "Mixed (questions)",
+    "filterOpen": "Open",
+    "filterClosed": "Closed",
+    "filterAll": "All",
+    "menuQuestions": "Questions",
+    "dupCopyQuestionsLabel": "Copy questions",
+    "dupCopyQuestionsHint": "Copies the open/closed questions (without the responses).",
+    "typeHintMixed": "Mixes open (free text) and closed (single choice) questions, like a workshop. Open answers are seen only by the teacher.",
+    "typeOptionMixedDesc": "Open and/or closed questions, like a workshop",
+    "mixedInfoTitle": "Poll with questions",
+    "mixedInfoBodyEdit": "Use “Questions” in the poll menu to add/edit open and closed questions.",
+    "mixedInfoBody": "On save, the question editor will open so you can add open (text) and/or closed (single choice) questions. You need at least one to publish.",
+    "slotReservationsCount": "{{count}} reservation(s)",
+    "mixedResultsPrivacy": "Open answers are seen only by the teacher.",
+    "mixedNoAnswers": "No answers yet."
   },
   "teacherAttendance": {
     "statusPresentShort": "P",
@@ -6959,7 +7034,9 @@
     "bulkDeleteWarning": "All associated exams, workshops, projects, enrollments, terms and attendance records will also be deleted (cascade).",
     "statusColumn": "Status",
     "statDraft": "Draft",
-    "statFinalized": "Finished"
+    "statFinalized": "Finished",
+    "statusFilterActiveAndDrafts": "Active and drafts",
+    "actionDiagnostic": "Course diagnostic"
   },
   "hc_routesAppMessages": {
     "pageTitle": "Messages",
@@ -7722,7 +7799,8 @@
     "transitionTitle": "View in transition",
     "transitionLead": "This screen will become obsolete. The official configuration of grading terms now lives in the course creation/editing dialog. The new grading hierarchy is:",
     "transitionHierarchy": "Course → Terms → [Workshops, Exams, Projects, Attendance]",
-    "transitionTrailing": ". Changes made here no longer affect the student's final calculation."
+    "transitionTrailing": ". Changes made here no longer affect the student's final calculation.",
+    "courseUnavailable": "This course is not available (it doesn't exist or was moved to the trash)."
   },
   "hc_routesAppTeacherMonitorExamId": {
     "optionN": "Option {{n}}",
@@ -8043,7 +8121,8 @@
     "viewVideoUploaded": "(uploaded)",
     "removeWord": "Remove",
     "defenseVideoTip": "For long videos a link is better (Drive/YouTube); direct upload has a size limit.",
-    "saveDefense": "Save defense"
+    "saveDefense": "Save defense",
+    "importDefensesCsv": "Import defenses"
   },
   "hc_routesAppTeacherReports": {
     "badgeGlobal": "Global",
@@ -8211,7 +8290,13 @@
     "duplicateCopyContentHint": "Clones all the whiteboard sheets. If you uncheck it, the copy starts blank with the same name.",
     "duplicateCopyCourseLabel": "Copy course association",
     "duplicateCopyCourseHint": "Keeps the same course. If you uncheck it, the copy stays without a course (personal).",
-    "duplicateCopyCourseHintNone": "This whiteboard is not associated with a course."
+    "duplicateCopyCourseHintNone": "This whiteboard is not associated with a course.",
+    "statusClosedToast": "Whiteboard closed",
+    "statusReopenedToast": "Whiteboard reopened",
+    "statClosed": "Closed",
+    "colStatus": "Status",
+    "actionReopen": "Reopen",
+    "actionClose": "Close"
   },
   "hc_routesAppTeacherWorkshops": {
     "notifyMovedTitle": "Workshop moved to this course",
@@ -8411,5 +8496,69 @@
     "title": "Module unavailable",
     "description": "Your administrator has disabled this module for your role. If you believe this is a mistake, please contact the platform administration.",
     "reactivateFromModules": "Reactivate from Modules"
+  },
+  "pollQuestions": {
+    "deleteTitle": "Delete question?",
+    "deleteWithResponses": "This question already has responses. Deleting it also deletes those responses. This action cannot be undone.",
+    "deleteDesc": "The question will be removed from the poll. This action cannot be undone.",
+    "errNoQuestions": "Add at least one question.",
+    "errText": "Question {{n}} needs a prompt.",
+    "errChoices": "Question {{n}} (closed) needs at least 2 options.",
+    "saved": "Questions saved",
+    "title": "Poll questions",
+    "subtitle": "Mix open (text) and closed (single choice) questions.",
+    "loading": "Loading questions…",
+    "empty": "No questions yet. Add an open or closed one.",
+    "textPlaceholder": "Write the question prompt…",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "fieldType": "Type",
+    "typeOpen": "Open (text)",
+    "typeClosed": "Closed (single choice)",
+    "required": "Required",
+    "maxChars": "Max. characters",
+    "lockedNote": "Has responses — type and options not editable",
+    "choicePlaceholder": "Option {{n}}",
+    "removeChoice": "Remove option",
+    "addChoice": "Add option",
+    "deleteQuestion": "Delete question",
+    "addOpen": "Add open",
+    "addClosed": "Add closed",
+    "save": "Save questions"
+  },
+  "hc_bulkImportDefenses": {
+    "templateDownloaded": "Template downloaded",
+    "emptyFile": "The file contains no data",
+    "colCountError": "Row {{line}}: unexpected number of columns ({{got}} vs {{exp}}) — did you use a decimal comma? Use a period (e.g. 0.8).",
+    "parseError": "Error processing CSV: {{detail}}",
+    "applySuccess": "{{count}} defenses applied",
+    "applyPartial": "{{ok}} applied, {{fail}} with errors. First: {{detail}}",
+    "applyFail": "No defense was applied. Detail: {{detail}}",
+    "title": "Import defenses",
+    "subtitle": "Upload a CSV with defense grades for several students at once in {{project}}.",
+    "step1Title": "1. Download the template",
+    "step1Hint": "Columns: student_email (required), defense_factor (0..1, required, decimal with a PERIOD — e.g. 0.8), defense_notes (optional, max. 2000 chars), defense_video_url (optional). For groups, one member per group is enough.",
+    "downloadTemplate": "Download template",
+    "step2Title": "2. Upload the CSV with the defenses",
+    "pickFile": "Choose CSV file",
+    "step3Title": "3. Summary",
+    "readyCount": "Ready to apply: {{count}}",
+    "parsedCount": "Rows parsed: {{count}}",
+    "errorsCount": "With errors: {{count}}",
+    "validationErrors": "Validation errors",
+    "moreErrors": "...and {{count}} more",
+    "noSubmissionTitle": "Students with no prior submission ({{count}}) — a defense cannot be applied to them",
+    "lineEmail": "Row {{line}}: {{email}}",
+    "moreItems": "...and {{count}} more",
+    "noGradeTitle": "Submissions with no base grade ({{count}}) — grade the files first",
+    "duplicateGroupTitle": "Members of the same group ignored ({{count}}) — only the first one in the CSV is applied",
+    "allReadyHint": "All rows are ready. On apply, the defense for {{count}} submissions will be updated.",
+    "cancel": "Cancel",
+    "applying": "Applying...",
+    "applyCount": "Apply {{count}}"
+  },
+  "appLayout": {
+    "deactivatedTitle": "Account deactivated",
+    "deactivatedBody": "Your account was deactivated. Contact your institution's administrator to reactivate it."
   }
 }

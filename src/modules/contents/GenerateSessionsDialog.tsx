@@ -323,7 +323,8 @@ export function GenerateSessionsDialog({
           toast.error(
             t("contents.generateSessionsErrDup", {
               dates: shown + (collisions.length > 3 ? "…" : ""),
-              defaultValue: `Hay sesiones con la misma fecha y título (${shown}${collisions.length > 3 ? "…" : ""}). Cambia el título o la fecha de esas filas antes de crear.`,
+              defaultValue:
+                "Hay sesiones con la misma fecha y título ({{dates}}). Cambia el título o la fecha de esas filas antes de crear.",
             }),
           );
           setSaving(false);

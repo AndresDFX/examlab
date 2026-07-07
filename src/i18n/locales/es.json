@@ -105,7 +105,9 @@
     "register_action": "Registrar",
     "clearSelection": "Limpiar selección",
     "remove": "Quitar",
-    "endDateBeforeStart": "La fecha de fin no puede ser anterior a la fecha de inicio."
+    "endDateBeforeStart": "La fecha de fin no puede ser anterior a la fecha de inicio.",
+    "reactivate": "Reactivar",
+    "deactivate": "Desactivar"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -483,7 +485,15 @@
     "actionReopenConfirmBody": "El curso volverá a En curso. Si su fecha de fin ya pasó, la finalización automática lo cerrará de nuevo al día siguiente salvo que actualices la fecha de fin.",
     "actionMoveToDraft": "Mover a borrador",
     "statusFormLabel": "Estado del curso",
-    "statusFormHint": "La finalización es automática cuando pasa la fecha de fin, o manual desde el menú de acciones."
+    "statusFormHint": "La finalización es automática cuando pasa la fecha de fin, o manual desde el menú de acciones.",
+    "boardImportUnmatchedCuts": " ({{count}} corte(s) del CSV no coincidieron con los del curso)",
+    "boardSessionsData": "Sesiones",
+    "boardSessionsResource": "sesiones",
+    "boardGenerateTooltip": "Programa varias sesiones a partir del horario del curso, marcando festivos",
+    "boardGenerateSessions": "Generar sesiones",
+    "boardScheduleTitle": "Horario del curso",
+    "boardScheduleEdit": "Editar horario",
+    "boardScheduleEmpty": "Define el horario del curso para agilizar la creación de sesiones."
   },
   "users": {
     "title": "Usuarios",
@@ -936,7 +946,8 @@
       "noAccess": "No tienes acceso a este examen o no está asignado a tu cuenta.",
       "notFound": "No se encontró el examen.",
       "loadError": "Cargando resultado del examen…",
-      "mustSignIn": "Inicia sesión para ver tus resultados."
+      "mustSignIn": "Inicia sesión para ver tus resultados.",
+      "retryModeNote": "Nota {{mode}} de {{count}} intentos · el detalle es el último"
     },
     "deleteTitle": "Enviar a papelera",
     "deleted": "Examen enviado a papelera",
@@ -1290,7 +1301,14 @@
     "uploadAndCreate": "Subir y crear contenido",
     "uploadExternal": "Subir externo",
     "editExternalAction": "Editar (modo / nombre / tema)",
-    "duplicateAction": "Duplicar"
+    "duplicateAction": "Duplicar",
+    "generateSessionsFromSchedule": "Días y horarios tomados del horario del curso.",
+    "generateSessionsCount": "Cantidad de sesiones",
+    "generateSessionsHolidays": "Festivos de Colombia",
+    "generateSessionsHolidaysHint": "Qué hacer con las fechas que caen en festivo colombiano: omitirlas (y agregar más al final para llegar a la cantidad), moverlas al siguiente día hábil, o dejarlas.",
+    "generateSessionsTitlePh": "Título",
+    "generateSessionsHolidayBadge": "Festivo",
+    "generateSessionsErrDup": "Hay sesiones con la misma fecha y título ({{dates}}). Cambia el título o la fecha de esas filas antes de crear."
   },
   "courseBoard": {
     "indexSubtitle": "Selecciona un curso para ver el tablero de sesiones, contenido y entregas.",
@@ -1557,7 +1575,14 @@
     "scopeGlobalBody": "Lo que guardes acá lo usan jobs internos de la plataforma. Las instituciones NO heredan de esta configuración: cada Admin debe pegar su propia API key en su panel.",
     "scopeTenant": "Configuración obligatoria de tu institución.",
     "scopeTenantBody": "Pegá la API key del provider que vas a usar — cobra a tu cuenta. La calificación con IA no funciona hasta que esté configurada.",
-    "subtitle": "Define qué modelo usa el edge function de calificación con IA."
+    "subtitle": "Define qué modelo usa el edge function de calificación con IA.",
+    "fallbackKeysHelp": "Si la clave principal falla (límite de uso, inválida, sin créditos o caída del proveedor), la IA reintenta automáticamente con estas claves, en orden. Útil para no quedarte sin IA cuando una clave agota su cuota del momento.",
+    "fallbackKeysEmpty": "Sin claves de respaldo. Solo se usa la principal.",
+    "fallbackKeysPlaceholder": "Pegá una clave de respaldo",
+    "fallbackKeysRemove": "Eliminar esta clave",
+    "fallbackKeysAdd": "Agregar clave de respaldo",
+    "fallbackKeysLabel": "Claves de respaldo de {{provider}}",
+    "fallbackKeysCount": "{{count}} configurada(s)"
   },
   "certSettings": {
     "resolutionHelp": "Cómo se resuelve cada campo al emitir:",
@@ -1655,7 +1680,8 @@
     "edgeFunctionSecretsDescription": "Variables de entorno que ven las edge functions de Supabase. Aquí editas API keys\n              (Gemini, OpenAI, OnlineCompiler, AWS Runner, etc.) sin tener que ir al dashboard de\n              Supabase ni redeployar.",
     "backupSnapshotsExplanation": "Snapshots lógicos de las tablas a un ZIP en Storage. El cron `db-backup-weekly` corre los domingos 03:05 UTC y crea uno con todas las tablas; el botón \"Crear backup\" deja generar uno manual eligiendo qué tablas incluir. NO hay restore desde la UI por seguridad — descargá el ZIP y aplicá vía SQL si hace falta.",
     "privateUrlWarning": "Esta URL es PRIVADA — quien la tenga ve tus eventos. Si la compartiste por error\n              presiona \"Regenerar URL\".",
-    "retentionHelp": "Define cuántos días conservar registros de cada severidad. 0 = sin límite (default).\n              La purga la dispara un cron mensual configurado en Supabase."
+    "retentionHelp": "Define cuántos días conservar registros de cada severidad. 0 = sin límite (default).\n              La purga la dispara un cron mensual configurado en Supabase.",
+    "dueReminderLead": "Cuánto tiempo antes del vencimiento se avisa al alumno (taller/proyecto que aún no entrega). El sistema revisa cada 15 minutos y manda UN solo recordatorio por entrega — no se repite."
   },
   "forum": {
     "title": "Foros",
@@ -1702,7 +1728,8 @@
     "confirmDeleteTitle": "¿Eliminar este foro?",
     "confirmDeleteDesc": "Se eliminarán \"{{title}}\" y TODOS sus hilos y respuestas ({{count}} hilos). Esta acción no se puede deshacer.",
     "confirmDeleteLabel": "Eliminar",
-    "reopenFutureDate": "El nuevo cierre debe ser una fecha futura."
+    "reopenFutureDate": "El nuevo cierre debe ser una fecha futura.",
+    "courseUnavailable": "Este curso no está disponible (no existe o fue movido a la papelera)."
   },
   "forumThreads": {
     "defaultTitle": "Foro",
@@ -1735,7 +1762,8 @@
     "formBody": "Cuerpo",
     "formTags": "Tags (separados por coma)",
     "cancel": "Cancelar",
-    "publish": "Publicar"
+    "publish": "Publicar",
+    "courseUnavailable": "Este curso no está disponible (no existe o fue movido a la papelera)."
   },
   "forumThread": {
     "loading": "Cargando…",
@@ -1901,7 +1929,14 @@
     "requiredMissing": "Te faltan {{n}} pregunta(s) obligatoria(s) por responder.",
     "completeTitle": "¡Listo! Tu respuesta fue registrada",
     "completeBody": "Gracias por participar. Tus respuestas ya están guardadas.",
-    "editAnswers": "Editar mis respuestas"
+    "editAnswers": "Editar mis respuestas",
+    "typeHintMixed": "Responde cada pregunta. Tus respuestas se guardan al instante.",
+    "answerSaved": "Respuesta guardada",
+    "clearAnswersTitle": "¿Quitar tus respuestas?",
+    "clearAnswersDesc": "Se borrarán todas tus respuestas a esta encuesta. Podrás volver a responder.",
+    "mixedNoQuestions": "Esta encuesta aún no tiene preguntas.",
+    "openAnswerPlaceholder": "Escribe tu respuesta…",
+    "mixedClosedNote": "La encuesta está cerrada. Ya no puedes modificar tus respuestas."
   },
   "videosPage": {
     "title": "Videos",
@@ -2364,7 +2399,9 @@
     "impersonateError": "Error al iniciar la impersonación",
     "bulkEntity": "estudiante",
     "bulkEntityPlural": "estudiantes",
-    "bulkPasswordAction": "Cambiar contraseña"
+    "bulkPasswordAction": "Cambiar contraseña",
+    "actionResetPassword": "Resetear contraseña",
+    "resetPasswordHint": "Asignar una nueva contraseña a {{name}}"
   },
   "toast": {
     "modules_admin_AdminAcademicPeriodsPanel": {
@@ -2428,7 +2465,8 @@
       "passingGradeOutOfRange": "La nota mínima de aprobación debe estar entre {{min}} y {{max}}",
       "maxGradeMustExceedMin": "La nota máxima debe ser mayor a la mínima",
       "openAnswerCharsOutOfRange": "Máx. caracteres de respuesta abierta debe estar entre 100 y 50000",
-      "savedOk": "Parámetros guardados"
+      "savedOk": "Parámetros guardados",
+      "dueReminderLeadOutOfRange": "El recordatorio de entregas debe estar entre 1 y 168 horas antes."
     },
     "modules_admin_AdminModelPanel": {
       "specifyModel": "Especifica un modelo",
@@ -2811,10 +2849,18 @@
       "userCreated": "Usuario creado correctamente",
       "importSuccess": "Importados correctamente: {{count}}",
       "importPartial": "Importados: {{ok}} · Duplicados: {{duplicates}} · Errores: {{errors}}",
-      "emailChangeFailed": "No se pudo cambiar el correo de acceso"
+      "emailChangeFailed": "No se pudo cambiar el correo de acceso",
+      "existingUserEnrolled": "El usuario ya existía; se matriculó al curso seleccionado.",
+      "importProgress": "Importando {{done}}/{{total}}…"
     },
     "routes_app_certificates": {
-      "verifyLinkCopied": "Link de verificación copiado"
+      "verifyLinkCopied": "Link de verificación copiado",
+      "revokeReasonPrompt": "Motivo de revocación (opcional, se muestra en la página pública):",
+      "revokeTitle": "Revocar certificado",
+      "revokeDescription": "El certificado quedará marcado como NO VÁLIDO en la verificación pública. El estudiante recibirá una notificación. Esta acción no se puede deshacer desde la UI.",
+      "revokeConfirm": "Revocar",
+      "revokedOk": "Certificado revocado",
+      "revokeAction": "Revocar"
     },
     "messages": {
       "pageTitle": "Mensajes",
@@ -3878,7 +3924,17 @@
     "viewPwDescSuffix": "Comunícasela de forma segura — el usuario deberá cambiarla en su primer inicio de sesión.",
     "viewPwEmptyPrefix": "No hay una contraseña guardada para este usuario. Probablemente ya la cambió, o fue creado por SSO / antes de esta función. Puedes asignarle una nueva desde",
     "viewPwEmptySuffix": ".",
-    "bulkPasswordAction": "Cambiar contraseña"
+    "bulkPasswordAction": "Cambiar contraseña",
+    "reactivateDesc": "Volverá a poder iniciar sesión y ocupará de nuevo su cupo de licencia (si hay cupo).",
+    "deactivateDesc": "No podrá iniciar sesión y libera su cupo de licencia. Su sesión se invalida al expirar el token. Podés reactivarlo luego.",
+    "reactivatedToast": "Usuario reactivado",
+    "deactivatedToast": "Usuario desactivado",
+    "filterActiveAll": "Activos e inactivos",
+    "filterActiveOnly": "Solo activos",
+    "filterInactiveOnly": "Solo inactivos",
+    "inactiveBadge": "Inactivo",
+    "reactivateTitle": "Reactivar a {{name}}",
+    "deactivateTitle": "Desactivar a {{name}}"
   },
   "projectFiles": {
     "tabList": "Preguntas ({{count}})",
@@ -4447,7 +4503,10 @@
     "hintCooldown": "Evita ráfagas de alertas si el problema persiste.",
     "alertCronNote": "La revisión corre automáticamente cada 30 min vía cron email-alert-threshold. Asegúrate de que el cron esté activo en Admin → Sistema → Tareas programadas.",
     "btnCancel": "Cancelar",
-    "btnSave": "Guardar parámetros"
+    "btnSave": "Guardar parámetros",
+    "cardDueReminderTitle": "Recordatorios de entregas",
+    "labelDueReminderLead": "Avisar (horas antes del vencimiento)",
+    "hintDueReminderLead": "Por defecto 1 hora. Rango 1–168 (hasta 7 días). Solo a quienes no han entregado."
   },
   "superadminSupport": {
     "title": "Soporte",
@@ -4718,7 +4777,8 @@
     "autoAdvanceHint": "Pasar a la respuesta correcta apenas todos los jugadores hayan respondido (sin esperar al timer).",
     "autoAdvanceFiring": "Todos respondieron — avanzando…",
     "allAnswered": "Todos respondieron — puedes avanzar",
-    "lockNow": "Avanzar ahora"
+    "lockNow": "Avanzar ahora",
+    "getReady": "¡Prepárate!"
   },
   "questionBank": {
     "type": {
@@ -5006,7 +5066,22 @@
     "slotEditWithVotesNote": "Puedes agregar nuevas fechas, ampliar el cupo y reabrir la encuesta (fija un cierre futuro). Las fechas que ya tienen reservas no se pueden eliminar.",
     "slotHasReservations": "Esta fecha tiene reservas y no puede eliminarse",
     "slotReservationsCount_one": "{{count}} reserva",
-    "slotReservationsCount_other": "{{count}} reservas"
+    "slotReservationsCount_other": "{{count}} reservas",
+    "typeMixed": "Mixta (preguntas)",
+    "filterOpen": "Abiertas",
+    "filterClosed": "Cerradas",
+    "filterAll": "Todas",
+    "menuQuestions": "Preguntas",
+    "dupCopyQuestionsLabel": "Copiar preguntas",
+    "dupCopyQuestionsHint": "Copia las preguntas abiertas/cerradas (sin las respuestas).",
+    "typeHintMixed": "Mezcla preguntas abiertas (texto libre) y cerradas (opción única), como un taller. Las respuestas abiertas solo las ve el docente.",
+    "typeOptionMixedDesc": "Preguntas abiertas y/o cerradas, como un taller",
+    "mixedInfoTitle": "Encuesta con preguntas",
+    "mixedInfoBodyEdit": "Usa «Preguntas» en el menú de la encuesta para agregar/editar preguntas abiertas y cerradas.",
+    "mixedInfoBody": "Al guardar se abrirá el editor de preguntas para que agregues abiertas (texto) y/o cerradas (opción única). Necesitas al menos una para publicar.",
+    "slotReservationsCount": "{{count}} reserva(s)",
+    "mixedResultsPrivacy": "Las respuestas abiertas solo las ve el docente.",
+    "mixedNoAnswers": "Sin respuestas todavía."
   },
   "teacherAttendance": {
     "statusPresentShort": "P",
@@ -6959,7 +7034,9 @@
     "bulkDeleteWarning": "Se eliminarán también todos los exámenes, talleres, proyectos, matrículas, cortes y registros de asistencia asociados (cascade).",
     "statusColumn": "Estado",
     "statDraft": "Borrador",
-    "statFinalized": "Finalizados"
+    "statFinalized": "Finalizados",
+    "statusFilterActiveAndDrafts": "Activos y borradores",
+    "actionDiagnostic": "Diagnóstico del curso"
   },
   "hc_routesAppMessages": {
     "pageTitle": "Mensajes",
@@ -7722,7 +7799,8 @@
     "transitionTitle": "Vista en transición",
     "transitionLead": "Esta pantalla quedará obsoleta. La configuración oficial de cortes evaluativos vive ahora en el diálogo de creación/edición de curso. La nueva jerarquía de calificación es:",
     "transitionHierarchy": "Curso → Cortes → [Talleres, Exámenes, Proyectos, Asistencia]",
-    "transitionTrailing": ". Los cambios realizados aquí ya no afectan el cálculo final del estudiante."
+    "transitionTrailing": ". Los cambios realizados aquí ya no afectan el cálculo final del estudiante.",
+    "courseUnavailable": "Este curso no está disponible (no existe o fue movido a la papelera)."
   },
   "hc_routesAppTeacherMonitorExamId": {
     "optionN": "Opción {{n}}",
@@ -8043,7 +8121,8 @@
     "viewVideoUploaded": "(subido)",
     "removeWord": "Quitar",
     "defenseVideoTip": "Para videos largos conviene un enlace (Drive/YouTube); la subida directa tiene tope de tamaño.",
-    "saveDefense": "Guardar sustentación"
+    "saveDefense": "Guardar sustentación",
+    "importDefensesCsv": "Importar sustentaciones"
   },
   "hc_routesAppTeacherReports": {
     "badgeGlobal": "Global",
@@ -8211,7 +8290,13 @@
     "duplicateCopyContentHint": "Clona todas las hojas del pizarrón. Si lo desmarcas, la copia nace en blanco con el mismo nombre.",
     "duplicateCopyCourseLabel": "Copiar asociación al curso",
     "duplicateCopyCourseHint": "Mantiene el mismo curso. Si lo desmarcas, la copia queda sin curso (personal).",
-    "duplicateCopyCourseHintNone": "Esta pizarra no está asociada a un curso."
+    "duplicateCopyCourseHintNone": "Esta pizarra no está asociada a un curso.",
+    "statusClosedToast": "Pizarra cerrada",
+    "statusReopenedToast": "Pizarra reabierta",
+    "statClosed": "Cerradas",
+    "colStatus": "Estado",
+    "actionReopen": "Reabrir",
+    "actionClose": "Cerrar"
   },
   "hc_routesAppTeacherWorkshops": {
     "notifyMovedTitle": "Taller movido a este curso",
@@ -8411,5 +8496,69 @@
     "title": "Módulo no disponible",
     "description": "Tu administrador ha deshabilitado este módulo para tu rol. Si crees que es un error, comunícate con la administración de la plataforma.",
     "reactivateFromModules": "Reactivar desde Módulos"
+  },
+  "pollQuestions": {
+    "deleteTitle": "¿Eliminar pregunta?",
+    "deleteWithResponses": "Esta pregunta ya tiene respuestas. Eliminarla borra también esas respuestas. Esta acción no se puede deshacer.",
+    "deleteDesc": "Se quitará la pregunta de la encuesta. Esta acción no se puede deshacer.",
+    "errNoQuestions": "Agrega al menos una pregunta.",
+    "errText": "La pregunta {{n}} necesita un enunciado.",
+    "errChoices": "La pregunta {{n}} (cerrada) necesita al menos 2 opciones.",
+    "saved": "Preguntas guardadas",
+    "title": "Preguntas de la encuesta",
+    "subtitle": "Mezcla preguntas abiertas (texto) y cerradas (opción única).",
+    "loading": "Cargando preguntas…",
+    "empty": "Aún no hay preguntas. Agrega una abierta o una cerrada.",
+    "textPlaceholder": "Escribe el enunciado de la pregunta…",
+    "moveUp": "Subir",
+    "moveDown": "Bajar",
+    "fieldType": "Tipo",
+    "typeOpen": "Abierta (texto)",
+    "typeClosed": "Cerrada (opción única)",
+    "required": "Obligatoria",
+    "maxChars": "Máx. caracteres",
+    "lockedNote": "Con respuestas — tipo y opciones no editables",
+    "choicePlaceholder": "Opción {{n}}",
+    "removeChoice": "Quitar opción",
+    "addChoice": "Agregar opción",
+    "deleteQuestion": "Eliminar pregunta",
+    "addOpen": "Agregar abierta",
+    "addClosed": "Agregar cerrada",
+    "save": "Guardar preguntas"
+  },
+  "hc_bulkImportDefenses": {
+    "templateDownloaded": "Plantilla descargada",
+    "emptyFile": "El archivo no contiene datos",
+    "colCountError": "Fila {{line}}: número de columnas inesperado ({{got}} vs {{exp}}) — ¿usaste coma decimal? Usa punto (ej. 0.8).",
+    "parseError": "Error procesando CSV: {{detail}}",
+    "applySuccess": "{{count}} sustentaciones aplicadas",
+    "applyPartial": "{{ok}} aplicadas, {{fail}} con error. Primero: {{detail}}",
+    "applyFail": "No se aplicó ninguna sustentación. Detalle: {{detail}}",
+    "title": "Importar sustentaciones",
+    "subtitle": "Sube un CSV con las notas de sustentación para varios estudiantes a la vez en {{project}}.",
+    "step1Title": "1. Descarga la plantilla",
+    "step1Hint": "Columnas: student_email (obligatorio), defense_factor (0..1, obligatorio, decimal con PUNTO — ej. 0.8), defense_notes (opcional, máx. 2000 chars), defense_video_url (opcional). Para grupos, basta UN miembro por grupo.",
+    "downloadTemplate": "Descargar plantilla",
+    "step2Title": "2. Carga el CSV con las sustentaciones",
+    "pickFile": "Elegir archivo CSV",
+    "step3Title": "3. Resumen",
+    "readyCount": "Listas para aplicar: {{count}}",
+    "parsedCount": "Filas parseadas: {{count}}",
+    "errorsCount": "Con error: {{count}}",
+    "validationErrors": "Errores de validación",
+    "moreErrors": "...y {{count}} más",
+    "noSubmissionTitle": "Estudiantes sin entrega previa ({{count}}) — no se les puede aplicar sustentación",
+    "lineEmail": "Fila {{line}}: {{email}}",
+    "moreItems": "...y {{count}} más",
+    "noGradeTitle": "Entregas sin nota base ({{count}}) — califica los archivos primero",
+    "duplicateGroupTitle": "Miembros del mismo grupo ignorados ({{count}}) — solo se aplica al primero del CSV",
+    "allReadyHint": "Todas las filas están listas. Al aplicar, se actualizará la sustentación de {{count}} entregas.",
+    "cancel": "Cancelar",
+    "applying": "Aplicando...",
+    "applyCount": "Aplicar {{count}}"
+  },
+  "appLayout": {
+    "deactivatedTitle": "Cuenta desactivada",
+    "deactivatedBody": "Tu cuenta fue desactivada. Contactá al administrador de tu institución para reactivarla."
   }
 }

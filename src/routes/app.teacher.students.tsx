@@ -365,7 +365,8 @@ function TeacherStudentsInner() {
                                 }),
                                 icon: KeyRound,
                                 hint: t("teacherStudents.resetPasswordHint", {
-                                  defaultValue: `Asignar una nueva contraseña a ${s.full_name}`,
+                                  name: s.full_name,
+                                  defaultValue: "Asignar una nueva contraseña a {{name}}",
                                 }),
                                 onClick: () => setResetPasswordFor(s),
                               },

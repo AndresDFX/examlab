@@ -439,7 +439,8 @@ function StudentExamReview() {
             {retryMode !== "last" && attemptCount > 1 && (
               <div className="text-[10px] text-muted-foreground">
                 {t("exam.review.retryModeNote", {
-                  defaultValue: `Nota ${retryModeLabel(retryMode)} de ${attemptCount} intentos · el detalle es el último`,
+                  defaultValue:
+                    "Nota {{mode}} de {{count}} intentos · el detalle es el último",
                   mode: retryModeLabel(retryMode),
                   count: attemptCount,
                 })}

@@ -724,7 +724,7 @@ function FallbackKeysEditor({
         <Label className="text-xs mb-0">
           {t("aiModel.fallbackKeysLabel", {
             provider: providerLabel,
-            defaultValue: `Claves de respaldo de ${providerLabel}`,
+            defaultValue: "Claves de respaldo de {{provider}}",
           })}{" "}
           <HelpHint>
             {t("aiModel.fallbackKeysHelp", {
@@ -736,7 +736,7 @@ function FallbackKeysEditor({
         <Badge variant="secondary" className="text-[10px]">
           {t("aiModel.fallbackKeysCount", {
             count,
-            defaultValue: `${count} configurada(s)`,
+            defaultValue: "{{count}} configurada(s)",
           })}
         </Badge>
       </div>
