@@ -210,6 +210,8 @@ describe("CRITICAL_KINDS export", () => {
     //   - 20260517110000: attendance (check-in abierto).
     //   - 20260708000000: broadcast (difusión docente/admin a curso, correo
     //     por destinatario en vez del BCC viejo).
+    //   - support (PQRS): gated upstream por platform_settings.support_emails_enabled;
+    //     el SQL ya lo emailaba pero la edge/cliente lo descartaban → agregado acá.
     // Mantener sincronizado con el predicado SQL
     // `_notification_kind_emails` y con la copia en
     // supabase/functions/send-email/index.ts.
@@ -221,6 +223,7 @@ describe("CRITICAL_KINDS export", () => {
       "project",
       "attendance",
       "broadcast",
+      "support",
     ]);
   });
 

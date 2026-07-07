@@ -20,12 +20,15 @@
 
 /** Kinds que disparan email por sí solos (sin condiciones extra).
  *  Mantener sincronizado con el predicado SQL
- *  `_notification_kind_emails`:
+ *  `_notification_kind_emails` y con send-email/index.ts:
  *    - workshop+project los añadió la migración 20260523000007 (recordatorios
  *      de vencimiento).
- *    - attendance lo añadió la migración 20260517110000 (check-in abierto).
- *      Estaba en el SQL pero no acá → bug: el trigger SQL invocaba la edge
- *      pero ésta lo rechazaba con kind_not_critical. */
+ *    - attendance (check-in): estaba en cliente+edge pero FALTABA en el SQL
+ *      → el gate de dispatch (notify_send_email) nunca invocaba la edge.
+ *      Corregido en la migración 20261066000000 (agrega attendance al SQL).
+ *    - support (PQRS): el on/off real vive en el SQL
+ *      (platform_settings.support_emails_enabled); acá solo lo marcamos como
+ *      emailable para que shouldSendEmail no lo descarte. */
 export const CRITICAL_KINDS = [
   "grade",
   "exam",
@@ -38,6 +41,8 @@ export const CRITICAL_KINDS = [
   // Sincronizado con el SQL `_notification_kind_emails` (mig
   // 20260708000000) y con send-email/index.ts.
   "broadcast",
+  // support: gated upstream por platform_settings.support_emails_enabled.
+  "support",
 ] as const;
 
 /** Prefijo de link que indica "mensaje 1-a-1" — usado para discriminar

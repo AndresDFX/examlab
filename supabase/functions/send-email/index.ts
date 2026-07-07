@@ -53,6 +53,11 @@ const CRITICAL_KINDS = [
   // destinatario. Sincronizado con SQL `_notification_kind_emails`
   // (mig 20260708000000) y src/modules/notifications/notification-email.ts.
   "broadcast",
+  // support: PQRS Admin↔SuperAdmin. El on/off vive UPSTREAM en el SQL
+  // `_notification_kind_emails` (platform_settings.support_emails_enabled), que
+  // notify_send_email consulta ANTES de invocar esta edge — acá solo lo aceptamos
+  // (antes se descartaba con kind_not_critical → los correos de soporte no salían).
+  "support",
 ];
 const MESSAGE_LINK_PREFIX = "/app/messages";
 const SYSTEM_ALERT_LINK_PREFIX = "/app/admin/system";
