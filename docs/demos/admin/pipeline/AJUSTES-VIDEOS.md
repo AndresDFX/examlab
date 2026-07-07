@@ -133,3 +133,12 @@ edge-tts + ffmpeg) contra la app publicada; no se genera sin ese paso.
   respuesta con IA" en el detalle del ticket (SuperAdmin/Admin) + acción "Analizar con IA"
   en Errores. Se puede sumar como beat al video del módulo Soporte (Admin/SA) o al del
   Asistente IA. Requiere Publish (edge `support-ai-suggest`) para demostrarlo en vivo.
+- **Beat "prompts de IA prediseñados"** (pedido explícito): mostrar en el video del módulo de
+  IA/Prompts (Admin `app.admin.ai-prompts` o Docente) que la plataforma trae **prompts por
+  defecto** editables por caso de uso (examen, taller, proyecto, tutor, asistente de
+  plataforma) y el botón "Restaurar default". Actualmente ningún módulo de video cubre esto
+  a fondo → considerar un beat/módulo dedicado.
+- **Beat "editar el Reto en vivo"** (pedido explícito, ex-"editar Kahoot"): en `module-t12`
+  reforzar que se pueden **editar las preguntas del reto** (abrir "Preguntas del reto",
+  editar texto/opciones/tiempo/puntos, marcar la correcta) además de generarlas con IA. Hoy
+  el beat `kahoot-ia` muestra la generación; sumar un beat corto de edición manual.
