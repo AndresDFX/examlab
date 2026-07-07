@@ -59,11 +59,22 @@ export function toEmbedUrl(url: string, kind: "youtube" | "vimeo"): string {
       // protección anti-scraping.
       return `https://www.youtube.com/embed/${id}?modestbranding=1&rel=0&playsinline=1`;
     }
-    // vimeo.com/<id> o vimeo.com/<id>/<hash>
+    // Casos:
+    //   vimeo.com/<id>                       → player.vimeo.com/video/<id>
+    //   vimeo.com/<id>/<hash>                → player.vimeo.com/video/<id>?h=<hash> (privado)
+    //   player.vimeo.com/video/<id>[?h=..]   → YA es embed: NO tratar "video" como id
+    //     (bug: segs[0]="video" → producía .../video/video?h=<id>). Idempotente.
     const segs = u.pathname.split("/").filter(Boolean);
-    const id = segs[0] ?? null;
+    let id: string | null;
+    let hash: string | null;
+    if (host === "player.vimeo.com" && segs[0] === "video") {
+      id = segs[1] ?? null;
+      hash = u.searchParams.get("h") ?? segs[2] ?? null;
+    } else {
+      id = segs[0] ?? null;
+      hash = segs[1] ?? null;
+    }
     if (!id) return url;
-    const hash = segs[1] ?? null;
     const base = `https://player.vimeo.com/video/${id}`;
     return hash ? `${base}?h=${hash}` : base;
   } catch {

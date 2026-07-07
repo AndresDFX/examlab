@@ -25,37 +25,44 @@ export function downloadCSV(filename: string, csv: string) {
 }
 
 export function parseCSV(text: string): Record<string, string>[] {
-  const lines = text
-    .replace(/\r/g, "")
-    .split("\n")
-    .filter((l) => l.trim());
-  if (!lines.length) return [];
-  const parseLine = (line: string): string[] => {
-    const out: string[] = [];
-    let cur = "";
-    let inQ = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (inQ) {
-        if (ch === '"' && line[i + 1] === '"') {
-          cur += '"';
-          i++;
-        } else if (ch === '"') inQ = false;
-        else cur += ch;
-      } else {
-        if (ch === ",") {
-          out.push(cur);
-          cur = "";
-        } else if (ch === '"') inQ = true;
-        else cur += ch;
-      }
-    }
-    out.push(cur);
-    return out;
+  // Parser RFC 4180 char-a-char: el estado de comillas cruza saltos de línea,
+  // así que un campo entrecomillado con `\n` interno (ej. defense_notes de
+  // varias líneas) se preserva en vez de romper la fila. (Antes se hacía
+  // split("\n") ANTES de parsear comillas → corrompía el round-trip.)
+  const src = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const records: string[][] = [];
+  let row: string[] = [];
+  let cur = "";
+  let inQ = false;
+  const endField = () => {
+    row.push(cur);
+    cur = "";
   };
-  const headers = parseLine(lines[0]).map((h) => h.trim());
-  return lines.slice(1).map((l) => {
-    const vals = parseLine(l);
+  const endRecord = () => {
+    endField();
+    // Saltar líneas en blanco (una sola celda vacía / solo espacios) — mismo
+    // comportamiento que el filtro `l.trim()` anterior.
+    if (!(row.length === 1 && row[0].trim() === "")) records.push(row);
+    row = [];
+  };
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (inQ) {
+      if (ch === '"' && src[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else if (ch === '"') inQ = false;
+      else cur += ch;
+    } else if (ch === '"') inQ = true;
+    else if (ch === ",") endField();
+    else if (ch === "\n") endRecord();
+    else cur += ch;
+  }
+  // Flush del último registro si el texto no termina en salto de línea.
+  if (cur !== "" || row.length > 0) endRecord();
+  if (!records.length) return [];
+  const headers = records[0].map((h) => h.trim());
+  return records.slice(1).map((vals) => {
     const obj: Record<string, string> = {};
     headers.forEach((h, i) => {
       obj[h] = (vals[i] ?? "").trim();

@@ -88,6 +88,18 @@ describe("toEmbedUrl - vimeo", () => {
     const noId = "https://vimeo.com/";
     expect(toEmbedUrl(noId, "vimeo")).toBe(noId);
   });
+
+  it("es idempotente con una URL ya-embed (player.vimeo.com/video/<id>)", () => {
+    expect(toEmbedUrl("https://player.vimeo.com/video/123456789", "vimeo")).toBe(
+      "https://player.vimeo.com/video/123456789",
+    );
+  });
+
+  it("preserva ?h= de un embed privado ya en forma player.vimeo.com", () => {
+    expect(toEmbedUrl("https://player.vimeo.com/video/123456789?h=abc123", "vimeo")).toBe(
+      "https://player.vimeo.com/video/123456789?h=abc123",
+    );
+  });
 });
 
 describe("buildVideoEmbedUrl", () => {

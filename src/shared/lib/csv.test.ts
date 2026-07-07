@@ -102,4 +102,18 @@ describe("parseCSV", () => {
     const parsed = parseCSV(csv);
     expect(parsed).toEqual(input);
   });
+
+  it("preserva saltos de línea dentro de un campo entrecomillado (no rompe la fila)", () => {
+    const rows = parseCSV('a,b\n"multi\nlinea",x\n2,y');
+    expect(rows).toEqual([
+      { a: "multi\nlinea", b: "x" },
+      { a: "2", b: "y" },
+    ]);
+  });
+
+  it("roundtrip de un campo multilínea (ej. defense_notes)", () => {
+    const input = [{ id: "1", note: "linea1\nlinea2\nlinea3" }];
+    const csv = toCSV(input);
+    expect(parseCSV(csv)).toEqual(input);
+  });
 });
