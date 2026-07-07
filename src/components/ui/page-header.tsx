@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/lib/utils";
 
 /**
@@ -47,18 +48,20 @@ export function PageHeader({
   backTo,
   backParams,
   onBack,
-  backLabel = "Volver",
+  backLabel,
   title,
   subtitle,
   actions,
   icon,
   className,
 }: Readonly<PageHeaderProps>) {
+  const { t } = useTranslation();
+  const resolvedBackLabel = backLabel ?? t("common.back", { defaultValue: "Volver" });
   const showBack = Boolean(backTo || onBack);
   const backContent = (
     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
       <ArrowLeft className="h-3.5 w-3.5" />
-      {backLabel}
+      {resolvedBackLabel}
     </span>
   );
 
@@ -70,7 +73,7 @@ export function PageHeader({
             to={backTo}
             params={backParams}
             className="inline-flex w-fit"
-            aria-label={backLabel}
+            aria-label={resolvedBackLabel}
           >
             {backContent}
           </Link>
@@ -79,7 +82,7 @@ export function PageHeader({
             type="button"
             onClick={onBack}
             className="inline-flex w-fit"
-            aria-label={backLabel}
+            aria-label={resolvedBackLabel}
           >
             {backContent}
           </button>

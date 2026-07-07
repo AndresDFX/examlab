@@ -1,4 +1,5 @@
 import { type ComponentType, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, RefreshCw } from "lucide-react";
@@ -140,6 +141,7 @@ interface ErrorStateProps {
  *   if (loadError) return <ErrorState message={loadError} onRetry={load} />;
  */
 export function ErrorState({ message, hint, onRetry, className }: Readonly<ErrorStateProps>) {
+  const { t } = useTranslation();
   return (
     <div
       role="alert"
@@ -156,7 +158,7 @@ export function ErrorState({ message, hint, onRetry, className }: Readonly<Error
       {onRetry ? (
         <Button size="sm" variant="outline" onClick={onRetry} className="mt-2">
           <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-          Reintentar
+          {t("common.retry", { defaultValue: "Reintentar" })}
         </Button>
       ) : null}
     </div>

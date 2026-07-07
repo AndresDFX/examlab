@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/shared/lib/utils";
 
@@ -23,7 +24,8 @@ interface LoaderProps {
   className?: string;
 }
 
-export function SectionLoader({ text = "Cargando…", className }: Readonly<LoaderProps>) {
+export function SectionLoader({ text, className }: Readonly<LoaderProps>) {
+  const { t } = useTranslation();
   return (
     <div
       className={cn(
@@ -32,12 +34,13 @@ export function SectionLoader({ text = "Cargando…", className }: Readonly<Load
       )}
     >
       <Spinner size="md" />
-      <span>{text}</span>
+      <span>{text ?? t("common.loading", { defaultValue: "Cargando…" })}</span>
     </div>
   );
 }
 
-export function PageLoader({ text = "Cargando…", className }: Readonly<LoaderProps>) {
+export function PageLoader({ text, className }: Readonly<LoaderProps>) {
+  const { t } = useTranslation();
   return (
     <div
       className={cn(
@@ -46,7 +49,7 @@ export function PageLoader({ text = "Cargando…", className }: Readonly<LoaderP
       )}
     >
       <Spinner size="lg" />
-      <span className="text-sm">{text}</span>
+      <span className="text-sm">{text ?? t("common.loading", { defaultValue: "Cargando…" })}</span>
     </div>
   );
 }

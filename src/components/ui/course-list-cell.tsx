@@ -9,6 +9,7 @@
  * Es presentacional: el caller decide qué cursos pasar; aquí solo
  * cuidamos overflow y consistencia visual.
  */
+import { useTranslation } from "react-i18next";
 import { Badge } from "./badge";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 
@@ -35,6 +36,7 @@ export function CourseListCell({
   popoverTitle,
   emptyLabel = "—",
 }: CourseListCellProps) {
+  const { t } = useTranslation();
   if (courses.length === 0) {
     return <span className="text-xs text-muted-foreground">{emptyLabel}</span>;
   }
@@ -61,7 +63,11 @@ export function CourseListCell({
             <button
               type="button"
               className="inline-flex items-center rounded-full border bg-muted/40 hover:bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors"
-              title={`+${overflow.length} curso${overflow.length === 1 ? "" : "s"} más`}
+              title={t("hc_componentsUiCourseListCell.moreCourses", {
+                count: overflow.length,
+                defaultValue_one: "+{{count}} curso más",
+                defaultValue_other: "+{{count}} cursos más",
+              })}
             >
               +{overflow.length}
             </button>

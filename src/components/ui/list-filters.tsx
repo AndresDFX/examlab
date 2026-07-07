@@ -27,6 +27,7 @@
  */
 import { Search, X } from "lucide-react";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Input } from "./input";
 import { Button } from "./button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
@@ -68,18 +69,26 @@ interface ListFiltersProps {
 export function ListFilters({
   search,
   onSearchChange,
-  searchPlaceholder = "Buscar por título…",
+  searchPlaceholder,
   courseId,
   onCourseChange,
   courses,
-  allLabel = "Todos los cursos",
+  allLabel,
   cuts,
   cutId,
   onCutChange,
-  allCutsLabel = "Todos los cortes",
+  allCutsLabel,
   extra,
   onClearExtra,
 }: ListFiltersProps) {
+  const { t } = useTranslation();
+  const resolvedSearchPlaceholder =
+    searchPlaceholder ??
+    t("hc_componentsUiListFilters.searchPlaceholder", { defaultValue: "Buscar por título…" });
+  const resolvedAllLabel =
+    allLabel ?? t("hc_componentsUiListFilters.allCourses", { defaultValue: "Todos los cursos" });
+  const resolvedAllCutsLabel =
+    allCutsLabel ?? t("hc_componentsUiListFilters.allCuts", { defaultValue: "Todos los cortes" });
   const cutsForCourse = courseId ? (cuts ?? []).filter((c) => c.course_id === courseId) : [];
   const showCutSelect = !!courseId && cutsForCourse.length > 0 && !!onCutChange;
   const hasFilters = !!search || courseId != null || cutId != null;
@@ -90,7 +99,7 @@ export function ListFilters({
         <Input
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder={searchPlaceholder}
+          placeholder={resolvedSearchPlaceholder}
           className="pl-8"
         />
       </div>
@@ -99,10 +108,10 @@ export function ListFilters({
         onValueChange={(v) => onCourseChange(v === ALL_COURSES ? null : v)}
       >
         <SelectTrigger className="w-full sm:w-56">
-          <SelectValue placeholder={allLabel} />
+          <SelectValue placeholder={resolvedAllLabel} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ALL_COURSES}>{allLabel}</SelectItem>
+          <SelectItem value={ALL_COURSES}>{resolvedAllLabel}</SelectItem>
           {courses.map((c) => (
             <SelectItem key={c.id} value={c.id}>
               {c.name}
@@ -116,10 +125,10 @@ export function ListFilters({
           onValueChange={(v) => onCutChange?.(v === ALL_CUTS ? null : v)}
         >
           <SelectTrigger className="w-full sm:w-44">
-            <SelectValue placeholder={allCutsLabel} />
+            <SelectValue placeholder={resolvedAllCutsLabel} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL_CUTS}>{allCutsLabel}</SelectItem>
+            <SelectItem value={ALL_CUTS}>{resolvedAllCutsLabel}</SelectItem>
             {cutsForCourse.map((c) => (
               <SelectItem key={c.id} value={c.id}>
                 {c.name}
@@ -139,10 +148,10 @@ export function ListFilters({
             onCutChange?.(null);
             onClearExtra?.();
           }}
-          title="Limpiar filtros"
+          title={t("hc_componentsUiListFilters.clearFiltersTitle", { defaultValue: "Limpiar filtros" })}
         >
           <X className="h-4 w-4 mr-1" />
-          Limpiar
+          {t("hc_componentsUiListFilters.clear", { defaultValue: "Limpiar" })}
         </Button>
       )}
     </div>

@@ -107,7 +107,9 @@
     "remove": "Remove",
     "endDateBeforeStart": "The end date cannot be earlier than the start date.",
     "reactivate": "Reactivate",
-    "deactivate": "Deactivate"
+    "deactivate": "Deactivate",
+    "searchPlaceholder": "Search…",
+    "clear": "Clear"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -158,7 +160,8 @@
     "themeLight": "Light",
     "themeDark": "Dark",
     "language": "Language",
-    "options": "Options"
+    "options": "Options",
+    "changeTheme": "Change theme"
   },
   "roles": {
     "Admin": "Admin",
@@ -1315,7 +1318,21 @@
     "generateSessionsHolidaysHint": "What to do with dates that fall on a Colombian holiday: skip them (and add more at the end to reach the count), move them to the next business day, or leave them.",
     "generateSessionsTitlePh": "Title",
     "generateSessionsHolidayBadge": "Holiday",
-    "generateSessionsErrDup": "There are sessions with the same date and title ({{dates}}). Change the title or date of those rows before creating."
+    "generateSessionsErrDup": "There are sessions with the same date and title ({{dates}}). Change the title or date of those rows before creating.",
+    "fileLabelPresentation": "Presentation",
+    "fileLabelExerciseSolution": "Exercise (with solution)",
+    "fileLabelExerciseStudent": "Exercise (student)",
+    "fileLabelTeacherGuide": "Teacher guide",
+    "fileLabelPracticalWorkshop": "Practical workshop",
+    "fileLabelIntro": "Introduction",
+    "fileLabelMaterial": "Material",
+    "loadContentError": "Could not load the content",
+    "contentNameLabel": "Content name",
+    "generateSessionsHolidaySkip": "Skip and refill",
+    "generateSessionsHolidayMove": "Move to the next business day",
+    "generateSessionsHolidayInclude": "Include holidays",
+    "generateSessionsClassTitle": "Class {{number}}",
+    "generateSessionsSubtitleBoard": "The course's sessions will be scheduled with their time slots. You'll be able to edit each date before creating them."
   },
   "courseBoard": {
     "indexSubtitle": "Select a course to see its sessions, content and deliverables board.",
@@ -1348,7 +1365,8 @@
     "subscribeFallbackHint": "The feed contains ALL sessions from your courses and refreshes automatically about every 24h.",
     "calendarOpenedToast": "Google Calendar opened in a new tab — confirm the subscription there.",
     "calendarUrlError": "Could not build calendar URL. Try logging out and back in.",
-    "attendanceSummary": "Attendance: {{attended}}/{{total}} sessions ({{pct}}%)"
+    "attendanceSummary": "Attendance: {{attended}}/{{total}} sessions ({{pct}}%)",
+    "meeting": "Meeting"
   },
   "manageCourses": {
     "title": "Assign to courses",
@@ -2217,7 +2235,10 @@
     "removeAttachment": "Remove",
     "closedBanner": "The teacher closed this conversation.",
     "deleteTitle": "Delete comment",
-    "deleteDescription": "Your comment will be permanently deleted."
+    "deleteDescription": "Your comment will be permanently deleted.",
+    "attachmentsOnlyBody": "(attachments)",
+    "adjustedAutoComment": "Adjusted.",
+    "attachFiles": "Attach files"
   },
   "externalGrades": {
     "title": "External grades",
@@ -2708,7 +2729,8 @@
       "threadReopened": "Conversation reopened",
       "unknownReason": "unknown",
       "editFailed": "Couldn’t edit the comment",
-      "deleteFailed": "Couldn’t delete the comment"
+      "deleteFailed": "Couldn’t delete the comment",
+      "openThreadFailed": "Couldn't open the conversation"
     },
     "modules_grading_OpenFeedbackModal": {
       "conversationClosed": "Conversation closed"
@@ -2757,7 +2779,10 @@
     },
     "modules_whiteboard_SessionWhiteboardDialog": {
       "sharedEnabled": "Shared whiteboard enabled",
-      "sharedDisabled": "Shared whiteboard disabled"
+      "sharedDisabled": "Shared whiteboard disabled",
+      "loadError": "We couldn't load the whiteboard.",
+      "saveError": "The whiteboard could not be saved",
+      "sharedToggleError": "Shared mode could not be changed"
     },
     "modules_workshops_WorkshopGroupsEditor": {
       "groupNameRequired": "Give the group a name"
@@ -3395,7 +3420,8 @@
       "fileExportedSuccess": "File exported successfully",
       "exportError": "Error exporting: {{detail}}",
       "fileNoData": "The file contains no data",
-      "importError": "Error importing: {{detail}}"
+      "importError": "Error importing: {{detail}}",
+      "rowsImported": "{{count}} rows imported"
     },
     "routes_app_admin_report_templates": {
       "nameRequired": "Name is required",
@@ -3407,11 +3433,14 @@
     },
     "modules_contents_EditExternalContentDialog": {
       "saved": "Content updated",
-      "duplicateName": "You already have content named \"{{name}}\". Use a different name."
+      "duplicateName": "You already have content named \"{{name}}\". Use a different name.",
+      "saveError": "Could not save the content"
     },
     "modules_sessions_SessionCodeSnippetsDialog": {
       "sharedEnabled": "Code shared with students",
-      "sharedDisabled": "Code hidden from students"
+      "sharedDisabled": "Code hidden from students",
+      "loadSharedError": "We couldn't load the shared status.",
+      "toggleSharedError": "The shared mode couldn't be changed"
     }
   },
   "systemDiagnosticsPanel": {
@@ -4554,7 +4583,8 @@
     "hintDueReminderLead": "Default 1 hour. Range 1–168 (up to 7 days). Only to those who haven't submitted.",
     "hintOpenCharsPrefix": "Only affects ",
     "hintOpenCharsSuffix": " questions. Code, diagram, java_gui, python_gui and multiple-choice questions have their own limits.",
-    "thresholdPlaceholder": "0 = disabled"
+    "thresholdPlaceholder": "0 = disabled",
+    "loadErrorFallback": "We couldn't load the parameters."
   },
   "superadminSupport": {
     "title": "Support",
@@ -4628,7 +4658,15 @@
     "tbLink": "Link",
     "tabEditor": "Editor",
     "tabPreview": "Preview",
-    "placeholder": "Write your content here. Supports **markdown**: # headings, lists, code, quotes…"
+    "placeholder": "Write your content here. Supports **markdown**: # headings, lists, code, quotes…",
+    "phBold": "bold text",
+    "phItalic": "italic text",
+    "phCodeInline": "code",
+    "phCodeBlock": "// code",
+    "promptLinkUrl": "Link URL:",
+    "phLinkText": "link text",
+    "emptyContent": "*(empty page)*",
+    "emptyPreview": "*(start typing to see the preview)*"
   },
   "pythonGuiRunner": {
     "badge": "Python GUI — tkinter (PNG capture)",
@@ -4723,7 +4761,8 @@
     "notesAvailable": "Meeting notes available — they'll be linked"
   },
   "modules_sessions_SessionCodeSnippetsDialog": {
-    "shareWithStudents": "Share with students"
+    "shareWithStudents": "Share with students",
+    "title": "Code snippets"
   },
   "routes_app_student_attendance": {
     "viewNotes": "View notes"
@@ -8704,10 +8743,201 @@
     "emptyHint": "When you add one, it will stop receiving emails.",
     "globalBadge": "Global",
     "rowRemoveLabel": "Remove from list",
-    "loadErrorFallback": "We couldn’t load the email settings."
+    "loadErrorFallback": "We couldn’t load the email settings.",
+    "errorStateMessage": "We couldn't load the email settings",
+    "globalSwitchTitle": "Global switch",
+    "globallyEnabledLabel": "Email sending enabled",
+    "globallyEnabledDesc": "When disabled, NO email is sent — regardless of the per-category toggles. In-app and push notifications keep working.",
+    "globallyDisabledBadge": "Emails disabled globally",
+    "byCategoryTitle": "By category",
+    "lastUpdated": "Last updated: {{date}}",
+    "saveChangesBtn": "Save changes",
+    "cat_exam_label": "Exams",
+    "cat_exam_desc": "Assignment, publishing, reminders, approved/rejected support notes",
+    "cat_workshop_label": "Workshops",
+    "cat_workshop_desc": "Newly published workshops and due date reminders",
+    "cat_project_label": "Projects",
+    "cat_project_desc": "New projects and due date reminders",
+    "cat_grade_label": "Grades",
+    "cat_grade_desc": "When the grade for a submission is published",
+    "cat_feedback_label": "Feedback",
+    "cat_feedback_desc": "New comments, closing/opening of conversations",
+    "cat_messages_label": "1-on-1 messages",
+    "cat_messages_desc": "Internal chat (rate-limited to 1 per conversation / 10 min)",
+    "cat_poll_label": "Polls",
+    "cat_poll_desc": "When a new poll is published, when a published one is edited, or when reminders are scheduled.",
+    "cat_content_label": "Contents / Materials",
+    "cat_content_desc": "When the teacher publishes or updates class material (PDFs, guides, presentations).",
+    "cat_system_alerts_label": "System alerts",
+    "cat_system_alerts_desc": "Notifications to admins when a threshold is crossed (storage, errors, etc.). Does NOT affect transactional emails (password reset, email change).",
+    "cat_welcome_label": "Welcome (new users)",
+    "cat_welcome_desc": "Automatic email with a link to set a password, sent when creating a new user (individual form or bulk CSV import). Turn it off if you hand out passwords manually or use SSO."
   },
   "hc_modulesMessagingTagTextarea": {
     "noTitle": "(untitled)",
-    "taggerHint": "Tag content — Enter to insert"
+    "taggerHint": "Tag content — Enter to insert",
+    "removeTag": "Remove tag {{label}}"
+  },
+  "hc_modulesAdminAdminCodeExecutionPanel": {
+    "providerLabelOnlinecompiler": "OnlineCompiler.io (external API)",
+    "providerLabelJdoodle": "JDoodle (fallback)",
+    "providerLabelCheerp": "CheerpJ — browser (Java only)",
+    "providerLabelAwsLambda": "AWS Lambda — own runner (recommended for Java)",
+    "providerDescOnlinecompiler": "Synchronous API, 12 languages, no daily quota. Requires the ONLINE_COMPILER_API_KEY secret.",
+    "providerDescJdoodle": "Classic JDoodle API. Quota of 200 executions/day on the free plan. Requires JDOODLE_CLIENT_ID and JDOODLE_CLIENT_SECRET.",
+    "providerDescCheerp": "Java runs entirely in the student's browser (WebAssembly). No external API or quota. Other languages still use OnlineCompiler.io.",
+    "providerDescAwsLambda": "Lambda with OpenJDK 21 deployed in YOUR AWS account. Fits in Always Free up to ~50K execs/month. Full compile errors (line + message). Other languages automatically fall back to OnlineCompiler.io. See aws/code-runner/README.md for the deployment.",
+    "javaGuiLabelCheerp": "CheerpJ — browser (interactive)",
+    "guiLabelAwsScreenshot": "AWS Lambda + Xvfb — PNG screenshot (non-interactive)",
+    "javaGuiDescCheerp": "Swing/AWT/JavaFX runs entirely in the student's browser (WebAssembly). The student can click, type, and interact with the window in real time. Requires a commercial license for multi-user production use — see docs/JAVA-GUI-OPTIONS.md.",
+    "javaGuiDescAwsScreenshot": "AWS Lambda runs the Swing app under Xvfb (virtual display) and returns ONE PNG screenshot. The student only SEES the window — they cannot click or test events. Useful as a 'submit & view render' mode without a license. Requires deploying the Lambda with Xvfb + ImageMagick (see aws/code-runner/).",
+    "pythonGuiDescAwsScreenshot": "AWS Lambda runs the tkinter app under Xvfb (virtual display) and returns ONE PNG screenshot. The student only SEES the window — they cannot click or test events. Requires deploying the same Lambda as for Java GUI (it already has Python + tkinter in the container).",
+    "secretOnlineCompilerNonJava": "ONLINE_COMPILER_API_KEY (for languages other than Java)",
+    "secretAwsRunnerApiKeySsm": "AWS_RUNNER_API_KEY (shared secret in SSM)",
+    "secretOnlineCompilerFallback": "ONLINE_COMPILER_API_KEY (fallback for non-Java languages)",
+    "secretAwsRunnerUrlSameEndpoint": "AWS_RUNNER_URL (same endpoint as the aws_lambda provider)",
+    "loadErrorFallback": "We couldn't load the settings.",
+    "loadingSettings": "Loading settings…",
+    "loadErrorTitle": "We couldn't load the code execution settings",
+    "cardTitle": "Code execution provider",
+    "cardSubtitle": "Global configuration for the entire platform. If a provider fails, change it here without redeploying.",
+    "tabTextConsoleFull": "Text / Console",
+    "tabTextConsoleShort": "Text",
+    "questionsPrefix": "Questions",
+    "codeQuestionBody": "— the student writes code and sees the output in the console. For Java the provider selected below is used; for other languages (Python, JS, C++…) it automatically falls back to OnlineCompiler.io.",
+    "javaGuiQuestionBody": "— the student writes Swing / AWT / JavaFX and needs to see the rendered window.",
+    "pythonGuiQuestionBody": "— the student writes tkinter. There is only one provider for now (there is no Pyodide+tkinter in WASM).",
+    "secretsForLabel": "Secrets for",
+    "typeWord": "type",
+    "configureSecretsHint": "Configure them in Admin → Edge Function Secrets before activating.",
+    "saveSettings": "Save settings"
+  },
+  "hc_modulesMessagingMessagesFab": {
+    "timeAgoNow": "now",
+    "timeAgoMinutes": "{{mins}}m ago",
+    "timeAgoHours": "{{hrs}}h ago",
+    "timeAgoDays": "{{days}}d ago",
+    "bellAriaLabel": "Messages and notifications ({{count}} unread)",
+    "inboxTitle": "Inbox",
+    "marking": "Marking…",
+    "markAll": "Mark all",
+    "messagesLabel": "Messages",
+    "messagesUnanswered": "({{count}} unanswered)",
+    "notificationsLabel": "Notifications",
+    "notificationsUnread": "({{count}} unread)",
+    "emptyNotifications": "No notifications"
+  },
+  "hc_modulesMessagingMessageTagPicker": {
+    "title": "Tag content",
+    "searchPlaceholder": "Search {{type}}…",
+    "noMatches": "No matches.",
+    "emptyForType": "No {{type}}s available.",
+    "untitled": "(untitled)"
+  },
+  "hc_modulesWhiteboardWhiteboardEditor": {
+    "unknownError": "Unknown error",
+    "loadErrorTitle": "We couldn't load the whiteboard editor",
+    "loading": "Loading whiteboard…",
+    "readOnly": "Read-only",
+    "sharedLive": "Shared live",
+    "shapes": "Shapes",
+    "shapesButtonTitle": "Shapes by diagram type (classes, flowchart, E-R…)",
+    "shapesPanelTitle": "Shapes by diagram type",
+    "shapesPanelHint": "Tap one to insert it in the center.",
+    "exitFullscreen": "Exit fullscreen",
+    "enterFullscreen": "Fullscreen"
+  },
+  "hc_modulesSchedulesWeeklyScheduleView": {
+    "title": "My week",
+    "emptyText": "No schedule configured",
+    "emptyHint": "When your courses have defined weekly blocks, they'll appear here.",
+    "today": "Today",
+    "modalityVirtual": "Virtual",
+    "modalityHibrida": "Hybrid"
+  },
+  "hc_modulesWhiteboardSessionWhiteboardDialog": {
+    "title": "Whiteboard",
+    "saving": "Saving…",
+    "sharedLabel": "Shared whiteboard",
+    "loadingWhiteboard": "Loading whiteboard…"
+  },
+  "importExportMenu": {
+    "buttonLabel": "Data",
+    "templateSection": "Template",
+    "downloadTemplate": "Download template",
+    "importFromCsv": "Import from CSV",
+    "exportToCsv": "Export to CSV",
+    "exportToExcel": "Export to Excel"
+  },
+  "hc_sharedComponentsDuplicateOptionsDialog": {
+    "couldNotDuplicate": "Could not duplicate",
+    "whatToCopy": "What to copy"
+  },
+  "activityStatus": {
+    "activos": "Active and drafts",
+    "cerrados": "Closed"
+  },
+  "reopenBanner": {
+    "message": "This is closed.",
+    "hint": "To reopen it, change the status to open and set a new deadline (a future date).",
+    "reopenLabel": "Reopen"
+  },
+  "hc_sharedComponentsIntroVideoGate": {
+    "videoSingular": "Introductory video",
+    "videosPlural": "Introductory videos ({{n}})",
+    "allWatched": "All watched",
+    "watchInOrder": "Watch the videos in order. The next one unlocks when you finish the current one.",
+    "progress": "You've watched <0>{{watched}}</0> of <1>{{total}}</1>.",
+    "videoFallbackLabel": "Video {{number}}",
+    "statusWatched": "Watched",
+    "statusWatchNow": "Watch now",
+    "statusLocked": "Locked",
+    "finishPreviousToUnlock": "Finish the previous videos to unlock it.",
+    "alreadyWatched": "I've watched this whole video",
+    "loadErrorMessage": "The video couldn't be loaded. The link may be broken or the format may not be compatible with your browser.",
+    "continueAnyway": "Continue anyway",
+    "noSeekHint": "Watch the video to the end. The player doesn't allow fast-forwarding — you can pause or rewind freely."
+  },
+  "assignSelector": {
+    "searchPlaceholder": "Search by name or email…",
+    "assignedBadge": "Assigned",
+    "assignedNoun": "assigned",
+    "selectFiltered": "Select filtered",
+    "deselectFiltered": "Deselect filtered",
+    "countSummary": "{{count}} {{noun}} of {{total}}",
+    "filteredSuffix": " · {{count}} filtered"
+  },
+  "hc_componentsUiListFilters": {
+    "searchPlaceholder": "Search by title…",
+    "allCourses": "All courses",
+    "allCuts": "All grading periods",
+    "clearFiltersTitle": "Clear filters",
+    "clear": "Clear"
+  },
+  "hc_componentsUiMultiSelect": {
+    "selectRow": "Select row",
+    "selectedSingular": "selected",
+    "selectedPlural": "selected",
+    "actionFailed": "Could not {{action}}.",
+    "recordsWillBeDeleted": "The selected records will be deleted.",
+    "showLess": "Show less",
+    "showMore": "Show {{count}} more"
+  },
+  "hc_componentsUiBadgeOverflow": {
+    "andMore": "And {{n}} more"
+  },
+  "hc_componentsUiHexColorInput": {
+    "noValidColor": "No valid color",
+    "visualPickerFor": "{{label}} (visual picker)",
+    "colorPicker": "Color picker"
+  },
+  "hc_componentsUiCourseListCell": {
+    "moreCourses_one": "+{{count}} more course",
+    "moreCourses_other": "+{{count}} more courses"
+  },
+  "hc_componentsUiDatePicker": {
+    "selectDate": "Select date",
+    "selectDateTime": "Select date and time",
+    "time": "Time"
   }
 }

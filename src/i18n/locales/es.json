@@ -107,7 +107,9 @@
     "remove": "Quitar",
     "endDateBeforeStart": "La fecha de fin no puede ser anterior a la fecha de inicio.",
     "reactivate": "Reactivar",
-    "deactivate": "Desactivar"
+    "deactivate": "Desactivar",
+    "searchPlaceholder": "Buscar…",
+    "clear": "Limpiar"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -158,7 +160,8 @@
     "themeLight": "Claro",
     "themeDark": "Oscuro",
     "language": "Idioma",
-    "options": "Opciones"
+    "options": "Opciones",
+    "changeTheme": "Cambiar tema"
   },
   "roles": {
     "Admin": "Administrador",
@@ -1315,7 +1318,21 @@
     "generateSessionsHolidaysHint": "Qué hacer con las fechas que caen en festivo colombiano: omitirlas (y agregar más al final para llegar a la cantidad), moverlas al siguiente día hábil, o dejarlas.",
     "generateSessionsTitlePh": "Título",
     "generateSessionsHolidayBadge": "Festivo",
-    "generateSessionsErrDup": "Hay sesiones con la misma fecha y título ({{dates}}). Cambia el título o la fecha de esas filas antes de crear."
+    "generateSessionsErrDup": "Hay sesiones con la misma fecha y título ({{dates}}). Cambia el título o la fecha de esas filas antes de crear.",
+    "fileLabelPresentation": "Presentación",
+    "fileLabelExerciseSolution": "Ejercicio (con solución)",
+    "fileLabelExerciseStudent": "Ejercicio (estudiante)",
+    "fileLabelTeacherGuide": "Guía docente",
+    "fileLabelPracticalWorkshop": "Taller práctico",
+    "fileLabelIntro": "Introducción",
+    "fileLabelMaterial": "Material",
+    "loadContentError": "No se pudo cargar el contenido",
+    "contentNameLabel": "Nombre del contenido",
+    "generateSessionsHolidaySkip": "Omitir y recompletar",
+    "generateSessionsHolidayMove": "Mover al siguiente día hábil",
+    "generateSessionsHolidayInclude": "Incluir festivos",
+    "generateSessionsClassTitle": "Clase {{number}}",
+    "generateSessionsSubtitleBoard": "Se programarán las sesiones del curso con su horario. Podrás editar cada fecha antes de crearlas."
   },
   "courseBoard": {
     "indexSubtitle": "Selecciona un curso para ver el tablero de sesiones, contenido y entregas.",
@@ -1348,7 +1365,8 @@
     "subscribeFallbackHint": "El feed contiene TODAS las sesiones de tus cursos y se refresca automáticamente cada ~24h.",
     "calendarOpenedToast": "Google Calendar abierto en una nueva pestaña — confirma la suscripción ahí.",
     "calendarUrlError": "No se pudo generar el URL del calendario. Intenta cerrar sesión y volver a entrar.",
-    "attendanceSummary": "Asistencia: {{attended}}/{{total}} sesiones ({{pct}}%)"
+    "attendanceSummary": "Asistencia: {{attended}}/{{total}} sesiones ({{pct}}%)",
+    "meeting": "Reunión"
   },
   "manageCourses": {
     "title": "Asignar a cursos",
@@ -2217,7 +2235,10 @@
     "removeAttachment": "Quitar",
     "closedBanner": "El docente cerró esta conversación.",
     "deleteTitle": "Eliminar comentario",
-    "deleteDescription": "Se eliminará tu comentario de forma permanente."
+    "deleteDescription": "Se eliminará tu comentario de forma permanente.",
+    "attachmentsOnlyBody": "(adjuntos)",
+    "adjustedAutoComment": "Ajustado.",
+    "attachFiles": "Adjuntar archivos"
   },
   "externalGrades": {
     "title": "Notas externas",
@@ -2708,7 +2729,8 @@
       "threadReopened": "Conversación reabierta",
       "unknownReason": "desconocido",
       "editFailed": "No se pudo editar el comentario",
-      "deleteFailed": "No se pudo eliminar el comentario"
+      "deleteFailed": "No se pudo eliminar el comentario",
+      "openThreadFailed": "No se pudo abrir la conversación"
     },
     "modules_grading_OpenFeedbackModal": {
       "conversationClosed": "Conversación cerrada"
@@ -2757,7 +2779,10 @@
     },
     "modules_whiteboard_SessionWhiteboardDialog": {
       "sharedEnabled": "Pizarra compartida activada",
-      "sharedDisabled": "Pizarra compartida desactivada"
+      "sharedDisabled": "Pizarra compartida desactivada",
+      "loadError": "No pudimos cargar la pizarra.",
+      "saveError": "No se pudo guardar la pizarra",
+      "sharedToggleError": "No se pudo cambiar el modo compartido"
     },
     "modules_workshops_WorkshopGroupsEditor": {
       "groupNameRequired": "Ponle un nombre al grupo"
@@ -3395,7 +3420,8 @@
       "fileExportedSuccess": "Archivo exportado correctamente",
       "exportError": "Error exportando: {{detail}}",
       "fileNoData": "El archivo no contiene datos",
-      "importError": "Error importando: {{detail}}"
+      "importError": "Error importando: {{detail}}",
+      "rowsImported": "{{count}} filas importadas"
     },
     "routes_app_admin_report_templates": {
       "nameRequired": "El nombre es obligatorio",
@@ -3407,11 +3433,14 @@
     },
     "modules_contents_EditExternalContentDialog": {
       "saved": "Contenido actualizado",
-      "duplicateName": "Ya tienes un contenido llamado \"{{name}}\". Usa otro nombre."
+      "duplicateName": "Ya tienes un contenido llamado \"{{name}}\". Usa otro nombre.",
+      "saveError": "No se pudo guardar el contenido"
     },
     "modules_sessions_SessionCodeSnippetsDialog": {
       "sharedEnabled": "Código compartido con los alumnos",
-      "sharedDisabled": "Código oculto para los alumnos"
+      "sharedDisabled": "Código oculto para los alumnos",
+      "loadSharedError": "No pudimos cargar el estado de compartido.",
+      "toggleSharedError": "No se pudo cambiar el modo compartido"
     }
   },
   "systemDiagnosticsPanel": {
@@ -4554,7 +4583,8 @@
     "hintDueReminderLead": "Por defecto 1 hora. Rango 1–168 (hasta 7 días). Solo a quienes no han entregado.",
     "hintOpenCharsPrefix": "Solo afecta preguntas ",
     "hintOpenCharsSuffix": ". Las de código, diagrama, java_gui, python_gui y opción múltiple tienen sus propios límites.",
-    "thresholdPlaceholder": "0 = desactivado"
+    "thresholdPlaceholder": "0 = desactivado",
+    "loadErrorFallback": "No pudimos cargar los parámetros."
   },
   "superadminSupport": {
     "title": "Soporte",
@@ -4628,7 +4658,15 @@
     "tbLink": "Enlace",
     "tabEditor": "Editor",
     "tabPreview": "Vista previa",
-    "placeholder": "Escribe acá tu contenido. Soporta **markdown**: # encabezados, listas, código, citas…"
+    "placeholder": "Escribe acá tu contenido. Soporta **markdown**: # encabezados, listas, código, citas…",
+    "phBold": "texto en negrita",
+    "phItalic": "texto en cursiva",
+    "phCodeInline": "código",
+    "phCodeBlock": "// código",
+    "promptLinkUrl": "URL del enlace:",
+    "phLinkText": "texto del enlace",
+    "emptyContent": "*(hoja sin contenido)*",
+    "emptyPreview": "*(empieza a escribir para ver la vista previa)*"
   },
   "pythonGuiRunner": {
     "badge": "Python GUI — tkinter (captura PNG)",
@@ -4723,7 +4761,8 @@
     "notesAvailable": "Notas de reunión disponibles — se vincularán"
   },
   "modules_sessions_SessionCodeSnippetsDialog": {
-    "shareWithStudents": "Compartir con alumnos"
+    "shareWithStudents": "Compartir con alumnos",
+    "title": "Snippets de código"
   },
   "routes_app_student_attendance": {
     "viewNotes": "Ver notas"
@@ -8704,10 +8743,201 @@
     "emptyHint": "Cuando agregues una, dejará de recibir correos.",
     "globalBadge": "Global",
     "rowRemoveLabel": "Quitar de la lista",
-    "loadErrorFallback": "No pudimos cargar la configuración de email."
+    "loadErrorFallback": "No pudimos cargar la configuración de email.",
+    "errorStateMessage": "No pudimos cargar la configuración de email",
+    "globalSwitchTitle": "Interruptor global",
+    "globallyEnabledLabel": "Envío de correos habilitado",
+    "globallyEnabledDesc": "Cuando se desactiva, NINGÚN correo se envía — independiente de los toggles por categoría. Las notificaciones in-app y push siguen funcionando.",
+    "globallyDisabledBadge": "Correos desactivados globalmente",
+    "byCategoryTitle": "Por categoría",
+    "lastUpdated": "Última actualización: {{date}}",
+    "saveChangesBtn": "Guardar cambios",
+    "cat_exam_label": "Exámenes",
+    "cat_exam_desc": "Asignación, publicación, recordatorios, notas de apoyo aprobadas/rechazadas",
+    "cat_workshop_label": "Talleres",
+    "cat_workshop_desc": "Nuevos talleres publicados y recordatorios de vencimiento",
+    "cat_project_label": "Proyectos",
+    "cat_project_desc": "Nuevos proyectos y recordatorios de vencimiento",
+    "cat_grade_label": "Calificaciones",
+    "cat_grade_desc": "Cuando se publica la nota de una entrega",
+    "cat_feedback_label": "Retroalimentación",
+    "cat_feedback_desc": "Comentarios nuevos, cierre/apertura de conversaciones",
+    "cat_messages_label": "Mensajes 1-a-1",
+    "cat_messages_desc": "Chat interno (rate-limited a 1 por conversación / 10 min)",
+    "cat_poll_label": "Encuestas",
+    "cat_poll_desc": "Cuando se publica una encuesta nueva, cuando se edita una publicada o se programan recordatorios.",
+    "cat_content_label": "Contenidos / Materiales",
+    "cat_content_desc": "Cuando el docente publica o actualiza material de clase (PDFs, guías, presentaciones).",
+    "cat_system_alerts_label": "Alertas del sistema",
+    "cat_system_alerts_desc": "Notificaciones a admins cuando se cruza un umbral (almacenamiento, errores, etc.). NO afecta correos transaccionales (reset de contraseña, cambio de email).",
+    "cat_welcome_label": "Bienvenida (nuevos usuarios)",
+    "cat_welcome_desc": "Correo automático con link para definir contraseña, enviado al crear un usuario nuevo (form individual o bulk import CSV). Apágalo si repartes contraseñas manualmente o usas SSO."
   },
   "hc_modulesMessagingTagTextarea": {
     "noTitle": "(sin título)",
-    "taggerHint": "Etiquetar contenido — Enter para insertar"
+    "taggerHint": "Etiquetar contenido — Enter para insertar",
+    "removeTag": "Quitar etiqueta {{label}}"
+  },
+  "hc_modulesAdminAdminCodeExecutionPanel": {
+    "providerLabelOnlinecompiler": "OnlineCompiler.io (API externa)",
+    "providerLabelJdoodle": "JDoodle (fallback)",
+    "providerLabelCheerp": "CheerpJ — navegador (solo Java)",
+    "providerLabelAwsLambda": "AWS Lambda — runner propio (recomendado para Java)",
+    "providerDescOnlinecompiler": "API síncrona, 12 lenguajes, sin cuota diaria. Requiere el secret ONLINE_COMPILER_API_KEY.",
+    "providerDescJdoodle": "API clásica de JDoodle. Cuota de 200 ejecuciones/día en el plan gratuito. Requiere JDOODLE_CLIENT_ID y JDOODLE_CLIENT_SECRET.",
+    "providerDescCheerp": "Java corre completamente en el navegador del estudiante (WebAssembly). Sin API externa ni cuota. Los demás lenguajes siguen usando OnlineCompiler.io.",
+    "providerDescAwsLambda": "Lambda con OpenJDK 21 desplegada en TU cuenta de AWS. Cabe en Always Free hasta ~50K execs/mes. Compile errors completos (línea + mensaje). Otros lenguajes caen automáticamente a OnlineCompiler.io. Ver aws/code-runner/README.md para el deploy.",
+    "javaGuiLabelCheerp": "CheerpJ — navegador (interactivo)",
+    "guiLabelAwsScreenshot": "AWS Lambda + Xvfb — captura PNG (no interactivo)",
+    "javaGuiDescCheerp": "Swing/AWT/JavaFX corre completamente en el navegador del estudiante (WebAssembly). El alumno puede clickear, escribir, interactuar con la ventana en tiempo real. Requiere licencia comercial para uso multi-usuario en producción — ver docs/JAVA-GUI-OPTIONS.md.",
+    "javaGuiDescAwsScreenshot": "AWS Lambda corre la app Swing bajo Xvfb (display virtual) y devuelve UNA captura PNG. El alumno solo VE la ventana — no puede clickear ni probar eventos. Útil como modo 'submit & ver render' sin licencia. Requiere desplegar la Lambda con Xvfb + ImageMagick (ver aws/code-runner/).",
+    "pythonGuiDescAwsScreenshot": "AWS Lambda corre la app tkinter bajo Xvfb (display virtual) y devuelve UNA captura PNG. El alumno solo VE la ventana — no puede clickear ni probar eventos. Requiere desplegar la misma Lambda que para Java GUI (ya tiene Python + tkinter en el container).",
+    "secretOnlineCompilerNonJava": "ONLINE_COMPILER_API_KEY (para lenguajes distintos a Java)",
+    "secretAwsRunnerApiKeySsm": "AWS_RUNNER_API_KEY (shared secret en SSM)",
+    "secretOnlineCompilerFallback": "ONLINE_COMPILER_API_KEY (fallback para lenguajes no-Java)",
+    "secretAwsRunnerUrlSameEndpoint": "AWS_RUNNER_URL (mismo endpoint que el provider aws_lambda)",
+    "loadErrorFallback": "No pudimos cargar la configuración.",
+    "loadingSettings": "Cargando configuración…",
+    "loadErrorTitle": "No pudimos cargar la configuración de ejecución de código",
+    "cardTitle": "Proveedor de ejecución de código",
+    "cardSubtitle": "Configuración global para toda la plataforma. Si un proveedor falla, cambia aquí sin redeployar.",
+    "tabTextConsoleFull": "Texto / Consola",
+    "tabTextConsoleShort": "Texto",
+    "questionsPrefix": "Preguntas",
+    "codeQuestionBody": "— el alumno escribe código y ve la salida en consola. Para Java se usa el proveedor seleccionado abajo; para otros lenguajes (Python, JS, C++…) cae automáticamente a OnlineCompiler.io.",
+    "javaGuiQuestionBody": "— el alumno escribe Swing / AWT / JavaFX y necesita ver la ventana renderizada.",
+    "pythonGuiQuestionBody": "— el alumno escribe tkinter. Solo hay un proveedor por ahora (no existe Pyodide+tkinter en WASM).",
+    "secretsForLabel": "Secrets para",
+    "typeWord": "tipo",
+    "configureSecretsHint": "Configúralos en Admin → Edge Function Secrets antes de activar.",
+    "saveSettings": "Guardar configuración"
+  },
+  "hc_modulesMessagingMessagesFab": {
+    "timeAgoNow": "ahora",
+    "timeAgoMinutes": "hace {{mins}}m",
+    "timeAgoHours": "hace {{hrs}}h",
+    "timeAgoDays": "hace {{days}}d",
+    "bellAriaLabel": "Mensajes y notificaciones ({{count}} sin leer)",
+    "inboxTitle": "Bandeja",
+    "marking": "Marcando…",
+    "markAll": "Marcar todo",
+    "messagesLabel": "Mensajes",
+    "messagesUnanswered": "({{count}} sin responder)",
+    "notificationsLabel": "Notificaciones",
+    "notificationsUnread": "({{count}} sin leer)",
+    "emptyNotifications": "Sin notificaciones"
+  },
+  "hc_modulesMessagingMessageTagPicker": {
+    "title": "Etiquetar contenido",
+    "searchPlaceholder": "Buscar {{type}}…",
+    "noMatches": "Sin coincidencias.",
+    "emptyForType": "No hay {{type}}s disponibles.",
+    "untitled": "(sin título)"
+  },
+  "hc_modulesWhiteboardWhiteboardEditor": {
+    "unknownError": "Error desconocido",
+    "loadErrorTitle": "No pudimos cargar el editor de pizarra",
+    "loading": "Cargando pizarra…",
+    "readOnly": "Solo lectura",
+    "sharedLive": "Compartida en vivo",
+    "shapes": "Figuras",
+    "shapesButtonTitle": "Figuras por tipo de diagrama (clases, flujo, E-R…)",
+    "shapesPanelTitle": "Figuras por tipo de diagrama",
+    "shapesPanelHint": "Toca una para insertarla en el centro.",
+    "exitFullscreen": "Salir de pantalla completa",
+    "enterFullscreen": "Pantalla completa"
+  },
+  "hc_modulesSchedulesWeeklyScheduleView": {
+    "title": "Mi semana",
+    "emptyText": "Sin horario configurado",
+    "emptyHint": "Cuando tus cursos tengan bloques semanales definidos, aparecerán aquí.",
+    "today": "Hoy",
+    "modalityVirtual": "Virtual",
+    "modalityHibrida": "Híbrida"
+  },
+  "hc_modulesWhiteboardSessionWhiteboardDialog": {
+    "title": "Pizarra",
+    "saving": "Guardando…",
+    "sharedLabel": "Pizarra compartida",
+    "loadingWhiteboard": "Cargando pizarra…"
+  },
+  "importExportMenu": {
+    "buttonLabel": "Datos",
+    "templateSection": "Plantilla",
+    "downloadTemplate": "Descargar plantilla",
+    "importFromCsv": "Importar desde CSV",
+    "exportToCsv": "Exportar a CSV",
+    "exportToExcel": "Exportar a Excel"
+  },
+  "hc_sharedComponentsDuplicateOptionsDialog": {
+    "couldNotDuplicate": "No se pudo duplicar",
+    "whatToCopy": "Qué copiar"
+  },
+  "activityStatus": {
+    "activos": "Activos y borradores",
+    "cerrados": "Cerrados"
+  },
+  "reopenBanner": {
+    "message": "Esto está cerrado.",
+    "hint": "Para reabrirlo, cambia el estado a abierto y fija un nuevo plazo (fecha futura).",
+    "reopenLabel": "Reabrir"
+  },
+  "hc_sharedComponentsIntroVideoGate": {
+    "videoSingular": "Video introductorio",
+    "videosPlural": "Videos introductorios ({{n}})",
+    "allWatched": "Todos vistos",
+    "watchInOrder": "Mira los videos en orden. El siguiente se desbloquea cuando termines el actual.",
+    "progress": "Llevas <0>{{watched}}</0> de <1>{{total}}</1>.",
+    "videoFallbackLabel": "Video {{number}}",
+    "statusWatched": "Visto",
+    "statusWatchNow": "Ver ahora",
+    "statusLocked": "Bloqueado",
+    "finishPreviousToUnlock": "Termina los videos anteriores para desbloquearlo.",
+    "alreadyWatched": "Ya vi este video completo",
+    "loadErrorMessage": "No se pudo cargar el video. Es posible que el enlace esté roto o que el formato no sea compatible con tu navegador.",
+    "continueAnyway": "Continuar de todos modos",
+    "noSeekHint": "Mira el video hasta el final. El reproductor no permite adelantar — puedes pausar o rebobinar libremente."
+  },
+  "assignSelector": {
+    "searchPlaceholder": "Buscar por nombre o email…",
+    "assignedBadge": "Asignado",
+    "assignedNoun": "asignados",
+    "selectFiltered": "Seleccionar filtrados",
+    "deselectFiltered": "Deseleccionar filtrados",
+    "countSummary": "{{count}} {{noun}} de {{total}}",
+    "filteredSuffix": " · {{count}} filtrados"
+  },
+  "hc_componentsUiListFilters": {
+    "searchPlaceholder": "Buscar por título…",
+    "allCourses": "Todos los cursos",
+    "allCuts": "Todos los cortes",
+    "clearFiltersTitle": "Limpiar filtros",
+    "clear": "Limpiar"
+  },
+  "hc_componentsUiMultiSelect": {
+    "selectRow": "Seleccionar fila",
+    "selectedSingular": "seleccionado",
+    "selectedPlural": "seleccionados",
+    "actionFailed": "No se pudo {{action}}.",
+    "recordsWillBeDeleted": "Se eliminarán los registros seleccionados.",
+    "showLess": "Mostrar menos",
+    "showMore": "Mostrar {{count}} más"
+  },
+  "hc_componentsUiBadgeOverflow": {
+    "andMore": "Y {{n}} más"
+  },
+  "hc_componentsUiHexColorInput": {
+    "noValidColor": "Sin color válido",
+    "visualPickerFor": "{{label}} (selector visual)",
+    "colorPicker": "Selector de color"
+  },
+  "hc_componentsUiCourseListCell": {
+    "moreCourses_one": "+{{count}} curso más",
+    "moreCourses_other": "+{{count}} cursos más"
+  },
+  "hc_componentsUiDatePicker": {
+    "selectDate": "Selecciona fecha",
+    "selectDateTime": "Selecciona fecha y hora",
+    "time": "Hora"
   }
 }

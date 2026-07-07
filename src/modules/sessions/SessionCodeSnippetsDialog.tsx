@@ -63,14 +63,28 @@ export function SessionCodeSnippetsDialog({
           .maybeSingle();
         if (cancelled) return;
         if (error) {
-          toast.error(friendlyError(error, "No pudimos cargar el estado de compartido."));
+          toast.error(
+            friendlyError(
+              error,
+              i18n.t("toast.modules_sessions_SessionCodeSnippetsDialog.loadSharedError", {
+                defaultValue: "No pudimos cargar el estado de compartido.",
+              }),
+            ),
+          );
           return;
         }
         const row = data as { code_shared?: boolean } | null;
         setShared(Boolean(row?.code_shared));
       } catch (e) {
         if (cancelled) return;
-        toast.error(friendlyError(e, "No pudimos cargar el estado de compartido."));
+        toast.error(
+          friendlyError(
+            e,
+            i18n.t("toast.modules_sessions_SessionCodeSnippetsDialog.loadSharedError", {
+              defaultValue: "No pudimos cargar el estado de compartido.",
+            }),
+          ),
+        );
       }
     })();
     return () => {
@@ -90,7 +104,14 @@ export function SessionCodeSnippetsDialog({
       });
       if (error) {
         setShared(!next);
-        toast.error(friendlyError(error, "No se pudo cambiar el modo compartido"));
+        toast.error(
+          friendlyError(
+            error,
+            i18n.t("toast.modules_sessions_SessionCodeSnippetsDialog.toggleSharedError", {
+              defaultValue: "No se pudo cambiar el modo compartido",
+            }),
+          ),
+        );
       } else {
         toast.success(
           next
@@ -104,7 +125,14 @@ export function SessionCodeSnippetsDialog({
       }
     } catch (e) {
       setShared(!next);
-      toast.error(friendlyError(e, "No se pudo cambiar el modo compartido"));
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("toast.modules_sessions_SessionCodeSnippetsDialog.toggleSharedError", {
+            defaultValue: "No se pudo cambiar el modo compartido",
+          }),
+        ),
+      );
     } finally {
       setTogglingShared(false);
     }
@@ -118,7 +146,10 @@ export function SessionCodeSnippetsDialog({
         <DialogHeader className="p-3 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2 text-base flex-wrap">
             <Code2 className="h-5 w-5 text-indigo-500" />
-            Snippets de código {sessionLabel ? `· ${sessionLabel}` : ""}
+            {i18n.t("modules_sessions_SessionCodeSnippetsDialog.title", {
+              defaultValue: "Snippets de código",
+            })}{" "}
+            {sessionLabel ? `· ${sessionLabel}` : ""}
             {/* Toggle "Compartir con alumnos" — solo el docente lo ve.
                 El alumno ve los snippets inline en su attendance solo si
                 code_shared=true (lo enforce la RLS). */}

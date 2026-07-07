@@ -267,7 +267,10 @@ export function TagTextarea({
                     type="button"
                     onClick={() => removeTag(i)}
                     className="ml-0.5 rounded-full hover:bg-primary/20"
-                    aria-label={`Quitar etiqueta ${tag.label}`}
+                    aria-label={t("hc_modulesMessagingTagTextarea.removeTag", {
+                      label: tag.label,
+                      defaultValue: "Quitar etiqueta {{label}}",
+                    })}
                   >
                     <X className="h-3 w-3" />
                   </button>

@@ -446,7 +446,9 @@ export function FeedbackThread({
     const hasFiles = pendingFiles.length > 0;
     if (!hasBody && !hasFiles) return;
     if (!user) return;
-    const text = hasBody ? body.trim() : "(adjuntos)";
+    const text = hasBody
+      ? body.trim()
+      : t("feedbackThread.attachmentsOnlyBody", { defaultValue: "(adjuntos)" });
     setSending(true);
     try {
       let t = thread;
@@ -462,7 +464,14 @@ export function FeedbackThread({
           .single();
         if (error || !data) {
           console.error("[FeedbackThread] insert thread", error);
-          toast.error(friendlyError(error, "No se pudo abrir la conversación"));
+          toast.error(
+            friendlyError(
+              error,
+              i18n.t("toast.modules_grading_FeedbackThread.openThreadFailed", {
+                defaultValue: "No se pudo abrir la conversación",
+              }),
+            ),
+          );
           return;
         }
         t = data as Thread;
@@ -493,13 +502,27 @@ export function FeedbackThread({
             .single();
           if (fallback.error || !fallback.data) {
             console.error("[FeedbackThread] insert comment", fallback.error);
-            toast.error(friendlyError(fallback.error, "No se pudo enviar el comentario"));
+            toast.error(
+              friendlyError(
+                fallback.error,
+                i18n.t("toast.modules_grading_FeedbackThread.sendFailed", {
+                  defaultValue: "No se pudo enviar el comentario",
+                }),
+              ),
+            );
             return;
           }
           inserted = fallback.data as Comment;
         } else {
           console.error("[FeedbackThread] insert comment", firstInsert.error);
-          toast.error(friendlyError(firstInsert.error, "No se pudo enviar el comentario"));
+          toast.error(
+            friendlyError(
+              firstInsert.error,
+              i18n.t("toast.modules_grading_FeedbackThread.sendFailed", {
+                defaultValue: "No se pudo enviar el comentario",
+              }),
+            ),
+          );
           return;
         }
       } else {
@@ -583,7 +606,7 @@ export function FeedbackThread({
           .insert({
             thread_id: thread.id,
             user_id: user.id,
-            body: "Ajustado.",
+            body: t("feedbackThread.adjustedAutoComment", { defaultValue: "Ajustado." }),
             author_role: "teacher",
           });
         if (insErr) {
@@ -819,7 +842,7 @@ export function FeedbackThread({
                 multiple
                 className="hidden"
                 onChange={(e) => addFiles(e.target.files)}
-                aria-label="Adjuntar archivos"
+                aria-label={t("feedbackThread.attachFiles", { defaultValue: "Adjuntar archivos" })}
                 data-testid="feedback-file-input"
               />
               <Button
@@ -829,8 +852,8 @@ export function FeedbackThread({
                 className="h-9 px-2"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={sending || pendingFiles.length >= FEEDBACK_ATTACHMENT_MAX_COUNT}
-                title="Adjuntar archivos"
-                aria-label="Adjuntar archivos"
+                title={t("feedbackThread.attachFiles", { defaultValue: "Adjuntar archivos" })}
+                aria-label={t("feedbackThread.attachFiles", { defaultValue: "Adjuntar archivos" })}
               >
                 <Paperclip className="h-3 w-3" />
               </Button>

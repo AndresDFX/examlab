@@ -97,10 +97,10 @@ interface GenerateSessionsDialogProps {
   onCreated: () => void;
 }
 
-const HOLIDAY_POLICIES: { value: HolidayPolicy; label: string }[] = [
-  { value: "skip", label: "Omitir y recompletar" },
-  { value: "move", label: "Mover al siguiente día hábil" },
-  { value: "include", label: "Incluir festivos" },
+const HOLIDAY_POLICIES: { value: HolidayPolicy; key: string; label: string }[] = [
+  { value: "skip", key: "contents.generateSessionsHolidaySkip", label: "Omitir y recompletar" },
+  { value: "move", key: "contents.generateSessionsHolidayMove", label: "Mover al siguiente día hábil" },
+  { value: "include", key: "contents.generateSessionsHolidayInclude", label: "Incluir festivos" },
 ];
 
 export function GenerateSessionsDialog({
@@ -281,7 +281,12 @@ export function GenerateSessionsDialog({
           const extracted = cls != null ? extractClassTitle(files, cls) : null;
           const title =
             extracted ??
-            (cls != null ? `Clase ${cls}` : content.display_name?.trim() || content.topic);
+            (cls != null
+              ? t("contents.generateSessionsClassTitle", {
+                  number: cls,
+                  defaultValue: "Clase {{number}}",
+                })
+              : content.display_name?.trim() || content.topic);
           return {
             course_id: effectiveCourseId,
             session_date: toLocalIsoDate(d),
@@ -363,7 +368,10 @@ export function GenerateSessionsDialog({
         count: sessionCount,
         defaultValue: `Se programarán ${sessionCount} sesión(es) para este contenido.`,
       })
-    : `Se programarán las sesiones del curso con su horario. Podrás editar cada fecha antes de crearlas.`;
+    : t("contents.generateSessionsSubtitleBoard", {
+        defaultValue:
+          "Se programarán las sesiones del curso con su horario. Podrás editar cada fecha antes de crearlas.",
+      });
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -468,7 +476,7 @@ export function GenerateSessionsDialog({
                       checked={holidayPolicy === p.value}
                       onChange={() => setHolidayPolicy(p.value)}
                     />
-                    <span>{p.label}</span>
+                    <span>{t(p.key, { defaultValue: p.label })}</span>
                   </label>
                 ))}
               </div>
@@ -565,7 +573,12 @@ export function GenerateSessionsDialog({
                   const extracted = cls != null ? extractClassTitle(content.files, cls) : null;
                   const dayShort = WEEKDAYS_ES.find((x) => x.idx === d.getDay())?.short ?? "";
                   const titleLabel =
-                    cls != null ? `Clase ${cls}` : (content.display_name ?? content.topic);
+                    cls != null
+                      ? t("contents.generateSessionsClassTitle", {
+                          number: cls,
+                          defaultValue: "Clase {{number}}",
+                        })
+                      : (content.display_name ?? content.topic);
                   return (
                     <div key={i} className="flex items-center gap-3 px-3 py-1.5 text-[11px]">
                       <span className="tabular-nums text-foreground/80 w-32 shrink-0">

@@ -33,6 +33,7 @@
  */
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { ComponentType } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Eye,
   Maximize2,
@@ -293,6 +294,7 @@ export function WhiteboardEditor({
   viewportStorageKey,
   realtimeChannelName,
 }: Props) {
+  const { t } = useTranslation();
   const [Component, setComponent] = useState<ComponentType<Record<string, unknown>> | null>(
     cachedExcalidraw,
   );
@@ -412,7 +414,7 @@ export function WhiteboardEditor({
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        const msg = err instanceof Error ? err.message : "Error desconocido";
+        const msg = err instanceof Error ? err.message : t("hc_modulesWhiteboardWhiteboardEditor.unknownError", { defaultValue: "Error desconocido" });
         setLoadError(msg);
       });
     return () => {
@@ -693,7 +695,7 @@ export function WhiteboardEditor({
     return (
       <div className={cn("flex items-center justify-center p-4", className)}>
         <ErrorState
-          message="No pudimos cargar el editor de pizarra"
+          message={t("hc_modulesWhiteboardWhiteboardEditor.loadErrorTitle", { defaultValue: "No pudimos cargar el editor de pizarra" })}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -708,7 +710,7 @@ export function WhiteboardEditor({
           className,
         )}
       >
-        <Spinner size="sm" /> Cargando pizarra…
+        <Spinner size="sm" /> {t("hc_modulesWhiteboardWhiteboardEditor.loading", { defaultValue: "Cargando pizarra…" })}
       </div>
     );
   }
@@ -788,7 +790,7 @@ export function WhiteboardEditor({
       {readOnly && (
         <div className="absolute top-2 right-2 z-10 pointer-events-none rounded-md border border-border bg-background/90 backdrop-blur-sm px-2 py-1 text-[11px] text-muted-foreground inline-flex items-center gap-1 shadow-sm">
           <Eye className="h-3 w-3" />
-          Solo lectura
+          {t("hc_modulesWhiteboardWhiteboardEditor.readOnly", { defaultValue: "Solo lectura" })}
         </div>
       )}
       {/* Badge "Compartida" cuando hay canal Realtime activo. Posicionado
@@ -805,7 +807,7 @@ export function WhiteboardEditor({
           )}
         >
           <Users className="h-3 w-3" />
-          Compartida en vivo
+          {t("hc_modulesWhiteboardWhiteboardEditor.sharedLive", { defaultValue: "Compartida en vivo" })}
         </div>
       )}
       {/* Panel de FIGURAS por TIPO DE DIAGRAMA (solo en edición). Excalidraw
@@ -820,28 +822,28 @@ export function WhiteboardEditor({
           <button
             type="button"
             onClick={() => setPaletteOpen((o) => !o)}
-            aria-label="Figuras"
+            aria-label={t("hc_modulesWhiteboardWhiteboardEditor.shapes", { defaultValue: "Figuras" })}
             aria-expanded={paletteOpen}
-            title="Figuras por tipo de diagrama (clases, flujo, E-R…)"
+            title={t("hc_modulesWhiteboardWhiteboardEditor.shapesButtonTitle", { defaultValue: "Figuras por tipo de diagrama (clases, flujo, E-R…)" })}
             className={cn(
               "absolute bottom-2 right-12 z-20 inline-flex items-center gap-1 rounded-md border border-border bg-background/90 backdrop-blur-sm px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-background transition-colors shadow-sm",
               paletteOpen && "text-foreground bg-background",
             )}
           >
             <Shapes className="h-4 w-4" />
-            <span className="hidden sm:inline">Figuras</span>
+            <span className="hidden sm:inline">{t("hc_modulesWhiteboardWhiteboardEditor.shapes", { defaultValue: "Figuras" })}</span>
           </button>
           {paletteOpen && (
             <div className="absolute bottom-12 right-2 z-30 w-72 max-w-[calc(100vw-1rem)] max-h-[72%] overflow-y-auto rounded-md border border-border bg-background shadow-lg">
               <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-background px-3 py-2">
                 <div className="min-w-0">
-                  <span className="text-xs font-semibold">Figuras por tipo de diagrama</span>
-                  <p className="text-[10px] text-muted-foreground">Toca una para insertarla en el centro.</p>
+                  <span className="text-xs font-semibold">{t("hc_modulesWhiteboardWhiteboardEditor.shapesPanelTitle", { defaultValue: "Figuras por tipo de diagrama" })}</span>
+                  <p className="text-[10px] text-muted-foreground">{t("hc_modulesWhiteboardWhiteboardEditor.shapesPanelHint", { defaultValue: "Toca una para insertarla en el centro." })}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setPaletteOpen(false)}
-                  aria-label="Cerrar"
+                  aria-label={t("common.close")}
                   className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -912,8 +914,8 @@ export function WhiteboardEditor({
         <button
           type="button"
           onClick={toggleFullscreen}
-          aria-label={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
-          title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+          aria-label={isFullscreen ? t("hc_modulesWhiteboardWhiteboardEditor.exitFullscreen", { defaultValue: "Salir de pantalla completa" }) : t("hc_modulesWhiteboardWhiteboardEditor.enterFullscreen", { defaultValue: "Pantalla completa" })}
+          title={isFullscreen ? t("hc_modulesWhiteboardWhiteboardEditor.exitFullscreen", { defaultValue: "Salir de pantalla completa" }) : t("hc_modulesWhiteboardWhiteboardEditor.enterFullscreen", { defaultValue: "Pantalla completa" })}
           className="absolute bottom-2 right-2 z-10 rounded-md border border-border bg-background/90 backdrop-blur-sm p-1.5 text-muted-foreground hover:text-foreground hover:bg-background transition-colors shadow-sm"
         >
           {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}

@@ -1,6 +1,7 @@
 import { type ComponentType, type ReactNode } from "react";
 import { MoreVertical } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -87,11 +88,13 @@ interface RowActionsMenuProps {
 
 export function RowActionsMenu({
   actions,
-  label = "Acciones",
+  label,
   children,
   className,
   align = "end",
 }: Readonly<RowActionsMenuProps>) {
+  const { t } = useTranslation();
+  const triggerLabel = label ?? t("common.actions", { defaultValue: "Acciones" });
   const visibleActions = actions.filter((a): a is RowActionItem => !!a && typeof a === "object");
 
   return (
@@ -101,7 +104,7 @@ export function RowActionsMenu({
           type="button"
           variant="ghost"
           size="icon"
-          aria-label={label}
+          aria-label={triggerLabel}
           // Hook estable para los videos de demo (docs/demos): permite a la
           // grabación enfocar con precisión el botón de acciones de una fila
           // (vs. resaltar la fila entera). No afecta el comportamiento.

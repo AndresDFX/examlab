@@ -38,7 +38,7 @@ interface ImportExportMenuProps {
 }
 
 export function ImportExportMenu({
-  label = "Datos",
+  label = i18n.t("importExportMenu.buttonLabel", { defaultValue: "Datos" }),
   tourId,
   resourceName,
   templateCsv,
@@ -108,7 +108,7 @@ export function ImportExportMenu({
       // String vacío = el handler ya tosteó por su cuenta (ej. warning con
       // detalles de duplicados). undefined = mostrar toast genérico.
       if (result === "") return;
-      toast.success(typeof result === "string" ? result : `${rows.length} filas importadas`);
+      toast.success(typeof result === "string" ? result : i18n.t("toast.shared_components_ImportExportMenu.rowsImported", { count: rows.length, defaultValue: "{{count}} filas importadas" }));
     } catch (err: any) {
       toast.error(i18n.t("toast.shared_components_ImportExportMenu.importError", { defaultValue: "Error importando: {{detail}}", detail: friendlyError(err, "desconocido") }));
     } finally {
@@ -133,10 +133,10 @@ export function ImportExportMenu({
         <DropdownMenuContent align="end" className="w-56">
           {templateCsv && (
             <>
-              <DropdownMenuLabel>Plantilla</DropdownMenuLabel>
+              <DropdownMenuLabel>{i18n.t("importExportMenu.templateSection", { defaultValue: "Plantilla" })}</DropdownMenuLabel>
               <DropdownMenuItem onClick={handleDownloadTemplate}>
                 <FileDown className="h-4 w-4 mr-2" />
-                Descargar plantilla
+                {i18n.t("importExportMenu.downloadTemplate", { defaultValue: "Descargar plantilla" })}
               </DropdownMenuItem>
               {(onImport || onExport) && <DropdownMenuSeparator />}
             </>
@@ -144,19 +144,19 @@ export function ImportExportMenu({
           {onImport && (
             <DropdownMenuItem onClick={handlePickFile}>
               <FileUp className="h-4 w-4 mr-2" />
-              Importar desde CSV
+              {i18n.t("importExportMenu.importFromCsv", { defaultValue: "Importar desde CSV" })}
             </DropdownMenuItem>
           )}
           {onExport && (
             <DropdownMenuItem onClick={handleExport}>
               <Upload className="h-4 w-4 mr-2 rotate-180" />
-              Exportar a CSV
+              {i18n.t("importExportMenu.exportToCsv", { defaultValue: "Exportar a CSV" })}
             </DropdownMenuItem>
           )}
           {onExport && (
             <DropdownMenuItem onClick={handleExportXlsx}>
               <FileSpreadsheet className="h-4 w-4 mr-2" />
-              Exportar a Excel
+              {i18n.t("importExportMenu.exportToExcel", { defaultValue: "Exportar a Excel" })}
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>

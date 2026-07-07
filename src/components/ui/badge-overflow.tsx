@@ -33,6 +33,7 @@
  *   />
  */
 import { type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/shared/lib/utils";
@@ -70,6 +71,7 @@ export function BadgeOverflow<T>({
   emptyText = "—",
   className,
 }: BadgeOverflowProps<T>) {
+  const { t } = useTranslation();
   if (items.length === 0) {
     return <span className="text-muted-foreground text-xs">{emptyText}</span>;
   }
@@ -114,7 +116,10 @@ export function BadgeOverflow<T>({
               <Badge
                 variant="outline"
                 className={cn(badgeClassName, "cursor-default")}
-                aria-label={`Y ${overflow.length} más`}
+                aria-label={t("hc_componentsUiBadgeOverflow.andMore", {
+                  n: overflow.length,
+                  defaultValue: "Y {{n}} más",
+                })}
               >
                 +{overflow.length}
               </Badge>

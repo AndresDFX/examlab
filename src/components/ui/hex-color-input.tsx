@@ -19,6 +19,7 @@
  * /app/admin/my-tenant y /app/superadmin/tenants. Cualquier ajuste
  * (ej. agregar suggested swatches) vive en un solo lugar.
  */
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 
 interface Props {
@@ -48,6 +49,7 @@ export function HexColorInput({
   id,
   ariaLabel,
 }: Props) {
+  const { t } = useTranslation();
   const isValid = /^#[0-9a-fA-F]{6}$/.test(value.trim());
   return (
     <div className="flex items-center gap-2">
@@ -79,14 +81,18 @@ export function HexColorInput({
             ? undefined
             : "0 0, 0 4px, 4px -4px, -4px 0",
         }}
-        title={isValid ? value.trim() : "Sin color válido"}
+        title={isValid ? value.trim() : t("hc_componentsUiHexColorInput.noValidColor", { defaultValue: "Sin color válido" })}
       >
         <input
           type="color"
           value={normalizeForColorInput(value)}
           onChange={(e) => onChange(e.target.value.toUpperCase())}
           disabled={disabled}
-          aria-label={ariaLabel ? `${ariaLabel} (selector visual)` : "Selector de color"}
+          aria-label={
+            ariaLabel
+              ? t("hc_componentsUiHexColorInput.visualPickerFor", { label: ariaLabel, defaultValue: "{{label}} (selector visual)" })
+              : t("hc_componentsUiHexColorInput.colorPicker", { defaultValue: "Selector de color" })
+          }
           // Color input nativo: lo hacemos 100% del wrapper pero
           // invisible. El click pasa al input y abre el picker del SO.
           // No usamos `display:none` porque iOS Safari no abre el sheet

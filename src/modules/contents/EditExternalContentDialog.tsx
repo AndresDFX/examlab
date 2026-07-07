@@ -128,7 +128,14 @@ export function EditExternalContentDialog({ content, onOpenChange, onSaved }: Pr
           }),
         );
       } else {
-        toast.error(friendlyError(error, "No se pudo guardar el contenido"));
+        toast.error(
+          friendlyError(
+            error,
+            i18n.t("toast.modules_contents_EditExternalContentDialog.saveError", {
+              defaultValue: "No se pudo guardar el contenido",
+            }),
+          ),
+        );
       }
       setSaving(false);
       return;
@@ -177,7 +184,7 @@ export function EditExternalContentDialog({ content, onOpenChange, onSaved }: Pr
           {/* Nombre */}
           <div className="space-y-1.5">
             <Label required>
-              Nombre del contenido
+              {t("contents.contentNameLabel", { defaultValue: "Nombre del contenido" })}
               <HelpHint>
                 {t("help.contentDisplayNameHint", {
                   defaultValue: "Nombre único que verás en la lista. Distinto del tema.",

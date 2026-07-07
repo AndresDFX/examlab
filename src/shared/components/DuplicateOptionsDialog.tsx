@@ -31,6 +31,7 @@ import {
 import { Copy } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import type { ReactNode } from "react";
 
 export interface DuplicateOption {
@@ -60,11 +61,13 @@ export function DuplicateOptionsDialog({
   title,
   description,
   options,
-  confirmLabel = "Duplicar",
+  confirmLabel,
   onConfirm,
 }: Props) {
+  const { t } = useTranslation();
   const [flags, setFlags] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
+  const resolvedConfirmLabel = confirmLabel ?? t("common.duplicate", { defaultValue: "Duplicar" });
 
   useEffect(() => {
     if (open) {
@@ -82,7 +85,7 @@ export function DuplicateOptionsDialog({
       await onConfirm(flags);
       onOpenChange(false);
     } catch (e) {
-      toast.error(friendlyError(e, "No se pudo duplicar"));
+      toast.error(friendlyError(e, t("hc_sharedComponentsDuplicateOptionsDialog.couldNotDuplicate", { defaultValue: "No se pudo duplicar" })));
     } finally {
       setSubmitting(false);
     }
@@ -102,7 +105,7 @@ export function DuplicateOptionsDialog({
         {options.length > 0 && (
           <div className="space-y-2 rounded-md border p-3">
             <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-              Qué copiar
+              {t("hc_sharedComponentsDuplicateOptionsDialog.whatToCopy", { defaultValue: "Qué copiar" })}
             </Label>
             {options.map((opt) => (
               <label key={opt.param} className="flex items-start gap-2 cursor-pointer select-none">
@@ -127,11 +130,11 @@ export function DuplicateOptionsDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Cancelar
+            {t("common.cancel", { defaultValue: "Cancelar" })}
           </Button>
           <Button onClick={() => void submit()} disabled={submitting}>
             {submitting ? <Spinner size="sm" className="mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
-            {confirmLabel}
+            {resolvedConfirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

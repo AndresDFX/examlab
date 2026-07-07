@@ -78,7 +78,14 @@ export function SessionWhiteboardDialog({
           .maybeSingle();
         if (cancelled) return;
         if (error) {
-          toast.error(friendlyError(error, "No pudimos cargar la pizarra."));
+          toast.error(
+            friendlyError(
+              error,
+              t("toast.modules_whiteboard_SessionWhiteboardDialog.loadError", {
+                defaultValue: "No pudimos cargar la pizarra.",
+              }),
+            ),
+          );
           setLoading(false);
           return;
         }
@@ -96,7 +103,14 @@ export function SessionWhiteboardDialog({
         // unhandled (network throw, sesión expirada mientras se abre el
         // dialog). Acá toast amigable + reset loading.
         if (cancelled) return;
-        toast.error(friendlyError(e, "No pudimos cargar la pizarra."));
+        toast.error(
+          friendlyError(
+            e,
+            t("toast.modules_whiteboard_SessionWhiteboardDialog.loadError", {
+              defaultValue: "No pudimos cargar la pizarra.",
+            }),
+          ),
+        );
         setLoading(false);
       }
     })();
@@ -118,7 +132,14 @@ export function SessionWhiteboardDialog({
         _scene: next,
       });
       if (error) {
-        toast.error(friendlyError(error, "No se pudo guardar la pizarra"));
+        toast.error(
+          friendlyError(
+            error,
+            t("toast.modules_whiteboard_SessionWhiteboardDialog.saveError", {
+              defaultValue: "No se pudo guardar la pizarra",
+            }),
+          ),
+        );
         return;
       }
     } catch (e) {
@@ -128,7 +149,14 @@ export function SessionWhiteboardDialog({
       // WhiteboardEditor (que solo loguea consola) → el docente NO ve
       // toast amigable. Acá cerramos el contrato: usuario siempre
       // recibe feedback de que el guardado falló.
-      toast.error(friendlyError(e, "No se pudo guardar la pizarra"));
+      toast.error(
+        friendlyError(
+          e,
+          t("toast.modules_whiteboard_SessionWhiteboardDialog.saveError", {
+            defaultValue: "No se pudo guardar la pizarra",
+          }),
+        ),
+      );
     } finally {
       setTimeout(() => setAutoSaving(false), 400);
     }
@@ -146,7 +174,14 @@ export function SessionWhiteboardDialog({
       });
       if (error) {
         setShared(!next);
-        toast.error(friendlyError(error, "No se pudo cambiar el modo compartido"));
+        toast.error(
+          friendlyError(
+            error,
+            t("toast.modules_whiteboard_SessionWhiteboardDialog.sharedToggleError", {
+              defaultValue: "No se pudo cambiar el modo compartido",
+            }),
+          ),
+        );
       } else {
         toast.success(
           next
@@ -160,7 +195,14 @@ export function SessionWhiteboardDialog({
       }
     } catch (e) {
       setShared(!next);
-      toast.error(friendlyError(e, "No se pudo cambiar el modo compartido"));
+      toast.error(
+        friendlyError(
+          e,
+          t("toast.modules_whiteboard_SessionWhiteboardDialog.sharedToggleError", {
+            defaultValue: "No se pudo cambiar el modo compartido",
+          }),
+        ),
+      );
     } finally {
       setTogglingShared(false);
     }
@@ -183,10 +225,12 @@ export function SessionWhiteboardDialog({
         <DialogHeader className="p-3 border-b">
           <DialogTitle className="flex items-center gap-2 text-base flex-wrap">
             <Palette className="h-5 w-5 text-violet-500" />
-            Pizarra {sessionLabel ? `· ${sessionLabel}` : ""}
+            {t("hc_modulesWhiteboardSessionWhiteboardDialog.title", { defaultValue: "Pizarra" })}{" "}
+            {sessionLabel ? `· ${sessionLabel}` : ""}
             {autoSaving && (
               <span className="text-xs text-muted-foreground font-normal inline-flex items-center gap-1 ml-2">
-                <Spinner size="xs" /> Guardando…
+                <Spinner size="xs" />{" "}
+                {t("hc_modulesWhiteboardSessionWhiteboardDialog.saving", { defaultValue: "Guardando…" })}
               </span>
             )}
             {/* Toggle "Compartida" — solo el docente lo ve. El alumno
@@ -199,7 +243,9 @@ export function SessionWhiteboardDialog({
                   htmlFor="wb-shared-toggle"
                   className="text-xs font-normal cursor-pointer mb-0"
                 >
-                  Pizarra compartida
+                  {t("hc_modulesWhiteboardSessionWhiteboardDialog.sharedLabel", {
+                    defaultValue: "Pizarra compartida",
+                  })}
                 </Label>
                 <HelpHint side="left">{t("help.sharedWhiteboardHelp")}</HelpHint>
                 <Switch
@@ -215,7 +261,10 @@ export function SessionWhiteboardDialog({
         <div className="flex-1 min-h-0">
           {loading ? (
             <div className="flex items-center justify-center h-full gap-2 text-sm text-muted-foreground">
-              <Spinner size="sm" /> Cargando pizarra…
+              <Spinner size="sm" />{" "}
+              {t("hc_modulesWhiteboardSessionWhiteboardDialog.loadingWhiteboard", {
+                defaultValue: "Cargando pizarra…",
+              })}
             </div>
           ) : (
             <WhiteboardEditor

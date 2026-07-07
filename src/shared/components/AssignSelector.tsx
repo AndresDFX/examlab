@@ -16,6 +16,7 @@
  * chips de filtro por curso del flujo de proyectos) sin romper el patrón.
  */
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -55,14 +56,26 @@ export function AssignSelector({
   onToggle,
   onSelectAll,
   onDeselectAll,
-  selectedLabel = "Asignado",
-  emptyText = "Sin resultados",
-  searchPlaceholder = "Buscar por nombre o email…",
+  selectedLabel,
+  emptyText,
+  searchPlaceholder,
   headerExtras,
   loading = false,
   errorText = null,
-  countNoun = "asignados",
+  countNoun,
 }: Props) {
+  const { t } = useTranslation();
+  // Los valores por defecto se resuelven acá (no en la lista de parámetros)
+  // porque t() no está disponible antes de que corra el cuerpo del componente.
+  const selectedLabelText =
+    selectedLabel ?? t("assignSelector.assignedBadge", { defaultValue: "Asignado" });
+  const emptyTextResolved =
+    emptyText ?? t("common.noResults", { defaultValue: "Sin resultados" });
+  const searchPlaceholderResolved =
+    searchPlaceholder ??
+    t("assignSelector.searchPlaceholder", { defaultValue: "Buscar por nombre o email…" });
+  const countNounResolved =
+    countNoun ?? t("assignSelector.assignedNoun", { defaultValue: "asignados" });
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -83,7 +96,7 @@ export function AssignSelector({
       <div className="relative">
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder={searchPlaceholder}
+          placeholder={searchPlaceholderResolved}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9 h-9"
@@ -92,8 +105,17 @@ export function AssignSelector({
 
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="text-xs text-muted-foreground">
-          {selectedIds.size} {countNoun} de {items.length}
-          {isSearching && ` · ${filtered.length} filtrados`}
+          {t("assignSelector.countSummary", {
+            count: selectedIds.size,
+            noun: countNounResolved,
+            total: items.length,
+            defaultValue: "{{count}} {{noun}} de {{total}}",
+          })}
+          {isSearching &&
+            t("assignSelector.filteredSuffix", {
+              count: filtered.length,
+              defaultValue: " · {{count}} filtrados",
+            })}
         </span>
         <div className="flex gap-1.5">
           <Button
@@ -103,8 +125,10 @@ export function AssignSelector({
             onClick={() => onSelectAll(filtered.map((i) => i.id))}
             disabled={loading || filtered.length === 0}
           >
-            <CheckSquare className="h-3 w-3" /> Seleccionar{" "}
-            {isSearching ? "filtrados" : "todos"}
+            <CheckSquare className="h-3 w-3" />{" "}
+            {isSearching
+              ? t("assignSelector.selectFiltered", { defaultValue: "Seleccionar filtrados" })
+              : t("common.selectAll", { defaultValue: "Seleccionar todos" })}
           </Button>
           <Button
             variant="outline"
@@ -113,8 +137,10 @@ export function AssignSelector({
             onClick={() => onDeselectAll(filtered.map((i) => i.id))}
             disabled={loading || filtered.length === 0}
           >
-            <XSquare className="h-3 w-3" /> Deseleccionar{" "}
-            {isSearching ? "filtrados" : "todos"}
+            <XSquare className="h-3 w-3" />{" "}
+            {isSearching
+              ? t("assignSelector.deselectFiltered", { defaultValue: "Deseleccionar filtrados" })
+              : t("common.deselectAll", { defaultValue: "Deseleccionar todos" })}
           </Button>
         </div>
       </div>
@@ -122,14 +148,14 @@ export function AssignSelector({
       <div className="max-h-72 overflow-y-auto space-y-0.5 rounded-md border p-1">
         {loading && (
           <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground py-4">
-            <Spinner size="xs" /> Cargando…
+            <Spinner size="xs" /> {t("common.loading", { defaultValue: "Cargando…" })}
           </div>
         )}
         {!loading && errorText && (
           <p className="text-sm text-destructive text-center py-4">{errorText}</p>
         )}
         {!loading && !errorText && filtered.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-4">{emptyText}</p>
+          <p className="text-sm text-muted-foreground text-center py-4">{emptyTextResolved}</p>
         )}
         {!loading &&
           !errorText &&
@@ -150,7 +176,7 @@ export function AssignSelector({
               </div>
               {selectedIds.has(s.id) && (
                 <Badge variant="secondary" className="text-[9px] shrink-0">
-                  {selectedLabel}
+                  {selectedLabelText}
                 </Badge>
               )}
             </label>

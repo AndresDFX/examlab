@@ -461,7 +461,7 @@ export function AdminEmailSettingsPanel() {
     return (
       <Card>
         <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
-          <Spinner size="md" /> Cargando…
+          <Spinner size="md" /> {t("common.loading")}
         </CardContent>
       </Card>
     );
@@ -470,7 +470,9 @@ export function AdminEmailSettingsPanel() {
   if (loadError) {
     return (
       <ErrorState
-        message="No pudimos cargar la configuración de email"
+        message={t("hc_modulesAdminAdminEmailSettingsPanel.errorStateMessage", {
+          defaultValue: "No pudimos cargar la configuración de email",
+        })}
         hint={loadError}
         onRetry={() => setRetryNonce((n) => n + 1)}
       />
@@ -486,22 +488,30 @@ export function AdminEmailSettingsPanel() {
             <AlertTriangle
               className={`h-4 w-4 ${!globallyEnabled ? "text-destructive" : "text-amber-500"}`}
             />
-            Interruptor global
+            {t("hc_modulesAdminAdminEmailSettingsPanel.globalSwitchTitle", {
+              defaultValue: "Interruptor global",
+            })}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1 min-w-0">
               <Label htmlFor="globally-enabled" className="text-sm font-medium">
-                Envío de correos habilitado
+                {t("hc_modulesAdminAdminEmailSettingsPanel.globallyEnabledLabel", {
+                  defaultValue: "Envío de correos habilitado",
+                })}
               </Label>
               <p className="text-xs text-muted-foreground">
-                Cuando se desactiva, NINGÚN correo se envía — independiente de los toggles por
-                categoría. Las notificaciones in-app y push siguen funcionando.
+                {t("hc_modulesAdminAdminEmailSettingsPanel.globallyEnabledDesc", {
+                  defaultValue:
+                    "Cuando se desactiva, NINGÚN correo se envía — independiente de los toggles por categoría. Las notificaciones in-app y push siguen funcionando.",
+                })}
               </p>
               {!globallyEnabled && (
                 <Badge variant="destructive" className="text-[10px] mt-1">
-                  Correos desactivados globalmente
+                  {t("hc_modulesAdminAdminEmailSettingsPanel.globallyDisabledBadge", {
+                    defaultValue: "Correos desactivados globalmente",
+                  })}
                 </Badge>
               )}
             </div>
@@ -519,7 +529,9 @@ export function AdminEmailSettingsPanel() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Mail className="h-4 w-4 text-indigo-500" />
-            Por categoría
+            {t("hc_modulesAdminAdminEmailSettingsPanel.byCategoryTitle", {
+              defaultValue: "Por categoría",
+            })}
           </CardTitle>
         </CardHeader>
         <CardContent className="divide-y">
@@ -541,9 +553,15 @@ export function AdminEmailSettingsPanel() {
                       htmlFor={`kind-${cat.key}`}
                       className="text-sm font-medium cursor-pointer"
                     >
-                      {cat.label}
+                      {t(`hc_modulesAdminAdminEmailSettingsPanel.cat_${cat.key}_label`, {
+                        defaultValue: cat.label,
+                      })}
                     </Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">{cat.desc}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {t(`hc_modulesAdminAdminEmailSettingsPanel.cat_${cat.key}_desc`, {
+                        defaultValue: cat.desc,
+                      })}
+                    </p>
                   </div>
                 </div>
                 <Switch
@@ -561,7 +579,10 @@ export function AdminEmailSettingsPanel() {
       <div className="flex items-center justify-between">
         {settings && (
           <p className="text-[11px] text-muted-foreground">
-            Última actualización: {formatDateTime(settings.updated_at)}
+            {t("hc_modulesAdminAdminEmailSettingsPanel.lastUpdated", {
+              date: formatDateTime(settings.updated_at),
+              defaultValue: "Última actualización: {{date}}",
+            })}
           </p>
         )}
         <Button
@@ -571,7 +592,9 @@ export function AdminEmailSettingsPanel() {
           className="ml-auto"
         >
           {saving ? <Spinner size="sm" className="mr-1" /> : <Save className="h-4 w-4 mr-1" />}
-          Guardar cambios
+          {t("hc_modulesAdminAdminEmailSettingsPanel.saveChangesBtn", {
+            defaultValue: "Guardar cambios",
+          })}
         </Button>
       </div>
 

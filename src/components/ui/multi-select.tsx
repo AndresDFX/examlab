@@ -64,6 +64,7 @@ import { Trash2, X, ChevronDown, ChevronRight } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { useTranslation } from "react-i18next";
 
 // ───────────────────────── Hook ─────────────────────────
 
@@ -141,16 +142,17 @@ export function useMultiSelect<T extends { id: string }>(items: readonly T[]): M
 
 export function MultiSelectHeaderCheckbox({
   state,
-  ariaLabel = "Seleccionar todos",
+  ariaLabel,
 }: {
   state: MultiSelectState;
   ariaLabel?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <Checkbox
       checked={state.allSelected ? true : state.indeterminate ? "indeterminate" : false}
       onCheckedChange={() => state.toggleAll()}
-      aria-label={ariaLabel}
+      aria-label={ariaLabel ?? t("common.selectAll", { defaultValue: "Seleccionar todos" })}
     />
   );
 }
@@ -158,17 +160,18 @@ export function MultiSelectHeaderCheckbox({
 export function MultiSelectCheckbox({
   id,
   state,
-  ariaLabel = "Seleccionar fila",
+  ariaLabel,
 }: {
   id: string;
   state: MultiSelectState;
   ariaLabel?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <Checkbox
       checked={state.isSelected(id)}
       onCheckedChange={() => state.toggle(id)}
-      aria-label={ariaLabel}
+      aria-label={ariaLabel ?? t("hc_componentsUiMultiSelect.selectRow", { defaultValue: "Seleccionar fila" })}
       onClick={(e) => e.stopPropagation()}
     />
   );
@@ -192,10 +195,10 @@ export function MultiSelectToolbar({
   onDelete,
   entityNameSingular,
   entityNamePlural,
-  actionLabel = "Eliminar",
+  actionLabel,
   actionIcon: ActionIcon = Trash2,
   extraActions,
-  clearLabel = "Limpiar selección",
+  clearLabel,
   selectedLabel,
 }: {
   count: number;
@@ -221,20 +224,27 @@ export function MultiSelectToolbar({
    *  el sufijo por defecto. */
   selectedLabel?: string;
 }) {
+  const { t } = useTranslation();
   if (count === 0) return null;
+  const resolvedActionLabel = actionLabel ?? t("common.delete", { defaultValue: "Eliminar" });
+  const resolvedClearLabel =
+    clearLabel ?? t("common.clearSelection", { defaultValue: "Limpiar selección" });
   const label = count === 1 ? `1 ${entityNameSingular}` : `${count} ${entityNamePlural}`;
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2">
       <div className="flex items-center gap-2 text-sm">
         <span className="font-medium">{label}</span>
         <span className="text-muted-foreground">
-          {selectedLabel ?? `seleccionado${count === 1 ? "" : "s"}`}
+          {selectedLabel ??
+            (count === 1
+              ? t("hc_componentsUiMultiSelect.selectedSingular", { defaultValue: "seleccionado" })
+              : t("hc_componentsUiMultiSelect.selectedPlural", { defaultValue: "seleccionados" }))}
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <Button variant="ghost" size="sm" onClick={onClear}>
           <X className="h-3.5 w-3.5 mr-1" />
-          {clearLabel}
+          {resolvedClearLabel}
         </Button>
         {extraActions?.map((a, i) => {
           const Icon = a.icon;
@@ -253,7 +263,7 @@ export function MultiSelectToolbar({
         {onDelete && (
           <Button variant="destructive" size="sm" onClick={onDelete}>
             <ActionIcon className="h-3.5 w-3.5 mr-1" />
-            {actionLabel}
+            {resolvedActionLabel}
           </Button>
         )}
       </div>
@@ -273,13 +283,13 @@ export function BulkDeleteDialog({
   entityNamePlural,
   extraWarning,
   onConfirm,
-  actionLabel = "Eliminar",
+  actionLabel,
   actionIcon: ActionIcon = Trash2,
   // Botón de descartar (footer izquierdo). Por default "Cancelar"
   // pero cuando el actionLabel ES "Cancelar" eso confunde — dos
   // botones llamados "Cancelar" con semánticas opuestas. En ese caso
   // el caller puede pasar "Cerrar" para diferenciarlos.
-  dismissLabel = "Cancelar",
+  dismissLabel,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -301,9 +311,12 @@ export function BulkDeleteDialog({
    *  evitar dos botones con la misma palabra. */
   dismissLabel?: string;
 }) {
+  const { t } = useTranslation();
   const [submitting, setSubmitting] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const count = items.length;
+  const resolvedActionLabel = actionLabel ?? t("common.delete", { defaultValue: "Eliminar" });
+  const resolvedDismissLabel = dismissLabel ?? t("common.cancel", { defaultValue: "Cancelar" });
   const label = count === 1 ? entityNameSingular : entityNamePlural;
   const visibleItems = expanded ? items : items.slice(0, PREVIEW_ROWS);
   const hidden = items.length - visibleItems.length;
@@ -316,7 +329,15 @@ export function BulkDeleteDialog({
     } catch (e) {
       // friendlyError traduce el error de Supabase/Postgres a español; el
       // fallback cubre el caso sin code reconocido (no mostrar inglés crudo).
-      toast.error(friendlyError(e, `No se pudo ${actionLabel.toLowerCase()}.`));
+      toast.error(
+        friendlyError(
+          e,
+          t("hc_componentsUiMultiSelect.actionFailed", {
+            action: resolvedActionLabel.toLowerCase(),
+            defaultValue: "No se pudo {{action}}.",
+          }),
+        ),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -327,15 +348,17 @@ export function BulkDeleteDialog({
       <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {actionLabel} {count} {label}
+            {resolvedActionLabel} {count} {label}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
             {extraWarning
               ? extraWarning
-              : `Se eliminarán los registros seleccionados.`}{" "}
-            Esta acción no se puede deshacer.
+              : t("hc_componentsUiMultiSelect.recordsWillBeDeleted", {
+                  defaultValue: "Se eliminarán los registros seleccionados.",
+                })}{" "}
+            {t("common.irreversible", { defaultValue: "Esta acción no se puede deshacer." })}
           </p>
 
           <div className="rounded-md border bg-muted/30">
@@ -355,12 +378,15 @@ export function BulkDeleteDialog({
                 {expanded ? (
                   <>
                     <ChevronDown className="h-3 w-3" />
-                    Mostrar menos
+                    {t("hc_componentsUiMultiSelect.showLess", { defaultValue: "Mostrar menos" })}
                   </>
                 ) : (
                   <>
                     <ChevronRight className="h-3 w-3" />
-                    Mostrar {hidden} más
+                    {t("hc_componentsUiMultiSelect.showMore", {
+                      count: hidden,
+                      defaultValue: "Mostrar {{count}} más",
+                    })}
                   </>
                 )}
               </button>
@@ -369,7 +395,7 @@ export function BulkDeleteDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
-            {dismissLabel}
+            {resolvedDismissLabel}
           </Button>
           <Button variant="destructive" onClick={handleConfirm} disabled={submitting}>
             {submitting ? (
@@ -377,7 +403,7 @@ export function BulkDeleteDialog({
             ) : (
               <ActionIcon className="h-4 w-4 mr-1" />
             )}
-            {actionLabel} {count}
+            {resolvedActionLabel} {count}
           </Button>
         </DialogFooter>
       </DialogContent>

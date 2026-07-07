@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Input } from "@/components/ui/input";
 import { cn } from "@/shared/lib/utils";
@@ -31,13 +32,16 @@ export const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputPro
     {
       className,
       wrapperClassName,
-      revealLabel = "Mostrar contraseña",
-      hideLabel = "Ocultar contraseña",
+      revealLabel,
+      hideLabel,
       ...props
     },
     ref,
   ) => {
+    const { t } = useTranslation();
     const [show, setShow] = React.useState(false);
+    const revealText = revealLabel ?? t("auth.showPassword", { defaultValue: "Mostrar contraseña" });
+    const hideText = hideLabel ?? t("auth.hidePassword", { defaultValue: "Ocultar contraseña" });
     return (
       <div className={cn("relative", wrapperClassName)}>
         <Input
@@ -49,7 +53,7 @@ export const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputPro
         <button
           type="button"
           onClick={() => setShow((v) => !v)}
-          aria-label={show ? hideLabel : revealLabel}
+          aria-label={show ? hideText : revealText}
           // tabIndex -1: el toggle no entra en el orden de tabulación del
           // form — se opera con click; así Tab salta del input al siguiente
           // campo, no al ojo.

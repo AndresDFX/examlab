@@ -23,6 +23,7 @@
  *   mano (la API embeddable no expone control sin extra setup).
  */
 import { useEffect, useRef, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ interface Props {
 }
 
 export function IntroVideoGate({ videos, watchedIds, onVideoWatched }: Props) {
+  const { t } = useTranslation();
   if (videos.length === 0) return null;
 
   // Orden estricto: el primer video NO visto es el "activo". Los
@@ -61,11 +63,19 @@ export function IntroVideoGate({ videos, watchedIds, onVideoWatched }: Props) {
         <CardTitle className="text-base flex items-center gap-2">
           <PlayCircle className="h-5 w-5 text-primary" />
           {ordered.length === 1
-            ? "Video introductorio"
-            : `Videos introductorios (${ordered.length})`}
+            ? t("hc_sharedComponentsIntroVideoGate.videoSingular", {
+                defaultValue: "Video introductorio",
+              })
+            : t("hc_sharedComponentsIntroVideoGate.videosPlural", {
+                n: ordered.length,
+                defaultValue: "Videos introductorios ({{n}})",
+              })}
           {allDone && (
             <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-              <Check className="h-3.5 w-3.5" /> Todos vistos
+              <Check className="h-3.5 w-3.5" />{" "}
+              {t("hc_sharedComponentsIntroVideoGate.allWatched", {
+                defaultValue: "Todos vistos",
+              })}
             </span>
           )}
         </CardTitle>
@@ -75,11 +85,19 @@ export function IntroVideoGate({ videos, watchedIds, onVideoWatched }: Props) {
           <Alert>
             <PlayCircle className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Mira los videos en orden. El siguiente se desbloquea cuando termines el actual.
+              {t("hc_sharedComponentsIntroVideoGate.watchInOrder", {
+                defaultValue:
+                  "Mira los videos en orden. El siguiente se desbloquea cuando termines el actual.",
+              })}
               {ordered.length > 1 && (
                 <>
                   {" "}
-                  Llevas <strong>{watchedIds.size}</strong> de <strong>{ordered.length}</strong>.
+                  <Trans
+                    i18nKey="hc_sharedComponentsIntroVideoGate.progress"
+                    values={{ watched: watchedIds.size, total: ordered.length }}
+                    defaults="Llevas <0>{{watched}}</0> de <1>{{total}}</1>."
+                    components={[<strong key="w" />, <strong key="t" />]}
+                  />
                 </>
               )}
             </AlertDescription>
@@ -90,7 +108,12 @@ export function IntroVideoGate({ videos, watchedIds, onVideoWatched }: Props) {
             const isWatched = watchedIds.has(v.id);
             const isActive = idx === activeIndex;
             const isLocked = !isWatched && !isActive;
-            const label = v.title?.trim() || `Video ${idx + 1}`;
+            const label =
+              v.title?.trim() ||
+              t("hc_sharedComponentsIntroVideoGate.videoFallbackLabel", {
+                number: idx + 1,
+                defaultValue: "Video {{number}}",
+              });
             return (
               <div
                 key={v.id}
@@ -119,7 +142,17 @@ export function IntroVideoGate({ videos, watchedIds, onVideoWatched }: Props) {
                       {idx + 1}. {label}
                     </div>
                     <div className="text-[10px] text-muted-foreground">
-                      {isWatched ? "Visto" : isActive ? "Ver ahora" : "Bloqueado"}
+                      {isWatched
+                        ? t("hc_sharedComponentsIntroVideoGate.statusWatched", {
+                            defaultValue: "Visto",
+                          })
+                        : isActive
+                          ? t("hc_sharedComponentsIntroVideoGate.statusWatchNow", {
+                              defaultValue: "Ver ahora",
+                            })
+                          : t("hc_sharedComponentsIntroVideoGate.statusLocked", {
+                              defaultValue: "Bloqueado",
+                            })}
                     </div>
                   </div>
                 </div>
@@ -131,7 +164,9 @@ export function IntroVideoGate({ videos, watchedIds, onVideoWatched }: Props) {
                 {isLocked && (
                   <div className="px-3 pb-3">
                     <p className="text-[11px] text-muted-foreground italic">
-                      Termina los videos anteriores para desbloquearlo.
+                      {t("hc_sharedComponentsIntroVideoGate.finishPreviousToUnlock", {
+                        defaultValue: "Termina los videos anteriores para desbloquearlo.",
+                      })}
                     </p>
                   </div>
                 )}
@@ -156,6 +191,7 @@ function SingleVideoPlayer({
   video: IntroVideo;
   onWatched: () => void;
 }) {
+  const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const maxSeenRef = useRef(0);
   const [progress, setProgress] = useState(0);
@@ -196,7 +232,12 @@ function SingleVideoPlayer({
         <div className="relative aspect-video w-full overflow-hidden rounded-md border bg-black">
           <iframe
             src={toEmbedUrl(video.url, kind)}
-            title={video.title ?? "Video introductorio"}
+            title={
+              video.title ??
+              t("hc_sharedComponentsIntroVideoGate.videoSingular", {
+                defaultValue: "Video introductorio",
+              })
+            }
             className="absolute inset-0 w-full h-full"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
@@ -209,7 +250,9 @@ function SingleVideoPlayer({
             className="text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground inline-flex items-center gap-1.5"
           >
             <PlayCircle className="h-3.5 w-3.5" />
-            Ya vi este video completo
+            {t("hc_sharedComponentsIntroVideoGate.alreadyWatched", {
+              defaultValue: "Ya vi este video completo",
+            })}
           </button>
         </div>
       </div>
@@ -225,8 +268,10 @@ function SingleVideoPlayer({
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription className="space-y-2 text-xs">
           <p>
-            No se pudo cargar el video. Es posible que el enlace esté roto o que el formato no sea
-            compatible con tu navegador.
+            {t("hc_sharedComponentsIntroVideoGate.loadErrorMessage", {
+              defaultValue:
+                "No se pudo cargar el video. Es posible que el enlace esté roto o que el formato no sea compatible con tu navegador.",
+            })}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -238,11 +283,13 @@ function SingleVideoPlayer({
               }}
             >
               <RotateCcw className="h-3.5 w-3.5 mr-1" />
-              Reintentar
+              {t("common.retry", { defaultValue: "Reintentar" })}
             </Button>
             <Button size="sm" onClick={markWatched}>
               <Check className="h-3.5 w-3.5 mr-1" />
-              Continuar de todos modos
+              {t("hc_sharedComponentsIntroVideoGate.continueAnyway", {
+                defaultValue: "Continuar de todos modos",
+              })}
             </Button>
           </div>
         </AlertDescription>
@@ -297,8 +344,10 @@ function SingleVideoPlayer({
       <Alert className="border-amber-300/60 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30">
         <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
         <AlertDescription className="text-xs text-amber-700 dark:text-amber-300">
-          Mira el video hasta el final. El reproductor no permite adelantar — puedes pausar o
-          rebobinar libremente.
+          {t("hc_sharedComponentsIntroVideoGate.noSeekHint", {
+            defaultValue:
+              "Mira el video hasta el final. El reproductor no permite adelantar — puedes pausar o rebobinar libremente.",
+          })}
         </AlertDescription>
       </Alert>
     </div>

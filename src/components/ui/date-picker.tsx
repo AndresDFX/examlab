@@ -57,13 +57,16 @@ interface DatePickerProps {
 export function DatePicker({
   value,
   onChange,
-  placeholder = "Selecciona fecha",
+  placeholder,
   disabled,
   className,
   id,
 }: DatePickerProps) {
+  const { t } = useTranslation();
   const date = parseDateOnly(value);
   const locale = useDateLocale();
+  const effectivePlaceholder =
+    placeholder ?? t("hc_componentsUiDatePicker.selectDate", { defaultValue: "Selecciona fecha" });
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -80,7 +83,7 @@ export function DatePicker({
         >
           <CalendarIcon className="h-4 w-4 mr-2 opacity-70 shrink-0" />
           <span className="truncate">
-            {date ? format(date, "PP", { locale }) : placeholder}
+            {date ? format(date, "PP", { locale }) : effectivePlaceholder}
           </span>
         </Button>
       </PopoverTrigger>
@@ -105,16 +108,19 @@ interface DateTimePickerProps extends DatePickerProps {
 export function DateTimePicker({
   value,
   onChange,
-  placeholder = "Selecciona fecha y hora",
+  placeholder,
   disabled,
   className,
   id,
   defaultTime = "09:00",
 }: DateTimePickerProps) {
+  const { t } = useTranslation();
   const [datePart, timePart] = (value ?? "").split("T");
   const date = parseDateOnly(datePart);
   const time = (timePart ?? "").slice(0, 5) || defaultTime;
   const locale = useDateLocale();
+  const effectivePlaceholder =
+    placeholder ?? t("hc_componentsUiDatePicker.selectDateTime", { defaultValue: "Selecciona fecha y hora" });
 
   const emit = (newDate: Date | undefined, newTime: string) => {
     if (!newDate) {
@@ -141,7 +147,7 @@ export function DateTimePicker({
         >
           <CalendarIcon className="h-4 w-4 mr-2 opacity-70 shrink-0" />
           <span className="truncate">
-            {date ? `${format(date, "PP", { locale })} · ${time}` : placeholder}
+            {date ? `${format(date, "PP", { locale })} · ${time}` : effectivePlaceholder}
           </span>
         </Button>
       </PopoverTrigger>
@@ -154,7 +160,7 @@ export function DateTimePicker({
           locale={locale}
         />
         <div className="border-t p-3 space-y-1.5">
-          <Label className="text-xs">Hora</Label>
+          <Label className="text-xs">{t("hc_componentsUiDatePicker.time", { defaultValue: "Hora" })}</Label>
           <Input
             type="time"
             value={time}

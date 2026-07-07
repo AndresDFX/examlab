@@ -229,20 +229,31 @@ export function TextPageEditor({ text, onPersist, readOnly, className }: Props) 
     });
   };
 
-  const handleBold = () => applyEdit((ta) => wrapSelection(ta, "**", "**", "texto en negrita"));
-  const handleItalic = () => applyEdit((ta) => wrapSelection(ta, "*", "*", "texto en cursiva"));
-  const handleCode = () => applyEdit((ta) => wrapSelection(ta, "`", "`", "código"));
+  const handleBold = () =>
+    applyEdit((ta) =>
+      wrapSelection(ta, "**", "**", t("textPageEditor.phBold", { defaultValue: "texto en negrita" })),
+    );
+  const handleItalic = () =>
+    applyEdit((ta) =>
+      wrapSelection(ta, "*", "*", t("textPageEditor.phItalic", { defaultValue: "texto en cursiva" })),
+    );
+  const handleCode = () =>
+    applyEdit((ta) => wrapSelection(ta, "`", "`", t("textPageEditor.phCodeInline", { defaultValue: "código" })));
   const handleCodeBlock = () =>
-    applyEdit((ta) => wrapSelection(ta, "\n```\n", "\n```\n", "// código"));
+    applyEdit((ta) =>
+      wrapSelection(ta, "\n```\n", "\n```\n", t("textPageEditor.phCodeBlock", { defaultValue: "// código" })),
+    );
   const handleH1 = () => applyEdit((ta) => prefixLines(ta, "# "));
   const handleH2 = () => applyEdit((ta) => prefixLines(ta, "## "));
   const handleUnorderedList = () => applyEdit((ta) => prefixLines(ta, "- "));
   const handleOrderedList = () => applyEdit((ta) => prefixLines(ta, "1. "));
   const handleQuote = () => applyEdit((ta) => prefixLines(ta, "> "));
   const handleLink = () => {
-    const url = window.prompt("URL del enlace:", "https://");
+    const url = window.prompt(t("textPageEditor.promptLinkUrl", { defaultValue: "URL del enlace:" }), "https://");
     if (!url) return;
-    applyEdit((ta) => wrapSelection(ta, "[", `](${url})`, "texto del enlace"));
+    applyEdit((ta) =>
+      wrapSelection(ta, "[", `](${url})`, t("textPageEditor.phLinkText", { defaultValue: "texto del enlace" })),
+    );
   };
 
   const toggleFullscreen = useCallback(() => {
@@ -267,7 +278,9 @@ export function TextPageEditor({ text, onPersist, readOnly, className }: Props) 
     return (
       <div ref={containerRef} className={cn("relative bg-background overflow-auto", className)}>
         <div className="p-4 sm:p-6 max-w-4xl mx-auto">
-          <MarkdownViewer>{value || "*(hoja sin contenido)*"}</MarkdownViewer>
+          <MarkdownViewer>
+            {value || t("textPageEditor.emptyContent", { defaultValue: "*(hoja sin contenido)*" })}
+          </MarkdownViewer>
         </div>
         <button
           type="button"
@@ -384,7 +397,10 @@ export function TextPageEditor({ text, onPersist, readOnly, className }: Props) 
           >
             <div className="p-4 sm:p-6 max-w-4xl mx-auto">
               <MarkdownViewer>
-                {value || "*(empieza a escribir para ver la vista previa)*"}
+                {value ||
+                  t("textPageEditor.emptyPreview", {
+                    defaultValue: "*(empieza a escribir para ver la vista previa)*",
+                  })}
               </MarkdownViewer>
             </div>
           </div>
@@ -394,8 +410,8 @@ export function TextPageEditor({ text, onPersist, readOnly, className }: Props) 
       <button
         type="button"
         onClick={toggleFullscreen}
-        aria-label={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
-        title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+        aria-label={isFullscreen ? t("textPageEditor.btnExitFullscreen") : t("textPageEditor.btnFullscreen")}
+        title={isFullscreen ? t("textPageEditor.btnExitFullscreen") : t("textPageEditor.btnFullscreen")}
         className="absolute bottom-2 right-2 z-10 rounded-md border border-border bg-background/90 backdrop-blur-sm p-1.5 text-muted-foreground hover:text-foreground hover:bg-background transition-colors shadow-sm"
       >
         {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}

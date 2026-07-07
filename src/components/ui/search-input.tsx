@@ -20,6 +20,7 @@
  *   <SearchInput value={search} onChange={setSearch} placeholder="Buscar…" />
  */
 import { Search, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Input } from "./input";
 import { Button } from "./button";
 
@@ -36,10 +37,13 @@ interface SearchInputProps {
 export function SearchInput({
   value,
   onChange,
-  placeholder = "Buscar…",
+  placeholder,
   maxWidthClass = "sm:max-w-xs",
   className,
 }: SearchInputProps) {
+  const { t } = useTranslation();
+  const resolvedPlaceholder =
+    placeholder ?? t("common.searchPlaceholder", { defaultValue: "Buscar…" });
   return (
     <div className={`flex flex-wrap items-center gap-2 ${className ?? ""}`}>
       <div className={`relative flex-1 min-w-[180px] ${maxWidthClass}`}>
@@ -47,7 +51,7 @@ export function SearchInput({
         <Input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
+          placeholder={resolvedPlaceholder}
           className="pl-8 pr-8"
         />
         {value && (
@@ -57,7 +61,7 @@ export function SearchInput({
             size="icon"
             onClick={() => onChange("")}
             className="absolute right-0.5 top-1/2 -translate-y-1/2 h-7 w-7"
-            title="Limpiar"
+            title={t("common.clear", { defaultValue: "Limpiar" })}
           >
             <X className="h-3.5 w-3.5" />
           </Button>

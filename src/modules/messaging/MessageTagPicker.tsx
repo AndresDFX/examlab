@@ -69,7 +69,7 @@ export function MessageTagPicker({ open, onOpenChange, onPick }: Props) {
     let cancelled = false;
     void (async () => {
       setLoading(true);
-      const def = TYPES.find((t) => t.value === activeType)!;
+      const def = TYPES.find((typeDef) => typeDef.value === activeType)!;
       // exams/workshops/projects son entidades soft-delete: no listar en el
       // picker de `#` los que estén en la papelera.
       const { data } = await db
@@ -82,7 +82,10 @@ export function MessageTagPicker({ open, onOpenChange, onPick }: Props) {
       setItems(
         (data ?? []).map((r: Record<string, unknown>) => ({
           id: String(r.id),
-          title: String(r[def.titleCol] ?? "(sin título)"),
+          title: String(
+            r[def.titleCol] ??
+              t("hc_modulesMessagingMessageTagPicker.untitled", { defaultValue: "(sin título)" }),
+          ),
         })),
       );
       setLoading(false);
@@ -105,35 +108,45 @@ export function MessageTagPicker({ open, onOpenChange, onPick }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Etiquetar contenido</DialogTitle>
+          <DialogTitle>
+            {t("hc_modulesMessagingMessageTagPicker.title", { defaultValue: "Etiquetar contenido" })}
+          </DialogTitle>
         </DialogHeader>
         <Tabs value={activeType} onValueChange={(v) => setActiveType(v as TagType)}>
           <TabsList className="grid grid-cols-3 w-full">
-            {TYPES.map((t) => {
-              const Icon = t.icon;
+            {TYPES.map((typeDef) => {
+              const Icon = typeDef.icon;
               return (
-                <TabsTrigger key={t.value} value={t.value} className="text-xs gap-1.5">
+                <TabsTrigger key={typeDef.value} value={typeDef.value} className="text-xs gap-1.5">
                   <Icon className="h-3.5 w-3.5" />
-                  {TAG_TYPE_LABEL[t.value]}
+                  {TAG_TYPE_LABEL[typeDef.value]}
                 </TabsTrigger>
               );
             })}
           </TabsList>
-          {TYPES.map((t) => (
-            <TabsContent key={t.value} value={t.value} className="space-y-2 mt-3">
+          {TYPES.map((typeDef) => (
+            <TabsContent key={typeDef.value} value={typeDef.value} className="space-y-2 mt-3">
               <SearchInput
                 value={search}
                 onChange={setSearch}
-                placeholder={`Buscar ${TAG_TYPE_LABEL[t.value].toLowerCase()}…`}
+                placeholder={t("hc_modulesMessagingMessageTagPicker.searchPlaceholder", {
+                  type: TAG_TYPE_LABEL[typeDef.value].toLowerCase(),
+                  defaultValue: "Buscar {{type}}…",
+                })}
               />
               <div className="max-h-[50dvh] overflow-y-auto rounded-md border divide-y">
                 {loading ? (
-                  <SectionLoader text="Cargando…" />
+                  <SectionLoader text={t("common.loading", { defaultValue: "Cargando…" })} />
                 ) : filtered.length === 0 ? (
                   <p className="p-6 text-center text-sm text-muted-foreground">
                     {search.trim()
-                      ? "Sin coincidencias."
-                      : `No hay ${TAG_TYPE_LABEL[t.value].toLowerCase()}s disponibles.`}
+                      ? t("hc_modulesMessagingMessageTagPicker.noMatches", {
+                          defaultValue: "Sin coincidencias.",
+                        })
+                      : t("hc_modulesMessagingMessageTagPicker.emptyForType", {
+                          type: TAG_TYPE_LABEL[typeDef.value].toLowerCase(),
+                          defaultValue: "No hay {{type}}s disponibles.",
+                        })}
                   </p>
                 ) : (
                   filtered.map((it) => (
@@ -141,7 +154,7 @@ export function MessageTagPicker({ open, onOpenChange, onPick }: Props) {
                       key={it.id}
                       type="button"
                       onClick={() => {
-                        onPick({ type: t.value, id: it.id, label: it.title });
+                        onPick({ type: typeDef.value, id: it.id, label: it.title });
                         onOpenChange(false);
                       }}
                       className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 transition-colors"
@@ -156,7 +169,7 @@ export function MessageTagPicker({ open, onOpenChange, onPick }: Props) {
         </Tabs>
         <div className="flex justify-end pt-1">
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            Cancelar
+            {t("common.cancel", { defaultValue: "Cancelar" })}
           </Button>
         </div>
       </DialogContent>

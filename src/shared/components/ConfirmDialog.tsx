@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,6 +57,7 @@ const TONE_STYLES: Record<ConfirmTone, { iconWrap: string; iconColor: string; ac
 };
 
 export function ConfirmProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
   const [state, setState] = useState<InternalState>({ open: false, title: "" });
 
   const confirm = useCallback((opts: ConfirmOptions) => {
@@ -103,10 +105,10 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => handleClose(false)}>
-              {state.cancelLabel ?? "Cancelar"}
+              {state.cancelLabel ?? t("common.cancel", { defaultValue: "Cancelar" })}
             </AlertDialogCancel>
             <AlertDialogAction className={cn(styles.action)} onClick={() => handleClose(true)}>
-              {state.confirmLabel ?? "Confirmar"}
+              {state.confirmLabel ?? t("common.confirm", { defaultValue: "Confirmar" })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

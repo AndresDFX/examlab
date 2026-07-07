@@ -14,6 +14,7 @@
  * para estudiante; asignados para docente).
  */
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,9 +46,12 @@ interface Props {
   highlightToday?: boolean;
 }
 
-export function WeeklyScheduleView({ title = "Mi semana", highlightToday = true }: Props) {
+export function WeeklyScheduleView({ title, highlightToday = true }: Props) {
+  const { t } = useTranslation();
   const [blocks, setBlocks] = useState<BlockWithCourse[]>([]);
   const [loading, setLoading] = useState(true);
+  const resolvedTitle =
+    title ?? t("hc_modulesSchedulesWeeklyScheduleView.title", { defaultValue: "Mi semana" });
 
   useEffect(() => {
     let cancelled = false;
@@ -109,19 +113,24 @@ export function WeeklyScheduleView({ title = "Mi semana", highlightToday = true 
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <CalendarClock className="h-4 w-4 text-cyan-500" />
-          {title}
+          {resolvedTitle}
         </CardTitle>
       </CardHeader>
       <CardContent>
         {loading ? (
           <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
-            <Spinner size="sm" /> Cargando…
+            <Spinner size="sm" /> {t("common.loading")}
           </div>
         ) : blocks.length === 0 ? (
           <EmptyState
             icon={CalendarClock}
-            text="Sin horario configurado"
-            hint="Cuando tus cursos tengan bloques semanales definidos, aparecerán aquí."
+            text={t("hc_modulesSchedulesWeeklyScheduleView.emptyText", {
+              defaultValue: "Sin horario configurado",
+            })}
+            hint={t("hc_modulesSchedulesWeeklyScheduleView.emptyHint", {
+              defaultValue:
+                "Cuando tus cursos tengan bloques semanales definidos, aparecerán aquí.",
+            })}
           />
         ) : (
           <div className="space-y-3">
@@ -140,7 +149,7 @@ export function WeeklyScheduleView({ title = "Mi semana", highlightToday = true 
                     <span className="text-sm font-medium">{DAY_LABELS[day]}</span>
                     {isToday && (
                       <Badge variant="outline" className="text-[10px] border-cyan-400 text-cyan-700 dark:text-cyan-300">
-                        Hoy
+                        {t("hc_modulesSchedulesWeeklyScheduleView.today", { defaultValue: "Hoy" })}
                       </Badge>
                     )}
                   </div>
@@ -164,11 +173,17 @@ export function WeeklyScheduleView({ title = "Mi semana", highlightToday = true 
                           <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5 flex-wrap">
                             {b.modalidad === "virtual" ? (
                               <span className="inline-flex items-center gap-1">
-                                <Video className="h-3 w-3" /> Virtual
+                                <Video className="h-3 w-3" />{" "}
+                                {t("hc_modulesSchedulesWeeklyScheduleView.modalityVirtual", {
+                                  defaultValue: "Virtual",
+                                })}
                               </span>
                             ) : b.modalidad === "hibrida" ? (
                               <span className="inline-flex items-center gap-1">
-                                <Video className="h-3 w-3" /> Híbrida
+                                <Video className="h-3 w-3" />{" "}
+                                {t("hc_modulesSchedulesWeeklyScheduleView.modalityHibrida", {
+                                  defaultValue: "Híbrida",
+                                })}
                               </span>
                             ) : null}
                             {b.aula?.trim() && (

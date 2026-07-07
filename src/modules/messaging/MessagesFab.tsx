@@ -46,12 +46,14 @@ const KIND_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
 function timeAgo(date: string): string {
   const diff = Date.now() - new Date(date).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "ahora";
-  if (mins < 60) return `hace ${mins}m`;
+  if (mins < 1) return i18n.t("hc_modulesMessagingMessagesFab.timeAgoNow", { defaultValue: "ahora" });
+  if (mins < 60)
+    return i18n.t("hc_modulesMessagingMessagesFab.timeAgoMinutes", { mins, defaultValue: "hace {{mins}}m" });
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `hace ${hrs}h`;
+  if (hrs < 24)
+    return i18n.t("hc_modulesMessagingMessagesFab.timeAgoHours", { hrs, defaultValue: "hace {{hrs}}h" });
   const days = Math.floor(hrs / 24);
-  return `hace ${days}d`;
+  return i18n.t("hc_modulesMessagingMessagesFab.timeAgoDays", { days, defaultValue: "hace {{days}}d" });
 }
 
 interface MessagesFabProps {
@@ -62,6 +64,7 @@ interface MessagesFabProps {
 }
 
 export function MessagesFab({ sidebarCollapsed }: MessagesFabProps) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const activeRole = useActiveRole();
   const location = useLocation();
@@ -147,7 +150,10 @@ export function MessagesFab({ sidebarCollapsed }: MessagesFabProps) {
         <Button
           variant="default"
           size="icon"
-          aria-label={`Mensajes y notificaciones (${totalUnread} sin leer)`}
+          aria-label={t("hc_modulesMessagingMessagesFab.bellAriaLabel", {
+            count: totalUnread,
+            defaultValue: "Mensajes y notificaciones ({{count}} sin leer)",
+          })}
           className={cn(
             // Mobile (< md): SIEMPRE oculto. El header mobile ya tiene
             // el `MessagesBell` (icono chat junto a la campana arriba a
@@ -177,7 +183,9 @@ export function MessagesFab({ sidebarCollapsed }: MessagesFabProps) {
       </PopoverTrigger>
       <PopoverContent align="end" side="top" className="w-80 p-0 mr-1">
         <div className="flex items-center justify-between px-3 py-2 border-b">
-          <span className="text-sm font-medium">Bandeja</span>
+          <span className="text-sm font-medium">
+            {t("hc_modulesMessagingMessagesFab.inboxTitle", { defaultValue: "Bandeja" })}
+          </span>
           {totalUnread > 0 && (
             <Button
               variant="ghost"
@@ -187,7 +195,9 @@ export function MessagesFab({ sidebarCollapsed }: MessagesFabProps) {
               disabled={markingAll}
             >
               <CheckCheck className="h-3 w-3" />
-              {markingAll ? "Marcando…" : "Marcar todo"}
+              {markingAll
+                ? t("hc_modulesMessagingMessagesFab.marking", { defaultValue: "Marcando…" })
+                : t("hc_modulesMessagingMessagesFab.markAll", { defaultValue: "Marcar todo" })}
             </Button>
           )}
         </div>
@@ -203,10 +213,13 @@ export function MessagesFab({ sidebarCollapsed }: MessagesFabProps) {
               <MessageSquare className="h-3.5 w-3.5" />
             </div>
             <div className="text-sm">
-              Mensajes
+              {t("hc_modulesMessagingMessagesFab.messagesLabel", { defaultValue: "Mensajes" })}
               {unreadMessages > 0 && (
                 <span className="ml-1 text-xs text-muted-foreground">
-                  ({unreadMessages} sin responder)
+                  {t("hc_modulesMessagingMessagesFab.messagesUnanswered", {
+                    count: unreadMessages,
+                    defaultValue: "({{count}} sin responder)",
+                  })}
                 </span>
               )}
             </div>
@@ -215,12 +228,17 @@ export function MessagesFab({ sidebarCollapsed }: MessagesFabProps) {
         </Link>
 
         <div className="px-3 py-1.5 border-b text-[11px] uppercase tracking-wide text-muted-foreground">
-          Notificaciones {unreadCount > 0 && `(${unreadCount} sin leer)`}
+          {t("hc_modulesMessagingMessagesFab.notificationsLabel", { defaultValue: "Notificaciones" })}{" "}
+          {unreadCount > 0 &&
+            t("hc_modulesMessagingMessagesFab.notificationsUnread", {
+              count: unreadCount,
+              defaultValue: "({{count}} sin leer)",
+            })}
         </div>
         <div className="max-h-72 overflow-y-auto overscroll-contain">
           {notifications.length === 0 ? (
             <div className="py-6 text-center text-sm text-muted-foreground">
-              Sin notificaciones
+              {t("hc_modulesMessagingMessagesFab.emptyNotifications", { defaultValue: "Sin notificaciones" })}
             </div>
           ) : (
             <div className="divide-y">

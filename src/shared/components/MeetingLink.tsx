@@ -13,6 +13,7 @@
  */
 import { Video } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 type Provider = "meet" | "teams" | "zoom" | "other";
 
@@ -114,15 +115,18 @@ interface MeetingLinkProps {
 }
 
 export function MeetingLink({ url, label, className }: MeetingLinkProps) {
+  const { t } = useTranslation();
   const provider = detectProvider(url);
-  const text = label ?? LABELS[provider];
+  const providerLabel =
+    provider === "other" ? t("courseBoard.meeting", { defaultValue: "Reunión" }) : LABELS[provider];
+  const text = label ?? providerLabel;
   return (
     <a
       href={url}
       target="_blank"
       rel="noopener noreferrer"
       className={`inline-flex items-center gap-1.5 mt-1 text-xs rounded-md border px-2 py-1 transition-colors ${PROVIDER_CLS[provider]} ${className ?? ""}`}
-      title={`${LABELS[provider]} — ${url}`}
+      title={`${providerLabel} — ${url}`}
     >
       <ProviderLogo provider={provider} />
       {text}

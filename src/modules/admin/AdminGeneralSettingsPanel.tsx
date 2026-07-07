@@ -73,7 +73,14 @@ export function AdminGeneralSettingsPanel() {
     setLoadError(null);
     const { data, error } = await db.from("app_settings").select("*").maybeSingle();
     if (error) {
-      setLoadError(friendlyError(error, "No pudimos cargar los parámetros."));
+      setLoadError(
+        friendlyError(
+          error,
+          t("adminGeneralSettings.loadErrorFallback", {
+            defaultValue: "No pudimos cargar los parámetros.",
+          }),
+        ),
+      );
       setLoading(false);
       return;
     }

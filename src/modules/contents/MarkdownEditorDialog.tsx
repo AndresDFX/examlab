@@ -55,15 +55,24 @@ interface MarkdownEditorDialogProps {
   initialMode?: "view" | "edit";
 }
 
-function humanLabelForFile(f: MdLikeFile): string {
-  if (f.kind === "pptx-source") return "Presentación";
+function humanLabelForFile(
+  f: MdLikeFile,
+  t: (key: string, opts: { defaultValue: string }) => string,
+): string {
+  if (f.kind === "pptx-source")
+    return t("contents.fileLabelPresentation", { defaultValue: "Presentación" });
   const u = f.name.toUpperCase();
-  if (u.includes("SOLUCION") || u.includes("SOLUTION")) return "Ejercicio (con solución)";
-  if (u.includes("EJERCICIO")) return "Ejercicio (estudiante)";
-  if (u.includes("GUIA")) return "Guía docente";
-  if (u.includes("TALLER") || u.includes("PRACTICO")) return "Taller práctico";
-  if (u.includes("INTRO")) return "Introducción";
-  return "Material";
+  if (u.includes("SOLUCION") || u.includes("SOLUTION"))
+    return t("contents.fileLabelExerciseSolution", { defaultValue: "Ejercicio (con solución)" });
+  if (u.includes("EJERCICIO"))
+    return t("contents.fileLabelExerciseStudent", { defaultValue: "Ejercicio (estudiante)" });
+  if (u.includes("GUIA"))
+    return t("contents.fileLabelTeacherGuide", { defaultValue: "Guía docente" });
+  if (u.includes("TALLER") || u.includes("PRACTICO"))
+    return t("contents.fileLabelPracticalWorkshop", { defaultValue: "Taller práctico" });
+  if (u.includes("INTRO"))
+    return t("contents.fileLabelIntro", { defaultValue: "Introducción" });
+  return t("contents.fileLabelMaterial", { defaultValue: "Material" });
 }
 
 export function MarkdownEditorDialog({
@@ -116,7 +125,11 @@ export function MarkdownEditorDialog({
         .select("files")
         .eq("id", contentId)
         .maybeSingle();
-      if (getErr || !row) throw new Error(getErr?.message ?? "No se pudo cargar el contenido");
+      if (getErr || !row)
+        throw new Error(
+          getErr?.message ??
+            t("contents.loadContentError", { defaultValue: "No se pudo cargar el contenido" }),
+        );
       const filesArr = Array.isArray(row.files) ? (row.files as Array<{ path: string }>) : [];
       const updated = filesArr.map((f) => (f.path === file.path ? { ...f, body } : f));
       const { error: updErr } = await db
@@ -142,7 +155,7 @@ export function MarkdownEditorDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
             <FileText className="h-4 w-4 text-primary" />
-            {file ? humanLabelForFile(file) : ""}
+            {file ? humanLabelForFile(file, t) : ""}
           </DialogTitle>
           <DialogDescription className="text-[11px] font-mono truncate">
             {file?.name}

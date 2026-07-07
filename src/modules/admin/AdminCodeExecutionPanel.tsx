@@ -45,74 +45,6 @@ type ProviderRow = {
   is_active: boolean;
 };
 
-const JAVA_GUI_LABELS: Record<JavaGuiProvider, string> = {
-  cheerp: "CheerpJ — navegador (interactivo)",
-  aws_screenshot: "AWS Lambda + Xvfb — captura PNG (no interactivo)",
-};
-
-const JAVA_GUI_DESCRIPTION: Record<JavaGuiProvider, string> = {
-  cheerp:
-    "Swing/AWT/JavaFX corre completamente en el navegador del estudiante (WebAssembly). El alumno puede clickear, escribir, interactuar con la ventana en tiempo real. Requiere licencia comercial para uso multi-usuario en producción — ver docs/JAVA-GUI-OPTIONS.md.",
-  aws_screenshot:
-    "AWS Lambda corre la app Swing bajo Xvfb (display virtual) y devuelve UNA captura PNG. El alumno solo VE la ventana — no puede clickear ni probar eventos. Útil como modo 'submit & ver render' sin licencia. Requiere desplegar la Lambda con Xvfb + ImageMagick (ver aws/code-runner/).",
-};
-
-const JAVA_GUI_SECRETS: Record<JavaGuiProvider, string[]> = {
-  cheerp: [],
-  aws_screenshot: [
-    "AWS_RUNNER_URL (mismo endpoint que el provider aws_lambda)",
-    "AWS_RUNNER_API_KEY",
-  ],
-};
-
-// Python GUI (tkinter). Hoy solo hay un provider: AWS Lambda con Xvfb
-// + tkinter (server-side, captura PNG). El alumno NO interactúa. No
-// existe equivalente client-side (no hay Pyodide+tkinter en WASM).
-const PYTHON_GUI_LABELS: Record<PythonGuiProvider, string> = {
-  aws_screenshot: "AWS Lambda + Xvfb — captura PNG (no interactivo)",
-};
-
-const PYTHON_GUI_DESCRIPTION: Record<PythonGuiProvider, string> = {
-  aws_screenshot:
-    "AWS Lambda corre la app tkinter bajo Xvfb (display virtual) y devuelve UNA captura PNG. El alumno solo VE la ventana — no puede clickear ni probar eventos. Requiere desplegar la misma Lambda que para Java GUI (ya tiene Python + tkinter en el container).",
-};
-
-const PYTHON_GUI_SECRETS: Record<PythonGuiProvider, string[]> = {
-  aws_screenshot: [
-    "AWS_RUNNER_URL (mismo endpoint que el provider aws_lambda)",
-    "AWS_RUNNER_API_KEY",
-  ],
-};
-
-const PROVIDER_LABELS: Record<CodeProvider, string> = {
-  onlinecompiler: "OnlineCompiler.io (API externa)",
-  jdoodle: "JDoodle (fallback)",
-  cheerp: "CheerpJ — navegador (solo Java)",
-  aws_lambda: "AWS Lambda — runner propio (recomendado para Java)",
-};
-
-const PROVIDER_DESCRIPTION: Record<CodeProvider, string> = {
-  onlinecompiler:
-    "API síncrona, 12 lenguajes, sin cuota diaria. Requiere el secret ONLINE_COMPILER_API_KEY.",
-  jdoodle:
-    "API clásica de JDoodle. Cuota de 200 ejecuciones/día en el plan gratuito. Requiere JDOODLE_CLIENT_ID y JDOODLE_CLIENT_SECRET.",
-  cheerp:
-    "Java corre completamente en el navegador del estudiante (WebAssembly). Sin API externa ni cuota. Los demás lenguajes siguen usando OnlineCompiler.io.",
-  aws_lambda:
-    "Lambda con OpenJDK 21 desplegada en TU cuenta de AWS. Cabe en Always Free hasta ~50K execs/mes. Compile errors completos (línea + mensaje). Otros lenguajes caen automáticamente a OnlineCompiler.io. Ver aws/code-runner/README.md para el deploy.",
-};
-
-const PROVIDER_SECRETS: Record<CodeProvider, string[]> = {
-  onlinecompiler: ["ONLINE_COMPILER_API_KEY"],
-  jdoodle: ["JDOODLE_CLIENT_ID", "JDOODLE_CLIENT_SECRET"],
-  cheerp: ["ONLINE_COMPILER_API_KEY (para lenguajes distintos a Java)"],
-  aws_lambda: [
-    "AWS_RUNNER_URL (Function URL)",
-    "AWS_RUNNER_API_KEY (shared secret en SSM)",
-    "ONLINE_COMPILER_API_KEY (fallback para lenguajes no-Java)",
-  ],
-};
-
 export function AdminCodeExecutionPanel() {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -125,6 +57,114 @@ export function AdminCodeExecutionPanel() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
 
+  const JAVA_GUI_LABELS: Record<JavaGuiProvider, string> = {
+    cheerp: t("hc_modulesAdminAdminCodeExecutionPanel.javaGuiLabelCheerp", {
+      defaultValue: "CheerpJ — navegador (interactivo)",
+    }),
+    aws_screenshot: t("hc_modulesAdminAdminCodeExecutionPanel.guiLabelAwsScreenshot", {
+      defaultValue: "AWS Lambda + Xvfb — captura PNG (no interactivo)",
+    }),
+  };
+
+  const JAVA_GUI_DESCRIPTION: Record<JavaGuiProvider, string> = {
+    cheerp: t("hc_modulesAdminAdminCodeExecutionPanel.javaGuiDescCheerp", {
+      defaultValue:
+        "Swing/AWT/JavaFX corre completamente en el navegador del estudiante (WebAssembly). El alumno puede clickear, escribir, interactuar con la ventana en tiempo real. Requiere licencia comercial para uso multi-usuario en producción — ver docs/JAVA-GUI-OPTIONS.md.",
+    }),
+    aws_screenshot: t("hc_modulesAdminAdminCodeExecutionPanel.javaGuiDescAwsScreenshot", {
+      defaultValue:
+        "AWS Lambda corre la app Swing bajo Xvfb (display virtual) y devuelve UNA captura PNG. El alumno solo VE la ventana — no puede clickear ni probar eventos. Útil como modo 'submit & ver render' sin licencia. Requiere desplegar la Lambda con Xvfb + ImageMagick (ver aws/code-runner/).",
+    }),
+  };
+
+  const JAVA_GUI_SECRETS: Record<JavaGuiProvider, string[]> = {
+    cheerp: [],
+    aws_screenshot: [
+      t("hc_modulesAdminAdminCodeExecutionPanel.secretAwsRunnerUrlSameEndpoint", {
+        defaultValue: "AWS_RUNNER_URL (mismo endpoint que el provider aws_lambda)",
+      }),
+      "AWS_RUNNER_API_KEY",
+    ],
+  };
+
+  // Python GUI (tkinter). Hoy solo hay un provider: AWS Lambda con Xvfb
+  // + tkinter (server-side, captura PNG). El alumno NO interactúa. No
+  // existe equivalente client-side (no hay Pyodide+tkinter en WASM).
+  const PYTHON_GUI_LABELS: Record<PythonGuiProvider, string> = {
+    aws_screenshot: t("hc_modulesAdminAdminCodeExecutionPanel.guiLabelAwsScreenshot", {
+      defaultValue: "AWS Lambda + Xvfb — captura PNG (no interactivo)",
+    }),
+  };
+
+  const PYTHON_GUI_DESCRIPTION: Record<PythonGuiProvider, string> = {
+    aws_screenshot: t("hc_modulesAdminAdminCodeExecutionPanel.pythonGuiDescAwsScreenshot", {
+      defaultValue:
+        "AWS Lambda corre la app tkinter bajo Xvfb (display virtual) y devuelve UNA captura PNG. El alumno solo VE la ventana — no puede clickear ni probar eventos. Requiere desplegar la misma Lambda que para Java GUI (ya tiene Python + tkinter en el container).",
+    }),
+  };
+
+  const PYTHON_GUI_SECRETS: Record<PythonGuiProvider, string[]> = {
+    aws_screenshot: [
+      t("hc_modulesAdminAdminCodeExecutionPanel.secretAwsRunnerUrlSameEndpoint", {
+        defaultValue: "AWS_RUNNER_URL (mismo endpoint que el provider aws_lambda)",
+      }),
+      "AWS_RUNNER_API_KEY",
+    ],
+  };
+
+  const PROVIDER_LABELS: Record<CodeProvider, string> = {
+    onlinecompiler: t("hc_modulesAdminAdminCodeExecutionPanel.providerLabelOnlinecompiler", {
+      defaultValue: "OnlineCompiler.io (API externa)",
+    }),
+    jdoodle: t("hc_modulesAdminAdminCodeExecutionPanel.providerLabelJdoodle", {
+      defaultValue: "JDoodle (fallback)",
+    }),
+    cheerp: t("hc_modulesAdminAdminCodeExecutionPanel.providerLabelCheerp", {
+      defaultValue: "CheerpJ — navegador (solo Java)",
+    }),
+    aws_lambda: t("hc_modulesAdminAdminCodeExecutionPanel.providerLabelAwsLambda", {
+      defaultValue: "AWS Lambda — runner propio (recomendado para Java)",
+    }),
+  };
+
+  const PROVIDER_DESCRIPTION: Record<CodeProvider, string> = {
+    onlinecompiler: t("hc_modulesAdminAdminCodeExecutionPanel.providerDescOnlinecompiler", {
+      defaultValue:
+        "API síncrona, 12 lenguajes, sin cuota diaria. Requiere el secret ONLINE_COMPILER_API_KEY.",
+    }),
+    jdoodle: t("hc_modulesAdminAdminCodeExecutionPanel.providerDescJdoodle", {
+      defaultValue:
+        "API clásica de JDoodle. Cuota de 200 ejecuciones/día en el plan gratuito. Requiere JDOODLE_CLIENT_ID y JDOODLE_CLIENT_SECRET.",
+    }),
+    cheerp: t("hc_modulesAdminAdminCodeExecutionPanel.providerDescCheerp", {
+      defaultValue:
+        "Java corre completamente en el navegador del estudiante (WebAssembly). Sin API externa ni cuota. Los demás lenguajes siguen usando OnlineCompiler.io.",
+    }),
+    aws_lambda: t("hc_modulesAdminAdminCodeExecutionPanel.providerDescAwsLambda", {
+      defaultValue:
+        "Lambda con OpenJDK 21 desplegada en TU cuenta de AWS. Cabe en Always Free hasta ~50K execs/mes. Compile errors completos (línea + mensaje). Otros lenguajes caen automáticamente a OnlineCompiler.io. Ver aws/code-runner/README.md para el deploy.",
+    }),
+  };
+
+  const PROVIDER_SECRETS: Record<CodeProvider, string[]> = {
+    onlinecompiler: ["ONLINE_COMPILER_API_KEY"],
+    jdoodle: ["JDOODLE_CLIENT_ID", "JDOODLE_CLIENT_SECRET"],
+    cheerp: [
+      t("hc_modulesAdminAdminCodeExecutionPanel.secretOnlineCompilerNonJava", {
+        defaultValue: "ONLINE_COMPILER_API_KEY (para lenguajes distintos a Java)",
+      }),
+    ],
+    aws_lambda: [
+      "AWS_RUNNER_URL (Function URL)",
+      t("hc_modulesAdminAdminCodeExecutionPanel.secretAwsRunnerApiKeySsm", {
+        defaultValue: "AWS_RUNNER_API_KEY (shared secret en SSM)",
+      }),
+      t("hc_modulesAdminAdminCodeExecutionPanel.secretOnlineCompilerFallback", {
+        defaultValue: "ONLINE_COMPILER_API_KEY (fallback para lenguajes no-Java)",
+      }),
+    ],
+  };
+
   const load = async () => {
     setLoading(true);
     setLoadError(null);
@@ -134,7 +174,14 @@ export function AdminCodeExecutionPanel() {
       .eq("is_active", true)
       .maybeSingle();
     if (error) {
-      setLoadError(friendlyError(error, "No pudimos cargar la configuración."));
+      setLoadError(
+        friendlyError(
+          error,
+          t("hc_modulesAdminAdminCodeExecutionPanel.loadErrorFallback", {
+            defaultValue: "No pudimos cargar la configuración.",
+          }),
+        ),
+      );
       setLoading(false);
       return;
     }
@@ -217,7 +264,10 @@ export function AdminCodeExecutionPanel() {
     return (
       <Card>
         <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-          <Spinner size="md" /> Cargando configuración…
+          <Spinner size="md" />{" "}
+          {t("hc_modulesAdminAdminCodeExecutionPanel.loadingSettings", {
+            defaultValue: "Cargando configuración…",
+          })}
         </CardContent>
       </Card>
     );
@@ -226,7 +276,9 @@ export function AdminCodeExecutionPanel() {
   if (loadError) {
     return (
       <ErrorState
-        message="No pudimos cargar la configuración de ejecución de código"
+        message={t("hc_modulesAdminAdminCodeExecutionPanel.loadErrorTitle", {
+          defaultValue: "No pudimos cargar la configuración de ejecución de código",
+        })}
         hint={loadError}
         onRetry={() => setRetryNonce((n) => n + 1)}
       />
@@ -239,7 +291,9 @@ export function AdminCodeExecutionPanel() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Code2 className="h-4 w-4 text-indigo-500" />
-            Proveedor de ejecución de código
+            {t("hc_modulesAdminAdminCodeExecutionPanel.cardTitle", {
+              defaultValue: "Proveedor de ejecución de código",
+            })}
             {activeRow && (
               <Badge variant="secondary" className="text-[10px]">
                 {PROVIDER_LABELS[activeRow.provider]}
@@ -248,8 +302,10 @@ export function AdminCodeExecutionPanel() {
             <HelpHint>{t("help.defaultCodeProviderHelp")}</HelpHint>
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Configuración global para toda la plataforma. Si un proveedor falla, cambia aquí sin
-            redeployar.
+            {t("hc_modulesAdminAdminCodeExecutionPanel.cardSubtitle", {
+              defaultValue:
+                "Configuración global para toda la plataforma. Si un proveedor falla, cambia aquí sin redeployar.",
+            })}
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -262,8 +318,16 @@ export function AdminCodeExecutionPanel() {
             <TabsList className="grid w-full grid-cols-3 h-auto">
               <TabsTrigger value="codigo" className="gap-1.5 text-xs">
                 <Terminal className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Texto / Consola</span>
-                <span className="sm:hidden">Texto</span>
+                <span className="hidden sm:inline">
+                  {t("hc_modulesAdminAdminCodeExecutionPanel.tabTextConsoleFull", {
+                    defaultValue: "Texto / Consola",
+                  })}
+                </span>
+                <span className="sm:hidden">
+                  {t("hc_modulesAdminAdminCodeExecutionPanel.tabTextConsoleShort", {
+                    defaultValue: "Texto",
+                  })}
+                </span>
               </TabsTrigger>
               <TabsTrigger value="java_gui" className="gap-1.5 text-xs">
                 <MonitorPlay className="h-3.5 w-3.5" />
@@ -280,9 +344,14 @@ export function AdminCodeExecutionPanel() {
               <div className="flex items-start gap-2 text-xs text-muted-foreground">
                 <Terminal className="h-3.5 w-3.5 text-emerald-600 mt-0.5 shrink-0" />
                 <p>
-                  Preguntas <code className="text-[11px]">codigo</code> — el alumno escribe código y
-                  ve la salida en consola. Para Java se usa el proveedor seleccionado abajo; para
-                  otros lenguajes (Python, JS, C++…) cae automáticamente a OnlineCompiler.io.
+                  {t("hc_modulesAdminAdminCodeExecutionPanel.questionsPrefix", {
+                    defaultValue: "Preguntas",
+                  })}{" "}
+                  <code className="text-[11px]">codigo</code>{" "}
+                  {t("hc_modulesAdminAdminCodeExecutionPanel.codeQuestionBody", {
+                    defaultValue:
+                      "— el alumno escribe código y ve la salida en consola. Para Java se usa el proveedor seleccionado abajo; para otros lenguajes (Python, JS, C++…) cae automáticamente a OnlineCompiler.io.",
+                  })}
                 </p>
               </div>
               <RadioGroup
@@ -317,8 +386,14 @@ export function AdminCodeExecutionPanel() {
               <div className="flex items-start gap-2 text-xs text-muted-foreground">
                 <MonitorPlay className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
                 <p>
-                  Preguntas <code className="text-[11px]">java_gui</code> — el alumno escribe Swing
-                  / AWT / JavaFX y necesita ver la ventana renderizada.{" "}
+                  {t("hc_modulesAdminAdminCodeExecutionPanel.questionsPrefix", {
+                    defaultValue: "Preguntas",
+                  })}{" "}
+                  <code className="text-[11px]">java_gui</code>{" "}
+                  {t("hc_modulesAdminAdminCodeExecutionPanel.javaGuiQuestionBody", {
+                    defaultValue:
+                      "— el alumno escribe Swing / AWT / JavaFX y necesita ver la ventana renderizada.",
+                  })}{" "}
                   <HelpHint>{t("help.javaGuiProviderHelp")}</HelpHint>
                 </p>
               </div>
@@ -354,8 +429,14 @@ export function AdminCodeExecutionPanel() {
               <div className="flex items-start gap-2 text-xs text-muted-foreground">
                 <MonitorPlay className="h-3.5 w-3.5 text-sky-600 mt-0.5 shrink-0" />
                 <p>
-                  Preguntas <code className="text-[11px]">python_gui</code> — el alumno escribe
-                  tkinter. Solo hay un proveedor por ahora (no existe Pyodide+tkinter en WASM).{" "}
+                  {t("hc_modulesAdminAdminCodeExecutionPanel.questionsPrefix", {
+                    defaultValue: "Preguntas",
+                  })}{" "}
+                  <code className="text-[11px]">python_gui</code>{" "}
+                  {t("hc_modulesAdminAdminCodeExecutionPanel.pythonGuiQuestionBody", {
+                    defaultValue:
+                      "— el alumno escribe tkinter. Solo hay un proveedor por ahora (no existe Pyodide+tkinter en WASM).",
+                  })}{" "}
                   <HelpHint>{t("help.pythonGuiProviderHelp")}</HelpHint>
                 </p>
               </div>
@@ -395,7 +476,11 @@ export function AdminCodeExecutionPanel() {
             <AlertDescription className="text-xs space-y-2">
               <div>
                 <p>
-                  Secrets para <strong>{PROVIDER_LABELS[draftProvider]}</strong> (tipo{" "}
+                  {t("hc_modulesAdminAdminCodeExecutionPanel.secretsForLabel", {
+                    defaultValue: "Secrets para",
+                  })}{" "}
+                  <strong>{PROVIDER_LABELS[draftProvider]}</strong> (
+                  {t("hc_modulesAdminAdminCodeExecutionPanel.typeWord", { defaultValue: "tipo" })}{" "}
                   <code className="text-[11px]">codigo</code>):
                 </p>
                 <ul className="list-disc list-inside space-y-0.5">
@@ -409,7 +494,11 @@ export function AdminCodeExecutionPanel() {
               {JAVA_GUI_SECRETS[draftJavaGui].length > 0 && (
                 <div>
                   <p>
-                    Secrets para <strong>{JAVA_GUI_LABELS[draftJavaGui]}</strong> (tipo{" "}
+                    {t("hc_modulesAdminAdminCodeExecutionPanel.secretsForLabel", {
+                      defaultValue: "Secrets para",
+                    })}{" "}
+                    <strong>{JAVA_GUI_LABELS[draftJavaGui]}</strong> (
+                    {t("hc_modulesAdminAdminCodeExecutionPanel.typeWord", { defaultValue: "tipo" })}{" "}
                     <code className="text-[11px]">java_gui</code>):
                   </p>
                   <ul className="list-disc list-inside space-y-0.5">
@@ -424,7 +513,11 @@ export function AdminCodeExecutionPanel() {
               {PYTHON_GUI_SECRETS[draftPythonGui].length > 0 && (
                 <div>
                   <p>
-                    Secrets para <strong>{PYTHON_GUI_LABELS[draftPythonGui]}</strong> (tipo{" "}
+                    {t("hc_modulesAdminAdminCodeExecutionPanel.secretsForLabel", {
+                      defaultValue: "Secrets para",
+                    })}{" "}
+                    <strong>{PYTHON_GUI_LABELS[draftPythonGui]}</strong> (
+                    {t("hc_modulesAdminAdminCodeExecutionPanel.typeWord", { defaultValue: "tipo" })}{" "}
                     <code className="text-[11px]">python_gui</code>):
                   </p>
                   <ul className="list-disc list-inside space-y-0.5">
@@ -437,7 +530,9 @@ export function AdminCodeExecutionPanel() {
                 </div>
               )}
               <p className="pt-1">
-                Configúralos en Admin → Edge Function Secrets antes de activar.
+                {t("hc_modulesAdminAdminCodeExecutionPanel.configureSecretsHint", {
+                  defaultValue: "Configúralos en Admin → Edge Function Secrets antes de activar.",
+                })}
               </p>
             </AlertDescription>
           </Alert>
@@ -456,12 +551,14 @@ export function AdminCodeExecutionPanel() {
                 }}
                 disabled={saving}
               >
-                Cancelar
+                {t("common.cancel")}
               </Button>
             )}
             <Button size="sm" onClick={handleSave} disabled={saving || !dirty}>
               {saving ? <Spinner size="md" className="mr-1" /> : <Save className="h-4 w-4 mr-1" />}
-              Guardar configuración
+              {t("hc_modulesAdminAdminCodeExecutionPanel.saveSettings", {
+                defaultValue: "Guardar configuración",
+              })}
             </Button>
           </div>
         </CardContent>
