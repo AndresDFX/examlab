@@ -8560,5 +8560,26 @@
   "appLayout": {
     "deactivatedTitle": "Account deactivated",
     "deactivatedBody": "Your account was deactivated. Contact your institution's administrator to reactivate it."
+  },
+  "supportAssistant": {
+    "title": "Platform AI Assistant",
+    "subtitle": "Ask how to use and configure ExamLab. It answers using the platform documentation.",
+    "clear": "Clear conversation",
+    "loadErrorTitle": "We couldn’t load the assistant",
+    "thinking": "The assistant is thinking…",
+    "inputPlaceholder": "E.g.: How do I define a course’s grading periods and weights?",
+    "send": "Send",
+    "emptyTitle": "Your platform assistant",
+    "emptyBody": "Ask me how to create courses and define grading periods, configure AI, manage users, issue certificates, review the audit log, and more. I answer using the ExamLab documentation.",
+    "emptyHint": "If something isn’t in the documentation, I’ll suggest opening a ticket in Support.",
+    "roleYou": "You",
+    "roleAssistant": "Assistant",
+    "clearTitle": "Clear conversation",
+    "clearDesc": "All messages in this chat will be deleted. This action can’t be undone.",
+    "clearConfirm": "Clear",
+    "cleared": "Conversation cleared",
+    "loadErrorFallback": "We couldn’t load the assistant.",
+    "startErrorFallback": "We couldn’t start the conversation.",
+    "askErrorFallback": "We couldn’t reach the assistant."
   }
 }

@@ -11,6 +11,7 @@
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card } from "@/components/ui/card";
@@ -44,6 +45,7 @@ interface Message {
 }
 
 function SupportAssistantChat() {
+  const { t } = useTranslation();
   const { user, profile } = useAuth();
   const confirm = useConfirm();
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -56,6 +58,13 @@ function SupportAssistantChat() {
   const [clearing, setClearing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const loadErrorFallback = t("supportAssistant.loadErrorFallback", {
+    defaultValue: "No pudimos cargar el asistente.",
+  });
+  const askErrorFallback = t("supportAssistant.askErrorFallback", {
+    defaultValue: "No pudimos consultar al asistente.",
+  });
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -76,7 +85,7 @@ function SupportAssistantChat() {
           .maybeSingle();
         if (cancelled) return;
         if (sErr) {
-          setLoadError(friendlyError(sErr, "No pudimos cargar el asistente."));
+          setLoadError(friendlyError(sErr, loadErrorFallback));
           return;
         }
         const sid = (s as { id: string } | null)?.id ?? null;
@@ -90,7 +99,7 @@ function SupportAssistantChat() {
           if (!cancelled) setMessages((msgs ?? []) as Message[]);
         }
       } catch (e) {
-        if (!cancelled) setLoadError(friendlyError(e, "No pudimos cargar el asistente."));
+        if (!cancelled) setLoadError(friendlyError(e, loadErrorFallback));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -98,7 +107,7 @@ function SupportAssistantChat() {
     return () => {
       cancelled = true;
     };
-  }, [user, retryNonce]);
+  }, [user, retryNonce, loadErrorFallback]);
 
   const loadMessages = useCallback(async (sid: string) => {
     const { data } = await db
@@ -118,7 +127,14 @@ function SupportAssistantChat() {
       .select("id")
       .maybeSingle();
     if (error || !data) {
-      toast.error(friendlyError(error, "No pudimos iniciar la conversación."));
+      toast.error(
+        friendlyError(
+          error,
+          t("supportAssistant.startErrorFallback", {
+            defaultValue: "No pudimos iniciar la conversación.",
+          }),
+        ),
+      );
       return null;
     }
     const newId = (data as { id: string }).id;
@@ -130,9 +146,12 @@ function SupportAssistantChat() {
   const clearConversation = async () => {
     if (!sessionId || messages.length === 0) return;
     const ok = await confirm({
-      title: "Limpiar conversación",
-      description: "Se borrarán todos los mensajes de este chat. Esta acción no se puede deshacer.",
-      confirmLabel: "Limpiar",
+      title: t("supportAssistant.clearTitle", { defaultValue: "Limpiar conversación" }),
+      description: t("supportAssistant.clearDesc", {
+        defaultValue:
+          "Se borrarán todos los mensajes de este chat. Esta acción no se puede deshacer.",
+      }),
+      confirmLabel: t("supportAssistant.clearConfirm", { defaultValue: "Limpiar" }),
       tone: "destructive",
     });
     if (!ok) return;
@@ -147,7 +166,7 @@ function SupportAssistantChat() {
       return;
     }
     setMessages([]);
-    toast.success("Conversación limpiada");
+    toast.success(t("supportAssistant.cleared", { defaultValue: "Conversación limpiada" }));
   };
 
   // ── Enviar mensaje ────────────────────────────────────────────────────
@@ -177,13 +196,13 @@ function SupportAssistantChat() {
       });
       if (error) {
         const real = await extractEdgeError(error, data);
-        throw new Error(real || "No pudimos consultar al asistente.");
+        throw new Error(real || askErrorFallback);
       }
       if (data?.error) throw new Error(data.error);
       await loadMessages(sid);
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticUserMsg.id));
-      toast.error(friendlyError(e, "No pudimos consultar al asistente."));
+      toast.error(friendlyError(e, askErrorFallback));
     } finally {
       setSending(false);
     }
@@ -195,8 +214,11 @@ function SupportAssistantChat() {
     <div className="container mx-auto space-y-4 p-4 sm:p-6">
       <PageHeader
         icon={<Bot className="h-6 w-6 text-indigo-500" />}
-        title="Asistente IA de plataforma"
-        subtitle="Pregunta cómo usar y configurar ExamLab. Responde con la documentación de la plataforma."
+        title={t("supportAssistant.title", { defaultValue: "Asistente IA de plataforma" })}
+        subtitle={t("supportAssistant.subtitle", {
+          defaultValue:
+            "Pregunta cómo usar y configurar ExamLab. Responde con la documentación de la plataforma.",
+        })}
         actions={
           hasMessages ? (
             <Button
@@ -210,7 +232,7 @@ function SupportAssistantChat() {
               ) : (
                 <Trash2 className="h-4 w-4 mr-1" />
               )}
-              Limpiar conversación
+              {t("supportAssistant.clear", { defaultValue: "Limpiar conversación" })}
             </Button>
           ) : null
         }
@@ -218,7 +240,9 @@ function SupportAssistantChat() {
 
       {loadError && (
         <ErrorState
-          message="No pudimos cargar el asistente"
+          message={t("supportAssistant.loadErrorTitle", {
+            defaultValue: "No pudimos cargar el asistente",
+          })}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -228,7 +252,7 @@ function SupportAssistantChat() {
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
           {loading ? (
             <div className="text-center text-sm text-muted-foreground py-8">
-              <Spinner size="md" /> Cargando…
+              <Spinner size="md" /> {t("common.loading", { defaultValue: "Cargando…" })}
             </div>
           ) : !hasMessages ? (
             <EmptyChat />
@@ -240,7 +264,7 @@ function SupportAssistantChat() {
               <Bot className="h-4 w-4 mt-0.5" />
               <div className="flex items-center gap-2">
                 <Spinner size="sm" />
-                El asistente está pensando…
+                {t("supportAssistant.thinking", { defaultValue: "El asistente está pensando…" })}
               </div>
             </div>
           )}
@@ -251,7 +275,9 @@ function SupportAssistantChat() {
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ej.: ¿Cómo defino los cortes y pesos de un curso?"
+            placeholder={t("supportAssistant.inputPlaceholder", {
+              defaultValue: "Ej.: ¿Cómo defino los cortes y pesos de un curso?",
+            })}
             rows={3}
             className="resize-none text-sm"
             maxLength={4000}
@@ -274,7 +300,7 @@ function SupportAssistantChat() {
               ) : (
                 <Send className="h-4 w-4 mr-1" />
               )}
-              Enviar
+              {t("supportAssistant.send", { defaultValue: "Enviar" })}
             </Button>
           </div>
         </div>
@@ -284,25 +310,34 @@ function SupportAssistantChat() {
 }
 
 function EmptyChat() {
+  const { t } = useTranslation();
   return (
     <div className="text-center py-12 space-y-3">
       <div className="mx-auto w-16 h-16 rounded-full bg-indigo-500/10 flex items-center justify-center">
         <Bot className="h-8 w-8 text-indigo-500" />
       </div>
-      <h2 className="text-base font-semibold">Tu asistente de plataforma</h2>
+      <h2 className="text-base font-semibold">
+        {t("supportAssistant.emptyTitle", { defaultValue: "Tu asistente de plataforma" })}
+      </h2>
       <p className="text-sm text-muted-foreground max-w-md mx-auto">
-        Pregúntame cómo crear cursos y definir cortes, configurar la IA, gestionar usuarios,
-        emitir certificados, revisar la auditoría y más. Respondo con la documentación de ExamLab.
+        {t("supportAssistant.emptyBody", {
+          defaultValue:
+            "Pregúntame cómo crear cursos y definir cortes, configurar la IA, gestionar usuarios, emitir certificados, revisar la auditoría y más. Respondo con la documentación de ExamLab.",
+        })}
       </p>
       <div className="text-[11px] text-muted-foreground flex items-center justify-center gap-1 pt-2">
         <AlertTriangle className="h-3 w-3" />
-        Si algo no está en la documentación, te sugeriré abrir un ticket en Soporte.
+        {t("supportAssistant.emptyHint", {
+          defaultValue:
+            "Si algo no está en la documentación, te sugeriré abrir un ticket en Soporte.",
+        })}
       </div>
     </div>
   );
 }
 
 function MessageBubble({ message }: { message: Message }) {
+  const { t } = useTranslation();
   const isUser = message.role === "user";
   return (
     <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
@@ -322,7 +357,9 @@ function MessageBubble({ message }: { message: Message }) {
             isUser ? "" : "border-indigo-500/40 text-indigo-700 dark:text-indigo-300"
           }`}
         >
-          {isUser ? "Tú" : "Asistente"}
+          {isUser
+            ? t("supportAssistant.roleYou", { defaultValue: "Tú" })
+            : t("supportAssistant.roleAssistant", { defaultValue: "Asistente" })}
         </Badge>
         <div
           className={`mt-1 rounded-lg p-3 text-sm inline-block text-left ${

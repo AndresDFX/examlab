@@ -8560,5 +8560,26 @@
   "appLayout": {
     "deactivatedTitle": "Cuenta desactivada",
     "deactivatedBody": "Tu cuenta fue desactivada. Contactá al administrador de tu institución para reactivarla."
+  },
+  "supportAssistant": {
+    "title": "Asistente IA de plataforma",
+    "subtitle": "Pregunta cómo usar y configurar ExamLab. Responde con la documentación de la plataforma.",
+    "clear": "Limpiar conversación",
+    "loadErrorTitle": "No pudimos cargar el asistente",
+    "thinking": "El asistente está pensando…",
+    "inputPlaceholder": "Ej.: ¿Cómo defino los cortes y pesos de un curso?",
+    "send": "Enviar",
+    "emptyTitle": "Tu asistente de plataforma",
+    "emptyBody": "Pregúntame cómo crear cursos y definir cortes, configurar la IA, gestionar usuarios, emitir certificados, revisar la auditoría y más. Respondo con la documentación de ExamLab.",
+    "emptyHint": "Si algo no está en la documentación, te sugeriré abrir un ticket en Soporte.",
+    "roleYou": "Tú",
+    "roleAssistant": "Asistente",
+    "clearTitle": "Limpiar conversación",
+    "clearDesc": "Se borrarán todos los mensajes de este chat. Esta acción no se puede deshacer.",
+    "clearConfirm": "Limpiar",
+    "cleared": "Conversación limpiada",
+    "loadErrorFallback": "No pudimos cargar el asistente.",
+    "startErrorFallback": "No pudimos iniciar la conversación.",
+    "askErrorFallback": "No pudimos consultar al asistente."
   }
 }
