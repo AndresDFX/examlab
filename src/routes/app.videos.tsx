@@ -585,12 +585,21 @@ function VideoLibrary() {
 
   const remove = async (v: VideoRow) => {
     const ok = await confirm({
-      title: `¿Borrar "${v.title}"?`,
+      title: t("videosPage.removeConfirmTitle", {
+        title: v.title,
+        defaultValue: '¿Borrar "{{title}}"?',
+      }),
       description: v.storage_path
-        ? "Se eliminará también el archivo subido. Los proyectos que lo referencian dejarán de mostrar el video (no rompen — el field queda null). Esta acción no se puede deshacer."
-        : "Los proyectos que lo referencian dejarán de mostrar el video (no rompen — el field queda null). Esta acción no se puede deshacer.",
+        ? t("videosPage.removeConfirmDescWithFile", {
+            defaultValue:
+              "Se eliminará también el archivo subido. Los proyectos que lo referencian dejarán de mostrar el video (no rompen — el field queda null). Esta acción no se puede deshacer.",
+          })
+        : t("videosPage.removeConfirmDesc", {
+            defaultValue:
+              "Los proyectos que lo referencian dejarán de mostrar el video (no rompen — el field queda null). Esta acción no se puede deshacer.",
+          }),
       tone: "destructive",
-      confirmLabel: "Borrar",
+      confirmLabel: t("common.delete"),
     });
     if (!ok) return;
     const { error } = await db.from("videos").delete().eq("id", v.id);
@@ -807,7 +816,8 @@ function VideoLibrary() {
                             </Badge>
                             {v.storage_path && (
                               <Badge variant="secondary" className="text-[10px] gap-1 w-fit">
-                                <Upload className="h-2.5 w-2.5" /> Subido
+                                <Upload className="h-2.5 w-2.5" />{" "}
+                                {t("videosPage.badgeUploaded", { defaultValue: "Subido" })}
                               </Badge>
                             )}
                           </div>
@@ -822,7 +832,7 @@ function VideoLibrary() {
                             </div>
                           ) : (
                             <Badge variant="outline" className="text-[10px]">
-                              Global
+                              {t("videosPage.courseGlobalBadge", { defaultValue: "Global" })}
                             </Badge>
                           )}
                         </TableCell>
@@ -870,10 +880,11 @@ function VideoLibrary() {
           >
             <TabsList className="w-full grid grid-cols-2">
               <TabsTrigger value="url" disabled={!!editing && mode !== "url"}>
-                <LinkIcon className="h-3.5 w-3.5 mr-1.5" /> URL externa
+                <LinkIcon className="h-3.5 w-3.5 mr-1.5" />{" "}
+                {t("videos.tabUrl", { defaultValue: "URL externa" })}
               </TabsTrigger>
               <TabsTrigger value="upload" disabled={!!editing && mode !== "upload"}>
-                <Upload className="h-3.5 w-3.5 mr-1.5" /> Subir archivo
+                <Upload className="h-3.5 w-3.5 mr-1.5" /> {t("videosPage.uploadVideo")}
               </TabsTrigger>
             </TabsList>
 
@@ -910,7 +921,7 @@ function VideoLibrary() {
                 />
               </div>
               <div>
-                <Label>Curso (opcional)</Label>
+                <Label>{t("videos.courseLabel")}</Label>
                 <Select
                   value={form.courseId || "__none"}
                   onValueChange={(v) => setForm({ ...form, courseId: v === "__none" ? "" : v })}
@@ -978,7 +989,7 @@ function VideoLibrary() {
                 />
               </div>
               <div>
-                <Label>Curso (opcional)</Label>
+                <Label>{t("videos.courseLabel")}</Label>
                 <Select
                   value={form.courseId || "__none"}
                   onValueChange={(v) => setForm({ ...form, courseId: v === "__none" ? "" : v })}

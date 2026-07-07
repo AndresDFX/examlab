@@ -207,7 +207,12 @@ export function FeedbackThread({
           i18n.t("toast.modules_grading_FeedbackThread.registerFailed", {
             defaultValue: "No se pudo registrar {{fileName}}: {{reason}}",
             fileName: safe,
-            reason: friendlyError(error, "desconocido"),
+            reason: friendlyError(
+              error,
+              i18n.t("toast.modules_grading_FeedbackThread.unknownReason", {
+                defaultValue: "desconocido",
+              }),
+            ),
           }),
         );
         continue;
@@ -244,7 +249,14 @@ export function FeedbackThread({
         .eq("id", editingId);
       if (error) {
         console.error("[FeedbackThread] update comment", error);
-        toast.error(friendlyError(error, "No se pudo editar el comentario"));
+        toast.error(
+          friendlyError(
+            error,
+            i18n.t("toast.modules_grading_FeedbackThread.editFailed", {
+              defaultValue: "No se pudo editar el comentario",
+            }),
+          ),
+        );
         return;
       }
       setComments((prev) => prev.map((c) => (c.id === editingId ? { ...c, body: trimmed } : c)));
@@ -256,9 +268,11 @@ export function FeedbackThread({
 
   const removeComment = async (c: Comment) => {
     const ok = await confirm({
-      title: "Eliminar comentario",
-      description: "Se eliminará tu comentario de forma permanente.",
-      confirmLabel: "Eliminar",
+      title: t("feedbackThread.deleteTitle", { defaultValue: "Eliminar comentario" }),
+      description: t("feedbackThread.deleteDescription", {
+        defaultValue: "Se eliminará tu comentario de forma permanente.",
+      }),
+      confirmLabel: t("common.delete"),
       tone: "destructive",
     });
     if (!ok) return;
@@ -270,7 +284,14 @@ export function FeedbackThread({
       const { error } = await db.from("feedback_comments").delete().eq("id", c.id);
       if (error) {
         console.error("[FeedbackThread] delete comment", error);
-        toast.error(friendlyError(error, "No se pudo eliminar el comentario"));
+        toast.error(
+          friendlyError(
+            error,
+            i18n.t("toast.modules_grading_FeedbackThread.deleteFailed", {
+              defaultValue: "No se pudo eliminar el comentario",
+            }),
+          ),
+        );
         return;
       }
       // Limpiar los adjuntos del Storage (best-effort; no bloquea el borrado ya hecho).

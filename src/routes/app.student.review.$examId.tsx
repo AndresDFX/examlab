@@ -271,7 +271,15 @@ function StudentExamReview() {
         );
         setQuestions((qsForSub ?? []) as QuestionRow[]);
       } catch (e) {
-        if (!cancelled) setLoadError(friendlyError(e, "No pudimos cargar los datos del examen."));
+        if (!cancelled)
+          setLoadError(
+            friendlyError(
+              e,
+              t("exam.review.loadErrorFallback", {
+                defaultValue: "No pudimos cargar los datos del examen.",
+              }),
+            ),
+          );
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -299,7 +307,9 @@ function StudentExamReview() {
           </Button>
         </Link>
         <ErrorState
-          message="No pudimos cargar los datos del examen"
+          message={t("exam.review.loadErrorTitle", {
+            defaultValue: "No pudimos cargar los datos del examen",
+          })}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -462,7 +472,7 @@ function StudentExamReview() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <MessageSquareText className="h-4 w-4 text-primary" />
-              Retroalimentación del docente
+              {t("exam.review.teacherFeedback", { defaultValue: "Retroalimentación del docente" })}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -589,7 +599,7 @@ function StudentExamReview() {
                   <CodeEditor
                     value={
                       ans == null || ans === ""
-                        ? "// Sin responder"
+                        ? t("exam.review.notAnsweredCode", { defaultValue: "// Sin responder" })
                         : typeof ans === "string"
                           ? ans
                           : JSON.stringify(ans, null, 2)

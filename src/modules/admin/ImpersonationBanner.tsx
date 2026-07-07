@@ -12,10 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useImpersonation, stopImpersonate } from "./impersonation";
 
 export function ImpersonationBanner() {
+  const { t } = useTranslation();
   const { isImpersonating, target } = useImpersonation();
   const [stopping, setStopping] = useState(false);
 
@@ -26,7 +28,14 @@ export function ImpersonationBanner() {
     try {
       await stopImpersonate();
     } catch (e) {
-      toast.error(friendlyError(e, "Error al restaurar la sesión"));
+      toast.error(
+        friendlyError(
+          e,
+          t("impersonationBanner.restoreSessionError", {
+            defaultValue: "Error al restaurar la sesión",
+          }),
+        ),
+      );
       setStopping(false);
     }
   };
@@ -36,7 +45,9 @@ export function ImpersonationBanner() {
       <div className="flex items-center gap-2 text-sm font-medium min-w-0">
         <Eye className="h-4 w-4 shrink-0" />
         <span className="truncate">
-          Estás viendo la plataforma como{" "}
+          {t("impersonationBanner.viewingAs", {
+            defaultValue: "Estás viendo la plataforma como",
+          })}{" "}
           <strong>{target.full_name ?? target.email}</strong>
         </span>
       </div>
@@ -48,7 +59,9 @@ export function ImpersonationBanner() {
         className="shrink-0"
       >
         {stopping ? <Spinner size="sm" className="mr-1" /> : null}
-        Volver a mi cuenta
+        {t("impersonationBanner.backToMyAccount", {
+          defaultValue: "Volver a mi cuenta",
+        })}
       </Button>
     </div>
   );

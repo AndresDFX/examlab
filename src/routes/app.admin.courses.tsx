@@ -413,7 +413,13 @@ export function AdminCourses() {
     }
     if (firstErr) {
       throw new Error(
-        `${ok} ok, ${ids.length - ok} con error. Primero: "${firstErr.name ?? "?"}" — ${friendlyError(firstErr)}`,
+        i18n.t("toast.routes_app_admin_courses.bulkDeletePartialError", {
+          defaultValue: '{{ok}} ok, {{failed}} con error. Primero: "{{name}}" — {{error}}',
+          ok,
+          failed: ids.length - ok,
+          name: firstErr.name ?? "?",
+          error: friendlyError(firstErr),
+        }),
       );
     }
     toast.success(
@@ -1144,7 +1150,7 @@ export function AdminCourses() {
 
   const remove = (id: string) => {
     const course = courses.find((c) => c.id === id);
-    setDeleteTarget({ ids: [id], label: course?.name ?? "curso" });
+    setDeleteTarget({ ids: [id], label: course?.name ?? t("common.course") });
   };
 
   // Ejecuta el borrado elegido en el diálogo. `cascade` lo decide el usuario:
@@ -1440,7 +1446,12 @@ export function AdminCourses() {
 
   const openDuplicate = (c: Course) => {
     setDupSource(c);
-    setDupName(`${c.name} (copia)`);
+    setDupName(
+      t("hc_routesAppAdminCourses.duplicateNameSuffix", {
+        name: c.name,
+        defaultValue: "{{name}} (copia)",
+      }),
+    );
     setDupPeriod(c.period ?? "");
     setDupCopyExams(true);
     setDupCopyWorkshops(true);
@@ -3052,7 +3063,10 @@ export function AdminCourses() {
         items={selectedCourseItems}
         entityNameSingular={t("hc_routesAppAdminCourses.entityCourseSingular")}
         entityNamePlural={t("hc_routesAppAdminCourses.entityCoursePlural")}
-        extraWarning="El contenido de cada curso (exámenes, talleres, proyectos, sesiones, pizarras, contenidos y encuestas) también se moverá a la papelera, y se restaurará junto con el curso."
+        extraWarning={t("hc_routesAppAdminCourses.bulkDeleteExtraWarning", {
+          defaultValue:
+            "El contenido de cada curso (exámenes, talleres, proyectos, sesiones, pizarras, contenidos y encuestas) también se moverá a la papelera, y se restaurará junto con el curso.",
+        })}
         onConfirm={handleBulkDelete}
       />
 

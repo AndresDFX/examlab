@@ -534,7 +534,12 @@ function AdminUsers() {
         // extractEdgeError lo desempaca para mostrar el motivo real (ej. "No
         // hay cupo de docentes (5/5)…"). Mismo patrón que las otras invokes.
         const detail = await extractEdgeError(error, data);
-        toast.error(detail || "No se pudo cambiar el estado del usuario");
+        toast.error(
+          detail ||
+            t("adminUsers.setActiveError", {
+              defaultValue: "No se pudo cambiar el estado del usuario",
+            }),
+        );
         return;
       }
       toast.success(
@@ -552,7 +557,14 @@ function AdminUsers() {
       });
       load();
     } catch (e) {
-      toast.error(friendlyError(e, "No se pudo cambiar el estado del usuario"));
+      toast.error(
+        friendlyError(
+          e,
+          t("adminUsers.setActiveError", {
+            defaultValue: "No se pudo cambiar el estado del usuario",
+          }),
+        ),
+      );
     }
   };
 

@@ -153,7 +153,12 @@ function ThreadDetail() {
         .maybeSingle(),
     ]);
     if (tErr || rErr) {
-      setLoadError(friendlyError(tErr ?? rErr, "No pudimos cargar este hilo."));
+      setLoadError(
+        friendlyError(
+          tErr ?? rErr,
+          i18n.t("forumThread.loadFallback", { defaultValue: "No pudimos cargar este hilo." }),
+        ),
+      );
       setLoading(false);
       return;
     }
@@ -631,7 +636,7 @@ function ThreadDetail() {
                   )}
                   <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t mt-2">
                     <div className="text-[11px] text-muted-foreground">
-                      {r.author?.full_name ?? "Anónimo"} ·{" "}
+                      {r.author?.full_name ?? t("forumThread.anonymous", { defaultValue: "Anónimo" })} ·{" "}
                       {formatDateTime(r.created_at)}
                     </div>
                     <div className="flex flex-wrap gap-1">

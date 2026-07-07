@@ -19,6 +19,7 @@ import { RowAction } from "@/components/ui/row-action";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { useTranslation, Trans } from "react-i18next";
 import i18n from "@/i18n";
 import {
   Mail,
@@ -173,6 +174,7 @@ function EmailSuppressionsCard({
   isSuperAdmin: boolean;
   tenantId: string | null;
 }) {
+  const { t } = useTranslation();
   const confirm = useConfirm();
   const [rows, setRows] = useState<Suppression[]>([]);
   const [loading, setLoading] = useState(true);
@@ -239,9 +241,15 @@ function EmailSuppressionsCard({
 
   const remove = async (row: Suppression) => {
     const ok = await confirm({
-      title: "Reactivar envíos a esta dirección",
-      description: `Se quitará ${row.email} de la lista de supresión y ExamLab volverá a enviarle correos. Hazlo solo si el buzón ya no rebota.`,
-      confirmLabel: "Quitar",
+      title: t("hc_modulesAdminAdminEmailSettingsPanel.suppressConfirmTitle", {
+        defaultValue: "Reactivar envíos a esta dirección",
+      }),
+      description: t("hc_modulesAdminAdminEmailSettingsPanel.suppressConfirmDesc", {
+        email: row.email,
+        defaultValue:
+          "Se quitará {{email}} de la lista de supresión y ExamLab volverá a enviarle correos. Hazlo solo si el buzón ya no rebota.",
+      }),
+      confirmLabel: t("common.remove"),
       tone: "warning",
     });
     if (!ok) return;
@@ -269,15 +277,18 @@ function EmailSuppressionsCard({
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <MailX className="h-4 w-4 text-rose-500" />
-          Direcciones suprimidas (rebotes / bandeja llena)
+          {t("hc_modulesAdminAdminEmailSettingsPanel.suppressionsTitle", {
+            defaultValue: "Direcciones suprimidas (rebotes / bandeja llena)",
+          })}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          ExamLab <strong>no enviará correos</strong> a estas direcciones. Útil cuando un buzón
-          rebota constantemente (Gmail "bandeja llena" / usuario inexistente) y la cuenta
-          remitente se llena de avisos de "Mail Delivery Subsystem". Las notificaciones in-app
-          siguen llegando. Quita la dirección cuando el buzón se libere.
+          <Trans
+            i18nKey="hc_modulesAdminAdminEmailSettingsPanel.suppressionsIntro"
+            defaults='ExamLab <strong>no enviará correos</strong> a estas direcciones. Útil cuando un buzón rebota constantemente (Gmail "bandeja llena" / usuario inexistente) y la cuenta remitente se llena de avisos de "Mail Delivery Subsystem". Las notificaciones in-app siguen llegando. Quita la dirección cuando el buzón se libere.'
+            components={{ strong: <strong /> }}
+          />
         </p>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -297,19 +308,23 @@ function EmailSuppressionsCard({
             ) : (
               <Plus className="h-4 w-4 mr-1" />
             )}
-            Suprimir
+            {t("hc_modulesAdminAdminEmailSettingsPanel.suppressBtn", { defaultValue: "Suprimir" })}
           </Button>
         </div>
 
         {loading ? (
           <div className="text-center text-muted-foreground py-4 text-sm">
-            <Spinner size="sm" /> Cargando…
+            <Spinner size="sm" /> {t("common.loading")}
           </div>
         ) : rows.length === 0 ? (
           <EmptyState
             icon={MailX}
-            text="Sin direcciones suprimidas"
-            hint="Cuando agregues una, dejará de recibir correos."
+            text={t("hc_modulesAdminAdminEmailSettingsPanel.emptyText", {
+              defaultValue: "Sin direcciones suprimidas",
+            })}
+            hint={t("hc_modulesAdminAdminEmailSettingsPanel.emptyHint", {
+              defaultValue: "Cuando agregues una, dejará de recibir correos.",
+            })}
           />
         ) : (
           <ul className="divide-y rounded-md border">
@@ -319,11 +334,15 @@ function EmailSuppressionsCard({
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium truncate">{r.email}</span>
                     <Badge variant="secondary" className="text-[10px]">
-                      {REASON_LABEL[r.reason] ?? r.reason}
+                      {t(`hc_modulesAdminAdminEmailSettingsPanel.reason_${r.reason}`, {
+                        defaultValue: REASON_LABEL[r.reason] ?? r.reason,
+                      })}
                     </Badge>
                     {r.tenant_id === null && (
                       <Badge variant="outline" className="text-[10px]">
-                        Global
+                        {t("hc_modulesAdminAdminEmailSettingsPanel.globalBadge", {
+                          defaultValue: "Global",
+                        })}
                       </Badge>
                     )}
                   </div>
@@ -335,7 +354,9 @@ function EmailSuppressionsCard({
                   </p>
                 </div>
                 <RowAction
-                  label="Quitar de la lista"
+                  label={t("hc_modulesAdminAdminEmailSettingsPanel.rowRemoveLabel", {
+                    defaultValue: "Quitar de la lista",
+                  })}
                   icon={Trash2}
                   tone="destructive"
                   onClick={() => void remove(r)}
@@ -350,6 +371,7 @@ function EmailSuppressionsCard({
 }
 
 export function AdminEmailSettingsPanel() {
+  const { t } = useTranslation();
   const { roles, profile } = useAuth();
   // El panel se abre tanto para Admin del tenant como para SuperAdmin
   // (que opera cross-tenant). La RLS de `email_settings` ya enforza
@@ -374,7 +396,14 @@ export function AdminEmailSettingsPanel() {
       const { data, error } = await db.from("email_settings").select("*").eq("id", 1).maybeSingle();
       if (cancelled) return;
       if (error) {
-        setLoadError(friendlyError(error, "No pudimos cargar la configuración de email."));
+        setLoadError(
+          friendlyError(
+            error,
+            t("hc_modulesAdminAdminEmailSettingsPanel.loadErrorFallback", {
+              defaultValue: "No pudimos cargar la configuración de email.",
+            }),
+          ),
+        );
         setLoading(false);
         return;
       }

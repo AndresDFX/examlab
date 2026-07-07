@@ -23,6 +23,7 @@
  * orden relativo de los tags se preserva.
  */
 import { useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/shared/lib/utils";
@@ -94,6 +95,7 @@ export function TagTextarea({
   onSubmit,
   submitOnEnter = false,
 }: Props) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const [tagQuery, setTagQuery] = useState<{ query: string; start: number } | null>(null);
   const [taggable, setTaggable] = useState<ContentTag[] | null>(null);
@@ -112,12 +114,13 @@ export function TagTextarea({
       dbAny.from("projects").select("id, title").is("deleted_at", null).order("title").limit(200),
     ]);
     const out: ContentTag[] = [];
+    const noTitle = t("hc_modulesMessagingTagTextarea.noTitle", { defaultValue: "(sin título)" });
     for (const r of (ws.data ?? []) as Array<{ id: string; title: string | null }>)
-      out.push({ type: "workshop", id: String(r.id), label: String(r.title ?? "(sin título)") });
+      out.push({ type: "workshop", id: String(r.id), label: String(r.title ?? noTitle) });
     for (const r of (ex.data ?? []) as Array<{ id: string; title: string | null }>)
-      out.push({ type: "exam", id: String(r.id), label: String(r.title ?? "(sin título)") });
+      out.push({ type: "exam", id: String(r.id), label: String(r.title ?? noTitle) });
     for (const r of (pj.data ?? []) as Array<{ id: string; title: string | null }>)
-      out.push({ type: "project", id: String(r.id), label: String(r.title ?? "(sin título)") });
+      out.push({ type: "project", id: String(r.id), label: String(r.title ?? noTitle) });
     setTaggable(out);
   };
 
@@ -201,7 +204,9 @@ export function TagTextarea({
       {dropdownOpen && (
         <div className="absolute bottom-full left-0 right-0 mb-1 z-20 rounded-md border bg-popover shadow-md overflow-hidden">
           <div className="px-2.5 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground border-b">
-            Etiquetar contenido — Enter para insertar
+            {t("hc_modulesMessagingTagTextarea.taggerHint", {
+              defaultValue: "Etiquetar contenido — Enter para insertar",
+            })}
           </div>
           <ul className="max-h-56 overflow-y-auto py-1">
             {matches.map((tg, idx) => {

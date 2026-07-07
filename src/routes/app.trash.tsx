@@ -152,7 +152,9 @@ function TrashPage() {
           return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
             id: String(row.id),
             table,
-            name: row[nameCol] ? String(row[nameCol]) : "(sin nombre)",
+            name: row[nameCol]
+              ? String(row[nameCol])
+              : t("trash.unnamed", { defaultValue: "(sin nombre)" }),
             deleted_at: String(row.deleted_at),
             deleted_by: row.deleted_by ? String(row.deleted_by) : null,
             deleted_by_name: null as string | null,
@@ -183,10 +185,12 @@ function TrashPage() {
       setItems(flat);
       setLoading(false);
     } catch (e) {
-      setLoadError(friendlyError(e, "No pudimos cargar la papelera."));
+      setLoadError(
+        friendlyError(e, t("trash.loadErrorFallback", { defaultValue: "No pudimos cargar la papelera." })),
+      );
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -268,7 +272,7 @@ function TrashPage() {
     try {
       const { error } = await restoreItem(item.table, item.id);
       if (error) {
-        toast.error(friendlyError(error, "No se pudo restaurar"));
+        toast.error(friendlyError(error, t("trash.restoreError", { defaultValue: "No se pudo restaurar" })));
         return;
       }
       // Restaurar un curso/tenant cascadea a sus hijos (exámenes/talleres/
@@ -308,7 +312,7 @@ function TrashPage() {
     try {
       const { error } = await hardDeleteItem(item.table, item.id);
       if (error) {
-        toast.error(friendlyError(error, "No se pudo eliminar"));
+        toast.error(friendlyError(error, t("trash.hardDeleteError", { defaultValue: "No se pudo eliminar" })));
         return;
       }
       setItems((prev) => prev.filter((i) => i.id !== item.id));
@@ -373,7 +377,10 @@ function TrashPage() {
         );
       } else {
         const first = failed[0];
-        const detail = friendlyError(first.error ?? undefined, "Error desconocido");
+        const detail = friendlyError(
+        first.error ?? undefined,
+        t("trash.unknownError", { defaultValue: "Error desconocido" }),
+      );
         toast.error(
           i18n.t("toast.routes_app_trash.bulkRestorePartialError", {
             defaultValue:
@@ -427,7 +434,10 @@ function TrashPage() {
         // diagnosticar qué tabla/FK lo bloqueaba (caso reportado al
         // hard-delete tenants con dependencias RESTRICT).
         const first = failed[0];
-        const detail = friendlyError(first.error ?? undefined, "Error desconocido");
+        const detail = friendlyError(
+        first.error ?? undefined,
+        t("trash.unknownError", { defaultValue: "Error desconocido" }),
+      );
         toast.error(
           i18n.t("toast.routes_app_trash.bulkHardDeletePartialError", {
             defaultValue:
@@ -704,7 +714,11 @@ function TrashPage() {
                                 ? "text-amber-600 dark:text-amber-400"
                                 : "text-muted-foreground"
                           }`}
-                          title={`Se purgará automáticamente cuando pasen ${RETENTION_DAYS} días desde la eliminación.`}
+                          title={t("trash.purgeAutoTitle", {
+                            days: RETENTION_DAYS,
+                            defaultValue:
+                              "Se purgará automáticamente cuando pasen {{days}} días desde la eliminación.",
+                          })}
                         >
                           <Clock className="h-3 w-3" />
                           {days <= 0

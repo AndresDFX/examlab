@@ -225,7 +225,15 @@ function StudentWorkshopDetail() {
           if (!cancelled) setAnswersByQid(map);
         }
       } catch (e) {
-        if (!cancelled) setLoadError(friendlyError(e, "No pudimos cargar los datos del taller."));
+        if (!cancelled)
+          setLoadError(
+            friendlyError(
+              e,
+              t("hc_routesAppStudentWorkshopWorkshopId.loadErrorFallback", {
+                defaultValue: "No pudimos cargar los datos del taller.",
+              }),
+            ),
+          );
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -252,7 +260,9 @@ function StudentWorkshopDetail() {
           </Button>
         </Link>
         <ErrorState
-          message="No pudimos cargar los datos del taller"
+          message={t("hc_routesAppStudentWorkshopWorkshopId.loadErrorTitle", {
+            defaultValue: "No pudimos cargar los datos del taller",
+          })}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -363,12 +373,19 @@ function StudentWorkshopDetail() {
       {myGroup && (
         <Card className="border-primary/30 bg-primary/5">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Tu grupo: {myGroup.name}</CardTitle>
+            <CardTitle className="text-base">
+              {t("hc_routesAppStudentWorkshopWorkshopId.yourGroup", {
+                name: myGroup.name,
+                defaultValue: "Tu grupo: {{name}}",
+              })}
+            </CardTitle>
           </CardHeader>
           <CardContent className="text-sm">
             <p className="text-xs text-muted-foreground mb-2">
-              La entrega es del grupo: cualquier miembro puede editarla y todos reciben la
-              misma nota.
+              {t("hc_routesAppStudentWorkshopWorkshopId.groupSubmissionNote", {
+                defaultValue:
+                  "La entrega es del grupo: cualquier miembro puede editarla y todos reciben la misma nota.",
+              })}
             </p>
             <div className="flex flex-wrap gap-1.5">
               {myGroup.members.map((m) => (
@@ -377,7 +394,11 @@ function StudentWorkshopDetail() {
                   className="text-xs rounded-full bg-background border px-2 py-0.5"
                 >
                   {m.fullName}
-                  {m.id === user.id && <span className="ml-1 text-muted-foreground">(tú)</span>}
+                  {m.id === user.id && (
+                    <span className="ml-1 text-muted-foreground">
+                      {t("hc_routesAppStudentWorkshopWorkshopId.you", { defaultValue: "(tú)" })}
+                    </span>
+                  )}
                 </span>
               ))}
             </div>

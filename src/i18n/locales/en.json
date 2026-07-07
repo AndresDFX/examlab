@@ -382,7 +382,9 @@
       "ai_queue.processed": "AI queue processed",
       "ai_queue.job_failed": "AI job failed",
       "ai_override.activated": "Immediate AI override activated"
-    }
+    },
+    "needAdminRole": "You need the Admin or SuperAdmin role.",
+    "errorsTab": "Errors"
   },
   "course": {
     "subtitle": "{{count}} courses",
@@ -713,7 +715,8 @@
       "newPassword": "New password",
       "minChars": "At least 8 characters.",
       "confirmPassword": "Confirm password",
-      "submit": "Update password"
+      "submit": "Update password",
+      "genericError": "Could not reset the password."
     },
     "confirmEmailChange": {
       "errorExpired": "The link expired (valid for 1h). Request the change again from your profile.",
@@ -947,7 +950,11 @@
       "notFound": "Exam not found.",
       "loadError": "Loading exam result…",
       "mustSignIn": "Sign in to see your results.",
-      "retryModeNote": "{{mode}} grade of {{count}} attempts · the detail shows the last one"
+      "retryModeNote": "{{mode}} grade of {{count}} attempts · the detail shows the last one",
+      "loadErrorFallback": "We couldn't load the exam data.",
+      "loadErrorTitle": "We couldn't load the exam data",
+      "teacherFeedback": "Teacher feedback",
+      "notAnsweredCode": "// Not answered"
     },
     "deleteTitle": "Send to trash",
     "deleted": "Exam sent to trash",
@@ -1681,7 +1688,8 @@
     "backupSnapshotsExplanation": "Logical snapshots of the tables to a ZIP in Storage. The cron `db-backup-weekly` runs on Sundays at 03:05 UTC and creates one with all tables; the \"Create backup\" button lets you generate a manual one choosing which tables to include. There is NO restore from the UI for safety reasons — download the ZIP and apply it via SQL if needed.",
     "privateUrlWarning": "This URL is PRIVATE — anyone who has it can see your events. If you shared it by mistake press \"Regenerate URL\".",
     "retentionHelp": "Defines how many days to keep records of each severity level. 0 = no limit (default). Purging is triggered by a monthly cron configured in Supabase.",
-    "dueReminderLead": "How long before the deadline the student is notified (workshop/project not yet submitted). The system checks every 15 minutes and sends a SINGLE reminder per submission — it does not repeat."
+    "dueReminderLead": "How long before the deadline the student is notified (workshop/project not yet submitted). The system checks every 15 minutes and sends a SINGLE reminder per submission — it does not repeat.",
+    "maxOpenAnswerChars": "Cap on characters a student can write in an \"open\" question. Applied at the frontend level (Textarea with maxLength). Default 500 — forces concise answers (1-2 paragraphs) and keeps AI grading token cost low. Raise up to 50000 if you need long essays. Allowed range: 100..50000."
   },
   "forum": {
     "title": "Forums",
@@ -1800,7 +1808,9 @@
     "confirmDeleteLabel": "Delete",
     "confirmDeleteReplyTitle": "Delete reply?",
     "confirmDeleteReplyDesc": "This action cannot be undone.",
-    "confirmDeleteReplyLabel": "Delete"
+    "confirmDeleteReplyLabel": "Delete",
+    "loadFallback": "Could not load this thread.",
+    "anonymous": "Anonymous"
   },
   "trash": {
     "title": "Trash",
@@ -1845,7 +1855,13 @@
     "confirmBulkHardDeleteDesc": "You are about to delete the selected rows and ALL their associated children (questions, submissions, files, etc.) with CASCADE. This action CANNOT be undone.",
     "confirmBulkHardDeleteLabel": "Delete permanently",
     "processingOverlay": "Processing trash…",
-    "processingSubtitle": "Applying the operation to {{count}} item(s) in parallel. Each may take several seconds when it carries submissions, files or cascades. Do not close this tab."
+    "processingSubtitle": "Applying the operation to {{count}} item(s) in parallel. Each may take several seconds when it carries submissions, files or cascades. Do not close this tab.",
+    "unnamed": "(untitled)",
+    "loadErrorFallback": "We couldn't load the trash.",
+    "restoreError": "Could not restore",
+    "hardDeleteError": "Could not delete",
+    "unknownError": "Unknown error",
+    "purgeAutoTitle": "It will be automatically purged {{days}} days after deletion."
   },
   "studentGrades": {
     "title": "Grades",
@@ -1883,7 +1899,8 @@
     "attendanceTitle": "Attendance ({{present}}/{{total}} sessions)",
     "attendanceNoSessions": "Attendance (no sessions assigned to this period)",
     "scaleExplanation": "Score = what you got out of the total for the activity · Grade = that score converted to the course scale, which is what counts toward your final grade.",
-    "footerNote": "The course grade is calculated by summing the weighted average of each grading period. Each period averages workshops, exams, projects and attendance using the weights set by the teacher. Components without data do not penalize: their weights are distributed among the others."
+    "footerNote": "The course grade is calculated by summing the weighted average of each grading period. Each period averages workshops, exams, projects and attendance using the weights set by the teacher. Components without data do not penalize: their weights are distributed among the others.",
+    "loadErrorFallback": "We couldn't load your grades right now."
   },
   "studentPolls": {
     "title": "Polls",
@@ -1962,7 +1979,12 @@
     "actionDelete": "Delete",
     "confirmDeleteTitle": "Delete this video?",
     "confirmDeleteDesc": "This action cannot be undone.",
-    "confirmDeleteLabel": "Delete"
+    "confirmDeleteLabel": "Delete",
+    "removeConfirmTitle": "Delete \"{{title}}\"?",
+    "removeConfirmDescWithFile": "The uploaded file will also be deleted. Projects that reference it will stop showing the video (they won't break — the field becomes null). This action cannot be undone.",
+    "removeConfirmDesc": "Projects that reference it will stop showing the video (they won't break — the field becomes null). This action cannot be undone.",
+    "badgeUploaded": "Uploaded",
+    "courseGlobalBadge": "Global"
   },
   "support": {
     "statusOpen": "Open",
@@ -2817,7 +2839,8 @@
       "coursesSentToTrash": "{{count}} course(s) sent to trash",
       "duplicateStudentsSuffix": " ({{count}} student(s) copied)",
       "copyBoardFailed": "Could not copy the board: {{error}}",
-      "statusChanged": "Course status updated"
+      "statusChanged": "Course status updated",
+      "bulkDeletePartialError": "{{ok}} ok, {{failed}} failed. First: \"{{name}}\" — {{error}}"
     },
     "routes_app_admin_support": {
       "noTenantAssigned": "Your account has no institution assigned. Contact the SuperAdmin.",
@@ -2997,7 +3020,10 @@
       "markedSelectedRead": "{{count}} conversation(s) marked as read",
       "markedSelectedUnread": "{{count}} conversation(s) marked as unread",
       "clearedSelectedConversations": "{{count}} conversation(s) deleted for you",
-      "conversationCleared": "Conversation deleted for you"
+      "conversationCleared": "Conversation deleted for you",
+      "courseWordSingular": "course",
+      "courseWordPlural": "courses",
+      "unknown": "unknown"
     },
     "routes_app_student_attendance": {
       "codeMustBe6Digits": "The code must be 6 digits",
@@ -3124,7 +3150,11 @@
       "studentAssigned": "Student assigned successfully",
       "assignmentRemoved": "Assignment removed successfully",
       "studentsAssigned": "{{count}} student(s) assigned successfully",
-      "assignmentsRemoved": "{{count}} assignment(s) removed successfully"
+      "assignmentsRemoved": "{{count}} assignment(s) removed successfully",
+      "errorEvalTime": "Error evaluating the time",
+      "noResponse": "No response",
+      "examNotFound": "The exam was not found or you don't have access.",
+      "couldNotQueueGeneration": "Could not queue the generation"
     },
     "routes_app_teacher_exams_index": {
       "bulkSentToTrash": "{{count}} exam(s) sent to trash",
@@ -3934,7 +3964,8 @@
     "filterInactiveOnly": "Inactive only",
     "inactiveBadge": "Inactive",
     "reactivateTitle": "Reactivate {{name}}",
-    "deactivateTitle": "Deactivate {{name}}"
+    "deactivateTitle": "Deactivate {{name}}",
+    "setActiveError": "Could not change the user's status"
   },
   "projectFiles": {
     "tabList": "Questions ({{count}})",
@@ -4048,7 +4079,12 @@
     "aiSelectCourse": "Select a reference course for the data.",
     "aiGenerated": "Report generated with AI and inserted in the editor. Review the {{...}} before saving.",
     "aiFallbackCopied": "Could not generate with the platform AI. We copied the prompt to the clipboard — paste it in your AI and bring the result back.",
-    "aiFallbackReady": "Could not generate with AI. The prompt was logged to the console."
+    "aiFallbackReady": "Could not generate with AI. The prompt was logged to the console.",
+    "docxDefaultName": "Imported document",
+    "docxImportError": "Could not import the document.",
+    "aiPrepareError": "Could not prepare the AI generation.",
+    "saveError": "Could not save the template",
+    "copyNameSuffix": "{{name}} (copy)"
   },
   "workshopQuestions": {
     "tabList": "Questions ({{count}})",
@@ -4156,7 +4192,11 @@
     "bodyTooShort": "The description must be at least 10 characters.",
     "ticketCreated": "Ticket opened. The SuperAdmin was notified.",
     "ticketCreatedWithAttachments": "Ticket opened with {{uploaded}} attachment(s). The SuperAdmin was notified.",
-    "ticketCreatedSomeAttachmentsFailed": "Ticket created. {{uploaded}} attachment(s) uploaded, {{failed}} failed — you can re-upload them from the detail view."
+    "ticketCreatedSomeAttachmentsFailed": "Ticket created. {{uploaded}} attachment(s) uploaded, {{failed}} failed — you can re-upload them from the detail view.",
+    "createFailed": "Could not create the ticket",
+    "createError": "Error creating the ticket",
+    "deleteFailed": "Could not delete the ticket",
+    "removeAttachmentAria": "Remove attachment {{name}}"
   },
   "javaGuiRunner": {
     "badgePngCapture": "Java GUI — PNG capture",
@@ -4506,7 +4546,10 @@
     "btnSave": "Save parameters",
     "cardDueReminderTitle": "Submission reminders",
     "labelDueReminderLead": "Notify (hours before the deadline)",
-    "hintDueReminderLead": "Default 1 hour. Range 1–168 (up to 7 days). Only to those who haven't submitted."
+    "hintDueReminderLead": "Default 1 hour. Range 1–168 (up to 7 days). Only to those who haven't submitted.",
+    "hintOpenCharsPrefix": "Only affects ",
+    "hintOpenCharsSuffix": " questions. Code, diagram, java_gui, python_gui and multiple-choice questions have their own limits.",
+    "thresholdPlaceholder": "0 = disabled"
   },
   "superadminSupport": {
     "title": "Support",
@@ -5223,7 +5266,8 @@
     "formatsHint": "Formats: MP4, WebM, MOV. Max size: 500 MB.",
     "globalCatalogToggle": "Platform-wide global catalog",
     "globalCatalogHint": "Any institution will be able to see and reference this video. Useful for cross-cutting intros and tutorials. If left unchecked, the video belongs only to the caller’s institution.",
-    "uploading": "Uploading… {{pct}}%"
+    "uploading": "Uploading… {{pct}}%",
+    "tabUrl": "External URL"
   },
   "studentAttendance": {
     "statusPresent": "Present",
@@ -5253,7 +5297,21 @@
     "manualHint": "Ask your teacher for the 6-digit code shown under the QR.",
     "markPresent": "Mark present",
     "recordingTitle": "Recording · {{title}}",
-    "statusNone": "No record"
+    "statusNone": "No record",
+    "loadErrorFallback": "We couldn't load your attendance.",
+    "loadErrorTitle": "We couldn't load your attendance",
+    "subtitle": "Attendance record your teacher has uploaded for your courses.",
+    "checkInAvailable": "Attendance check-in available",
+    "haveCode": "I have the code",
+    "noCourses": "You're not enrolled in any course yet.",
+    "sessionsCount": "Sessions",
+    "absencesCount": "Absences",
+    "attendancePct": "% attendance",
+    "overRegistered": "out of {{count}} recorded",
+    "loadingSessions": "Loading sessions…",
+    "viewVideo": "View video",
+    "link": "Link",
+    "noRecordsHint": "Your teacher hasn't marked your attendance in any session of this course yet."
   },
   "hc_componentsUiDataPagination": {
     "showing": "Showing",
@@ -7036,7 +7094,9 @@
     "statDraft": "Draft",
     "statFinalized": "Finished",
     "statusFilterActiveAndDrafts": "Active and drafts",
-    "actionDiagnostic": "Course diagnostic"
+    "actionDiagnostic": "Course diagnostic",
+    "duplicateNameSuffix": "{{name}} (copy)",
+    "bulkDeleteExtraWarning": "Each course's content (exams, workshops, projects, sessions, whiteboards, contents and polls) will also be moved to the trash, and will be restored together with the course."
   },
   "hc_routesAppMessages": {
     "pageTitle": "Messages",
@@ -8392,7 +8452,12 @@
     "questionsDialogTitle": "Workshop questions",
     "bulkEntitySingular": "workshop",
     "bulkEntityPlural": "workshops",
-    "bulkExtraWarning": "All questions, assignments and submissions of the selected workshops will also be deleted."
+    "bulkExtraWarning": "All questions, assignments and submissions of the selected workshops will also be deleted.",
+    "loadErrorFallback": "We couldn't load the workshops.",
+    "unknownError": "Unknown error",
+    "suggestionSourceAi": "AI {{pct}}%",
+    "suggestionSourceCopy": "Copy {{pct}}%",
+    "suggestionSourceBoth": "AI {{aiPct}}% + Copy {{cpPct}}%"
   },
   "hc_routesIndex": {
     "metaTitle": "ExamLab — Education Management Platform",
@@ -8581,5 +8646,48 @@
     "loadErrorFallback": "We couldn’t load the assistant.",
     "startErrorFallback": "We couldn’t start the conversation.",
     "askErrorFallback": "We couldn’t reach the assistant."
+  },
+  "hc_routesAppStudentWorkshopWorkshopId": {
+    "loadErrorFallback": "We couldn't load the workshop data.",
+    "loadErrorTitle": "We couldn't load the workshop data",
+    "yourGroup": "Your group: {{name}}",
+    "groupSubmissionNote": "This is a group submission: any member can edit it and everyone receives the same grade.",
+    "you": "(you)"
+  },
+  "adminSystem": {
+    "pageTitle": "System",
+    "pageSubtitle": "Diagnostics for external infrastructure (DB, edge functions, AI, push, storage, auth)"
+  },
+  "hc_modulesSuperadminPlatformSettingsPanel": {
+    "loadFailedFallback": "We couldn't load the platform settings.",
+    "loadFailedTitle": "We couldn't load the settings",
+    "cardTitle": "Platform settings",
+    "cardSubtitle": "Cross-tenant controls exclusive to the SuperAdmin. They apply to ALL institutions.",
+    "supportEmailsLabel": "Support emails",
+    "supportEmailsHelpBefore": "When enabled, every interaction in the Support module (ticket opening, reply, status change) triggers",
+    "supportEmailsHelpAfter": "an email to the recipient. When disabled, notifications still appear in the in-app bell but NO email is sent — useful if you manage everything from the panel without flooding the inbox.",
+    "scopeNote": "This toggle applies to ALL tenants (it can't be configured per individual institution). The tenant Admin can't modify it — only the SuperAdmin.",
+    "saveButton": "Save settings"
+  },
+  "impersonationBanner": {
+    "viewingAs": "You are viewing the platform as",
+    "backToMyAccount": "Return to my account",
+    "restoreSessionError": "Error restoring the session"
+  },
+  "hc_modulesGradingFeedbackCommentAttachments": {
+    "downloadLinkError": "Could not generate the download link.",
+    "removeTitle": "Remove attachment",
+    "removeDescription": "Remove the attachment \"{{name}}\"? This action cannot be undone.",
+    "download": "Download",
+    "downloadAria": "Download {{name}}",
+    "removeAria": "Remove {{name}}"
+  },
+  "hc_modulesMessagingMessageAttachments": {
+    "downloadLinkError": "Could not generate the download link.",
+    "removeTitle": "Remove attachment",
+    "removeConfirm": "Remove the attachment \"{{name}}\"? This action cannot be undone.",
+    "download": "Download",
+    "downloadAria": "Download {{name}}",
+    "removeAria": "Remove {{name}}"
   }
 }

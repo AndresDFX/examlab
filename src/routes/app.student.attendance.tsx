@@ -215,7 +215,14 @@ function StudentAttendance() {
         .eq("user_id", user.id);
       if (enrollErr) {
         if (!cancelled) {
-          setLoadError(friendlyError(enrollErr, "No pudimos cargar tu asistencia."));
+          setLoadError(
+            friendlyError(
+              enrollErr,
+              t("studentAttendance.loadErrorFallback", {
+                defaultValue: "No pudimos cargar tu asistencia.",
+              }),
+            ),
+          );
           setLoadingCourses(false);
         }
         return;
@@ -501,7 +508,9 @@ function StudentAttendance() {
           icon={<CalendarCheck className="h-6 w-6 text-primary" />}
         />
         <ErrorState
-          message="No pudimos cargar tu asistencia"
+          message={t("studentAttendance.loadErrorTitle", {
+            defaultValue: "No pudimos cargar tu asistencia",
+          })}
           hint={loadError}
           onRetry={() => setRetryNonce((n) => n + 1)}
         />
@@ -513,7 +522,9 @@ function StudentAttendance() {
     <div className="space-y-5">
       <PageHeader
         title={t("nav.studentAttendance", { defaultValue: "Asistencia" })}
-        subtitle="Registro de asistencia que el docente ha cargado para tus cursos."
+        subtitle={t("studentAttendance.subtitle", {
+          defaultValue: "Registro de asistencia que el docente ha cargado para tus cursos.",
+        })}
         icon={<CalendarCheck className="h-6 w-6 text-primary" />}
         actions={
           courses.length > 0 ? (
@@ -545,7 +556,9 @@ function StudentAttendance() {
           <CardHeader className="py-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
-              Check-in de asistencia disponible
+              {t("studentAttendance.checkInAvailable", {
+                defaultValue: "Check-in de asistencia disponible",
+              })}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0 space-y-3">
@@ -579,7 +592,7 @@ function StudentAttendance() {
                       }}
                     >
                       <Keyboard className="h-4 w-4 mr-1" />
-                      Tengo el código
+                      {t("studentAttendance.haveCode", { defaultValue: "Tengo el código" })}
                     </Button>
                   </div>
                 </div>
@@ -594,7 +607,9 @@ function StudentAttendance() {
       {!loadingCourses && courses.length === 0 && (
         <Card className="border-dashed">
           <CardContent className="p-6 text-sm text-muted-foreground text-center">
-            No estás matriculado en ningún curso todavía.
+            {t("studentAttendance.noCourses", {
+              defaultValue: "No estás matriculado en ningún curso todavía.",
+            })}
           </CardContent>
         </Card>
       )}
@@ -604,7 +619,7 @@ function StudentAttendance() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <Card>
               <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground">Sesiones</div>
+                <div className="text-xs text-muted-foreground">{t("studentAttendance.sessionsCount", { defaultValue: "Sesiones" })}</div>
                 <div className="text-2xl font-semibold tabular-nums">{stats.total}</div>
               </CardContent>
             </Card>
@@ -618,7 +633,7 @@ function StudentAttendance() {
             </Card>
             <Card>
               <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground">Ausencias</div>
+                <div className="text-xs text-muted-foreground">{t("studentAttendance.absencesCount", { defaultValue: "Ausencias" })}</div>
                 <div className="text-2xl font-semibold tabular-nums text-destructive">
                   {stats.ausente}
                 </div>
@@ -626,12 +641,15 @@ function StudentAttendance() {
             </Card>
             <Card>
               <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground">% asistencia</div>
+                <div className="text-xs text-muted-foreground">{t("studentAttendance.attendancePct", { defaultValue: "% asistencia" })}</div>
                 <div className="text-2xl font-semibold tabular-nums">
                   {stats.pct == null ? "—" : `${stats.pct}%`}
                 </div>
                 <div className="text-[10px] text-muted-foreground">
-                  sobre {stats.registradas} registradas
+                  {t("studentAttendance.overRegistered", {
+                    count: stats.registradas,
+                    defaultValue: "sobre {{count}} registradas",
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -645,7 +663,7 @@ function StudentAttendance() {
               {loadingData && (
                 <p className="text-sm text-muted-foreground p-6">
                   <Spinner size="md" inline className="mr-2" />
-                  Cargando sesiones…
+                  {t("studentAttendance.loadingSessions", { defaultValue: "Cargando sesiones…" })}
                 </p>
               )}
               {!loadingData && sessions.length === 0 && (
@@ -658,9 +676,9 @@ function StudentAttendance() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Fecha</TableHead>
+                        <TableHead>{t("common.date", { defaultValue: "Fecha" })}</TableHead>
                         <TableHead>{t("studentAttendance.colSession")}</TableHead>
-                        <TableHead>Estado</TableHead>
+                        <TableHead>{t("common.status", { defaultValue: "Estado" })}</TableHead>
                         <TableHead>{t("studentAttendance.colRecording")}</TableHead>
                         <TableHead>{t("studentAttendance.colTeacherNote")}</TableHead>
                       </TableRow>
@@ -705,7 +723,7 @@ function StudentAttendance() {
                                     }}
                                   >
                                     <PlayCircle className="h-3 w-3 mr-1" />
-                                    Ver video
+                                    {t("studentAttendance.viewVideo", { defaultValue: "Ver video" })}
                                   </Button>
                                 )}
                                 {s.recording_url && (
@@ -721,7 +739,7 @@ function StudentAttendance() {
                                       rel="noopener noreferrer"
                                     >
                                       <ExternalLink className="h-3 w-3 mr-1" />
-                                      Enlace
+                                      {t("studentAttendance.link", { defaultValue: "Enlace" })}
                                     </a>
                                   </Button>
                                 )}
@@ -815,7 +833,10 @@ function StudentAttendance() {
 
           {courseRecords.length === 0 && sessions.length > 0 && !loadingData && (
             <p className="text-xs text-muted-foreground text-center">
-              El docente aún no ha marcado tu asistencia en ninguna sesión de este curso.
+              {t("studentAttendance.noRecordsHint", {
+                defaultValue:
+                  "El docente aún no ha marcado tu asistencia en ninguna sesión de este curso.",
+              })}
             </p>
           )}
         </>
@@ -862,7 +883,7 @@ function StudentAttendance() {
                 onClick={() => setManualOpen(null)}
                 disabled={submittingCheckIn}
               >
-                Cancelar
+                {t("common.cancel", { defaultValue: "Cancelar" })}
               </Button>
               <Button
                 onClick={async () => {

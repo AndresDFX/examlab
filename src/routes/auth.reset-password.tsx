@@ -130,7 +130,12 @@ function ResetPasswordPage() {
       } else if (code === "password_too_short") {
         toast.error(t("auth.reset.passwordTooShort", { defaultValue: "Mínimo 8 caracteres" }));
       } else {
-        toast.error(code || "No se pudo restablecer la contraseña.");
+        toast.error(
+          code ||
+            t("auth.reset.genericError", {
+              defaultValue: "No se pudo restablecer la contraseña.",
+            }),
+        );
       }
       return;
     }

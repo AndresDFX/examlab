@@ -136,7 +136,7 @@ function Inner() {
       .is("course_id", null)
       .order("name");
     if (error) {
-      setLoadError(friendlyError(error, "No pudimos cargar las plantillas."));
+      setLoadError(friendlyError(error, i18n.t("adminReportTemplates.loadError")));
       setLoading(false);
       return;
     }
@@ -181,7 +181,9 @@ function Inner() {
         );
         return;
       }
-      const baseName = file.name.replace(/\.docx$/i, "").trim() || "Documento importado";
+      const baseName =
+        file.name.replace(/\.docx$/i, "").trim() ||
+        i18n.t("adminReportTemplates.docxDefaultName", { defaultValue: "Documento importado" });
       // Nombre ÚNICO también al importar (crea una plantilla NUEVA con sufijo si
       // ya existe una con ese nombre; nunca entra en modo edición).
       const takenNames = new Set(templates.map((tpl) => tpl.name.trim().toLowerCase()));
@@ -217,7 +219,14 @@ function Inner() {
             }),
       );
     } catch (e) {
-      toast.error(friendlyError(e, "No se pudo importar el documento."));
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("adminReportTemplates.docxImportError", {
+            defaultValue: "No se pudo importar el documento.",
+          }),
+        ),
+      );
     }
   };
 
@@ -244,7 +253,14 @@ function Inner() {
       }));
     } catch (e) {
       setAiBusy(false);
-      toast.error(friendlyError(e, "No se pudo preparar la generación con IA."));
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("adminReportTemplates.aiPrepareError", {
+            defaultValue: "No se pudo preparar la generación con IA.",
+          }),
+        ),
+      );
       return;
     }
     try {
@@ -404,7 +420,14 @@ function Inner() {
       : await db.from("report_templates").insert({ ...payload, created_by: user.id });
     setSaving(false);
     if (error) {
-      toast.error(friendlyError(error, "No se pudo guardar la plantilla"));
+      toast.error(
+        friendlyError(
+          error,
+          i18n.t("adminReportTemplates.saveError", {
+            defaultValue: "No se pudo guardar la plantilla",
+          }),
+        ),
+      );
       return;
     }
     toast.success(
@@ -444,7 +467,10 @@ function Inner() {
   const handleDuplicate = async (t: Template) => {
     if (!user) return;
     const payload = {
-      name: `${t.name} (copia)`,
+      name: i18n.t("adminReportTemplates.copyNameSuffix", {
+        name: t.name,
+        defaultValue: "{{name}} (copia)",
+      }),
       description: t.description,
       scope: t.scope,
       body_html: t.body_html,
@@ -524,7 +550,7 @@ function Inner() {
               <TableSkeleton cols={4} rows={5} />
             ) : loadError ? (
               <ErrorState
-                message="No pudimos cargar las plantillas"
+                message={t("adminReportTemplates.loadError")}
                 hint={loadError}
                 onRetry={() => setRetryNonce((n) => n + 1)}
               />

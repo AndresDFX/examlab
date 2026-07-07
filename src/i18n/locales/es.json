@@ -382,7 +382,9 @@
       "ai_queue.processed": "Cola IA procesada",
       "ai_queue.job_failed": "Job IA fallido",
       "ai_override.activated": "Override IA inmediata activado"
-    }
+    },
+    "needAdminRole": "Necesitas rol Admin o SuperAdmin.",
+    "errorsTab": "Errores"
   },
   "course": {
     "subtitle": "{{count}} cursos",
@@ -713,7 +715,8 @@
       "newPassword": "Nueva contraseña",
       "minChars": "Mínimo 8 caracteres.",
       "confirmPassword": "Confirmar contraseña",
-      "submit": "Actualizar contraseña"
+      "submit": "Actualizar contraseña",
+      "genericError": "No se pudo restablecer la contraseña."
     },
     "confirmEmailChange": {
       "errorExpired": "El enlace expiró (vigencia 1h). Vuelve a solicitar el cambio desde tu perfil.",
@@ -947,7 +950,11 @@
       "notFound": "No se encontró el examen.",
       "loadError": "Cargando resultado del examen…",
       "mustSignIn": "Inicia sesión para ver tus resultados.",
-      "retryModeNote": "Nota {{mode}} de {{count}} intentos · el detalle es el último"
+      "retryModeNote": "Nota {{mode}} de {{count}} intentos · el detalle es el último",
+      "loadErrorFallback": "No pudimos cargar los datos del examen.",
+      "loadErrorTitle": "No pudimos cargar los datos del examen",
+      "teacherFeedback": "Retroalimentación del docente",
+      "notAnsweredCode": "// Sin responder"
     },
     "deleteTitle": "Enviar a papelera",
     "deleted": "Examen enviado a papelera",
@@ -1681,7 +1688,8 @@
     "backupSnapshotsExplanation": "Snapshots lógicos de las tablas a un ZIP en Storage. El cron `db-backup-weekly` corre los domingos 03:05 UTC y crea uno con todas las tablas; el botón \"Crear backup\" deja generar uno manual eligiendo qué tablas incluir. NO hay restore desde la UI por seguridad — descargá el ZIP y aplicá vía SQL si hace falta.",
     "privateUrlWarning": "Esta URL es PRIVADA — quien la tenga ve tus eventos. Si la compartiste por error\n              presiona \"Regenerar URL\".",
     "retentionHelp": "Define cuántos días conservar registros de cada severidad. 0 = sin límite (default).\n              La purga la dispara un cron mensual configurado en Supabase.",
-    "dueReminderLead": "Cuánto tiempo antes del vencimiento se avisa al alumno (taller/proyecto que aún no entrega). El sistema revisa cada 15 minutos y manda UN solo recordatorio por entrega — no se repite."
+    "dueReminderLead": "Cuánto tiempo antes del vencimiento se avisa al alumno (taller/proyecto que aún no entrega). El sistema revisa cada 15 minutos y manda UN solo recordatorio por entrega — no se repite.",
+    "maxOpenAnswerChars": "Tope de caracteres que el alumno puede escribir en una pregunta tipo \"abierta\". Aplica a nivel frontend (Textarea con maxLength). Default 500 — fuerza respuestas concisas (1-2 párrafos) y mantiene bajo el costo de tokens de la IA al calificar. Subir hasta 50000 si necesitas ensayos largos. Rango permitido: 100..50000."
   },
   "forum": {
     "title": "Foros",
@@ -1800,7 +1808,9 @@
     "confirmDeleteLabel": "Borrar",
     "confirmDeleteReplyTitle": "¿Borrar respuesta?",
     "confirmDeleteReplyDesc": "Esta acción no se puede deshacer.",
-    "confirmDeleteReplyLabel": "Borrar"
+    "confirmDeleteReplyLabel": "Borrar",
+    "loadFallback": "No pudimos cargar este hilo.",
+    "anonymous": "Anónimo"
   },
   "trash": {
     "title": "Papelera",
@@ -1845,7 +1855,13 @@
     "confirmBulkHardDeleteDesc": "Vas a borrar las filas seleccionadas y TODOS sus hijos asociados (preguntas, entregas, archivos, etc.) con CASCADE. Esta acción NO se puede deshacer.",
     "confirmBulkHardDeleteLabel": "Eliminar definitivo",
     "processingOverlay": "Procesando papelera…",
-    "processingSubtitle": "Aplicando la operación a {{count}} item(s) en paralelo. Cada uno puede llevar varios segundos cuando arrastra entregas, archivos o cascadas. No cierres esta pestaña."
+    "processingSubtitle": "Aplicando la operación a {{count}} item(s) en paralelo. Cada uno puede llevar varios segundos cuando arrastra entregas, archivos o cascadas. No cierres esta pestaña.",
+    "unnamed": "(sin nombre)",
+    "loadErrorFallback": "No pudimos cargar la papelera.",
+    "restoreError": "No se pudo restaurar",
+    "hardDeleteError": "No se pudo eliminar",
+    "unknownError": "Error desconocido",
+    "purgeAutoTitle": "Se purgará automáticamente cuando pasen {{days}} días desde la eliminación."
   },
   "studentGrades": {
     "title": "Calificaciones",
@@ -1883,7 +1899,8 @@
     "attendanceTitle": "Asistencia ({{present}}/{{total}} sesiones)",
     "attendanceNoSessions": "Asistencia (sin sesiones asignadas a este corte)",
     "scaleExplanation": "Puntaje = lo que sacaste sobre el total de la actividad · Nota = ese puntaje convertido a la escala del curso, que es la que cuenta para tu calificación final.",
-    "footerNote": "La calificación del curso se calcula sumando el promedio ponderado de cada corte. Cada corte promedia talleres, exámenes, proyectos y asistencia con los pesos definidos por el docente. Componentes sin datos no penalizan: sus pesos se reparten entre los demás."
+    "footerNote": "La calificación del curso se calcula sumando el promedio ponderado de cada corte. Cada corte promedia talleres, exámenes, proyectos y asistencia con los pesos definidos por el docente. Componentes sin datos no penalizan: sus pesos se reparten entre los demás.",
+    "loadErrorFallback": "No pudimos cargar tus notas en este momento."
   },
   "studentPolls": {
     "title": "Encuestas",
@@ -1962,7 +1979,12 @@
     "actionDelete": "Eliminar",
     "confirmDeleteTitle": "¿Eliminar este video?",
     "confirmDeleteDesc": "Esta acción no se puede deshacer.",
-    "confirmDeleteLabel": "Eliminar"
+    "confirmDeleteLabel": "Eliminar",
+    "removeConfirmTitle": "¿Borrar \"{{title}}\"?",
+    "removeConfirmDescWithFile": "Se eliminará también el archivo subido. Los proyectos que lo referencian dejarán de mostrar el video (no rompen — el field queda null). Esta acción no se puede deshacer.",
+    "removeConfirmDesc": "Los proyectos que lo referencian dejarán de mostrar el video (no rompen — el field queda null). Esta acción no se puede deshacer.",
+    "badgeUploaded": "Subido",
+    "courseGlobalBadge": "Global"
   },
   "support": {
     "statusOpen": "Abierto",
@@ -2817,7 +2839,8 @@
       "coursesSentToTrash": "{{count}} curso(s) enviado(s) a papelera",
       "duplicateStudentsSuffix": " ({{count}} estudiante(s) copiado(s))",
       "copyBoardFailed": "No se pudo copiar el tablero: {{error}}",
-      "statusChanged": "Estado del curso actualizado"
+      "statusChanged": "Estado del curso actualizado",
+      "bulkDeletePartialError": "{{ok}} ok, {{failed}} con error. Primero: \"{{name}}\" — {{error}}"
     },
     "routes_app_admin_support": {
       "noTenantAssigned": "Tu cuenta no tiene institución asignada. Contacta al SuperAdmin.",
@@ -2997,7 +3020,10 @@
       "markedSelectedRead": "{{count}} conversación(es) marcada(s) como leída(s)",
       "markedSelectedUnread": "{{count}} conversación(es) marcada(s) como no leída(s)",
       "clearedSelectedConversations": "{{count}} conversación(es) eliminada(s) para ti",
-      "conversationCleared": "Conversación eliminada para ti"
+      "conversationCleared": "Conversación eliminada para ti",
+      "courseWordSingular": "curso",
+      "courseWordPlural": "cursos",
+      "unknown": "desconocido"
     },
     "routes_app_student_attendance": {
       "codeMustBe6Digits": "El código debe tener 6 dígitos",
@@ -3124,7 +3150,11 @@
       "studentAssigned": "Estudiante asignado correctamente",
       "assignmentRemoved": "Asignación removida correctamente",
       "studentsAssigned": "{{count}} estudiante(s) asignados correctamente",
-      "assignmentsRemoved": "{{count}} asignación(es) removidas correctamente"
+      "assignmentsRemoved": "{{count}} asignación(es) removidas correctamente",
+      "errorEvalTime": "Error al evaluar el tiempo",
+      "noResponse": "Sin respuesta",
+      "examNotFound": "No se encontró el examen o no tienes acceso.",
+      "couldNotQueueGeneration": "No se pudo encolar la generación"
     },
     "routes_app_teacher_exams_index": {
       "bulkSentToTrash": "{{count}} examen(es) enviado(s) a papelera",
@@ -3934,7 +3964,8 @@
     "filterInactiveOnly": "Solo inactivos",
     "inactiveBadge": "Inactivo",
     "reactivateTitle": "Reactivar a {{name}}",
-    "deactivateTitle": "Desactivar a {{name}}"
+    "deactivateTitle": "Desactivar a {{name}}",
+    "setActiveError": "No se pudo cambiar el estado del usuario"
   },
   "projectFiles": {
     "tabList": "Preguntas ({{count}})",
@@ -4048,7 +4079,12 @@
     "aiSelectCourse": "Selecciona un curso de referencia para los datos.",
     "aiGenerated": "Informe generado con IA e insertado en el editor. Revisa los {{...}} antes de guardar.",
     "aiFallbackCopied": "No se pudo generar con la IA de la plataforma. Copiamos el prompt al portapapeles — pégalo en tu IA y trae el resultado.",
-    "aiFallbackReady": "No se pudo generar con la IA. El prompt quedó en la consola."
+    "aiFallbackReady": "No se pudo generar con la IA. El prompt quedó en la consola.",
+    "docxDefaultName": "Documento importado",
+    "docxImportError": "No se pudo importar el documento.",
+    "aiPrepareError": "No se pudo preparar la generación con IA.",
+    "saveError": "No se pudo guardar la plantilla",
+    "copyNameSuffix": "{{name}} (copia)"
   },
   "workshopQuestions": {
     "tabList": "Preguntas ({{count}})",
@@ -4156,7 +4192,11 @@
     "bodyTooShort": "La descripción debe tener al menos 10 caracteres.",
     "ticketCreated": "Ticket abierto. El SuperAdmin recibió la notificación.",
     "ticketCreatedWithAttachments": "Ticket abierto con {{uploaded}} adjunto(s). El SuperAdmin recibió la notificación.",
-    "ticketCreatedSomeAttachmentsFailed": "Ticket creado. {{uploaded}} adjunto(s) subido(s), {{failed}} fallaron — podés volver a subirlos desde el detalle."
+    "ticketCreatedSomeAttachmentsFailed": "Ticket creado. {{uploaded}} adjunto(s) subido(s), {{failed}} fallaron — podés volver a subirlos desde el detalle.",
+    "createFailed": "No se pudo crear el ticket",
+    "createError": "Error creando el ticket",
+    "deleteFailed": "No se pudo eliminar el ticket",
+    "removeAttachmentAria": "Quitar adjunto {{name}}"
   },
   "javaGuiRunner": {
     "badgePngCapture": "Java GUI — captura PNG",
@@ -4506,7 +4546,10 @@
     "btnSave": "Guardar parámetros",
     "cardDueReminderTitle": "Recordatorios de entregas",
     "labelDueReminderLead": "Avisar (horas antes del vencimiento)",
-    "hintDueReminderLead": "Por defecto 1 hora. Rango 1–168 (hasta 7 días). Solo a quienes no han entregado."
+    "hintDueReminderLead": "Por defecto 1 hora. Rango 1–168 (hasta 7 días). Solo a quienes no han entregado.",
+    "hintOpenCharsPrefix": "Solo afecta preguntas ",
+    "hintOpenCharsSuffix": ". Las de código, diagrama, java_gui, python_gui y opción múltiple tienen sus propios límites.",
+    "thresholdPlaceholder": "0 = desactivado"
   },
   "superadminSupport": {
     "title": "Soporte",
@@ -5223,7 +5266,8 @@
     "formatsHint": "Formatos: MP4, WebM, MOV. Tamaño máximo: 500 MB.",
     "globalCatalogToggle": "Catálogo global de la plataforma",
     "globalCatalogHint": "Cualquier institución podrá ver y referenciar este video. Útil para introducciones y tutoriales transversales. Si lo dejás desmarcado, el video pertenece solo a la institución del caller.",
-    "uploading": "Subiendo… {{pct}}%"
+    "uploading": "Subiendo… {{pct}}%",
+    "tabUrl": "URL externa"
   },
   "studentAttendance": {
     "statusPresent": "Presente",
@@ -5253,7 +5297,21 @@
     "manualHint": "Pídele al docente el código de 6 dígitos que aparece bajo el QR.",
     "markPresent": "Marcar presente",
     "recordingTitle": "Grabación · {{title}}",
-    "statusNone": "Sin registro"
+    "statusNone": "Sin registro",
+    "loadErrorFallback": "No pudimos cargar tu asistencia.",
+    "loadErrorTitle": "No pudimos cargar tu asistencia",
+    "subtitle": "Registro de asistencia que el docente ha cargado para tus cursos.",
+    "checkInAvailable": "Check-in de asistencia disponible",
+    "haveCode": "Tengo el código",
+    "noCourses": "No estás matriculado en ningún curso todavía.",
+    "sessionsCount": "Sesiones",
+    "absencesCount": "Ausencias",
+    "attendancePct": "% asistencia",
+    "overRegistered": "sobre {{count}} registradas",
+    "loadingSessions": "Cargando sesiones…",
+    "viewVideo": "Ver video",
+    "link": "Enlace",
+    "noRecordsHint": "El docente aún no ha marcado tu asistencia en ninguna sesión de este curso."
   },
   "hc_componentsUiDataPagination": {
     "showing": "Mostrando",
@@ -7036,7 +7094,9 @@
     "statDraft": "Borrador",
     "statFinalized": "Finalizados",
     "statusFilterActiveAndDrafts": "Activos y borradores",
-    "actionDiagnostic": "Diagnóstico del curso"
+    "actionDiagnostic": "Diagnóstico del curso",
+    "duplicateNameSuffix": "{{name}} (copia)",
+    "bulkDeleteExtraWarning": "El contenido de cada curso (exámenes, talleres, proyectos, sesiones, pizarras, contenidos y encuestas) también se moverá a la papelera, y se restaurará junto con el curso."
   },
   "hc_routesAppMessages": {
     "pageTitle": "Mensajes",
@@ -8392,7 +8452,12 @@
     "questionsDialogTitle": "Preguntas del taller",
     "bulkEntitySingular": "taller",
     "bulkEntityPlural": "talleres",
-    "bulkExtraWarning": "Se eliminarán también todas las preguntas, asignaciones y entregas de los talleres seleccionados."
+    "bulkExtraWarning": "Se eliminarán también todas las preguntas, asignaciones y entregas de los talleres seleccionados.",
+    "loadErrorFallback": "No pudimos cargar los talleres.",
+    "unknownError": "Error desconocido",
+    "suggestionSourceAi": "IA {{pct}}%",
+    "suggestionSourceCopy": "Copia {{pct}}%",
+    "suggestionSourceBoth": "IA {{aiPct}}% + Copia {{cpPct}}%"
   },
   "hc_routesIndex": {
     "metaTitle": "ExamLab — Plataforma de Gestión Educativa",
@@ -8581,5 +8646,48 @@
     "loadErrorFallback": "No pudimos cargar el asistente.",
     "startErrorFallback": "No pudimos iniciar la conversación.",
     "askErrorFallback": "No pudimos consultar al asistente."
+  },
+  "hc_routesAppStudentWorkshopWorkshopId": {
+    "loadErrorFallback": "No pudimos cargar los datos del taller.",
+    "loadErrorTitle": "No pudimos cargar los datos del taller",
+    "yourGroup": "Tu grupo: {{name}}",
+    "groupSubmissionNote": "La entrega es del grupo: cualquier miembro puede editarla y todos reciben la misma nota.",
+    "you": "(tú)"
+  },
+  "adminSystem": {
+    "pageTitle": "Sistema",
+    "pageSubtitle": "Diagnóstico de la infraestructura externa (DB, edge functions, IA, push, storage, auth)"
+  },
+  "hc_modulesSuperadminPlatformSettingsPanel": {
+    "loadFailedFallback": "No pudimos cargar la configuración de plataforma.",
+    "loadFailedTitle": "No pudimos cargar la configuración",
+    "cardTitle": "Configuración de plataforma",
+    "cardSubtitle": "Controles cross-tenant exclusivos del SuperAdmin. Aplican a TODAS las instituciones.",
+    "supportEmailsLabel": "Correos de Soporte",
+    "supportEmailsHelpBefore": "Cuando está activo, cada interacción del módulo Soporte (apertura de ticket, respuesta, cambio de estado) dispara",
+    "supportEmailsHelpAfter": "al destinatario. Cuando está desactivado, las notificaciones siguen apareciendo en la campana in-app pero NO sale email — útil si gestionás todo desde el panel sin saturar la bandeja.",
+    "scopeNote": "Este toggle aplica a TODOS los tenants (no se puede configurar por institución individual). El Admin del tenant no puede modificarlo — solo el SuperAdmin.",
+    "saveButton": "Guardar configuración"
+  },
+  "impersonationBanner": {
+    "viewingAs": "Estás viendo la plataforma como",
+    "backToMyAccount": "Volver a mi cuenta",
+    "restoreSessionError": "Error al restaurar la sesión"
+  },
+  "hc_modulesGradingFeedbackCommentAttachments": {
+    "downloadLinkError": "No se pudo generar el enlace de descarga.",
+    "removeTitle": "Quitar adjunto",
+    "removeDescription": "¿Quitar el adjunto \"{{name}}\"? Esta acción no se puede deshacer.",
+    "download": "Descargar",
+    "downloadAria": "Descargar {{name}}",
+    "removeAria": "Quitar {{name}}"
+  },
+  "hc_modulesMessagingMessageAttachments": {
+    "downloadLinkError": "No se pudo generar el enlace de descarga.",
+    "removeTitle": "Quitar adjunto",
+    "removeConfirm": "¿Quitar el adjunto \"{{name}}\"? Esta acción no se puede deshacer.",
+    "download": "Descargar",
+    "downloadAria": "Descargar {{name}}",
+    "removeAria": "Quitar {{name}}"
   }
 }

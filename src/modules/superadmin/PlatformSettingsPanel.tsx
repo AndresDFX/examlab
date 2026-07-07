@@ -32,6 +32,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -44,6 +45,7 @@ interface PlatformSettings {
 }
 
 export function PlatformSettingsPanel() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [settings, setSettings] = useState<PlatformSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,7 +66,7 @@ export function PlatformSettingsPanel() {
         .maybeSingle();
       if (cancelled) return;
       if (error) {
-        setLoadError(friendlyError(error, "No pudimos cargar la configuración de plataforma."));
+        setLoadError(friendlyError(error, t("hc_modulesSuperadminPlatformSettingsPanel.loadFailedFallback", { defaultValue: "No pudimos cargar la configuración de plataforma." })));
         setLoading(false);
         return;
       }
@@ -120,7 +122,7 @@ export function PlatformSettingsPanel() {
     return (
       <Card>
         <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-          <Spinner size="md" /> Cargando…
+          <Spinner size="md" /> {t("common.loading", { defaultValue: "Cargando…" })}
         </CardContent>
       </Card>
     );
@@ -129,7 +131,7 @@ export function PlatformSettingsPanel() {
   if (loadError) {
     return (
       <ErrorState
-        message="No pudimos cargar la configuración"
+        message={t("hc_modulesSuperadminPlatformSettingsPanel.loadFailedTitle", { defaultValue: "No pudimos cargar la configuración" })}
         hint={loadError}
         onRetry={() => setRetryNonce((n) => n + 1)}
       />
@@ -142,10 +144,10 @@ export function PlatformSettingsPanel() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Settings2 className="h-4 w-4 text-violet-500" />
-            Configuración de plataforma
+            {t("hc_modulesSuperadminPlatformSettingsPanel.cardTitle", { defaultValue: "Configuración de plataforma" })}
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Controles cross-tenant exclusivos del SuperAdmin. Aplican a TODAS las instituciones.
+            {t("hc_modulesSuperadminPlatformSettingsPanel.cardSubtitle", { defaultValue: "Controles cross-tenant exclusivos del SuperAdmin. Aplican a TODAS las instituciones." })}
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -159,7 +161,7 @@ export function PlatformSettingsPanel() {
             <LifeBuoy className="h-5 w-5 text-primary mt-0.5 shrink-0" />
             <div className="flex-1 space-y-1">
               <Label className="text-sm font-medium flex items-center gap-2 cursor-pointer">
-                Correos de Soporte
+                {t("hc_modulesSuperadminPlatformSettingsPanel.supportEmailsLabel", { defaultValue: "Correos de Soporte" })}
                 <Switch
                   checked={draftSupportEmails}
                   onCheckedChange={setDraftSupportEmails}
@@ -167,11 +169,9 @@ export function PlatformSettingsPanel() {
                 />
               </Label>
               <p className="text-xs text-muted-foreground">
-                Cuando está activo, cada interacción del módulo Soporte (apertura de ticket,
-                respuesta, cambio de estado) dispara <strong>email</strong> al destinatario.
-                Cuando está desactivado, las notificaciones siguen apareciendo en la campana
-                in-app pero NO sale email — útil si gestionás todo desde el panel sin saturar
-                la bandeja.
+                {t("hc_modulesSuperadminPlatformSettingsPanel.supportEmailsHelpBefore", { defaultValue: "Cuando está activo, cada interacción del módulo Soporte (apertura de ticket, respuesta, cambio de estado) dispara" })}{" "}
+                <strong>email</strong>{" "}
+                {t("hc_modulesSuperadminPlatformSettingsPanel.supportEmailsHelpAfter", { defaultValue: "al destinatario. Cuando está desactivado, las notificaciones siguen apareciendo en la campana in-app pero NO sale email — útil si gestionás todo desde el panel sin saturar la bandeja." })}
               </p>
             </div>
           </div>
@@ -179,8 +179,7 @@ export function PlatformSettingsPanel() {
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Este toggle aplica a TODOS los tenants (no se puede configurar por institución
-              individual). El Admin del tenant no puede modificarlo — solo el SuperAdmin.
+              {t("hc_modulesSuperadminPlatformSettingsPanel.scopeNote", { defaultValue: "Este toggle aplica a TODOS los tenants (no se puede configurar por institución individual). El Admin del tenant no puede modificarlo — solo el SuperAdmin." })}
             </AlertDescription>
           </Alert>
 
@@ -192,12 +191,12 @@ export function PlatformSettingsPanel() {
                 onClick={() => setDraftSupportEmails(settings?.support_emails_enabled ?? true)}
                 disabled={saving}
               >
-                Cancelar
+                {t("common.cancel", { defaultValue: "Cancelar" })}
               </Button>
             )}
             <Button size="sm" onClick={() => void save()} disabled={saving || !dirty}>
               {saving ? <Spinner size="sm" className="mr-1" /> : <Save className="h-4 w-4 mr-1" />}
-              Guardar configuración
+              {t("hc_modulesSuperadminPlatformSettingsPanel.saveButton", { defaultValue: "Guardar configuración" })}
             </Button>
           </div>
         </CardContent>

@@ -32,6 +32,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { Link, useLocation } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 
 const KIND_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   exam: FileText,

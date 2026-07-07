@@ -41,7 +41,7 @@ function AdminAuditLogs() {
   // Esperar a useAuth para evitar flash del gate con roles=[] hidratando.
   if (authLoading) return <PageLoader />;
   if (!roles.includes("Admin") && !roles.includes("SuperAdmin")) {
-    return <p className="text-muted-foreground p-4 sm:p-8">Necesitas rol Admin o SuperAdmin.</p>;
+    return <p className="text-muted-foreground p-4 sm:p-8">{t("audit.needAdminRole", { defaultValue: "Necesitas rol Admin o SuperAdmin." })}</p>;
   }
 
   // El padding y max-width los pone AppLayout en el contenedor de la
@@ -56,7 +56,7 @@ function AdminAuditLogs() {
         </TabsTrigger>
         <TabsTrigger value="errors" className="gap-1.5">
           <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
-          Errores
+          {t("audit.errorsTab", { defaultValue: "Errores" })}
         </TabsTrigger>
       </TabsList>
       <TabsContent value="logs" className="mt-4">

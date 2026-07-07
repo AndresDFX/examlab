@@ -548,7 +548,14 @@ function StudentGrades() {
         setCutsBreakdown(breakdown);
       } catch (e) {
         if (!cancelled) {
-          setLoadError(friendlyError(e, "No pudimos cargar tus notas en este momento."));
+          setLoadError(
+            friendlyError(
+              e,
+              t("studentGrades.loadErrorFallback", {
+                defaultValue: "No pudimos cargar tus notas en este momento.",
+              }),
+            ),
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -628,7 +635,7 @@ function StudentGrades() {
           courses.length > 0 ? (
             <Select value={courseId} onValueChange={setCourseId}>
               <SelectTrigger className="w-64">
-                <SelectValue placeholder="Curso" />
+                <SelectValue placeholder={t("common.course")} />
               </SelectTrigger>
               <SelectContent>
                 {courses.map((c) => (

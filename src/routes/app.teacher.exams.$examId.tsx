@@ -220,11 +220,22 @@ function ExamEditor() {
       });
       if (error) {
         const detail = await extractEdgeError(error, data);
-        throw new Error(detail || "Error al evaluar el tiempo");
+        throw new Error(
+          detail ||
+            i18n.t("toast.routes_app_teacher_exams_examId.errorEvalTime", {
+              defaultValue: "Error al evaluar el tiempo",
+            }),
+        );
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = data as any;
-      if (!res?.ok) throw new Error(res?.error ?? "Sin respuesta");
+      if (!res?.ok)
+        throw new Error(
+          res?.error ??
+            i18n.t("toast.routes_app_teacher_exams_examId.noResponse", {
+              defaultValue: "Sin respuesta",
+            }),
+        );
       setTimeEvalResult({
         current_minutes: Number(res.current_minutes) || 0,
         suggested_minutes: Number(res.suggested_minutes) || 0,
@@ -233,7 +244,14 @@ function ExamEditor() {
         question_count: Number(res.question_count) || 0,
       });
     } catch (e) {
-      toast.error(friendlyError(e, "Error al evaluar el tiempo"));
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("toast.routes_app_teacher_exams_examId.errorEvalTime", {
+            defaultValue: "Error al evaluar el tiempo",
+          }),
+        ),
+      );
     } finally {
       setTimeEvalLoading(false);
     }
@@ -312,7 +330,14 @@ function ExamEditor() {
       .is("deleted_at", null)
       .single();
     if (eErr || !e) {
-      setLoadError(friendlyError(eErr, "No se encontró el examen o no tienes acceso."));
+      setLoadError(
+        friendlyError(
+          eErr,
+          i18n.t("toast.routes_app_teacher_exams_examId.examNotFound", {
+            defaultValue: "No se encontró el examen o no tienes acceso.",
+          }),
+        ),
+      );
       return;
     }
     setExam(e);
@@ -697,7 +722,14 @@ function ExamEditor() {
       }));
       const { error: enqErr } = await dbAny.from("ai_generation_queue").insert(rows);
       if (enqErr) {
-        toast.error(friendlyError(enqErr, "No se pudo encolar la generación"));
+        toast.error(
+          friendlyError(
+            enqErr,
+            i18n.t("toast.routes_app_teacher_exams_examId.couldNotQueueGeneration", {
+              defaultValue: "No se pudo encolar la generación",
+            }),
+          ),
+        );
         return;
       }
       toast.success(

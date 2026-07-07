@@ -10,6 +10,7 @@
  *   mantener inmutabilidad post-envío; se controla via prop `canDelete`).
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -57,6 +58,7 @@ interface Props {
 
 export function MessageAttachments({ attachments, canDelete, onChanged, inverted }: Props) {
   const confirm = useConfirm();
+  const { t } = useTranslation();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -69,7 +71,14 @@ export function MessageAttachments({ attachments, canDelete, onChanged, inverted
         .from("message-attachments")
         .createSignedUrl(a.path, 60);
       if (error || !data?.signedUrl) {
-        toast.error(friendlyError(error, "No se pudo generar el enlace de descarga."));
+        toast.error(
+          friendlyError(
+            error,
+            t("hc_modulesMessagingMessageAttachments.downloadLinkError", {
+              defaultValue: "No se pudo generar el enlace de descarga.",
+            }),
+          ),
+        );
         return;
       }
       const link = document.createElement("a");
@@ -89,9 +98,14 @@ export function MessageAttachments({ attachments, canDelete, onChanged, inverted
     // el resto del repo y respeta el theme/branding del tenant.
     const ok = await confirm({
       tone: "destructive",
-      title: "Quitar adjunto",
-      description: `¿Quitar el adjunto "${a.name}"? Esta acción no se puede deshacer.`,
-      confirmLabel: "Quitar",
+      title: t("hc_modulesMessagingMessageAttachments.removeTitle", {
+        defaultValue: "Quitar adjunto",
+      }),
+      description: t("hc_modulesMessagingMessageAttachments.removeConfirm", {
+        name: a.name,
+        defaultValue: '¿Quitar el adjunto "{{name}}"? Esta acción no se puede deshacer.',
+      }),
+      confirmLabel: t("common.remove", { defaultValue: "Quitar" }),
     });
     if (!ok) return;
     setDeletingId(a.id);
@@ -149,8 +163,13 @@ export function MessageAttachments({ attachments, canDelete, onChanged, inverted
               className="h-5 w-5 shrink-0"
               onClick={() => void download(a)}
               disabled={isDownloading || isDeleting}
-              title="Descargar"
-              aria-label={`Descargar ${a.name}`}
+              title={t("hc_modulesMessagingMessageAttachments.download", {
+                defaultValue: "Descargar",
+              })}
+              aria-label={t("hc_modulesMessagingMessageAttachments.downloadAria", {
+                name: a.name,
+                defaultValue: "Descargar {{name}}",
+              })}
             >
               {isDownloading ? <Spinner size="xs" /> : <Download className="h-3 w-3" />}
             </Button>
@@ -162,8 +181,11 @@ export function MessageAttachments({ attachments, canDelete, onChanged, inverted
                 className="h-5 w-5 shrink-0 text-destructive hover:text-destructive"
                 onClick={() => void remove(a)}
                 disabled={isDeleting || isDownloading}
-                title="Quitar"
-                aria-label={`Quitar ${a.name}`}
+                title={t("common.remove", { defaultValue: "Quitar" })}
+                aria-label={t("hc_modulesMessagingMessageAttachments.removeAria", {
+                  name: a.name,
+                  defaultValue: "Quitar {{name}}",
+                })}
               >
                 {isDeleting ? <Spinner size="xs" /> : <Trash2 className="h-3 w-3" />}
               </Button>

@@ -573,7 +573,10 @@ function MessagesPage() {
       const notified = typeof data?.notified === "number" ? data.notified : 0;
       const withEmail =
         typeof data?.recipients_with_email === "number" ? data.recipients_with_email : 0;
-      const courseWord = broadcastCourseIds.length === 1 ? "curso" : "cursos";
+      const courseWord =
+        broadcastCourseIds.length === 1
+          ? i18n.t("toast.routes_app_messages.courseWordSingular", { defaultValue: "curso" })
+          : i18n.t("toast.routes_app_messages.courseWordPlural", { defaultValue: "cursos" });
       if (withEmail > 0) {
         toast.success(
           i18n.t("toast.routes_app_messages.broadcastSentWithEmail", {
@@ -1117,7 +1120,10 @@ function MessagesPage() {
           i18n.t("toast.routes_app_messages.attachmentRegisterFailed", {
             defaultValue: "No se pudo registrar {{name}}: {{error}}",
             name: safe,
-            error: friendlyError(error, "desconocido"),
+            error: friendlyError(
+              error,
+              i18n.t("toast.routes_app_messages.unknown", { defaultValue: "desconocido" }),
+            ),
           }),
         );
         continue;

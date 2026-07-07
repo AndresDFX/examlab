@@ -261,7 +261,14 @@ function AdminSupportPage() {
         .select("*")
         .maybeSingle();
       if (error || !data) {
-        toast.error(friendlyError(error, "No se pudo crear el ticket"));
+        toast.error(
+          friendlyError(
+            error,
+            i18n.t("adminSupport.createFailed", {
+              defaultValue: "No se pudo crear el ticket",
+            }),
+          ),
+        );
         return;
       }
       const createdTicket = data as SupportTicket;
@@ -360,7 +367,14 @@ function AdminSupportPage() {
       setActiveTicket(createdTicket);
       setDetailOpen(true);
     } catch (e) {
-      toast.error(friendlyError(e, "Error creando el ticket"));
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("adminSupport.createError", {
+            defaultValue: "Error creando el ticket",
+          }),
+        ),
+      );
     } finally {
       setCreating(false);
     }
@@ -391,7 +405,14 @@ function AdminSupportPage() {
     if (!ok) return;
     const { error } = await db.rpc("soft_delete_support_ticket", { _ticket_id: t.id });
     if (error) {
-      toast.error(friendlyError(error, "No se pudo eliminar el ticket"));
+      toast.error(
+        friendlyError(
+          error,
+          i18n.t("adminSupport.deleteFailed", {
+            defaultValue: "No se pudo eliminar el ticket",
+          }),
+        ),
+      );
       return;
     }
     toast.success(
@@ -687,8 +708,11 @@ function AdminSupportPage() {
                         type="button"
                         onClick={() => removeAttachment(idx)}
                         className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 transition-colors"
-                        title="Quitar"
-                        aria-label={`Quitar adjunto ${file.name}`}
+                        title={t("common.remove")}
+                        aria-label={t("adminSupport.removeAttachmentAria", {
+                          name: file.name,
+                          defaultValue: "Quitar adjunto {{name}}",
+                        })}
                         disabled={creating}
                       >
                         <XIcon className="h-3.5 w-3.5" />

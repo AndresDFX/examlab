@@ -642,7 +642,14 @@ function TeacherWorkshops() {
     // Si las queries crítica fallan (courses, workshops), marcamos
     // loadError para mostrar ErrorState en vez de "0 talleres" silencioso.
     if (csErr || wsErr) {
-      setLoadError(friendlyError(csErr ?? wsErr, "No pudimos cargar los talleres."));
+      setLoadError(
+        friendlyError(
+          csErr ?? wsErr,
+          i18n.t("hc_routesAppTeacherWorkshops.loadErrorFallback", {
+            defaultValue: "No pudimos cargar los talleres.",
+          }),
+        ),
+      );
       return;
     }
     setLoadError(null);
@@ -2304,7 +2311,12 @@ function TeacherWorkshops() {
       toast.error(
         i18n.t("toast.routes_app_teacher_workshops.aiError", {
           defaultValue: "Error IA: {{detail}}",
-          detail: friendlyError(e, "Error desconocido"),
+          detail: friendlyError(
+            e,
+            i18n.t("hc_routesAppTeacherWorkshops.unknownError", {
+              defaultValue: "Error desconocido",
+            }),
+          ),
         }),
       );
       return false;
@@ -4329,10 +4341,20 @@ function TeacherWorkshops() {
                                             </span>
                                             <Badge variant="outline" className="text-[10px]">
                                               {sug.source === "ai"
-                                                ? `IA ${aiPct}%`
+                                                ? t("hc_routesAppTeacherWorkshops.suggestionSourceAi", {
+                                                    pct: aiPct,
+                                                    defaultValue: "IA {{pct}}%",
+                                                  })
                                                 : sug.source === "plagio"
-                                                  ? `Copia ${cpPct}%`
-                                                  : `IA ${aiPct}% + Copia ${cpPct}%`}
+                                                  ? t("hc_routesAppTeacherWorkshops.suggestionSourceCopy", {
+                                                      pct: cpPct,
+                                                      defaultValue: "Copia {{pct}}%",
+                                                    })
+                                                  : t("hc_routesAppTeacherWorkshops.suggestionSourceBoth", {
+                                                      aiPct,
+                                                      cpPct,
+                                                      defaultValue: "IA {{aiPct}}% + Copia {{cpPct}}%",
+                                                    })}
                                             </Badge>
                                             <Button
                                               size="sm"

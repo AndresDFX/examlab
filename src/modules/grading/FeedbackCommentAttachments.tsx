@@ -13,6 +13,7 @@
  * Pensado para insertarse DENTRO de cada burbuja de comment.
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,7 @@ interface Props {
 }
 
 export function FeedbackCommentAttachments({ attachments, onChanged, closed }: Props) {
+  const { t } = useTranslation();
   const confirm = useConfirm();
   const { user } = useAuth();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -72,7 +74,14 @@ export function FeedbackCommentAttachments({ attachments, onChanged, closed }: P
         .from("feedback-attachments")
         .createSignedUrl(a.path, 60); // 60s para que el navegador descargue
       if (error || !data?.signedUrl) {
-        toast.error(friendlyError(error, "No se pudo generar el enlace de descarga."));
+        toast.error(
+          friendlyError(
+            error,
+            t("hc_modulesGradingFeedbackCommentAttachments.downloadLinkError", {
+              defaultValue: "No se pudo generar el enlace de descarga.",
+            }),
+          ),
+        );
         return;
       }
       // Abre en nueva pestaña — el navegador descarga por Content-Disposition.
@@ -93,9 +102,14 @@ export function FeedbackCommentAttachments({ attachments, onChanged, closed }: P
     // el resto del repo y respeta el theme/branding del tenant.
     const ok = await confirm({
       tone: "destructive",
-      title: "Quitar adjunto",
-      description: `¿Quitar el adjunto "${a.name}"? Esta acción no se puede deshacer.`,
-      confirmLabel: "Quitar",
+      title: t("hc_modulesGradingFeedbackCommentAttachments.removeTitle", {
+        defaultValue: "Quitar adjunto",
+      }),
+      description: t("hc_modulesGradingFeedbackCommentAttachments.removeDescription", {
+        name: a.name,
+        defaultValue: '¿Quitar el adjunto "{{name}}"? Esta acción no se puede deshacer.',
+      }),
+      confirmLabel: t("common.remove"),
     });
     if (!ok) return;
     setDeletingId(a.id);
@@ -140,8 +154,13 @@ export function FeedbackCommentAttachments({ attachments, onChanged, closed }: P
               className="h-5 w-5 shrink-0"
               onClick={() => void download(a)}
               disabled={isDownloading || isDeleting}
-              title="Descargar"
-              aria-label={`Descargar ${a.name}`}
+              title={t("hc_modulesGradingFeedbackCommentAttachments.download", {
+                defaultValue: "Descargar",
+              })}
+              aria-label={t("hc_modulesGradingFeedbackCommentAttachments.downloadAria", {
+                name: a.name,
+                defaultValue: "Descargar {{name}}",
+              })}
             >
               {isDownloading ? <Spinner size="xs" /> : <Download className="h-3 w-3" />}
             </Button>
@@ -153,8 +172,11 @@ export function FeedbackCommentAttachments({ attachments, onChanged, closed }: P
                 className="h-5 w-5 shrink-0 text-destructive hover:text-destructive"
                 onClick={() => void remove(a)}
                 disabled={isDeleting || isDownloading}
-                title="Quitar"
-                aria-label={`Quitar ${a.name}`}
+                title={t("common.remove")}
+                aria-label={t("hc_modulesGradingFeedbackCommentAttachments.removeAria", {
+                  name: a.name,
+                  defaultValue: "Quitar {{name}}",
+                })}
               >
                 {isDeleting ? <Spinner size="xs" /> : <Trash2 className="h-3 w-3" />}
               </Button>

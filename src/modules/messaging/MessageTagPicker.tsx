@@ -19,6 +19,7 @@
  * client-side por matrícula — confiamos en la BD.
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -54,6 +55,7 @@ const TYPES: Array<{ value: TagType; icon: typeof Hammer; table: string; titleCo
 ];
 
 export function MessageTagPicker({ open, onOpenChange, onPick }: Props) {
+  const { t } = useTranslation();
   const [activeType, setActiveType] = useState<TagType>("workshop");
   const [search, setSearch] = useState("");
   const [items, setItems] = useState<PickableItem[]>([]);

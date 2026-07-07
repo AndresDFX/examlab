@@ -350,10 +350,10 @@ export function AdminGeneralSettingsPanel() {
             <Label className="flex items-center gap-1.5">
               {t("adminGeneralSettings.labelMaxOpenChars")}
               <HelpHint>
-                Tope de caracteres que el alumno puede escribir en una pregunta tipo "abierta".
-                Aplica a nivel frontend (Textarea con maxLength). Default 500 — fuerza respuestas
-                concisas (1-2 párrafos) y mantiene bajo el costo de tokens de la IA al calificar.
-                Subir hasta 50000 si necesitas ensayos largos. Rango permitido: 100..50000.
+                {t("help.maxOpenAnswerChars", {
+                  defaultValue:
+                    'Tope de caracteres que el alumno puede escribir en una pregunta tipo "abierta". Aplica a nivel frontend (Textarea con maxLength). Default 500 — fuerza respuestas concisas (1-2 párrafos) y mantiene bajo el costo de tokens de la IA al calificar. Subir hasta 50000 si necesitas ensayos largos. Rango permitido: 100..50000.',
+                })}
               </HelpHint>
             </Label>
             <Input
@@ -370,8 +370,14 @@ export function AdminGeneralSettingsPanel() {
               }
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              Solo afecta preguntas <code className="text-[10px]">abierta</code>. Las de código,
-              diagrama, java_gui, python_gui y opción múltiple tienen sus propios límites.
+              {t("adminGeneralSettings.hintOpenCharsPrefix", {
+                defaultValue: "Solo afecta preguntas ",
+              })}
+              <code className="text-[10px]">abierta</code>
+              {t("adminGeneralSettings.hintOpenCharsSuffix", {
+                defaultValue:
+                  ". Las de código, diagrama, java_gui, python_gui y opción múltiple tienen sus propios límites.",
+              })}
             </p>
           </div>
           <div className="sm:col-span-3">
@@ -470,7 +476,9 @@ export function AdminGeneralSettingsPanel() {
                     email_alert_threshold_24h: Number(e.target.value),
                   })
                 }
-                placeholder="0 = desactivado"
+                placeholder={t("adminGeneralSettings.thresholdPlaceholder", {
+                  defaultValue: "0 = desactivado",
+                })}
               />
               <p className="text-[11px] text-muted-foreground mt-1">
                 {t("adminGeneralSettings.hintThreshold")}
