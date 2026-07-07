@@ -652,7 +652,10 @@ export function ErrorsPanel({ embedded = false }: Props) {
                             ) : (
                               <RowActionsMenu
                                 actions={[
-                                  {
+                                  // "Analizar con IA" solo para SuperAdmin: el edge
+                                  // support-ai-suggest (mode="error") es SA-only; para el
+                                  // Admin sería un botón muerto (siempre "No autorizado").
+                                  isSuperAdmin && {
                                     label: t("hc_modulesAdminErrorsPanel.aiAnalyze"),
                                     icon: Sparkles,
                                     onClick: () => void analyzeGroup(g),
@@ -676,10 +679,12 @@ export function ErrorsPanel({ embedded = false }: Props) {
                           <TableRow>
                             <TableCell colSpan={colSpan} className="bg-muted/30 py-2">
                               <div className="space-y-2">
-                                <AiAnalysisPanel
-                                  state={aiAnalysis[g.fingerprint]}
-                                  onAnalyze={() => void analyzeGroup(g)}
-                                />
+                                {isSuperAdmin && (
+                                  <AiAnalysisPanel
+                                    state={aiAnalysis[g.fingerprint]}
+                                    onAnalyze={() => void analyzeGroup(g)}
+                                  />
+                                )}
                                 {g.events.map((ev) => (
                                   <EventDetailBlock
                                     key={ev.id}

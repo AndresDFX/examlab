@@ -135,6 +135,9 @@ export function useRealtimeTimer({
         else if (ctrl.action === "add_time") appliedAddTimeRef.current.add(ctrl.id);
       }
       setIsPaused(paused);
+      // Sync: el estado pausado histórico NO es una transición nueva (no toast al
+      // cargar en un examen ya pausado).
+      lastPausedNotifiedRef.current = paused;
       baselineLoadedRef.current = true; // habilita el poll (baseline sembrado)
     })();
   }, [examId, userId]);
@@ -160,10 +163,12 @@ export function useRealtimeTimer({
             case "pause":
               setIsPaused(true);
               onPauseRef.current?.();
+              lastPausedNotifiedRef.current = true;
               break;
             case "resume":
               setIsPaused(false);
               onResumeRef.current?.();
+              lastPausedNotifiedRef.current = false;
               break;
             case "add_time":
               // Dedup por id: si el poll ya lo aplicó, no re-sumar.
@@ -187,6 +192,10 @@ export function useRealtimeTimer({
 
   // Polling fallback: re-fetch controls every 4 s in case Realtime doesn't fire
   const lastPollRef = useRef<string | null>(null);
+  // Último estado pausa/reanuda YA notificado al alumno (vía Realtime o poll). El
+  // poll emite el toast SOLO en transición contra este ref → cubre el caso de
+  // Realtime-miss sin duplicar el aviso en cada control posterior.
+  const lastPausedNotifiedRef = useRef(false);
   useEffect(() => {
     if (!examId || !userId) return;
 
@@ -229,6 +238,13 @@ export function useRealtimeTimer({
           appliedAddTimeRef.current.add(ctrl.id);
           newExtra += ctrl.extra_seconds;
         }
+      }
+      // Notificar pausa/reanudación SOLO en transición (si Realtime perdió el evento
+      // el poll lo recupera; antes congelaba el reloj sin avisar al alumno).
+      if (paused !== lastPausedNotifiedRef.current) {
+        lastPausedNotifiedRef.current = paused;
+        if (paused) onPauseRef.current?.();
+        else onResumeRef.current?.();
       }
       setIsPaused(paused);
       if (newExtra > 0) {

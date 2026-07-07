@@ -352,8 +352,9 @@ Deno.serve(async (req) => {
 
 function sanitizeSuggestion(raw: string): string {
   const s = (raw ?? "").trim();
-  if (!s) {
-    return "No pude generar una sugerencia en este momento. Reformula el caso o inténtalo de nuevo.";
-  }
+  // Vacío (contenido filtrado / tool-call sin texto) → devolvemos "" para que el
+  // cliente dispare su propio guard `if (!suggestion)` y muestre un ERROR, en vez
+  // de presentar una disculpa como sugerencia "lista" con toast de éxito.
+  if (!s) return "";
   return s.length > MAX_SUGGESTION_CHARS ? s.slice(0, MAX_SUGGESTION_CHARS - 1) + "…" : s;
 }

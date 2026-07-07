@@ -947,7 +947,7 @@ function CourseBoardPage() {
   /** Al elegir una fecha en el form de creación, prefija hora + duración
    *  desde el horario del curso SI el docente no las tocó manualmente. */
   const onDraftDatePicked = (v: string) => {
-    if (editingId) setEditingId(null);
+    if (editingId) cancelEdit();
     setDraftDate(v);
     if (!v || draftTimeTouched) return;
     const block = scheduleBlockForDate(v);
@@ -1305,7 +1305,7 @@ function CourseBoardPage() {
               type="time"
               value={editingId ? "" : draftStartTime}
               onChange={(e) => {
-                if (editingId) setEditingId(null);
+                if (editingId) cancelEdit();
                 setDraftTimeTouched(true);
                 setDraftStartTime(e.target.value);
               }}
@@ -1321,7 +1321,7 @@ function CourseBoardPage() {
               step={5}
               value={editingId ? "" : draftDuration}
               onChange={(e) => {
-                if (editingId) setEditingId(null);
+                if (editingId) cancelEdit();
                 setDraftTimeTouched(true);
                 setDraftDuration(Number(e.target.value) || 90);
               }}
@@ -1333,7 +1333,7 @@ function CourseBoardPage() {
             <Input
               value={editingId ? "" : draftTitle}
               onChange={(e) => {
-                if (editingId) setEditingId(null);
+                if (editingId) cancelEdit();
                 setDraftTitle(e.target.value);
               }}
               placeholder={t("course.boardSessionTitlePlaceholder")}
@@ -1346,7 +1346,7 @@ function CourseBoardPage() {
               type="url"
               value={editingId ? "" : draftMeetingUrl}
               onChange={(e) => {
-                if (editingId) setEditingId(null);
+                if (editingId) cancelEdit();
                 setDraftMeetingUrl(e.target.value);
               }}
               placeholder="https://meet.google.com/…"
@@ -1361,7 +1361,7 @@ function CourseBoardPage() {
               type="url"
               value={editingId ? "" : draftRecordingUrl}
               onChange={(e) => {
-                if (editingId) setEditingId(null);
+                if (editingId) cancelEdit();
                 setDraftRecordingUrl(e.target.value);
               }}
               placeholder={t("hc_routesAppTeacherBoardCourseId.recordingUrlPlaceholder")}
@@ -1378,7 +1378,7 @@ function CourseBoardPage() {
               type="url"
               value={editingId ? "" : draftNotesUrl}
               onChange={(e) => {
-                if (editingId) setEditingId(null);
+                if (editingId) cancelEdit();
                 setDraftNotesUrl(e.target.value);
               }}
               placeholder={t("hc_routesAppTeacherBoardCourseId.notesUrlPlaceholder")}

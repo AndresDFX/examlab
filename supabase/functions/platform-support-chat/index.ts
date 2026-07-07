@@ -180,13 +180,22 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (!message || typeof message !== "string" || message.trim().length === 0) {
+    if (!message || typeof message !== "string") {
       return new Response(JSON.stringify({ error: "Mensaje vacío" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    // Validar sobre el valor YA recortado (lo que se persiste): un mensaje de solo
+    // espacios que exceda el cap quedaría "" tras slice+trim y violaría el CHECK
+    // char_length>=1 en el INSERT (500 tras gastar la llamada a IA).
     const trimmedMessage = message.slice(0, MAX_USER_MESSAGE_LENGTH).trim();
+    if (!trimmedMessage) {
+      return new Response(JSON.stringify({ error: "Mensaje vacío" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Validar dueño de la sesión + obtener tenant_id.
     const { data: session, error: sErr } = await admin
