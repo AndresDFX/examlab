@@ -2215,7 +2215,9 @@
     "editSave": "Save",
     "replyPlaceholder": "Write a comment…",
     "removeAttachment": "Remove",
-    "closedBanner": "The teacher closed this conversation."
+    "closedBanner": "The teacher closed this conversation.",
+    "deleteTitle": "Delete comment",
+    "deleteDescription": "Your comment will be permanently deleted."
   },
   "externalGrades": {
     "title": "External grades",
@@ -2703,7 +2705,10 @@
       "emptyComment": "The comment can't be empty",
       "sendFailed": "Couldn't send the comment",
       "threadClosed": "Conversation closed",
-      "threadReopened": "Conversation reopened"
+      "threadReopened": "Conversation reopened",
+      "unknownReason": "unknown",
+      "editFailed": "Couldn’t edit the comment",
+      "deleteFailed": "Couldn’t delete the comment"
     },
     "modules_grading_OpenFeedbackModal": {
       "conversationClosed": "Conversation closed"
@@ -8689,5 +8694,20 @@
     "download": "Download",
     "downloadAria": "Download {{name}}",
     "removeAria": "Remove {{name}}"
+  },
+  "hc_modulesAdminAdminEmailSettingsPanel": {
+    "suppressConfirmTitle": "Re-enable emails to this address",
+    "suppressConfirmDesc": "{{email}} will be removed from the suppression list and ExamLab will send emails to it again.",
+    "suppressionsTitle": "Suppressed addresses (bounces / mailbox full)",
+    "suppressBtn": "Suppress",
+    "emptyText": "No suppressed addresses",
+    "emptyHint": "When you add one, it will stop receiving emails.",
+    "globalBadge": "Global",
+    "rowRemoveLabel": "Remove from list",
+    "loadErrorFallback": "We couldn’t load the email settings."
+  },
+  "hc_modulesMessagingTagTextarea": {
+    "noTitle": "(untitled)",
+    "taggerHint": "Tag content — Enter to insert"
   }
 }

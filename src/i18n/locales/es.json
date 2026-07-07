@@ -2215,7 +2215,9 @@
     "editSave": "Guardar",
     "replyPlaceholder": "Escribe un comentario…",
     "removeAttachment": "Quitar",
-    "closedBanner": "El docente cerró esta conversación."
+    "closedBanner": "El docente cerró esta conversación.",
+    "deleteTitle": "Eliminar comentario",
+    "deleteDescription": "Se eliminará tu comentario de forma permanente."
   },
   "externalGrades": {
     "title": "Notas externas",
@@ -2703,7 +2705,10 @@
       "emptyComment": "El comentario no puede estar vacío",
       "sendFailed": "No se pudo enviar el comentario",
       "threadClosed": "Conversación cerrada",
-      "threadReopened": "Conversación reabierta"
+      "threadReopened": "Conversación reabierta",
+      "unknownReason": "desconocido",
+      "editFailed": "No se pudo editar el comentario",
+      "deleteFailed": "No se pudo eliminar el comentario"
     },
     "modules_grading_OpenFeedbackModal": {
       "conversationClosed": "Conversación cerrada"
@@ -8689,5 +8694,20 @@
     "download": "Descargar",
     "downloadAria": "Descargar {{name}}",
     "removeAria": "Quitar {{name}}"
+  },
+  "hc_modulesAdminAdminEmailSettingsPanel": {
+    "suppressConfirmTitle": "Reactivar envíos a esta dirección",
+    "suppressConfirmDesc": "Se quitará {{email}} de la lista de supresión y ExamLab volverá a enviarle correos. Hazlo solo si el buzón ya no rebota.",
+    "suppressionsTitle": "Direcciones suprimidas (rebotes / bandeja llena)",
+    "suppressBtn": "Suprimir",
+    "emptyText": "Sin direcciones suprimidas",
+    "emptyHint": "Cuando agregues una, dejará de recibir correos.",
+    "globalBadge": "Global",
+    "rowRemoveLabel": "Quitar de la lista",
+    "loadErrorFallback": "No pudimos cargar la configuración de email."
+  },
+  "hc_modulesMessagingTagTextarea": {
+    "noTitle": "(sin título)",
+    "taggerHint": "Etiquetar contenido — Enter para insertar"
   }
 }
