@@ -58,6 +58,7 @@ import { Route as AppForumCourseIdRouteImport } from './routes/app.forum.$course
 import { Route as AppAdminUsersRouteImport } from './routes/app.admin.users'
 import { Route as AppAdminSystemRouteImport } from './routes/app.admin.system'
 import { Route as AppAdminSupportRouteImport } from './routes/app.admin.support'
+import { Route as AppAdminSupportAssistantRouteImport } from './routes/app.admin.support-assistant'
 import { Route as AppAdminStatisticsRouteImport } from './routes/app.admin.statistics'
 import { Route as AppAdminSettingsRouteImport } from './routes/app.admin.settings'
 import { Route as AppAdminReportTemplatesRouteImport } from './routes/app.admin.report-templates'
@@ -333,6 +334,11 @@ const AppAdminSupportRoute = AppAdminSupportRouteImport.update({
   path: '/admin/support',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminSupportAssistantRoute = AppAdminSupportAssistantRouteImport.update({
+  id: '/admin/support-assistant',
+  path: '/admin/support-assistant',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAdminStatisticsRoute = AppAdminStatisticsRouteImport.update({
   id: '/admin/statistics',
   path: '/admin/statistics',
@@ -515,6 +521,7 @@ export interface FileRoutesByFullPath {
   '/app/admin/settings': typeof AppAdminSettingsRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/support': typeof AppAdminSupportRoute
+  '/app/admin/support-assistant': typeof AppAdminSupportAssistantRoute
   '/app/admin/system': typeof AppAdminSystemRoute
   '/app/admin/users': typeof AppAdminUsersRoute
   '/app/forum/$courseId': typeof AppForumCourseIdRouteWithChildren
@@ -593,6 +600,7 @@ export interface FileRoutesByTo {
   '/app/admin/settings': typeof AppAdminSettingsRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/support': typeof AppAdminSupportRoute
+  '/app/admin/support-assistant': typeof AppAdminSupportAssistantRoute
   '/app/admin/system': typeof AppAdminSystemRoute
   '/app/admin/users': typeof AppAdminUsersRoute
   '/app/forum/$courseId': typeof AppForumCourseIdRouteWithChildren
@@ -674,6 +682,7 @@ export interface FileRoutesById {
   '/app/admin/settings': typeof AppAdminSettingsRoute
   '/app/admin/statistics': typeof AppAdminStatisticsRoute
   '/app/admin/support': typeof AppAdminSupportRoute
+  '/app/admin/support-assistant': typeof AppAdminSupportAssistantRoute
   '/app/admin/system': typeof AppAdminSystemRoute
   '/app/admin/users': typeof AppAdminUsersRoute
   '/app/forum/$courseId': typeof AppForumCourseIdRouteWithChildren
@@ -756,6 +765,7 @@ export interface FileRouteTypes {
     | '/app/admin/settings'
     | '/app/admin/statistics'
     | '/app/admin/support'
+    | '/app/admin/support-assistant'
     | '/app/admin/system'
     | '/app/admin/users'
     | '/app/forum/$courseId'
@@ -834,6 +844,7 @@ export interface FileRouteTypes {
     | '/app/admin/settings'
     | '/app/admin/statistics'
     | '/app/admin/support'
+    | '/app/admin/support-assistant'
     | '/app/admin/system'
     | '/app/admin/users'
     | '/app/forum/$courseId'
@@ -914,6 +925,7 @@ export interface FileRouteTypes {
     | '/app/admin/settings'
     | '/app/admin/statistics'
     | '/app/admin/support'
+    | '/app/admin/support-assistant'
     | '/app/admin/system'
     | '/app/admin/users'
     | '/app/forum/$courseId'
@@ -1318,6 +1330,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminSupportRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/admin/support-assistant': {
+      id: '/app/admin/support-assistant'
+      path: '/admin/support-assistant'
+      fullPath: '/app/admin/support-assistant'
+      preLoaderRoute: typeof AppAdminSupportAssistantRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/admin/statistics': {
       id: '/app/admin/statistics'
       path: '/admin/statistics'
@@ -1569,6 +1588,7 @@ interface AppRouteChildren {
   AppAdminSettingsRoute: typeof AppAdminSettingsRoute
   AppAdminStatisticsRoute: typeof AppAdminStatisticsRoute
   AppAdminSupportRoute: typeof AppAdminSupportRoute
+  AppAdminSupportAssistantRoute: typeof AppAdminSupportAssistantRoute
   AppAdminSystemRoute: typeof AppAdminSystemRoute
   AppAdminUsersRoute: typeof AppAdminUsersRoute
   AppForumCourseIdRoute: typeof AppForumCourseIdRouteWithChildren
@@ -1638,6 +1658,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAdminSettingsRoute: AppAdminSettingsRoute,
   AppAdminStatisticsRoute: AppAdminStatisticsRoute,
   AppAdminSupportRoute: AppAdminSupportRoute,
+  AppAdminSupportAssistantRoute: AppAdminSupportAssistantRoute,
   AppAdminSystemRoute: AppAdminSystemRoute,
   AppAdminUsersRoute: AppAdminUsersRoute,
   AppForumCourseIdRoute: AppForumCourseIdRouteWithChildren,

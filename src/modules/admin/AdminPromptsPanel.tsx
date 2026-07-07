@@ -35,6 +35,9 @@ import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { formatDateTime } from "@/shared/lib/format";
 import { StatCard } from "@/components/ui/stat-card";
+// Byte-idéntico con el seed SQL (20261063000020) y el FALLBACK del edge
+// `platform-support-chat` — ver invariante en CLAUDE.md.
+import { PLATFORM_SUPPORT_FALLBACK } from "@/modules/support-assistant/support-prompt";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -57,7 +60,8 @@ type UseCase =
   | "content.ejercicio"
   | "content.examen"
   | "tutor_chat"
-  | "report_generation";
+  | "report_generation"
+  | "platform_support";
 
 /** Categorización por módulo para el filtro de la UI. NO se persiste —
  * solo agrupa visualmente los prompts en el Select de filtro. Si se
@@ -77,7 +81,8 @@ type PromptModule =
   | "contents"
   | "branding"
   | "tutor"
-  | "reports";
+  | "reports"
+  | "support";
 
 type UseCaseDef = {
   key: UseCase;
@@ -97,6 +102,7 @@ const MODULE_LABEL_KEYS: Record<PromptModule, string> = {
   branding: "adminPromptsPanel.filterModuleBranding",
   tutor: "adminPromptsPanel.filterModuleTutor",
   reports: "adminPromptsPanel.filterModuleReports",
+  support: "adminPromptsPanel.filterModuleSupport",
 };
 
 // Sincronizado con seeds de la migración 20260508100000_ai_prompts.sql.
@@ -264,6 +270,14 @@ const USE_CASES: UseCaseDef[] = [
       "System prompt de la acción 'Generación IA' del editor de plantillas de informes (inserta contenido en el cursor). El user message dinámico (instrucción del docente + variables disponibles + datos reales del curso) lo arma el código; aquí se edita el ROL/criterio. Debe mantener la instrucción de usar placeholders {{...}} para que el resultado siga siendo una plantilla reutilizable.",
     defaultPrompt:
       "Eres un asistente que redacta secciones de informes académicos para un docente.\nEscribe en español (es-CO), tono formal e institucional, claro y conciso.\nEl texto que produces es una PLANTILLA: cuando un dato provenga de las variables\ndisponibles, inserta el placeholder con doble llave (por ejemplo {{estudiante.nombre}})\nEN LUGAR del valor concreto, para que el sistema lo reemplace luego por cada\nestudiante o curso. Usa los valores concretos solo como referencia de contexto.\nDevuelve únicamente el texto/HTML de la sección, sin explicaciones ni comentarios,\nsin envolver en bloques de código.",
+  },
+  {
+    key: "platform_support",
+    module: "support",
+    label: "Asistente IA de plataforma",
+    description:
+      "System prompt del Asistente IA de plataforma (Admin → módulo 'Asistente IA'). El asistente responde dudas de USO/configuración de ExamLab anclado a la documentación (platform_kb_docs). Placeholders: {{admin_name}}, {{tenant_name}}, {{current_datetime}} y {{platform_kb}} (la documentación se inyecta desde el código). Debe mantenerse byte-idéntico con el seed y el fallback del edge.",
+    defaultPrompt: PLATFORM_SUPPORT_FALLBACK,
   },
 ];
 
@@ -669,13 +683,23 @@ export function AdminPromptsPanel() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t("adminPromptsPanel.filterModuleAll")}</SelectItem>
-              {(["exams", "workshops", "projects", "fraud", "contents", "tutor", "branding"] as const).map(
-                (m) => (
-                  <SelectItem key={m} value={m}>
-                    {getModuleLabel(m)}
-                  </SelectItem>
-                ),
-              )}
+              {(
+                [
+                  "exams",
+                  "workshops",
+                  "projects",
+                  "fraud",
+                  "contents",
+                  "tutor",
+                  "reports",
+                  "support",
+                  "branding",
+                ] as const
+              ).map((m) => (
+                <SelectItem key={m} value={m}>
+                  {getModuleLabel(m)}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

@@ -159,6 +159,9 @@ const MODULES: Array<{
   // Estudiante no tienen pantalla — sus toggles quedan no-op. Cuando el
   // Admin abre un ticket, dispara una notif a todos los SA.
   { key: "support", label: "Soporte" },
+  // Asistente IA de plataforma — chat de ayuda de uso para el Admin.
+  // Solo aplica a Admin y SuperAdmin (Docente/Estudiante sin pantalla).
+  { key: "support_assistant", label: "Asistente IA" },
   // Sidebar dice "Videos" — quitamos "Biblioteca de" del label aunque
   // el módulo SEA conceptualmente una biblioteca.
   { key: "videos", label: "Videos" },

@@ -45,6 +45,11 @@ export type ModuleKey =
   // SuperAdmin los gestiona desde /app/superadmin/support. No aplica a
   // Docente/Estudiante. Adjuntos en bucket `support-attachments`.
   | "support"
+  // Asistente IA de plataforma — chat de ayuda de USO de ExamLab para el
+  // Admin (`/app/admin/support-assistant`). Clon del Tutor IA sin curso;
+  // el contexto es la documentación de uso (platform_kb_docs). SuperAdmin
+  // lo hereda de Admin. Seed en migración 20261063000030.
+  | "support_assistant"
   | "dashboard"
   | "videos"
   | "contents"

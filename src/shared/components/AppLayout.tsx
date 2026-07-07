@@ -92,6 +92,7 @@ import {
   HelpCircle,
   Trash2,
   LifeBuoy,
+  Bot,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useState, useEffect } from "react";
@@ -411,6 +412,15 @@ const NAV: NavItem[] = [
   // SuperAdmin la ve heredada de Admin. RLS de cada tabla acota qué
   // items ven en la papelera (docente: su curso; admin: su tenant).
   { to: "/app/trash", labelKey: "nav.trash", icon: Trash2, roles: ["Docente", "Admin"] },
+  // Asistente IA de plataforma — chat de ayuda de USO de ExamLab para el
+  // Admin (clon del Tutor IA del alumno, sin curso). Va antes de Soporte:
+  // primero el autoservicio, luego el ticket. SuperAdmin lo hereda de Admin.
+  {
+    to: "/app/admin/support-assistant",
+    labelKey: "nav.supportAssistant",
+    icon: Bot,
+    roles: ["Admin"],
+  },
   // Soporte (PQRS) — Admin abre tickets hacia el SuperAdmin; el SA los
   // gestiona en su propia ruta. Ambos items mapean al MISMO module_key
   // "support" para que el orden/visibility del panel "Módulos" actúe
@@ -937,6 +947,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     // mapping el ítem del sidebar ignoraba el toggle de orden/visibility
     // del panel "Módulos" — bug detectado en auditoría 2026-09.
     ["/app/superadmin/tenants", "tenants"],
+    // Asistente IA de plataforma (Admin; SuperAdmin lo hereda). Mapea a
+    // su propio module_key para respetar orden/visibility del panel.
+    ["/app/admin/support-assistant", "support_assistant"],
     // Soporte (Admin + SuperAdmin): el panel "Módulos" tiene UNA fila
     // "support" que decide visibility/orden para ambos lados a la vez.
     ["/app/admin/support", "support"],
