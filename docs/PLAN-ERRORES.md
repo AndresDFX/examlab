@@ -100,6 +100,29 @@ live; los cambios de cliente/edge requieren **Publish** en Lovable._
 
 ---
 
+## Ronda 4 — ✅ RLS profundo (barrido empírico cross-tenant, 5 leaks cerrados, 2026-07-07)
+
+Metodología: como un estudiante real (tenant FESNA, matriculado en 1 curso), contar filas visibles
+en cada tabla hija de curso vía `SET LOCAL ROLE authenticated` + jwt claims (tx rolled-back). Todo
+lo course-specific de cursos ajenos = leak. Fixes verificados ANTES→DESPUÉS + aplicados live.
+
+- **forum_upvotes** `SELECT USING (true)` → cualquiera leía todos los upvotes cross-tenant. Fix:
+  `user_id = auth.uid() OR is_super_admin()`. `913fbc1d`.
+- **exams / workshops / projects** `*_select_in_tenant`: rama estudiante era `course_in_my_tenant AND
+  no-borrada` (sin asignación) → veía TODOS los del tenant (probado: 6 talleres sin asignación). Fix:
+  rama estudiante exige `EXISTS(*_assignments.user_id = auth.uid())`. `783a8fe4`.
+- **course_enrollments / course_teachers** `USING (course_in_my_tenant)` → estudiante veía las 195
+  matrículas del tenant + 4 asignaciones docente. Fix: propias + Admin(tenant) + docente-del-curso /
+  matriculado, con helpers SECDEF `_teaches_course` / `_is_enrolled_in_course` (evitan recursión RLS).
+  `bb176730`.
+
+Barrido round 2 (submissions, workshop/project_submissions, attendance_records, poll_responses,
+similarity_pairs, session_code_snippets, kahoot_*, generated_reports, exam_assignments,
+tutor_chat_messages, group_chats): **todos 0** (bien scopeados). `whiteboard_pages` (4) y
+`report_templates` (5) verificados legítimos (páginas del curso matriculado / plantillas globales).
+`ai_prompts` (29) abierto by-design. Suman a whiteboards (`20261061`) + attendance_sessions
+(`20261065`) de esta misma sesión.
+
 ## Cómo seguir
 
 1. **Cada ronda**: (a) revisar `audit_logs` de prod; (b) lanzar workflow `find→verify` sobre
