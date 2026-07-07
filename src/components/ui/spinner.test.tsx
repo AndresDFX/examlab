@@ -3,11 +3,12 @@ import { render, screen } from "@testing-library/react";
 import { Spinner } from "./spinner";
 
 describe("Spinner", () => {
-  it("renderiza con role status y label por defecto 'Cargando'", () => {
+  it("renderiza con role status y label por defecto (common.loading)", () => {
     render(<Spinner />);
     const spinner = screen.getByRole("status");
     expect(spinner).toBeInTheDocument();
-    expect(spinner).toHaveAttribute("aria-label", "Cargando");
+    // El default ahora reusa la clave compartida common.loading ("Cargando…").
+    expect(spinner).toHaveAttribute("aria-label", "Cargando…");
   });
 
   it("respeta label custom", () => {
