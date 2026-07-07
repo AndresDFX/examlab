@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
+import i18n from "@/i18n";
 import { Spinner } from "./spinner";
 
 describe("Spinner", () => {
@@ -7,8 +8,16 @@ describe("Spinner", () => {
     render(<Spinner />);
     const spinner = screen.getByRole("status");
     expect(spinner).toBeInTheDocument();
-    // El default ahora reusa la clave compartida common.loading ("Cargando…").
-    expect(spinner).toHaveAttribute("aria-label", "Cargando…");
+    // El default reusa la clave compartida common.loading. Derivamos el
+    // valor esperado del MISMO i18n que usa el componente (misma clave +
+    // defaultValue) en vez de hardcodear el literal: así el test no se
+    // rompe si el texto del catálogo cambia (fue "Cargando", hoy
+    // "Cargando…") ni depende de cómo el entorno cargue el catálogo — que
+    // fue justo lo que puso el pipeline en rojo.
+    expect(spinner).toHaveAttribute(
+      "aria-label",
+      i18n.t("common.loading", { defaultValue: "Cargando" }),
+    );
   });
 
   it("respeta label custom", () => {
