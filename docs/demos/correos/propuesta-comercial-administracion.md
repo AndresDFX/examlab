@@ -46,6 +46,19 @@ Mismas franjas que la suscripción estándar de ExamLab (por cantidad de usuario
 
 > **De dónde salen los números:** la suscripción estándar de ExamLab (plataforma con **auto-administración**) cuesta **$99 / $299 / $1.000** al mes en esas mismas franjas. Esta propuesta **agrega la administración por mi cuenta**, por eso los valores van por encima — **$249 / $649 / $1.900**. El diferencial (~**$150 / $350 / $900** al mes) cubre el montaje, la gestión de usuarios, la configuración, el soporte y la operación. **IA:** la institución pone su propia API key (sin costo de IA para mí) o se incluye como **add-on** medido por consumo.
 
+## Modelo de IA — ustedes controlan el gasto (Cola de procesamiento)
+
+La IA viene **incluida** (genera y califica exámenes, talleres y proyectos; **tutor IA** para estudiantes; **asistente IA de plataforma** para el administrador; detección de copia). Lo importante para el presupuesto: **el costo de la IA lo controlan ustedes**.
+
+- **Su propia API key** (Gemini / OpenAI): la IA corre con su clave → **sin sobrecosto de IA** de mi parte.
+- **O como add-on medido por consumo**, si prefieren no gestionar la clave (yo la administro y se factura por uso).
+- **Cola de procesamiento IA:** eligen modo **inmediato** (la IA responde al instante) o **en cola** (se procesa por lotes) para controlar **cuándo y cuánto** corre la IA — gasto predecible y sin bloquear la plataforma.
+- **Alta disponibilidad:** claves de respaldo con **failover automático** — si una clave agota su cuota, la IA sigue con la siguiente, sin caídas.
+
+> En el **demo** la IA se ve en vivo: generación de preguntas/contenido y calificación con retroalimentación.
+
+---
+
 **Condiciones:**
 - **Facturación mensual o anual** (anual con descuento). Sin cuota de entrada más allá del onboarding.
 - **Onboarding inicial** (carga de usuarios + configuración): incluido en el primer mes / o valor único según tamaño.
