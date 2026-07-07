@@ -264,11 +264,21 @@ export function FeedbackThread({
     if (!ok) return;
     setDeletingId(c.id);
     try {
+      // Rutas de los adjuntos ANTES de borrar (las filas feedback_attachments
+      // caen por cascade, pero los objetos del bucket quedarían HUÉRFANOS).
+      const attachmentPaths = (c.attachments ?? []).map((a) => a.path).filter(Boolean);
       const { error } = await db.from("feedback_comments").delete().eq("id", c.id);
       if (error) {
         console.error("[FeedbackThread] delete comment", error);
         toast.error(friendlyError(error, "No se pudo eliminar el comentario"));
         return;
+      }
+      // Limpiar los adjuntos del Storage (best-effort; no bloquea el borrado ya hecho).
+      if (attachmentPaths.length > 0) {
+        const { error: rmErr } = await supabase.storage
+          .from("feedback-attachments")
+          .remove(attachmentPaths);
+        if (rmErr) console.warn("[FeedbackThread] remove attachments del storage", rmErr);
       }
       setComments((prev) => prev.filter((x) => x.id !== c.id));
     } finally {

@@ -253,13 +253,18 @@ export function AdminMyTenantPanel() {
       return;
     }
     setSaving(true);
+    // Path del logo ANTES de guardar: si al reemplazar (nuevo path por otro
+    // nombre/extensión) o quitar el logo el path cambia, el objeto viejo del
+    // bucket queda HUÉRFANO. Lo capturamos para limpiarlo tras el update.
+    const oldLogoPath = ((tenant as { logo_path?: string | null }).logo_path ?? "").trim();
+    const newLogoPath = form.logo_path.trim();
     const { error: rpcErr } = await db.rpc("admin_update_my_tenant", {
       _name: form.name.trim(),
       _logo_url: form.logo_url.trim() || null,
       _primary_color: form.primary_color.trim() || null,
       _email_domain: form.email_domain.trim().toLowerCase() || null,
       _secondary_color: form.secondary_color.trim() || null,
-      _logo_path: form.logo_path.trim() || null,
+      _logo_path: newLogoPath || null,
       _text_color: form.text_color.trim() || null,
       _icon_color: form.icon_color.trim() || null,
     });
@@ -267,6 +272,12 @@ export function AdminMyTenantPanel() {
     if (rpcErr) {
       toast.error(friendlyError(rpcErr, t("hc_modulesAdminAdminMyTenantPanel.saveFailed")));
       return;
+    }
+    // Borrar el logo anterior del bucket si cambió (reemplazo) o se quitó
+    // (newLogoPath vacío). Best-effort: no bloquea el guardado ya aplicado.
+    if (oldLogoPath && oldLogoPath !== newLogoPath) {
+      const { error: rmErr } = await supabase.storage.from("tenant-logos").remove([oldLogoPath]);
+      if (rmErr) console.warn("[AdminMyTenantPanel] remove logo anterior del storage", rmErr);
     }
     toast.success(
       i18n.t("toast.modules_admin_AdminMyTenantPanel.tenantUpdated", {
