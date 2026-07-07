@@ -24,6 +24,31 @@ export function downloadCSV(filename: string, csv: string) {
   URL.revokeObjectURL(url);
 }
 
+/**
+ * Decodifica los bytes de un CSV respetando el charset. `File.text()` y
+ * `TextDecoder("utf-8")` asumen UTF-8, pero Excel en Windows (es-CO) guarda
+ * "CSV delimitado por comas" en Windows-1252/Latin-1 → tildes y ñ salían como
+ * mojibake ("Cárdenas" → "CÃ¡rdenas") en profiles/certificados/actas.
+ * Intentamos UTF-8 estricto; si los bytes NO son UTF-8 válido, es un CSV
+ * Latin-1 de Excel → windows-1252. Quitamos el BOM inicial si viene.
+ */
+export function decodeCsvBuffer(buf: ArrayBuffer): string {
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
+  } catch {
+    text = new TextDecoder("windows-1252").decode(buf);
+  }
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1); // BOM defensivo
+  return text;
+}
+
+/** Lee un `File` de CSV y lo decodifica con detección de charset (UTF-8 con
+ *  fallback a Windows-1252). Ver `decodeCsvBuffer`. */
+export async function readCsvFile(file: File): Promise<string> {
+  return decodeCsvBuffer(await file.arrayBuffer());
+}
+
 export function parseCSV(text: string): Record<string, string>[] {
   // Parser RFC 4180 char-a-char: el estado de comillas cruza saltos de línea,
   // así que un campo entrecomillado con `\n` interno (ej. defense_notes de

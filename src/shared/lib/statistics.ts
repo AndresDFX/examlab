@@ -256,7 +256,13 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
       ref_id: String(s.workshop_id),
       course_id: parent?.course_id ?? courseId,
       cut_id: parent?.cut_id ?? null,
-      max_score: Number(parent?.max_score ?? 100),
+      // Actividad EXTERNA: su nota se registra en la ESCALA DEL CURSO (0..grade_scale_max),
+      // no sobre max_score (ver ExternalGradesEditor). Fijar max_score = grade_scale_max hace
+      // que el reescalado (g/max)*courseMax sea identidad — igual que exámenes. Sin esto, una
+      // nota externa 4,5 se distorsionaba a (4,5/100)*5 = 0,225.
+      max_score: parent?.is_external
+        ? Number(course?.grade_scale_max ?? 1)
+        : Number(parent?.max_score ?? 100),
       is_external: !!parent?.is_external,
     };
   });
@@ -276,7 +282,10 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
       ref_id: String(s.project_id),
       course_id: parent?.course_id ?? courseId,
       cut_id: parent?.cut_id ?? null,
-      max_score: Number(parent?.max_score ?? 100),
+      // Externa → nota en escala del curso; reescalado identidad (ver workshopSubs arriba).
+      max_score: parent?.is_external
+        ? Number(course?.grade_scale_max ?? 1)
+        : Number(parent?.max_score ?? 100),
       is_external: !!parent?.is_external,
     };
   });

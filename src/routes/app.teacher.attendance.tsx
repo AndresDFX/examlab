@@ -77,7 +77,7 @@ import {
   Copy,
 } from "lucide-react";
 import { toCSV } from "@/shared/lib/csv";
-import { formatDateShort, formatSessionLabel } from "@/shared/lib/format";
+import { formatDateShort, formatSessionLabel, todayLocalISO } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation, Trans } from "react-i18next";
@@ -216,7 +216,7 @@ function TeacherAttendance() {
   const [studentSearch, setStudentSearch] = useState("");
   const [records, setRecords] = useState<Record_[]>([]);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
-  const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0]);
+  const [newDate, setNewDate] = useState(todayLocalISO());
   // Hora local (HH:MM 24h). El docente edita start y end; al guardar
   // calculamos `duration_minutes = end - start`. Es más natural que
   // pedir "duración" — el docente piensa en términos de "9:00-10:30",

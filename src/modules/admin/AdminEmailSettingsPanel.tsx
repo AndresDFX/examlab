@@ -201,7 +201,11 @@ function EmailSuppressionsCard({
     const email = newEmail.trim().toLowerCase();
     // Validación básica de email (no exhaustiva — el envío real valida más).
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-      toast.error("Ingresa un correo válido.");
+      toast.error(
+        i18n.t("toast.modules_admin_AdminEmailSettingsPanel.invalidEmail", {
+          defaultValue: "Ingresa un correo válido.",
+        }),
+      );
       return;
     }
     setAdding(true);
@@ -217,7 +221,11 @@ function EmailSuppressionsCard({
       setAdding(false);
       return;
     }
-    toast.success("Dirección agregada a la lista de supresión.");
+    toast.success(
+      i18n.t("toast.modules_admin_AdminEmailSettingsPanel.suppressionAdded", {
+        defaultValue: "Dirección agregada a la lista de supresión.",
+      }),
+    );
     void logEvent({
       action: "email_suppression.added",
       category: "system",
@@ -242,7 +250,11 @@ function EmailSuppressionsCard({
       toast.error(friendlyError(error));
       return;
     }
-    toast.success("Dirección reactivada.");
+    toast.success(
+      i18n.t("toast.modules_admin_AdminEmailSettingsPanel.suppressionRemoved", {
+        defaultValue: "Dirección reactivada.",
+      }),
+    );
     void logEvent({
       action: "email_suppression.removed",
       category: "system",

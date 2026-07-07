@@ -47,13 +47,21 @@ export function useRealtimeTimer({
   // (los add_time pre-existentes YA vienen en initialSeconds); evita que el poll
   // los re-sume por una carrera con el load.
   const baselineLoadedRef = useRef(false);
-  // onTimeAdded via ref: el poll NO puede tenerlo en sus deps (el padre lo pasa
-  // inline y re-renderiza cada segundo por el tick → resetearía el interval de 4s
-  // y el fallback nunca dispararía).
+  // Callbacks via ref: el padre (TakeExam) los pasa INLINE y re-renderiza CADA
+  // SEGUNDO por el tick del timer. Si onTimeAdded/onPause/onResume estuvieran en
+  // las deps de los efectos de poll y de suscripción Realtime, esos efectos se
+  // recrearían cada segundo → el poll resetearía su interval de 4s (y nunca
+  // dispararía) y el canal Realtime se removería + re-suscribiría cada segundo
+  // (churn + ventana en la que se pierden eventos add_time — causa raíz del tiempo
+  // extra perdido). Con refs, ambos efectos dependen solo de [examId, userId].
   const onTimeAddedRef = useRef(onTimeAdded);
+  const onPauseRef = useRef(onPause);
+  const onResumeRef = useRef(onResume);
   useEffect(() => {
     onTimeAddedRef.current = onTimeAdded;
-  }, [onTimeAdded]);
+    onPauseRef.current = onPause;
+    onResumeRef.current = onResume;
+  }, [onTimeAdded, onPause, onResume]);
 
   // Initialize secondsLeft once initialSeconds becomes available (exam loaded after mount)
   useEffect(() => {
@@ -151,18 +159,18 @@ export function useRealtimeTimer({
           switch (ctrl.action) {
             case "pause":
               setIsPaused(true);
-              onPause?.();
+              onPauseRef.current?.();
               break;
             case "resume":
               setIsPaused(false);
-              onResume?.();
+              onResumeRef.current?.();
               break;
             case "add_time":
               // Dedup por id: si el poll ya lo aplicó, no re-sumar.
               if (!appliedAddTimeRef.current.has(ctrl.id)) {
                 appliedAddTimeRef.current.add(ctrl.id);
                 setSecondsLeft((s) => s + ctrl.extra_seconds);
-                onTimeAdded?.(ctrl.extra_seconds);
+                onTimeAddedRef.current?.(ctrl.extra_seconds);
               }
               break;
           }
@@ -173,7 +181,9 @@ export function useRealtimeTimer({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [examId, userId, onPause, onResume, onTimeAdded]);
+    // Callbacks via ref (arriba) → deps SOLO [examId, userId] para no re-suscribir
+    // el canal cada segundo cuando el padre re-renderiza por el tick.
+  }, [examId, userId]);
 
   // Polling fallback: re-fetch controls every 4 s in case Realtime doesn't fire
   const lastPollRef = useRef<string | null>(null);

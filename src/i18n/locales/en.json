@@ -2419,7 +2419,10 @@
       "secretDeleted": "Secret \"{{name}}\" deleted"
     },
     "modules_admin_AdminEmailSettingsPanel": {
-      "savedOk": "Settings saved"
+      "savedOk": "Settings saved",
+      "invalidEmail": "Enter a valid email address.",
+      "suppressionAdded": "Address added to the suppression list.",
+      "suppressionRemoved": "Address reactivated."
     },
     "modules_admin_AdminGeneralSettingsPanel": {
       "passingGradeOutOfRange": "The minimum passing grade must be between {{min}} and {{max}}",

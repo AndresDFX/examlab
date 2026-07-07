@@ -25,7 +25,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Check, PlayCircle, AlertTriangle, Lock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Check, PlayCircle, AlertTriangle, Lock, RotateCcw } from "lucide-react";
 import { isHostedVideo, toEmbedUrl } from "@/shared/lib/video-embed";
 
 export interface IntroVideo {
@@ -159,7 +160,20 @@ function SingleVideoPlayer({
   const maxSeenRef = useRef(0);
   const [progress, setProgress] = useState(0);
   const firedRef = useRef(false);
+  // Un video roto (URL caída / formato no soportado) NUNCA dispara
+  // `onEnded`, así que sin esta ruta de error el alumno quedaba trabado
+  // sin poder satisfacer el gate → no podía entregar. `loadError` muestra
+  // un fallback con "Reintentar" + "Continuar de todos modos".
+  const [loadError, setLoadError] = useState(false);
+  // Bumpea el `key` del <video> para forzar un remount (reintento de carga).
+  const [reloadNonce, setReloadNonce] = useState(0);
   const kind = isHostedVideo(video.url);
+
+  const markWatched = () => {
+    if (firedRef.current) return;
+    firedRef.current = true;
+    onWatched();
+  };
 
   // Reset al cambiar de video (el `key` del map padre desmonta+monta
   // este SingleVideoPlayer al avanzar el activo, pero el reset
@@ -168,9 +182,14 @@ function SingleVideoPlayer({
     maxSeenRef.current = 0;
     firedRef.current = false;
     setProgress(0);
+    setLoadError(false);
+    setReloadNonce(0);
   }, [video.id]);
 
-  // Camino hosted (YouTube/Vimeo) — sin gate técnico.
+  // Camino hosted (YouTube/Vimeo) — sin gate técnico. Un iframe roto NO
+  // bloquea la entrega: el alumno igual dispone del botón "Ya vi este
+  // video completo", que satisface el gate independientemente de si el
+  // embed cargó (los iframes cross-origin tampoco emiten onError fiable).
   if (kind !== "direct") {
     return (
       <div className="space-y-2">
@@ -186,11 +205,7 @@ function SingleVideoPlayer({
         <div className="flex justify-end">
           <button
             type="button"
-            onClick={() => {
-              if (firedRef.current) return;
-              firedRef.current = true;
-              onWatched();
-            }}
+            onClick={markWatched}
             className="text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground inline-flex items-center gap-1.5"
           >
             <PlayCircle className="h-3.5 w-3.5" />
@@ -201,17 +216,53 @@ function SingleVideoPlayer({
     );
   }
 
+  // Camino directo (MP4/WebM) — el video no cargó: fallback que NO
+  // bloquea la entrega. El alumno puede reintentar o continuar de todos
+  // modos (un video roto no debe impedirle entregar).
+  if (loadError) {
+    return (
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription className="space-y-2 text-xs">
+          <p>
+            No se pudo cargar el video. Es posible que el enlace esté roto o que el formato no sea
+            compatible con tu navegador.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setLoadError(false);
+                setReloadNonce((n) => n + 1);
+              }}
+            >
+              <RotateCcw className="h-3.5 w-3.5 mr-1" />
+              Reintentar
+            </Button>
+            <Button size="sm" onClick={markWatched}>
+              <Check className="h-3.5 w-3.5 mr-1" />
+              Continuar de todos modos
+            </Button>
+          </div>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   // Camino directo (MP4/WebM) — gate estricto.
   return (
     <div className="space-y-2">
       <div className="relative aspect-video w-full overflow-hidden rounded-md border bg-black">
         <video
+          key={reloadNonce}
           ref={videoRef}
           src={video.url}
           controls
           controlsList="nodownload"
           preload="metadata"
           className="absolute inset-0 w-full h-full object-contain"
+          onError={() => setLoadError(true)}
           onSeeking={() => {
             const v = videoRef.current;
             if (!v) return;
@@ -232,10 +283,8 @@ function SingleVideoPlayer({
             }
           }}
           onEnded={() => {
-            if (firedRef.current) return;
-            firedRef.current = true;
             setProgress(1);
-            onWatched();
+            markWatched();
           }}
         />
       </div>

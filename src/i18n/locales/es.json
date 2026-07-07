@@ -2419,7 +2419,10 @@
       "secretDeleted": "Secret \"{{name}}\" borrada"
     },
     "modules_admin_AdminEmailSettingsPanel": {
-      "savedOk": "Configuración guardada"
+      "savedOk": "Configuración guardada",
+      "invalidEmail": "Ingresa un correo válido.",
+      "suppressionAdded": "Dirección agregada a la lista de supresión.",
+      "suppressionRemoved": "Dirección reactivada."
     },
     "modules_admin_AdminGeneralSettingsPanel": {
       "passingGradeOutOfRange": "La nota mínima de aprobación debe estar entre {{min}} y {{max}}",

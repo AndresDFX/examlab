@@ -157,6 +157,21 @@ export function formatDateOnly(value: string | null | undefined, fallback = "—
 }
 
 /**
+ * Fecha de HOY como "YYYY-MM-DD" en la zona horaria LOCAL del usuario.
+ * Pensado para inicializar `<input type="date">` y otros defaults de
+ * fecha visibles al usuario.
+ *
+ * NO usar `new Date().toISOString().split("T")[0]`: `toISOString()`
+ * serializa en UTC, así que de noche en Colombia (UTC-5) devuelve la
+ * fecha de MAÑANA (bug reportado en el form de nueva sesión de
+ * asistencia). `en-CA` produce el mismo formato ISO "YYYY-MM-DD" pero
+ * anclado a la TZ local → sin corrimiento de un día.
+ */
+export function todayLocalISO(): string {
+  return new Date().toLocaleDateString("en-CA");
+}
+
+/**
  * Etiqueta unificada de una sesión de clase para selects/dropdowns:
  * "30 sep 2026 - Título" (con guion, formato pedido por el usuario).
  *

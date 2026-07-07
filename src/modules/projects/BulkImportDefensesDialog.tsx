@@ -34,7 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { FileDown, FileUp, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { downloadCSV, parseCSV } from "@/shared/lib/csv";
+import { downloadCSV, parseCSV, readCsvFile } from "@/shared/lib/csv";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
   DEFENSES_TEMPLATE,
@@ -140,7 +140,10 @@ export function BulkImportDefensesDialog({
     if (!file) return;
     setFileName(file.name);
     try {
-      const text = await file.text();
+      // Detección de charset (UTF-8 con fallback a Windows-1252): un CSV
+      // exportado desde Excel en Windows viene en Latin-1 y `file.text()`
+      // (UTF-8) lo dejaba con mojibake en tildes/ñ. Ver `readCsvFile`.
+      const text = await readCsvFile(file);
       const csvRows = parseCSV(text);
       if (!csvRows.length) {
         toast.error(
