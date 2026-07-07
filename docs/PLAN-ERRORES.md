@@ -9,7 +9,7 @@
 > se confirma lo reproducible). Los fixes se aplican con `tsc` EXIT=0 + tests dirigidos +
 > migraciones verificadas en tx rolled-back y aplicadas live a prod (`docker/restore.env`).
 >
-> **Última actualización**: 2026-07-04 (rondas 1-2 cerradas; ronda 3: 5 HIGH cerrados, 14 med/low pendientes).
+> **Última actualización**: 2026-07-07 (rondas 1-2-3 CERRADAS; ronda 3: 5 HIGH + 14 med/low todos resueltos; audit_logs sin errores nuevos accionables).
 
 ---
 
@@ -62,7 +62,7 @@ decisión de producto, no corrección.
 
 ---
 
-## Ronda 3 — 🔄 5 HIGH cerrados, 14 pendientes (workflow `wyjc0fh78`, 19 confirmados)
+## Ronda 3 — ✅ CERRADA (5 HIGH + 14 med/low, workflow `wyjc0fh78`, 19 confirmados)
 
 Módulos: cron · email · storage · realtime · trabajo en grupo · actividades externas ·
 duplicar · import/export · videos+gate · i18n. **0 critical, 5 HIGH, 8 medium, 6 low.**
@@ -77,25 +77,26 @@ duplicar · import/export · videos+gate · i18n. **0 critical, 5 HIGH, 8 medium
 - **H5 [import sustentaciones]** — template con factor `0,8` (coma) en CSV coma-delimitado →
   fila desalineada → factor 0 → nota final 0 SILENCIOSA. Template a `0.8` + guard de columnas.
 
-### ⏳ MEDIA pendientes (8)
-- **cron** `admin_list_cron_jobs` recreado sin `description`/JOIN → panel nunca muestra descripciones.
-- **email** `kind='support'` pasa el predicado SQL pero `send-email` lo descarta → correos de soporte no salen.
-- **realtime** `useRealtimeTimer` re-suscribe el canal CADA SEGUNDO (deps inestables) → causa raíz de eventos add_time perdidos (el poll ya lo mitiga; conviene usar refs para las callbacks del canal).
-- **trabajo en grupo (mixto)** asignar grupo a quien ya entregó individual oculta su entrega y viola UNIQUE.
-- **actividades externas** el reescalado de `statistics.ts` (workshops/projects) ignora `is_external`.
-- **import** `parseCSV` divide por saltos de línea ANTES de comillas → campos con newline corrompen round-trip.
-- **video** gate de MP4/WebM/MOV sin fallback ante error de carga → video no reproducible bloquea la entrega.
-- **i18n** default de fecha de nueva sesión de asistencia usa UTC (adelanta un día de noche en CO).
+### ✅ MEDIA cerradas (8) — commits del 2026-07-07
+- **cron** `admin_list_cron_jobs` recreado con `description` + LEFT JOIN a `cron_job_descriptions` — mig `20261067000000` (DROP+CREATE por cambio de RETURNS), live. `43ac6e06`.
+- **email** `kind='support'` agregado a `CRITICAL_KINDS` del edge + cliente (el gate on/off sigue upstream en `_notification_kind_emails` vía `platform_settings`). `64591fd3`.
+- **realtime** `useRealtimeTimer` — `onPause/onResume/onTimeAdded` movidos a refs; el efecto de suscripción depende solo de `[examId, userId]` (no re-suscribe cada segundo). `99da03ba`.
+- **trabajo en grupo (mixto)** trigger `tg_block_{ws,pr}_group_member_with_individual` bloquea (P0001) asignar a grupo a quien ya tiene entrega individual — mig `20261068000000`, live + verificado. `ddbd8443`.
+- **actividades externas** `statistics.ts` — items `is_external` usan `max_score = grade_scale_max` (reescalado identidad, su nota está en escala del curso). `99da03ba`.
+- **import** `parseCSV` reescrito como parser RFC 4180 char-a-char (estado de comillas cruza saltos de línea) + tests. `9337e3e4`.
+- **video** `IntroVideoGate` — `onError` en video directo con "Reintentar" + "Continuar de todos modos" (no bloquea la entrega). `99da03ba`.
+- **i18n/fecha** helper `todayLocalISO()` para el default de fecha de nueva sesión (era UTC). `99da03ba`.
 
-### ⏳ BAJA pendientes (6)
-- **email** `kind='attendance'` quedó fuera del predicado SQL → correos de check-in nunca disparan.
-- **storage** borrar un comentario de feedback no borra sus adjuntos (huérfanos).
-- **storage** reemplazar/quitar logo de tenant/certificado deja objetos huérfanos.
-- **import** `BulkImportDefensesDialog` usa `file.text()` (solo UTF-8) → mojibake en `defense_notes`.
-- **video** `toEmbedUrl` rompe URLs ya-embed de Vimeo (`player.vimeo.com/video/<id>`).
-- **i18n** toasts hardcodeados en español en `AdminEmailSettingsPanel`.
+### ✅ BAJA cerradas (6) — commits del 2026-07-07
+- **email** `kind='attendance'` agregado al predicado SQL `_notification_kind_emails` — mig `20261066000000`, live. `64591fd3`.
+- **storage** borrar comentario de feedback ahora remueve sus adjuntos del bucket. `66f61a5c`.
+- **storage** reemplazar/quitar logo de tenant remueve el objeto anterior de `tenant-logos` al guardar. `66f61a5c`.
+- **import** `BulkImportDefensesDialog` usa helper `readCsvFile` (detección UTF-8 → Windows-1252) — sin mojibake. `99da03ba`.
+- **video** `toEmbedUrl` idempotente con URLs ya-embed de Vimeo (`player.vimeo.com/video/<id>`) + tests. `9337e3e4`.
+- **i18n** toasts de `AdminEmailSettingsPanel` migrados a `t()`. `99da03ba`.
 
-_Detalle completo (repro + fix) en el output del workflow `wyjc0fh78`._
+_Detalle completo (repro + fix) en el output del workflow `wyjc0fh78`. Todas las migraciones aplicadas
+live; los cambios de cliente/edge requieren **Publish** en Lovable._
 
 ---
 
