@@ -749,7 +749,7 @@ export function AdminAcademicSubjectsPanel() {
               {/* Escala de calificación de la asignatura. Los cursos creados
                   desde ella la heredan (sobrescribible). Vacío = el curso usa
                   el default de la institución. */}
-              <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                 <div>
                   <Label className="text-xs">
                     {t("academic.subjects.labelScaleMin", { defaultValue: "Nota mínima (escala)" })}

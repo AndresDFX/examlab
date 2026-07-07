@@ -31,7 +31,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileDown, FileUp, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { FileDown, FileUp, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadCSV, parseCSV, readCsvFile } from "@/shared/lib/csv";
@@ -609,7 +610,7 @@ export function BulkImportDefensesDialog({
           >
             {applying ? (
               <>
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                <Spinner size="sm" className="mr-1" />
                 {t("hc_bulkImportDefenses.applying", {
                   defaultValue: "Aplicando...",
                 })}
