@@ -407,20 +407,17 @@ function MessagesPage() {
         // cleared_at no aparecen.
         const lastReadAt = c.user_a === myUserId ? c.user_a_last_read_at : c.user_b_last_read_at;
         const myClearedAt = c.user_a === myUserId ? c.user_a_cleared_at : c.user_b_cleared_at;
+        // Una sola query: traemos los campos de MessageLite (incl. body) para las
+        // últimas 50; recentList sirve para contar no-leídos y recent[0] YA es el
+        // último mensaje (antes había una 2ª query select("*") limit(1) redundante).
         const { data: recent } = await db
           .from("messages")
-          .select("id, sender_id, created_at")
+          .select("id, conversation_id, sender_id, body, created_at, edited_at")
           .eq("conversation_id", c.id)
           .order("created_at", { ascending: false })
           .limit(50);
         const recentList = (recent ?? []) as MessageLite[];
-        const { data: lastMsgRow } = await db
-          .from("messages")
-          .select("*")
-          .eq("conversation_id", c.id)
-          .order("created_at", { ascending: false })
-          .limit(1);
-        const lastMessage = (lastMsgRow?.[0] as MessageLite | undefined) ?? null;
+        const lastMessage = recentList[0] ?? null;
         // "Borrar para mí": una vez que el usuario clickea Eliminar, el
         // backend setea su `cleared_at`. La RLS de messages oculta los
         // mensajes anteriores, así que la conversación quedaba en la

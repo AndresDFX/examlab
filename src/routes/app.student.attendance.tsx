@@ -13,7 +13,7 @@
  * "sin registro".
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -56,7 +56,13 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { buildVideoEmbedUrl } from "@/shared/lib/video-embed";
-import { AttendanceQRScanner } from "@/modules/attendance/AttendanceQRScanner";
+// Lazy: html5-qrcode (~200 KB) solo se descarga al abrir el escáner (uso ocasional;
+// hay fallback manual de 6 dígitos). Antes se bundleaba en la ruta de Asistencia.
+const AttendanceQRScanner = lazy(() =>
+  import("@/modules/attendance/AttendanceQRScanner").then((m) => ({
+    default: m.AttendanceQRScanner,
+  })),
+);
 import { SessionCodeSnippetsDialog } from "@/modules/sessions/SessionCodeSnippetsDialog";
 import { SessionWhiteboardDialog } from "@/modules/whiteboard/SessionWhiteboardDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -818,16 +824,18 @@ function StudentAttendance() {
       {/* Scanner dialog */}
       {scannerOpen && (
         <CheckInDialog title={t("studentAttendance.scanQr")} onClose={() => setScannerOpen(false)}>
-          <AttendanceQRScanner
-            onClose={() => setScannerOpen(false)}
-            onDetected={async ({ sessionId, code }) => {
-              const ok = await submitCheckIn(sessionId, code);
-              if (ok) {
-                setScannerOpen(false);
-                void loadOpenSessions();
-              }
-            }}
-          />
+          <Suspense fallback={null}>
+            <AttendanceQRScanner
+              onClose={() => setScannerOpen(false)}
+              onDetected={async ({ sessionId, code }) => {
+                const ok = await submitCheckIn(sessionId, code);
+                if (ok) {
+                  setScannerOpen(false);
+                  void loadOpenSessions();
+                }
+              }}
+            />
+          </Suspense>
         </CheckInDialog>
       )}
 

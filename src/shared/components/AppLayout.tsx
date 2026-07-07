@@ -50,7 +50,11 @@ import { ImpersonationBanner } from "@/modules/admin/ImpersonationBanner";
 import { IMPERSONATION_TRANSITION_FLAG } from "@/modules/admin/impersonation";
 import { TenantOverrideBanner } from "@/modules/tenants/TenantOverrideBanner";
 import { KahootLiveBanner } from "@/modules/polls/KahootLiveBanner";
-import { OnboardingTour } from "@/modules/onboarding/OnboardingTour";
+// Lazy: driver.js (+ su CSS) solo se descarga cuando REALMENTE corre un tour
+// (primer login del rol o "Ver tour"), no en el shell de cada página /app/*.
+const OnboardingTour = lazy(() =>
+  import("@/modules/onboarding/OnboardingTour").then((m) => ({ default: m.OnboardingTour })),
+);
 import { useOnboarding } from "@/modules/onboarding/use-onboarding";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -95,7 +99,7 @@ import {
   Bot,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 
 interface NavItem {
@@ -1412,18 +1416,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Tour guiado de bienvenida. Solo se monta cuando el hook indica
           mostrarlo (primer login del rol activo, o al clickear "Ver
           tour" del menú avatar). Al completar/cerrar se desmonta. */}
-      <OnboardingTour
-        role={onboarding.shouldShowFor}
-        manualMode={tourManualMode}
-        onComplete={(r) => {
-          void onboarding.complete(r);
-          setTourManualMode(false);
-        }}
-        onDismiss={() => {
-          onboarding.dismiss();
-          setTourManualMode(false);
-        }}
-      />
+      {(onboarding.shouldShowFor || tourManualMode) && (
+        <Suspense fallback={null}>
+          <OnboardingTour
+            role={onboarding.shouldShowFor}
+            manualMode={tourManualMode}
+            onComplete={(r) => {
+              void onboarding.complete(r);
+              setTourManualMode(false);
+            }}
+            onDismiss={() => {
+              onboarding.dismiss();
+              setTourManualMode(false);
+            }}
+          />
+        </Suspense>
+      )}
       {/* Cambio de contraseña forzado en el primer login: diálogo
           bloqueante mientras `profile.must_change_password` sea true.
           Al guardar baja el flag y `refreshRoles` re-carga el perfil →

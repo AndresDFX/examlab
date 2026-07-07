@@ -658,7 +658,20 @@ function ExamMonitor() {
   useEffect(() => {
     load();
     loadQuestions();
-    const interval = setInterval(load, 10000);
+    // Reload DEBOUNCEADO: en un examen en vivo cada alumno autosalva `updated_at`
+    // cada ~1.5s + heartbeat de sesión → sin debounce, con 30 alumnos son decenas
+    // de load() (4 queries c/u) por segundo desde la pestaña del docente. Agrupamos
+    // las ráfagas en una sola recarga (800ms, mismo patrón que los paneles de IA).
+    let reloadTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleReload = () => {
+      if (reloadTimer) return;
+      reloadTimer = setTimeout(() => {
+        reloadTimer = null;
+        void load();
+      }, 800);
+    };
+    // Fallback por si Realtime pierde un evento (antes era 10s → tormenta de queries).
+    const interval = setInterval(load, 60000);
 
     const channel = supabase
       .channel(`monitor-submissions-${examId}`)
@@ -671,12 +684,13 @@ function ExamMonitor() {
           filter: `exam_id=eq.${examId}`,
         },
         () => {
-          void load();
+          scheduleReload();
         },
       )
       .subscribe();
 
     return () => {
+      if (reloadTimer) clearTimeout(reloadTimer);
       clearInterval(interval);
       void supabase.removeChannel(channel);
     };

@@ -138,7 +138,9 @@ self.addEventListener("fetch", (event) => {
   // Vite lo verá como un `ChunkLoadError` real y nuestro window 'error'
   // listener (en __root.tsx) recargará la página una vez para tomar el
   // HTML/chunks nuevos.
-  if (url.pathname.match(/\.(js|css|png|jpg|jpeg|svg|woff2?|ico|webp)$/)) {
+  // Nota: incluimos `jar`/`wasm` — el runtime de Java-GUI (CheerpJ) descarga
+  // `tools.jar` (~18 MB) + wasm; cache-first evita re-bajarlo cada sesión.
+  if (url.pathname.match(/\.(js|css|png|jpg|jpeg|svg|woff2?|ico|webp|jar|wasm)$/)) {
     event.respondWith(
       caches.match(request).then(
         (cached) =>
