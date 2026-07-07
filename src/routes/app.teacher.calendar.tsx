@@ -186,13 +186,14 @@ function CalendarPage() {
     void (async () => {
       const { data, error } = await supabase
         .from("course_teachers")
-        .select("course_id, courses:course_id (id, name)")
+        .select("course_id, courses:course_id (id, name, deleted_at)")
         .eq("user_id", user.id);
       if (error) return;
       const rows = (data ?? [])
+        // Papelera: los cursos soft-deleted no son elegibles para sincronizar horarios.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map((r: any) => r.courses)
-        .filter(Boolean) as CourseRow[];
+        .filter((c: any) => c && !c.deleted_at) as CourseRow[];
       if (rows.length === 0) {
         setCourses([]);
         setCoursesPendingTimes([]);

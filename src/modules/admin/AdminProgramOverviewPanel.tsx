@@ -83,11 +83,11 @@ function computeStats({
   courses: Array<{ id: string; program_id: string | null; period_id: string | null }>;
   enrollments: Array<{
     user_id: string;
-    course: { program_id: string | null; period_id: string | null } | null;
+    course: { program_id: string | null; period_id: string | null; deleted_at?: string | null } | null;
   }>;
   teachers: Array<{
     user_id: string;
-    course: { program_id: string | null; period_id: string | null } | null;
+    course: { program_id: string | null; period_id: string | null; deleted_at?: string | null } | null;
   }>;
   filterPeriodId: string | null;
 }): { perProgram: ProgramStats[]; uniqueStudents: number; uniqueTeachers: number } {
@@ -127,6 +127,7 @@ function computeStats({
   const studentsByProgram = new Map<string, Set<string>>();
   const globalStudents = new Set<string>();
   for (const e of enrollments) {
+    if (e.course?.deleted_at) continue; // curso en papelera → no cuenta
     const pid = e.course?.program_id;
     if (!pid) continue;
     if (filterPeriodId && e.course?.period_id !== filterPeriodId) continue;
@@ -146,6 +147,7 @@ function computeStats({
   const teachersByProgram = new Map<string, Set<string>>();
   const globalTeachers = new Set<string>();
   for (const t of teachers) {
+    if (t.course?.deleted_at) continue; // curso en papelera → no cuenta
     const pid = t.course?.program_id;
     if (!pid) continue;
     if (filterPeriodId && t.course?.period_id !== filterPeriodId) continue;
@@ -196,11 +198,14 @@ export function AdminProgramOverviewPanel() {
           .select("id, code, status")
           .order("code", { ascending: false }),
         db.from("academic_subjects").select("program_id, active"),
-        db.from("courses").select("id, program_id, period_id"),
+        // Papelera: los cursos soft-deleted no cuentan en el resumen institucional.
+        db.from("courses").select("id, program_id, period_id").is("deleted_at", null),
         // Enrollment → course (program_id via embed). El embed sigue
         // funcionando aunque el curso no tenga program_id (queda null).
-        db.from("course_enrollments").select("user_id, course:courses(program_id, period_id)"),
-        db.from("course_teachers").select("user_id, course:courses(program_id, period_id)"),
+        // Traemos deleted_at para saltar cursos en papelera en computeStats
+        // (PostgREST no filtra fácil el embed anidado).
+        db.from("course_enrollments").select("user_id, course:courses(program_id, period_id, deleted_at)"),
+        db.from("course_teachers").select("user_id, course:courses(program_id, period_id, deleted_at)"),
       ]);
       if (cancelled) return;
       const firstErr =
@@ -227,11 +232,11 @@ export function AdminProgramOverviewPanel() {
         }>,
         enrollments: (enrRes.data ?? []) as Array<{
           user_id: string;
-          course: { program_id: string | null; period_id: string | null } | null;
+          course: { program_id: string | null; period_id: string | null; deleted_at?: string | null } | null;
         }>,
         teachers: (teachRes.data ?? []) as Array<{
           user_id: string;
-          course: { program_id: string | null; period_id: string | null } | null;
+          course: { program_id: string | null; period_id: string | null; deleted_at?: string | null } | null;
         }>,
         filterPeriodId: periodFilter === "all" ? null : periodFilter,
       });

@@ -1392,13 +1392,15 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       const dbAny = supabase as any;
       const { data: enr } = await dbAny
         .from("course_enrollments")
-        .select("course_id, course:courses(id, name)")
+        .select("course_id, course:courses(id, name, deleted_at)")
         .eq("user_id", userId);
-      const enrolledCourseIds = ((enr ?? []) as { course_id: string }[]).map((r) => r.course_id);
+      // Papelera: saltar cursos soft-deleted del selector de ranking y del set
+      // de ids que alimenta la búsqueda de proyectos pendientes.
       const enrolledCoursesList = ((enr ?? []) as any[])
         .map((r) => r.course)
-        .filter((c: any) => c && c.id && c.name) as { id: string; name: string }[];
+        .filter((c: any) => c && c.id && c.name && !c.deleted_at) as { id: string; name: string }[];
       if (!cancelled) setEnrolledCourses(enrolledCoursesList);
+      const enrolledCourseIds = enrolledCoursesList.map((c) => c.id);
 
       // Pending projects (vía cursos matriculados + asignaciones explícitas)
       const { data: linked } = enrolledCourseIds.length
