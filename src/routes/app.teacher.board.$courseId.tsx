@@ -20,8 +20,23 @@ import { softDelete } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
-import { downloadCSV, parseCSV } from "@/shared/lib/csv";
-import { SESSIONS_TEMPLATE, parseSessionsCsv } from "@/modules/sessions/csv";
+import { toCSV } from "@/shared/lib/csv";
+import {
+  SESSIONS_TEMPLATE,
+  SESSIONS_CSV_COLUMNS,
+  parseSessionsCsv,
+  buildSessionsRows,
+  parseHHMMToMinutes,
+} from "@/modules/sessions/csv";
+import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
+import { GenerateSessionsDialog } from "@/modules/contents/GenerateSessionsDialog";
+import { CourseScheduleEditor } from "@/modules/schedules/CourseScheduleEditor";
+import {
+  formatBlockShort,
+  compareBlocks,
+  trimTime,
+  type CourseScheduleBlock,
+} from "@/modules/schedules/course-schedule";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -59,9 +74,10 @@ import {
   FolderKanban,
   Link2,
   Upload,
-  Download,
   Video,
   Layers,
+  CalendarPlus,
+  CalendarClock,
 } from "lucide-react";
 import { LinkCalendarEventsDialog } from "@/modules/calendar/LinkCalendarEventsDialog";
 import {
@@ -105,6 +121,17 @@ interface SessionRow {
   meeting_url: string | null;
   recording_url: string | null;
   notes_url: string | null;
+  /** Corte (grade_cuts) al que el docente asignó la sesión. Sólo se usa
+   *  para el round-trip cut_name↔cut_id del import/export CSV; la nota
+   *  del corte se sigue derivando por fecha (ver CLAUDE.md). */
+  cut_id: string | null;
+}
+
+/** Corte de notas del curso (grade_cuts). Sólo id+name — usados para el
+ *  mapeo cut_name↔cut_id del import/export de sesiones. */
+interface Cut {
+  id: string;
+  name: string;
 }
 
 /** Fila del grid "Contenidos del curso" en el tablero — material subido
@@ -355,6 +382,11 @@ function CourseBoardPage() {
   const [course, setCourse] = useState<{ id: string; name: string } | null>(null);
   const [courseMissing, setCourseMissing] = useState(false);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
+  // Cortes del curso (grade_cuts) — para el mapeo cut_name↔cut_id del CSV.
+  const [cuts, setCuts] = useState<Cut[]>([]);
+  // Horario semanal del curso (course_schedules) — se muestra en el tablero
+  // y prefija la creación de sesiones.
+  const [schedule, setSchedule] = useState<CourseScheduleBlock[]>([]);
   const [contents, setContents] = useState<AvailableContent[]>([]);
   // Grid "Contenidos del curso": material anclado a este curso (incluye el
   // subido desde el propio tablero con el botón "Subir contenido").
@@ -417,11 +449,17 @@ function CourseBoardPage() {
   const [draftMeetingUrl, setDraftMeetingUrl] = useState("");
   const [draftRecordingUrl, setDraftRecordingUrl] = useState("");
   const [draftNotesUrl, setDraftNotesUrl] = useState("");
+  // Marca si el docente tocó manualmente hora/duración del form de creación.
+  // Mientras sea false, elegir una fecha con horario definido prefija esos
+  // campos desde el bloque del curso (no destructivo — nunca pisa lo tipeado).
+  const [draftTimeTouched, setDraftTimeTouched] = useState(false);
   // Dialog de vincular/resincronizar Google Calendar (grabaciones/notas).
   const [calendarOpen, setCalendarOpen] = useState(false);
+  // Dialogs de horario del curso + generador de sesiones.
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
   // Bump para forzar recarga del tablero (ej. tras resincronizar calendario).
   const [reloadNonce, setReloadNonce] = useState(0);
-  const [importing, setImporting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -464,11 +502,12 @@ function CourseBoardPage() {
       // Sesiones del curso + contenidos del docente disponibles + items
       // (exams/workshops/projects) calendarizados + cursos visibles (para
       // "Asignar a cursos") — en paralelo.
-      const [sesRes, contentsRes, examsRes, wsRes, projRes, coursesRes] = await Promise.all([
+      const [sesRes, contentsRes, examsRes, wsRes, projRes, coursesRes, cutsRes, schedRes] =
+        await Promise.all([
         db
           .from("attendance_sessions")
           .select(
-            "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, content_file_paths, meeting_url, recording_url, notes_url",
+            "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, content_file_paths, meeting_url, recording_url, notes_url, cut_id",
           )
           .eq("course_id", courseId)
           .is("deleted_at", null)
@@ -506,10 +545,25 @@ function CourseBoardPage() {
         // Cursos visibles para el docente (RLS recorta al tenant). Para el
         // dialog "Asignar a cursos" del grid de contenidos.
         db.from("courses").select("id, name").is("deleted_at", null).order("name"),
+        // Cortes del curso (grade_cuts no está en types.ts auto-generado).
+        db
+          .from("grade_cuts")
+          .select("id, name, position, start_date, end_date")
+          .eq("course_id", courseId)
+          .order("position"),
+        // Horario semanal del curso (course_schedules).
+        db
+          .from("course_schedules")
+          .select("id, day_of_week, start_time, end_time, aula, modalidad, notes")
+          .eq("course_id", courseId)
+          .order("day_of_week", { ascending: true })
+          .order("start_time", { ascending: true }),
       ]);
       if (cancelled) return;
 
       setSessions((sesRes.data ?? []) as SessionRow[]);
+      setCuts((cutsRes.data ?? []) as Cut[]);
+      setSchedule((schedRes.data ?? []) as CourseScheduleBlock[]);
       setAllCourses((coursesRes.data ?? []) as { id: string; name: string }[]);
       const ccaIdSet = new Set(ccaIds);
       // Aplana files[] → classes[] para no recalcular regex en cada Select.
@@ -783,7 +837,7 @@ function CourseBoardPage() {
           created_by: user.id,
         })
         .select(
-          "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, content_file_paths, meeting_url, recording_url, notes_url",
+          "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, content_file_paths, meeting_url, recording_url, notes_url, cut_id",
         )
         .single();
       if (error || !data) {
@@ -800,66 +854,107 @@ function CourseBoardPage() {
       setDraftMeetingUrl("");
       setDraftRecordingUrl("");
       setDraftNotesUrl("");
+      setDraftTimeTouched(false);
       toast.success(t("course.boardSessionCreated"));
     } finally {
       setSaving(false);
     }
   };
 
-  /** Descarga el template CANÓNICO de sesiones (src/modules/sessions/csv.ts):
-   *  fecha + hora inicio/fin + meeting_url/cut_name/recording_url. */
-  const downloadTemplate = () => {
-    downloadCSV("template-sesiones.csv", SESSIONS_TEMPLATE);
-    toast.success(t("course.boardTemplateDoneToast"));
+  /** Exporta las sesiones actuales del curso a CSV (mismo formato que el
+   *  template + import). Resuelve cut_id→cut_name con la lista de cortes.
+   *  El ImportExportMenu lo reusa para CSV y Excel. */
+  const buildSessionsCsv = (): string => {
+    if (!sessions.length) return "";
+    const cutNameById = new Map(cuts.map((c) => [c.id, c.name]));
+    return toCSV(buildSessionsRows(sessions, cutNameById), [...SESSIONS_CSV_COLUMNS]);
   };
 
-  const importCsv = async (file: File) => {
-    if (!course || !user) return;
-    setImporting(true);
-    try {
-      const text = await file.text();
-      const rawRows = parseCSV(text);
-      if (rawRows.length === 0) {
-        toast.error(t("course.boardImportEmpty"));
-        return;
-      }
-      const { rows: parsed } = parseSessionsCsv(rawRows, new Map<string, string>());
-      const rows = parsed.map((r) => ({
-        course_id: course.id,
-        session_date: r.session_date,
-        title: r.title,
-        start_time: r.start_time,
-        duration_minutes: r.duration_minutes,
-        meeting_url: r.meeting_url,
-        created_by: user.id,
-      }));
-      if (rows.length === 0) {
-        toast.error(t("course.boardImportNoValid", { skipped: 0 }));
-        return;
-      }
-      const { data, error } = await db
-        .from("attendance_sessions")
-        .insert(rows)
-        .select(
-          "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, content_file_paths, meeting_url, recording_url, notes_url",
-        );
-      if (error) {
-        toast.error(friendlyError(error));
-        return;
-      }
-      setSessions((prev) =>
-        [...prev, ...((data ?? []) as SessionRow[])].sort((a, b) =>
-          a.session_date.localeCompare(b.session_date),
-        ),
+  /** Importa sesiones desde el CSV (filas ya parseadas por el ImportExportMenu).
+   *  Parseo PURO en parseSessionsCsv (resuelve cut_name→cut_id con la lista de
+   *  cortes); acá añadimos course_id + created_by e insertamos TODAS las
+   *  columnas (mismo mapeo que Asistencia). Lanza mensajes friendly con
+   *  N° de fila para CSVs mal formados. */
+  const importSessions = async (rows: Record<string, string>[]) => {
+    if (!course || !user) throw new Error(t("course.boardImportEmpty"));
+    const cutByName = new Map(cuts.map((c) => [c.name.trim().toLowerCase(), c.id]));
+    const { rows: parsed, unmatchedCuts } = parseSessionsCsv(rows, cutByName);
+    if (!parsed.length) throw new Error(t("course.boardImportNoValid", { skipped: 0 }));
+    const payload = parsed.map((p) => ({
+      course_id: course.id,
+      created_by: user.id,
+      session_date: p.session_date,
+      title: p.title,
+      cut_id: p.cut_id,
+      start_time: p.start_time,
+      duration_minutes: p.duration_minutes,
+      meeting_url: p.meeting_url,
+      recording_url: p.recording_url,
+    }));
+    const { data, error } = await db
+      .from("attendance_sessions")
+      .insert(payload)
+      .select(
+        "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, content_file_paths, meeting_url, recording_url, notes_url, cut_id",
       );
-      toast.success(t("course.boardImportDone", { created: rows.length, skipped: 0 }));
-    } catch (e) {
-      // parseSessionsCsv lanza mensajes friendly en español con N° de línea
-      // (ej. "Fila 3: session_date no es válida…") — mostrarlos tal cual.
-      toast.error(e instanceof Error ? e.message : friendlyError(e));
-    } finally {
-      setImporting(false);
-    }
+    if (error) throw new Error(error.message);
+    setSessions((prev) =>
+      [...prev, ...((data ?? []) as SessionRow[])].sort((a, b) =>
+        a.session_date.localeCompare(b.session_date),
+      ),
+    );
+    const suffix =
+      unmatchedCuts > 0
+        ? t("course.boardImportUnmatchedCuts", {
+            count: unmatchedCuts,
+            defaultValue: " ({{count}} corte(s) del CSV no coincidieron con los del curso)",
+          })
+        : "";
+    return t("course.boardImportDone", { created: payload.length, skipped: 0 }) + suffix;
+  };
+
+  /** Recarga sólo el horario del curso — usado al cerrar el editor de
+   *  horario (evita el full-reload del tablero). */
+  const reloadSchedule = async () => {
+    const { data } = await db
+      .from("course_schedules")
+      .select("id, day_of_week, start_time, end_time, aula, modalidad, notes")
+      .eq("course_id", courseId)
+      .order("day_of_week", { ascending: true })
+      .order("start_time", { ascending: true });
+    setSchedule((data ?? []) as CourseScheduleBlock[]);
+  };
+
+  /** Bloque de horario que aplica a una fecha ISO ("YYYY-MM-DD"). Ancla a
+   *  mediodía local para evitar el bug UTC de getDay() (descontar un día).
+   *  Si hay varios bloques ese día, devuelve el de inicio más temprano. */
+  const scheduleBlockForDate = (iso: string): CourseScheduleBlock | null => {
+    if (!iso) return null;
+    const dow = new Date(`${iso}T12:00:00`).getDay();
+    const matches = schedule.filter((b) => b.day_of_week === dow);
+    if (matches.length === 0) return null;
+    return [...matches].sort((a, b) => a.start_time.localeCompare(b.start_time))[0];
+  };
+
+  /** Duración en minutos de un bloque (end - start), o null si no computa. */
+  const blockDurationMin = (b: CourseScheduleBlock): number | null => {
+    const s = parseHHMMToMinutes(b.start_time);
+    const e = parseHHMMToMinutes(b.end_time);
+    if (s == null || e == null || e <= s) return null;
+    return e - s;
+  };
+
+  /** Al elegir una fecha en el form de creación, prefija hora + duración
+   *  desde el horario del curso SI el docente no las tocó manualmente. */
+  const onDraftDatePicked = (v: string) => {
+    if (editingId) setEditingId(null);
+    setDraftDate(v);
+    if (!v || draftTimeTouched) return;
+    const block = scheduleBlockForDate(v);
+    if (!block) return;
+    setDraftStartTime(trimTime(block.start_time));
+    const dur = blockDurationMin(block);
+    if (dur) setDraftDuration(dur);
   };
 
   /** Activa el modo edición de una sesión. Carga sus valores actuales
@@ -886,6 +981,7 @@ function CourseBoardPage() {
     setDraftMeetingUrl("");
     setDraftRecordingUrl("");
     setDraftNotesUrl("");
+    setDraftTimeTouched(false);
   };
 
   /** Persiste cambios de fecha/hora/título/duración de la sesión en
@@ -1093,37 +1189,28 @@ function CourseBoardPage() {
         subtitle={t("course.boardSubtitle")}
         actions={
           <div className="flex flex-wrap items-center gap-1.5">
+            {/* Import/export unificado de sesiones: plantilla + importar CSV +
+                exportar CSV/Excel. Reemplaza los controles manuales previos. */}
+            <ImportExportMenu
+              label={t("course.boardSessionsData", { defaultValue: "Sesiones" })}
+              resourceName={t("course.boardSessionsResource", { defaultValue: "sesiones" })}
+              templateCsv={SESSIONS_TEMPLATE}
+              onImport={importSessions}
+              onExport={buildSessionsCsv}
+            />
             <Button
               variant="outline"
               size="sm"
-              onClick={downloadTemplate}
-              title={t("course.boardTemplateTooltip")}
+              onClick={() => setGenerateOpen(true)}
+              title={t("course.boardGenerateTooltip", {
+                defaultValue:
+                  "Programa varias sesiones a partir del horario del curso, marcando festivos",
+              })}
               className="h-8 text-xs"
             >
-              <Download className="h-3.5 w-3.5 mr-1" />
-              {t("course.boardTemplate")}
+              <CalendarPlus className="h-3.5 w-3.5 mr-1" />
+              {t("course.boardGenerateSessions", { defaultValue: "Generar sesiones" })}
             </Button>
-            {/* Importar CSV: input file oculto + Label como botón — file
-                picker nativo sin Dialog adicional. */}
-            <Label
-              className="inline-flex items-center gap-1 h-8 px-2 text-xs rounded-md border border-input bg-background hover:bg-muted/40 cursor-pointer"
-              title={t("course.boardImportTooltip")}
-            >
-              {importing ? <Spinner size="sm" /> : <Upload className="h-3.5 w-3.5" />}
-              {t("course.boardImportCsv")}
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void importCsv(f);
-                  // Reset para permitir importar el mismo file dos veces.
-                  e.target.value = "";
-                }}
-                disabled={importing}
-              />
-            </Label>
             <Button
               variant="outline"
               size="sm"
@@ -1157,6 +1244,47 @@ function CourseBoardPage() {
         }
       />
 
+      {/* Horario del curso — bloques semanales de course_schedules. Prefija
+          hora/duración al crear una sesión y alimenta "Generar sesiones". */}
+      <div className="rounded-md border">
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-muted/30">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <CalendarClock className="h-3.5 w-3.5" />
+            {t("course.boardScheduleTitle", { defaultValue: "Horario del curso" })}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => setScheduleOpen(true)}
+          >
+            <Pencil className="h-3 w-3 mr-1" />
+            {t("course.boardScheduleEdit", { defaultValue: "Editar horario" })}
+          </Button>
+        </div>
+        {schedule.length === 0 ? (
+          <div className="px-3 py-4 text-xs text-muted-foreground">
+            {t("course.boardScheduleEmpty", {
+              defaultValue:
+                "Define el horario del curso para agilizar la creación de sesiones.",
+            })}
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-1.5 px-3 py-2.5">
+            {[...schedule].sort(compareBlocks).map((b, i) => (
+              <Badge
+                key={b.id ?? `${b.day_of_week}-${b.start_time}-${i}`}
+                variant="outline"
+                className="text-[11px] gap-1 tabular-nums"
+              >
+                <CalendarClock className="h-3 w-3" />
+                {formatBlockShort(b)}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Form de creación rápida — siempre visible arriba del listado. */}
       <div className="rounded-md border bg-muted/30 p-3 space-y-2">
         <div className="text-xs font-medium text-muted-foreground">
@@ -1167,10 +1295,7 @@ function CourseBoardPage() {
             <Label className="text-[11px]">{t("common.date")}</Label>
             <DatePicker
               value={editingId ? "" : draftDate}
-              onChange={(v) => {
-                if (editingId) setEditingId(null);
-                setDraftDate(v);
-              }}
+              onChange={onDraftDatePicked}
               className="h-8 text-xs w-44"
             />
           </div>
@@ -1181,6 +1306,7 @@ function CourseBoardPage() {
               value={editingId ? "" : draftStartTime}
               onChange={(e) => {
                 if (editingId) setEditingId(null);
+                setDraftTimeTouched(true);
                 setDraftStartTime(e.target.value);
               }}
               className="h-8 text-xs w-36"
@@ -1196,6 +1322,7 @@ function CourseBoardPage() {
               value={editingId ? "" : draftDuration}
               onChange={(e) => {
                 if (editingId) setEditingId(null);
+                setDraftTimeTouched(true);
                 setDraftDuration(Number(e.target.value) || 90);
               }}
               className="h-8 text-xs w-24"
@@ -1714,6 +1841,32 @@ function CourseBoardPage() {
         onOpenChange={setCalendarOpen}
         courseId={course.id}
         onLinked={() => setReloadNonce((n) => n + 1)}
+      />
+
+      {/* Generar varias sesiones desde el horario del curso (festivos +
+          preview editable). Mismo dialog que Asistencia, abierto sin
+          contenido. Al crear, recargamos el tablero. */}
+      <GenerateSessionsDialog
+        open={generateOpen}
+        content={null}
+        courseId={course.id}
+        onClose={() => setGenerateOpen(false)}
+        onCreated={() => {
+          setGenerateOpen(false);
+          setReloadNonce((n) => n + 1);
+        }}
+      />
+
+      {/* Editor del horario semanal del curso. Al cerrar recargamos sólo el
+          horario (no el tablero completo). */}
+      <CourseScheduleEditor
+        open={scheduleOpen}
+        onOpenChange={(o) => {
+          setScheduleOpen(o);
+          if (!o) void reloadSchedule();
+        }}
+        courseId={course.id}
+        courseName={course.name}
       />
 
       {/* "Asignar a cursos" — gestiona la membresía multi-curso del contenido
