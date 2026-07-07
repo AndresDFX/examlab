@@ -76,15 +76,20 @@ import {
   Eye,
   Circle,
   XCircle,
+  Sparkles,
+  Copy,
 } from "lucide-react";
 import {
   errorMessage,
+  normalizeErrorMessage,
   ERROR_STATUSES,
   groupEvents,
   aggregateGroupStatus,
   type ErrStatus,
   type ErrorEventGroup,
 } from "@/modules/errors/error-event";
+import { MarkdownViewer } from "@/shared/components/MarkdownViewer";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -98,6 +103,7 @@ interface ErrorEvent {
   actor_role: string | null;
   entity_type: string | null;
   entity_name: string | null;
+  entity_id: string | null;
   course_name: string | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata: any;
@@ -173,6 +179,13 @@ export function ErrorsPanel({ embedded = false }: Props) {
   const [bulkStatus, setBulkStatus] = useState<ErrStatus>("revisando");
   const [applying, setApplying] = useState(false);
   const [applyingGroup, setApplyingGroup] = useState<string | null>(null);
+
+  // Análisis con IA por grupo (fingerprint → estado). Advisory-only: el
+  // edge `support-ai-suggest` SOLO devuelve texto; ninguna acción se
+  // ejecuta desde acá.
+  const [aiAnalysis, setAiAnalysis] = useState<
+    Record<string, { loading: boolean; text: string | null; error: string | null }>
+  >({});
 
   const sel = useMultiSelect(events);
 
@@ -312,6 +325,50 @@ export function ErrorsPanel({ embedded = false }: Props) {
       }),
     );
     setRetryNonce((n) => n + 1);
+  };
+
+  // "Analizar con IA": pide al edge un diagnóstico + pasos de remediación
+  // para el grupo de errores. El mensaje se envía YA NORMALIZADO por
+  // error-event.ts (el edge NO re-normaliza). El resultado se muestra en
+  // el panel expandible del grupo.
+  const analyzeGroup = async (group: ErrorEventGroup<ErrorEvent>) => {
+    const fp = group.fingerprint;
+    if (aiAnalysis[fp]?.loading) return;
+    // Asegurar que el grupo quede expandido para que se vea el resultado.
+    setExpandedGroups((prev) => new Set(prev).add(fp));
+    setAiAnalysis((prev) => ({ ...prev, [fp]: { loading: true, text: null, error: null } }));
+    try {
+      const raw = group.sampleMessage ?? "";
+      const normalized = raw ? normalizeErrorMessage(raw) : group.action;
+      const { data, error } = await supabase.functions.invoke("support-ai-suggest", {
+        body: {
+          mode: "error",
+          auditLogId: group.events[0]?.id ?? null,
+          errorMessage: normalized,
+          errorAction: group.action,
+        },
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (error || (data as any)?.error) {
+        const real = await extractEdgeError(error, data);
+        throw new Error(real || t("hc_modulesAdminErrorsPanel.aiAnalyzeError"));
+      }
+      const suggestion = (data as { suggestion?: string } | null)?.suggestion?.trim();
+      if (!suggestion) throw new Error(t("hc_modulesAdminErrorsPanel.aiAnalyzeError"));
+      setAiAnalysis((prev) => ({
+        ...prev,
+        [fp]: { loading: false, text: suggestion, error: null },
+      }));
+    } catch (e) {
+      setAiAnalysis((prev) => ({
+        ...prev,
+        [fp]: {
+          loading: false,
+          text: null,
+          error: friendlyError(e, t("hc_modulesAdminErrorsPanel.aiAnalyzeError")),
+        },
+      }));
+    }
   };
 
   const toggleExpand = (fingerprint: string) =>
@@ -594,14 +651,23 @@ export function ErrorsPanel({ embedded = false }: Props) {
                               <Spinner size="sm" />
                             ) : (
                               <RowActionsMenu
-                                actions={ERROR_STATUSES.map((s) => ({
-                                  label: t("hc_modulesAdminErrorsPanel.markAllAs", {
-                                    status: STATUS_CFG[s].label,
-                                  }),
-                                  icon: STATUS_CFG[s].icon,
-                                  onClick: () => void applyGroupStatus(g, s),
-                                  disabled: s === aggStatus && g.count === g.statusCounts[s],
-                                }))}
+                                actions={[
+                                  {
+                                    label: t("hc_modulesAdminErrorsPanel.aiAnalyze"),
+                                    icon: Sparkles,
+                                    onClick: () => void analyzeGroup(g),
+                                    disabled: aiAnalysis[g.fingerprint]?.loading,
+                                  },
+                                  ...ERROR_STATUSES.map((s, i) => ({
+                                    label: t("hc_modulesAdminErrorsPanel.markAllAs", {
+                                      status: STATUS_CFG[s].label,
+                                    }),
+                                    icon: STATUS_CFG[s].icon,
+                                    onClick: () => void applyGroupStatus(g, s),
+                                    disabled: s === aggStatus && g.count === g.statusCounts[s],
+                                    separatorBefore: i === 0 ? true : undefined,
+                                  })),
+                                ]}
                               />
                             )}
                           </TableCell>
@@ -610,8 +676,17 @@ export function ErrorsPanel({ embedded = false }: Props) {
                           <TableRow>
                             <TableCell colSpan={colSpan} className="bg-muted/30 py-2">
                               <div className="space-y-2">
+                                <AiAnalysisPanel
+                                  state={aiAnalysis[g.fingerprint]}
+                                  onAnalyze={() => void analyzeGroup(g)}
+                                />
                                 {g.events.map((ev) => (
-                                  <EventDetailBlock key={ev.id} ev={ev} sel={sel} />
+                                  <EventDetailBlock
+                                    key={ev.id}
+                                    ev={ev}
+                                    sel={sel}
+                                    onRetried={() => setRetryNonce((n) => n + 1)}
+                                  />
                                 ))}
                               </div>
                             </TableCell>
@@ -667,17 +742,100 @@ function DetailRow({ k, v, mono = false }: { k: string; v: string; mono?: boolea
   );
 }
 
+function AiAnalysisPanel({
+  state,
+  onAnalyze,
+}: {
+  state?: { loading: boolean; text: string | null; error: string | null };
+  onAnalyze: () => void;
+}) {
+  const { t } = useTranslation();
+  const copySuggestion = () => {
+    if (!state?.text) return;
+    void navigator.clipboard
+      .writeText(state.text)
+      .then(() => toast.success(t("hc_modulesAdminErrorsPanel.aiCopied")))
+      .catch(() => toast.error(t("hc_modulesAdminErrorsPanel.aiCopyError")));
+  };
+  return (
+    <div className="rounded-md border border-primary/30 bg-primary/5 p-2 text-xs space-y-2">
+      <div className="flex items-center gap-2">
+        <Sparkles className="h-3.5 w-3.5 text-primary" />
+        <span className="font-medium">{t("hc_modulesAdminErrorsPanel.aiPanelTitle")}</span>
+        <div className="ml-auto flex items-center gap-1">
+          {state?.text && (
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={copySuggestion}>
+              <Copy className="h-3 w-3 mr-1" />
+              {t("hc_modulesAdminErrorsPanel.aiCopy")}
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-[11px]"
+            onClick={onAnalyze}
+            disabled={state?.loading}
+          >
+            {state?.loading ? (
+              <Spinner size="sm" className="mr-1" />
+            ) : (
+              <Sparkles className="h-3 w-3 mr-1" />
+            )}
+            {state?.text || state?.error
+              ? t("hc_modulesAdminErrorsPanel.aiReanalyze")
+              : t("hc_modulesAdminErrorsPanel.aiAnalyze")}
+          </Button>
+        </div>
+      </div>
+      {state?.loading && (
+        <p className="text-muted-foreground">{t("hc_modulesAdminErrorsPanel.aiAnalyzing")}</p>
+      )}
+      {state?.error && !state.loading && (
+        <p className="text-destructive break-words">{state.error}</p>
+      )}
+      {state?.text && !state.loading && (
+        <div className="rounded bg-background border p-2 max-h-80 overflow-y-auto">
+          <MarkdownViewer>{state.text}</MarkdownViewer>
+        </div>
+      )}
+      {!state && (
+        <p className="text-muted-foreground">{t("hc_modulesAdminErrorsPanel.aiPanelHint")}</p>
+      )}
+    </div>
+  );
+}
+
 function EventDetailBlock({
   ev,
   sel,
+  onRetried,
 }: {
   ev: ErrorEvent;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sel: any;
+  onRetried?: () => void;
 }) {
   const { t } = useTranslation();
   const cfg = STATUS_CFG[ev.status];
   const msg = errorMessage(ev.metadata);
+  const [retrying, setRetrying] = useState(false);
+  // Safe-action: reintentar calificación. Solo aplica a jobs de la cola de
+  // IA (`ai_grading.job_failed`, entity_type='ai_grading_queue'), cuyo
+  // entity_id ES el id del job. Reusa la RPC existente
+  // `requeue_ai_grading_job(_job_id)` (que revalida permisos server-side).
+  const isGradingJob = ev.entity_type === "ai_grading_queue" && !!ev.entity_id;
+  const retryGrading = async () => {
+    if (!ev.entity_id || retrying) return;
+    setRetrying(true);
+    const { error } = await db.rpc("requeue_ai_grading_job", { _job_id: ev.entity_id });
+    setRetrying(false);
+    if (error) {
+      toast.error(friendlyError(error));
+      return;
+    }
+    toast.success(t("hc_modulesAdminErrorsPanel.retryGradingDone"));
+    onRetried?.();
+  };
   return (
     <div className="rounded-md border bg-background p-2 text-xs">
       <div className="flex items-start gap-2">
@@ -721,6 +879,24 @@ function EventDetailBlock({
               {JSON.stringify(ev.metadata, null, 2)}
             </pre>
           </details>
+          {isGradingJob && (
+            <div className="pt-1">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-[11px]"
+                onClick={() => void retryGrading()}
+                disabled={retrying}
+              >
+                {retrying ? (
+                  <Spinner size="sm" className="mr-1" />
+                ) : (
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                )}
+                {t("hc_modulesAdminErrorsPanel.retryGrading")}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>

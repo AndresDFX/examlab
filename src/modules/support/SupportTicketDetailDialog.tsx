@@ -39,8 +39,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Send, Paperclip, Download, X, UserCheck, CheckCircle2, Trash2 } from "lucide-react";
+import { Send, Paperclip, Download, X, UserCheck, CheckCircle2, Trash2, Sparkles } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 import { formatDateTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { canDeleteSupportTicket } from "@/modules/support/ticket-permissions";
@@ -191,6 +192,7 @@ export function SupportTicketDetailDialog({
   const [loading, setLoading] = useState(false);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState<TicketStatus>("open");
   const [resolutionNotes, setResolutionNotes] = useState("");
@@ -341,6 +343,31 @@ export function SupportTicketDetailDialog({
       toast.error(friendlyError(e, "No se pudo enviar"));
     } finally {
       setSending(false);
+    }
+  };
+
+  // Sugerir respuesta con IA (advisory-only). Rellena el textarea con la
+  // sugerencia del edge `support-ai-suggest` para que el humano la edite y
+  // la envíe con el flujo normal. NUNCA auto-envía ni muta el ticket.
+  const suggestReply = async () => {
+    if (!ticket || suggesting) return;
+    setSuggesting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("support-ai-suggest", {
+        body: { mode: "ticket", ticketId: ticket.id },
+      });
+      if (error || (data && data.error)) {
+        const real = await extractEdgeError(error, data);
+        throw new Error(real || t("support.aiSuggestError"));
+      }
+      const suggestion = (data as { suggestion?: string } | null)?.suggestion?.trim();
+      if (!suggestion) throw new Error(t("support.aiSuggestError"));
+      setReply(suggestion);
+      toast.success(t("support.aiSuggestReady"));
+    } catch (e) {
+      toast.error(friendlyError(e, t("support.aiSuggestError")));
+    } finally {
+      setSuggesting(false);
     }
   };
 
@@ -726,6 +753,23 @@ export function SupportTicketDetailDialog({
                 }}
                 aria-label={t("support.replyAriaLabel")}
               />
+              {(mode === "superadmin" || ticket.created_by === currentUserId) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  type="button"
+                  onClick={() => void suggestReply()}
+                  disabled={suggesting || sending}
+                  className="w-full"
+                >
+                  {suggesting ? (
+                    <Spinner size="sm" className="mr-1" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5 mr-1" />
+                  )}
+                  {t("support.aiSuggestReply")}
+                </Button>
+              )}
               <div className="flex items-center gap-2">
                 <input
                   ref={fileInputRef}
