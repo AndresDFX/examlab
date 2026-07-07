@@ -123,6 +123,28 @@ tutor_chat_messages, group_chats): **todos 0** (bien scopeados). `whiteboard_pag
 `ai_prompts` (29) abierto by-design. Suman a whiteboards (`20261061`) + attendance_sessions
 (`20261065`) de esta misma sesión.
 
+## Ronda 5 — ✅ find→verify sobre lo agregado esta sesión (6 bugs, commit `79867952`, 2026-07-07)
+
+Workflow `find→verify` adversarial (5 áreas, 12 agentes) sobre las features/cambios nuevos de la
+sesión (soporte IA chat + remediación, Tablero, i18n `${}→{{}}`, monitor/timer/statistics). Confirmó
+6 (todos introducidos esta sesión) + refutó 1 correctamente (friendlyError del import del Tablero).
+
+- **[high→media] platform_support_messages sin policy DELETE** → "Limpiar conversación" borraba 0 filas
+  sin error (default-deny) → UI decía éxito, los mensajes reaparecían. Migración `20261072` con policy
+  DELETE del dueño. Live + verificada.
+- **[media] ErrorsPanel "Analizar con IA"** visible al Admin pero el edge (mode=error) es SA-only → botón
+  muerto. Gateado por `isSuperAdmin`.
+- **[media] Tablero draft leak**: salir de edición tocando el form de creación arrastraba título/URLs de
+  la sesión editada al crear. Handlers ahora llaman `cancelEdit()`.
+- **[baja] platform-support-chat**: validaba vacío pre-slice → mensaje de solo espacios sobre el cap
+  violaba el CHECK (500). Valida sobre `trimmedMessage`.
+- **[baja] support-ai-suggest**: `sanitizeSuggestion` devolvía disculpa no-vacía → se mostraba como
+  sugerencia "lista". Ahora `""` → el cliente muestra error.
+- **[baja] use-realtime-timer**: el poll aplicaba pause/resume sin emitir el toast → alumno no se enteraba
+  si Realtime perdía el evento. Emite solo en transición (ref last-notified, sincronizado en el load).
+
+audit_logs de prod: 0 errores accionables nuevos (solo 1 `app.runtime_error` genérico stale).
+
 ## Cómo seguir
 
 1. **Cada ronda**: (a) revisar `audit_logs` de prod; (b) lanzar workflow `find→verify` sobre
