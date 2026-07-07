@@ -46,7 +46,7 @@
     {
       "id": "panel",
       "kind": "platform",
-      "narration": "El panel resume lo que el estudiante tiene pendiente —exámenes, talleres y proyectos—, un calendario con todas sus fechas del mes, y el ranking Kahoot: el puntaje acumulado de los juegos en vivo de cada curso, con el podio actualizado en tiempo real.",
+      "narration": "El panel resume lo que el estudiante tiene pendiente —exámenes, talleres y proyectos—, un calendario con todas sus fechas del mes, y el ranking de retos: el puntaje acumulado de los juegos en vivo de cada curso, con el podio actualizado en tiempo real.",
       "bufferMs": 1000,
       "beats": [
         {
@@ -73,14 +73,14 @@
           }
         },
         {
-          "target": "text:Ranking Kahoot",
+          "target": "text:Ranking de retos",
           "scale": 1.15,
           "hold": 6000,
           "side": "left",
           "scroll": true,
           "syncWord": "ranking",
           "focus": {
-            "title": "Ranking Kahoot",
+            "title": "Ranking de retos",
             "body": "Puntaje acumulado de los juegos del curso, con podio en vivo."
           }
         }

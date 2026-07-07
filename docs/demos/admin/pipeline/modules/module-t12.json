@@ -33,7 +33,7 @@
       "ready": [
         "[role=\"dialog\"]"
       ],
-      "narration": "Al crear una encuesta le damos un título y elegimos el tipo: opción única, múltiple, cupos por opción estilo Doodle —ideal para fechas de sustentación con cupo limitado— o un Kahoot: un quiz gamificado en vivo, con temporizador, puntos por velocidad y podio.",
+      "narration": "Al crear una encuesta le damos un título y elegimos el tipo: opción única, múltiple, cupos por opción estilo Doodle —ideal para fechas de sustentación con cupo limitado— o un Reto en vivo: un quiz gamificado con temporizador, puntos por velocidad y podio.",
       "bufferMs": 900,
       "beats": [
         {
@@ -52,7 +52,7 @@
           "syncWord": "tipo",
           "focus": {
             "title": "Tipo de encuesta",
-            "body": "Opción única, múltiple, cupos (Doodle) o Kahoot."
+            "body": "Opción única, múltiple, cupos (Doodle) o Reto en vivo."
           }
         }
       ]
@@ -67,7 +67,7 @@
       "ready": [
         "[role=\"dialog\"]"
       ],
-      "narration": "Y aquí está la magia del Kahoot: abrimos sus preguntas, escribimos los temas —pilas, colas, listas y árboles—, y la inteligencia artificial las genera. En segundos crea cada pregunta con sus opciones de colores y la respuesta correcta marcada.",
+      "narration": "Y aquí está la magia del reto en vivo: abrimos sus preguntas, escribimos los temas —pilas, colas, listas y árboles—, y la inteligencia artificial las genera. En segundos crea cada pregunta con sus opciones de colores y la respuesta correcta marcada.",
       "bufferMs": 900,
       "beats": [
         {

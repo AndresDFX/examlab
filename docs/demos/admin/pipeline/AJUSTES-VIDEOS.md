@@ -16,7 +16,7 @@ Docente / Estudiante). Tenerlo en cuenta al volver a generar cualquier video.
 - **NO** mencionar "se limpia el contexto de la institución" (videos de cuenta/sesión).
 - **Docente** = mostrar *cómo crear/generar*. **Estudiante** = *ver/participar/enviar*.
 - Mostrar features **EN VIVO** cuando aplique: generación con IA (preguntas,
-  contenido, Kahoot), QR de asistencia, proctoring, entrega ZIP, variables de
+  contenido, Reto en vivo), QR de asistencia, proctoring, entrega ZIP, variables de
   informe, mensajes programados/difusión.
 - Calendario (estudiante y docente): enfocar la **GRILLA del mes**, no la leyenda.
 - Si un módulo nuevo entra a la serie, dale su propio `module-NN.json` y ajustá
@@ -89,8 +89,8 @@ Docente / Estudiante). Tenerlo en cuenta al volver a generar cualquier video.
   **"Preguntas (N)"** (`tab: "Preguntas"`) para mostrar el resultado, no dejar la tab IA.
 - **Banco** (t06): el dialog **auto-cierra** al generar → usar `afterClickMs ~11s`
   (no `waitText`), y la pregunta queda en la tabla (`row:0`).
-- **Kahoot** (t12): preguntas en `kahoot_questions` se ven en el dialog "Preguntas
-  del Kahoot" con sus opciones de colores y la correcta marcada.
+- **Reto en vivo** (t12): preguntas en `kahoot_questions` (identificador interno) se ven
+  en el dialog "Preguntas del reto" con sus opciones de colores y la correcta marcada.
 
 ## 7. Verificación obligatoria
 
@@ -105,7 +105,31 @@ Docente / Estudiante). Tenerlo en cuenta al volver a generar cualquier video.
   Arquitectura "0/1" en vez de "0/8". El QR igual aparece (lo importante). Si se
   quiere "0/8", validar el select o pre-seleccionar el curso por estado.
 - **t12 encuestas:** el `selectOption` del tipo "Cupo por opción" puede fallar (la
-  parte Kahoot IA sí funciona). El generador de slots Doodle se muestra igual.
+  parte Reto en vivo IA sí funciona). El generador de slots Doodle se muestra igual.
 - **t07:** el modal "Detalle del corte" puede no abrir (`button:Detalle`), pero la
   nota 4,30 sí se ve en el consolidado.
 - **t06 banco:** acumula preguntas entre re-grabaciones (limpiar el curso si molesta).
+
+---
+
+## 9. Pendiente tras cambios recientes (2026-07-06)
+
+Cambios en la plataforma que impactan la serie de videos. **Requisito previo a re-grabar
+cualquiera de estos: la app debe estar PUBLICADA en Lovable con los commits abajo** — el
+recorder graba `examlab.lovable.app` EN VIVO, así que grabar antes del Publish capturaría
+la UI vieja. El render del `.mp4` exige correr el pipeline (`make.mjs`: Playwright +
+edge-tts + ffmpeg) contra la app publicada; no se genera sin ese paso.
+
+- **Rename "Kahoot" → "Reto en vivo"** (legal, commit `0c1994c0`). Specs YA actualizados a
+  "Reto en vivo": `module-t12.json` (docente, encuestas) y `module-s01.json` (estudiante,
+  dashboard — el target pasó de `text:Ranking Kahoot` a `text:Ranking de retos`, que es el
+  texto real de la UI renombrada). **Acción:** re-grabar **t12** y **s01** post-Publish.
+- **Nuevo módulo Admin "Asistente IA de plataforma"** (`/app/admin/support-assistant`,
+  commit `e5208bf1`) — chat de IA tipo Tutor para dudas de la plataforma. Falta crear su
+  `module-NN.json` (nuevo, un módulo por video) + ajustar el `outro` del módulo Admin
+  anterior para anunciarlo. Los `target`/`field:`/`text:` deben autorearse **contra la UI
+  publicada** (no a ciegas) para que el recorder los encuentre.
+- **Soporte automatizado con IA + remediación** (commit `b24f052f`): botón "Sugerir
+  respuesta con IA" en el detalle del ticket (SuperAdmin/Admin) + acción "Analizar con IA"
+  en Errores. Se puede sumar como beat al video del módulo Soporte (Admin/SA) o al del
+  Asistente IA. Requiere Publish (edge `support-ai-suggest`) para demostrarlo en vivo.
