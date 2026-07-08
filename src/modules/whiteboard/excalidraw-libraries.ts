@@ -557,6 +557,302 @@ export const DEFAULT_LIBRARY_ITEMS: Array<Record<string, any>> = [
       makeText(10, 8, 200, 18, "VPC", 16),
     ],
   },
+  // ──────────────────────────────────────────────────────────────────
+  // Redes / Topología — componentes para diagramar redes en clase
+  // (dispositivos finales, equipos de interconexión, nube/enlaces y
+  // plantillas de topología). Esquemáticos con primitivas, sin iconos
+  // externos. Diseñados por el workflow network-whiteboard-shapes.
+  // ──────────────────────────────────────────────────────────────────
+  {
+    id: "lib-net-pc",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · PC de escritorio",
+    elements: [
+      // Monitor
+      makeElement("rectangle", 10, 0, 130, 90, { backgroundColor: FILL_LIGHT }),
+      // Cuello del soporte
+      makeElement("rectangle", 65, 90, 20, 10, { roundness: null }),
+      // Base del soporte
+      makeElement("rectangle", 45, 100, 60, 8, { roundness: null }),
+      makeText(10, 10, 130, 16, "PC", 14),
+      makeText(10, 38, 130, 20, "Desktop", 16),
+    ],
+  },
+  {
+    id: "lib-net-laptop",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · Laptop",
+    elements: [
+      // Pantalla
+      makeElement("rectangle", 20, 0, 120, 78, { backgroundColor: FILL_LIGHT }),
+      // Teclado en trapecio (más ancho que la pantalla)
+      makeElement("line", 5, 80, 150, 18, {
+        points: [
+          [0, 0],
+          [150, 0],
+          [133, 18],
+          [17, 18],
+          [0, 0],
+        ],
+      }),
+      makeText(20, 10, 120, 16, "Laptop", 14),
+      makeText(20, 40, 120, 20, "Portátil", 16),
+    ],
+  },
+  {
+    id: "lib-net-server",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · Servidor",
+    elements: [
+      // Caja alta tipo rack
+      makeElement("rectangle", 20, 0, 100, 150, { backgroundColor: FILL_WARM }),
+      // Líneas horizontales que sugieren unidades de rack / discos
+      makeElement("line", 32, 34, 76, 0, { points: [[0, 0], [76, 0]] }),
+      makeElement("line", 32, 58, 76, 0, { points: [[0, 0], [76, 0]] }),
+      makeElement("line", 32, 82, 76, 0, { points: [[0, 0], [76, 0]] }),
+      makeElement("line", 32, 106, 76, 0, { points: [[0, 0], [76, 0]] }),
+      makeText(20, 8, 100, 16, "Server", 14),
+      makeText(20, 122, 100, 18, "Servidor", 14),
+    ],
+  },
+  {
+    id: "lib-net-smartphone",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · Smartphone",
+    elements: [
+      // Cuerpo vertical angosto
+      makeElement("rectangle", 0, 0, 66, 130, { backgroundColor: FILL_LIGHT }),
+      // Pantalla interna
+      makeElement("rectangle", 8, 16, 50, 90, { roundness: null }),
+      // Botón inferior
+      makeElement("ellipse", 27, 114, 12, 10),
+      makeText(0, 2, 66, 12, "Phone", 10),
+    ],
+  },
+  {
+    id: "lib-net-printer",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · Impresora de red",
+    elements: [
+      // Bandeja / hoja saliendo por arriba
+      makeElement("rectangle", 30, 0, 80, 22, { backgroundColor: FILL_LIGHT, roundness: null }),
+      // Cuerpo de la impresora
+      makeElement("rectangle", 0, 20, 140, 80, { backgroundColor: FILL_WARM }),
+      // Ranura de salida del papel
+      makeElement("line", 16, 60, 108, 0, { points: [[0, 0], [108, 0]] }),
+      makeText(0, 28, 140, 16, "Printer", 14),
+      makeText(0, 74, 140, 16, "Impresora", 14),
+    ],
+  },
+  {
+    id: "lib-net-router",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · Router",
+    elements: [
+      makeElement("rectangle", 20, 20, 120, 80, { backgroundColor: FILL_LIGHT }),
+      makeText(20, 36, 120, 16, "Router", 14),
+      makeText(20, 58, 120, 16, "L3", 12),
+      makeElement("arrow", 80, 20, 0, 20, { points: [[0, 0], [0, -20]], endArrowhead: "triangle" }),
+      makeElement("arrow", 80, 100, 0, 20, { points: [[0, 0], [0, 20]], endArrowhead: "triangle" }),
+      makeElement("arrow", 20, 60, 20, 0, { points: [[0, 0], [-20, 0]], endArrowhead: "triangle" }),
+      makeElement("arrow", 140, 60, 20, 0, { points: [[0, 0], [20, 0]], endArrowhead: "triangle" }),
+    ],
+  },
+  {
+    id: "lib-net-switch-l2",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · Switch L2",
+    elements: [
+      makeElement("rectangle", 0, 0, 160, 64, { backgroundColor: FILL_LIGHT, roundness: null }),
+      makeText(0, 8, 160, 16, "Switch", 14),
+      makeText(0, 26, 160, 14, "L2", 11),
+      makeElement("rectangle", 8, 46, 18, 10, { roundness: null }),
+      makeElement("rectangle", 32, 46, 18, 10, { roundness: null }),
+      makeElement("rectangle", 56, 46, 18, 10, { roundness: null }),
+      makeElement("rectangle", 80, 46, 18, 10, { roundness: null }),
+      makeElement("rectangle", 104, 46, 18, 10, { roundness: null }),
+      makeElement("rectangle", 128, 46, 18, 10, { roundness: null }),
+    ],
+  },
+  {
+    id: "lib-net-switch-l3",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · Switch L3",
+    elements: [
+      makeElement("rectangle", 0, 0, 160, 64, { backgroundColor: FILL_WARM, roundness: null }),
+      makeText(0, 8, 160, 16, "Switch", 14),
+      makeElement("diamond", 70, 24, 20, 16),
+      makeText(70, 26, 20, 12, "3", 10),
+      makeElement("rectangle", 8, 46, 18, 10, { roundness: null }),
+      makeElement("rectangle", 32, 46, 18, 10, { roundness: null }),
+      makeElement("rectangle", 56, 46, 18, 10, { roundness: null }),
+      makeElement("rectangle", 80, 46, 18, 10, { roundness: null }),
+      makeElement("rectangle", 104, 46, 18, 10, { roundness: null }),
+      makeElement("rectangle", 128, 46, 18, 10, { roundness: null }),
+    ],
+  },
+  {
+    id: "lib-net-firewall",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · Firewall",
+    elements: [
+      makeElement("rectangle", 0, 0, 140, 90, { backgroundColor: FILL_WARM, roundness: null }),
+      makeElement("line", 0, 22, 140, 0, { points: [[0, 0], [140, 0]] }),
+      makeElement("line", 0, 44, 140, 0, { points: [[0, 0], [140, 0]] }),
+      makeElement("line", 0, 66, 140, 0, { points: [[0, 0], [140, 0]] }),
+      makeElement("line", 46, 0, 0, 22, { points: [[0, 0], [0, 22]] }),
+      makeElement("line", 93, 0, 0, 22, { points: [[0, 0], [0, 22]] }),
+      makeElement("line", 23, 22, 0, 22, { points: [[0, 0], [0, 22]] }),
+      makeElement("line", 70, 22, 0, 22, { points: [[0, 0], [0, 22]] }),
+      makeElement("line", 117, 22, 0, 22, { points: [[0, 0], [0, 22]] }),
+      makeElement("line", 46, 44, 0, 22, { points: [[0, 0], [0, 22]] }),
+      makeElement("line", 93, 44, 0, 22, { points: [[0, 0], [0, 22]] }),
+      makeText(0, 70, 140, 16, "Firewall", 14),
+    ],
+  },
+  {
+    id: "lib-net-access-point",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · Access Point WiFi",
+    elements: [
+      makeElement("line", 42, 30, 56, 16, { points: [[0, 16], [28, 0], [56, 16]] }),
+      makeElement("line", 50, 44, 40, 12, { points: [[0, 12], [20, 0], [40, 12]] }),
+      makeElement("line", 58, 58, 24, 8, { points: [[0, 8], [12, 0], [24, 8]] }),
+      makeElement("rectangle", 40, 70, 60, 30, { backgroundColor: FILL_LIGHT }),
+      makeText(40, 77, 60, 16, "AP", 14),
+    ],
+  },
+  {
+    id: "lib-net-load-balancer",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · Balanceador de carga",
+    elements: [
+      makeElement("rectangle", 40, 20, 90, 64, { backgroundColor: FILL_LIGHT }),
+      makeText(40, 34, 90, 16, "LB", 14),
+      makeText(40, 54, 90, 14, "balanceo", 11),
+      makeElement("arrow", 10, 52, 30, 0, { points: [[0, 0], [30, 0]], endArrowhead: "triangle" }),
+      makeElement("arrow", 130, 52, 30, 30, { points: [[0, 0], [30, -30]], endArrowhead: "triangle" }),
+      makeElement("arrow", 130, 52, 30, 0, { points: [[0, 0], [30, 0]], endArrowhead: "triangle" }),
+      makeElement("arrow", 130, 52, 30, 30, { points: [[0, 0], [30, 30]], endArrowhead: "triangle" }),
+    ],
+  },
+  {
+    id: "lib-net-internet",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · Internet",
+    elements: [
+      makeElement("ellipse", 0, 0, 200, 120, { backgroundColor: FILL_LIGHT, strokeStyle: "dashed" }),
+      makeElement("ellipse", 30, 20, 80, 60, { backgroundColor: FILL_LIGHT, strokeStyle: "dashed" }),
+      makeElement("ellipse", 100, 24, 80, 60, { backgroundColor: FILL_LIGHT, strokeStyle: "dashed" }),
+      makeText(0, 50, 200, 20, "Internet", 16),
+    ],
+  },
+  {
+    id: "lib-net-wan",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · Nube WAN",
+    elements: [
+      makeElement("ellipse", 0, 0, 200, 120, { backgroundColor: FILL_WARM, strokeStyle: "dashed" }),
+      makeElement("ellipse", 28, 22, 78, 58, { backgroundColor: FILL_WARM, strokeStyle: "dashed" }),
+      makeElement("ellipse", 96, 26, 78, 58, { backgroundColor: FILL_WARM, strokeStyle: "dashed" }),
+      makeText(0, 50, 200, 20, "WAN", 16),
+    ],
+  },
+  {
+    id: "lib-net-ethernet",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · Enlace Ethernet",
+    elements: [
+      makeElement("line", 0, 20, 180, 0, { points: [[0, 0], [180, 0]] }),
+      makeText(0, 0, 180, 14, "Ethernet", 12),
+    ],
+  },
+  {
+    id: "lib-net-serial",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · Enlace Serial",
+    elements: [
+      makeElement("line", 0, 24, 180, 0, { points: [[0, 0], [180, 0]] }),
+      makeElement("line", 80, 14, 20, 20, { points: [[0, 20], [10, 0], [20, 20]] }),
+      makeText(0, 0, 180, 14, "Serial", 12),
+    ],
+  },
+  {
+    id: "lib-net-wifi",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · Enlace inalámbrico",
+    elements: [
+      makeElement("line", 0, 24, 180, 0, { points: [[0, 0], [180, 0]], strokeStyle: "dashed" }),
+      makeText(0, 0, 180, 14, "WiFi", 12),
+    ],
+  },
+  {
+    id: "lib-net-topo-estrella",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · Topología en estrella",
+    elements: [
+      // enlaces (detrás de los nodos)
+      makeElement("line", 200, 50, 0, 120, { points: [[0, 0], [0, 120]] }),
+      makeElement("line", 150, 230, 0, 0, { points: [[0, 0], [-70, 110]] }),
+      makeElement("line", 250, 230, 0, 0, { points: [[0, 0], [70, 110]] }),
+      // switch central
+      makeElement("rectangle", 140, 170, 120, 60, { backgroundColor: FILL_LIGHT }),
+      makeText(140, 178, 120, 14, "Switch", 12),
+      makeText(140, 198, 120, 18, "central", 14),
+      // PC superior
+      makeElement("rectangle", 140, 0, 120, 50, { backgroundColor: FILL_WARM }),
+      makeText(140, 14, 120, 18, "PC 1", 14),
+      // PC inferior izquierda
+      makeElement("rectangle", 0, 340, 120, 50, { backgroundColor: FILL_WARM }),
+      makeText(0, 354, 120, 18, "PC 2", 14),
+      // PC inferior derecha
+      makeElement("rectangle", 280, 340, 120, 50, { backgroundColor: FILL_WARM }),
+      makeText(280, 354, 120, 18, "PC 3", 14),
+    ],
+  },
+  {
+    id: "lib-net-lan-simple",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Redes · LAN simple",
+    elements: [
+      // enlaces (detrás de los nodos)
+      makeElement("line", 120, 30, 80, 0, { points: [[0, 0], [80, 0]] }),
+      makeElement("line", 260, 60, 0, 0, { points: [[0, 0], [-60, 90]] }),
+      makeElement("line", 260, 60, 0, 0, { points: [[0, 0], [100, 90]] }),
+      // router
+      makeElement("rectangle", 0, 0, 120, 60, { backgroundColor: FILL_LIGHT }),
+      makeText(0, 8, 120, 14, "Router", 12),
+      makeText(0, 28, 120, 18, "WAN", 14),
+      // switch
+      makeElement("rectangle", 200, 0, 120, 60, { backgroundColor: FILL_LIGHT }),
+      makeText(200, 8, 120, 14, "Switch", 12),
+      makeText(200, 28, 120, 18, "LAN", 14),
+      // PC 1
+      makeElement("rectangle", 140, 150, 120, 50, { backgroundColor: FILL_WARM }),
+      makeText(140, 164, 120, 18, "PC 1", 14),
+      // PC 2
+      makeElement("rectangle", 300, 150, 120, 50, { backgroundColor: FILL_WARM }),
+      makeText(300, 164, 120, 18, "PC 2", 14),
+    ],
+  },
 ];
 
 // ──────────────────────────────────────────────────────────────────────
@@ -631,6 +927,13 @@ export const LIBRARY_CATEGORIES: LibraryCategory[] = [
     description: "EC2, S3, RDS, Lambda, API Gateway, VPC…",
     icon: "Cloud",
     items: pickByPrefix(["lib-aws-"]),
+  },
+  {
+    key: "redes",
+    label: "Redes / Topología",
+    description: "Router, switch, PC, servidor, nube, enlaces y plantillas de topología.",
+    icon: "Network",
+    items: pickByPrefix(["lib-net-"]),
   },
 ];
 

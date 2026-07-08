@@ -48,6 +48,7 @@ import {
   Database,
   Binary,
   Cloud,
+  Network,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
@@ -71,6 +72,7 @@ const CATEGORY_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   Database,
   Binary,
   Cloud,
+  Network,
 };
 
 /** Miniatura SVG de una figura de la paleta (estilo draw.io: se VE qué es). */
