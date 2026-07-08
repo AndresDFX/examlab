@@ -4068,7 +4068,8 @@
     "typeNetworkConsole": "Network (console)",
     "networkScenarioLabel": "Network scenario (JSON)",
     "networkScenarioHint": "Define the topology (devices/links), targetDeviceId (the device the student configures) and assertions (auto-graded rubric). The student solves it from an IOS-like console.",
-    "networkResetTemplate": "Reset template"
+    "networkResetTemplate": "Reset template",
+    "typeNetworkGui": "Network (diagram)"
   },
   "adminReportTemplates": {
     "title": "Reports",
@@ -4190,7 +4191,8 @@
     "typeNetworkConsole": "Network (console)",
     "networkScenarioLabel": "Network scenario (JSON)",
     "networkScenarioHint": "Define the topology (devices/links), targetDeviceId (the device the student configures) and assertions (auto-graded rubric: hostname, interface_ip, interface_up, connectivity, command_used). The student solves it from an IOS-like console.",
-    "networkResetTemplate": "Reset template"
+    "networkResetTemplate": "Reset template",
+    "typeNetworkGui": "Network (diagram)"
   },
   "adminSupport": {
     "title": "Support",
@@ -4893,7 +4895,8 @@
       "diagrama": "Diagram",
       "javaGui": "Java GUI",
       "pythonGui": "Python GUI (tkinter)",
-      "redConsola": "Network (console)"
+      "redConsola": "Network (console)",
+      "redGui": "Network (diagram)"
     },
     "pageTitle": "Question bank",
     "pageSubtitle": "Reusable questions shared among the course's teachers. Import selections when creating exams, workshops, or projects.",
@@ -6077,7 +6080,8 @@
     "pointsLabel": "Points",
     "cancel": "Cancel",
     "addQuestions": "Add {{count}} question",
-    "addQuestions_other": "Add {{count}} questions"
+    "addQuestions_other": "Add {{count}} questions",
+    "typeRedGui": "Network (diagram)"
   },
   "hc_modulesContentsContentPromptsOverridesDialog": {
     "useCaseOrchestratorLabel": "Orchestrator prompt",
@@ -7743,7 +7747,8 @@
     "typeNetworkConsole": "Network (console)",
     "networkScenarioLabel": "Network scenario (JSON)",
     "networkScenarioHint": "Define the topology (devices/links), targetDeviceId (the device the student configures) and assertions (auto-graded rubric). The student solves it from an IOS-like console.",
-    "networkResetTemplate": "Reset template"
+    "networkResetTemplate": "Reset template",
+    "typeNetworkGui": "Network (diagram)"
   },
   "hc_routesAppTeacherExamsIndex": {
     "loadError": "We couldn't load the exams.",
@@ -8978,5 +8983,16 @@
       "pc": "PC",
       "server": "server"
     }
+  },
+  "networkGui": {
+    "diagramTitle": "Diagram",
+    "hostname": "hostname",
+    "mask": "mask",
+    "up": "up",
+    "links": "Links",
+    "removeLink": "Remove link",
+    "endpointA": "Endpoint A",
+    "endpointB": "Endpoint B",
+    "addLink": "Add link"
   }
 }

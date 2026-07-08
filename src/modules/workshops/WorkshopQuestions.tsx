@@ -65,6 +65,7 @@ import {
   QUEUED_STUDENT_TITLE,
 } from "@/modules/ai/ai-grading";
 import { NetworkConsole } from "@/modules/network/NetworkConsole";
+import { NetworkTopologyEditor } from "@/modules/network/NetworkTopologyEditor";
 import {
   type NetworkScenario,
   defaultScenario,
@@ -86,7 +87,8 @@ export type WorkshopQuestion = {
     | "java_gui"
     | "python_gui"
     | "codigo_zip"
-    | "red_consola";
+    | "red_consola"
+    | "red_gui";
   content: string;
   options: any;
   position: number;
@@ -277,7 +279,7 @@ export function TeacherWorkshopQuestionsEditor({
     // red_consola: valida el escenario JSON (topología + target + aserciones)
     // antes de armar el payload. Si no parsea, aborta con toast amigable.
     let networkOptions: { network: unknown } | null = null;
-    if (qType === "red_consola") {
+    if (qType === "red_consola" || qType === "red_gui") {
       let scenarioObj: unknown = null;
       try {
         scenarioObj = JSON.parse(qNetworkScenario);
@@ -308,7 +310,7 @@ export function TeacherWorkshopQuestionsEditor({
             }
           : qType === "java_gui"
             ? { java_framework: qJavaFramework }
-            : qType === "red_consola"
+            : qType === "red_consola" || qType === "red_gui"
               ? networkOptions
               : null;
     const language =
@@ -470,8 +472,8 @@ export function TeacherWorkshopQuestionsEditor({
     // (topología + aserciones auto-calificables); NO llaman al modelo ni pasan
     // por el gate/cola de IA. Se insertan directo. El resto de tipos sigue el
     // flujo normal por el edge / cola.
-    const networkRows = validRows.filter((r) => r.type === "red_consola");
-    const aiTargetRows = validRows.filter((r) => r.type !== "red_consola");
+    const networkRows = validRows.filter((r) => r.type === "red_consola" || r.type === "red_gui");
+    const aiTargetRows = validRows.filter((r) => r.type !== "red_consola" && r.type !== "red_gui");
     if (networkRows.length) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbNet = supabase as any;
@@ -482,7 +484,7 @@ export function TeacherWorkshopQuestionsEditor({
         for (const gen of generateNetworkQuestions(aiTopics, row.count)) {
           toInsert.push({
             workshop_id: workshopId,
-            type: "red_consola",
+            type: row.type,
             content: gen.content,
             expected_rubric: gen.expected_rubric,
             options: gen.options,
@@ -756,6 +758,9 @@ export function TeacherWorkshopQuestionsEditor({
                   <SelectItem value="red_consola">
                     {t("workshopQuestions.typeNetworkConsole", { defaultValue: "Red (consola)" })}
                   </SelectItem>
+                  <SelectItem value="red_gui">
+                    {t("workshopQuestions.typeNetworkGui", { defaultValue: "Red (diagrama)" })}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -947,7 +952,7 @@ export function TeacherWorkshopQuestionsEditor({
               </div>
             </div>
           )}
-          {qType === "red_consola" && (
+          {(qType === "red_consola" || qType === "red_gui") && (
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5">
                 {t("workshopQuestions.networkScenarioLabel", { defaultValue: "Escenario de red (JSON)" })}
@@ -1344,7 +1349,7 @@ export function StudentWorkshopTaker({
   const networkScenarios = useMemo(() => {
     const map: Record<string, NetworkScenario> = {};
     for (const q of questions) {
-      if (q.type === "red_consola") {
+      if (q.type === "red_consola" || q.type === "red_gui") {
         const s = parseScenario(q.options);
         if (s) map[q.id] = s;
       }
@@ -1537,11 +1542,10 @@ export function StudentWorkshopTaker({
         const trimmedAnswer = String(a ?? "").trim();
         const trimmedStarter = String(q.starter_code ?? "").trim();
         isBlank = !trimmedAnswer || (trimmedStarter !== "" && trimmedAnswer === trimmedStarter);
-      } else if (q.type === "red_consola") {
-        // Vacía si el alumno no ejecutó ningún comando en la consola.
-        const parsed = parseNetworkAnswer(a);
-        isBlank =
-          !parsed || Object.values(parsed.histories).every((h) => !h || h.length === 0);
+      } else if (q.type === "red_consola" || q.type === "red_gui") {
+        // Vacía si no hay respuesta parseable (sin comandos en consola / sin
+        // topología editada en GUI).
+        isBlank = !parseNetworkAnswer(a);
       } else {
         isBlank = !String(a ?? "").trim();
       }
@@ -2100,10 +2104,12 @@ export function StudentWorkshopTaker({
             earned: result.earned,
             feedback: payload.ai_feedback,
           });
-        } else if (q.type === "red_consola") {
+        } else if (q.type === "red_consola" || q.type === "red_gui") {
           // Calificación DETERMINISTA (sin IA): parsea la topología final del
           // alumno + su historial y evalúa las aserciones del escenario del
-          // docente (options.network). No entra al batch de IA.
+          // docente (options.network). No entra al batch de IA. Igual para
+          // consola (comandos) y GUI (topología editada) — ambas producen
+          // el mismo modelo Topology.
           const scenario = parseScenario(q.options);
           const answer = parseNetworkAnswer(raw);
           const maxPoints = Number(q.points) || 0;
@@ -2670,6 +2676,20 @@ export function StudentWorkshopTaker({
             {q.type === "red_consola" &&
               (networkScenarios[q.id] ? (
                 <NetworkConsole
+                  scenario={networkScenarios[q.id]}
+                  value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
+                  onChange={(v) => updateAnswer(q.id, v)}
+                />
+              ) : (
+                <p className="text-xs text-destructive">
+                  {t("hc_modulesWorkshopsWorkshopQuestions.networkScenarioMissing", {
+                    defaultValue: "Esta pregunta de red no tiene un escenario válido configurado.",
+                  })}
+                </p>
+              ))}
+            {q.type === "red_gui" &&
+              (networkScenarios[q.id] ? (
+                <NetworkTopologyEditor
                   scenario={networkScenarios[q.id]}
                   value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
                   onChange={(v) => updateAnswer(q.id, v)}

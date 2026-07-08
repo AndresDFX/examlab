@@ -93,7 +93,8 @@ type QuestionType =
   | "diagrama"
   | "java_gui"
   | "python_gui"
-  | "red_consola";
+  | "red_consola"
+  | "red_gui";
 
 interface BankRow {
   id: string;
@@ -134,6 +135,7 @@ const TYPE_LABEL_KEY: Record<QuestionType, string> = {
   java_gui: "questionBank.type.javaGui",
   python_gui: "questionBank.type.pythonGui",
   red_consola: "questionBank.type.redConsola",
+  red_gui: "questionBank.type.redGui",
 };
 
 const typeLabel = (type: QuestionType): string => i18n.t(TYPE_LABEL_KEY[type]);
@@ -410,7 +412,7 @@ function QuestionBankPage() {
     }
     // red_consola: parsea + valida el escenario JSON antes de guardar.
     let resolvedOptions = draft.options ?? null;
-    if (draft.type === "red_consola") {
+    if (draft.type === "red_consola" || draft.type === "red_gui") {
       let scenarioObj: unknown = null;
       try {
         scenarioObj = JSON.parse(netScenarioText);
@@ -936,7 +938,7 @@ function QuestionBankPage() {
               />
             </div>
 
-            {draft.type === "red_consola" && (
+            {(draft.type === "red_consola" || draft.type === "red_gui") && (
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5">
                   {t("questionBank.networkScenarioLabel", { defaultValue: "Escenario de red (JSON)" })}
@@ -966,7 +968,8 @@ function QuestionBankPage() {
             )}
             {draft.type !== "cerrada" &&
               draft.type !== "cerrada_multi" &&
-              draft.type !== "red_consola" && (
+              draft.type !== "red_consola" &&
+              draft.type !== "red_gui" && (
               <div data-tour-id="question-field-rubric">
                 <Label>
                   {t("questionBank.expectedRubricLabel")}{" "}
@@ -1134,7 +1137,7 @@ function QuestionBankPage() {
                       // codigo_zip es exclusivo de proyectos; red_consola usa
                       // escenario estructurado (no lo genera el modelo). Ambos
                       // se crean manualmente, no por IA en el banco.
-                      .filter((k) => k !== "codigo_zip" && k !== "red_consola")
+                      .filter((k) => k !== "codigo_zip" && k !== "red_consola" && k !== "red_gui")
                       .map((k) => (
                         <SelectItem key={k} value={k}>
                           {typeLabel(k)}

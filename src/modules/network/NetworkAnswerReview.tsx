@@ -10,6 +10,7 @@
  */
 import { useMemo } from "react";
 import { NetworkConsole } from "./NetworkConsole";
+import { NetworkTopologyEditor } from "./NetworkTopologyEditor";
 import { parseScenario } from "./scenario";
 
 interface Props {
@@ -17,9 +18,11 @@ interface Props {
   options: unknown;
   /** Respuesta serializada del alumno (topología final + historial). */
   value: unknown;
+  /** Tipo de la pregunta: red_consola → terminal; red_gui → diagrama. */
+  type?: "red_consola" | "red_gui";
 }
 
-export function NetworkAnswerReview({ options, value }: Props) {
+export function NetworkAnswerReview({ options, value, type = "red_consola" }: Props) {
   const scenario = useMemo(() => parseScenario(options), [options]);
   if (!scenario) {
     return (
@@ -28,11 +31,10 @@ export function NetworkAnswerReview({ options, value }: Props) {
       </div>
     );
   }
-  return (
-    <NetworkConsole
-      scenario={scenario}
-      value={typeof value === "string" ? value : null}
-      readOnly
-    />
+  const v = typeof value === "string" ? value : null;
+  return type === "red_gui" ? (
+    <NetworkTopologyEditor scenario={scenario} value={v} readOnly />
+  ) : (
+    <NetworkConsole scenario={scenario} value={v} readOnly />
   );
 }

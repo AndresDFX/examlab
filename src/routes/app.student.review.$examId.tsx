@@ -596,8 +596,12 @@ function StudentExamReview() {
                   </div>
                 )}
 
-                {q.type === "red_consola" ? (
-                  <NetworkAnswerReview options={q.options} value={ans} />
+                {q.type === "red_consola" || q.type === "red_gui" ? (
+                  <NetworkAnswerReview
+                    options={q.options}
+                    value={ans}
+                    type={q.type === "red_gui" ? "red_gui" : "red_consola"}
+                  />
                 ) : q.type === "codigo" || q.type === "java_gui" || q.type === "python_gui" ? (
                   <CodeEditor
                     value={

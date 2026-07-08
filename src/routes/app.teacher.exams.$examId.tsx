@@ -557,7 +557,7 @@ function ExamEditor() {
     }
     // red_consola: valida el escenario JSON antes de construir el payload.
     let networkOptions: { network: unknown } | null = null;
-    if (qType === "red_consola") {
+    if (qType === "red_consola" || qType === "red_gui") {
       let scenarioObj: unknown = null;
       try {
         scenarioObj = JSON.parse(qNetworkScenario);
@@ -587,7 +587,7 @@ function ExamEditor() {
             }
           : qType === "java_gui"
             ? { java_framework: qJavaFramework }
-            : qType === "red_consola"
+            : qType === "red_consola" || qType === "red_gui"
               ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (networkOptions as any)
               : null;
@@ -723,8 +723,8 @@ function ExamEditor() {
     // ── red_consola: generación LOCAL determinista (sin IA) ──
     // Se insertan directo (plantillas de escenario auto-calificables); no pasan
     // por el gate/cola. El resto de tipos sigue el flujo normal por el edge.
-    const networkRows = validRows.filter((r) => r.type === "red_consola");
-    const aiTargetRows = validRows.filter((r) => r.type !== "red_consola");
+    const networkRows = validRows.filter((r) => r.type === "red_consola" || r.type === "red_gui");
+    const aiTargetRows = validRows.filter((r) => r.type !== "red_consola" && r.type !== "red_gui");
     if (networkRows.length) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbNet = supabase as any;
@@ -735,7 +735,7 @@ function ExamEditor() {
         for (const gen of generateNetworkQuestions(aiTopics, row.count)) {
           toInsert.push({
             exam_id: examId,
-            type: "red_consola",
+            type: row.type,
             content: gen.content,
             expected_rubric: gen.expected_rubric,
             options: gen.options,
@@ -1504,6 +1504,7 @@ function ExamEditor() {
                           <SelectItem value="java_gui">{t("hc_routesAppTeacherExamsExamId.typeJavaGuiShort")}</SelectItem>
                           <SelectItem value="python_gui">{t("hc_routesAppTeacherExamsExamId.typePythonGui")}</SelectItem>
                           <SelectItem value="red_consola">{t("hc_routesAppTeacherExamsExamId.typeNetworkConsole", { defaultValue: "Red (consola)" })}</SelectItem>
+                          <SelectItem value="red_gui">{t("hc_routesAppTeacherExamsExamId.typeNetworkGui", { defaultValue: "Red (diagrama)" })}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1640,6 +1641,7 @@ function ExamEditor() {
                       <SelectItem value="java_gui">{t("hc_routesAppTeacherExamsExamId.typeJavaGuiSwing")}</SelectItem>
                       <SelectItem value="python_gui">{t("hc_routesAppTeacherExamsExamId.typePythonGui")}</SelectItem>
                       <SelectItem value="red_consola">{t("hc_routesAppTeacherExamsExamId.typeNetworkConsole", { defaultValue: "Red (consola)" })}</SelectItem>
+                      <SelectItem value="red_gui">{t("hc_routesAppTeacherExamsExamId.typeNetworkGui", { defaultValue: "Red (diagrama)" })}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1693,7 +1695,7 @@ function ExamEditor() {
                   </p>
                 </div>
               )}
-              {qType === "red_consola" && (
+              {(qType === "red_consola" || qType === "red_gui") && (
                 <div className="space-y-2">
                   <Label className="flex items-center gap-1.5">
                     {t("hc_routesAppTeacherExamsExamId.networkScenarioLabel", { defaultValue: "Escenario de red (JSON)" })}
@@ -1721,7 +1723,7 @@ function ExamEditor() {
                   </Button>
                 </div>
               )}
-              {qType !== "cerrada" && qType !== "cerrada_multi" && qType !== "red_consola" && (
+              {qType !== "cerrada" && qType !== "cerrada_multi" && qType !== "red_consola" && qType !== "red_gui" && (
                 <div>
                   <Label required>{t("hc_routesAppTeacherExamsExamId.fieldExpectedRubric")}</Label>
                   <Textarea

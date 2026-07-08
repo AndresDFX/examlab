@@ -4068,7 +4068,8 @@
     "typeNetworkConsole": "Red (consola)",
     "networkScenarioLabel": "Escenario de red (JSON)",
     "networkScenarioHint": "Define la topología (devices/links), targetDeviceId (el dispositivo que configura el alumno) y assertions (rúbrica auto-calificada). El alumno resuelve desde una consola tipo IOS.",
-    "networkResetTemplate": "Restablecer plantilla"
+    "networkResetTemplate": "Restablecer plantilla",
+    "typeNetworkGui": "Red (diagrama)"
   },
   "adminReportTemplates": {
     "title": "Informes",
@@ -4190,7 +4191,8 @@
     "typeNetworkConsole": "Red (consola)",
     "networkScenarioLabel": "Escenario de red (JSON)",
     "networkScenarioHint": "Define la topología (devices/links), targetDeviceId (el dispositivo que configura el alumno) y assertions (rúbrica auto-calificada: hostname, interface_ip, interface_up, connectivity, command_used). El alumno resuelve desde una consola tipo IOS.",
-    "networkResetTemplate": "Restablecer plantilla"
+    "networkResetTemplate": "Restablecer plantilla",
+    "typeNetworkGui": "Red (diagrama)"
   },
   "adminSupport": {
     "title": "Soporte",
@@ -4893,7 +4895,8 @@
       "diagrama": "Diagrama",
       "javaGui": "Java GUI",
       "pythonGui": "Python GUI (tkinter)",
-      "redConsola": "Red (consola)"
+      "redConsola": "Red (consola)",
+      "redGui": "Red (diagrama)"
     },
     "pageTitle": "Banco de preguntas",
     "pageSubtitle": "Preguntas reutilizables compartidas entre los docentes del curso. Importa selecciones al crear exámenes, talleres o proyectos.",
@@ -6077,7 +6080,8 @@
     "pointsLabel": "Puntos",
     "cancel": "Cancelar",
     "addQuestions": "Añadir {{count}} pregunta",
-    "addQuestions_other": "Añadir {{count}} preguntas"
+    "addQuestions_other": "Añadir {{count}} preguntas",
+    "typeRedGui": "Red (diagrama)"
   },
   "hc_modulesContentsContentPromptsOverridesDialog": {
     "useCaseOrchestratorLabel": "Prompt orquestador",
@@ -7743,7 +7747,8 @@
     "typeNetworkConsole": "Red (consola)",
     "networkScenarioLabel": "Escenario de red (JSON)",
     "networkScenarioHint": "Define la topología (devices/links), targetDeviceId (el dispositivo que configura el alumno) y assertions (rúbrica auto-calificada). El alumno resuelve desde una consola tipo IOS.",
-    "networkResetTemplate": "Restablecer plantilla"
+    "networkResetTemplate": "Restablecer plantilla",
+    "typeNetworkGui": "Red (diagrama)"
   },
   "hc_routesAppTeacherExamsIndex": {
     "loadError": "No pudimos cargar los exámenes.",
@@ -8978,5 +8983,16 @@
       "pc": "PC",
       "server": "servidor"
     }
+  },
+  "networkGui": {
+    "diagramTitle": "Diagrama",
+    "hostname": "hostname",
+    "mask": "máscara",
+    "up": "activa",
+    "links": "Enlaces",
+    "removeLink": "Quitar enlace",
+    "endpointA": "Extremo A",
+    "endpointB": "Extremo B",
+    "addLink": "Agregar enlace"
   }
 }

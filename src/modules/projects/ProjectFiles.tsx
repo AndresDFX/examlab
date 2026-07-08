@@ -15,6 +15,7 @@ import { logEvent } from "@/shared/lib/audit";
 import { useAuth } from "@/hooks/use-auth";
 import { scoreCerradaMulti } from "@/modules/exams/question-scoring";
 import { NetworkConsole } from "@/modules/network/NetworkConsole";
+import { NetworkTopologyEditor } from "@/modules/network/NetworkTopologyEditor";
 import {
   type NetworkScenario,
   defaultScenario,
@@ -106,7 +107,8 @@ export type ProjectFile = {
     | "java_gui"
     | "python_gui"
     | "codigo_zip"
-    | "red_consola";
+    | "red_consola"
+    | "red_gui";
   /** Scaffolding flujo ZIP único: cuando true (y type=codigo_zip), el
    *  estudiante sube UN .zip en vez de varios archivos sueltos, y la
    *  IA califica sin minificar. Default false (multi-file). */
@@ -289,7 +291,7 @@ export function TeacherProjectFilesEditor({
     }
     // red_consola: valida el escenario JSON antes de armar el payload.
     let networkOptions: { network: unknown } | null = null;
-    if (qType === "red_consola") {
+    if (qType === "red_consola" || qType === "red_gui") {
       let scenarioObj: unknown = null;
       try {
         scenarioObj = JSON.parse(qNetworkScenario);
@@ -320,7 +322,7 @@ export function TeacherProjectFilesEditor({
             }
           : qType === "java_gui"
             ? { java_framework: qJavaFramework }
-            : qType === "red_consola"
+            : qType === "red_consola" || qType === "red_gui"
               ? networkOptions
               : null;
     // Para proyectos: el tipo 'codigo' implica entrega ZIP (codigo_zip).
@@ -570,8 +572,8 @@ export function TeacherProjectFilesEditor({
       );
 
     // ── red_consola: generación LOCAL determinista (sin IA) ──
-    const networkRows = validRows.filter((r) => r.type === "red_consola");
-    const aiTargetRows = validRows.filter((r) => r.type !== "red_consola");
+    const networkRows = validRows.filter((r) => r.type === "red_consola" || r.type === "red_gui");
+    const aiTargetRows = validRows.filter((r) => r.type !== "red_consola" && r.type !== "red_gui");
     if (networkRows.length) {
       let pos = (questions[questions.length - 1]?.position ?? -1) + 1;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -580,7 +582,7 @@ export function TeacherProjectFilesEditor({
         for (const gen of generateNetworkQuestions(aiTopics, row.count)) {
           toInsert.push({
             project_id: projectId,
-            type: "red_consola",
+            type: row.type,
             title: gen.content.slice(0, 200),
             expected_rubric: gen.expected_rubric,
             options: gen.options,
@@ -858,6 +860,7 @@ export function TeacherProjectFilesEditor({
                   <SelectItem value="diagrama">{t("projectFiles.typeDiagram")}</SelectItem>
                   <SelectItem value="codigo_zip">{t("projectFiles.typeCodeFiles")}</SelectItem>
                   <SelectItem value="red_consola">{t("projectFiles.typeNetworkConsole", { defaultValue: "Red (consola)" })}</SelectItem>
+                  <SelectItem value="red_gui">{t("projectFiles.typeNetworkGui", { defaultValue: "Red (diagrama)" })}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1040,7 +1043,7 @@ export function TeacherProjectFilesEditor({
               </div>
             </>
           )}
-          {qType === "red_consola" && (
+          {(qType === "red_consola" || qType === "red_gui") && (
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5">
                 {t("projectFiles.networkScenarioLabel", { defaultValue: "Escenario de red (JSON)" })}
@@ -1068,7 +1071,7 @@ export function TeacherProjectFilesEditor({
               </Button>
             </div>
           )}
-          {qType !== "red_consola" && (
+          {qType !== "red_consola" && qType !== "red_gui" && (
           <div>
             <Label required>{t("projectFiles.labelRubric")}</Label>
             <Textarea
@@ -1188,6 +1191,7 @@ export function TeacherProjectFilesEditor({
                       <SelectItem value="diagrama">{t("projectFiles.typeDiagramShort")}</SelectItem>
                       <SelectItem value="codigo_zip">{t("projectFiles.typeCodeFilesShort")}</SelectItem>
                       <SelectItem value="red_consola">{t("projectFiles.typeNetworkConsole", { defaultValue: "Red (consola)" })}</SelectItem>
+                  <SelectItem value="red_gui">{t("projectFiles.typeNetworkGui", { defaultValue: "Red (diagrama)" })}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1509,7 +1513,7 @@ export function StudentProjectTaker({
   const networkScenarios = useMemo(() => {
     const map: Record<string, NetworkScenario> = {};
     for (const q of questions) {
-      if (q.type === "red_consola") {
+      if (q.type === "red_consola" || q.type === "red_gui") {
         const s = parseScenario(q.options);
         if (s) map[q.id] = s;
       }
@@ -2086,7 +2090,7 @@ export function StudentProjectTaker({
           payload.content = JSON.stringify(selectedArr);
           payload.ai_grade = earned;
           payload.ai_feedback = feedback;
-        } else if (q.type === "red_consola") {
+        } else if (q.type === "red_consola" || q.type === "red_gui") {
           // Calificación DETERMINISTA en cliente (sin IA): evalúa las
           // aserciones del escenario contra la topología final del alumno.
           const scenario = parseScenario(q.options);
@@ -2957,6 +2961,20 @@ export function StudentProjectTaker({
             {q.type === "red_consola" &&
               (networkScenarios[q.id] ? (
                 <NetworkConsole
+                  scenario={networkScenarios[q.id]}
+                  value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
+                  onChange={(v) => updateAnswer(q.id, v)}
+                />
+              ) : (
+                <p className="text-xs text-destructive">
+                  {t("hc_modulesProjectsProjectFiles.networkScenarioMissing", {
+                    defaultValue: "Esta pregunta de red no tiene un escenario válido configurado.",
+                  })}
+                </p>
+              ))}
+            {q.type === "red_gui" &&
+              (networkScenarios[q.id] ? (
+                <NetworkTopologyEditor
                   scenario={networkScenarios[q.id]}
                   value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
                   onChange={(v) => updateAnswer(q.id, v)}

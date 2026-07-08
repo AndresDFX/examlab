@@ -2483,10 +2483,11 @@ Idioma de salida: ${langName}.`,
         }
         earned += got;
         breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: got });
-      } else if (q.type === "red_consola") {
+      } else if (q.type === "red_consola" || q.type === "red_gui") {
         // Calificación DETERMINISTA server-side (mismo motor puro que el
         // cliente): parsea la topología final del alumno + su historial y
         // evalúa las aserciones del escenario (q.options.network). Sin IA.
+        // Igual para consola (comandos) y GUI (topología editada).
         const scenario = parseScenario(q.options);
         const answer = parseNetworkAnswer(userAnswer);
         const pts = Math.max(0, Number(q.points) || 0);

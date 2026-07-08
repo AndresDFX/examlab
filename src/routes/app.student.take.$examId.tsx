@@ -32,6 +32,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { CodeEditor, type CodeLanguage, getStarterCode } from "@/modules/code/CodeEditor";
 import { NetworkConsole } from "@/modules/network/NetworkConsole";
+import { NetworkTopologyEditor } from "@/modules/network/NetworkTopologyEditor";
 import { type NetworkScenario, parseScenario, parseNetworkAnswer } from "@/modules/network/scenario";
 import { CodeRunnerPicker, type CodeRunnerProvider } from "@/modules/code/CodeRunnerPicker";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
@@ -136,6 +137,10 @@ function isQuestionAnswered(q: Question, answers: Record<string, unknown>): bool
   if (q.type === "red_consola") {
     const parsed = parseNetworkAnswer(v);
     return !!parsed && Object.values(parsed.histories).some((h) => Array.isArray(h) && h.length > 0);
+  }
+  if (q.type === "red_gui") {
+    // GUI: respondida cuando hay una topología parseable (el alumno la editó).
+    return !!parseNetworkAnswer(v);
   }
   return typeof v === "string" && v.trim().length > 0;
 }
@@ -349,7 +354,7 @@ function TakeExam() {
   const networkScenarios = useMemo(() => {
     const map: Record<string, NetworkScenario> = {};
     for (const q of questions) {
-      if (q.type === "red_consola") {
+      if (q.type === "red_consola" || q.type === "red_gui") {
         const s = parseScenario(q.options);
         if (s) map[q.id] = s;
       }
@@ -2192,6 +2197,22 @@ function TakeExam() {
                   networkScenarios[q.id] ? (
                     <div onBlur={saveAnswersNow}>
                       <NetworkConsole
+                        scenario={networkScenarios[q.id]}
+                        value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
+                        onChange={(v) => updateAnswer(q.id, v)}
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-xs text-destructive">
+                      {t("hc_routesAppStudentTakeExamId.networkScenarioMissing", {
+                        defaultValue: "Esta pregunta de red no tiene un escenario válido configurado.",
+                      })}
+                    </p>
+                  )
+                ) : q.type === "red_gui" ? (
+                  networkScenarios[q.id] ? (
+                    <div onBlur={saveAnswersNow}>
+                      <NetworkTopologyEditor
                         scenario={networkScenarios[q.id]}
                         value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
                         onChange={(v) => updateAnswer(q.id, v)}
