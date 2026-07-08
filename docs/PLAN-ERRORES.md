@@ -9,7 +9,7 @@
 > se confirma lo reproducible). Los fixes se aplican con `tsc` EXIT=0 + tests dirigidos +
 > migraciones verificadas en tx rolled-back y aplicadas live a prod (`docker/restore.env`).
 >
-> **Última actualización**: 2026-07-07 (rondas 1-2-3 CERRADAS; ronda 3: 5 HIGH + 14 med/low todos resueltos; audit_logs sin errores nuevos accionables).
+> **Última actualización**: 2026-07-07 (rondas 1-6 CERRADAS; ronda 6: Papelera-en-selección 5 fixes `courses` + `RangeError` toISOString del editor de examen; audit_logs sin otros errores accionables nuevos).
 
 ---
 
@@ -144,6 +144,37 @@ sesión (soporte IA chat + remediación, Tablero, i18n `${}→{{}}`, monitor/tim
   si Realtime perdía el evento. Emite solo en transición (ref last-notified, sincronizado en el load).
 
 audit_logs de prod: 0 errores accionables nuevos (solo 1 `app.runtime_error` genérico stale).
+
+## Ronda 6 — ✅ Papelera-en-selección + audit_logs (2026-07-07)
+
+### a) Auditoría "Papelera no debe verse/seleccionarse" (workflow `find→verify`, 84 archivos, commit `123ec5a2`)
+Barrido de la regla universal soft-delete sobre TODA lectura de las 8 entidades (courses/exams/
+workshops/projects/attendance_sessions/whiteboards/generated_contents/polls) que alimente un
+**selector, picker, lista, calendario, dashboard, reporte o vista en vivo**. 221 lecturas revisadas,
+**5 confirmados (todos `courses`, en features añadidas tras los barridos previos):**
+- **AdminProgramOverviewPanel** — query directa de cursos + embeds de matrículas/docentes sin
+  `deleted_at` → el "Resumen institucional" inflaba conteos con cursos en papelera. Fix: `.is(deleted_at,null)` + embed+skip JS.
+- **app.index (dashboard alumno)** — el `<Select>` del ranking de Reto en vivo listaba cursos en
+  papelera. Fix: embed `deleted_at` + skip; `enrolledCourseIds` derivado de la lista ya filtrada.
+- **app.teacher.calendar** — el `<Select>` de "Sincronizar horarios" dejaba cursos en papelera
+  elegibles. Fix: embed + skip.
+- 3 finders fallidos por conexión revisados a mano (board-content-upload, WorkshopQuestions,
+  SessionWhiteboardDialog) → **limpios** (escrituras / read-by-PK). Resto de course-pickers ya filtran.
+  Detalle en `docs/AUDITORIA-PAPELERA-SELECCION-2026-06-30.md`.
+
+### b) Revisión de `audit_logs` de prod (2026-07-07)
+- **[fix] `RangeError: Invalid time value` en `/app/teacher/exams/$examId`** (`app.unhandled_rejection`,
+  2026-06-30) — el save handler hacía `new Date(exam.start_time).toISOString()` con start/end vacío o
+  inválido (draft sin fecha o campo limpiado en el picker) → excepción async no capturada que tumbaba
+  la pantalla. Fix: helper `safeIso()` (null en vez de lanzar) en el payload + guard `Number.isNaN` en
+  el `onChange` del picker. `tsc` EXIT=0. **Requiere Publish.**
+- **`app.runtime_error` requestFullscreen** (WhiteboardEditor, 2026-06-10) → **ya resuelto** (detecta
+  soporte de Fullscreen API + `typeof req === "function"`; comentario en el código lo documenta). Stale.
+- **`app.runtime_error` en whiteboards, textarea** (2026-07-07, `percentages-*.js`) → stack de **vendor**
+  (Excalidraw), 1 sola ocurrencia, sin frame de código propio → **monitoreo**, no accionable hoy.
+- `user.bulk_password_reset_failed` (60) · `user.bulk_import_row_failed` (56) · `email.failed` (17) →
+  **stale/infra** ya documentados (migs `20261040`/`20261049`; Gmail 421 transitorio). React #418
+  (2026-06-19) y driver.js SSR (dev localhost) → stale/no-prod.
 
 ## Cómo seguir
 

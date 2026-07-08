@@ -443,8 +443,13 @@ function ExamEditor() {
       title: exam.title,
       description: exam.description,
       course_id: newCourseId,
-      start_time: new Date(exam.start_time).toISOString(),
-      end_time: new Date(exam.end_time).toISOString(),
+      // safeIso: un start/end vacío o inválido (draft sin fecha o campo
+      // limpiado en el picker) hacía `new Date(x).toISOString()` lanzar
+      // `RangeError: Invalid time value` → unhandled rejection que tumbaba
+      // la pantalla de edición. Ahora → null; la columna NOT NULL (si aplica)
+      // rechaza el update con error amigable en vez de crashear.
+      start_time: safeIso(exam.start_time),
+      end_time: safeIso(exam.end_time),
       max_attempts: normalizedAttempts,
       cut_id: cutId,
       weight: requestedWeight,
@@ -1049,6 +1054,13 @@ function ExamEditor() {
                     value={toLocal(exam.start_time)}
                     onChange={(start) => {
                       const startMs = new Date(start).getTime();
+                      if (Number.isNaN(startMs)) {
+                        // Picker limpiado / valor inválido: persistimos el
+                        // valor tal cual sin recalcular el fin — evita
+                        // new Date(NaN).toISOString() → RangeError.
+                        setExam({ ...exam, start_time: start });
+                        return;
+                      }
                       const currentEnd = exam.end_time ? new Date(exam.end_time).getTime() : 0;
                       const autoEnd =
                         currentEnd > startMs
@@ -1943,4 +1955,17 @@ function toLocal(iso: string) {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * Serializa una fecha a ISO de forma segura para el payload de update de
+ * examen. `new Date(x).toISOString()` lanza `RangeError: Invalid time value`
+ * cuando `x` es "" / undefined / fecha inválida — eso subía como unhandled
+ * rejection y tumbaba la pantalla (visto en audit_logs prod, 2026-06-30).
+ * Devuelve null en vez de lanzar.
+ */
+function safeIso(v: unknown): string | null {
+  if (!v) return null;
+  const d = new Date(v as string);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
