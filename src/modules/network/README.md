@@ -58,9 +58,15 @@ const result = gradeNetwork(
   + generador templado determinista) + editor manual del docente (escenario JSON con plantilla) +
   "Generar con IA" (generación LOCAL sin modelo) + taker del alumno (consola) + **calificación
   DETERMINISTA** (fase 1, sin IA) en [WorkshopQuestions.tsx](../workshops/WorkshopQuestions.tsx).
-- ⏳ **Exámenes / proyectos** — la migración ya habilita el tipo en sus tablas; falta replicar el
-  editor + taker + grading (mismo patrón que el taller) en `app.student.take.$examId.tsx` /
-  `ProjectFiles.tsx`. El banco de preguntas también.
+- ⏳ **Exámenes / proyectos** — la migración YA habilita el tipo en sus tablas. Falta: editor + taker
+  (render de la consola, mismo patrón que el taller). **Diferencia clave de grading:** talleres
+  califican `red_consola` en CLIENTE (fase 1 determinista); pero exámenes y proyectos califican
+  SERVER-SIDE en el edge `ai-grade-submission` (`exam_full` / project). Para calificar `red_consola`
+  ahí hay que **portar el motor a Deno** (copias de topology/ios-interpreter/grading/scenario en el
+  edge — Deno no importa de `src/`, ver invariantes de sincronía en CLAUDE.md) y evaluar
+  `gradeNetwork` en el edge. Es un cambio acotado pero sobre una función crítica; se hace aparte.
+  El **banco de preguntas** es CRUD (sin taker propio): solo requiere el editor, pero sus preguntas
+  se importan a exámenes/talleres, así que conviene hacerlo junto con el grading del edge.
 - ⏳ **Fallback IA** — directive "redes" en `ai-grade-submission` para escenarios con aspectos abiertos,
   en paralelo a la calificación determinista (patrón del research doc).
 - ⏳ **Red GUI** (MVP #2) — React Flow + custom nodes, reusando este mismo intérprete al doble-click.
