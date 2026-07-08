@@ -21,6 +21,7 @@ import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { CodeRunOutput } from "@/modules/code/CodeRunOutput";
 import { CodeEditor, type CodeLanguage } from "@/modules/code/CodeEditor";
+import { NetworkAnswerReview } from "@/modules/network/NetworkAnswerReview";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { SectionLoader } from "@/components/ui/loaders";
 import { isAiGradePending } from "@/modules/ai/ai-grading";
@@ -595,7 +596,9 @@ function StudentExamReview() {
                   </div>
                 )}
 
-                {q.type === "codigo" || q.type === "java_gui" || q.type === "python_gui" ? (
+                {q.type === "red_consola" ? (
+                  <NetworkAnswerReview options={q.options} value={ans} />
+                ) : q.type === "codigo" || q.type === "java_gui" || q.type === "python_gui" ? (
                   <CodeEditor
                     value={
                       ans == null || ans === ""
