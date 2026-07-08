@@ -13,21 +13,29 @@
 
 | Métrica | Valor real (prod) |
 |---|---|
-| Tenants (instituciones) | 6 |
+| Tenants (instituciones) | 6 (mayor real: FESNA **190** estudiantes; resto ≤19) |
 | Usuarios (profiles) | 276 (273 Estudiante · 58 Docente · 5 Admin · 1 SuperAdmin — hay multi-rol) |
-| Cursos activos | 11 |
+| Cursos activos | 11 (13 incl. papelera) |
 | Matrículas | 249 |
-| Exámenes / Talleres / Proyectos | 16 / 15 / 2 |
-| Entregas de examen | 113 (62 calificadas con IA) |
-| Calificaciones IA ejecutadas (cola) | 71 `done` |
-| Acciones de IA (audit_logs, 90 días) | 599 |
-| **Tutor IA — tokens por mensaje (REAL)** | **entrada 3.522 · salida 190** (promedio de 14 mensajes) |
-| Almacenamiento total | **47 MB** (86 objetos, 6 tenants) |
+| Exámenes / Talleres / Proyectos (activos) | 13 / 13 / 2 |
+| Entregas de examen | 113 (75 con calificación IA) |
+| **Calificaciones IA totales (exam+taller+proyecto)** | **179** (75 exámenes · 90 talleres · 14 proyectos) |
+| Calificaciones IA en cola | 71 `done` |
+| Ventana de actividad real medida | **~2 meses** (2026-05-01 → 2026-06-30) |
+| **Tutor IA — tokens por mensaje (REAL)** | **entrada 3.522 · salida 190** (7 mensajes assistant; máx 7.420 / 522) |
+| **Tutor IA — volumen real** | **7 mensajes en total** en 3 sesiones (≈ uso incipiente) |
+| Almacenamiento total | **47 MB** (86 objetos, 6 tenants — `generated-contents` 26,3 MB + 1 video 18,8 MB) |
 | Material por curso (REAL) | **6,57 MB/curso** (promedio, 4 cursos con material) |
 | Tamaño objeto: material / video / ZIP proyecto | 657 KB avg (máx 4 MB) / 19 MB / 24 KB avg (máx 94 KB) |
 
 > Es una base **temprana y pequeña**; por eso el modelo usa **medición real por operación** (tokens
 > del tutor, tamaños de objeto reales) y **proyecta** a las franjas de los planes (250 / 1.500 / 5.000).
+>
+> **Verificado el 2026-07-07** consultando producción directamente (SQL sobre la DB del proyecto
+> `uxxpzfsfcnqiwwdxoelm`): las cifras de tenants/usuarios/roles/almacenamiento y los **tokens del
+> tutor (3.522 / 190 exactos)** coinciden. La **intensidad de uso real** (§4.1) es hoy **muy inferior**
+> a la proyección "típica" de §4 — la plataforma está en adopción temprana (parte de un semestre),
+> así que las proyecciones son **techos conservadores**, no subestimaciones.
 
 ---
 
@@ -85,6 +93,44 @@ con Flash). **Flash-Lite** baja ~5×: tutor ≈ $0,00043/mensaje.
 - **Costo del docente** (generación): ~20 generaciones/mes × $0,007 ≈ **$0,14 / docente / mes** → despreciable.
 
 **Rango de trabajo: $0,05–$0,20 por estudiante/mes** (típico ~$0,06 con Flash).
+
+---
+
+## 4.1. Uso REAL medido vs proyección, por tamaño de institución
+
+> El escenario de §4 es una **proyección de adopción madura**. Contra los **datos reales** de prod
+> (2026-07-07, ~2 meses de actividad) la intensidad de uso es **hoy mucho menor**. Presentamos las
+> tres intensidades y las escalamos al tamaño de la institución para mostrar tanto el **piso real
+> actual** como el **techo** a dimensionar.
+
+**Intensidades (costo IA por estudiante/mes, Gemini 2.5 Flash):**
+
+| Intensidad | Derivación | $/estud./mes |
+|---|---|---|
+| **Real medido (hoy)** | 179 calificaciones IA + 7 mensajes de tutor en ~2 meses sobre 249 matrículas → **0,36 calificaciones** y **~0,01 msgs de tutor** por estudiante/mes; costo ponderado real por calificación **$0,0047** (42% examen · 50% taller · 8% proyecto) | **≈ $0,0017** |
+| **Típico maduro** (proyección §4) | 2 exámenes + 4 talleres + 0,5 proyectos + 20 msgs tutor / mes | **≈ $0,062** |
+| **Intensivo (techo)** | calificación con Pro + 60 msgs tutor / mes | **≈ $0,20** |
+
+**Costo de IA mensual por tamaño de institución** (estudiantes × intensidad):
+
+| Institución (estudiantes) | Real medido ($0,0017) | Típico maduro ($0,062) | Intensivo ($0,20) |
+|---|---|---|---|
+| **FESNA — real hoy (190)** | **$0,32** | $11,8 | $38 |
+| Esencial (250) | $0,43 | **$15,5** | $50 |
+| Mediana (500) | $0,85 | $31 | $100 |
+| Grande (1.000) | $1,70 | $62 | $200 |
+| Profesional (1.500) | $2,55 | **$93** | $300 |
+| Institucional (5.000) | $8,50 | **$310** | $1.000 |
+
+**Lecturas:**
+- La institución real más grande hoy (FESNA, 190 estudiantes) gastaría **~$0,32/mes de IA** al ritmo
+  **medido** — dos órdenes de magnitud por debajo del precio de cualquier plan. El tutor IA está
+  prácticamente sin usar (7 mensajes en total), así que su costo hoy es ruido.
+- Las columnas "típico" e "intensivo" **coinciden con §5** (250 → $16/$50, 1.500 → $93/$300,
+  5.000 → $310/$1.000): §5 dimensiona con el escenario maduro/techo — correcto para no subestimar.
+- El **driver** del escenario típico es el tutor IA (20 msgs ≈ 50% del costo/estudiante). Si el tutor
+  no despega, el costo real se queda cerca de la fila "real medido". Conviene **monitorear
+  `tutor_chat_messages` y las calificaciones IA** para recalibrar la intensidad con datos propios.
 
 ---
 
