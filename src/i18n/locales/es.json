@@ -2818,7 +2818,9 @@
       "oneGenerationJobQueued": "1 job de generación encolado. Cuando tengas un código de IA inmediata o un administrador lo procese, las preguntas aparecerán automáticamente. Puedes verlo en el panel de Cola IA.",
       "questionsGeneratedWithCode": "{{count}} pregunta(s) generadas — incluye 1 entrega de código (archivos)",
       "indicateTopics": "Indica los temas",
-      "configureAtLeastOneType": "Configura al menos un tipo con cantidad > 0"
+      "configureAtLeastOneType": "Configura al menos un tipo con cantidad > 0",
+      "invalidNetworkScenario": "El escenario de red no es válido. Revisa el JSON: devices, links, targetDeviceId y assertions.",
+      "networkQuestionsGenerated": "{{count}} pregunta(s) de Red (consola) generadas"
     },
     "modules_workshops_WorkshopQuestions": {
       "questionUpdated": "Pregunta actualizada",
@@ -4061,7 +4063,11 @@
     "rowActionMoveUp": "Subir",
     "rowActionMoveDown": "Bajar",
     "rowActionEdit": "Editar pregunta",
-    "rowActionDelete": "Eliminar pregunta"
+    "rowActionDelete": "Eliminar pregunta",
+    "typeNetworkConsole": "Red (consola)",
+    "networkScenarioLabel": "Escenario de red (JSON)",
+    "networkScenarioHint": "Define la topología (devices/links), targetDeviceId (el dispositivo que configura el alumno) y assertions (rúbrica auto-calificada). El alumno resuelve desde una consola tipo IOS.",
+    "networkResetTemplate": "Restablecer plantilla"
   },
   "adminReportTemplates": {
     "title": "Informes",
@@ -7024,7 +7030,8 @@
     "compilerNoDetail": "El compilador remoto no devolvió detalle del error. Suele indicar un error de compilación (falta `;`, llaves desbalanceadas, import erróneo, nombre de clase incorrecto). Revisa tu código línea por línea y vuelve a intentar.",
     "noOutput": "(sin salida)",
     "errRunning": "Error ejecutando",
-    "errorPrefix": "Error: {{msg}}"
+    "errorPrefix": "Error: {{msg}}",
+    "networkScenarioMissing": "Esta pregunta de red no tiene un escenario válido configurado."
   },
   "hc_routesAppAdminCourses": {
     "loadErrorMessage": "No pudimos cargar la lista de cursos.",

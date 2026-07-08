@@ -7,13 +7,22 @@
  * de talleres. La calificación final consolidada cae sobre el peso de PROYECTOS del
  * curso (no sobre talleres).
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { logEvent } from "@/shared/lib/audit";
 import { useAuth } from "@/hooks/use-auth";
 import { scoreCerradaMulti } from "@/modules/exams/question-scoring";
+import { NetworkConsole } from "@/modules/network/NetworkConsole";
+import {
+  type NetworkScenario,
+  defaultScenario,
+  generateNetworkQuestions,
+  parseNetworkAnswer,
+  parseScenario,
+} from "@/modules/network/scenario";
+import { gradeNetwork } from "@/modules/network/grading";
 import { Button } from "@/components/ui/button";
 import { RowAction } from "@/components/ui/row-action";
 import { Input } from "@/components/ui/input";
@@ -96,7 +105,8 @@ export type ProjectFile = {
     | "diagrama"
     | "java_gui"
     | "python_gui"
-    | "codigo_zip";
+    | "codigo_zip"
+    | "red_consola";
   /** Scaffolding flujo ZIP único: cuando true (y type=codigo_zip), el
    *  estudiante sube UN .zip en vez de varios archivos sueltos, y la
    *  IA califica sin minificar. Default false (multi-file). */
@@ -144,6 +154,10 @@ export function TeacherProjectFilesEditor({
   // Framework GUI para preguntas java_gui. Default swing; persiste
   // en options.java_framework. Misma semántica que WorkshopQuestions.
   const [qJavaFramework, setQJavaFramework] = useState<"swing" | "javafx">("swing");
+  // Escenario JSON para preguntas `red_consola` (persiste en options.network).
+  const [qNetworkScenario, setQNetworkScenario] = useState<string>(() =>
+    JSON.stringify(defaultScenario(), null, 2),
+  );
 
   const resetForm = () => {
     setEditingId(null);
@@ -159,6 +173,7 @@ export function TeacherProjectFilesEditor({
     setQLanguage("java");
     setQZipSingle(false);
     setQJavaFramework("swing");
+    setQNetworkScenario(JSON.stringify(defaultScenario(), null, 2));
   };
 
   const loadIntoForm = (q: ProjectFile) => {
@@ -180,6 +195,10 @@ export function TeacherProjectFilesEditor({
     setQZipSingle(Boolean(q.zip_single));
     const fw = (q.options as { java_framework?: string } | null)?.java_framework;
     setQJavaFramework(fw === "javafx" ? "javafx" : "swing");
+    const net = (q.options as { network?: unknown } | null)?.network;
+    setQNetworkScenario(
+      net ? JSON.stringify(net, null, 2) : JSON.stringify(defaultScenario(), null, 2),
+    );
     setActiveTab("manual");
   };
 
@@ -268,6 +287,27 @@ export function TeacherProjectFilesEditor({
         return;
       }
     }
+    // red_consola: valida el escenario JSON antes de armar el payload.
+    let networkOptions: { network: unknown } | null = null;
+    if (qType === "red_consola") {
+      let scenarioObj: unknown = null;
+      try {
+        scenarioObj = JSON.parse(qNetworkScenario);
+      } catch {
+        scenarioObj = null;
+      }
+      const parsed = parseScenario({ network: scenarioObj });
+      if (!parsed) {
+        toast.error(
+          i18n.t("toast.modules_projects_ProjectFiles.invalidNetworkScenario", {
+            defaultValue:
+              "El escenario de red no es válido. Revisa el JSON: devices, links, targetDeviceId y assertions.",
+          }),
+        );
+        return;
+      }
+      networkOptions = { network: parsed };
+    }
     const options =
       qType === "cerrada"
         ? { choices: qChoices.filter((c) => c.trim()), correct_index: qCorrect }
@@ -280,7 +320,9 @@ export function TeacherProjectFilesEditor({
             }
           : qType === "java_gui"
             ? { java_framework: qJavaFramework }
-            : null;
+            : qType === "red_consola"
+              ? networkOptions
+              : null;
     // Para proyectos: el tipo 'codigo' implica entrega ZIP (codigo_zip).
     // Solo persistimos 'language' si la pregunta es realmente código —
     // el ZIP no fija un lenguaje porque puede traer múltiples archivos.
@@ -526,6 +568,46 @@ export function TeacherProjectFilesEditor({
           defaultValue: "Configura al menos un tipo con cantidad > 0",
         }),
       );
+
+    // ── red_consola: generación LOCAL determinista (sin IA) ──
+    const networkRows = validRows.filter((r) => r.type === "red_consola");
+    const aiTargetRows = validRows.filter((r) => r.type !== "red_consola");
+    if (networkRows.length) {
+      let pos = (questions[questions.length - 1]?.position ?? -1) + 1;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const toInsert: any[] = [];
+      for (const row of networkRows) {
+        for (const gen of generateNetworkQuestions(aiTopics, row.count)) {
+          toInsert.push({
+            project_id: projectId,
+            type: "red_consola",
+            title: gen.content.slice(0, 200),
+            expected_rubric: gen.expected_rubric,
+            options: gen.options,
+            points: gen.points,
+            position: pos++,
+            language: null,
+          });
+        }
+      }
+      const { error: netErr } = await db.from("project_files").insert(toInsert);
+      if (netErr) {
+        toast.error(friendlyError(netErr, t("hc_modulesProjectsProjectFiles.errEnqueueGeneration")));
+      } else {
+        toast.success(
+          i18n.t("toast.modules_projects_ProjectFiles.networkQuestionsGenerated", {
+            defaultValue: "{{count}} pregunta(s) de Red (consola) generadas",
+            count: toInsert.length,
+          }),
+        );
+      }
+    }
+    if (aiTargetRows.length === 0) {
+      setAiTopics("");
+      load();
+      return;
+    }
+
     // Mismo gate que generateFromDescription: allowQueue=true → encolamos
     // a `ai_generation_queue` cuando el docente está en async sin código.
     const decision = await aiGate.ensureAuthorized({ allowQueue: true });
@@ -552,7 +634,7 @@ export function TeacherProjectFilesEditor({
         );
         return;
       }
-      const rows = validRows.map((row) => ({
+      const rows = aiTargetRows.map((row) => ({
         kind: "project_files",
         invoke_target: "ai-generate-questions",
         source_table: "projects",
@@ -596,7 +678,7 @@ export function TeacherProjectFilesEditor({
       const projectDescription =
         (proj as { description?: string | null } | null)?.description ?? null;
 
-      for (const row of validRows) {
+      for (const row of aiTargetRows) {
         const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
           body: {
             topics: aiTopics,
@@ -638,7 +720,7 @@ export function TeacherProjectFilesEditor({
           severity: "info",
           entityType: "project",
           entityId: projectId,
-          metadata: { total: totalInserted, types: validRows.map((r) => r.type), mode: "manual" },
+          metadata: { total: totalInserted, types: aiTargetRows.map((r) => r.type), mode: "manual" },
         });
       }
       void load();
@@ -775,6 +857,7 @@ export function TeacherProjectFilesEditor({
                   <SelectItem value="cerrada_multi">{t("projectFiles.typeClosedMulti")}</SelectItem>
                   <SelectItem value="diagrama">{t("projectFiles.typeDiagram")}</SelectItem>
                   <SelectItem value="codigo_zip">{t("projectFiles.typeCodeFiles")}</SelectItem>
+                  <SelectItem value="red_consola">{t("projectFiles.typeNetworkConsole", { defaultValue: "Red (consola)" })}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -957,6 +1040,35 @@ export function TeacherProjectFilesEditor({
               </div>
             </>
           )}
+          {qType === "red_consola" && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                {t("projectFiles.networkScenarioLabel", { defaultValue: "Escenario de red (JSON)" })}
+                <HelpHint>
+                  {t("projectFiles.networkScenarioHint", {
+                    defaultValue:
+                      "Define la topología (devices/links), targetDeviceId (el dispositivo que configura el alumno) y assertions (rúbrica auto-calificada). El alumno resuelve desde una consola tipo IOS.",
+                  })}
+                </HelpHint>
+              </Label>
+              <Textarea
+                value={qNetworkScenario}
+                onChange={(e) => setQNetworkScenario(e.target.value)}
+                rows={12}
+                spellCheck={false}
+                className="font-mono text-xs"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setQNetworkScenario(JSON.stringify(defaultScenario(), null, 2))}
+              >
+                {t("projectFiles.networkResetTemplate", { defaultValue: "Restablecer plantilla" })}
+              </Button>
+            </div>
+          )}
+          {qType !== "red_consola" && (
           <div>
             <Label required>{t("projectFiles.labelRubric")}</Label>
             <Textarea
@@ -966,6 +1078,7 @@ export function TeacherProjectFilesEditor({
               placeholder={t("projectFiles.placeholderRubric")}
             />
           </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button onClick={submitManual}>
               {editingId ? (
@@ -1074,6 +1187,7 @@ export function TeacherProjectFilesEditor({
                       <SelectItem value="cerrada_multi">{t("projectFiles.typeClosedMulti")}</SelectItem>
                       <SelectItem value="diagrama">{t("projectFiles.typeDiagramShort")}</SelectItem>
                       <SelectItem value="codigo_zip">{t("projectFiles.typeCodeFilesShort")}</SelectItem>
+                      <SelectItem value="red_consola">{t("projectFiles.typeNetworkConsole", { defaultValue: "Red (consola)" })}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1390,6 +1504,18 @@ export function StudentProjectTaker({
   const updateAnswer = (qid: string, value: any) => {
     setAnswers((prev) => ({ ...prev, [qid]: value }));
   };
+
+  // Escenarios de red memoizados (estables) — evita reiniciar la consola.
+  const networkScenarios = useMemo(() => {
+    const map: Record<string, NetworkScenario> = {};
+    for (const q of questions) {
+      if (q.type === "red_consola") {
+        const s = parseScenario(q.options);
+        if (s) map[q.id] = s;
+      }
+    }
+    return map;
+  }, [questions]);
 
   /** Cancela un run en curso para `questionId`. No mata el worker remoto
    *  (CheerpJ no expone API; el edge function ya está corriendo
@@ -1958,6 +2084,28 @@ export function StudentProjectTaker({
                   });
           // Guardamos array como JSON en content (selected_option es text de 1 valor)
           payload.content = JSON.stringify(selectedArr);
+          payload.ai_grade = earned;
+          payload.ai_feedback = feedback;
+        } else if (q.type === "red_consola") {
+          // Calificación DETERMINISTA en cliente (sin IA): evalúa las
+          // aserciones del escenario contra la topología final del alumno.
+          const scenario = parseScenario(q.options);
+          const answer = parseNetworkAnswer(raw);
+          const maxPoints = Number(q.points) || 0;
+          if (!scenario || !answer) {
+            earned = 0;
+            feedback = t("hc_modulesProjectsProjectFiles.feedbackNoAnswer");
+          } else {
+            const result = gradeNetwork(
+              { topology: answer.topology, histories: answer.histories },
+              scenario.assertions,
+            );
+            earned = Math.round(result.ratio * maxPoints * 100) / 100;
+            feedback = result.items
+              .map((it) => `${it.passed ? "✓" : "✗"} ${it.label}${it.detail ? ` — ${it.detail}` : ""}`)
+              .join("\n");
+          }
+          payload.content = typeof raw === "string" ? raw : JSON.stringify(raw);
           payload.ai_grade = earned;
           payload.ai_feedback = feedback;
         } else if (q.type === "codigo_zip" && q.zip_single) {
@@ -2806,6 +2954,20 @@ export function StudentProjectTaker({
                 height="280px"
               />
             )}
+            {q.type === "red_consola" &&
+              (networkScenarios[q.id] ? (
+                <NetworkConsole
+                  scenario={networkScenarios[q.id]}
+                  value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
+                  onChange={(v) => updateAnswer(q.id, v)}
+                />
+              ) : (
+                <p className="text-xs text-destructive">
+                  {t("hc_modulesProjectsProjectFiles.networkScenarioMissing", {
+                    defaultValue: "Esta pregunta de red no tiene un escenario válido configurado.",
+                  })}
+                </p>
+              ))}
             {q.type === "codigo_zip" &&
               q.zip_single &&
               (() => {

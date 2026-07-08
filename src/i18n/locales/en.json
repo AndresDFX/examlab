@@ -2818,7 +2818,9 @@
       "oneGenerationJobQueued": "1 generation job queued. Once you have an instant AI code or an administrator processes it, the questions will appear automatically. You can see it in the AI Queue panel.",
       "questionsGeneratedWithCode": "{{count}} question(s) generated — includes 1 code submission (files)",
       "indicateTopics": "Enter the topics",
-      "configureAtLeastOneType": "Configure at least one type with a count greater than 0"
+      "configureAtLeastOneType": "Configure at least one type with a count greater than 0",
+      "invalidNetworkScenario": "The network scenario is invalid. Check the JSON: devices, links, targetDeviceId and assertions.",
+      "networkQuestionsGenerated": "{{count}} Network (console) question(s) generated"
     },
     "modules_workshops_WorkshopQuestions": {
       "questionUpdated": "Question updated",
@@ -4061,7 +4063,11 @@
     "rowActionMoveUp": "Move up",
     "rowActionMoveDown": "Move down",
     "rowActionEdit": "Edit question",
-    "rowActionDelete": "Delete question"
+    "rowActionDelete": "Delete question",
+    "typeNetworkConsole": "Network (console)",
+    "networkScenarioLabel": "Network scenario (JSON)",
+    "networkScenarioHint": "Define the topology (devices/links), targetDeviceId (the device the student configures) and assertions (auto-graded rubric). The student solves it from an IOS-like console.",
+    "networkResetTemplate": "Reset template"
   },
   "adminReportTemplates": {
     "title": "Reports",
@@ -7024,7 +7030,8 @@
     "compilerNoDetail": "The remote compiler did not return error details. This usually indicates a compilation error (missing `;`, unbalanced braces, wrong import, incorrect class name). Review your code line by line and try again.",
     "noOutput": "(no output)",
     "errRunning": "Error running",
-    "errorPrefix": "Error: {{msg}}"
+    "errorPrefix": "Error: {{msg}}",
+    "networkScenarioMissing": "This network question has no valid scenario configured."
   },
   "hc_routesAppAdminCourses": {
     "loadErrorMessage": "We couldn't load the course list.",
