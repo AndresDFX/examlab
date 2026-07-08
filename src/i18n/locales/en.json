@@ -3306,7 +3306,8 @@
       "questionDeleted": "Question deleted",
       "aiGenerated": "{{n}} question(s) generated and added to the bank",
       "aiNeedTopics": "Enter the topics to generate",
-      "aiQueued": "Generation queued. It'll appear in the bank once processed."
+      "aiQueued": "Generation queued. It'll appear in the bank once processed.",
+      "invalidNetworkScenario": "The network scenario is invalid. Check the JSON: devices, links, targetDeviceId and assertions."
     },
     "routes_app_teacher_reports": {
       "nameRequired": "The name is required",
@@ -4891,7 +4892,8 @@
       "abierta": "Open-ended",
       "diagrama": "Diagram",
       "javaGui": "Java GUI",
-      "pythonGui": "Python GUI (tkinter)"
+      "pythonGui": "Python GUI (tkinter)",
+      "redConsola": "Network (console)"
     },
     "pageTitle": "Question bank",
     "pageSubtitle": "Reusable questions shared among the course's teachers. Import selections when creating exams, workshops, or projects.",
@@ -4962,7 +4964,10 @@
     "aiTopicsLabel": "Topics",
     "aiTopicsPlaceholder": "e.g. Recursion, algorithmic complexity, data structures…",
     "aiGenerateButton": "Generate",
-    "aiEnqueueError": "The generation could not be queued"
+    "aiEnqueueError": "The generation could not be queued",
+    "networkScenarioLabel": "Network scenario (JSON)",
+    "networkScenarioHint": "Topology (devices/links), targetDeviceId (device the student configures) and assertions (auto-graded rubric). The student solves it in an IOS-like console.",
+    "networkResetTemplate": "Reset template"
   },
   "teacherPolls": {
     "pageTitle": "Polls",

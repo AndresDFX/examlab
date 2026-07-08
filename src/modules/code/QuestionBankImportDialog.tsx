@@ -55,7 +55,8 @@ type QuestionType =
   | "abierta"
   | "diagrama"
   | "java_gui"
-  | "python_gui";
+  | "python_gui"
+  | "red_consola";
 
 interface BankRow {
   id: string;
@@ -81,6 +82,9 @@ const TYPE_LABEL: Record<QuestionType, string> = {
   diagrama: i18n.t("hc_modulesCodeQuestionBankImportDialog.typeDiagrama"),
   java_gui: i18n.t("hc_modulesCodeQuestionBankImportDialog.typeJavaGui"),
   python_gui: i18n.t("hc_modulesCodeQuestionBankImportDialog.typePythonGui"),
+  red_consola: i18n.t("hc_modulesCodeQuestionBankImportDialog.typeRedConsola", {
+    defaultValue: "Red (consola)",
+  }),
 };
 
 type ImportTarget = "exam" | "workshop" | "project" | "kahoot";
@@ -88,8 +92,8 @@ type ImportTarget = "exam" | "workshop" | "project" | "kahoot";
 // Tipos que cada destino acepta. codigo_zip solo va a proyectos; Kahoot solo
 // opción múltiple (cerrada / cerrada_multi).
 const ACCEPTED_BY_TARGET: Record<ImportTarget, QuestionType[]> = {
-  exam: ["cerrada", "cerrada_multi", "codigo", "abierta", "diagrama", "java_gui", "python_gui"],
-  workshop: ["cerrada", "cerrada_multi", "codigo", "abierta", "diagrama", "java_gui", "python_gui"],
+  exam: ["cerrada", "cerrada_multi", "codigo", "abierta", "diagrama", "java_gui", "python_gui", "red_consola"],
+  workshop: ["cerrada", "cerrada_multi", "codigo", "abierta", "diagrama", "java_gui", "python_gui", "red_consola"],
   project: [
     "cerrada",
     "cerrada_multi",
@@ -99,6 +103,7 @@ const ACCEPTED_BY_TARGET: Record<ImportTarget, QuestionType[]> = {
     "diagrama",
     "java_gui",
     "python_gui",
+    "red_consola",
   ],
   kahoot: ["cerrada", "cerrada_multi"],
 };

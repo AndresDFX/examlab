@@ -67,6 +67,7 @@ import {
 } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
+import { defaultScenario, parseScenario } from "@/modules/network/scenario";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { toCSV } from "@/shared/lib/csv";
 import { usePagination } from "@/hooks/use-pagination";
@@ -91,7 +92,8 @@ type QuestionType =
   | "abierta"
   | "diagrama"
   | "java_gui"
-  | "python_gui";
+  | "python_gui"
+  | "red_consola";
 
 interface BankRow {
   id: string;
@@ -131,6 +133,7 @@ const TYPE_LABEL_KEY: Record<QuestionType, string> = {
   diagrama: "questionBank.type.diagrama",
   java_gui: "questionBank.type.javaGui",
   python_gui: "questionBank.type.pythonGui",
+  red_consola: "questionBank.type.redConsola",
 };
 
 const typeLabel = (type: QuestionType): string => i18n.t(TYPE_LABEL_KEY[type]);
@@ -184,6 +187,17 @@ function QuestionBankPage() {
   });
   const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
+  // Escenario JSON para preguntas red_consola del banco (persiste en
+  // options.network). Se siembra al abrir el dialog.
+  const [netScenarioText, setNetScenarioText] = useState("");
+  useEffect(() => {
+    if (!dialogOpen) return;
+    const net = (draft.options as { network?: unknown } | null)?.network;
+    setNetScenarioText(
+      net ? JSON.stringify(net, null, 2) : JSON.stringify(defaultScenario(), null, 2),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialogOpen]);
   // Guard "cambios sin guardar" para el dialog crear/editar pregunta.
   // El form ya es UN objeto (`draft`), así que se pasa directo.
   const draftDirty = useDirtyDialog(dialogOpen, draft);
@@ -394,13 +408,34 @@ function QuestionBankPage() {
       );
       return;
     }
+    // red_consola: parsea + valida el escenario JSON antes de guardar.
+    let resolvedOptions = draft.options ?? null;
+    if (draft.type === "red_consola") {
+      let scenarioObj: unknown = null;
+      try {
+        scenarioObj = JSON.parse(netScenarioText);
+      } catch {
+        scenarioObj = null;
+      }
+      const parsed = parseScenario({ network: scenarioObj });
+      if (!parsed) {
+        toast.error(
+          i18n.t("toast.routes_app_teacher_question_bank.invalidNetworkScenario", {
+            defaultValue:
+              "El escenario de red no es válido. Revisa el JSON: devices, links, targetDeviceId y assertions.",
+          }),
+        );
+        return;
+      }
+      resolvedOptions = { network: parsed };
+    }
     setSaving(true);
     try {
       const payload = {
         course_id: courseId,
         type: draft.type,
         content: draft.content,
-        options: draft.options ?? null,
+        options: resolvedOptions,
         expected_rubric: draft.expected_rubric ?? null,
         language: draft.language ?? null,
         starter_code: draft.starter_code ?? null,
@@ -901,7 +936,37 @@ function QuestionBankPage() {
               />
             </div>
 
-            {draft.type !== "cerrada" && draft.type !== "cerrada_multi" && (
+            {draft.type === "red_consola" && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  {t("questionBank.networkScenarioLabel", { defaultValue: "Escenario de red (JSON)" })}
+                  <HelpHint>
+                    {t("questionBank.networkScenarioHint", {
+                      defaultValue:
+                        "Topología (devices/links), targetDeviceId (dispositivo que configura el alumno) y assertions (rúbrica auto-calificada). El alumno resuelve en una consola tipo IOS.",
+                    })}
+                  </HelpHint>
+                </Label>
+                <Textarea
+                  value={netScenarioText}
+                  onChange={(e) => setNetScenarioText(e.target.value)}
+                  rows={12}
+                  spellCheck={false}
+                  className="font-mono text-xs"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setNetScenarioText(JSON.stringify(defaultScenario(), null, 2))}
+                >
+                  {t("questionBank.networkResetTemplate", { defaultValue: "Restablecer plantilla" })}
+                </Button>
+              </div>
+            )}
+            {draft.type !== "cerrada" &&
+              draft.type !== "cerrada_multi" &&
+              draft.type !== "red_consola" && (
               <div data-tour-id="question-field-rubric">
                 <Label>
                   {t("questionBank.expectedRubricLabel")}{" "}
@@ -1066,8 +1131,10 @@ function QuestionBankPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {(Object.keys(TYPE_LABEL_KEY) as QuestionType[])
-                      // codigo_zip es exclusivo de proyectos; no se genera al banco.
-                      .filter((k) => k !== "codigo_zip")
+                      // codigo_zip es exclusivo de proyectos; red_consola usa
+                      // escenario estructurado (no lo genera el modelo). Ambos
+                      // se crean manualmente, no por IA en el banco.
+                      .filter((k) => k !== "codigo_zip" && k !== "red_consola")
                       .map((k) => (
                         <SelectItem key={k} value={k}>
                           {typeLabel(k)}

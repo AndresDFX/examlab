@@ -3306,7 +3306,8 @@
       "questionDeleted": "Pregunta eliminada",
       "aiGenerated": "{{n}} pregunta(s) generada(s) y agregada(s) al banco",
       "aiNeedTopics": "Escribe los temas para generar",
-      "aiQueued": "Generación encolada. Aparecerá en el banco al procesarse."
+      "aiQueued": "Generación encolada. Aparecerá en el banco al procesarse.",
+      "invalidNetworkScenario": "El escenario de red no es válido. Revisa el JSON: devices, links, targetDeviceId y assertions."
     },
     "routes_app_teacher_reports": {
       "nameRequired": "El nombre es obligatorio",
@@ -4891,7 +4892,8 @@
       "abierta": "Abierta",
       "diagrama": "Diagrama",
       "javaGui": "Java GUI",
-      "pythonGui": "Python GUI (tkinter)"
+      "pythonGui": "Python GUI (tkinter)",
+      "redConsola": "Red (consola)"
     },
     "pageTitle": "Banco de preguntas",
     "pageSubtitle": "Preguntas reutilizables compartidas entre los docentes del curso. Importa selecciones al crear exámenes, talleres o proyectos.",
@@ -4962,7 +4964,10 @@
     "aiTopicsLabel": "Temas",
     "aiTopicsPlaceholder": "Ej: Recursividad, complejidad algorítmica, estructuras de datos…",
     "aiGenerateButton": "Generar",
-    "aiEnqueueError": "No se pudo encolar la generación"
+    "aiEnqueueError": "No se pudo encolar la generación",
+    "networkScenarioLabel": "Escenario de red (JSON)",
+    "networkScenarioHint": "Topología (devices/links), targetDeviceId (dispositivo que configura el alumno) y assertions (rúbrica auto-calificada). El alumno resuelve en una consola tipo IOS.",
+    "networkResetTemplate": "Restablecer plantilla"
   },
   "teacherPolls": {
     "pageTitle": "Encuestas",
