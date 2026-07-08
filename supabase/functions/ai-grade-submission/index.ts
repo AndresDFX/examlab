@@ -9,6 +9,11 @@ import {
   type ActiveModel,
   type AiProvider,
 } from "../_shared/ai-model.ts";
+// Motor de red (copia Deno) — calificación DETERMINISTA de preguntas
+// `red_consola` server-side (exámenes/proyectos). Sincronizar con
+// src/modules/network/* (ver invariante en CLAUDE.md).
+import { gradeNetwork } from "../_shared/network/grading.ts";
+import { parseScenario, parseNetworkAnswer } from "../_shared/network/scenario.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -2478,6 +2483,33 @@ Idioma de salida: ${langName}.`,
         }
         earned += got;
         breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: got });
+      } else if (q.type === "red_consola") {
+        // Calificación DETERMINISTA server-side (mismo motor puro que el
+        // cliente): parsea la topología final del alumno + su historial y
+        // evalúa las aserciones del escenario (q.options.network). Sin IA.
+        const scenario = parseScenario(q.options);
+        const answer = parseNetworkAnswer(userAnswer);
+        const pts = Math.max(0, Number(q.points) || 0);
+        if (!scenario || !answer) {
+          breakdown.push({
+            qid: q.id,
+            type: q.type,
+            points: q.points,
+            earned: 0,
+            feedback: "Sin respuesta",
+          });
+        } else {
+          const result = gradeNetwork(
+            { topology: answer.topology, histories: answer.histories },
+            scenario.assertions,
+          );
+          const got = Math.round(result.ratio * pts * 100) / 100;
+          const fb = result.items
+            .map((it) => `${it.passed ? "✓" : "✗"} ${it.label}${it.detail ? ` — ${it.detail}` : ""}`)
+            .join("\n");
+          earned += got;
+          breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: got, feedback: fb });
+        }
       } else {
         // Sin respuesta — dos casos cuentan como "vacía":
         //   1. null/undefined o string solo con whitespace.

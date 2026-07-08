@@ -3187,7 +3187,9 @@
       "errorEvalTime": "Error evaluating the time",
       "noResponse": "No response",
       "examNotFound": "The exam was not found or you don't have access.",
-      "couldNotQueueGeneration": "Could not queue the generation"
+      "couldNotQueueGeneration": "Could not queue the generation",
+      "invalidNetworkScenario": "The network scenario is invalid. Check the JSON: devices, links, targetDeviceId and assertions.",
+      "networkQuestionsGenerated": "{{count}} Network (console) question(s) generated"
     },
     "routes_app_teacher_exams_index": {
       "bulkSentToTrash": "{{count}} exam(s) sent to trash",
@@ -7405,7 +7407,8 @@
     "questionN": "Question {{n}}",
     "andNMore": "and {{n}} more…",
     "keepEditing": "Keep editing",
-    "submitAnyway": "Submit anyway"
+    "submitAnyway": "Submit anyway",
+    "networkScenarioMissing": "This network question has no valid scenario configured."
   },
   "hc_routesAppStudentTutorCourseId": {
     "loadTutorError": "We couldn't load the tutor for this course.",
@@ -7724,7 +7727,11 @@
     "noExplanation": "No explanation.",
     "basedOnQuestions": "Based on {{count}} question(s).",
     "keepMinutes": "Keep {{minutes}} min",
-    "useMinutes": "Use {{minutes}} min"
+    "useMinutes": "Use {{minutes}} min",
+    "typeNetworkConsole": "Network (console)",
+    "networkScenarioLabel": "Network scenario (JSON)",
+    "networkScenarioHint": "Define the topology (devices/links), targetDeviceId (the device the student configures) and assertions (auto-graded rubric). The student solves it from an IOS-like console.",
+    "networkResetTemplate": "Reset template"
   },
   "hc_routesAppTeacherExamsIndex": {
     "loadError": "We couldn't load the exams.",

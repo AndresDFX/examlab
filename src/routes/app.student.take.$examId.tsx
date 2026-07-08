@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRealtimeTimer } from "@/hooks/use-realtime-timer";
@@ -31,6 +31,8 @@ import {
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { CodeEditor, type CodeLanguage, getStarterCode } from "@/modules/code/CodeEditor";
+import { NetworkConsole } from "@/modules/network/NetworkConsole";
+import { type NetworkScenario, parseScenario, parseNetworkAnswer } from "@/modules/network/scenario";
 import { CodeRunnerPicker, type CodeRunnerProvider } from "@/modules/code/CodeRunnerPicker";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER, JAVAFX_STARTER } from "@/modules/code/JavaGuiRunner";
@@ -130,6 +132,10 @@ function isQuestionAnswered(q: Question, answers: Record<string, unknown>): bool
   }
   if (q.type === "diagrama") {
     return typeof v === "string" && v.trim().length > 0;
+  }
+  if (q.type === "red_consola") {
+    const parsed = parseNetworkAnswer(v);
+    return !!parsed && Object.values(parsed.histories).some((h) => Array.isArray(h) && h.length > 0);
   }
   return typeof v === "string" && v.trim().length > 0;
 }
@@ -336,6 +342,20 @@ function TakeExam() {
     answersRef.current = next;
     setAnswers(next);
   }, []);
+
+  // Escenarios de red parseados y ESTABLES (memoizados por questions) — pasar
+  // un objeto nuevo por render reiniciaría la NetworkConsole (init keyed por
+  // identidad del scenario).
+  const networkScenarios = useMemo(() => {
+    const map: Record<string, NetworkScenario> = {};
+    for (const q of questions) {
+      if (q.type === "red_consola") {
+        const s = parseScenario(q.options);
+        if (s) map[q.id] = s;
+      }
+    }
+    return map;
+  }, [questions]);
 
   // Offline sync setup
   useEffect(() => {
@@ -2168,6 +2188,22 @@ function TakeExam() {
                       height="280px"
                     />
                   </div>
+                ) : q.type === "red_consola" ? (
+                  networkScenarios[q.id] ? (
+                    <div onBlur={saveAnswersNow}>
+                      <NetworkConsole
+                        scenario={networkScenarios[q.id]}
+                        value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
+                        onChange={(v) => updateAnswer(q.id, v)}
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-xs text-destructive">
+                      {t("hc_routesAppStudentTakeExamId.networkScenarioMissing", {
+                        defaultValue: "Esta pregunta de red no tiene un escenario válido configurado.",
+                      })}
+                    </p>
+                  )
                 ) : (
                   (() => {
                     const current = String(answers[q.id] ?? "");

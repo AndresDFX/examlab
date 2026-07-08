@@ -47,6 +47,7 @@ import { TeacherExamNotes } from "@/modules/exams/ExamNotesManager";
 import { JAVA_GUI_STARTER, JAVAFX_STARTER } from "@/modules/code/JavaGuiRunner";
 import { PYTHON_GUI_STARTER } from "@/modules/code/PythonGuiRunner";
 import { getStarterCode } from "@/modules/code/CodeEditor";
+import { defaultScenario, generateNetworkQuestions, parseScenario } from "@/modules/network/scenario";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
 import { RowAction } from "@/components/ui/row-action";
@@ -143,6 +144,10 @@ function ExamEditor() {
   // Framework GUI para preguntas java_gui. Default swing; persiste en
   // options.java_framework. Misma semántica que workshops/projects.
   const [qJavaFramework, setQJavaFramework] = useState<"swing" | "javafx">("swing");
+  // Escenario JSON para preguntas `red_consola` (persiste en options.network).
+  const [qNetworkScenario, setQNetworkScenario] = useState<string>(() =>
+    JSON.stringify(defaultScenario(), null, 2),
+  );
 
   const resetQForm = () => {
     setEditingId(null);
@@ -157,6 +162,7 @@ function ExamEditor() {
     setQPoints(1);
     setQLanguage("java");
     setQJavaFramework("swing");
+    setQNetworkScenario(JSON.stringify(defaultScenario(), null, 2));
   };
 
   const loadQIntoForm = (q: Question) => {
@@ -177,6 +183,10 @@ function ExamEditor() {
     setQLanguage((q as any).language ?? "java");
     const fw = ((q as any).options as { java_framework?: string } | null)?.java_framework;
     setQJavaFramework(fw === "javafx" ? "javafx" : "swing");
+    const net = ((q as any).options as { network?: unknown } | null)?.network;
+    setQNetworkScenario(
+      net ? JSON.stringify(net, null, 2) : JSON.stringify(defaultScenario(), null, 2),
+    );
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -545,6 +555,26 @@ function ExamEditor() {
         );
       }
     }
+    // red_consola: valida el escenario JSON antes de construir el payload.
+    let networkOptions: { network: unknown } | null = null;
+    if (qType === "red_consola") {
+      let scenarioObj: unknown = null;
+      try {
+        scenarioObj = JSON.parse(qNetworkScenario);
+      } catch {
+        scenarioObj = null;
+      }
+      const parsed = parseScenario({ network: scenarioObj });
+      if (!parsed) {
+        return toast.error(
+          i18n.t("toast.routes_app_teacher_exams_examId.invalidNetworkScenario", {
+            defaultValue:
+              "El escenario de red no es válido. Revisa el JSON: devices, links, targetDeviceId y assertions.",
+          }),
+        );
+      }
+      networkOptions = { network: parsed };
+    }
     const options =
       qType === "cerrada"
         ? { choices: qChoices, correct_index: qCorrect }
@@ -557,7 +587,10 @@ function ExamEditor() {
             }
           : qType === "java_gui"
             ? { java_framework: qJavaFramework }
-            : null;
+            : qType === "red_consola"
+              ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (networkOptions as any)
+              : null;
     // language implícito por tipo: java_gui → java, python_gui → python.
     // Para 'codigo' usamos lo que eligió el docente.
     const language =
@@ -686,6 +719,50 @@ function ExamEditor() {
           defaultValue: "Configura al menos un tipo con cantidad > 0",
         }),
       );
+
+    // ── red_consola: generación LOCAL determinista (sin IA) ──
+    // Se insertan directo (plantillas de escenario auto-calificables); no pasan
+    // por el gate/cola. El resto de tipos sigue el flujo normal por el edge.
+    const networkRows = validRows.filter((r) => r.type === "red_consola");
+    const aiTargetRows = validRows.filter((r) => r.type !== "red_consola");
+    if (networkRows.length) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbNet = supabase as any;
+      let pos = (questions[questions.length - 1]?.position ?? -1) + 1;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const toInsert: any[] = [];
+      for (const row of networkRows) {
+        for (const gen of generateNetworkQuestions(aiTopics, row.count)) {
+          toInsert.push({
+            exam_id: examId,
+            type: "red_consola",
+            content: gen.content,
+            expected_rubric: gen.expected_rubric,
+            options: gen.options,
+            points: gen.points,
+            position: pos++,
+            language: null,
+          });
+        }
+      }
+      const { error: netErr } = await dbNet.from("questions").insert(toInsert);
+      if (netErr) {
+        toast.error(friendlyUniqueViolation(netErr) ?? friendlyError(netErr));
+      } else {
+        toast.success(
+          i18n.t("toast.routes_app_teacher_exams_examId.networkQuestionsGenerated", {
+            defaultValue: "{{count}} pregunta(s) de Red (consola) generadas",
+            count: toInsert.length,
+          }),
+        );
+      }
+    }
+    if (aiTargetRows.length === 0) {
+      setAiTopics("");
+      load();
+      return;
+    }
+
     // El gate evalúa: modo sync / código de IA inmediata activo / async.
     // allowQueue=true → si el docente está en async sin código, en lugar
     // de bloquear, el gate retorna 'proceed-async' y nosotros encolamos
@@ -709,7 +786,7 @@ function ExamEditor() {
         );
         return;
       }
-      const rows = validRows.map((row) => ({
+      const rows = aiTargetRows.map((row) => ({
         kind: "exam_questions",
         invoke_target: "ai-generate-questions",
         source_table: "exams",
@@ -751,7 +828,7 @@ function ExamEditor() {
     setAiLoading(true);
     let totalInserted = 0;
     try {
-      for (const row of validRows) {
+      for (const row of aiTargetRows) {
         const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
           body: {
             examId,
@@ -793,7 +870,7 @@ function ExamEditor() {
           severity: "info",
           entityType: "exam",
           entityId: examId,
-          metadata: { total: totalInserted, types: validRows.map((r) => r.type) },
+          metadata: { total: totalInserted, types: aiTargetRows.map((r) => r.type) },
         });
       }
       load();
@@ -1426,6 +1503,7 @@ function ExamEditor() {
                           <SelectItem value="diagrama">{t("hc_routesAppTeacherExamsExamId.typeDiagram")}</SelectItem>
                           <SelectItem value="java_gui">{t("hc_routesAppTeacherExamsExamId.typeJavaGuiShort")}</SelectItem>
                           <SelectItem value="python_gui">{t("hc_routesAppTeacherExamsExamId.typePythonGui")}</SelectItem>
+                          <SelectItem value="red_consola">{t("hc_routesAppTeacherExamsExamId.typeNetworkConsole", { defaultValue: "Red (consola)" })}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1561,6 +1639,7 @@ function ExamEditor() {
                       <SelectItem value="diagrama">{t("hc_routesAppTeacherExamsExamId.typeDiagram")}</SelectItem>
                       <SelectItem value="java_gui">{t("hc_routesAppTeacherExamsExamId.typeJavaGuiSwing")}</SelectItem>
                       <SelectItem value="python_gui">{t("hc_routesAppTeacherExamsExamId.typePythonGui")}</SelectItem>
+                      <SelectItem value="red_consola">{t("hc_routesAppTeacherExamsExamId.typeNetworkConsole", { defaultValue: "Red (consola)" })}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1614,7 +1693,35 @@ function ExamEditor() {
                   </p>
                 </div>
               )}
-              {qType !== "cerrada" && qType !== "cerrada_multi" && (
+              {qType === "red_consola" && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5">
+                    {t("hc_routesAppTeacherExamsExamId.networkScenarioLabel", { defaultValue: "Escenario de red (JSON)" })}
+                    <HelpHint>
+                      {t("hc_routesAppTeacherExamsExamId.networkScenarioHint", {
+                        defaultValue:
+                          "Define la topología (devices/links), targetDeviceId (el dispositivo que configura el alumno) y assertions (rúbrica auto-calificada). El alumno resuelve desde una consola tipo IOS.",
+                      })}
+                    </HelpHint>
+                  </Label>
+                  <Textarea
+                    value={qNetworkScenario}
+                    onChange={(e) => setQNetworkScenario(e.target.value)}
+                    rows={12}
+                    spellCheck={false}
+                    className="font-mono text-xs"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setQNetworkScenario(JSON.stringify(defaultScenario(), null, 2))}
+                  >
+                    {t("hc_routesAppTeacherExamsExamId.networkResetTemplate", { defaultValue: "Restablecer plantilla" })}
+                  </Button>
+                </div>
+              )}
+              {qType !== "cerrada" && qType !== "cerrada_multi" && qType !== "red_consola" && (
                 <div>
                   <Label required>{t("hc_routesAppTeacherExamsExamId.fieldExpectedRubric")}</Label>
                   <Textarea

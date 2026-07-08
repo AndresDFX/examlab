@@ -3187,7 +3187,9 @@
       "errorEvalTime": "Error al evaluar el tiempo",
       "noResponse": "Sin respuesta",
       "examNotFound": "No se encontró el examen o no tienes acceso.",
-      "couldNotQueueGeneration": "No se pudo encolar la generación"
+      "couldNotQueueGeneration": "No se pudo encolar la generación",
+      "invalidNetworkScenario": "El escenario de red no es válido. Revisa el JSON: devices, links, targetDeviceId y assertions.",
+      "networkQuestionsGenerated": "{{count}} pregunta(s) de Red (consola) generadas"
     },
     "routes_app_teacher_exams_index": {
       "bulkSentToTrash": "{{count}} examen(es) enviado(s) a papelera",
@@ -7405,7 +7407,8 @@
     "questionN": "Pregunta {{n}}",
     "andNMore": "y {{n}} más…",
     "keepEditing": "Seguir editando",
-    "submitAnyway": "Entregar de todas formas"
+    "submitAnyway": "Entregar de todas formas",
+    "networkScenarioMissing": "Esta pregunta de red no tiene un escenario válido configurado."
   },
   "hc_routesAppStudentTutorCourseId": {
     "loadTutorError": "No pudimos cargar el tutor de este curso.",
@@ -7724,7 +7727,11 @@
     "noExplanation": "Sin explicación.",
     "basedOnQuestions": "Basado en {{count}} pregunta(s).",
     "keepMinutes": "Mantener {{minutes}} min",
-    "useMinutes": "Usar {{minutes}} min"
+    "useMinutes": "Usar {{minutes}} min",
+    "typeNetworkConsole": "Red (consola)",
+    "networkScenarioLabel": "Escenario de red (JSON)",
+    "networkScenarioHint": "Define la topología (devices/links), targetDeviceId (el dispositivo que configura el alumno) y assertions (rúbrica auto-calificada). El alumno resuelve desde una consola tipo IOS.",
+    "networkResetTemplate": "Restablecer plantilla"
   },
   "hc_routesAppTeacherExamsIndex": {
     "loadError": "No pudimos cargar los exámenes.",
