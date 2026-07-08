@@ -75,6 +75,11 @@ export default defineConfig({
         // ── Lógica pura agregada en iteración 2026-05-26 ──
         "src/modules/messaging/message-tags.ts",
         "src/modules/tenants/active-role-signal.ts",
+        // ── Motor de preguntas tipo "Red" (módulos puros, 45 tests) ──
+        "src/modules/network/topology.ts",
+        "src/modules/network/ios-interpreter.ts",
+        "src/modules/network/grading.ts",
+        "src/modules/network/scenario.ts",
         // ── Otros con coverage parcial >80% ──
         "src/modules/contents/contents-display-name.ts",
         "src/modules/contents/contents-extract.ts",

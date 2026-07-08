@@ -2844,7 +2844,10 @@
       "emptyFilesInSelection": "Hay archivos vacíos en la selección.",
       "writeStatement": "Escribe el enunciado",
       "markAtLeastOneCorrect": "Marca al menos una opción correcta en opción múltiple",
-      "minMaxInverted": "Mínimo de marcadas no puede ser mayor al máximo"
+      "minMaxInverted": "Mínimo de marcadas no puede ser mayor al máximo",
+      "invalidNetworkScenario": "El escenario de red no es válido. Revisa el JSON: devices, links, targetDeviceId y assertions.",
+      "networkQuestionsGenerated": "{{count}} pregunta(s) de Red (consola) generadas",
+      "networkGraded": "Calificación de red"
     },
     "routes_app_admin_courses": {
       "nameRequired": "Nombre requerido",
@@ -4174,7 +4177,11 @@
     "rowActionMoveUp": "Subir",
     "rowActionMoveDown": "Bajar",
     "rowActionEdit": "Editar pregunta",
-    "rowActionDelete": "Eliminar pregunta"
+    "rowActionDelete": "Eliminar pregunta",
+    "typeNetworkConsole": "Red (consola)",
+    "networkScenarioLabel": "Escenario de red (JSON)",
+    "networkScenarioHint": "Define la topología (devices/links), targetDeviceId (el dispositivo que configura el alumno) y assertions (rúbrica auto-calificada: hostname, interface_ip, interface_up, connectivity, command_used). El alumno resuelve desde una consola tipo IOS.",
+    "networkResetTemplate": "Restablecer plantilla"
   },
   "adminSupport": {
     "title": "Soporte",
@@ -6605,7 +6612,8 @@
     "attemptsRemaining": "Intentos restantes:",
     "allAttemptsUsed": "Ya consumiste todos tus intentos. No puedes volver a entregar.",
     "warningSingleAttempt": "Aviso: este taller admite UNA sola entrega — revisa todo antes de enviar.",
-    "warningOneAttemptLeft": "Aviso: te queda 1 intento — revisa todo antes de enviar."
+    "warningOneAttemptLeft": "Aviso: te queda 1 intento — revisa todo antes de enviar.",
+    "networkScenarioMissing": "Esta pregunta de red no tiene un escenario válido configurado."
   },
   "hc_router": {
     "updating": "Actualizando…",
@@ -8939,5 +8947,17 @@
     "selectDate": "Selecciona fecha",
     "selectDateTime": "Selecciona fecha y hora",
     "time": "Hora"
+  },
+  "networkConsole": {
+    "noDevice": "Escenario sin dispositivo.",
+    "welcome": "Consola de {{device}}. Escribe comandos IOS (enable, configure terminal, …).",
+    "topologyTitle": "Topología",
+    "focus": "Enfocar la consola",
+    "kind": {
+      "router": "router",
+      "switch": "switch",
+      "pc": "PC",
+      "server": "servidor"
+    }
   }
 }

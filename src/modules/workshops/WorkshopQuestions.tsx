@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
@@ -64,6 +64,15 @@ import {
   PENDING_AI_FEEDBACK,
   QUEUED_STUDENT_TITLE,
 } from "@/modules/ai/ai-grading";
+import { NetworkConsole } from "@/modules/network/NetworkConsole";
+import {
+  type NetworkScenario,
+  defaultScenario,
+  generateNetworkQuestions,
+  parseNetworkAnswer,
+  parseScenario,
+} from "@/modules/network/scenario";
+import { gradeNetwork } from "@/modules/network/grading";
 
 export type WorkshopQuestion = {
   id: string;
@@ -76,7 +85,8 @@ export type WorkshopQuestion = {
     | "diagrama"
     | "java_gui"
     | "python_gui"
-    | "codigo_zip";
+    | "codigo_zip"
+    | "red_consola";
   content: string;
   options: any;
   position: number;
@@ -155,6 +165,12 @@ export function TeacherWorkshopQuestionsEditor({
   // Framework GUI para preguntas `java_gui`. Se persiste en
   // `options.java_framework`. Default "swing" para retro-compat.
   const [qJavaFramework, setQJavaFramework] = useState<"swing" | "javafx">("swing");
+  // Escenario JSON para preguntas `red_consola` (topología + target +
+  // aserciones). Se persiste en `options.network`. Se edita como JSON con una
+  // plantilla runnable por defecto.
+  const [qNetworkScenario, setQNetworkScenario] = useState<string>(() =>
+    JSON.stringify(defaultScenario(), null, 2),
+  );
 
   const resetForm = () => {
     setEditingId(null);
@@ -170,6 +186,7 @@ export function TeacherWorkshopQuestionsEditor({
     setQLanguage("java");
     setQZipSingle(false);
     setQJavaFramework("swing");
+    setQNetworkScenario(JSON.stringify(defaultScenario(), null, 2));
   };
 
   const loadIntoForm = (q: WorkshopQuestion) => {
@@ -191,6 +208,10 @@ export function TeacherWorkshopQuestionsEditor({
     setQZipSingle(!!q.zip_single);
     const fw = (q.options as { java_framework?: string } | null)?.java_framework;
     setQJavaFramework(fw === "javafx" ? "javafx" : "swing");
+    const net = (q.options as { network?: unknown } | null)?.network;
+    setQNetworkScenario(
+      net ? JSON.stringify(net, null, 2) : JSON.stringify(defaultScenario(), null, 2),
+    );
     setActiveTab("manual");
   };
 
@@ -253,6 +274,28 @@ export function TeacherWorkshopQuestionsEditor({
         return;
       }
     }
+    // red_consola: valida el escenario JSON (topología + target + aserciones)
+    // antes de armar el payload. Si no parsea, aborta con toast amigable.
+    let networkOptions: { network: unknown } | null = null;
+    if (qType === "red_consola") {
+      let scenarioObj: unknown = null;
+      try {
+        scenarioObj = JSON.parse(qNetworkScenario);
+      } catch {
+        scenarioObj = null;
+      }
+      const parsed = parseScenario({ network: scenarioObj });
+      if (!parsed) {
+        toast.error(
+          i18n.t("toast.modules_workshops_WorkshopQuestions.invalidNetworkScenario", {
+            defaultValue:
+              "El escenario de red no es válido. Revisa el JSON: devices, links, targetDeviceId y assertions.",
+          }),
+        );
+        return;
+      }
+      networkOptions = { network: parsed };
+    }
     const options =
       qType === "cerrada"
         ? { choices: qChoices.filter((c) => c.trim()), correct_index: qCorrect }
@@ -265,7 +308,9 @@ export function TeacherWorkshopQuestionsEditor({
             }
           : qType === "java_gui"
             ? { java_framework: qJavaFramework }
-            : null;
+            : qType === "red_consola"
+              ? networkOptions
+              : null;
     const language =
       qType === "codigo" || qType === "codigo_zip"
         ? qLanguage
@@ -419,6 +464,53 @@ export function TeacherWorkshopQuestionsEditor({
           defaultValue: "Configura al menos un tipo con cantidad > 0",
         }),
       );
+
+    // ── red_consola: generación LOCAL determinista (sin IA) ──
+    // Estas preguntas se arman client-side con plantillas de escenario
+    // (topología + aserciones auto-calificables); NO llaman al modelo ni pasan
+    // por el gate/cola de IA. Se insertan directo. El resto de tipos sigue el
+    // flujo normal por el edge / cola.
+    const networkRows = validRows.filter((r) => r.type === "red_consola");
+    const aiTargetRows = validRows.filter((r) => r.type !== "red_consola");
+    if (networkRows.length) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbNet = supabase as any;
+      let pos = questions.length;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const toInsert: any[] = [];
+      for (const row of networkRows) {
+        for (const gen of generateNetworkQuestions(aiTopics, row.count)) {
+          toInsert.push({
+            workshop_id: workshopId,
+            type: "red_consola",
+            content: gen.content,
+            expected_rubric: gen.expected_rubric,
+            options: gen.options,
+            points: gen.points,
+            position: pos++,
+            language: null,
+          });
+        }
+      }
+      const { error: netErr } = await dbNet.from("workshop_questions").insert(toInsert);
+      if (netErr) {
+        toast.error(friendlyError(netErr, t("hc_modulesWorkshopsWorkshopQuestions.couldNotQueueGeneration")));
+      } else {
+        toast.success(
+          i18n.t("toast.modules_workshops_WorkshopQuestions.networkQuestionsGenerated", {
+            defaultValue: "{{count}} pregunta(s) de Red (consola) generadas",
+            count: toInsert.length,
+          }),
+        );
+      }
+    }
+    // Si SOLO había filas red_consola, ya terminamos (sin tocar la IA).
+    if (aiTargetRows.length === 0) {
+      setAiTopics("");
+      load();
+      return;
+    }
+
     // El gate evalúa: modo sync / código de IA inmediata activo / async.
     // allowQueue=true → si el docente está en async sin código, en lugar
     // de bloquear, el gate retorna 'proceed-async' y nosotros encolamos
@@ -441,7 +533,7 @@ export function TeacherWorkshopQuestionsEditor({
         );
         return;
       }
-      const rows = validRows.map((row) => ({
+      const rows = aiTargetRows.map((row) => ({
         kind: "workshop_questions",
         invoke_target: "ai-generate-questions",
         source_table: "workshops",
@@ -479,7 +571,7 @@ export function TeacherWorkshopQuestionsEditor({
     setAiLoading(true);
     let totalInserted = 0;
     try {
-      for (const row of validRows) {
+      for (const row of aiTargetRows) {
         const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
           body: {
             topics: aiTopics,
@@ -523,7 +615,7 @@ export function TeacherWorkshopQuestionsEditor({
           severity: "info",
           entityType: "workshop",
           entityId: workshopId,
-          metadata: { total: totalInserted, types: validRows.map((r) => r.type) },
+          metadata: { total: totalInserted, types: aiTargetRows.map((r) => r.type) },
         });
       }
       load();
@@ -661,6 +753,9 @@ export function TeacherWorkshopQuestionsEditor({
                   <SelectItem value="java_gui">{t("workshopQuestions.typeJavaGui")}</SelectItem>
                   <SelectItem value="python_gui">{t("workshopQuestions.typePythonGui")}</SelectItem>
                   <SelectItem value="codigo_zip">{t("workshopQuestions.typeCodeZip")}</SelectItem>
+                  <SelectItem value="red_consola">
+                    {t("workshopQuestions.typeNetworkConsole", { defaultValue: "Red (consola)" })}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -852,6 +947,34 @@ export function TeacherWorkshopQuestionsEditor({
               </div>
             </div>
           )}
+          {qType === "red_consola" && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                {t("workshopQuestions.networkScenarioLabel", { defaultValue: "Escenario de red (JSON)" })}
+                <HelpHint>
+                  {t("workshopQuestions.networkScenarioHint", {
+                    defaultValue:
+                      "Define la topología (devices/links), targetDeviceId (el dispositivo que configura el alumno) y assertions (rúbrica auto-calificada: hostname, interface_ip, interface_up, connectivity, command_used). El alumno resuelve desde una consola tipo IOS.",
+                  })}
+                </HelpHint>
+              </Label>
+              <Textarea
+                value={qNetworkScenario}
+                onChange={(e) => setQNetworkScenario(e.target.value)}
+                rows={12}
+                spellCheck={false}
+                className="font-mono text-xs"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setQNetworkScenario(JSON.stringify(defaultScenario(), null, 2))}
+              >
+                {t("workshopQuestions.networkResetTemplate", { defaultValue: "Restablecer plantilla" })}
+              </Button>
+            </div>
+          )}
           <div>
             <Label required>{t("workshopQuestions.labelRubric")}</Label>
             <Textarea
@@ -921,6 +1044,9 @@ export function TeacherWorkshopQuestionsEditor({
                       <SelectItem value="diagrama">{t("workshopQuestions.typeDiagram")}</SelectItem>
                       <SelectItem value="java_gui">{t("workshopQuestions.typeJavaGuiShort")}</SelectItem>
                       <SelectItem value="python_gui">{t("workshopQuestions.typePythonGui")}</SelectItem>
+                      <SelectItem value="red_consola">
+                        {t("workshopQuestions.typeNetworkConsole", { defaultValue: "Red (consola)" })}
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1212,6 +1338,20 @@ export function StudentWorkshopTaker({
     setAnswers((prev) => ({ ...prev, [qid]: value }));
   };
 
+  // Escenarios de red parseados y ESTABLES (memoizados por questions) — pasar
+  // un objeto nuevo en cada render reiniciaría la NetworkConsole (su init está
+  // keyed por identidad del scenario).
+  const networkScenarios = useMemo(() => {
+    const map: Record<string, NetworkScenario> = {};
+    for (const q of questions) {
+      if (q.type === "red_consola") {
+        const s = parseScenario(q.options);
+        if (s) map[q.id] = s;
+      }
+    }
+    return map;
+  }, [questions]);
+
   /** Cancela un run en curso para `questionId`. No mata el worker remoto
    *  (CheerpJ no expone API; el edge ya está corriendo server-side), pero
    *  libera el botón "Ejecutar" para que el estudiante pueda cambiar de
@@ -1397,6 +1537,11 @@ export function StudentWorkshopTaker({
         const trimmedAnswer = String(a ?? "").trim();
         const trimmedStarter = String(q.starter_code ?? "").trim();
         isBlank = !trimmedAnswer || (trimmedStarter !== "" && trimmedAnswer === trimmedStarter);
+      } else if (q.type === "red_consola") {
+        // Vacía si el alumno no ejecutó ningún comando en la consola.
+        const parsed = parseNetworkAnswer(a);
+        isBlank =
+          !parsed || Object.values(parsed.histories).every((h) => !h || h.length === 0);
       } else {
         isBlank = !String(a ?? "").trim();
       }
@@ -1955,6 +2100,44 @@ export function StudentWorkshopTaker({
             earned: result.earned,
             feedback: payload.ai_feedback,
           });
+        } else if (q.type === "red_consola") {
+          // Calificación DETERMINISTA (sin IA): parsea la topología final del
+          // alumno + su historial y evalúa las aserciones del escenario del
+          // docente (options.network). No entra al batch de IA.
+          const scenario = parseScenario(q.options);
+          const answer = parseNetworkAnswer(raw);
+          const maxPoints = Number(q.points) || 0;
+          if (!scenario || !answer) {
+            payload.ai_grade = 0;
+            payload.ai_feedback = t("hc_modulesWorkshopsWorkshopQuestions.noAnswer");
+            breakdown.push({
+              qid: q.id,
+              type: q.type,
+              points: q.points,
+              earned: 0,
+              feedback: t("hc_modulesWorkshopsWorkshopQuestions.noAnswer"),
+            });
+          } else {
+            const result = gradeNetwork(
+              { topology: answer.topology, histories: answer.histories },
+              scenario.assertions,
+            );
+            const earned = Math.round(result.ratio * maxPoints * 100) / 100;
+            const fb =
+              result.items
+                .map(
+                  (it) =>
+                    `${it.passed ? "✓" : "✗"} ${it.label}${it.detail ? ` — ${it.detail}` : ""}`,
+                )
+                .join("\n") ||
+              i18n.t("toast.modules_workshops_WorkshopQuestions.networkGraded", {
+                defaultValue: "Calificación de red",
+              });
+            payload.ai_grade = earned;
+            payload.ai_feedback = fb;
+            totalEarned += earned;
+            breakdown.push({ qid: q.id, type: q.type, points: q.points, earned, feedback: fb });
+          }
         } else {
           // Detecta "sin respuesta":
           //   1. String vacío / whitespace.
@@ -2484,6 +2667,20 @@ export function StudentWorkshopTaker({
                 height="280px"
               />
             )}
+            {q.type === "red_consola" &&
+              (networkScenarios[q.id] ? (
+                <NetworkConsole
+                  scenario={networkScenarios[q.id]}
+                  value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
+                  onChange={(v) => updateAnswer(q.id, v)}
+                />
+              ) : (
+                <p className="text-xs text-destructive">
+                  {t("hc_modulesWorkshopsWorkshopQuestions.networkScenarioMissing", {
+                    defaultValue: "Esta pregunta de red no tiene un escenario válido configurado.",
+                  })}
+                </p>
+              ))}
             {q.type === "codigo_zip" &&
               q.zip_single &&
               (() => {

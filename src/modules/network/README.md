@@ -48,13 +48,19 @@ const result = gradeNetwork(
 
 ## Estado de integración
 
-- ✅ **Motor + grading + tests** (esta entrega) — núcleo reutilizable, verificado (`tsc` limpio, 36 tests).
-- ⏳ **UI de consola** — componente React que renderice una terminal sobre `IosInterpreter` (un
-  `<textarea>`/línea de comandos liviano basta; `xterm.js` es opcional y agregaría dependencia). El
-  motor ya expone `prompt()` + `execute()` para conectarlo directo.
-- ⏳ **Tipo de pregunta `red_consola`** — migración que agregue el tipo al CHECK de `questions` /
-  `workshop_questions` / `project_files` / `question_bank` (patrón de `python_gui`, mig
-  `20260813000000`), + editor del docente (escenario: devices/links/aserciones) + taker del alumno.
-- ⏳ **Fallback IA** — directive "redes" en `ai-grade-submission` para aspectos abiertos, en paralelo a
-  la calificación determinista (patrón del research doc).
+- ✅ **Motor + grading + tests** — núcleo reutilizable (`tsc` limpio, 45 tests).
+- ✅ **UI de consola** — [NetworkConsole.tsx](NetworkConsole.tsx): terminal React sobre `IosInterpreter`
+  (input controlado + salida monoespaciada, sin `xterm.js`), con resumen de topología, historial
+  (flechas ↑/↓), reanudación desde la respuesta guardada y serialización en `onChange`.
+- ✅ **Tipo `red_consola` en el flujo de TALLER (end-to-end)** — migración
+  [20261080000000](../../../supabase/migrations/20261080000000_red_consola_support.sql) (CHECK en las
+  4 tablas, aplicada+verificada en prod) + [scenario.ts](scenario.ts) (escenario en `options.network`
+  + generador templado determinista) + editor manual del docente (escenario JSON con plantilla) +
+  "Generar con IA" (generación LOCAL sin modelo) + taker del alumno (consola) + **calificación
+  DETERMINISTA** (fase 1, sin IA) en [WorkshopQuestions.tsx](../workshops/WorkshopQuestions.tsx).
+- ⏳ **Exámenes / proyectos** — la migración ya habilita el tipo en sus tablas; falta replicar el
+  editor + taker + grading (mismo patrón que el taller) en `app.student.take.$examId.tsx` /
+  `ProjectFiles.tsx`. El banco de preguntas también.
+- ⏳ **Fallback IA** — directive "redes" en `ai-grade-submission` para escenarios con aspectos abiertos,
+  en paralelo a la calificación determinista (patrón del research doc).
 - ⏳ **Red GUI** (MVP #2) — React Flow + custom nodes, reusando este mismo intérprete al doble-click.

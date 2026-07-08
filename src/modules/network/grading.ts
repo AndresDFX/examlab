@@ -10,13 +10,25 @@
  * (`ai-grade-submission` con un directive "redes"), fuera de este módulo.
  */
 import {
+  type Device,
   type Topology,
   canReach,
+  findDevice,
   findDeviceByName,
   findInterface,
   ipToInt,
   maskToPrefix,
 } from "./topology";
+
+/**
+ * Resuelve un dispositivo por su id O por su nombre (case-insensitive). Las
+ * aserciones del docente referencian el device por su id estable; así el
+ * grading no se rompe cuando el alumno cambia el hostname (que sí cambia el
+ * `name`). Cae al match por nombre para escenarios que referencian por hostname.
+ */
+function resolveDevice(topo: Topology, ref: string): Device | undefined {
+  return findDevice(topo, ref) ?? findDeviceByName(topo, ref);
+}
 
 export type Assertion =
   | { kind: "hostname"; device: string; equals: string; points: number; label?: string }
@@ -97,13 +109,13 @@ function evalAssertion(a: Assertion, state: NetworkSubmissionState): { passed: b
   const { topology } = state;
   switch (a.kind) {
     case "hostname": {
-      const d = findDeviceByName(topology, a.device);
+      const d = resolveDevice(topology, a.device);
       if (!d) return { passed: false, detail: `dispositivo "${a.device}" no encontrado` };
       const ok = d.name.trim().toLowerCase() === a.equals.trim().toLowerCase();
       return { passed: ok, detail: ok ? undefined : `hostname actual: "${d.name}"` };
     }
     case "interface_ip": {
-      const d = findDeviceByName(topology, a.device);
+      const d = resolveDevice(topology, a.device);
       if (!d) return { passed: false, detail: `dispositivo "${a.device}" no encontrado` };
       const i = findInterface(d, a.iface);
       if (!i) return { passed: false, detail: `interfaz "${a.iface}" no encontrada` };
@@ -116,20 +128,20 @@ function evalAssertion(a: Assertion, state: NetworkSubmissionState): { passed: b
       return { passed: true };
     }
     case "interface_up": {
-      const d = findDeviceByName(topology, a.device);
+      const d = resolveDevice(topology, a.device);
       if (!d) return { passed: false, detail: `dispositivo "${a.device}" no encontrado` };
       const i = findInterface(d, a.iface);
       if (!i) return { passed: false, detail: `interfaz "${a.iface}" no encontrada` };
       return { passed: i.up, detail: i.up ? undefined : "interfaz administrativamente abajo" };
     }
     case "connectivity": {
-      const from = findDeviceByName(topology, a.from);
+      const from = resolveDevice(topology, a.from);
       if (!from) return { passed: false, detail: `dispositivo "${a.from}" no encontrado` };
       const ok = canReach(topology, from.id, a.toIp);
       return { passed: ok, detail: ok ? undefined : `sin conectividad a ${a.toIp}` };
     }
     case "command_used": {
-      const d = findDeviceByName(topology, a.device);
+      const d = resolveDevice(topology, a.device);
       const lines = (d && state.histories?.[d.id]) || [];
       const ok = matchPattern(a.pattern, lines);
       return { passed: ok, detail: ok ? undefined : "comando no encontrado en el historial" };

@@ -2844,7 +2844,10 @@
       "emptyFilesInSelection": "There are empty files in the selection.",
       "writeStatement": "Enter the statement",
       "markAtLeastOneCorrect": "Mark at least one correct option in multiple choice",
-      "minMaxInverted": "The minimum selected cannot be greater than the maximum"
+      "minMaxInverted": "The minimum selected cannot be greater than the maximum",
+      "invalidNetworkScenario": "The network scenario is invalid. Check the JSON: devices, links, targetDeviceId and assertions.",
+      "networkQuestionsGenerated": "{{count}} Network (console) question(s) generated",
+      "networkGraded": "Network grade"
     },
     "routes_app_admin_courses": {
       "nameRequired": "Name required",
@@ -4174,7 +4177,11 @@
     "rowActionMoveUp": "Move up",
     "rowActionMoveDown": "Move down",
     "rowActionEdit": "Edit question",
-    "rowActionDelete": "Delete question"
+    "rowActionDelete": "Delete question",
+    "typeNetworkConsole": "Network (console)",
+    "networkScenarioLabel": "Network scenario (JSON)",
+    "networkScenarioHint": "Define the topology (devices/links), targetDeviceId (the device the student configures) and assertions (auto-graded rubric: hostname, interface_ip, interface_up, connectivity, command_used). The student solves it from an IOS-like console.",
+    "networkResetTemplate": "Reset template"
   },
   "adminSupport": {
     "title": "Support",
@@ -6605,7 +6612,8 @@
     "attemptsRemaining": "Attempts remaining:",
     "allAttemptsUsed": "You have used all your attempts. You cannot submit again.",
     "warningSingleAttempt": "Note: this workshop allows only ONE submission — review everything before sending.",
-    "warningOneAttemptLeft": "Note: you have 1 attempt left — review everything before sending."
+    "warningOneAttemptLeft": "Note: you have 1 attempt left — review everything before sending.",
+    "networkScenarioMissing": "This network question has no valid scenario configured."
   },
   "hc_router": {
     "updating": "Updating…",
@@ -8939,5 +8947,17 @@
     "selectDate": "Select date",
     "selectDateTime": "Select date and time",
     "time": "Time"
+  },
+  "networkConsole": {
+    "noDevice": "Scenario has no device.",
+    "welcome": "Console for {{device}}. Type IOS commands (enable, configure terminal, …).",
+    "topologyTitle": "Topology",
+    "focus": "Focus the console",
+    "kind": {
+      "router": "router",
+      "switch": "switch",
+      "pc": "PC",
+      "server": "server"
+    }
   }
 }
