@@ -168,4 +168,57 @@ describe("canReach", () => {
     expect(canReach(topo, "pc1", "10.0.0.10")).toBe(false);
     expect(canReach(topo, "pc1", "192.168.1.1")).toBe(true); // pero sigue siendo alcanzable como destino
   });
+
+  // ── Adversariales (validación de errores 2026-07-08): grading = notas reales ──
+  it("conectividad multi-salto a través de DOS routers", () => {
+    // PC_A — R1 — R2 — PC_B (dos routers en el camino).
+    const topo: Topology = {
+      devices: [
+        { id: "A", name: "A", kind: "pc", interfaces: [{ name: "e0", ip: "10.0.1.2", mask: "255.255.255.0", up: true }] },
+        { id: "R1", name: "R1", kind: "router", interfaces: [{ name: "e0", ip: "10.0.1.1", mask: "255.255.255.0", up: true }, { name: "e1", ip: "10.0.2.1", mask: "255.255.255.0", up: true }] },
+        { id: "R2", name: "R2", kind: "router", interfaces: [{ name: "e0", ip: "10.0.2.2", mask: "255.255.255.0", up: true }, { name: "e1", ip: "10.0.3.1", mask: "255.255.255.0", up: true }] },
+        { id: "B", name: "B", kind: "pc", interfaces: [{ name: "e0", ip: "10.0.3.2", mask: "255.255.255.0", up: true }] },
+      ],
+      links: [
+        { a: { device: "A", iface: "e0" }, b: { device: "R1", iface: "e0" } },
+        { a: { device: "R1", iface: "e1" }, b: { device: "R2", iface: "e0" } },
+        { a: { device: "R2", iface: "e1" }, b: { device: "B", iface: "e0" } },
+      ],
+    };
+    expect(canReach(topo, "A", "10.0.3.2")).toBe(true);
+    // Si baja una interfaz intermedia de R2, se corta.
+    topo.devices.find((d) => d.id === "R2")!.interfaces[1].up = false;
+    expect(canReach(topo, "A", "10.0.3.2")).toBe(false);
+  });
+
+  it("BFS termina con ciclos de switches (no loop infinito)", () => {
+    // Triángulo SW1-SW2-SW3 + un PC en cada uno. Debe alcanzar sin colgarse.
+    const sw = (id: string) => ({
+      id,
+      name: id,
+      kind: "switch" as const,
+      interfaces: [
+        { name: "g0", ip: null, mask: null, up: true },
+        { name: "g1", ip: null, mask: null, up: true },
+        { name: "g2", ip: null, mask: null, up: true },
+      ],
+    });
+    const topo: Topology = {
+      devices: [
+        sw("S1"),
+        sw("S2"),
+        sw("S3"),
+        { id: "P1", name: "P1", kind: "pc", interfaces: [{ name: "e0", ip: "172.16.0.1", mask: "255.255.0.0", up: true }] },
+        { id: "P2", name: "P2", kind: "pc", interfaces: [{ name: "e0", ip: "172.16.0.2", mask: "255.255.0.0", up: true }] },
+      ],
+      links: [
+        { a: { device: "S1", iface: "g0" }, b: { device: "S2", iface: "g0" } },
+        { a: { device: "S2", iface: "g1" }, b: { device: "S3", iface: "g0" } },
+        { a: { device: "S3", iface: "g1" }, b: { device: "S1", iface: "g1" } }, // cierra el ciclo
+        { a: { device: "P1", iface: "e0" }, b: { device: "S1", iface: "g2" } },
+        { a: { device: "P2", iface: "e0" }, b: { device: "S3", iface: "g2" } },
+      ],
+    };
+    expect(canReach(topo, "P1", "172.16.0.2")).toBe(true);
+  });
 });
