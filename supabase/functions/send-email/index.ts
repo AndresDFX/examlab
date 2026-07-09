@@ -569,7 +569,7 @@ Deno.serve(async (req: Request) => {
         auth: { username: user, password },
       },
     });
-    await client.send({
+    const mailOptions = {
       from: `${fromName} <${from}>`,
       // Array de recipients — denomailer hace 1 transacción SMTP con
       // múltiples RCPT TO. El alumno ve a ambos addresses en el header
@@ -629,8 +629,20 @@ Deno.serve(async (req: Request) => {
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
         "X-Entity-Ref-ID": notificationId,
       },
-    });
-    await client.close();
+    };
+    try {
+      await client.send(mailOptions);
+    } finally {
+      // close() es TEARDOWN: (a) si lanza tras un send() exitoso NO debe
+      // propagar — el correo ya se entregó; propagarlo dispararía reintento
+      // (duplicado) o falso email.failed. (b) ante fallo de send() igual
+      // cerramos para no filtrar la conexión SMTP en cada reintento.
+      try {
+        await client.close();
+      } catch {
+        /* best-effort */
+      }
+    }
   }
 
   // Retry-with-backoff: hasta 3 intentos. Solo reintenta TRANSITORIOS
@@ -682,7 +694,16 @@ Deno.serve(async (req: Request) => {
   // sin aplicar) o el insert choca con el índice único, lo ignoramos.
   let autoSuppressed = false;
   if (isPermanentMailboxError(truncated)) {
-    for (const r of recipients) {
+    // Un solo mensaje SMTP puede llevar 2 RCPT TO (institucional + personal).
+    // Un 5.x.x suele ser de UNA dirección — no censuramos la válida por el
+    // rebote de la otra. Suprimimos solo las ATRIBUIBLES: la única (si hay 1),
+    // o las que aparecen en el string de error del servidor.
+    const lowerErr = truncated.toLowerCase();
+    const toSuppress =
+      recipients.length === 1
+        ? recipients
+        : recipients.filter((r) => lowerErr.includes(r.toLowerCase()));
+    for (const r of toSuppress) {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: insErr } = await (adminClient as any)

@@ -506,10 +506,12 @@ export function TeacherWorkshopQuestionsEditor({
         );
       }
     }
-    // Si SOLO había filas red_consola, ya terminamos (sin tocar la IA).
+    // Refresca ya las preguntas de red insertadas — aunque el flujo de IA para
+    // el resto se cancele o vaya a cola, las de red YA están creadas y deben verse.
+    if (networkRows.length) load();
+    // Si SOLO había filas red_consola/red_gui, ya terminamos (sin tocar la IA).
     if (aiTargetRows.length === 0) {
       setAiTopics("");
-      load();
       return;
     }
 
@@ -1051,6 +1053,9 @@ export function TeacherWorkshopQuestionsEditor({
                       <SelectItem value="python_gui">{t("workshopQuestions.typePythonGui")}</SelectItem>
                       <SelectItem value="red_consola">
                         {t("workshopQuestions.typeNetworkConsole", { defaultValue: "Red (consola)" })}
+                      </SelectItem>
+                      <SelectItem value="red_gui">
+                        {t("workshopQuestions.typeNetworkGui", { defaultValue: "Red (diagrama)" })}
                       </SelectItem>
                     </SelectContent>
                   </Select>
@@ -2124,21 +2129,29 @@ export function StudentWorkshopTaker({
               feedback: t("hc_modulesWorkshopsWorkshopQuestions.noAnswer"),
             });
           } else {
-            const result = gradeNetwork(
-              { topology: answer.topology, histories: answer.histories },
-              scenario.assertions,
-            );
-            const earned = Math.round(result.ratio * maxPoints * 100) / 100;
-            const fb =
-              result.items
-                .map(
-                  (it) =>
-                    `${it.passed ? "✓" : "✗"} ${it.label}${it.detail ? ` — ${it.detail}` : ""}`,
-                )
-                .join("\n") ||
-              i18n.t("toast.modules_workshops_WorkshopQuestions.networkGraded", {
-                defaultValue: "Calificación de red",
-              });
+            // Aislar: una respuesta de red malformada no debe romper la
+            // calificación de toda la entrega.
+            let earned = 0;
+            let fb = i18n.t("toast.modules_workshops_WorkshopQuestions.networkGraded", {
+              defaultValue: "Calificación de red",
+            });
+            try {
+              const result = gradeNetwork(
+                { topology: answer.topology, histories: answer.histories },
+                scenario.assertions,
+              );
+              earned = Math.round(result.ratio * maxPoints * 100) / 100;
+              fb =
+                result.items
+                  .map(
+                    (it) =>
+                      `${it.passed ? "✓" : "✗"} ${it.label}${it.detail ? ` — ${it.detail}` : ""}`,
+                  )
+                  .join("\n") || fb;
+            } catch (netErr) {
+              earned = 0;
+              fb = `Error al evaluar la respuesta de red: ${netErr instanceof Error ? netErr.message : String(netErr)}`;
+            }
             payload.ai_grade = earned;
             payload.ai_feedback = fb;
             totalEarned += earned;

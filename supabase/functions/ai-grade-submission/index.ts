@@ -2500,16 +2500,28 @@ Idioma de salida: ${langName}.`,
             feedback: "Sin respuesta",
           });
         } else {
-          const result = gradeNetwork(
-            { topology: answer.topology, histories: answer.histories },
-            scenario.assertions,
-          );
-          const got = Math.round(result.ratio * pts * 100) / 100;
-          const fb = result.items
-            .map((it) => `${it.passed ? "✓" : "✗"} ${it.label}${it.detail ? ` — ${it.detail}` : ""}`)
-            .join("\n");
-          earned += got;
-          breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: got, feedback: fb });
+          // Aislar el grading: una respuesta malformada de UNA pregunta de red
+          // no debe abortar la calificación de toda la entrega.
+          try {
+            const result = gradeNetwork(
+              { topology: answer.topology, histories: answer.histories },
+              scenario.assertions,
+            );
+            const got = Math.round(result.ratio * pts * 100) / 100;
+            const fb = result.items
+              .map((it) => `${it.passed ? "✓" : "✗"} ${it.label}${it.detail ? ` — ${it.detail}` : ""}`)
+              .join("\n");
+            earned += got;
+            breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: got, feedback: fb });
+          } catch (netErr) {
+            breakdown.push({
+              qid: q.id,
+              type: q.type,
+              points: q.points,
+              earned: 0,
+              feedback: `Error al evaluar la respuesta de red: ${netErr instanceof Error ? netErr.message : String(netErr)}`,
+            });
+          }
         }
       } else {
         // Sin respuesta — dos casos cuentan como "vacía":

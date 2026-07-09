@@ -604,9 +604,9 @@ export function TeacherProjectFilesEditor({
         );
       }
     }
+    if (networkRows.length) load();
     if (aiTargetRows.length === 0) {
       setAiTopics("");
-      load();
       return;
     }
 
@@ -2100,14 +2100,21 @@ export function StudentProjectTaker({
             earned = 0;
             feedback = t("hc_modulesProjectsProjectFiles.feedbackNoAnswer");
           } else {
-            const result = gradeNetwork(
-              { topology: answer.topology, histories: answer.histories },
-              scenario.assertions,
-            );
-            earned = Math.round(result.ratio * maxPoints * 100) / 100;
-            feedback = result.items
-              .map((it) => `${it.passed ? "✓" : "✗"} ${it.label}${it.detail ? ` — ${it.detail}` : ""}`)
-              .join("\n");
+            // Aislar: una respuesta de red malformada no debe romper la
+            // calificación de toda la entrega.
+            try {
+              const result = gradeNetwork(
+                { topology: answer.topology, histories: answer.histories },
+                scenario.assertions,
+              );
+              earned = Math.round(result.ratio * maxPoints * 100) / 100;
+              feedback = result.items
+                .map((it) => `${it.passed ? "✓" : "✗"} ${it.label}${it.detail ? ` — ${it.detail}` : ""}`)
+                .join("\n");
+            } catch (netErr) {
+              earned = 0;
+              feedback = `Error al evaluar la respuesta de red: ${netErr instanceof Error ? netErr.message : String(netErr)}`;
+            }
           }
           payload.content = typeof raw === "string" ? raw : JSON.stringify(raw);
           payload.ai_grade = earned;

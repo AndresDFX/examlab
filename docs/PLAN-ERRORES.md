@@ -197,6 +197,27 @@ Revisión de `audit_logs` de prod. Hallazgo NUEVO y de alto impacto:
   whiteboards (Jul 7, `percentages-*.js` en handler de textarea) → stack de **vendor** (Excalidraw),
   1 ocurrencia, monitoreo; React #418 / driver.js SSR / ResizeObserver / sw.js → stale/ruido.
 
+### Follow-up find→verify sobre el wiring nuevo de red + el retry (no visible en audit_logs — sin desplegar)
+Workflow `find→verify` (6 áreas) sobre el código recién agregado. 8 bugs confirmados y arreglados:
+- **[alta] Fuga de conexión SMTP**: en el nuevo `attemptSmtpSend`, `client.send()` + `client.close()`
+  sin try/finally → ante el 421 que gatilla el retry, `close()` se saltaba y filtraba el socket
+  (agravando el throttle que el backoff mitiga). Fix: payload extraído + `try { send } finally { close }`.
+- **[media] Doble-entrega / falso email.failed**: si `close()` lanzaba tras un `send()` exitoso, el
+  error (transitorio) reintentaba (duplicado) o marcaba failed pese a la entrega. El mismo try/finally
+  con `close()` best-effort (no propaga) lo resuelve.
+- **[media] Auto-supresión sobre-agresiva** (pre-existente): un 5.x.x de UNA dirección suprimía AMBOS
+  RCPT (institucional + personal). Fix: suprimir solo las atribuibles (única, o la que aparece en el error).
+- **[media] gradeNetwork sin aislar**: una respuesta de red malformada podía lanzar y abortar la
+  calificación de TODA la entrega (edge examen + cliente taller/proyecto). Fix: try/catch → earned 0 + feedback.
+- **[media] red_gui en revisión ocultaba el direccionamiento**: `NetworkTopologyEditor` readOnly solo
+  mostraba el diagrama, no las IP/máscara/estado (lo que se califica). Fix: resumen read-only del direccionamiento.
+- **[media] Preguntas de red locales no refrescaban** si el flujo de IA del resto se cancelaba/iba a cola.
+  Fix: `load()` tras insertarlas.
+- **[baja] Select de IA-masiva del taller omitía `red_gui`** (indentación). Agregado.
+- **[baja, DEFERIDO] guard de "cambios sin guardar" del banco no ve ediciones del escenario JSON** —
+  fix riesgoso (falso-dirty por el effect de siembra); se acepta por ahora.
+tsc EXIT=0 · tests de red 47/47. **Requiere Publish.**
+
 ## Cómo seguir
 
 1. **Cada ronda**: (a) revisar `audit_logs` de prod; (b) lanzar workflow `find→verify` sobre

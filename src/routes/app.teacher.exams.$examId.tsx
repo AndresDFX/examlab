@@ -757,9 +757,9 @@ function ExamEditor() {
         );
       }
     }
+    if (networkRows.length) load();
     if (aiTargetRows.length === 0) {
       setAiTopics("");
-      load();
       return;
     }
 

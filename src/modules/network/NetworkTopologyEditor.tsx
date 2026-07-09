@@ -181,7 +181,36 @@ export function NetworkTopologyEditor({ scenario, value, onChange, readOnly }: P
         </svg>
       </div>
 
-      {/* Dispositivos + interfaces */}
+      {/* Revisión (readOnly): resumen NO editable del direccionamiento — es lo
+          que se califica, así que debe verse (no solo el diagrama). */}
+      {readOnly && (
+        <div className="p-3 space-y-2 border-t text-xs">
+          {topo.devices.map((d) => (
+            <div key={d.id} className="rounded-md border p-2">
+              <div className="font-mono font-medium">
+                {d.name || d.id} <span className="opacity-60">({d.kind})</span>
+              </div>
+              {d.interfaces.map((i) => (
+                <div key={i.name} className="pl-2 opacity-80 font-mono">
+                  {i.name}: {i.ip ?? "—"}
+                  {i.mask ? ` / ${i.mask}` : ""} ·{" "}
+                  {i.up ? t("networkGui.up", { defaultValue: "activa" }) : "down"}
+                </div>
+              ))}
+            </div>
+          ))}
+          {topo.links.length > 0 && (
+            <div className="opacity-70">
+              {t("networkGui.links", { defaultValue: "Enlaces" })}:{" "}
+              {topo.links
+                .map((l) => `${l.a.device}:${l.a.iface} ↔ ${l.b.device}:${l.b.iface}`)
+                .join(" · ")}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Dispositivos + interfaces (edición) */}
       {!readOnly && (
         <div className="p-3 space-y-3 border-t">
           {topo.devices.map((d) => (
