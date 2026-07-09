@@ -9,7 +9,7 @@
 > se confirma lo reproducible). Los fixes se aplican con `tsc` EXIT=0 + tests dirigidos +
 > migraciones verificadas en tx rolled-back y aplicadas live a prod (`docker/restore.env`).
 >
-> **Última actualización**: 2026-07-07 (rondas 1-6 CERRADAS; ronda 6: Papelera-en-selección 5 fixes `courses` + `RangeError` toISOString del editor de examen; audit_logs sin otros errores accionables nuevos).
+> **Última actualización**: 2026-07-08 (rondas 1-7 CERRADAS; ronda 7: `email.failed` 421 en ráfaga → retry-with-backoff + jitter en `send-email`; ronda 6: Papelera-en-selección 5 fixes `courses` + `RangeError` toISOString del editor de examen).
 
 ---
 
@@ -176,6 +176,27 @@ workshops/projects/attendance_sessions/whiteboards/generated_contents/polls) que
   **stale/infra** ya documentados (migs `20261040`/`20261049`; Gmail 421 transitorio). React #418
   (2026-06-19) y driver.js SSR (dev localhost) → stale/no-prod.
 
+## Ronda 7 — ✅ email.failed 421 en ráfaga (revisión de audit_logs, 2026-07-08)
+
+Revisión de `audit_logs` de prod. Hallazgo NUEVO y de alto impacto:
+
+- **[alto→media] `email.failed` explotó a 325 en 14 días** (antes ~17), con una **ráfaga hoy**
+  (2026-07-08): Gmail responde `421 4.3.0 Temporary System Problem` para correos `kind=workshop`.
+  Causa: notificar a todo un curso (p. ej. FESNA, ~190 estudiantes) dispara ~190 invocaciones
+  concurrentes de `send-email` → ~190 conexiones SMTP a Gmail en el mismo instante → throttle
+  transitorio → el correo se marcaba `failed` **sin reintentar** (los alumnos no recibían la
+  notificación). Era el ítem del backlog, ahora urgente.
+  **Fix** (`send-email/index.ts`): (1) **pre-jitter** 0–1200 ms para desincronizar la ráfaga;
+  (2) **retry-with-backoff** hasta 3 intentos SOLO para errores TRANSITORIOS (`isTransientSmtpError`:
+  421/4.x.x/timeout/conexión/throttle) con backoff exponencial + jitter (~1s, ~3s); los permanentes
+  (5.x.x mailbox) siguen fallando de una + auto-supresión. El audit registra `attempts`/`retried`.
+  **Requiere Publish.**
+- Resto sin novedad accionable: `bulk_password_reset_failed`/`bulk_import_row_failed` (stale,
+  Jul 1-2, resuelto por migs previas — limpia al re-ejecutar); `app.unhandled_rejection` toISOString
+  del editor de examen (Jun 30) ya arreglado en Ronda 6 (`safeIso`, pending Publish); `app.runtime_error`
+  whiteboards (Jul 7, `percentages-*.js` en handler de textarea) → stack de **vendor** (Excalidraw),
+  1 ocurrencia, monitoreo; React #418 / driver.js SSR / ResizeObserver / sw.js → stale/ruido.
+
 ## Cómo seguir
 
 1. **Cada ronda**: (a) revisar `audit_logs` de prod; (b) lanzar workflow `find→verify` sobre
@@ -187,5 +208,5 @@ workshops/projects/attendance_sessions/whiteboards/generated_contents/polls) que
 3. **Cierre a prod**: migraciones DB ya se aplican live; cliente/edge requieren **Publish** en Lovable.
 
 ## Backlog / mejoras (no bugs)
-- Retry con backoff para `email.failed` transitorios (421/4xx/5xx) en `send-email`.
+- ~~Retry con backoff para `email.failed` transitorios (421/4xx/5xx) en `send-email`.~~ ✅ Ronda 7.
 - Cleanup de archivos de Storage al purgar la Papelera (huérfanos — TODO v2 conocido).

@@ -94,6 +94,33 @@ function isPermanentMailboxError(msg: string): boolean {
   return permanent && mailboxIssue;
 }
 
+/**
+ * ¿El error SMTP es TRANSITORIO (reintentable)? Gmail responde `421 4.3.0
+ * Temporary System Problem` cuando se le mandan muchos correos en ráfaga
+ * (p. ej. asignar un taller notifica a los N estudiantes del curso → N envíos
+ * casi simultáneos). Esos rebotes se resuelven reintentando con backoff — a
+ * diferencia de los permanentes (5.x.x mailbox), que NO se reintentan.
+ * Detecta códigos SMTP 4.x.x / 4xx + patrones de throttle/timeout/conexión.
+ */
+function isTransientSmtpError(msg: string): boolean {
+  const m = (msg ?? "").toLowerCase();
+  // 5.x.x / 5xx = permanente → nunca transitorio.
+  if (/\b5\.\d\.\d\b/.test(m) || /\b5\d\d\b/.test(m)) return false;
+  return (
+    /\b4\.\d\.\d\b/.test(m) || // SMTP enhanced status 4.x.x (ej. 4.3.0, 4.7.0)
+    /\b4\d\d\b/.test(m) || // SMTP 4xx (421, 450, 451, 452)
+    /temporar/.test(m) ||
+    /try again/.test(m) ||
+    /throttl/.test(m) ||
+    /rate.?limit/.test(m) ||
+    /too many/.test(m) ||
+    /timeout|timed out/.test(m) ||
+    /econn|connection (closed|reset|refused)|socket hang/.test(m) ||
+    /greylist/.test(m) ||
+    /service (not available|unavailable)/.test(m)
+  );
+}
+
 function shouldSendEmail(params: {
   kind: string;
   link: string | null;
@@ -526,7 +553,14 @@ Deno.serve(async (req: Request) => {
   // si `tls: true` y maneja port 587 correctamente. Cualquier excepción
   // (auth fail, DNS, timeout, antivirus, etc.) cae al catch y se persiste.
   const smtpStartMs = Date.now();
-  try {
+  // Pre-jitter: desincroniza la ráfaga de N invocaciones concurrentes (una por
+  // estudiante cuando se notifica a todo un curso) para no abrir N conexiones
+  // SMTP a Gmail en el mismo instante — principal causa de los 421.
+  await new Promise((res) => setTimeout(res, Math.floor(Math.random() * 1200)));
+
+  // Envío SMTP encapsulado para poder reintentarlo con backoff ante errores
+  // TRANSITORIOS (Gmail 421 4.3.0 Temporary System Problem, timeouts, conexión).
+  async function attemptSmtpSend(): Promise<void> {
     const client = new SMTPClient({
       connection: {
         hostname: host,
@@ -597,56 +631,85 @@ Deno.serve(async (req: Request) => {
       },
     });
     await client.close();
-    await markDelivered(notificationId);
-    await auditEmail(notificationId, "email.delivered", "info", {
-      smtp_host: host,
-      smtp_port: port,
-      smtp_source: smtpSource,
-      smtp_ms: Date.now() - smtpStartMs,
-      sender: `${fromName} <${from}>`,
-      recipients_count: recipients.length,
-      // Lista de destinatarios — útil para diagnóstico si el alumno
-      // reclama "no me llegó al personal" y queremos confirmar a cuáles
-      // se mandó. NO incluimos el contenido del mensaje.
-      recipients,
-    });
-    return jsonResponse({ ok: true, sent: true });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    const truncated = msg.slice(0, 200);
-    await markSkipped(notificationId, `provider_error: ${truncated}`);
-    // Auto-supresión: si el handshake SMTP rebotó PERMANENTEMENTE por buzón/
-    // usuario (5.x.x), dejamos de golpear esa dirección. Sólo permanentes — un
-    // 4.x transitorio NO se suprime. Best-effort: si la tabla no existe (mig
-    // sin aplicar) o el insert choca con el índice único, lo ignoramos.
-    let autoSuppressed = false;
-    if (isPermanentMailboxError(truncated)) {
-      for (const r of recipients) {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { error: insErr } = await (adminClient as any)
-            .from("email_suppressions")
-            .insert({
-              email: r.toLowerCase(),
-              reason: "hard_bounce",
-              note: `auto (send-email): ${truncated}`,
-              tenant_id: tenantId,
-            });
-          if (!insErr) autoSuppressed = true;
-        } catch {
-          // silencio — la auto-supresión nunca rompe el flujo de error
-        }
+  }
+
+  // Retry-with-backoff: hasta 3 intentos. Solo reintenta TRANSITORIOS
+  // (421/4.x.x/timeout/conexión) — los permanentes (5.x.x) fallan de una.
+  const MAX_ATTEMPTS = 3;
+  let lastErr = "";
+  let attemptsMade = 0;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    attemptsMade = attempt;
+    try {
+      await attemptSmtpSend();
+      await markDelivered(notificationId);
+      await auditEmail(notificationId, "email.delivered", "info", {
+        smtp_host: host,
+        smtp_port: port,
+        smtp_source: smtpSource,
+        smtp_ms: Date.now() - smtpStartMs,
+        sender: `${fromName} <${from}>`,
+        recipients_count: recipients.length,
+        // Lista de destinatarios — útil para diagnóstico si el alumno reclama
+        // "no me llegó al personal". NO incluimos el contenido del mensaje.
+        recipients,
+        attempts: attempt,
+      });
+      return jsonResponse({ ok: true, sent: true });
+    } catch (e) {
+      lastErr = (e instanceof Error ? e.message : String(e)).slice(0, 200);
+      if (
+        attempt < MAX_ATTEMPTS &&
+        isTransientSmtpError(lastErr) &&
+        !isPermanentMailboxError(lastErr)
+      ) {
+        // Backoff exponencial + jitter (~1s, ~3s) para que los reintentos de
+        // varios estudiantes no vuelvan a chocar en el mismo instante.
+        const delay = (attempt === 1 ? 1000 : 3000) + Math.floor(Math.random() * 1500);
+        await new Promise((res) => setTimeout(res, delay));
+        continue;
+      }
+      break; // permanente, o transitorio sin intentos restantes
+    }
+  }
+
+  // Falló definitivamente (tras reintentos si aplicaba).
+  const truncated = lastErr;
+  await markSkipped(notificationId, `provider_error: ${truncated}`);
+  // Auto-supresión: si el handshake SMTP rebotó PERMANENTEMENTE por buzón/
+  // usuario (5.x.x), dejamos de golpear esa dirección. Sólo permanentes — un
+  // 4.x transitorio NO se suprime. Best-effort: si la tabla no existe (mig
+  // sin aplicar) o el insert choca con el índice único, lo ignoramos.
+  let autoSuppressed = false;
+  if (isPermanentMailboxError(truncated)) {
+    for (const r of recipients) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: insErr } = await (adminClient as any)
+          .from("email_suppressions")
+          .insert({
+            email: r.toLowerCase(),
+            reason: "hard_bounce",
+            note: `auto (send-email): ${truncated}`,
+            tenant_id: tenantId,
+          });
+        if (!insErr) autoSuppressed = true;
+      } catch {
+        // silencio — la auto-supresión nunca rompe el flujo de error
       }
     }
-    await auditEmail(notificationId, "email.failed", "error", {
-      reason: "provider_error",
-      error: truncated,
-      smtp_host: host,
-      smtp_port: port,
-      smtp_source: smtpSource,
-      smtp_ms: Date.now() - smtpStartMs,
-      auto_suppressed: autoSuppressed,
-    });
-    return jsonError(`SMTP send failed: ${truncated}`, 500);
   }
+  await auditEmail(notificationId, "email.failed", "error", {
+    reason: "provider_error",
+    error: truncated,
+    smtp_host: host,
+    smtp_port: port,
+    smtp_source: smtpSource,
+    smtp_ms: Date.now() - smtpStartMs,
+    auto_suppressed: autoSuppressed,
+    // Cuántos intentos se hicieron + si se reintentó (transitorio).
+    attempts: attemptsMade,
+    retried: attemptsMade > 1,
+  });
+  return jsonError(`SMTP send failed: ${truncated}`, 500);
 });
