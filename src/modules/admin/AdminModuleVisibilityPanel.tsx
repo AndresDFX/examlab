@@ -137,7 +137,7 @@ const MODULES: Array<{
   { key: "calendar", label: "Calendario" },
   // Mismo nombre que el sidebar (`nav.studentCertificates: "Certificaciones"`).
   { key: "certificates", label: "Certificaciones" },
-  { key: "tutor", label: "Tutor IA" },
+  { key: "tutor", label: "Asistente IA" },
   { key: "question_bank", label: "Banco de preguntas" },
   // Sidebar dice solo "Prompts" — eliminamos el sufijo "IA".
   { key: "ai_prompts", label: "Prompts" },

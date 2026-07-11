@@ -132,7 +132,7 @@ const USE_CASES: UseCaseDef[] = [
     module: "tutor",
     label: i18n.t("hc_routesAppTeacherAiPrompts.ucTutorChatLabel"),
     description:
-      "System prompt del Tutor IA. Soporta {{course_name}}, {{course_description}}, {{course_content_topics}}, {{course_content_material}} y {{current_datetime}} (fecha/hora actual) para responder anclado al contenido y a las fechas del curso. El override de este curso pisa al global del tenant.",
+      "System prompt del Asistente IA. Soporta {{course_name}}, {{course_description}}, {{course_content_topics}}, {{course_content_material}} y {{current_datetime}} (fecha/hora actual) para responder anclado al contenido y a las fechas del curso. El override de este curso pisa al global del tenant.",
   },
 ];
 

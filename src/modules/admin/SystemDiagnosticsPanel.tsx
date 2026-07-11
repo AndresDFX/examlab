@@ -149,7 +149,7 @@ const EDGE_FUNCTION_DESCRIPTIONS: Record<string, string> = {
   "student-calendar-ics":
     "ICS público para que el estudiante se suscriba al calendario del curso desde su app.",
   "tutor-chat":
-    "Endpoint del Tutor IA por curso: arma el prompt con `course_content_topics` y orquesta la conversación.",
+    "Endpoint del Asistente IA por curso: arma el prompt con `course_content_topics` y orquesta la conversación.",
 };
 
 /** Descripción humana de cada cron job programado en pg_cron — explica

@@ -1148,7 +1148,7 @@ export const STUDENT_TOUR: TourStep[] = [
   {
     element: '[data-tour-module="tutor"]',
     route: "/app/student/tutor",
-    title: "Tutor IA",
+    title: "Asistente IA",
     description:
       "Chat con un asistente que <strong>lee los materiales del curso</strong> (guías, presentaciones y lecturas que subió tu docente) y responde anclado a su contenido — no solo a los títulos. Pedile que te explique un concepto, te ejemplifique un caso o te guíe en un ejercicio.",
     side: "right",

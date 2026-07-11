@@ -62,7 +62,7 @@ export function PrivacyPolicyContent({ showHeader = true }: { showHeader?: boole
       title: "4. Procesamiento con inteligencia artificial",
       paragraphs: [
         "Algunas funciones usan modelos de inteligencia artificial. Cuando un docente activa la calificación con IA, el contenido de la entrega se envía a un proveedor de modelos (por ejemplo, Google Gemini u OpenAI) para producir una calificación y retroalimentación sugeridas; la decisión final siempre queda en manos del docente.",
-        "El Tutor IA responde dudas del estudiante apoyándose en el material del curso compartido por el docente. Las conversaciones se asocian a la cuenta del estudiante y a su curso.",
+        "El Asistente IA responde dudas del estudiante apoyándose en el material del curso compartido por el docente. Las conversaciones se asocian a la cuenta del estudiante y a su curso.",
         "No usamos los datos personales para entrenar modelos propios ni de terceros.",
       ],
     },
