@@ -156,6 +156,7 @@ const ACTION_LABEL_KEYS = new Set<string>([
   "system.diagnostic.warnings_detected", "system.diagnostic.db_failed",
   "system.diagnostic.edge_function_failed",
   "ai_queue.processed", "ai_queue.job_failed", "ai_override.activated",
+  "integrity.grade_changed", "integrity.feedback_changed",
 ]);
 
 // Solo guardamos las clases CSS; el label se resuelve con t("audit.categories.<key>").
@@ -190,6 +191,12 @@ const CATEGORY_CONFIG: Record<string, { cls: string }> = {
   // sobre instancias) y de 'system' (config genérica).
   academic: {
     cls: "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300",
+  },
+  // Integridad / anti-fraude: cambios sensibles hechos por un humano (docente/
+  // admin) sobre notas / retroalimentación / sustentación, con anterior→nuevo
+  // + IP. Rosa fuerte para que resalte como la categoría a vigilar.
+  integrity: {
+    cls: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300",
   },
 };
 
@@ -230,6 +237,32 @@ const ROLE_CLS: Record<string, string> = {
 };
 
 const PAGE_SIZE = 100;
+
+// Extrae los datos forenses de un evento de integridad (category='integrity')
+// desde metadata: campo cambiado, valor anterior/nuevo, IP y estudiante.
+// Devuelve null si el evento no trae este shape (no es forense).
+function forensicDetails(m: Record<string, unknown> | null | undefined): {
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  ip: string | null;
+  studentEmail: string | null;
+} | null {
+  if (!m || m.field == null) return null;
+  const s = (v: unknown) => (v == null ? null : String(v));
+  return {
+    field: String(m.field),
+    oldValue: s(m.old_value),
+    newValue: s(m.new_value),
+    ip: s(m.ip),
+    studentEmail: s(m.student_email),
+  };
+}
+
+// Etiqueta legible del campo auditado.
+function fieldLabel(field: string, t: (k: string, o?: Record<string, unknown>) => string): string {
+  return t(`audit.integrity.fields.${field}`, { defaultValue: field });
+}
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 
@@ -800,9 +833,23 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                             </div>
                           </TableCell>
 
-                          {/* Acción */}
-                          <TableCell className="text-sm" truncate title={actionLabel(log.action)}>
-                            {actionLabel(log.action)}
+                          {/* Acción (+ anterior→nuevo inline para integridad) */}
+                          <TableCell className="text-sm" title={actionLabel(log.action)}>
+                            <span className="truncate block">{actionLabel(log.action)}</span>
+                            {log.category === "integrity" &&
+                              (() => {
+                                const f = forensicDetails(log.metadata);
+                                return f ? (
+                                  <span className="block text-[11px] text-muted-foreground">
+                                    {fieldLabel(f.field, t)}:{" "}
+                                    <span className="line-through">{f.oldValue ?? "∅"}</span>
+                                    {" → "}
+                                    <span className="font-semibold text-foreground">
+                                      {f.newValue ?? "∅"}
+                                    </span>
+                                  </span>
+                                ) : null;
+                              })()}
                           </TableCell>
 
                           {/* Categoría */}
@@ -965,6 +1012,58 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                   </div>
                 )}
               </div>
+
+              {/* Cambio auditado (anti-fraude): anterior → nuevo + IP */}
+              {(() => {
+                const f = forensicDetails(detail.metadata);
+                if (!f) return null;
+                return (
+                  <div className="rounded-md border border-pink-300/60 dark:border-pink-800/50 bg-pink-50/60 dark:bg-pink-950/20 p-3 space-y-2.5">
+                    <p className="text-xs font-semibold text-pink-800 dark:text-pink-300 flex items-center gap-1.5">
+                      <ShieldAlert className="h-3.5 w-3.5" />
+                      {t("audit.integrity.title", { defaultValue: "Cambio auditado (anti-fraude)" })}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-0.5">
+                          {t("audit.integrity.field", { defaultValue: "Campo" })}
+                        </p>
+                        <p className="text-sm">{fieldLabel(f.field, t)}</p>
+                      </div>
+                      {f.studentEmail && (
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-0.5">
+                            {t("audit.integrity.student", { defaultValue: "Estudiante" })}
+                          </p>
+                          <p className="text-sm truncate">{f.studentEmail}</p>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">
+                        {t("audit.integrity.change", { defaultValue: "Valor anterior → nuevo" })}
+                      </p>
+                      <div className="flex items-center gap-2 flex-wrap text-sm">
+                        <span className="rounded border bg-background px-2 py-1 line-through text-muted-foreground break-all">
+                          {f.oldValue ?? "∅"}
+                        </span>
+                        <span className="text-muted-foreground">→</span>
+                        <span className="rounded border bg-background px-2 py-1 font-semibold break-all">
+                          {f.newValue ?? "∅"}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-0.5">
+                        {t("audit.integrity.ip", { defaultValue: "IP de origen" })}
+                      </p>
+                      <code className="text-xs">
+                        {f.ip ?? t("audit.integrity.ipUnknown", { defaultValue: "no disponible" })}
+                      </code>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* JSON detalles */}
               {Object.keys(detail.metadata ?? {}).length > 0 && (

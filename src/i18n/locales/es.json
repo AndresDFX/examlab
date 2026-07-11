@@ -218,7 +218,8 @@
       "fraud": "Fraude",
       "email": "Correo",
       "system": "Sistema",
-      "academic": "Institución"
+      "academic": "Institución",
+      "integrity": "Integridad"
     },
     "severities": {
       "info": "Info",
@@ -384,10 +385,30 @@
       "system.diagnostic.edge_function_failed": "Diagnóstico del sistema: error de edge function",
       "ai_queue.processed": "Cola IA procesada",
       "ai_queue.job_failed": "Job IA fallido",
-      "ai_override.activated": "Override IA inmediata activado"
+      "ai_override.activated": "Override IA inmediata activado",
+      "integrity": {
+        "grade_changed": "Cambio de nota (docente)",
+        "feedback_changed": "Cambio de retroalimentación (docente)"
+      }
     },
     "needAdminRole": "Necesitas rol Admin o SuperAdmin.",
-    "errorsTab": "Errores"
+    "errorsTab": "Errores",
+    "integrity": {
+      "title": "Cambio auditado (anti-fraude)",
+      "field": "Campo",
+      "student": "Estudiante",
+      "change": "Valor anterior → nuevo",
+      "ip": "IP de origen",
+      "ipUnknown": "no disponible",
+      "fields": {
+        "final_override_grade": "Nota (override del docente)",
+        "final_grade": "Nota final",
+        "submission_grade": "Nota de la entrega",
+        "defense_factor": "Factor de sustentación",
+        "defense_notes": "Notas de sustentación",
+        "teacher_feedback": "Retroalimentación del docente"
+      }
+    }
   },
   "course": {
     "subtitle": "{{count}} cursos",
