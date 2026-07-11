@@ -50,6 +50,7 @@ import { usePagination } from "@/hooks/use-pagination";
 import { useTableSort } from "@/hooks/use-table-sort";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
+import { CoursePicker } from "@/modules/courses/CoursePicker";
 import { WorkshopGroupsEditor } from "@/modules/workshops/WorkshopGroupsEditor";
 import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
@@ -163,6 +164,8 @@ type Course = {
   passing_grade: number;
   /** Fecha fin del curso (DATE). El plazo del taller se topa a este día. */
   end_date: string | null;
+  /** courses.status: prioriza abiertos/actual en el CoursePicker. */
+  status?: string | null;
 };
 type Workshop = {
   id: string;
@@ -613,7 +616,9 @@ function TeacherWorkshops() {
     ] = await Promise.all([
       supabase
         .from("courses")
-        .select("id, name, period, grade_scale_min, grade_scale_max, passing_grade, end_date")
+        .select(
+          "id, name, period, grade_scale_min, grade_scale_max, passing_grade, end_date, status",
+        )
         // Ocultar cursos en papelera del Select de curso del form/filtro.
         .is("deleted_at", null)
         .order("name"),
@@ -653,7 +658,9 @@ function TeacherWorkshops() {
       return;
     }
     setLoadError(null);
-    setCourses((cs ?? []) as Course[]);
+    // `as unknown`: courses.status existe en la DB pero types.ts (generado) aún
+    // no lo incluye — Lovable regenera en Publish. El cast evita el falso TS2352.
+    setCourses((cs ?? []) as unknown as Course[]);
     setWorkshops((ws ?? []) as any);
     setCuts((cuts ?? []) as Cut[]);
     const errMap: Record<string, number> = {};
@@ -3067,25 +3074,7 @@ function TeacherWorkshops() {
               {/* Tanto en NEW como en EDIT usamos checkboxes M:N. El
                   taller es UN registro con N workshop_courses; el form
                   permite agregar/quitar cursos de un taller existente. */}
-              <div className="mt-1.5 max-h-36 overflow-y-auto rounded-md border p-2 space-y-1">
-                {courses.map((c) => (
-                  <label
-                    key={c.id}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
-                  >
-                    <Checkbox
-                      checked={selectedCourseIds.has(c.id)}
-                      onCheckedChange={() => toggleCourse(c.id)}
-                    />
-                    <span className="flex-1">{c.name}</span>
-                    {c.period && (
-                      <Badge variant="outline" className="text-[9px]">
-                        {c.period}
-                      </Badge>
-                    )}
-                  </label>
-                ))}
-              </div>
+              <CoursePicker courses={courses} selectedIds={selectedCourseIds} onToggle={toggleCourse} />
               {selectedCourseIds.size > 1 && (
                 <p className="text-xs text-muted-foreground mt-1">
                   {form.id

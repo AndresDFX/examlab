@@ -17,6 +17,7 @@ import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { cancelPendingAiJobsForTarget } from "@/modules/ai/ai-grading";
+import { CoursePicker } from "@/modules/courses/CoursePicker";
 import { useAuth } from "@/hooks/use-auth";
 import { PageLoader } from "@/components/ui/loaders";
 import { isStaffRole } from "@/shared/lib/roles";
@@ -156,6 +157,8 @@ type Course = {
   grade_scale_max?: number | null;
   /** Fecha fin del curso (DATE). La entrega del proyecto se topa a este día. */
   end_date?: string | null;
+  /** courses.status: prioriza abiertos/actual en el CoursePicker. */
+  status?: string | null;
 };
 type Cut = {
   id: string;
@@ -566,7 +569,7 @@ function TeacherProjects() {
     try {
       const cs = await db
         .from("courses")
-        .select("id, name, period, language, grade_scale_max, end_date")
+        .select("id, name, period, language, grade_scale_max, end_date, status")
         .is("deleted_at", null)
         .order("name");
       if (cs.error) throw new Error(`courses: ${cs.error.message}`);
@@ -2911,28 +2914,12 @@ function TeacherProjects() {
                 {t("nav.courses")} (puedes seleccionar varios){" "}
                 <HelpHint>{t("help.linkedCoursesHelp")}</HelpHint>
               </Label>
-              <div className="border rounded-md p-2 max-h-44 overflow-y-auto space-y-1">
-                {courses.length === 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    {t("hc_routesAppTeacherProjects.noCoursesAvailable")}
-                  </p>
-                )}
-                {courses.map((c) => {
-                  const checked = (form.linked_course_ids ?? []).includes(c.id);
-                  return (
-                    <label
-                      key={c.id}
-                      className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
-                    >
-                      <Checkbox checked={checked} onCheckedChange={() => toggleFormCourse(c.id)} />
-                      <span className="flex-1">
-                        {c.name}
-                        {c.period ? ` · ${c.period}` : ""}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
+              <CoursePicker
+                courses={courses}
+                selectedIds={form.linked_course_ids ?? []}
+                onToggle={toggleFormCourse}
+                emptyText={t("hc_routesAppTeacherProjects.noCoursesAvailable")}
+              />
             </div>
             {(form.linked_course_ids ?? []).length > 0 && (
               <div className="space-y-2">

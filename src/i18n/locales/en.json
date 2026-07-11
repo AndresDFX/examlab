@@ -1112,6 +1112,12 @@
     "removeOverrideBody": "This course will revert to the global prompt. You can create another override later if needed.",
     "removeOverrideConfirm": "Remove override"
   },
+  "coursePicker": {
+    "empty": "No courses available.",
+    "closedBadge": "Finished",
+    "showClosed": "Show finished courses ({{count}})",
+    "hideClosed": "Hide finished courses"
+  },
   "contents": {
     "title": "Contents",
     "subtitle": "Generate AI-powered presentations and teacher guides",

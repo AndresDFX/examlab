@@ -1112,6 +1112,12 @@
     "removeOverrideBody": "Este curso volverá a usar el prompt global. Podrás crear otro override más adelante si lo necesitas.",
     "removeOverrideConfirm": "Quitar override"
   },
+  "coursePicker": {
+    "empty": "No hay cursos disponibles.",
+    "closedBadge": "Finalizado",
+    "showClosed": "Mostrar cursos finalizados ({{count}})",
+    "hideClosed": "Ocultar cursos finalizados"
+  },
   "contents": {
     "title": "Contenidos",
     "subtitle": "Genera presentaciones y guías docente con IA",

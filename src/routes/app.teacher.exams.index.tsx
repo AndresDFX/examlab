@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { ActivitySessionSelect } from "@/modules/sessions/ActivitySessionSelect";
+import { CoursePicker } from "@/modules/courses/CoursePicker";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -96,7 +97,13 @@ Programación I,Quiz 1,Quiz corto sobre listas,2025-09-22T08:00,2025-09-22T08:30
 
 export const Route = createFileRoute("/app/teacher/exams/")({ component: TeacherExams });
 
-type Course = { id: string; name: string; period: string | null; end_date: string | null };
+type Course = {
+  id: string;
+  name: string;
+  period: string | null;
+  end_date: string | null;
+  status?: string | null;
+};
 type Cut = { id: string; course_id: string; name: string; exam_weight?: number };
 type Exam = {
   id: string;
@@ -317,7 +324,7 @@ function TeacherExams() {
       await Promise.all([
         supabase
           .from("courses")
-          .select("id, name, period, end_date")
+          .select("id, name, period, end_date, status")
           // Ocultar cursos en papelera del selector de filtro.
           .is("deleted_at", null)
           .order("name"),
@@ -339,7 +346,9 @@ function TeacherExams() {
       return;
     }
     setLoadError(null);
-    setCourses((cs ?? []) as Course[]);
+    // `as unknown`: courses.status existe en la DB pero types.ts (generado) aún
+    // no lo incluye — Lovable regenera en Publish. El cast evita el falso TS2352.
+    setCourses((cs ?? []) as unknown as Course[]);
     setExams((es ?? []) as any);
     setCuts((cs2 ?? []) as Cut[]);
   };
@@ -1091,25 +1100,8 @@ function TeacherExams() {
                   {t("exam.selectCourses")}
                 </span>
               </Label>
-              <div className="mt-1.5 max-h-36 overflow-y-auto rounded-md border p-2 space-y-1">
-                {courses.map((c) => (
-                  <label
-                    key={c.id}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
-                  >
-                    <Checkbox
-                      checked={selectedCourseIds.has(c.id)}
-                      onCheckedChange={() => toggleCourse(c.id)}
-                    />
-                    <span className="flex-1">{c.name}</span>
-                    {c.period && (
-                      <Badge variant="outline" className="text-[9px]">
-                        {c.period}
-                      </Badge>
-                    )}
-                  </label>
-                ))}
-              </div>
+              <CoursePicker courses={courses} selectedIds={selectedCourseIds} onToggle={toggleCourse} />
+
               {selectedCourseIds.size > 1 && (
                 <p className="text-xs text-muted-foreground mt-1">{t("exam.coursesHelp")}</p>
               )}
