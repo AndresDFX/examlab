@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/hooks/use-theme";
+import { persistThemePreference } from "@/hooks/use-theme-preference";
 import { Button } from "@/components/ui/button";
 import { Sun, Moon } from "lucide-react";
 import {
@@ -19,6 +20,11 @@ export function ThemeToggle({
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { t } = useTranslation();
 
+  const changeTheme = (next: "light" | "dark") => {
+    setTheme(next);
+    persistThemePreference(next);
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -28,11 +34,11 @@ export function ThemeToggle({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setTheme("light")} className="gap-2">
+        <DropdownMenuItem onClick={() => changeTheme("light")} className="gap-2">
           <Sun className="h-4 w-4" /> {t("nav.themeLight", { defaultValue: "Claro" })}
           {theme === "light" && <span className="ml-auto text-xs text-primary">✓</span>}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("dark")} className="gap-2">
+        <DropdownMenuItem onClick={() => changeTheme("dark")} className="gap-2">
           <Moon className="h-4 w-4" /> {t("nav.themeDark", { defaultValue: "Oscuro" })}
           {theme === "dark" && <span className="ml-auto text-xs text-primary">✓</span>}
         </DropdownMenuItem>

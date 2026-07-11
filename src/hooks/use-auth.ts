@@ -30,6 +30,11 @@ export interface Profile {
    *  pantalla bloqueante cuando es false. Columna mig 20261029000000;
    *  opcional por compat con entornos sin la migración (default true). */
   is_active?: boolean;
+  /** Preferencia de tema del usuario (light|dark). NULL = default claro.
+   *  Persiste entre dispositivos: al cargar el perfil se aplica vía
+   *  useProfileThemeSync; localStorage examlab-theme es el cache/pre-paint
+   *  por equipo. Columna mig 20261100000000; opcional por compat. */
+  theme_preference?: "light" | "dark" | null;
 }
 
 export function useAuth() {

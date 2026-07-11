@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useTheme } from "@/hooks/use-theme";
+import { persistThemePreference, useProfileThemeSync } from "@/hooks/use-theme-preference";
 import { useMessagingToasts } from "@/hooks/use-messaging-toasts";
 import {
   isModuleEnabled,
@@ -570,6 +571,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { t, i18n } = useTranslation();
   const confirm = useConfirm();
   const { theme, setTheme, resolvedTheme } = useTheme();
+  // Aplica la preferencia de tema guardada en el perfil al entrar (sigue al
+  // usuario entre dispositivos). El default de la app es claro; esto solo
+  // reencuentra la elección de quien prefiere oscuro.
+  useProfileThemeSync();
+  const changeTheme = (next: "light" | "dark") => {
+    setTheme(next);
+    persistThemePreference(next);
+  };
   const currentLang = (i18n.language.slice(0, 2) as SupportedLanguage) ?? "es";
   // Branding del tenant: logo + nombre. Si no hay (loading o sin
   // configurar), caemos al fallback GraduationCap + "Plataforma de exámenes".
@@ -1338,13 +1347,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       {t("nav.theme")}
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent>
-                      <DropdownMenuItem onClick={() => setTheme("light")} className="gap-2">
+                      <DropdownMenuItem onClick={() => changeTheme("light")} className="gap-2">
                         <Sun className="h-4 w-4" /> {t("nav.themeLight")}
                         {theme === "light" && (
                           <span className="ml-auto text-xs text-primary">✓</span>
                         )}
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setTheme("dark")} className="gap-2">
+                      <DropdownMenuItem onClick={() => changeTheme("dark")} className="gap-2">
                         <Moon className="h-4 w-4" /> {t("nav.themeDark")}
                         {theme === "dark" && (
                           <span className="ml-auto text-xs text-primary">✓</span>
