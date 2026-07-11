@@ -35,6 +35,7 @@ import {
   ListChecks,
   BookOpen,
   UserPlus,
+  GraduationCap,
   MailX,
   Plus,
   Trash2,
@@ -61,6 +62,11 @@ interface EnabledKinds {
    *  flujos existentes; el admin puede apagar este toggle cuando reparte
    *  contraseñas manualmente o usa SSO y no quiere generar links de reset. */
   welcome?: boolean;
+  /** "🎓 Bienvenido a {curso}" enviado cuando un estudiante se inscribe a un
+   *  curso por CUALQUIER flujo (alta individual, importación masiva, gestión de
+   *  estudiantes del curso). Lo dispara el trigger AFTER INSERT en
+   *  course_enrollments (mig 20261110000000). Default true. */
+  course_welcome?: boolean;
 }
 
 interface EmailSettings {
@@ -147,6 +153,13 @@ const CATEGORIES: Array<{
     desc: "Correo automático con link para definir contraseña, enviado al crear un usuario nuevo (form individual o bulk import CSV). Apágalo si repartes contraseñas manualmente o usas SSO.",
     icon: UserPlus,
     color: "text-fuchsia-500",
+  },
+  {
+    key: "course_welcome",
+    label: "Bienvenida al curso",
+    desc: "Correo automático cuando se inscribe a un estudiante en un curso, por cualquier vía (alta individual, importación masiva o gestión de estudiantes del curso).",
+    icon: GraduationCap,
+    color: "text-teal-500",
   },
 ];
 

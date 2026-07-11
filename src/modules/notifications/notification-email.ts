@@ -43,6 +43,11 @@ export const CRITICAL_KINDS = [
   "broadcast",
   // support: gated upstream por platform_settings.support_emails_enabled.
   "support",
+  // course_welcome: bienvenida al curso (trigger AFTER INSERT en
+  // course_enrollments, mig 20261110000000). Toggle en
+  // email_settings.enabled_kinds.course_welcome. Sincronizado con el SQL
+  // `_notification_kind_emails` y send-email/index.ts.
+  "course_welcome",
 ] as const;
 
 /** Prefijo de link que indica "mensaje 1-a-1" — usado para discriminar

@@ -58,6 +58,11 @@ const CRITICAL_KINDS = [
   // notify_send_email consulta ANTES de invocar esta edge — acá solo lo aceptamos
   // (antes se descartaba con kind_not_critical → los correos de soporte no salían).
   "support",
+  // course_welcome: bienvenida al curso, disparada por el trigger AFTER INSERT
+  // en course_enrollments (mig 20261110000000). El toggle vive en
+  // email_settings.enabled_kinds.course_welcome (gate más abajo). Sincronizado
+  // con SQL `_notification_kind_emails` y notification-email.ts.
+  "course_welcome",
 ];
 const MESSAGE_LINK_PREFIX = "/app/messages";
 const SYSTEM_ALERT_LINK_PREFIX = "/app/admin/system";
