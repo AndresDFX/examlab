@@ -249,7 +249,7 @@ export function GenerateSessionsDialog({
           const cls = isCursoCompleto ? (classNumbers[i] ?? null) : null;
           const { error } = await db
             .from("attendance_sessions")
-            .update({ content_id: content.id, content_class_index: cls ?? 0 })
+            .update({ content_id: content.id, content_class_index: cls })
             .eq("id", target[i].id);
           if (error) throw new Error(error.message);
         }
@@ -293,7 +293,7 @@ export function GenerateSessionsDialog({
             title,
             created_by: user.id,
             content_id: content.id,
-            content_class_index: cls ?? 0,
+            content_class_index: cls,
           };
         });
       } else {

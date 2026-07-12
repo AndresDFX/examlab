@@ -44,6 +44,7 @@ import { SectionLoader } from "@/components/ui/loaders";
 import { ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { DateCell } from "@/components/ui/date-cell";
+import { formatDateOnly } from "@/shared/lib/format";
 import {
   nextBoardContentName,
   uploadBoardContent,
@@ -1135,8 +1136,8 @@ function CourseBoardPage() {
       return (
         <Badge variant="outline" className="text-[9px] shrink-0">
           {t("course.boardAssignedSession", {
-            defaultValue: "Clase {{date}}",
-            date: used[0].session_date,
+            defaultValue: "Sesión del {{date}}",
+            date: formatDateOnly(used[0].session_date),
           })}
         </Badge>
       );
@@ -1145,7 +1146,7 @@ function CourseBoardPage() {
       return (
         <Badge variant="outline" className="text-[9px] shrink-0">
           {t("course.boardAssignedSessionCount", {
-            defaultValue: "{{count}} clases",
+            defaultValue: "{{count}} sesiones",
             count: used.length,
           })}
         </Badge>
