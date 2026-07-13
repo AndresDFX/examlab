@@ -77,6 +77,10 @@ export function MediaViewerDialog({
   const [zoom, setZoom] = useState(1);
   const [replacing, setReplacing] = useState(false);
   const replaceInputRef = useRef<HTMLInputElement | null>(null);
+  // Object URL vigente del preview. Se guarda en un ref (no solo en el closure
+  // del effect) para que el cleanup revoque SIEMPRE la última URL — incluida la
+  // creada por "Reemplazar", que antes quedaba sin revocar (fuga).
+  const objUrlRef = useRef<string | null>(null);
 
   const open = file != null;
   const isImg = isImageFile(file?.name);
@@ -92,7 +96,6 @@ export function MediaViewerDialog({
       setZoom(1);
       return;
     }
-    let revoked: string | null = null;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -109,13 +112,17 @@ export function MediaViewerDialog({
       // application/octet-stream y el navegador no renderiza el PDF/imagen.
       const typed = new Blob([data], { type: mediaMimeForName(file.name) });
       const obj = URL.createObjectURL(typed);
-      revoked = obj;
+      if (objUrlRef.current) URL.revokeObjectURL(objUrlRef.current);
+      objUrlRef.current = obj;
       setUrl(obj);
       setLoading(false);
     })();
     return () => {
       cancelled = true;
-      if (revoked) URL.revokeObjectURL(revoked);
+      if (objUrlRef.current) {
+        URL.revokeObjectURL(objUrlRef.current);
+        objUrlRef.current = null;
+      }
     };
   }, [file]);
 
@@ -176,9 +183,11 @@ export function MediaViewerDialog({
       // Recargar el preview con los bytes nuevos.
       const { data: fresh } = await supabase.storage.from(BUCKET).download(file.path);
       if (fresh) {
-        if (url) URL.revokeObjectURL(url);
+        if (objUrlRef.current) URL.revokeObjectURL(objUrlRef.current);
         const typed = new Blob([fresh], { type: mediaMimeForName(file.name) });
-        setUrl(URL.createObjectURL(typed));
+        const obj = URL.createObjectURL(typed);
+        objUrlRef.current = obj;
+        setUrl(obj);
       }
       onReplaced?.();
     } catch (err) {
@@ -213,13 +222,37 @@ export function MediaViewerDialog({
           ) : !url ? (
             <p className="text-xs text-muted-foreground p-4">{t("mediaViewer.noPreview")}</p>
           ) : isPdf ? (
-            <iframe src={url} title={file?.name ?? "PDF"} className="w-full h-[70dvh] border-0" />
+            // <object> con fallback: algunos navegadores móviles (iOS Safari) no
+            // renderizan PDFs embebidos vía blob URL → mostramos un mensaje +
+            // enlace para abrir en pestaña nueva, en vez de un iframe en blanco.
+            <object data={url} type="application/pdf" className="w-full h-[70dvh]">
+              <div className="p-6 text-center text-sm text-muted-foreground">
+                {t("mediaViewer.pdfNoInline", {
+                  defaultValue: "Tu navegador no puede mostrar el PDF aquí.",
+                })}
+                <br />
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline"
+                >
+                  {t("mediaViewer.pdfOpenNewTab", { defaultValue: "Abrir en una pestaña nueva" })}
+                </a>
+              </div>
+            </object>
           ) : (
+            // Zoom por ANCHO (no transform:scale): así el contenedor overflow-auto
+            // genera scroll hacia las zonas ampliadas. transform no cambia el
+            // scrollWidth, dejando las zonas fuera de vista inalcanzables.
             <img
               src={url}
               alt={file?.name ?? "imagen"}
-              className="max-w-none origin-center transition-transform"
-              style={{ transform: `scale(${zoom})` }}
+              className="max-w-none h-auto self-start transition-[width]"
+              style={{ width: `${Math.round(zoom * 100)}%` }}
+              onError={() =>
+                setError(t("mediaViewer.loadError", { defaultValue: "No se pudo mostrar el archivo." }))
+              }
             />
           )}
         </div>

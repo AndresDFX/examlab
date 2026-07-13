@@ -77,12 +77,17 @@ export function notebookCodeToScript(nb: ParsedNotebook | null): string {
   const blocks: string[] = [];
   for (const cell of nb.cells) {
     if (cell.cell_type !== "code") continue;
-    const cleaned = cell.source
-      .split("\n")
-      // Quita magics de línea/celda (%, %%) y comandos de shell (!) — comunes
-      // en notebooks (`%matplotlib inline`, `!pip install x`) pero inválidos
-      // en Python plano. Conservamos el resto de la línea no — la magic ocupa
-      // toda la línea, así que descartamos la línea entera.
+    const lines = cell.source.split("\n");
+    // Cell-magic (`%%bash`, `%%html`, `%%javascript`…): la magic cambia el
+    // intérprete de TODA la celda, así que el cuerpo NO es Python. Descartamos
+    // la celda completa — antes solo se quitaba la 1ª línea y el resto se
+    // ejecutaba como Python inválido.
+    const firstNonEmpty = lines.find((l) => l.trim().length > 0) ?? "";
+    if (/^\s*%%/.test(firstNonEmpty)) continue;
+    const cleaned = lines
+      // Quita magics de LÍNEA (`%matplotlib inline`) y comandos de shell
+      // (`!pip install x`) — inválidos en Python plano. La magic ocupa toda la
+      // línea, así que se descarta la línea entera.
       .filter((line) => !/^\s*[%!]/.test(line))
       .join("\n")
       .trim();

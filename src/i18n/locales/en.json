@@ -622,7 +622,9 @@
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "viewImage": "View image",
-    "viewPdf": "View PDF"
+    "viewPdf": "View PDF",
+    "pdfNoInline": "Your browser can't display the PDF here.",
+    "pdfOpenNewTab": "Open in a new tab"
   },
   "imageEditor": {
     "title": "Edit image",
@@ -4742,6 +4744,8 @@
   },
   "notebookRunner": {
     "errorNoCells": "This notebook has no code cells to run.",
+    "errorNonPython": "This notebook uses a non-Python kernel; only Python notebooks can run here.",
+    "nonPythonHint": "{{lang}} kernel: only Python notebooks run here.",
     "errorRunning": "Error running the notebook",
     "descHasCells": "Notebook with {{cells}} cell(s), {{codeCells}} code cells. «Run» executes all code in order (no state between cells; magics and figures are not supported).",
     "descUnreadable": "Could not read the notebook — it may be corrupted or too large. Download it to open in Jupyter.",

@@ -622,7 +622,9 @@
     "zoomIn": "Acercar",
     "zoomOut": "Alejar",
     "viewImage": "Ver imagen",
-    "viewPdf": "Ver PDF"
+    "viewPdf": "Ver PDF",
+    "pdfNoInline": "Tu navegador no puede mostrar el PDF aquí.",
+    "pdfOpenNewTab": "Abrir en una pestaña nueva"
   },
   "imageEditor": {
     "title": "Editar imagen",
@@ -4742,6 +4744,8 @@
   },
   "notebookRunner": {
     "errorNoCells": "El notebook no tiene celdas de código para ejecutar.",
+    "errorNonPython": "Este notebook usa un kernel que no es Python; solo se pueden ejecutar notebooks de Python aquí.",
+    "nonPythonHint": "Kernel {{lang}}: solo se ejecutan notebooks de Python.",
     "errorRunning": "Error ejecutando el notebook",
     "descHasCells": "Notebook con {{cells}} celda(s), {{codeCells}} de código. «Ejecutar» corre todo el código en orden (sin estado entre celdas; las magics y figuras no aplican).",
     "descUnreadable": "No se pudo leer el notebook — puede estar dañado o ser muy grande. Descárgalo para abrirlo en Jupyter.",

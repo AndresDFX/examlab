@@ -37,6 +37,14 @@ export function MarkdownViewer({ children }: { children: string }) {
           "table", "thead", "tbody", "tr", "th", "td",
           "a",
         ]}
+        components={{
+          // Links externos: nueva pestaña + rel seguro (paridad con MarkdownInline).
+          a: ({ href, children, ...rest }) => (
+            <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>
+              {children}
+            </a>
+          ),
+        }}
         unwrapDisallowed
       >
         {children}

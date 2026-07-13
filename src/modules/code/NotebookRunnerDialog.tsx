@@ -52,6 +52,10 @@ export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
   const open = file !== null;
   const notebook = useMemo(() => parseNotebook(file?.body), [file]);
   const codeCellCount = countCodeCells(notebook);
+  // El runner ejecuta las celdas como UN script PYTHON. Si el kernel del
+  // notebook es otro (R, Julia, Scala, IJavaScript…), NO se puede ejecutar acá:
+  // gateamos el botón para no correr código no-Python en el intérprete Python.
+  const isPython = (notebook?.language ?? "python").toLowerCase().startsWith("python");
 
   const [output, setOutput] = useState<string | undefined>(undefined);
   const [running, setRunning] = useState(false);
@@ -64,6 +68,15 @@ export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
   }, [file]);
 
   const runAll = async () => {
+    if (!isPython) {
+      toast.error(
+        t("notebookRunner.errorNonPython", {
+          defaultValue:
+            "Este notebook usa un kernel que no es Python; solo se pueden ejecutar notebooks de Python aquí.",
+        }),
+      );
+      return;
+    }
     const script = notebookCodeToScript(notebook);
     if (!script.trim()) {
       toast.error(t("notebookRunner.errorNoCells"));
@@ -113,13 +126,25 @@ export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
         {notebook ? (
           <>
             <div className="flex items-center gap-2 border-b pb-2">
-              <Button size="sm" onClick={() => void runAll()} disabled={running || codeCellCount === 0}>
+              <Button
+                size="sm"
+                onClick={() => void runAll()}
+                disabled={running || codeCellCount === 0 || !isPython}
+              >
                 {running ? <Spinner size="sm" className="mr-1.5" /> : <Play className="h-4 w-4 mr-1.5" />}
                 {t("notebookRunner.btnRunAll")}
               </Button>
               {codeCellCount === 0 && (
                 <span className="text-[11px] text-muted-foreground">
                   {t("notebookRunner.noCellsHint")}
+                </span>
+              )}
+              {codeCellCount > 0 && !isPython && (
+                <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                  {t("notebookRunner.nonPythonHint", {
+                    lang: notebook.language,
+                    defaultValue: "Kernel {{lang}}: solo se ejecutan notebooks de Python.",
+                  })}
                 </span>
               )}
             </div>
