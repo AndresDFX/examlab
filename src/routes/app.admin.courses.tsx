@@ -907,6 +907,16 @@ export function AdminCourses() {
   };
 
   const save = async () => {
+    // La asignatura del plan es OBLIGATORIA: es la fuente de verdad del nombre
+    // y el programa del curso. Sin ella no se puede crear/editar.
+    if (!editing?.subject_id) {
+      toast.error(
+        i18n.t("toast.routes_app_admin_courses.subjectRequired", {
+          defaultValue: "Debes elegir una asignatura del plan.",
+        }),
+      );
+      return;
+    }
     if (!editing?.name?.trim()) {
       toast.error(
         i18n.t("toast.routes_app_admin_courses.nameRequired", {
@@ -1025,15 +1035,20 @@ export function AdminCourses() {
       ? periods.find((p) => p.id === editing.period_id)
       : null;
     const periodText = selectedPeriod?.code ?? editing.period?.trim() ?? null;
+    // Nombre / programa / código / semestre se DERIVAN de la asignatura del plan
+    // (fuente de verdad). Aunque el state ya los tiene seteados desde el onChange,
+    // los re-derivamos acá para garantizar la invariante al guardar.
+    const selectedSubject = subjects.find((s) => s.id === editing.subject_id);
     const payload = {
-      name: editing.name,
+      name: selectedSubject?.name ?? editing.name,
       description: editing.description || null,
       period: periodText || null,
       // Opcionales: solo persistimos si tienen valor — null para limpiar.
-      code: editing.code?.trim() || null,
-      semestre: editing.semestre == null ? null : Number(editing.semestre),
+      code: selectedSubject?.code ?? editing.code?.trim() ?? null,
+      semestre:
+        selectedSubject?.semestre ?? (editing.semestre == null ? null : Number(editing.semestre)),
       grupo: editing.grupo?.trim() || null,
-      program_id: editing.program_id || null,
+      program_id: selectedSubject?.program_id ?? editing.program_id ?? null,
       subject_id: editing.subject_id || null,
       // Si hay period_id, denormalizamos el code al campo legacy `period`
       // para que las queries que aún lo usan no rompan. Si no hay
@@ -2217,13 +2232,25 @@ export function AdminCourses() {
           </DialogHeader>
           {editing && (
             <div className="space-y-3">
+              {/* Nombre — DERIVADO de la asignatura del plan (solo lectura). El
+                  curso ya no guarda un nombre propio editable: se toma de la
+                  asignatura elegida abajo. Solo el Periodo queda como dato
+                  manual del curso. */}
               <div data-tour-id="course-field-name">
-                <Label required>{t("hc_routesAppAdminCourses.fieldName")}</Label>
+                <Label>{t("hc_routesAppAdminCourses.fieldName")}</Label>
                 <Input
                   value={editing.name ?? ""}
-                  onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                  placeholder={t("hc_routesAppAdminCourses.placeholderName")}
+                  readOnly
+                  disabled
+                  placeholder={t("courses.nameFromSubjectPlaceholder", {
+                    defaultValue: "Se toma de la asignatura del plan",
+                  })}
                 />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {t("courses.nameFromSubjectHint", {
+                    defaultValue: "El nombre se toma de la asignatura del plan seleccionada.",
+                  })}
+                </p>
               </div>
               {/* Periodo académico — si el admin mantiene la lista
                   centralizada (Configuración → Académico) el docente
@@ -2280,124 +2307,91 @@ export function AdminCourses() {
                   />
                 )}
               </div>
-              {/* Programa / Nivel. Funciona como FILTRO de la lista de
-                  asignaturas: cuando hay programa elegido, el siguiente
-                  select solo muestra las asignaturas pertenecientes a
-                  ESE programa — útil cuando la institución tiene
-                  decenas de asignaturas cross-program y el admin
-                  necesita acotar. Si dejás "Todos los programas", la
-                  lista de asignaturas muestra todas.
-                  La fuente de verdad sobre el programa del curso sigue
-                  siendo la asignatura (program_id del curso se setea
-                  desde subj.program_id al elegir); este field es
-                  PURAMENTE un filtro de la UI. */}
+              {/* Programa / Nivel — DERIVADO de la asignatura del plan (solo
+                  lectura). La fuente de verdad es la asignatura elegida abajo:
+                  su program_id se hereda al curso. Ya no se elige a mano. */}
               <div>
                 <Label>{t("hc_routesAppAdminCourses.fieldProgramLevel")}</Label>
-                <Select
-                  value={editing.program_id ?? "__none__"}
-                  onValueChange={(v) => {
-                    const nextProgramId = v === "__none__" ? null : v;
-                    // Si la asignatura actualmente elegida NO pertenece
-                    // al nuevo programa, deseleccionamos la asignatura
-                    // (queda en blanco). Esto evita estados inconsistentes
-                    // donde Programa=A pero Asignatura=B(A's subject) tras
-                    // cambiar a Programa B.
-                    const currentSubj = subjects.find((s) => s.id === editing.subject_id);
-                    const subjectStillValid =
-                      !nextProgramId ||
-                      !currentSubj?.program_id ||
-                      currentSubj.program_id === nextProgramId;
-                    setEditing({
-                      ...editing,
-                      program_id: nextProgramId,
-                      subject_id: subjectStillValid ? editing.subject_id : null,
-                    });
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("hc_routesAppAdminCourses.allPrograms")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">{t("hc_routesAppAdminCourses.allPrograms")}</SelectItem>
-                    {programs.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {(() => {
+                  const subj = subjects.find((s) => s.id === editing.subject_id);
+                  const prog = subj?.program_id
+                    ? programs.find((p) => p.id === subj.program_id)
+                    : null;
+                  return (
+                    <Input
+                      value={prog?.name ?? ""}
+                      readOnly
+                      disabled
+                      placeholder={t("courses.programFromSubjectPlaceholder", {
+                        defaultValue: "Se toma de la asignatura del plan",
+                      })}
+                    />
+                  );
+                })()}
               </div>
-              {/* Asignatura del plan. La asignatura es la FUENTE DE VERDAD
-                  para programa + semestre del curso: al elegirla, ambos
-                  se heredan automáticamente — el form no pide grado/
-                  semestre como input separado. Filtrada por el programa
-                  seleccionado arriba (si no hay programa → todas). */}
+              {/* Asignatura del plan — OBLIGATORIA y FUENTE DE VERDAD del curso.
+                  Al elegirla, el curso hereda: nombre, programa, semestre, escala
+                  y pesos. Es el único driver de la identidad académica del curso;
+                  el resto de campos de arriba (nombre, programa) son solo lectura
+                  derivada, y únicamente el Periodo queda como dato manual. */}
               <div data-tour-id="course-field-subject">
-                <Label>{t("hc_routesAppAdminCourses.fieldPlanSubject")}</Label>
+                <Label required>{t("hc_routesAppAdminCourses.fieldPlanSubject")}</Label>
                 <Select
-                  value={editing.subject_id ?? "__none__"}
+                  value={editing.subject_id ?? ""}
                   onValueChange={(v) => {
-                    if (v === "__none__") {
-                      // Al limpiar la asignatura NO tocamos program_id:
-                      // el admin puede dejar el filtro Programa elegido
-                      // para luego elegir otra del mismo programa. La escala
-                      // vuelve al default de la institución (sin asignatura).
-                      setEditing({
-                        ...editing,
-                        subject_id: null,
-                        semestre: null,
-                        grade_scale_min: defaultScale.min,
-                        grade_scale_max: defaultScale.max,
-                      });
-                      return;
-                    }
                     const subj = subjects.find((s) => s.id === v);
-                    const ev = subj?.sistema_evaluacion ?? {};
+                    if (!subj) return;
+                    const ev = subj.sistema_evaluacion ?? {};
                     setEditing({
                       ...editing,
                       subject_id: v,
-                      // Heredamos siempre desde la asignatura — incluso
-                      // si el admin tenía otro program_id como filtro,
-                      // gana el de la asignatura elegida.
-                      program_id: subj?.program_id ?? editing.program_id ?? null,
-                      // Semestre derivado: viene de la asignatura, no
-                      // se pide como input.
-                      semestre: subj?.semestre ?? null,
+                      // El NOMBRE del curso se toma de la asignatura.
+                      name: subj.name,
+                      // Programa + semestre heredados de la asignatura.
+                      program_id: subj.program_id ?? null,
+                      // El código de la asignatura queda como código del curso.
+                      code: subj.code ?? editing.code ?? null,
+                      semestre: subj.semestre ?? null,
                       // Escala: hereda de la asignatura si la definió; si no,
-                      // el default de la institución. Sobrescribible.
+                      // el default de la institución.
                       grade_scale_min: Number(ev.grade_scale_min ?? defaultScale.min),
                       grade_scale_max: Number(ev.grade_scale_max ?? defaultScale.max),
                     });
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={t("hc_routesAppAdminCourses.noSubjectAssociated")} />
+                    <SelectValue
+                      placeholder={t("courses.subjectRequiredPlaceholder", {
+                        defaultValue: "Elige una asignatura del plan",
+                      })}
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">
-                      {t("hc_routesAppAdminCourses.noSubjectAssociated")}
-                    </SelectItem>
-                    {subjects
-                      .filter(
-                        (s) =>
-                          // Filtro por programa seleccionado: si hay uno,
-                          // solo asignaturas de ese programa (o sin
-                          // programa fijo, por defensa).
-                          !editing.program_id ||
-                          !s.program_id ||
-                          s.program_id === editing.program_id,
-                      )
-                      .map((s) => (
+                    {subjects.map((s) => {
+                      const prog = s.program_id
+                        ? programs.find((p) => p.id === s.program_id)
+                        : null;
+                      return (
                         <SelectItem key={s.id} value={s.id}>
                           {s.name}
                           {s.code ? ` (${s.code})` : ""}
+                          {prog ? ` · ${prog.name}` : ""}
                           {s.semestre
                             ? ` ${t("hc_routesAppAdminCourses.subjectSemesterSuffix", { n: s.semestre })}`
                             : ""}
                         </SelectItem>
-                      ))}
+                      );
+                    })}
                   </SelectContent>
                 </Select>
+                {subjects.length === 0 && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                    {t("courses.noSubjectsHint", {
+                      defaultValue:
+                        "No hay asignaturas en el plan. Créalas primero en Académico → Asignaturas para poder crear cursos.",
+                    })}
+                  </p>
+                )}
                 {/* Confirmación visual de qué se está heredando. Se
                     muestra el semestre de la asignatura (que es lo
                     que reemplaza al input "Grado / Semestre" que tenía

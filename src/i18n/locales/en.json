@@ -1118,6 +1118,13 @@
     "showClosed": "Show finished courses ({{count}})",
     "hideClosed": "Hide finished courses"
   },
+  "courses": {
+    "nameFromSubjectPlaceholder": "Taken from the plan subject",
+    "nameFromSubjectHint": "The name is taken from the selected plan subject.",
+    "programFromSubjectPlaceholder": "Taken from the plan subject",
+    "subjectRequiredPlaceholder": "Choose a plan subject",
+    "noSubjectsHint": "There are no plan subjects. Create them first in Academic → Subjects to be able to create courses."
+  },
   "contents": {
     "title": "Contents",
     "subtitle": "Generate AI-powered presentations and teacher guides",

@@ -1118,6 +1118,13 @@
     "showClosed": "Mostrar cursos finalizados ({{count}})",
     "hideClosed": "Ocultar cursos finalizados"
   },
+  "courses": {
+    "nameFromSubjectPlaceholder": "Se toma de la asignatura del plan",
+    "nameFromSubjectHint": "El nombre se toma de la asignatura del plan seleccionada.",
+    "programFromSubjectPlaceholder": "Se toma de la asignatura del plan",
+    "subjectRequiredPlaceholder": "Elige una asignatura del plan",
+    "noSubjectsHint": "No hay asignaturas en el plan. Créalas primero en Académico → Asignaturas para poder crear cursos."
+  },
   "contents": {
     "title": "Contenidos",
     "subtitle": "Genera presentaciones y guías docente con IA",
