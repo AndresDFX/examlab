@@ -3162,8 +3162,16 @@ function AssignToSessionsDialog({
           </div>
         ) : (
           <div className="space-y-2 max-h-[55dvh] overflow-y-auto pr-2">
-            {sessions.map((s) => {
+            {sessions.map((s, idx) => {
               const value = draft[s.id] ?? -1;
+              // Clase auto-alineada al ORDINAL de la sesión (Sesión N ⇒ Clase N),
+              // igual que el tablero: la idx-ésima clase del contenido. Para
+              // curso_completo contiguo (_CLASE_1..N) coincide con idx+1. Ya no se
+              // elige el número de clase a mano.
+              const autoClass =
+                isCursoCompleto && classes.length > 0
+                  ? (classes.slice().sort((a, b) => a - b)[idx] ?? null)
+                  : null;
               return (
                 <div key={s.id} className="flex items-center gap-3 rounded-md border p-2">
                   <div className="flex-1 min-w-0">
@@ -3181,12 +3189,10 @@ function AssignToSessionsDialog({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="-1">{t("contents.assignNone")}</SelectItem>
-                      {isCursoCompleto && classes.length > 0 ? (
-                        classes.map((n) => (
-                          <SelectItem key={n} value={String(n)}>
-                            {t("contents.classNumber")} {n}
-                          </SelectItem>
-                        ))
+                      {autoClass != null ? (
+                        <SelectItem value={String(autoClass)}>
+                          {t("contents.classNumber")} {autoClass}
+                        </SelectItem>
                       ) : (
                         <SelectItem value="0">{t("contents.assignWhole")}</SelectItem>
                       )}
