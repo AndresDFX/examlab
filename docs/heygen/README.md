@@ -4,6 +4,31 @@ Pipeline para producir videos de bienvenida con avatar IA por rol
 (Admin / Docente / Estudiante). El resultado es un MP4 con avatar
 hablando ENCIMA de una grabación real de la app.
 
+## Modelo MODULAR — un video por módulo × rol (2026-07)
+
+Los guiones dejaron de ser UN video monolítico por rol: ahora hay **un video corto
+(15–30 s) e independiente POR MÓDULO**, para poder actualizar/regrabar un módulo sin
+rehacer todo. **Pauta**: el guion **NUNCA menciona número de módulo ni orden** — cada
+video es autocontenido y reordenable.
+
+Guiones (listos para regenerar en HeyGen):
+- [`estudiante.md`](estudiante.md) — 13 módulos
+- [`docente.md`](docente.md) — 22 módulos
+- [`admin.md`](admin.md) — 22 módulos
+- [`asistente-ia-plataforma.md`](asistente-ia-plataforma.md) — **♻ video COMPARTIDO**
+
+### Videos reutilizables
+- **Asistente IA (plataforma)** → **1 solo video** para los 3 roles (contenido idéntico).
+  Grábalo una vez desde `asistente-ia-plataforma.md`; en los 3 guiones de rol ese módulo
+  apunta al compartido (no lo re-grabes por rol).
+- El resto de módulos NO son reutilizables entre roles: aunque compartan nombre (Cursos,
+  Exámenes, Talleres…), lo que hace el estudiante ≠ lo que hace el docente/admin, así que
+  cada rol tiene su propio guion de ese módulo.
+
+Los guiones ya reflejan las features al 2026-07 (Asistente IA, correo de bienvenida al
+curso, selector de curso prioriza actual/abiertos, Sesión N = Clase N del material,
+preguntas de red consola/diagrama, curso derivado de la asignatura, tema en el perfil).
+
 ## Flujo completo
 
 ```
