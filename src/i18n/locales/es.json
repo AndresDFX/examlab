@@ -1230,6 +1230,7 @@
     "scopeClass": "Una clase específica",
     "scopeClassHint": "Solo el material de la clase seleccionada.",
     "classNumber": "Clase",
+    "classAutoAlignedHint": "Clase alineada automáticamente al orden de la sesión en el curso.",
     "noClassesDetected": "No se detectaron clases con sufijo `_CLASE_N`. La evaluación se creará usando todo el material disponible como contexto.",
     "selectAllClasses": "Todas",
     "selectNoneClasses": "Ninguna",

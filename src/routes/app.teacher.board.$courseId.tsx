@@ -185,36 +185,34 @@ function ContentAssignmentSelector({
   contentId,
   classIndex,
   filePaths,
+  ordinal,
   onChange,
-  assignedClassesByContent,
 }: {
   contents: AvailableContent[];
   contentId: string | null;
   classIndex: number | null;
   /** Subconjunto de paths asignado. null = todos los de la clase/contenido. */
   filePaths: string[] | null;
+  /** Posición 1-indexed de la sesión (por fecha) dentro del curso. La clase del
+   *  contenido se AUTO-ALINEA a este ordinal (Sesión N ⇒ Clase N) — el docente
+   *  ya no elige el número de clase a mano, se deriva del orden del calendario. */
+  ordinal: number;
   onChange: (
     contentId: string | null,
     classIndex: number | null,
     filePaths: string[] | null,
   ) => void;
-  /** Map de clases ya asignadas a OTRAS sesiones del mismo curso
-   *  (excluye la sesión actual). El selector oculta esas clases para
-   *  evitar que el docente asigne dos veces la misma clase. */
-  assignedClassesByContent?: Map<string, Set<number>>;
 }) {
   const { t } = useTranslation();
   const selected = contents.find((c) => c.id === contentId) ?? null;
-  // Filtramos del listado de clases las que ya estan asignadas a otra
-  // sesion. La clase actual (classIndex) se preserva — sin esto, el
-  // dropdown se vacia cuando ya hay una asignacion valida.
-  const blockedForSelected = selected
-    ? (assignedClassesByContent?.get(selected.id) ?? new Set<number>())
-    : new Set<number>();
-  const availableClasses = selected
-    ? selected.classes.filter((n) => n === classIndex || !blockedForSelected.has(n))
-    : [];
-  const hasClasses = selected && availableClasses.length > 0;
+  // Clase que le corresponde a esta sesión por su ORDINAL: la N-ésima clase del
+  // contenido (ordenadas). Para curso_completo contiguo (_CLASE_1..N) coincide
+  // con el número de clase. null si el contenido no tiene clases (individual) o
+  // el ordinal excede las clases disponibles.
+  const classForOrdinal = (c: AvailableContent | null): number | null => {
+    if (!c || c.classes.length === 0) return null;
+    return c.classes.slice().sort((a, b) => a - b)[ordinal - 1] ?? null;
+  };
 
   // Archivos ELEGIBLES: TODOS los del contenido (sin los de uso docente),
   // sin acotar por clase. Así el docente puede asignar CUALQUIER archivo del
@@ -272,17 +270,10 @@ function ContentAssignmentSelector({
             onChange(null, null, null);
             return;
           }
-          // Al cambiar de contenido, reseteamos clase Y subconjunto de
-          // archivos. Si el nuevo contenido tiene clases, escogemos la
-          // primera DISPONIBLE (no asignada a otra sesión).
-          const next = contents.find((c) => c.id === v);
-          if (next && next.classes.length > 0) {
-            const taken = assignedClassesByContent?.get(v) ?? new Set<number>();
-            const firstFree = next.classes.find((n) => !taken.has(n)) ?? null;
-            onChange(v, firstFree, null);
-          } else {
-            onChange(v, null, null);
-          }
+          // Al elegir contenido, la clase se ALINEA SOLA al ordinal de la
+          // sesión (Sesión N ⇒ Clase N) y se resetea el subconjunto de archivos.
+          const next = contents.find((c) => c.id === v) ?? null;
+          onChange(v, classForOrdinal(next), null);
         }}
       >
         <SelectTrigger className="w-44 h-8 text-xs">
@@ -297,24 +288,18 @@ function ContentAssignmentSelector({
           ))}
         </SelectContent>
       </Select>
-      {/* 2) Clase — solo si el contenido elegido tiene clases. Cambiar de
-          clase resetea el subconjunto de archivos. */}
-      {hasClasses && (
-        <Select
-          value={classIndex != null ? String(classIndex) : ""}
-          onValueChange={(v) => onChange(contentId, Number(v), null)}
+      {/* 2) Clase — SOLO LECTURA. Se auto-alinea al ordinal de la sesión
+          (Sesión N ⇒ Clase N); el docente ya no la elige a mano. */}
+      {selected && classIndex != null && (
+        <Badge
+          variant="outline"
+          className="h-8 shrink-0 flex items-center px-2 text-[10px] font-normal"
+          title={t("contents.classAutoAlignedHint", {
+            defaultValue: "Clase alineada automáticamente al orden de la sesión en el curso.",
+          })}
         >
-          <SelectTrigger className="w-28 h-8 text-xs">
-            <SelectValue placeholder={t("contents.classPlaceholder")} />
-          </SelectTrigger>
-          <SelectContent>
-            {availableClasses.map((n) => (
-              <SelectItem key={n} value={String(n)}>
-                {t("contents.classNumber")} {n}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          {t("contents.classNumber")} {classIndex}
+        </Badge>
       )}
       {/* 3) Archivos — subconjunto opcional. Solo si hay 2+ elegibles
           (con 0/1 no tiene sentido elegir). */}
@@ -409,26 +394,8 @@ function CourseBoardPage() {
   const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Mapa de (content_id → set de class_index ya asignados en este curso).
-  // Sirve para que el selector de contenido oculte las clases tomadas
-  // y obligar la regla "una clase del contenido = una sesion". El selector
-  // preserva internamente la clase de la sesion actual aunque este en el
-  // set, asi el dropdown no se "vacia" cuando ya hay asignacion valida.
-  const assignedClassesByContent = useMemo(() => {
-    const map = new Map<string, Set<number>>();
-    for (const s of sessions) {
-      if (!s.content_id || s.content_class_index == null) continue;
-      let set = map.get(s.content_id);
-      if (!set) {
-        set = new Set();
-        map.set(s.content_id, set);
-      }
-      set.add(s.content_class_index);
-    }
-    return map;
-  }, [sessions]);
   // Map content_id → sesiones que lo usan (para el badge del grid de
-  // contenidos: "Clase <fecha>" / "N clases").
+  // contenidos: "Sesión del <fecha>" / "N sesiones").
   const sessionsByContent = useMemo(() => {
     const map = new Map<string, SessionRow[]>();
     for (const s of sessions) {
@@ -1469,7 +1436,7 @@ function CourseBoardPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {sessions.map((s) => {
+          {sessions.map((s, idx) => {
             const items = itemsForSession(s);
             const isEditing = editingId === s.id;
             return (
@@ -1636,9 +1603,9 @@ function CourseBoardPage() {
                         contentId={s.content_id}
                         classIndex={s.content_class_index}
                         filePaths={s.content_file_paths}
-                        assignedClassesByContent={assignedClassesByContent}
-                        onChange={(cid, idx, paths) =>
-                          void updateAssignment(s.id, cid, idx, paths)
+                        ordinal={idx + 1}
+                        onChange={(cid, cidx, paths) =>
+                          void updateAssignment(s.id, cid, cidx, paths)
                         }
                       />
                       <div className="flex items-center gap-1">

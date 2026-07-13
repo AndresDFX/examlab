@@ -1230,6 +1230,7 @@
     "scopeClass": "A specific class",
     "scopeClassHint": "Only the material of the selected class.",
     "classNumber": "Class",
+    "classAutoAlignedHint": "Class auto-aligned to the session's order within the course.",
     "noClassesDetected": "No classes detected with `_CLASE_N` suffix. The assessment will be created using all available material as context.",
     "selectAllClasses": "All",
     "selectNoneClasses": "None",
