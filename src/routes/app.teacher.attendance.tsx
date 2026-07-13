@@ -93,6 +93,7 @@ import {
   ATTENDANCE_CODE_ROTATION_DEFAULT,
 } from "@/modules/attendance/attendance-code";
 import { GenerateSessionsDialog } from "@/modules/contents/GenerateSessionsDialog";
+import { buildNewSessionPayload } from "@/modules/sessions/create-session";
 import { LaunchPollDialog } from "@/modules/polls/LaunchPollDialog";
 import { SessionWhiteboardDialog } from "@/modules/whiteboard/SessionWhiteboardDialog";
 import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDialog";
@@ -474,22 +475,24 @@ function TeacherAttendance() {
           : null;
     // cut_id va sólo si el docente eligió uno. Sin corte la sesión es
     // visible pero no entra en el cálculo de la nota de asistencia.
+    // start_time se persiste como TIME ("HH:MM:00") sin zona horaria (lo
+    // normaliza buildNewSessionPayload). Bogotá se aplica al construir el ISO
+    // datetime en la edge function de calendar — la columna DB es agnóstica de TZ.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).from("attendance_sessions").insert({
-      course_id: courseId,
-      session_date: newDate,
-      // start_time se persiste como TIME ("HH:MM:00") sin zona horaria.
-      // Bogotá se aplica al construir el ISO datetime en la edge function
-      // de calendar — manteniendo el DB columna agnóstica de TZ.
-      start_time: newStartTime ? `${newStartTime}:00` : null,
-      duration_minutes: duration,
-      title: newTitle || null,
-      created_by: user.id,
-      cut_id: newCutId || null,
-      recording_url: newRecordingUrl.trim() || null,
-      recording_video_id: newRecordingVideoId || null,
-      notes_url: newNotesUrl.trim() || null,
-    });
+    const { error } = await (supabase as any).from("attendance_sessions").insert(
+      buildNewSessionPayload({
+        course_id: courseId,
+        session_date: newDate,
+        created_by: user.id,
+        title: newTitle || null,
+        start_time: newStartTime || null,
+        duration_minutes: duration,
+        cut_id: newCutId || null,
+        recording_url: newRecordingUrl.trim() || null,
+        recording_video_id: newRecordingVideoId || null,
+        notes_url: newNotesUrl.trim() || null,
+      }),
+    );
     if (error) {
       toast.error(friendlyError(error));
       return;

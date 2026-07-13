@@ -45,6 +45,7 @@ import { ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { DateCell } from "@/components/ui/date-cell";
 import { formatDateOnly } from "@/shared/lib/format";
+import { buildNewSessionPayload } from "@/modules/sessions/create-session";
 import {
   nextBoardContentName,
   uploadBoardContent,
@@ -793,17 +794,19 @@ function CourseBoardPage() {
     try {
       const { data, error } = await db
         .from("attendance_sessions")
-        .insert({
-          course_id: course.id,
-          session_date: draftDate,
-          start_time: draftStartTime ? `${draftStartTime}:00` : null,
-          duration_minutes: draftDuration > 0 ? draftDuration : 90,
-          title: draftTitle.trim() || null,
-          meeting_url: draftMeetingUrl.trim() || null,
-          recording_url: draftRecordingUrl.trim() || null,
-          notes_url: draftNotesUrl.trim() || null,
-          created_by: user.id,
-        })
+        .insert(
+          buildNewSessionPayload({
+            course_id: course.id,
+            session_date: draftDate,
+            created_by: user.id,
+            title: draftTitle.trim() || null,
+            start_time: draftStartTime || null,
+            duration_minutes: draftDuration > 0 ? draftDuration : 90,
+            meeting_url: draftMeetingUrl.trim() || null,
+            recording_url: draftRecordingUrl.trim() || null,
+            notes_url: draftNotesUrl.trim() || null,
+          }),
+        )
         .select(
           "id, course_id, session_date, start_time, duration_minutes, title, content_id, content_class_index, content_file_paths, meeting_url, recording_url, notes_url, cut_id",
         )
