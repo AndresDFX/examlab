@@ -1,184 +1,70 @@
-# HeyGen — Guiones Estudiante (modular · un video por módulo)
+# HeyGen — Script Estudiante
 
-**Modelo**: un video corto e independiente POR MÓDULO (reordenable; NO menciona número de módulo).
-**Duración por video**: 15–30 s · **Tono**: cordial, profesional, conciso · **Idioma**: es-CO neutro.
-**HeyGen**: voice 1.0×, pausa 0.5s entre párrafos, música instrumental 10%, captions es-CO.
-
-> Cada bloque `## <Módulo>` es un video autocontenido. Podés grabar, reemplazar o reordenar cualquiera sin tocar los demás.
-> El módulo **Asistente IA (plataforma)** es **reutilizable entre roles** → un solo video compartido en `asistente-ia-plataforma.md` (no lo re-grabes por rol).
-
----
-## Dashboard
-
-**~28s**
-
-### Guion (pegar en HeyGen)
-
-> Bienvenido a ExamLab. Tu Dashboard es el resumen de tu día: cuántos exámenes, talleres y proyectos tenés pendientes, tus próximas clases y todo lo que está por vencer, en una sola vista. Incluye un calendario con tus eventos marcados por color y la agenda de lo que viene. Y podés elegir tema claro u oscuro: tu preferencia queda guardada en tu perfil y te sigue en cualquier dispositivo.
-
-### Cortes visuales
-
-Overlay del Dashboard del estudiante: fila de tarjetas de estadísticas (Exámenes, Talleres, Proyectos, Conversaciones pendientes), calendario de eventos con puntos de color y agenda de próximas clases y exámenes al lado. Cierre con toggle de tema claro/oscuro.
+**Duración objetivo**: 75–90 segundos
+**Tono**: cercano, joven, motivador
+**Idioma**: español neutro (es-CO)
+**Avatar recomendado en HeyGen**: avatar juvenil, fondo de campus
 
 ---
 
-## Cursos
+## Configuración HeyGen sugerida
 
-**~30s**
-
-### Guion (pegar en HeyGen)
-
-> Bienvenido a tus cursos en ExamLab. Apenas te inscriben en un curso recibís un correo de bienvenida con tu acceso. Al entrar ves el tablero del curso: los contenidos organizados por sesión, donde la Sesión número tres corresponde a la Clase número tres del material, sin que tengas que buscar. Desde ahí llegás a tus calificaciones, tu asistencia y el foro. Podés abrir presentaciones y lecturas, ejecutar código o notebooks, y ver imágenes y PDF sin salir de la plataforma.
-
-### Cortes visuales
-
-Correo de bienvenida al curso; luego tablero del curso mostrando sesiones numeradas con su contenido, y accesos a calificaciones, asistencia y foro. Breve zoom a un archivo de código con botón Ejecutar y a un visor de PDF inline.
+- **Voice speed**: 1.0× (natural)
+- **Pause between paragraphs**: 0.5s
+- **Background music**: instrumental upbeat al 15% del volumen
+- **Captions**: encender (es-CO)
 
 ---
 
-## Exámenes
+## Script (pegar directo en HeyGen)
 
-**~30s**
-
-### Guion (pegar en HeyGen)
-
-> Cuando te toque rendir un examen en ExamLab, entrás desde Exámenes y das clic en Comenzar dentro de la ventana de tiempo. Respondés pregunta por pregunta: opción múltiple, respuesta abierta, código, o preguntas de red, ya sea en consola tipo Cisco o armando una topología. Al entregar, la inteligencia artificial califica al instante las respuestas abiertas y el código, y después podés revisar tus resultados con la retroalimentación de cada pregunta.
-
-### Cortes visuales
-
-Lista de exámenes con botón Comenzar; pantalla de toma con temporizador y una pregunta a la vez. Rotar entre tipos: opción múltiple, editor de código, consola de red tipo Cisco IOS, diagrama de topología. Cerrar con la vista de revisión de resultados.
-
----
-
-## Talleres
-
-**~25s**
-
-### Guion (pegar en HeyGen)
-
-> En Talleres de ExamLab encontrás cada consigna con su fecha límite. Si el docente lo activa, podés trabajar en grupo y compartir una sola entrega con tus compañeros. Respondés las preguntas, sean abiertas, de código o de red, y subís los archivos que te pidan. La inteligencia artificial califica automáticamente y recibís tu nota con comentarios.
-
-### Cortes visuales
-
-Tarjetas de talleres con fecha límite; tarjeta "Tu grupo" cuando aplica; formulario de entrega con preguntas y carga de archivos. Mostrar la nota final con retroalimentación de la IA.
-
----
-
-## Proyectos
-
-**~27s**
-
-### Guion (pegar en HeyGen)
-
-> En Proyectos de ExamLab trabajás sobre entregas más grandes. Subís tu código completo en un archivo ZIP, incluís el enlace a tu repositorio y, si el docente lo pide, un diagrama de red o de topología. Tu nota final combina la entrega con la sustentación. Podés trabajar en grupo cuando el docente lo activa, y la inteligencia artificial revisa tu código y te da retroalimentación.
-
-### Cortes visuales
-
-Vista de proyecto: campo obligatorio de enlace al repositorio, carga de ZIP de código, slot de diagrama. Mostrar el estado "Falta sustentación" y luego la nota final resultante de entrega por factor de sustentación.
+> ¡Hola! Bienvenido a ExamLab. En menos de un minuto y medio te muestro cómo usar la plataforma para tus clases.
+>
+> Tu **Dashboard** es la primera cosa que vas a ver: ahí aparecen los exámenes y talleres que tenés pendientes, las próximas clases, y todo lo que está por vencer.
+>
+> En **Mis cursos** entrás a cada uno y ves su tablero: contenidos por sesión, calificaciones, asistencia y foro.
+>
+> Cuando te toque rendir un **examen**, click en "Comenzar" dentro de la ventana de tiempo, respondé las preguntas y entregá. La inteligencia artificial califica al instante las respuestas abiertas y el código.
+>
+> Para los **talleres** y **proyectos**, vas a encontrar las consignas con su fecha límite, podés trabajar en grupo si el docente lo activa, y subís archivos, código o el link a tu repo.
+>
+> En **Calificaciones** ves tu boletín por corte y curso, con la nota proyectada actualizada en vivo según tus entregas.
+>
+> ¿Cómo registrás tu **asistencia**? Cuando el profe abra el check-in en clase, escaneás un código QR con la cámara del celular o tipeás el código de seis dígitos. Listo.
+>
+> En **Contenidos** acedés a las clases del curso — presentaciones, lecturas, material de apoyo, organizado por sesión.
+>
+> En **Encuestas** votás cuando el profe pide tu opinión o elegís fecha de sustentación tipo Doodle.
+>
+> Si el profe activa **Pizarra compartida**, podés colaborar en vivo desde tu equipo — diagramas, anotaciones, ejercicios en tiempo real.
+>
+> Tu **Calendario** consolida todo lo importante: exámenes, talleres, clases, en una sola vista. La **Biblioteca de videos** guarda las grabaciones de clases para que puedas repasarlas.
+>
+> Si tenés dudas sobre un tema, el **Tutor IA** te explica con contexto del curso. Es como un compañero que estudió la materia con vos.
+>
+> En **Retroalimentación** ves los comentarios que dejó el docente sobre tus entregas. Y en **Certificados** descargás los certificados de los cursos que completaste.
+>
+> Para ver todo esto paso a paso, abrí el menú **Más opciones** y elegí **Ver tour guiado**.
+>
+> ¡Éxitos en el semestre!
 
 ---
 
-## Calificaciones
+## Notas para el editor de HeyGen
 
-**~22s**
+- **Cortes visuales sugeridos**:
+  - Segundo 0–8: avatar full-shot, bienvenida.
+  - Segundo 8–18: overlay del **Dashboard** y **Mis cursos**.
+  - Segundo 18–35: overlay rotando entre **Exámenes**, **Talleres**, **Proyectos**.
+  - Segundo 35–48: overlay de **Calificaciones**, **Asistencia** + animación del QR.
+  - Segundo 48–60: overlay de **Contenidos**, **Encuestas**, **Pizarra compartida**.
+  - Segundo 60–75: overlay de **Calendario**, **Biblioteca de videos**, **Tutor IA**.
+  - Segundo 75–85: overlay de **Retroalimentación** y **Certificados**.
+  - Segundo 85–end: avatar full-shot, cierre + CTA al tour interactivo.
 
-### Guion (pegar en HeyGen)
+- **CTA final en pantalla**: "Abrí el menú → Más opciones → Ver tour guiado".
 
-> En Calificaciones de ExamLab ves tu boletín por corte y por curso. La nota proyectada se actualiza en vivo a medida que entregás y el docente califica, respetando los pesos que definió cada evaluación. Así sabés en todo momento cómo vas y qué te falta para cerrar el corte.
+- **URL del video terminado**: pegala en `src/modules/onboarding/tour-config.ts` (campo `videoUrl` del export `STUDENT_TOUR_META`) para que el tour interactivo muestre el botón "Ver video introductorio" en el primer paso.
 
-### Cortes visuales
-
-Vista de notas del estudiante: tabla por curso y por corte, con la nota proyectada destacada y los pesos de cada evaluación. Resaltar cómo cambia la proyección al aparecer una nueva nota.
-
----
-
-## Certificaciones
-
-**~17s**
-
-### Guion (pegar en HeyGen)
-
-> En Certificaciones de ExamLab descargás los certificados de los cursos que completaste. Apenas tu institución emite el certificado, aparece acá listo para descargar y compartir como comprobante de tu logro.
-
-### Cortes visuales
-
-Lista de certificados del estudiante con botón de descarga; abrir un certificado en PDF como ejemplo.
-
----
-
-## Asistencia
-
-**~26s**
-
-### Guion (pegar en HeyGen)
-
-> Registrar tu asistencia en ExamLab es rápido. Cuando el docente abre el check-in en clase, escaneás el código QR con la cámara del celular o escribís el código de seis dígitos, y quedás marcado como presente al instante. Desde el módulo también revisás el historial de tus sesiones y el material de código que el docente compartió en cada clase.
-
-### Cortes visuales
-
-Tarjeta "Check-in disponible"; animación de escaneo de QR con el celular y campo alterno para el código de seis dígitos; confirmación de "presente". Luego lista de sesiones con acceso al material de código de la clase.
-
----
-
-## Pizarras
-
-**~20s**
-
-### Guion (pegar en HeyGen)
-
-> Cuando el docente activa una Pizarra compartida en ExamLab, podés colaborar en vivo desde tu propio equipo: dibujar diagramas, tomar anotaciones y resolver ejercicios en tiempo real junto al resto de la clase. Todo lo que se dibuja se sincroniza al instante para todos.
-
-### Cortes visuales
-
-Pizarra compartida con badge "Compartida en vivo"; mostrar trazos apareciendo en tiempo real de varios participantes y el uso de figuras de la librería (flowchart, UML).
-
----
-
-## Encuestas
-
-**~25s**
-
-### Guion (pegar en HeyGen)
-
-> En Encuestas de ExamLab respondés cuando el docente pide tu opinión, con opción única o múltiple. También podés reservar tu fecha de sustentación en encuestas tipo Doodle, eligiendo un cupo disponible. Y si el docente lo permite, cambiás o quitás tu respuesta. Cuando lanza un Reto en vivo, te unís con el PIN y competís en tiempo real.
-
-### Cortes visuales
-
-Tarjetas de encuestas activas: votación de opción única y múltiple; encuesta tipo Doodle con cupos por franja horaria; botón "Quitar mi respuesta". Cerrar con la pantalla de unirse a un Reto en vivo mediante PIN.
-
----
-
-## Calendario
-
-**~20s**
-
-### Guion (pegar en HeyGen)
-
-> Tu Calendario en ExamLab reúne todo lo importante en una sola vista de mes: exámenes, talleres y proyectos por vencer, y tus sesiones de clase. Cada evento aparece marcado por color, para que planifiques tu semana y no se te pase ninguna fecha.
-
-### Cortes visuales
-
-Vista de mes del calendario del estudiante con eventos de distinto color (exámenes, talleres, proyectos, clases); hover sobre un evento para ver el detalle.
-
----
-
-## Asistente IA (tutor del curso)
-
-**~28s**
-
-### Guion (pegar en HeyGen)
-
-> Cuando tengas dudas sobre un tema, abrí el Asistente IA de tu curso en ExamLab. No solo conoce el temario: lee el contenido real del material que subió el docente, presentaciones, lecturas y notebooks, y te responde con ese contexto. Podés incluso referenciar un archivo puntual escribiendo numeral, para que se enfoque en ese material. Es como un compañero que estudió la materia con vos.
-
-### Cortes visuales
-
-Selector de curso del Asistente IA; ventana de chat respondiendo con base en el material del curso; mostrar el autocompletar con numeral que lista los archivos del curso y el chip de archivo referenciado.
-
----
-
-## Asistente IA (asistente de plataforma)  ·  ♻ video compartido
-
-> **Reutilizable entre roles.** Usá el video de `docs/heygen/asistente-ia-plataforma.md` — no grabes uno por rol.
-
----
-
+- **Scenes grabadas** (record-tour.ts → role=student, 15 scenes ~90s):
+  Dashboard → Mis cursos → Exámenes → Talleres → Proyectos → Calificaciones → Asistencia → Contenidos → Encuestas → Pizarras compartidas → Calendario → Biblioteca de videos → Tutor IA → Retroalimentación → Certificados.
