@@ -89,7 +89,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: tus cursos.",
+      "narration": "Así, el panel del estudiante reúne en un solo lugar lo pendiente, el calendario y el ranking de retos, para mantenerte al día de un vistazo.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
         "title": "Siguiente módulo",

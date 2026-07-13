@@ -13,7 +13,7 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo diez: estadísticas. El pulso de toda la institución.",
+      "narration": "Estadísticas: el pulso de toda la institución.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Estadísticas",
@@ -87,7 +87,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: los informes.",
+      "narration": "Así, en una sola pantalla, tienes el pulso completo de la institución para decidir con datos.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Siguiente módulo",

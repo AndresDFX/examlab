@@ -8,7 +8,7 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo cinco: contenidos. El material de estudio del curso, que puede subirse o generarse con inteligencia artificial.",
+      "narration": "Contenidos: el material de estudio del curso, que puede subirse o generarse con inteligencia artificial.",
       "card": { "kicker": "ExamLab · Rol Administrador", "title": "Contenidos", "subtitle": "Demo Global Corp" },
       "bufferMs": 600
     },
@@ -16,7 +16,7 @@
       "id": "crear-contenido",
       "kind": "platform",
       "openDialog": "createbtn",
-      "narration": "Abrimos Nuevo contenido para generarlo con IA. Le ponemos un nombre para identificarlo en la lista. Describimos el tema con el detalle que queramos. Elegimos el modo: un material puntual o el curso completo. Y los tipos de contenido a generar, como teoría, ejercicios o diapositivas. La inteligencia artificial produce el material, listo para revisar antes de publicarlo.",
+      "narration": "Abrimos Nuevo contenido para generarlo con IA. Le ponemos un nombre para identificarlo en la lista. Describimos el tema con el detalle que queramos. Elegimos el modo: un material puntual o el curso completo. Y los tipos de contenido a generar, como teoría, ejercicios o diapositivas. La inteligencia artificial produce el material, listo para revisar antes de publicarlo. Y como las sesiones se alinean con el material, la clase de cada sesión aparece automáticamente.",
       "bufferMs": 900,
       "beats": [
         { "target": "field:Nombre", "hold": 4500, "side": "right", "focus": { "title": "Nombre del contenido", "body": "Para identificarlo en la lista." } },
@@ -28,7 +28,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: la biblioteca de videos.",
+      "narration": "Así reunís todo el material del curso en un solo lugar, subido o generado con IA y listo para tus estudiantes.",
       "card": { "kicker": "ExamLab · Rol Administrador", "title": "Siguiente módulo", "subtitle": "Biblioteca de Videos" },
       "bufferMs": 600
     }

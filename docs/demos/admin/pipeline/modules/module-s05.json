@@ -52,7 +52,7 @@
       "ready": [
         "[role=\"dialog\"]"
       ],
-      "narration": "Se abre la entrega con todo lo que el proyecto pide: el código fuente completo en un archivo ZIP, diagramas como el de clases, las respuestas a las preguntas de análisis, y el enlace al repositorio. El estudiante sube cada pieza y entrega; luego la inteligencia artificial la califica y queda lista para la sustentación.",
+      "narration": "Se abre la entrega con todo lo que el proyecto pide: el código fuente completo en un archivo ZIP, diagramas como el de clases o de topología de red, las respuestas a las preguntas de análisis, y el enlace al repositorio. El estudiante sube cada pieza y entrega; luego la inteligencia artificial la califica y queda lista para la sustentación.",
       "bufferMs": 1200,
       "beats": [
         {
@@ -71,7 +71,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: tus notas.",
+      "narration": "Así el estudiante entrega su proyecto completo, con código, diagramas, análisis y repositorio, todo en un solo lugar.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
         "title": "Siguiente módulo",

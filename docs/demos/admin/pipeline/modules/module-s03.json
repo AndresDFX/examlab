@@ -27,7 +27,7 @@
     {
       "id": "lista",
       "kind": "platform",
-      "narration": "El estudiante ve los exámenes que el docente le asignó, cada uno con su fecha y su duración. Y en las preguntas de programación cuenta con un compilador integrado: escribe el código y lo ejecuta sin salir del examen.",
+      "narration": "El estudiante ve los exámenes que el docente le asignó, cada uno con su fecha y su duración. En las preguntas de programación cuenta con un compilador integrado: escribe el código y lo ejecuta sin salir del examen. Y en las de redes tiene una consola tipo Cisco IOS y un diagrama de topología.",
       "bufferMs": 900,
       "beats": [
         {
@@ -71,7 +71,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: los talleres.",
+      "narration": "Así el estudiante presenta sus exámenes de forma clara y supervisada, con compilador y consola de redes integrados.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
         "title": "Siguiente módulo",

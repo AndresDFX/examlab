@@ -14,7 +14,7 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo once: los informes. Las plantillas de actas y boletines en PDF.",
+      "narration": "Los informes: las plantillas de actas y boletines en PDF.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Informes",
@@ -121,7 +121,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: la auditoría.",
+      "narration": "Así, con plantillas globales y variables dinámicas, generás actas y boletines en PDF con los datos reales de cada estudiante.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Siguiente módulo",

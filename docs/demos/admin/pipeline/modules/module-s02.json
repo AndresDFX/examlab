@@ -53,7 +53,7 @@
         "text=Próximas sesiones",
         "text=Sesiones pasadas"
       ],
-      "narration": "Al entrar, el tablero reúne todo lo importante: el cronograma de clases con sus fechas, el material de cada sesión para ver o descargar, los enlaces a la reunión y a la grabación, y su asistencia. Y desde aquí accede al Tutor con inteligencia artificial y al foro del curso.",
+      "narration": "Al entrar, el tablero reúne todo lo importante: el cronograma de clases con sus fechas, el material de cada sesión para ver o descargar, los enlaces a la reunión y a la grabación, y su asistencia. La sesión y la clase se alinean solas, así que el material aparece donde corresponde. Y desde aquí accede al Asistente con inteligencia artificial y al foro del curso.",
       "bufferMs": 1000,
       "beats": [
         {
@@ -83,7 +83,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: tus exámenes.",
+      "narration": "Así el estudiante tiene, en un solo lugar, todo lo que necesita de cada curso.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
         "title": "Siguiente módulo",

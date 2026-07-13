@@ -13,7 +13,7 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo trece: el canal de soporte con la plataforma. Peticiones, quejas, reclamos y sugerencias.",
+      "narration": "El canal de soporte con la plataforma: peticiones, quejas, reclamos y sugerencias.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Soporte",
@@ -63,7 +63,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: la papelera.",
+      "narration": "Así tienes un canal directo con la plataforma para resolver cualquier PQRS sin salir de ExamLab.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Siguiente módulo",

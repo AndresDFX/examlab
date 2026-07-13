@@ -8,7 +8,7 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo seis: biblioteca de videos. Un solo lugar para todos los videos de la institución, reutilizables en cualquier curso.",
+      "narration": "Biblioteca de videos: un solo lugar para todos los videos de la institución, reutilizables en cualquier curso.",
       "card": { "kicker": "ExamLab · Rol Administrador", "title": "Biblioteca de Videos", "subtitle": "Demo Global Corp" },
       "bufferMs": 600
     },
@@ -28,7 +28,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: la configuración de inteligencia artificial.",
+      "narration": "Así centralizas todos tus videos en un solo lugar y los reutilizas donde los necesites, sin volver a subir nada.",
       "card": { "kicker": "ExamLab · Rol Administrador", "title": "Siguiente módulo", "subtitle": "Configuración de IA" },
       "bufferMs": 600
     }

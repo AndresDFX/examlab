@@ -52,7 +52,7 @@
     {
       "id": "mas",
       "kind": "platform",
-      "narration": "asistencia con QR y tutor de IA.",
+      "narration": "asistencia con QR y asistente de IA.",
       "bufferMs": 300,
       "beats": [
         { "target": "firstcard", "scale": 1.2, "hold": 1900, "side": "top", "syncWord": "QR" }

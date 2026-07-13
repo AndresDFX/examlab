@@ -14,7 +14,7 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo quince: tu cuenta y la sesión.",
+      "narration": "Tu cuenta y la sesión.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Cuenta y Sesión",
@@ -80,7 +80,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el último módulo: la cola de inteligencia artificial.",
+      "narration": "Así, desde el pie del menú controlas tu identidad y tu sesión: alternas de rol, sigues avisos y mensajes, y sales con la seguridad de que el contexto queda limpio.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Siguiente módulo",

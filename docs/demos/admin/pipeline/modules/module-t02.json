@@ -26,7 +26,7 @@
     {
       "id": "acciones",
       "kind": "platform",
-      "narration": "Desde el menú de acciones de cada curso, el docente accede a su tablero, gestiona las sesiones de clase, el contenido y los estudiantes matriculados.",
+      "narration": "Desde el menú de acciones de cada curso, el docente accede a su tablero, gestiona las sesiones de clase, el contenido y los estudiantes matriculados. Cada sesión se alinea con el material, mostrando la clase que le corresponde de forma automática.",
       "bufferMs": 800,
       "beats": [
         { "target": "rowaction:0", "clickToOpen": true, "hold": 4800 }
@@ -35,7 +35,7 @@
     {
       "id": "crear",
       "kind": "platform",
-      "narration": "Y al crear un curso se define su nombre, el periodo académico y una descripción; la escala de calificación y los pesos de evaluación se ajustan más abajo.",
+      "narration": "Y al crear un curso se elige la asignatura del plan, que define su nombre y su programa; solo el periodo académico se ajusta a mano. La escala de calificación y los pesos de evaluación se configuran más abajo.",
       "bufferMs": 800,
       "openDialog": "createbtn",
       "beats": [
@@ -47,7 +47,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: la creación y el monitoreo de exámenes.",
+      "narration": "Así el docente organiza sus cursos, sesiones y estudiantes desde un solo lugar, con todo alineado al plan académico.",
       "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Exámenes" },
       "bufferMs": 600
     }

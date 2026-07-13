@@ -42,7 +42,7 @@
       "kind": "card",
       "role": "Administrador",
       "route": "/app/admin/users",
-      "narration": "Da de alta a docentes y estudiantes, define sus roles y los matricula.",
+      "narration": "Da de alta a docentes y estudiantes, define sus roles y los matricula; al inscribirlos, reciben un correo de bienvenida automático.",
       "card": {
         "kicker": "ExamLab · Administrador",
         "title": "Usuarios y roles",
@@ -171,7 +171,7 @@
       "kind": "card",
       "role": "Estudiante",
       "route": "/app/student/tutor",
-      "narration": "Y cuenta con un tutor de inteligencia artificial que responde sus dudas leyendo el material real del curso.",
+      "narration": "Y cuenta con un Asistente IA que responde sus dudas leyendo el material real del curso.",
       "card": {
         "kicker": "ExamLab · Estudiante",
         "title": "Tutor con IA",
@@ -182,7 +182,7 @@
     {
       "id": "estudiante-tutor-view",
       "kind": "platform",
-      "narration": "Pregunta cuando quiera y el tutor le responde con base en sus contenidos, para estudiar mejor y a su ritmo.",
+      "narration": "Pregunta cuando quiera y el Asistente IA le responde con base en sus contenidos, para estudiar mejor y a su ritmo.",
       "bufferMs": 900,
       "beats": [
         {

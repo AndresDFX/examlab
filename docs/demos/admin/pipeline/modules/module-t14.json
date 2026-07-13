@@ -16,7 +16,7 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Y un módulo que conecta todo: el calendario.",
+      "narration": "El calendario es el módulo que conecta todo lo demás.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
         "title": "Calendario",
@@ -76,7 +76,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "Con esto cerramos el recorrido completo del rol Docente en ExamLab.",
+      "narration": "Así el calendario deja tus clases sincronizadas con Google y tus grabaciones al alcance de todos, en un solo lugar.",
       "card": {
         "kicker": "ExamLab · Serie de demostración",
         "title": "Fin del recorrido",

@@ -16,7 +16,7 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Último módulo del rol Estudiante: tu cuenta y la sesión.",
+      "narration": "Tu cuenta y la sesión dentro del rol Estudiante.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
         "title": "Cuenta y Sesión",
@@ -71,7 +71,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "Con esto concluye el recorrido del rol Estudiante en ExamLab.",
+      "narration": "Desde el pie del menú tienes a un clic tus avisos, tus mensajes y el cierre seguro de sesión.",
       "card": {
         "kicker": "ExamLab · Serie de demostración",
         "title": "Fin del recorrido",

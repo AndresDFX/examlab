@@ -49,7 +49,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo del rol Docente: la gestión de sus cursos.",
+      "narration": "Así, el panel del Docente reúne en un solo lugar cursos, evaluaciones, notas y asistencia, con todo lo pendiente a la vista.",
       "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Gestión de Cursos" },
       "bufferMs": 600
     }

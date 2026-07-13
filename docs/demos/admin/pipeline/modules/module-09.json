@@ -8,7 +8,7 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo nueve: certificados. La constancia de finalización que reciben los estudiantes que aprueban un curso.",
+      "narration": "Certificados: la constancia de finalización que reciben los estudiantes que aprueban un curso.",
       "card": { "kicker": "ExamLab · Rol Administrador", "title": "Certificados", "subtitle": "Demo Global Corp" },
       "bufferMs": 600
     },
@@ -51,7 +51,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: estadísticas e informes.",
+      "narration": "Así, ExamLab convierte cada curso aprobado en una constancia oficial, descargable y verificable públicamente por cualquiera.",
       "card": { "kicker": "ExamLab · Rol Administrador", "title": "Siguiente módulo", "subtitle": "Estadísticas e Informes" },
       "bufferMs": 600
     }

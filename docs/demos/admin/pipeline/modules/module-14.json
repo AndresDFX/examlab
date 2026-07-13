@@ -13,7 +13,7 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo catorce: la papelera. Borrar ya no es para siempre.",
+      "narration": "La papelera: borrar ya no es para siempre.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Papelera",
@@ -96,7 +96,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: tu cuenta y la sesión.",
+      "narration": "Así, cualquier borrado tiene treinta días de margen para recuperarse: eliminar deja de dar miedo.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Siguiente módulo",

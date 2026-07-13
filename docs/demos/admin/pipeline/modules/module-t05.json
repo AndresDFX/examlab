@@ -58,7 +58,7 @@
     {
       "id": "crear",
       "kind": "platform",
-      "narration": "Al crear un proyecto se define su título, la fecha de inicio y su estado de publicación. Y la descripción no hay que redactarla: se genera con inteligencia artificial a partir del título.",
+      "narration": "Al crear un proyecto se define su título, la fecha de inicio y su estado de publicación. El selector de curso prioriza el curso actual y los abiertos. Y la descripción no hay que redactarla: se genera con inteligencia artificial a partir del título.",
       "bufferMs": 800,
       "openDialog": "createbtn",
       "beats": [
@@ -142,7 +142,7 @@
     {
       "id": "ia-resultado",
       "kind": "platform",
-      "narration": "En segundos queda el set completo: la entrega de código en ZIP y las preguntas de análisis, cada una con su puntaje, listas para ajustar.",
+      "narration": "En segundos queda el set completo: la entrega de código en ZIP y las preguntas de análisis, cada una con su puntaje, listas para ajustar. También puedes sumar preguntas de red con consola tipo Cisco IOS y diagrama de topología.",
       "bufferMs": 800,
       "beats": [
         {
@@ -161,7 +161,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: el banco de preguntas.",
+      "narration": "Así, los proyectos reúnen entrega, código y sustentación en un solo flujo, con la inteligencia artificial redactando la descripción y armando los entregables.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
         "title": "Siguiente módulo",

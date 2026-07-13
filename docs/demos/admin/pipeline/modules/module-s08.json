@@ -27,7 +27,7 @@
     {
       "id": "vista",
       "kind": "platform",
-      "narration": "El estudiante participa en las dinámicas que propone el docente: consultas de opinión, reservas de horario o juegos tipo concurso en tiempo real.",
+      "narration": "El estudiante participa en las dinámicas que propone el docente: consultas de opinión, reservas de horario o juegos tipo reto en vivo en tiempo real.",
       "bufferMs": 800,
       "beats": [
         {
@@ -75,7 +75,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: las pizarras.",
+      "narration": "Así, con un clic, el estudiante hace oír su voz y participa en cada dinámica de la clase.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
         "title": "Siguiente módulo",

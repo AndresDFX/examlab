@@ -13,7 +13,7 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo ocho: configuración de la institución. Identidad, módulos visibles, correos, el compilador de código y la auditoría.",
+      "narration": "Configuración de la institución. Identidad, módulos visibles, correos, el compilador de código y la auditoría.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Configuración",
@@ -25,7 +25,7 @@
       "id": "institucion",
       "kind": "platform",
       "tab": "Institución",
-      "narration": "En Institución se define la identidad de la institución: su nombre, el logotipo y los colores de la marca, que se aplican al instante en toda la plataforma.",
+      "narration": "En Institución se define la identidad: su nombre, el logotipo y los colores de la marca, que se aplican al instante en toda la plataforma.",
       "bufferMs": 800,
       "beats": [
         {
@@ -83,7 +83,7 @@
       "id": "correos",
       "kind": "platform",
       "tab": "Correos",
-      "narration": "En Correos se prenden o apagan los avisos por email, categoría por categoría: la bienvenida a nuevos usuarios, los recordatorios de entregas, los mensajes y más.",
+      "narration": "En Correos se prenden o apagan los avisos por email, categoría por categoría: la bienvenida a nuevos usuarios, la bienvenida al curso al inscribir a un estudiante, los recordatorios de entregas, los mensajes y más.",
       "bufferMs": 800,
       "beats": [
         {
@@ -149,7 +149,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: certificados.",
+      "narration": "Así se configura la identidad, los accesos, los correos, el compilador y la auditoría de toda tu institución desde un solo lugar.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Siguiente módulo",

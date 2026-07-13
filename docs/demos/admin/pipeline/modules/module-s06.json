@@ -55,7 +55,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: la asistencia.",
+      "narration": "Así el estudiante ve, en un solo lugar, su desempeño por corte y su nota final de cada curso.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
         "title": "Siguiente módulo",

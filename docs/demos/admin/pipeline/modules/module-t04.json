@@ -58,7 +58,7 @@
     {
       "id": "crear",
       "kind": "platform",
-      "narration": "Al crear un taller se definen su título, la descripción y las instrucciones que guían al estudiante en la entrega.",
+      "narration": "Al crear un taller se elige el curso, con el curso actual y los abiertos priorizados, y se definen su título, la descripción y las instrucciones que guían al estudiante en la entrega.",
       "bufferMs": 800,
       "openDialog": "createbtn",
       "beats": [
@@ -151,7 +151,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: los proyectos.",
+      "narration": "Así los talleres te dan actividades prácticas con entrega, calificación y preguntas generadas con IA, todo en un mismo lugar.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
         "title": "Siguiente módulo",

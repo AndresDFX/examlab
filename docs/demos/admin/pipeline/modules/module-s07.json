@@ -55,7 +55,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: las encuestas.",
+      "narration": "Con el check-in por código rotativo, tu asistencia queda registrada al instante y de forma confiable.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
         "title": "Siguiente módulo",

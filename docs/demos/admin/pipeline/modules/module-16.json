@@ -13,7 +13,7 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo dieciséis, el último: la cola de inteligencia artificial.",
+      "narration": "La cola de inteligencia artificial de ExamLab.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Cola de IA",
@@ -55,7 +55,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "Con esto concluye el recorrido del rol Administrador en ExamLab.",
+      "narration": "Así, desde un solo lugar, el administrador controla toda la inteligencia artificial de ExamLab: generación y calificación bajo la vista.",
       "card": {
         "kicker": "ExamLab · Serie de demostración",
         "title": "Fin del recorrido",

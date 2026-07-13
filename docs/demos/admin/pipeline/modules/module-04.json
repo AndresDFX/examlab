@@ -13,7 +13,7 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo cuatro: gestión de cursos. Veamos cómo se crea un curso y qué información se define.",
+      "narration": "Gestión de cursos. Veamos cómo se crea un curso y qué información se define.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Gestión de Cursos",
@@ -25,7 +25,7 @@
       "id": "crear-curso",
       "kind": "platform",
       "openDialog": "[data-tour-id=\"create-course\"]",
-      "narration": "Abrimos el formulario de Nuevo curso. Le damos un nombre claro, como lo verán los estudiantes. Elegimos el periodo académico al que pertenece. La asignatura del plan es la fuente de verdad: al seleccionarla, se heredan el programa y el semestre. Definimos las fechas de inicio y fin. Y configuramos los cortes evaluativos, que reparten el porcentaje de la nota final entre exámenes, talleres, proyectos y asistencia.",
+      "narration": "Abrimos el formulario de Nuevo curso. La asignatura del plan es la fuente de verdad y es obligatoria: al seleccionarla, define el nombre y el programa del curso automáticamente. Lo único que se configura aparte es el periodo académico al que pertenece. Definimos las fechas de inicio y fin. Y configuramos los cortes evaluativos, que reparten el porcentaje de la nota final entre exámenes, talleres, proyectos y asistencia. Al inscribir a los estudiantes, cada uno recibe un correo de bienvenida automático.",
       "bufferMs": 900,
       "beats": [
         {
@@ -78,7 +78,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: los contenidos.",
+      "narration": "Así de simple: con la asignatura como base, un curso queda listo con su programa, sus fechas y sus cortes bien definidos.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Siguiente módulo",

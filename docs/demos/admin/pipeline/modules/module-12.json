@@ -13,7 +13,7 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Módulo doce: la auditoría. El registro de todo lo que pasa en la institución.",
+      "narration": "La auditoría: el registro de todo lo que pasa en la institución.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Auditoría",
@@ -54,7 +54,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: el soporte.",
+      "narration": "Con la auditoría tienes trazabilidad completa: cada acción queda registrada para responder reclamos con evidencia.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "Siguiente módulo",

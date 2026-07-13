@@ -38,7 +38,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: las pizarras.",
+      "narration": "Así de simple: una biblioteca de videos de apoyo, por curso o generales, siempre a la mano para tus estudiantes.",
       "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Pizarras" },
       "bufferMs": 600
     }

@@ -16,7 +16,7 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "El tutor con inteligencia artificial, desde el rol Estudiante.",
+      "narration": "El Asistente IA, desde el rol Estudiante.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
         "title": "Tutor IA",
@@ -27,7 +27,7 @@
     {
       "id": "vista",
       "kind": "platform",
-      "narration": "El estudiante elige uno de sus cursos y conversa con un tutor de inteligencia artificial. El tutor conoce el material de ese curso, así que responde dudas y explica conceptos apoyándose en los contenidos que el docente compartió. Es un acompañamiento disponible en todo momento.",
+      "narration": "El estudiante elige uno de sus cursos y conversa con un Asistente de inteligencia artificial. El asistente conoce el material de ese curso, así que responde dudas y explica conceptos apoyándose en los contenidos que el docente compartió. Y además hay un Asistente de plataforma para resolver dudas sobre el uso de la app. Es un acompañamiento disponible en todo momento.",
       "bufferMs": 800,
       "beats": [
         {
@@ -55,7 +55,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "En el siguiente módulo: los certificados.",
+      "narration": "Así el estudiante siempre tiene a mano un acompañante que entiende el material de su curso.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
         "title": "Siguiente módulo",
