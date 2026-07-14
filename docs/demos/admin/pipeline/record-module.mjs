@@ -71,6 +71,18 @@ function effectiveHold(words, beats, j, sceneStart, fallback) {
 
 const INIT = `(() => {
   if (window.__demoInit) return; window.__demoInit = true;
+  // Demo: neutraliza la Fullscreen API REAL. El proyector de check-in (QR) llama
+  // element.requestFullscreen() al abrirse; en el contexto grabado eso dimensiona
+  // el overlay al tamaño de PANTALLA (≠ viewport 1920×1080) y el QR sale CORTADO.
+  // Con el no-op, el proyector queda como overlay 'fixed inset-0' (que el manejo
+  // noPan de la cámara ya ajusta al viewport completo). NO afecta a la app real:
+  // solo a esta sesión de grabación.
+  try {
+    const noop = () => Promise.resolve();
+    if (window.Element) Element.prototype.requestFullscreen = noop;
+    document.exitFullscreen = noop;
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => null });
+  } catch (e) {}
   const css = document.createElement('style');
   css.textContent = \`
     #demo-cursor{position:fixed;left:50%;top:50%;width:22px;height:22px;border-radius:50%;
