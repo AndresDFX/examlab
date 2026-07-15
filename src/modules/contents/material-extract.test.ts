@@ -8,6 +8,8 @@ import {
   notebookToReadableText,
   docxXmlToText,
   pptxSlideXmlToText,
+  xlsxSharedStrings,
+  xlsxSheetXmlToText,
 } from "./material-extract";
 
 describe("extensionOf / clasificadores", () => {
@@ -103,5 +105,39 @@ describe("pptxSlideXmlToText", () => {
       "</p:spTree></p:cSld></p:sld>";
     const out = pptxSlideXmlToText(xml);
     expect(out).toBe("Título de slide\nBullet 1");
+  });
+});
+
+describe("xlsx", () => {
+  it("isOfficeDoc incluye xlsx", () => {
+    expect(isOfficeDoc("datos.xlsx")).toBe(true);
+    expect(isOfficeDoc("doc.docx")).toBe(true);
+    expect(isOfficeDoc("hoja.csv")).toBe(false);
+  });
+
+  it("xlsxSharedStrings extrae las cadenas indexadas", () => {
+    const sst =
+      '<?xml version="1.0"?><sst count="3" uniqueCount="3">' +
+      "<si><t>Nombre</t></si><si><t>Nota</t></si><si><t>Juan Pérez</t></si>" +
+      "</sst>";
+    expect(xlsxSharedStrings(sst)).toEqual(["Nombre", "Nota", "Juan Pérez"]);
+    expect(xlsxSharedStrings(null)).toEqual([]);
+  });
+
+  it("xlsxSheetXmlToText resuelve cadenas compartidas, inline y números", () => {
+    const shared = ["Nombre", "Nota", "Juan Pérez"];
+    const sheet =
+      "<worksheet><sheetData>" +
+      '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row>' +
+      '<row r="2"><c r="A2" t="s"><v>2</v></c><c r="B2"><v>4.5</v></c></row>' +
+      '<row r="3"><c r="A3" t="inlineStr"><is><t>Ana</t></is></c><c r="B3"><v>5</v></c></row>' +
+      "</sheetData></worksheet>";
+    const out = xlsxSheetXmlToText(sheet, shared);
+    expect(out).toBe("Nombre\tNota\nJuan Pérez\t4.5\nAna\t5");
+  });
+
+  it("xlsxSheetXmlToText tolera hoja vacía / nula", () => {
+    expect(xlsxSheetXmlToText("", [])).toBe("");
+    expect(xlsxSheetXmlToText("<worksheet><sheetData></sheetData></worksheet>", [])).toBe("");
   });
 });

@@ -123,7 +123,7 @@ const ACCEPTED_EXTENSIONS = [
  *  (además del objeto en Storage). Incluye los archivos de código
  *  ejecutables + notebooks — el visor/runner de la sesión los lee de `body`.
  *  Los binarios (pdf/pptx/imágenes/zip) NO entran acá. */
-const INLINE_BODY_EXTENSIONS = [".java", ".py", ".js", ".ipynb"];
+const INLINE_BODY_EXTENSIONS = [".java", ".py", ".js", ".ipynb", ".csv"];
 /** Tope de chars del body inline — los archivos de código son chicos; esto
  *  evita inflar la fila JSON si alguien sube algo enorme con esa extensión.
  *  Los .ipynb se limpian de outputs antes (stripNotebookOutputs), así que el

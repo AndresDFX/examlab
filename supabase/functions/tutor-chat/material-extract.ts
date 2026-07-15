@@ -21,7 +21,7 @@ export function isNotebook(name: string | null | undefined): boolean {
 
 export function isOfficeDoc(name: string | null | undefined): boolean {
   const e = extensionOf(name);
-  return e === "docx" || e === "pptx";
+  return e === "docx" || e === "pptx" || e === "xlsx";
 }
 
 export function isImageFile(name: string | null | undefined): boolean {
@@ -108,4 +108,57 @@ export function pptxSlideXmlToText(slideXml: string | null | undefined): string 
   s = s.replace(/<[^>]+>/g, "");
   s = decodeXmlEntities(s);
   return normalizeWhitespace(s);
+}
+
+// Tabla de cadenas compartidas de un .xlsx (xl/sharedStrings.xml).
+export function xlsxSharedStrings(sstXml: string | null | undefined): string[] {
+  if (!sstXml) return [];
+  const out: string[] = [];
+  const siRe = /<si\b[^>]*>([\s\S]*?)<\/si>/g;
+  let m: RegExpExecArray | null;
+  while ((m = siRe.exec(sstXml))) {
+    const parts: string[] = [];
+    const tRe = /<t\b[^>]*>([\s\S]*?)<\/t>/g;
+    let tm: RegExpExecArray | null;
+    while ((tm = tRe.exec(m[1]))) parts.push(tm[1]);
+    out.push(decodeXmlEntities(parts.join("")));
+  }
+  return out;
+}
+
+// Texto plano de una hoja de xlsx (xl/worksheets/sheetN.xml) usando sharedStrings.
+export function xlsxSheetXmlToText(
+  sheetXml: string | null | undefined,
+  sharedStrings: string[] = [],
+): string {
+  if (!sheetXml) return "";
+  const rows: string[] = [];
+  const rowRe = /<row\b[^>]*>([\s\S]*?)<\/row>/g;
+  let rm: RegExpExecArray | null;
+  while ((rm = rowRe.exec(sheetXml))) {
+    const cells: string[] = [];
+    const cRe = /<c\b([^>]*)>([\s\S]*?)<\/c>/g;
+    let cm: RegExpExecArray | null;
+    while ((cm = cRe.exec(rm[1]))) {
+      const attrs = cm[1];
+      const body = cm[2];
+      let val = "";
+      if (/\bt="inlineStr"/.test(attrs)) {
+        const t = /<t\b[^>]*>([\s\S]*?)<\/t>/.exec(body);
+        val = t ? decodeXmlEntities(t[1]) : "";
+      } else {
+        const v = /<v\b[^>]*>([\s\S]*?)<\/v>/.exec(body);
+        const raw = v ? v[1] : "";
+        if (/\bt="s"/.test(attrs)) {
+          const idx = parseInt(raw, 10);
+          val = Number.isFinite(idx) ? (sharedStrings[idx] ?? "") : "";
+        } else {
+          val = decodeXmlEntities(raw);
+        }
+      }
+      if (val) cells.push(val);
+    }
+    if (cells.length) rows.push(cells.join("\t"));
+  }
+  return normalizeWhitespace(rows.join("\n"));
 }

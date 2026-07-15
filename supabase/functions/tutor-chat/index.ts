@@ -28,6 +28,8 @@ import {
   isOfficeDoc,
   notebookToReadableText,
   pptxSlideXmlToText,
+  xlsxSharedStrings,
+  xlsxSheetXmlToText,
 } from "./material-extract.ts";
 
 const MAX_HISTORY_MESSAGES = 30;
@@ -102,6 +104,24 @@ async function extractOfficeText(buf: Uint8Array, ext: string): Promise<string> 
     const xml = files["word/document.xml"];
     return xml ? docxXmlToText(dec.decode(xml)) : "";
   }
+  if (ext === "xlsx") {
+    const sst = files["xl/sharedStrings.xml"];
+    const shared = sst ? xlsxSharedStrings(dec.decode(sst)) : [];
+    const sheetNames = Object.keys(files)
+      .filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n))
+      .sort((a, b) => {
+        const na = parseInt(a.match(/sheet(\d+)\.xml/)![1], 10);
+        const nb = parseInt(b.match(/sheet(\d+)\.xml/)![1], 10);
+        return na - nb;
+      });
+    const parts = sheetNames
+      .map((n, i) => {
+        const t = xlsxSheetXmlToText(dec.decode(files[n]), shared);
+        return t ? `(Hoja ${i + 1})\n${t}` : "";
+      })
+      .filter(Boolean);
+    return parts.join("\n\n");
+  }
   // pptx: concatena todas las slides en orden.
   const slideNames = Object.keys(files)
     .filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))
@@ -133,7 +153,8 @@ async function readFileText(
       const dl = await admin.storage.from(CONTENTS_BUCKET).download(f.path);
       if (dl.data) {
         const buf = new Uint8Array(await dl.data.arrayBuffer());
-        const ext = name.toLowerCase().endsWith(".pptx") ? "pptx" : "docx";
+        const lower = name.toLowerCase();
+        const ext = lower.endsWith(".xlsx") ? "xlsx" : lower.endsWith(".pptx") ? "pptx" : "docx";
         const text = await extractOfficeText(buf, ext);
         return { text, extracted: text.length > 0 };
       }
