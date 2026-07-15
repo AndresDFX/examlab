@@ -6,6 +6,12 @@
 >
 > **Fecha:** 2026-07-07 · **Fuente de precios:** [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing) (tier pago).
 > **Snapshot de datos:** producción (6 tenants) al 2026-07-07.
+>
+> **⚠️ Planes y precios VIGENTES: ver [propuesta-v2.md](propuesta-v2.md)** (2026-07-15). Los
+> **cálculos de costo** de abajo (IA por operación, por estudiante/matrícula, storage) siguen
+> válidos y sustentan la v2; los nombres de plan (Esencial/Profesional/Institucional) y precios
+> ($99/$299/$1.000…) son de **v1** — las columnas 250/500/1.000/1.500/5.000 son **tamaños de
+> proyección**, no la grilla comercial vigente.
 
 ---
 
@@ -185,7 +191,7 @@ de datos por contrato).
 
 ### Hoy — aislamiento **lógico** (un proyecto Supabase compartido)
 - **DB:** RLS por `tenant_id` + funciones `current_tenant_id()` / `course_in_my_tenant()`; cada tabla
-  hija scope-a al tenant del curso. (Auditado y endurecido; ver `docs/PLAN-ERRORES.md`.)
+  hija scope-a al tenant del curso. (Auditado y endurecido; ver `../PLAN-ERRORES.md`.)
 - **Storage:** buckets **compartidos**; cada objeto se aísla por RLS + convención de path
   (`<user_id>/...`, `<course_id>/...`, `<ticket_id>/...`). Backups compartidos.
 - **Suficiente** para la mayoría de instituciones; el dato de una institución **no** es accesible por otra.

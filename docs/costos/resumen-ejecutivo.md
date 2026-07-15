@@ -2,6 +2,10 @@
 
 > Una página para propuestas comerciales. Detalle completo en [analisis-costos.md](analisis-costos.md).
 > Datos reales de producción verificados el 2026-07-07.
+>
+> **⚠️ Segmentación, planes y precios VIGENTES: ver [propuesta-v2.md](propuesta-v2.md)** (2026-07-15).
+> Este one-pager conserva los **datos de costo real** (base de cálculo); su segmentación 250/1.500/5.000
+> y sus precios son de **v1**. Facturación vigente por **matrículas**, no por cabezas.
 
 ## La estructura de costos en una frase
 

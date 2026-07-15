@@ -3,6 +3,10 @@
 Documentos de análisis de costos de operación, con **datos reales de producción** (verificados por
 consulta SQL directa a prod el 2026-07-07) y **precios de terceros** (Gemini, Supabase).
 
+> **📌 Referencia comercial VIGENTE: [propuesta-v2.md](propuesta-v2.md)** (segmentación por tamaño,
+> precios y política de IA). Los demás documentos conservan válidos sus **datos de costo** (base de
+> cálculo); su segmentación/precios **v1** (250/1.500/5.000) son contexto histórico — **cotizar con la v2**.
+
 | Documento | Para qué |
 |---|---|
 | [analisis-costos.md](analisis-costos.md) | Análisis completo: metodología, datos reales, precios, costo de IA por operación / por estudiante / **por tamaño de institución**, almacenamiento, infraestructura, aislamiento regulatorio, conclusiones y monitoreo. |

@@ -10,6 +10,12 @@
 >
 > Complementa (y formaliza) [modelo-costos-ia-almacenamiento.md](modelo-costos-ia-almacenamiento.md).
 
+> **⚠️ Planes, segmentación y precios VIGENTES: ver [propuesta-v2.md](propuesta-v2.md)** (2026-07-15).
+> Este documento es la **base de cálculo de costos** (IA por operación, infra, storage) que la v2
+> consume — esas cifras de costo real siguen válidas. La segmentación 250/1.500/5.000 y los precios
+> citados abajo son de **v1** (contexto histórico). La facturación vigente es por **matrículas**, no
+> por estudiantes-cabeza (ver propuesta-v2 §1).
+
 ---
 
 ## 1. Resumen ejecutivo

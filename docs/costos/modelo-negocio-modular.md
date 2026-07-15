@@ -2,6 +2,12 @@
 
 > Documento de producto · versión final recomendada
 > Autor: Liderazgo de producto · Locale: es-CO · Moneda: USD/mes
+>
+> **⚠️ Segmentación, precios y métrica VIGENTES: ver [propuesta-v2.md](propuesta-v2.md)** (2026-07-15).
+> Este doc aporta la **arquitectura modular de gating/planes**; la segmentación por tamaño
+> (Pequeña ≤1.500 / Mediana ≤10.000 / Grande >10.000), los precios y la facturación por **matrículas**
+> vigentes están en la v2. **Pendiente (decisión de producto):** reconciliar la tabla de planes
+> modulares y el tier Free "Aula" contra las franjas de la v2.
 
 ---
 
