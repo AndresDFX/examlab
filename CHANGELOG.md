@@ -29,6 +29,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   - `proximo` es una sub-vista por fecha DENTRO de `en_curso` (no es un estado persistido).
   - Finalizar es acción de docente del curso o Admin/SuperAdmin (validado en la RPC).
   - **Cascade al finalizar** (mig `20260991000000`): un trigger `AFTER UPDATE OF status` cierra en cascada lo asociado — exámenes/pizarras (`status='closed'`), talleres/proyectos/encuestas (cerrados SOLO si NINGÚN otro curso ligado sigue `<> 'finalizado'` — caveat M:N), foros (`manually_closed_at`), juegos Kahoot en vivo (`ended`), ventanas de check-in QR. NO cierra sesiones de asistencia ni contenidos/videos (histórico/consultable). NO auto-reabre al reabrir el curso. Funciones `close_*_for_course` son `SECURITY DEFINER` y **REVOCADAS de PUBLIC** (internas). Al agregar una entidad nueva ligada a curso con estado cerrado, sumar su `close_*` al orquestador.
+  - **Correo de bienvenida al curso — se envía al PUBLICAR, no al matricular en borrador** (mig `20261130000000`). Matricular a un estudiante en un curso en `borrador` NO emite bienvenida (el curso aún no está disponible; el trigger de matrícula `notify_course_enrollment_welcome` salta `status='borrador'`). La bienvenida sale cuando el curso pasa `borrador → en_curso`: trigger `trg_course_published_welcome` (`AFTER UPDATE OF status`) inserta una notif `course_welcome` por cada estudiante ya matriculado → pipeline de email. Matricular DIRECTO en un curso ya publicado (`<> borrador`) sí emite al instante (comportamiento previo, mig `20261110000000`). Esto permite importar/matricular en borrador sin spamear correos ni entregar claves temporales antes de tiempo.
 - **Filtros de grids**: el filtro de ESTADO abre por defecto en lo vigente/activo (no "Todos"); el usuario puede cambiar a Todos/cerrados. (`c3271a5`)
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
 - **Escala de calificación**: se hereda de la asignatura/curso; la vista de calificaciones muestra SIEMPRE la escala del curso. La "Nota" usa `toScale(raw, max_score)`; el "Puntaje" se normaliza a `grade_scale_max` en PRESENTACIÓN (`rescaleScore`), sin tocar datos. NO normalizar `max_score` de items legacy por migración masiva (riesgo de re-interpretar notas bajas de items /100). Items nuevos default `max_score = grade_scale_max`.
@@ -43,6 +44,27 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 ---
 
 ## Historial
+
+### 2026-07-14
+
+**Correo de bienvenida al PUBLICAR un curso (borrador → en_curso).**
+El usuario pasó a `en_curso` dos cursos de FESNA que estaban en `borrador` (creados +
+matriculados en este ciclo con la bienvenida suprimida a propósito) y esperaba que los
+estudiantes recibieran el correo de bienvenida al publicar. No existía trigger de
+publicación; solo el de matrícula (mig `20261110000000`), que además no chequeaba estado.
+- **Mig `20261130000000`**: (1) `notify_course_enrollment_welcome` ahora SALTA cursos en
+  `borrador` (no emailar antes de publicar); (2) nuevo `trg_course_published_welcome`
+  (`AFTER UPDATE OF status`, `borrador→en_curso`) inserta `course_welcome` por cada
+  matriculado. Aplicada a prod y **verificada empíricamente** (rolled-back): matricular en
+  borrador → 0; publicar → 1 por matriculado; matricular en publicado → 1 inmediato.
+- **Backfill de los 2 cursos ya publicados** (Cableado Estructurado 57 + Administración de
+  Sistemas Operativos de Servidor 23 = 80): insertadas 80 notifs `course_welcome`. Envío:
+  **78/80 entregados**; los últimos se drenaron vía el cron existente
+  `retry-failed-email-notifications` (cada 5 min, reintenta `provider_error: 4xx`
+  transitorios de Gmail hasta 5 veces) — los 421/454 fueron throttle transitorio de Gmail
+  por la ráfaga de 80 correos, no config. No se cambió la lógica de reintento.
+- Invariante nueva registrada arriba (Estados de curso). Requiere **Publish** en Lovable
+  para que la mig quede versionada en el entorno (ya está aplicada en la DB de prod).
 
 ### 2026-06-19
 
