@@ -251,6 +251,17 @@ function TeacherContents() {
   const [tenantFilter, setTenantFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Deep-link `?content=<id>` (ej. desde un #-tag en mensajes): resalta la fila.
+  // Best-effort: si está paginado en otra página no resalta, pero la URL sigue
+  // siendo válida y aterriza en la grilla correcta.
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  useEffect(() => {
+    const cid = new URLSearchParams(window.location.search).get("content");
+    if (cid) {
+      setHighlightId(cid);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
   const [search, setSearch] = useState("");
   /** Filtro por curso. `null` = todos. Coincide con la convención del
    *  resto de grids docente (talleres, proyectos, exámenes) que usan
@@ -1279,7 +1290,14 @@ function TeacherContents() {
                     );
                   })()}
                 {pagination.paginatedItems.map((it) => (
-                  <TableRow key={it.id}>
+                  <TableRow
+                    key={it.id}
+                    ref={(el) => {
+                      if (el && it.id === highlightId)
+                        el.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }}
+                    className={it.id === highlightId ? "bg-primary/10" : undefined}
+                  >
                     <TableCell className="max-w-xs">
                       {/* Altura de fila UNIFORME: el contenido del Tema
                           (nombre + dropdown de estado + subtítulo + badges

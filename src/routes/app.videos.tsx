@@ -195,6 +195,18 @@ function VideoLibrary() {
   const [tenantFilter, setTenantFilter] = useState<string>("all");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  // Deep-link `?video=<id>` (ej. desde un #-tag en mensajes): resalta la fila.
+  // Best-effort: si el video está paginado en otra página no resalta, pero la
+  // URL sigue siendo válida y aterriza en la biblioteca correcta.
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  useEffect(() => {
+    const vid = new URLSearchParams(window.location.search).get("video");
+    if (vid) {
+      setHighlightId(vid);
+      // Limpiar el param para que un refresh/back no re-dispare el resaltado.
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
 
   const load = async () => {
     setLoading(true);
@@ -762,7 +774,14 @@ function VideoLibrary() {
                       );
                     })()
                   : pagination.paginatedItems.map((v) => (
-                      <TableRow key={v.id}>
+                      <TableRow
+                        key={v.id}
+                        ref={(el) => {
+                          if (el && v.id === highlightId)
+                            el.scrollIntoView({ behavior: "smooth", block: "center" });
+                        }}
+                        className={v.id === highlightId ? "bg-primary/10" : undefined}
+                      >
                         <TableCell className="max-w-md">
                           <div className="flex items-start gap-3">
                             <div className="h-9 w-9 rounded-md bg-cyan-500/10 flex items-center justify-center shrink-0">
