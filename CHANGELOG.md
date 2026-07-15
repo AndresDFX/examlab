@@ -48,6 +48,28 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 2026-07-14
 
+**Refactor de envío de correos — investigación + plan (no implementado) + fix de seguridad.**
+Objetivo: que cada institución/usuario envíe desde su propia cuenta en vez de la Gmail
+compartida (`castano.julian@correounivalle.edu.co` = env `SMTP_USER`). Workflow de 4 agentes.
+- **Hallazgo**: el envío por INSTITUCIÓN ya existe end-to-end (`tenant_email_settings` mig
+  `20260959000000` + rama en la edge `send-email`) pero está DORMIDO (las 4 instituciones en
+  PROD con `use_custom_smtp=false` → todo cae al env global). No existe config por usuario.
+  Enviar "como" el correo del usuario por otro relay rompe SPF/DKIM/DMARC → spam.
+- **Fix de seguridad aplicado** (mig `20261140000000`): `REVOKE anon` sobre
+  `tenant_email_settings` (guardaba `smtp_password`; tenía GRANTs completos a `anon`, solo la
+  RLS lo tapaba = rls-self-tamper-class). `authenticated` reducido a lo mínimo. Sin impacto
+  funcional. **Aplicado a PROD**; requiere Publish para versionar.
+- **Plan** (decisión del usuario: "solo el plan por ahora", NO implementar):
+  [docs/PLAN-CORREO-POR-CUENTA.md](docs/PLAN-CORREO-POR-CUENTA.md) — resolver SMTP central,
+  jerarquía usuario→institución→plataforma, Fase 1 (institución: panel Admin + test-send +
+  secreto write-only) y Fase 2 (usuario opt-in + anti-spoof).
+
+**Videos demo: series completas + specs + limpieza de docs/ (commit `71979f5f`).**
+- `serie-{admin,student,teacher}-completa.mp4` rearmadas desde los módulos nuevos (nuevo
+  `build-serie.mjs`, concat lossless, duración = suma de módulos verificada).
+- Todo video individual tiene spec (creado `module-login.json`; 0 huérfanos).
+- Eliminado `docs/heygen/` (sistema deprecado); CLAUDE.md actualizado. Regla: en UI "institución", no "tenant".
+
 **Correo de bienvenida al PUBLICAR un curso (borrador → en_curso).**
 El usuario pasó a `en_curso` dos cursos de FESNA que estaban en `borrador` (creados +
 matriculados en este ciclo con la bienvenida suprimida a propósito) y esperaba que los
