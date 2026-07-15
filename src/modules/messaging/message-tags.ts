@@ -40,25 +40,48 @@ export const TAG_TYPE_LABEL: Record<TagType, string> = {
 };
 
 /**
- * Rutas relativas para cada tipo. Estudiantes y docentes ven listas
- * distintas — calculamos via `role`. Si el receptor no tiene acceso al
- * módulo (RBAC), el Link mostrará "Sin acceso" al click. No hacemos
- * RBAC client-side para evitar mostrar links rotos: simplemente
- * navegamos y el guardia de ruta hace el rest.
+ * Descriptor de navegación TanStack para un tag: `to` + `params`/`search`.
+ * NO devolvemos un string interpolado — TanStack exige `params`/`search`
+ * separados o el enlace no matchea la ruta (ver CLAUDE.md, regla de
+ * navegación). El consumidor lo esparce en `<Link {...} />`.
  */
-export function tagRoute(tag: ContentTag, role: "student" | "teacher"): string {
-  const base = role === "teacher" ? "/app/teacher" : "/app/student";
+export type TagNav = {
+  to: string;
+  params?: Record<string, string>;
+  search?: Record<string, string>;
+};
+
+/**
+ * Enlace a un ÍTEM específico según su tipo y el rol del receptor.
+ * Estudiantes y docentes ven vistas distintas — calculamos via `role`.
+ * El id SIEMPRE viaja: por ruta de detalle (`$id`) cuando existe, o por
+ * query-param que la grilla destino resalta (patrón `?poll=<id>` de encuestas).
+ * Si el receptor no tiene acceso al módulo (RBAC), el guardia de ruta redirige;
+ * no hacemos RBAC client-side.
+ */
+export function tagRoute(tag: ContentTag, role: "student" | "teacher"): TagNav {
   switch (tag.type) {
     case "workshop":
-      return `${base}/workshops`;
+      return role === "teacher"
+        ? { to: "/app/teacher/workshops", search: { workshop: tag.id } }
+        : { to: "/app/student/workshop/$workshopId", params: { workshopId: tag.id } };
     case "exam":
-      return `${base}/exams`;
+      return role === "teacher"
+        ? { to: "/app/teacher/exams/$examId", params: { examId: tag.id } }
+        : { to: "/app/student/exams", search: { exam: tag.id } };
     case "project":
-      return `${base}/projects`;
+      return role === "teacher"
+        ? { to: "/app/teacher/projects", search: { project: tag.id } }
+        : { to: "/app/student/project/$projectId", params: { projectId: tag.id } };
     case "content":
-      return role === "teacher" ? "/app/teacher/content" : "/app/student/content";
+      // No hay ruta de contenidos para el estudiante (el contenido vive dentro
+      // del tablero del curso); el docente tiene su grilla `/app/teacher/contents`.
+      return role === "teacher"
+        ? { to: "/app/teacher/contents", search: { content: tag.id } }
+        : { to: "/app/student/courses", search: { content: tag.id } };
     case "video":
-      return role === "teacher" ? "/app/teacher/videos" : "/app/student/videos";
+      // Biblioteca de videos: ruta compartida (sin prefijo de rol).
+      return { to: "/app/videos", search: { video: tag.id } };
   }
 }
 

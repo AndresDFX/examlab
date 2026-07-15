@@ -2142,7 +2142,7 @@ function MessagesPage() {
                                             <Link
                                               key={i}
                                               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                              to={tagRoute(seg.tag, role) as any}
+                                              {...(tagRoute(seg.tag, role) as any)}
                                               className={cn(
                                                 "inline-flex items-center gap-1 rounded px-1.5 py-0.5 mx-0.5 text-xs font-medium border align-middle",
                                                 mine

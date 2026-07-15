@@ -171,35 +171,65 @@ describe("parseMessageBody", () => {
 describe("tagRoute", () => {
   const types: TagType[] = ["workshop", "exam", "project", "content", "video"];
 
-  it.each(types)("devuelve ruta de estudiante para %s", (type) => {
-    const tag: ContentTag = { type, id: "x", label: "L" };
-    const route = tagRoute(tag, "student");
-    expect(route.startsWith("/app/student/")).toBe(true);
+  it.each(types)("el id SIEMPRE viaja (en params o search) para %s", (type) => {
+    for (const role of ["student", "teacher"] as const) {
+      const nav = tagRoute({ type, id: "abc-123", label: "L" }, role);
+      const carried = { ...(nav.params ?? {}), ...(nav.search ?? {}) };
+      expect(Object.values(carried)).toContain("abc-123");
+    }
   });
 
-  it.each(types)("devuelve ruta de docente para %s", (type) => {
-    const tag: ContentTag = { type, id: "x", label: "L" };
-    const route = tagRoute(tag, "teacher");
-    expect(route.startsWith("/app/teacher/")).toBe(true);
+  it("workshop → detalle $id del estudiante / grilla+param del docente", () => {
+    expect(tagRoute({ type: "workshop", id: "w1", label: "L" }, "student")).toEqual({
+      to: "/app/student/workshop/$workshopId",
+      params: { workshopId: "w1" },
+    });
+    expect(tagRoute({ type: "workshop", id: "w1", label: "L" }, "teacher")).toEqual({
+      to: "/app/teacher/workshops",
+      search: { workshop: "w1" },
+    });
   });
 
-  it("mapea workshop → /workshops", () => {
-    expect(tagRoute({ type: "workshop", id: "x", label: "L" }, "student")).toBe(
-      "/app/student/workshops",
-    );
-    expect(tagRoute({ type: "workshop", id: "x", label: "L" }, "teacher")).toBe(
-      "/app/teacher/workshops",
-    );
+  it("exam → grilla+param del estudiante / detalle $id del docente", () => {
+    expect(tagRoute({ type: "exam", id: "e1", label: "L" }, "student")).toEqual({
+      to: "/app/student/exams",
+      search: { exam: "e1" },
+    });
+    expect(tagRoute({ type: "exam", id: "e1", label: "L" }, "teacher")).toEqual({
+      to: "/app/teacher/exams/$examId",
+      params: { examId: "e1" },
+    });
   });
 
-  it("mapea exam → /exams", () => {
-    expect(tagRoute({ type: "exam", id: "x", label: "L" }, "student")).toBe("/app/student/exams");
+  it("project → detalle $id del estudiante / grilla+param del docente", () => {
+    expect(tagRoute({ type: "project", id: "p1", label: "L" }, "student")).toEqual({
+      to: "/app/student/project/$projectId",
+      params: { projectId: "p1" },
+    });
+    expect(tagRoute({ type: "project", id: "p1", label: "L" }, "teacher")).toEqual({
+      to: "/app/teacher/projects",
+      search: { project: "p1" },
+    });
   });
 
-  it("mapea project → /projects", () => {
-    expect(tagRoute({ type: "project", id: "x", label: "L" }, "teacher")).toBe(
-      "/app/teacher/projects",
-    );
+  it("content → grilla /app/teacher/contents (plural) / cursos del estudiante", () => {
+    expect(tagRoute({ type: "content", id: "c1", label: "L" }, "teacher")).toEqual({
+      to: "/app/teacher/contents",
+      search: { content: "c1" },
+    });
+    expect(tagRoute({ type: "content", id: "c1", label: "L" }, "student")).toEqual({
+      to: "/app/student/courses",
+      search: { content: "c1" },
+    });
+  });
+
+  it("video → biblioteca compartida /app/videos (ambos roles)", () => {
+    for (const role of ["student", "teacher"] as const) {
+      expect(tagRoute({ type: "video", id: "v1", label: "L" }, role)).toEqual({
+        to: "/app/videos",
+        search: { video: "v1" },
+      });
+    }
   });
 });
 
