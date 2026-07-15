@@ -8,7 +8,7 @@
 > verificados por consulta SQL directa el 2026-07-07. **Precios de terceros:** Gemini API y Supabase
 > (tier pago) a la fecha — verificar en la fuente antes de cotizar en firme.
 >
-> Complementa (y formaliza) [demos/presentacion/modelo-costos-ia-almacenamiento.md](../demos/presentacion/modelo-costos-ia-almacenamiento.md).
+> Complementa (y formaliza) [modelo-costos-ia-almacenamiento.md](modelo-costos-ia-almacenamiento.md).
 
 ---
 

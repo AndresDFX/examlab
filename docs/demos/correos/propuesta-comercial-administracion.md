@@ -54,7 +54,7 @@ La IA viene **incluida** (genera y califica exámenes, talleres y proyectos; **t
 - **O como add-on medido por consumo**, si prefieren no gestionar la clave (yo la administro y se factura por uso).
 - **Cola de procesamiento IA:** eligen modo **inmediato** (la IA responde al instante) o **en cola** (se procesa por lotes) para controlar **cuándo y cuánto** corre la IA — gasto predecible y sin bloquear la plataforma.
 - **Alta disponibilidad:** claves de respaldo con **failover automático** — si una clave agota su cuota, la IA sigue con la siguiente, sin caídas.
-- **Costo estimado (con datos reales):** con **Gemini 2.5 Flash** ≈ **US$0,06 por estudiante/mes** (rango 0,05–0,20 según intensidad) → ≈ **$16 / $95 / $315 al mes** para 250 / 1.500 / 5.000 estudiantes. Con su API key, eso lo paga la institución **directo a Google**. Aritmética completa en [`../presentacion/modelo-costos-ia-almacenamiento.md`](../presentacion/modelo-costos-ia-almacenamiento.md).
+- **Costo estimado (con datos reales):** con **Gemini 2.5 Flash** ≈ **US$0,06 por estudiante/mes** (rango 0,05–0,20 según intensidad) → ≈ **$16 / $95 / $315 al mes** para 250 / 1.500 / 5.000 estudiantes. Con su API key, eso lo paga la institución **directo a Google**. Aritmética completa en [`../../costos/modelo-costos-ia-almacenamiento.md`](../../costos/modelo-costos-ia-almacenamiento.md).
 - **Almacenamiento y regulación:** el uso real es bajo (~**6,6 MB/curso**; proyección 3–62 GB según plan) → **incluido** en el plan. Para exigencias regulatorias (Habeas Data / residencia de datos) ofrecemos **separación dedicada por institución** (bucket o proyecto propio) como add-on Enterprise.
 
 > En el **demo** la IA se ve en vivo: generación de preguntas/contenido y calificación con retroalimentación.
