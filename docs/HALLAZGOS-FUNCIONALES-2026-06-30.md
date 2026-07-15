@@ -12,7 +12,7 @@ Workflow `functional-validation-sweep` (9 módulos, review + verify adversarial)
 | C4 | exam-ai-grade | low | detect-plagiarism `inserted > 0` (array vs número) → audit siempre 'info' | ✅ inserted.length |
 | C5 | exam-ai-grade | low | ai-grade-submission `timeLimitSec` lee columna no incluida en join → dead code | ✅ removido |
 | C6 | projects | med | aiRegradeSubFile no actualiza gradingSubs → final_grade stale al guardar sustentación | ⬜ pendiente (riesgo medio, requiere recompute) |
-| C7 | attendance | low | check_in_open queda colgado si el proyector se cierra (sin cron de expiración) | ⬜ pendiente (necesita cron/RPC) |
+| C7 | attendance | low | check_in_open queda colgado si el proyector se cierra (sin cron de expiración) | ✅ CORREGIDO (mig 20261230000000): pg_cron cada minuto + `close_expired_attendance_check_ins()` — ver HALLAZGOS-BUGS-2026-07-15 |
 | C8 | attendance | low | check-in por deep-link no refresca la tarjeta (depende de realtime) | ✅ loadOpenSessions encadenado |
 | C9 | polls | med | slotSummary/suggestSlotCupo usan floor; generateSlotsForDates usa ceil → divergencia | ✅ slotsPerDayCount (ceil) + tests |
 | C10 | polls | low | re-votar en slot (clear+vote) no atómico → alumno puede quedar sin voto | ⬜ pendiente (RPC atómico) |

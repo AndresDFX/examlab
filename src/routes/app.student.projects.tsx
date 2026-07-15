@@ -638,7 +638,9 @@ function StudentProjects() {
                     <Badge className="shrink-0">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
                       {grade != null
-                        ? `${project.is_external ? grade : +(project.course.grade_scale_min + (grade / (project.max_score || 100)) * (project.course.grade_scale_max - project.course.grade_scale_min)).toFixed(2)}/${project.course.grade_scale_max}`
+                        ? project.course
+                          ? `${project.is_external ? grade : +(project.course.grade_scale_min + (grade / (project.max_score || 100)) * (project.course.grade_scale_max - project.course.grade_scale_min)).toFixed(2)}/${project.course.grade_scale_max}`
+                          : `${grade}`
                         : t("project.submitted")}
                     </Badge>
                   ) : submission?.status === "entregado" ? (

@@ -987,37 +987,13 @@ function TeacherAttendance() {
         metadata: { duration_minutes: checkInDuration, rotation_seconds: checkInRotation },
       });
 
-      // Notificar a los matriculados del curso. Usa kind='exam'
-      // (CRITICAL_KIND) para disparar correo — semánticamente "tienes
-      // algo de tu clase que atender ahora". El body explica que es
-      // check-in de asistencia. El link lleva al módulo del estudiante,
-      // donde el card "Check-in disponible" aparece automáticamente.
-      // Fire-and-forget — no bloqueamos el setProjector.
-      // `.then(noop, noop)` fuerza el builder lazy de supabase-js (ver
-      // kahoot heartbeat); sin él la RPC nunca se dispara.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase as any)
-        .rpc("notify_course_students", {
-          _course_id: checkInConfigSession.course_id,
-          _title: t("teacherAttendance.checkInNotifyTitle"),
-          _body:
-            t("teacherAttendance.checkInNotifyBodyStart", {
-              date: checkInConfigSession.session_date,
-            }) +
-            (checkInConfigSession.title
-              ? t("teacherAttendance.checkInNotifyBodyTitle", {
-                  title: checkInConfigSession.title,
-                })
-              : "") +
-            t("teacherAttendance.checkInNotifyBodyEnd", { count: checkInDuration }),
-          _kind: "exam",
-          _link: "/app/student/attendance",
-        })
-        .then(
-          () => {},
-          () => {},
-        );
-
+      // NO notificamos desde el cliente: el trigger de DB
+      // `trg_notify_attendance_check_in_open` (AFTER UPDATE OF check_in_open,
+      // WHEN false→true) ya inserta la notificación `kind='attendance'` +
+      // correo + push a TODOS los matriculados, y cubre CUALQUIER vía de
+      // apertura (UI, RPC directa, SQL) de forma idempotente. La llamada
+      // cliente adicional duplicaba notif/correo/push por cada alumno
+      // (2× por apertura — p.ej. 186 correos en un curso de 93).
       setCheckInConfigSession(null);
       // Refresca listado para reflejar check_in_open=true
       loadCourse();

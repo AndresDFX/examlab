@@ -53,6 +53,11 @@ function parsePayload(text: string): { sessionId: string; code: string } | null 
 export function AttendanceQRScanner({ onDetected, onClose }: Props) {
   const { t } = useTranslation();
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  // html5-qrcode invoca el callback de éxito por CADA frame decodificado (fps:10)
+  // y scanner.stop() es async: antes de que resuelva puede llegar otro frame con el
+  // mismo QR → onDetected/submitCheckIn se dispararía dos veces (doble toast). Este
+  // guard garantiza una sola detección.
+  const detectedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(true);
 
@@ -71,12 +76,13 @@ export function AttendanceQRScanner({ onDetected, onClose }: Props) {
             aspectRatio: 1.0,
           },
           (decodedText) => {
-            if (cancelled) return;
+            if (cancelled || detectedRef.current) return;
             const parsed = parsePayload(decodedText);
             if (!parsed) {
               // QR no reconocido — seguir escaneando.
               return;
             }
+            detectedRef.current = true;
             // Stop antes de notificar para evitar múltiples disparos.
             scanner
               .stop()

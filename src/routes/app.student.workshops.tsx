@@ -611,7 +611,9 @@ function StudentWorkshops() {
                     <Badge className="shrink-0">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
                       {grade != null
-                        ? `${workshop.is_external ? grade : +(workshop.course.grade_scale_min + (grade / (workshop.max_score || 100)) * (workshop.course.grade_scale_max - workshop.course.grade_scale_min)).toFixed(2)}/${workshop.course.grade_scale_max}`
+                        ? workshop.course
+                          ? `${workshop.is_external ? grade : +(workshop.course.grade_scale_min + (grade / (workshop.max_score || 100)) * (workshop.course.grade_scale_max - workshop.course.grade_scale_min)).toFixed(2)}/${workshop.course.grade_scale_max}`
+                          : `${grade}`
                         : t("exam.submitted")}
                     </Badge>
                   ) : submission?.status === "entregado" ? (

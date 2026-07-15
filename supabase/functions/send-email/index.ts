@@ -684,22 +684,14 @@ Deno.serve(async (req: Request) => {
   let attemptsMade = 0;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     attemptsMade = attempt;
+    // SOLO el envío SMTP decide reintento. markDelivered/auditEmail (bookkeeping
+    // contra la REST de Supabase) van FUERA de este try: si el correo YA salió y
+    // un blip de red hace fallar markDelivered con un mensaje "transitorio"
+    // (timeout/connection reset), meterlo acá dispararía `continue` → REENVÍO del
+    // MISMO correo (duplicados en difusiones bajo carga). Un fallo de bookkeeping
+    // jamás debe provocar un reenvío.
     try {
       await attemptSmtpSend();
-      await markDelivered(notificationId);
-      await auditEmail(notificationId, "email.delivered", "info", {
-        smtp_host: host,
-        smtp_port: port,
-        smtp_source: smtpSource,
-        smtp_ms: Date.now() - smtpStartMs,
-        sender: `${fromName} <${from}>`,
-        recipients_count: recipients.length,
-        // Lista de destinatarios — útil para diagnóstico si el alumno reclama
-        // "no me llegó al personal". NO incluimos el contenido del mensaje.
-        recipients,
-        attempts: attempt,
-      });
-      return jsonResponse({ ok: true, sent: true });
     } catch (e) {
       lastErr = (e instanceof Error ? e.message : String(e)).slice(0, 200);
       if (
@@ -715,6 +707,27 @@ Deno.serve(async (req: Request) => {
       }
       break; // permanente, o transitorio sin intentos restantes
     }
+    // El correo se entregó. El bookkeeping es best-effort: si falla, peor caso el
+    // cron retry_failed_email_notifications lo reintenta luego (1 correo extra
+    // eventual), NUNCA un reenvío inmediato en este loop.
+    try {
+      await markDelivered(notificationId);
+      await auditEmail(notificationId, "email.delivered", "info", {
+        smtp_host: host,
+        smtp_port: port,
+        smtp_source: smtpSource,
+        smtp_ms: Date.now() - smtpStartMs,
+        sender: `${fromName} <${from}>`,
+        recipients_count: recipients.length,
+        // Lista de destinatarios — útil para diagnóstico si el alumno reclama
+        // "no me llegó al personal". NO incluimos el contenido del mensaje.
+        recipients,
+        attempts: attempt,
+      });
+    } catch {
+      /* best-effort — el correo YA salió; jamás reintentar el SMTP por esto */
+    }
+    return jsonResponse({ ok: true, sent: true });
   }
 
   // Falló definitivamente (tras reintentos si aplicaba).

@@ -513,8 +513,16 @@ function TeacherPolls() {
     return { draft, active, closed, slot };
   }, [polls]);
 
+  // Estado EFECTIVO de cierre: cerrada manualmente O vencida por tiempo. El label de
+  // la acción y toggleClose deben derivar de acá (no solo de closed_manually) — sino
+  // una encuesta cerrada por tiempo mostraba «Cerrar» y no había forma de reabrirla.
+  const isEffectivelyClosed = (p: Poll) =>
+    !!p.closed_manually ||
+    (p.closes_at != null && new Date(p.closes_at).getTime() < Date.now());
+
   const toggleClose = async (p: Poll) => {
-    const willClose = !p.closed_manually;
+    const timeExpired = p.closes_at != null && new Date(p.closes_at).getTime() < Date.now();
+    const willClose = !isEffectivelyClosed(p);
     if (willClose) {
       const ok = await confirm({
         title: t("teacherPolls.confirmCloseTitle", { title: p.title }),
@@ -524,7 +532,14 @@ function TeacherPolls() {
       });
       if (!ok) return;
     }
-    const { error } = await db.from("polls").update({ closed_manually: willClose }).eq("id", p.id);
+    // Al REABRIR, si estaba vencida por tiempo hay que limpiar closes_at — sino
+    // pollStats/pollIsOpen la seguirían contando cerrada y el toast «reabierta»
+    // mentiría (quedaba cerrada). closed_manually=false sin esto no alcanza.
+    const patch: { closed_manually: boolean; closes_at?: string | null } = {
+      closed_manually: willClose,
+    };
+    if (!willClose && timeExpired) patch.closes_at = null;
+    const { error } = await db.from("polls").update(patch).eq("id", p.id);
     if (error) {
       toast.error(friendlyError(error));
       return;
@@ -1059,8 +1074,8 @@ function TeacherPolls() {
                                     { label: t("common.edit"), icon: Pencil, onClick: () => setEditPoll(p) },
                                     { label: t("common.duplicate"), icon: Copy, onClick: () => setDuplicateFor(p) },
                                     {
-                                      label: p.closed_manually ? t("teacherPolls.actionReopen") : t("teacherPolls.actionClose"),
-                                      icon: p.closed_manually ? Unlock : Lock,
+                                      label: isEffectivelyClosed(p) ? t("teacherPolls.actionReopen") : t("teacherPolls.actionClose"),
+                                      icon: isEffectivelyClosed(p) ? Unlock : Lock,
                                       onClick: () => void toggleClose(p),
                                     },
                                     {
@@ -1890,6 +1905,26 @@ function CreatePollDialog({
               toast.error(friendlyError(delErr, t("teacherPolls.errUpdateOptions")));
               return;
             }
+          }
+          // Rechazar bajar el cupo de una opción por DEBAJO de las reservas ya
+          // hechas — sino queda sobre-suscrita (responses_count > max_responses),
+          // el conteo muestra "2 / 1" y el invariante se viola en silencio. Mismo
+          // espíritu que no permitir borrar slots con reservas (arriba).
+          const countById = new Map(existing.map((e) => [e.id, e.responses_count ?? 0]));
+          const overbooked = validOpts.filter(
+            (o) =>
+              o.id &&
+              Math.max(1, Math.floor(Number(o.max_responses) || 1)) < (countById.get(o.id) ?? 0),
+          );
+          if (overbooked.length > 0) {
+            toast.error(
+              i18n.t("toast.routes_app_teacher_polls.slotCupoBelowReservations", {
+                defaultValue:
+                  "No puedes bajar el cupo por debajo de las reservas ya hechas: {{labels}}. Quítale primero la respuesta a algún estudiante desde «Ver resultados».",
+                labels: overbooked.map((o) => o.label).join(", "),
+              }),
+            );
+            return;
           }
           // Actualizar existentes (label/posición/cupo) e insertar nuevos,
           // respetando el orden de la lista del formulario.
