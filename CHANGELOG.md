@@ -46,6 +46,28 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## Historial
 
+### 2026-07-15
+
+**Correo: enfoque "From verificado + Reply-To" (sin spoofear).** Implementa la alternativa
+del plan (evita romper SPF/DKIM/DMARC): el From sigue siendo el remitente verificado; se pone
+como **Reply-To** el correo del **docente emisor** (difusiones con `related_user_id`) →
+**Reply-To de la institución** (`tenant_email_settings.reply_to`) → default (el From).
+- Mig `20261150000000`: columna `tenant_email_settings.reply_to` (aplica aunque no use SMTP propio).
+- Edge `send-email`: trae `related_user_id` + `reply_to`, resuelve `replyTo` y lo usa en
+  `mailOptions` (antes `replyTo: from` fijo). From NO cambia (sin spoofing).
+- UI: campo "Correo de respuesta (Reply-To)" en `TenantEmailSettingsDialog` (fuera del gate de
+  SMTP propio). Nota: el modelo "app OAuth multi-dominio" se descartó por requerir revisión de
+  Google (scopes sensibles). Aplicada a PROD; requiere Publish.
+
+**URLs referenciables por ítem — fix de `tagRoute` (mensajes `#`-tags).** Auditoría
+([docs/AUDIT-URLS-REFERENCIABLES.md](docs/AUDIT-URLS-REFERENCIABLES.md)) encontró que los tags
+iban a la grilla raíz (id descartado) y, para content/video, a rutas inexistentes.
+- `tagRoute` → `{to, params?, search?}`: detalle `$id` (workshop/project est., exam doc.) o
+  grilla+param que resalta (`?workshop=`, `?exam=`, `?content=`, `?video=`, `?project=`). El id
+  SIEMPRE viaja. Rutas corregidas: `/app/teacher/contents` (plural), `/app/videos` (compartida).
+- Videos y Contenidos leen el deep-link y resaltan el ítem (best-effort, patrón `?poll=`).
+- Commits `cc642941` (tagRoute + tests, 35 pass) + `1d2b6261` (highlights). tsc EXIT=0.
+
 ### 2026-07-14
 
 **Refactor de envío de correos — investigación + plan (no implementado) + fix de seguridad.**

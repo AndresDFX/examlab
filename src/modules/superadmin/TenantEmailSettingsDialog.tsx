@@ -46,6 +46,7 @@ interface Form {
   smtp_password: string;
   email_from: string;
   email_from_name: string;
+  reply_to: string;
 }
 
 const EMPTY: Form = {
@@ -56,6 +57,7 @@ const EMPTY: Form = {
   smtp_password: "",
   email_from: "",
   email_from_name: "",
+  reply_to: "",
 };
 
 export function TenantEmailSettingsDialog({ open, onOpenChange, tenantId, tenantName }: Props) {
@@ -72,7 +74,7 @@ export function TenantEmailSettingsDialog({ open, onOpenChange, tenantId, tenant
       const { data } = await db
         .from("tenant_email_settings")
         .select(
-          "use_custom_smtp, smtp_host, smtp_port, smtp_user, smtp_password, email_from, email_from_name",
+          "use_custom_smtp, smtp_host, smtp_port, smtp_user, smtp_password, email_from, email_from_name, reply_to",
         )
         .eq("tenant_id", tenantId)
         .maybeSingle();
@@ -87,6 +89,7 @@ export function TenantEmailSettingsDialog({ open, onOpenChange, tenantId, tenant
               smtp_password: data.smtp_password ?? "",
               email_from: data.email_from ?? "",
               email_from_name: data.email_from_name ?? "",
+              reply_to: data.reply_to ?? "",
             }
           : EMPTY,
       );
@@ -133,6 +136,7 @@ export function TenantEmailSettingsDialog({ open, onOpenChange, tenantId, tenant
           smtp_password: form.smtp_password.trim() || null,
           email_from: form.email_from.trim() || null,
           email_from_name: form.email_from_name.trim() || null,
+          reply_to: form.reply_to.trim() || null,
           updated_at: new Date().toISOString(),
           updated_by: auth?.user?.id ?? null,
         },
@@ -251,6 +255,24 @@ export function TenantEmailSettingsDialog({ open, onOpenChange, tenantId, tenant
                 </div>
               </div>
             </fieldset>
+
+            {/* Reply-To: aplica SIEMPRE (con o sin SMTP propio). El From no
+                cambia (sigue el remitente verificado), solo el canal de respuesta. */}
+            <div>
+              <Label>{t("tenantEmail.replyTo", { defaultValue: "Correo de respuesta (Reply-To)" })}</Label>
+              <Input
+                value={form.reply_to}
+                onChange={(e) => set("reply_to", e.target.value)}
+                placeholder="contacto@institucion.edu.co"
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {t("tenantEmail.replyToHint", {
+                  defaultValue:
+                    "A dónde llegan las respuestas de los alumnos. Se aplica aunque no uses SMTP propio; el remitente (From) no cambia. En difusiones, la respuesta va al docente que las envió.",
+                })}
+              </p>
+            </div>
           </div>
         )}
 

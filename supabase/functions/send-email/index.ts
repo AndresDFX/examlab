@@ -338,7 +338,7 @@ Deno.serve(async (req: Request) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: row, error: rowErr } = await (adminClient as any)
     .from("notifications")
-    .select("id, user_id, title, body, link, kind")
+    .select("id, user_id, title, body, link, kind, related_user_id")
     .eq("id", notificationId)
     .maybeSingle();
 
@@ -490,13 +490,16 @@ Deno.serve(async (req: Request) => {
   let fromName = Deno.env.get("EMAIL_FROM_NAME") ?? "ExamLab";
   const appUrl = Deno.env.get("APP_PUBLIC_URL") ?? "";
   let smtpSource = "global";
+  // Reply-To resuelto (docente emisor → institución → default = remitente).
+  // Se puebla abajo; si queda undefined, cae a `from` en mailOptions.
+  let replyTo: string | undefined;
 
   const tenantId: string | null = profile?.tenant_id ?? null;
   if (tenantId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: tes } = await (adminClient as any)
       .from("tenant_email_settings")
-      .select("use_custom_smtp, smtp_host, smtp_port, smtp_user, smtp_password, email_from, email_from_name")
+      .select("use_custom_smtp, smtp_host, smtp_port, smtp_user, smtp_password, email_from, email_from_name, reply_to")
       .eq("tenant_id", tenantId)
       .maybeSingle();
     if (
@@ -514,6 +517,29 @@ Deno.serve(async (req: Request) => {
       from = tes.email_from;
       fromName = tes.email_from_name || fromName;
       smtpSource = "tenant";
+    }
+    // Reply-To de la institución (independiente de use_custom_smtp): aunque el
+    // correo salga por el remitente global verificado, las respuestas van a la
+    // institución. Se sobrescribe abajo por el docente emisor si lo hay.
+    if (typeof tes?.reply_to === "string" && tes.reply_to.trim()) {
+      replyTo = tes.reply_to.trim();
+    }
+  }
+
+  // Reply-To = docente EMISOR cuando la notificación tiene un actor
+  // (difusiones/mensajes: related_user_id). Prioriza al docente por sobre el
+  // Reply-To de la institución: si un alumno responde una difusión, le llega al
+  // docente que la mandó. From NO cambia (sin spoofing): solo el canal de respuesta.
+  if (row.related_user_id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: sender } = await (adminClient as any)
+      .from("profiles")
+      .select("institutional_email, personal_email")
+      .eq("id", row.related_user_id)
+      .maybeSingle();
+    const senderEmail = sender?.institutional_email || sender?.personal_email;
+    if (typeof senderEmail === "string" && senderEmail.trim()) {
+      replyTo = senderEmail.trim();
     }
   }
 
@@ -582,10 +608,11 @@ Deno.serve(async (req: Request) => {
       // de privacidad). Si solo hay uno (institutional o personal),
       // pasa un array de 1 y SMTP ignora la diferencia.
       to: recipients,
-      // Reply-To: si el alumno responde, va al SMTP_USER (la cuenta
-      // que el docente/admin monitorea). Sin esto, Outlook penaliza
-      // el trust score por ausencia de canal de respuesta.
-      replyTo: from,
+      // Reply-To: docente emisor (difusión) → Reply-To de la institución →
+      // remitente. Así las respuestas del alumno llegan a quien corresponde
+      // SIN cambiar el From (que sigue siendo el remitente verificado, sin
+      // spoofing). Sin Reply-To, Outlook penaliza el trust score.
+      replyTo: replyTo ?? from,
       // Asunto branded: prefijo "<BrandName>: " antes del título de la
       // notificación. Mejora deliverability (clientes pesan el brand al
       // clasificar) y le da contexto inmediato al alumno cuando ve
