@@ -108,6 +108,29 @@ describe("pptxSlideXmlToText", () => {
   });
 });
 
+describe("robustez de decodeXmlEntities (via docx/pptx)", () => {
+  it("no lanza RangeError con code point fuera de rango; conserva el texto", () => {
+    const xml =
+      "<w:document><w:body>" +
+      "<w:p><w:r><w:t>Antes &#x110000; y &#9999999; después</w:t></w:r></w:p>" +
+      "<w:p><w:r><w:t>Texto válido</w:t></w:r></w:p>" +
+      "</w:body></w:document>";
+    let out = "";
+    expect(() => {
+      out = docxXmlToText(xml);
+    }).not.toThrow();
+    // El texto legítimo sobrevive (no se pierde todo el documento).
+    expect(out).toContain("Texto válido");
+    expect(out).toContain("Antes");
+    expect(out).toContain("después");
+  });
+
+  it("decodifica code points válidos normalmente", () => {
+    const xml = "<w:p><w:r><w:t>caf&#233; &#x1F600;</w:t></w:r></w:p>";
+    expect(docxXmlToText(xml)).toBe("café 😀");
+  });
+});
+
 describe("xlsx", () => {
   it("isOfficeDoc incluye xlsx", () => {
     expect(isOfficeDoc("datos.xlsx")).toBe(true);

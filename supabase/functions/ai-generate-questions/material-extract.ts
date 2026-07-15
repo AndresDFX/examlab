@@ -46,8 +46,15 @@ function decodeXmlEntities(s: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+    // Guard code point fuera de rango (evita RangeError que descarta todo el doc).
+    .replace(/&#x([0-9a-fA-F]+);/g, (m, h) => {
+      const cp = parseInt(h, 16);
+      return cp >= 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : m;
+    })
+    .replace(/&#(\d+);/g, (m, d) => {
+      const cp = parseInt(d, 10);
+      return cp >= 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : m;
+    })
     .replace(/&amp;/g, "&");
 }
 

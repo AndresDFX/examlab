@@ -22,7 +22,10 @@ const VIEWABLE_IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "webp", "gif", "svg",
 // Imágenes EDITABLES en el editor de canvas: raster que `canvas.toBlob`
 // puede re-exportar. SVG (vectorial) y GIF (animado) quedan SOLO como
 // visualizables — editarlos sobre canvas perdería vector/animación.
-const EDITABLE_IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "webp", "bmp", "avif"]);
+// bmp/avif NO son editables: canvas.toBlob no los re-exporta fielmente (se
+// guardaría un PNG con extensión/content-type .bmp/.avif = archivo corrupto).
+// Siguen siendo VISUALIZABLES (VIEWABLE_IMAGE_EXTS), solo no editables.
+const EDITABLE_IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "webp"]);
 
 /** ¿Es una imagen que se puede MOSTRAR inline con <img>? */
 export function isImageFile(name: string | null | undefined): boolean {

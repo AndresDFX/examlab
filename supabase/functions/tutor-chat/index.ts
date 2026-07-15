@@ -91,6 +91,18 @@ const CONTENTS_BUCKET = "generated-contents";
 type MaterialFile = { name?: string; path?: string; kind?: string; body?: string };
 type MaterialRow = { id: string; topic: string; display_name: string; files: MaterialFile[] | null };
 
+// Archivos SOLO-docente (soluciones, claves de examen, guía docente): el alumno
+// NUNCA debe verlos, así que el Tutor IA tampoco puede leerlos en su contexto.
+// Réplica de src/modules/contents/contents-extract.ts `isTeacherOnlyFile`
+// (Deno no importa de src). Mantener el patrón en sync.
+function isTeacherOnlyFile(name: string): boolean {
+  const upper = String(name).toUpperCase();
+  if (/SOLUCION|SOLUTION/.test(upper)) return true;
+  if (/GUIA[_\s-]*DOCENTE|TEACHER[_\s-]*GUIDE/.test(upper)) return true;
+  if (/^EXAMEN|[_\s-]EXAMEN|^EXAM[_\s-]|[_\s-]EXAM[_\s-]/.test(upper)) return true;
+  return false;
+}
+
 /** Descomprime un docx/pptx (ZIP) y extrae su texto interno. Best-effort. */
 async function extractOfficeText(buf: Uint8Array, ext: string): Promise<string> {
   const fflate = await import("npm:fflate@0.8.2");
@@ -206,6 +218,9 @@ async function buildCourseMaterial(
     for (const f of files) {
       if (!f || !f.name) continue;
       const name = String(f.name);
+      // Seguridad: NUNCA alimentar al tutor con material solo-docente
+      // (soluciones/claves de examen/guía docente) — sería filtrarlo al alumno.
+      if (isTeacherOnlyFile(name)) continue;
       const hasInline = typeof f.body === "string" && f.body.trim().length > 0;
       const needsExtraction =
         !hasInline && (isOfficeDoc(name) || name.toLowerCase().endsWith(".pdf")) && !!f.path;

@@ -27,6 +27,7 @@ import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { findActiveTagQuery } from "@/modules/messaging/message-tags";
 import { isReferenceableFile } from "@/modules/contents/material-extract";
+import { isTeacherOnlyFile } from "@/modules/contents/contents-extract";
 import { cn } from "@/shared/lib/utils";
 import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
@@ -128,7 +129,9 @@ function TutorChat() {
         }>) {
           const contentName = (row.display_name || row.topic || t("hc_routesAppStudentTutorCourseId.contentFallback")).trim();
           for (const f of Array.isArray(row.files) ? row.files : []) {
-            if (f?.name && isReferenceableFile(f.name)) {
+            // Excluir material solo-docente (soluciones/claves/guía docente):
+            // el alumno no debe verlo ni referenciarlo (el edge también lo salta).
+            if (f?.name && isReferenceableFile(f.name) && !isTeacherOnlyFile(f.name)) {
               files.push({ contentId: row.id, contentName, fileName: String(f.name) });
             }
           }
