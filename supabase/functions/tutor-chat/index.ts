@@ -139,6 +139,20 @@ async function extractOfficeText(buf: Uint8Array, ext: string): Promise<string> 
   return parts.join("\n\n");
 }
 
+/** Extrae texto de un PDF con unpdf. Best-effort: PDF escaneado/cifrado o fallo
+ *  de la lib → "" (el archivo se omite, sin romper el flujo). */
+async function extractPdfText(buf: Uint8Array): Promise<string> {
+  try {
+    const { extractText, getDocumentProxy } = await import("npm:unpdf@1.6.2");
+    const pdf = await getDocumentProxy(buf);
+    const { text } = await extractText(pdf, { mergePages: true });
+    const s = typeof text === "string" ? text : Array.isArray(text) ? text.join("\n") : "";
+    return s.trim();
+  } catch {
+    return "";
+  }
+}
+
 /** Texto legible de UN archivo (inline o extraído). Devuelve `{text, extracted}`. */
 async function readFileText(
   f: MaterialFile,
@@ -162,6 +176,18 @@ async function readFileText(
       /* best-effort: si falla la descarga/descompresión, el archivo se omite */
     }
   }
+  if (name.toLowerCase().endsWith(".pdf") && f.path) {
+    try {
+      const dl = await admin.storage.from(CONTENTS_BUCKET).download(f.path);
+      if (dl.data) {
+        const buf = new Uint8Array(await dl.data.arrayBuffer());
+        const text = await extractPdfText(buf);
+        return { text, extracted: text.length > 0 };
+      }
+    } catch {
+      /* best-effort */
+    }
+  }
   return { text: "", extracted: false };
 }
 
@@ -181,7 +207,8 @@ async function buildCourseMaterial(
       if (!f || !f.name) continue;
       const name = String(f.name);
       const hasInline = typeof f.body === "string" && f.body.trim().length > 0;
-      const needsExtraction = !hasInline && isOfficeDoc(name) && !!f.path;
+      const needsExtraction =
+        !hasInline && (isOfficeDoc(name) || name.toLowerCase().endsWith(".pdf")) && !!f.path;
       if (needsExtraction && extractions >= MAX_STORAGE_EXTRACTIONS) continue;
       if (needsExtraction) extractions++;
       const { text, extracted } = await readFileText(f);
