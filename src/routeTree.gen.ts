@@ -27,6 +27,7 @@ import { Route as AppPrivacyRouteImport } from './routes/app.privacy'
 import { Route as AppPreferencesRouteImport } from './routes/app.preferences'
 import { Route as AppMessagesRouteImport } from './routes/app.messages'
 import { Route as AppCertificatesRouteImport } from './routes/app.certificates'
+import { Route as AppAssistantRouteImport } from './routes/app.assistant'
 import { Route as AppTeacherWorkshopsRouteImport } from './routes/app.teacher.workshops'
 import { Route as AppTeacherStudentsRouteImport } from './routes/app.teacher.students'
 import { Route as AppTeacherStatisticsRouteImport } from './routes/app.teacher.statistics'
@@ -57,8 +58,8 @@ import { Route as AppStudentAttendanceRouteImport } from './routes/app.student.a
 import { Route as AppForumCourseIdRouteImport } from './routes/app.forum.$courseId'
 import { Route as AppAdminUsersRouteImport } from './routes/app.admin.users'
 import { Route as AppAdminSystemRouteImport } from './routes/app.admin.system'
-import { Route as AppAdminSupportRouteImport } from './routes/app.admin.support'
 import { Route as AppAdminSupportAssistantRouteImport } from './routes/app.admin.support-assistant'
+import { Route as AppAdminSupportRouteImport } from './routes/app.admin.support'
 import { Route as AppAdminStatisticsRouteImport } from './routes/app.admin.statistics'
 import { Route as AppAdminSettingsRouteImport } from './routes/app.admin.settings'
 import { Route as AppAdminReportTemplatesRouteImport } from './routes/app.admin.report-templates'
@@ -177,6 +178,11 @@ const AppMessagesRoute = AppMessagesRouteImport.update({
 const AppCertificatesRoute = AppCertificatesRouteImport.update({
   id: '/certificates',
   path: '/certificates',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAssistantRoute = AppAssistantRouteImport.update({
+  id: '/assistant',
+  path: '/assistant',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTeacherWorkshopsRoute = AppTeacherWorkshopsRouteImport.update({
@@ -329,14 +335,15 @@ const AppAdminSystemRoute = AppAdminSystemRouteImport.update({
   path: '/admin/system',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminSupportAssistantRoute =
+  AppAdminSupportAssistantRouteImport.update({
+    id: '/admin/support-assistant',
+    path: '/admin/support-assistant',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppAdminSupportRoute = AppAdminSupportRouteImport.update({
   id: '/admin/support',
   path: '/admin/support',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppAdminSupportAssistantRoute = AppAdminSupportAssistantRouteImport.update({
-  id: '/admin/support-assistant',
-  path: '/admin/support-assistant',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAdminStatisticsRoute = AppAdminStatisticsRouteImport.update({
@@ -496,6 +503,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRouteWithChildren
   '/privacy': typeof PrivacyRoute
+  '/app/assistant': typeof AppAssistantRoute
   '/app/certificates': typeof AppCertificatesRoute
   '/app/messages': typeof AppMessagesRoute
   '/app/preferences': typeof AppPreferencesRoute
@@ -575,6 +583,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/privacy': typeof PrivacyRoute
+  '/app/assistant': typeof AppAssistantRoute
   '/app/certificates': typeof AppCertificatesRoute
   '/app/messages': typeof AppMessagesRoute
   '/app/preferences': typeof AppPreferencesRoute
@@ -657,6 +666,7 @@ export interface FileRoutesById {
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRouteWithChildren
   '/privacy': typeof PrivacyRoute
+  '/app/assistant': typeof AppAssistantRoute
   '/app/certificates': typeof AppCertificatesRoute
   '/app/messages': typeof AppMessagesRoute
   '/app/preferences': typeof AppPreferencesRoute
@@ -740,6 +750,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/auth'
     | '/privacy'
+    | '/app/assistant'
     | '/app/certificates'
     | '/app/messages'
     | '/app/preferences'
@@ -819,6 +830,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/privacy'
+    | '/app/assistant'
     | '/app/certificates'
     | '/app/messages'
     | '/app/preferences'
@@ -900,6 +912,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/auth'
     | '/privacy'
+    | '/app/assistant'
     | '/app/certificates'
     | '/app/messages'
     | '/app/preferences'
@@ -1113,6 +1126,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCertificatesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/assistant': {
+      id: '/app/assistant'
+      path: '/assistant'
+      fullPath: '/app/assistant'
+      preLoaderRoute: typeof AppAssistantRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/teacher/workshops': {
       id: '/app/teacher/workshops'
       path: '/teacher/workshops'
@@ -1323,18 +1343,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminSystemRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/admin/support': {
-      id: '/app/admin/support'
-      path: '/admin/support'
-      fullPath: '/app/admin/support'
-      preLoaderRoute: typeof AppAdminSupportRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/app/admin/support-assistant': {
       id: '/app/admin/support-assistant'
       path: '/admin/support-assistant'
       fullPath: '/app/admin/support-assistant'
       preLoaderRoute: typeof AppAdminSupportAssistantRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/admin/support': {
+      id: '/app/admin/support'
+      path: '/admin/support'
+      fullPath: '/app/admin/support'
+      preLoaderRoute: typeof AppAdminSupportRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/admin/statistics': {
@@ -1569,6 +1589,7 @@ const AppForumCourseIdRouteWithChildren =
   AppForumCourseIdRoute._addFileChildren(AppForumCourseIdRouteChildren)
 
 interface AppRouteChildren {
+  AppAssistantRoute: typeof AppAssistantRoute
   AppCertificatesRoute: typeof AppCertificatesRoute
   AppMessagesRoute: typeof AppMessagesRoute
   AppPreferencesRoute: typeof AppPreferencesRoute
@@ -1639,6 +1660,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAssistantRoute: AppAssistantRoute,
   AppCertificatesRoute: AppCertificatesRoute,
   AppMessagesRoute: AppMessagesRoute,
   AppPreferencesRoute: AppPreferencesRoute,
@@ -1738,12 +1760,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

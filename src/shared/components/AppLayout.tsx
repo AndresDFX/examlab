@@ -417,14 +417,14 @@ const NAV: NavItem[] = [
   // SuperAdmin la ve heredada de Admin. RLS de cada tabla acota qué
   // items ven en la papelera (docente: su curso; admin: su tenant).
   { to: "/app/trash", labelKey: "nav.trash", icon: Trash2, roles: ["Docente", "Admin"] },
-  // Asistente IA de plataforma — chat de ayuda de USO de ExamLab para el
-  // Admin (clon del Tutor IA del alumno, sin curso). Va antes de Soporte:
-  // primero el autoservicio, luego el ticket. SuperAdmin lo hereda de Admin.
+  // Asistente IA de plataforma — chat de ayuda de USO de ExamLab para TODOS
+  // los roles (clon del Tutor IA del alumno, sin curso). El edge adapta la KB
+  // + el prompt al rol activo. SuperAdmin lo hereda de Admin.
   {
-    to: "/app/admin/support-assistant",
+    to: "/app/assistant",
     labelKey: "nav.supportAssistant",
     icon: Bot,
-    roles: ["Admin"],
+    roles: ["Estudiante", "Docente", "Admin"],
   },
   // Soporte (PQRS) — Admin abre tickets hacia el SuperAdmin; el SA los
   // gestiona en su propia ruta. Ambos items mapean al MISMO module_key
@@ -962,7 +962,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     ["/app/superadmin/tenants", "tenants"],
     // Asistente IA de plataforma (Admin; SuperAdmin lo hereda). Mapea a
     // su propio module_key para respetar orden/visibility del panel.
-    ["/app/admin/support-assistant", "support_assistant"],
+    ["/app/assistant", "support_assistant"],
     // Soporte (Admin + SuperAdmin): el panel "Módulos" tiene UNA fila
     // "support" que decide visibility/orden para ambos lados a la vez.
     ["/app/admin/support", "support"],

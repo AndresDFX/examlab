@@ -87,6 +87,8 @@ export const ROUTE_RULES: RouteRule[] = [
   // vive bajo /app/superadmin/support (cubierta por /app/superadmin
   // que ya es SA-only). No requiere reglas adicionales acá — el match
   // longest-prefix las resuelve correctamente.
+  // Asistente IA de plataforma: ayuda de USO de la app, para TODOS los roles.
+  { prefix: "/app/assistant", roles: null },
   { prefix: "/app/unauthorized", roles: null },
   { prefix: "/app", roles: null },
 ];

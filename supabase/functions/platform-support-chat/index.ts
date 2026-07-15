@@ -164,16 +164,18 @@ Deno.serve(async (req) => {
     if (!u.user) throw new Error("No autenticado");
     const userId = u.user.id;
 
-    // Autorización: solo Admin o SuperAdmin usan este asistente.
+    // Autorización: CUALQUIER usuario autenticado puede usar el asistente de
+    // plataforma (ayuda de uso de la app). El rol solo ADAPTA el contenido (KB
+    // + prompt), no restringe el acceso.
     const { data: roleRows } = await admin
       .from("user_roles")
       .select("role")
       .eq("user_id", userId);
-    const roles = ((roleRows ?? []) as Array<{ role?: string }>).map((r) => r.role);
-    const isStaff = roles.includes("Admin") || roles.includes("SuperAdmin");
-    if (!isStaff) throw new Error("No autorizado");
+    const ownedRoles = ((roleRows ?? []) as Array<{ role?: string }>)
+      .map((r) => r.role)
+      .filter((r): r is string => !!r);
 
-    const { sessionId, message } = await req.json();
+    const { sessionId, message, role: reqRole } = await req.json();
     if (!sessionId || typeof sessionId !== "string") {
       return new Response(JSON.stringify({ error: "sessionId requerido" }), {
         status: 400,
@@ -196,6 +198,20 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Rol para ADAPTAR el asistente (KB + prompt). Usa el rol ACTIVO enviado por
+    // el cliente si el usuario realmente lo posee; si no, el de mayor alcance.
+    const roleRank: Record<string, number> = { SuperAdmin: 4, Admin: 3, Docente: 2, Estudiante: 1 };
+    const highestOwned =
+      [...ownedRoles].sort((a, b) => (roleRank[b] ?? 0) - (roleRank[a] ?? 0))[0] ?? "Estudiante";
+    const promptRole =
+      typeof reqRole === "string" && ownedRoles.includes(reqRole) ? reqRole : highestOwned;
+    const kbAudience =
+      promptRole === "Estudiante"
+        ? ["estudiante", "all"]
+        : promptRole === "Docente"
+          ? ["docente", "all"]
+          : ["admin", "all"];
 
     // Validar dueño de la sesión + obtener tenant_id.
     const { data: session, error: sErr } = await admin
@@ -247,7 +263,7 @@ Deno.serve(async (req) => {
     const { data: kbRows } = await admin
       .from("platform_kb_docs")
       .select("title, body, position, audience")
-      .in("audience", ["admin", "all"])
+      .in("audience", kbAudience)
       .order("position", { ascending: true });
 
     const platformKb = buildPlatformKb((kbRows ?? []) as KbRow[]);
@@ -261,14 +277,22 @@ Deno.serve(async (req) => {
 
     // Construir prompt.
     const template = await resolvePlatformSupportTemplate(effectiveTenantId);
-    const systemPrompt = buildSupportSystemPrompt({
-      template,
-      platformKb,
-      maxKbChars: KB_TOTAL_CHARS,
-      currentDatetime,
-      tenantName,
-      adminName,
-    });
+    const roleLabelEs: Record<string, string> = {
+      SuperAdmin: "SuperAdministrador de la plataforma",
+      Admin: "Administrador de la institución",
+      Docente: "Docente",
+      Estudiante: "Estudiante",
+    };
+    const systemPrompt =
+      buildSupportSystemPrompt({
+        template,
+        platformKb,
+        maxKbChars: KB_TOTAL_CHARS,
+        currentDatetime,
+        tenantName,
+        adminName,
+      }) +
+      `\n\nEl usuario actual es **${roleLabelEs[promptRole] ?? "usuario"}**. Adapta tus explicaciones a lo que ESE rol puede hacer en ExamLab; usa "tú". No expliques funciones exclusivas de otros roles salvo que lo pregunte explícitamente.`;
 
     // Truncar historial y agregar el nuevo turno.
     const truncatedHistory = truncateHistory(historyMsgs, MAX_HISTORY_MESSAGES);
