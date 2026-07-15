@@ -2,6 +2,8 @@
 
 El Administrador es el responsable de toda la institución dentro de ExamLab. Desde su panel gestiona los usuarios y sus roles, los cursos, la estructura académica (carreras, asignaturas y periodos), la configuración de la plataforma (correos, branding, modelo de IA, módulos visibles), las estadísticas y la auditoría. Además tiene acceso a todos los módulos del docente (exámenes, talleres, proyectos, contenidos, calificaciones, etc.) para dar soporte y supervisar el trabajo académico. Este manual recorre cada módulo del rol con pasos concretos y resalta dónde la **inteligencia artificial** te ayuda a trabajar más rápido.
 
+> **🎬 Recorrido en video:** mira el [recorrido completo del rol Administrador](../admin/serie-admin-completa.mp4) — todos los módulos de este manual unidos en un solo video.
+
 ---
 
 ### Panel
@@ -230,6 +232,14 @@ Centro de ajustes de la institución, organizado en pestañas.
 - **Modelo IA** y **Cola IA**: proveedor, modelo, claves y modo sync/async. **Auditoría**: retención. **Módulos**: qué módulos ve cada rol.
 
 ![Configuración](screenshots/administrador/21-admin_settings.png)
+
+### Asistente IA de plataforma
+
+Un chat de **ayuda de uso de la app**, disponible desde el menú para todos los roles. Te explica **cómo usar y configurar ExamLab como administrador**: gestionar usuarios y roles, definir la estructura académica, configurar correos y branding, elegir el modelo de IA, revisar auditoría y estadísticas, etc.
+
+- Ábrelo desde **Asistente IA** en el menú y pregunta con tus palabras.
+- Adapta las respuestas a tu rol (administrador de la institución).
+- Es autoservicio: para escalar al equipo de plataforma usa el módulo **Soporte**.
 
 ### Mensajes (Pie de pagina)
 

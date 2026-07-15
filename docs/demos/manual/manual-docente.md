@@ -2,6 +2,8 @@
 
 Como **Docente** en ExamLab tu trabajo es crear y evaluar: armas cursos, preparas material, generas y aplicas evaluaciones, llevas la asistencia y consolidas las notas. La plataforma pone la **IA a tu servicio** en cada paso — puedes generar evaluaciones y contenido automáticamente, dejar que la IA califique las entregas, detectar fraude y ofrecer un tutor a tus estudiantes. Este manual recorre, módulo por módulo, lo que verás en el menú lateral cuando entras con tu rol Docente.
 
+> **🎬 Recorrido en video:** mira el [recorrido completo del rol Docente](../teacher/serie-teacher-completa.mp4) — todos los módulos de este manual unidos en un solo video.
+
 > **Si entras con una cuenta de demostración:** tu espacio empieza **vacío**. Crea tu propio **curso** para arrancar y aprovecha la IA para generar evaluaciones (la generación corre al instante). Ten en cuenta que la **matrícula de estudiantes la hace un administrador** — sin estudiantes no podrás probar el ciclo completo de calificación de entregas reales; ese flujo se muestra en los videos demo. Si la **IA falla** puntualmente, casi siempre es **disponibilidad del modelo** (es una demo): espera unos minutos y reintenta — no es un fallo de la plataforma. Además entras con **dos roles, Docente y Estudiante**: cambia con el selector arriba del menú para ver la plataforma desde ambos lados.
 
 ---
@@ -204,6 +206,14 @@ Registro de actividad para revisar qué pasó y cuándo dentro del ámbito de tu
 - Útil para rastrear una acción puntual o entender un cambio inesperado.
 
 ![Auditoría](screenshots/docente/20-teacher_audit_logs.png)
+
+### Asistente IA de plataforma
+
+Un chat de **ayuda de uso de la app**, disponible desde el menú para todos los roles. A diferencia del **Tutor IA** (que responde a tus estudiantes sobre el material del curso), el Asistente IA de plataforma te explica **cómo usar ExamLab como docente**: crear un curso, armar y aplicar un examen, calificar con IA, definir cortes y pesos, llevar la asistencia, etc.
+
+- Ábrelo desde **Asistente IA** en el menú y pregunta con tus palabras.
+- Adapta las respuestas a tu rol: te guía en lo que **tú** puedes hacer como docente.
+- Si algo no está en la documentación, te sugiere abrir un ticket de Soporte.
 
 ### Mensajes (Pie de pagina )
 

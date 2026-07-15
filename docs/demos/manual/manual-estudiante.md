@@ -2,6 +2,8 @@
 
 Bienvenido a ExamLab. Como estudiante, aquí aprendes con el material de tus cursos, presentas tus evaluaciones (exámenes, talleres y proyectos), registras tu asistencia y haces seguimiento a tus notas y certificados. Esta guía recorre, módulo por módulo, qué hace cada sección y cómo usarla en el día a día. Varias funciones se apoyan en **inteligencia artificial**: un tutor que responde con base en el material de tu curso, la calificación automática de tus entregas y la detección de fraude — todo se resalta a lo largo del manual.
 
+> **🎬 Recorrido en video:** mira el [recorrido completo del rol Estudiante](../student/serie-student-completa.mp4) — todos los módulos de este manual unidos en un solo video.
+
 ---
 
 ### Panel
@@ -123,6 +125,14 @@ Participa en encuestas y votaciones del curso, incluida la reserva de horarios t
 - También puedes llegar directo a una encuesta mediante el enlace que comparta el docente.
 
 ![Encuestas](screenshots/estudiante/12-student_polls.png)
+
+### Asistente IA de plataforma
+
+Un chat de **ayuda de uso de la app**, disponible desde el menú. A diferencia del **Tutor IA** (que responde sobre el material de tu curso), el Asistente IA de plataforma te explica **cómo usar ExamLab**: cómo entregar un taller, ver tus notas, registrar tu asistencia, etc.
+
+- Ábrelo desde **Asistente IA** en el menú y pregunta con tus palabras.
+- Adapta las respuestas a tu rol: como estudiante, te guía en lo que **tú** puedes hacer.
+- Si algo no está en la documentación, te sugiere a quién consultar.
 
 ### Mensajes (Pie de pagina)
 
