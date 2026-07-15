@@ -4,7 +4,13 @@ export function toCSV(rows: Record<string, any>[], columns?: string[]): string {
   const cols = columns ?? Object.keys(rows[0]);
   const escape = (v: any) => {
     if (v === null || v === undefined) return "";
-    const s = String(v);
+    let s = String(v);
+    // CSV injection: una celda que empieza con = + - @ (o tab/CR) se evalúa como
+    // FÓRMULA al abrir el CSV en Excel/Sheets → exfiltración (HYPERLINK/WEBSERVICE)
+    // o DDE. Datos controlados por el usuario (nombres, feedback, preguntas) se
+    // exportan acá. Prefijamos apóstrofo para neutralizar, SIN romper números
+    // legítimos (ej. "-5" o "4,5") que algunas columnas de nota exportan.
+    if (/^[=+\-@\t\r]/.test(s) && !/^[+-]?\d+([.,]\d+)?$/.test(s)) s = "'" + s;
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const header = cols.join(",");

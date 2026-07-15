@@ -121,8 +121,18 @@ async function uploadOneFile(
   userId: string,
   contentId: string,
   f: File,
+  usedSlugs: Set<string>,
+  idx: number,
 ): Promise<{ name: string; path: string; kind: string; body?: string } | null> {
-  const path = `${userId}/${contentId}/${slugifyFilename(f.name)}`;
+  // Dedup de slug DENTRO del batch: dos archivos cuyos nombres slugifican igual
+  // ("Cálculo.pdf" y "Calculo.pdf" → "calculo.pdf", o nombres solo no-ASCII →
+  // "archivo.pdf") generarían el MISMO path y, con upsert:true, el 2º pisaría los
+  // bytes del 1º EN SILENCIO (ambos quedan en files[] apuntando al mismo objeto).
+  // Prefijamos el índice al slug colisionado (mismo patrón que ProjectFiles).
+  let slug = slugifyFilename(f.name);
+  if (usedSlugs.has(slug)) slug = `${idx}_${slug}`;
+  usedSlugs.add(slug);
+  const path = `${userId}/${contentId}/${slug}`;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: upErr } = await (supabase.storage as any)
     .from(BOARD_CONTENT_BUCKET)
@@ -208,10 +218,11 @@ export async function uploadBoardContent(params: {
   // 3) Subir cada archivo válido a Storage + texto inline para código/notebooks.
   const uploaded: Array<{ name: string; path: string; kind: string; body?: string }> = [];
   const failed: string[] = [];
-  for (const f of valid) {
-    const entry = await uploadOneFile(userId, contentId, f);
+  const usedSlugs = new Set<string>();
+  for (let i = 0; i < valid.length; i++) {
+    const entry = await uploadOneFile(userId, contentId, valid[i], usedSlugs, i);
     if (entry) uploaded.push(entry);
-    else failed.push(f.name);
+    else failed.push(valid[i].name);
   }
 
   if (uploaded.length === 0) {
@@ -303,10 +314,11 @@ export async function appendBoardContentFiles(params: {
 
   const uploaded: Array<{ name: string; path: string; kind: string; body?: string }> = [];
   const failed: string[] = [];
-  for (const f of valid) {
-    const entry = await uploadOneFile(userId, contentId, f);
+  const usedSlugs = new Set<string>();
+  for (let i = 0; i < valid.length; i++) {
+    const entry = await uploadOneFile(userId, contentId, valid[i], usedSlugs, i);
     if (entry) uploaded.push(entry);
-    else failed.push(f.name);
+    else failed.push(valid[i].name);
   }
   if (uploaded.length === 0) {
     return {

@@ -494,6 +494,12 @@ Deno.serve(async (req) => {
       }> = Array.isArray(args.pairs) ? args.pairs : [];
 
       const rowsToInsert: any[] = [];
+      // Dedup INTRA-corrida: el modelo puede devolver la misma pareja en ambos
+      // órdenes ({0,1} y {1,0}) o repetirla; ambas canonicalizan a la misma
+      // tupla y sin este Set se insertarían 2 filas idénticas (similarity_pairs
+      // no tiene UNIQUE) → FraudPanel contaría doble. reviewedKeys solo cubre
+      // pares YA revisados por el docente, no los agregados en esta corrida.
+      const seenKeys = new Set<string>();
       for (const p of pairs) {
         const a = items[p.idx_a];
         const b = items[p.idx_b];
@@ -515,6 +521,8 @@ Deno.serve(async (req) => {
         // sobrescribimos el review.
         const key = `${subA}::${subB}::${group.questionId ?? ""}`;
         if (reviewedKeys.has(key)) continue;
+        if (seenKeys.has(key)) continue; // ya agregado en ESTA corrida (par duplicado/invertido)
+        seenKeys.add(key);
         rowsToInsert.push({
           kind,
           ref_id: refId,

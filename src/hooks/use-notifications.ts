@@ -59,6 +59,11 @@ export function useNotifications(userId: string | undefined, viewerRole?: string
   // El handler de realtime también llama load(), así que la lógica
   // queda en un solo lugar y sin duplicados.
   const lastSeenIdRef = useRef<string | null>(null);
+  // El effect de realtime tiene deps [userId] (no re-suscribe al cambiar de rol),
+  // así que su handler capturaría un viewerRole viejo tras un role-switch. Ref
+  // actualizado cada render → el filtro por rol del push usa el valor vigente.
+  const viewerRoleRef = useRef(viewerRole);
+  viewerRoleRef.current = viewerRole;
   const load = useCallback(async () => {
     if (!userId) return;
     let query = supabase
@@ -193,6 +198,13 @@ export function useNotifications(userId: string | undefined, viewerRole?: string
           void load();
 
           const n = payload.new as Notification | undefined;
+          // Mismo filtro por rol que load(): NO empujar (push al SW) una notif
+          // cuyo source_role === el rol activo — sino llega push de algo que la
+          // campana in-app NUNCA muestra (load la excluye server-side).
+          const nSourceRole = (n as { source_role?: string | null } | undefined)?.source_role;
+          if (n && nSourceRole && viewerRoleRef.current && nSourceRole === viewerRoleRef.current) {
+            return;
+          }
           if (
             n &&
             !n.read &&

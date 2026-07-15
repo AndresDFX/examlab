@@ -2391,9 +2391,13 @@ Idioma de salida: ${langName}.`,
     // Agregamos señales de IA por pregunta y consolidamos a nivel de
     // submission. ai_detected_score = MAX de las likelihoods (peor caso),
     // y ai_detected_reasons concatena las razones de las preguntas más
-    // sospechosas (top 3). Si solo se recalifica una pregunta puntual
-    // arrancamos del valor previo guardado para no degradar la señal.
-    let maxAiLikelihood = Number(sub.ai_detected_score) || 0;
+    // sospechosas (top 3). Arrancamos SIEMPRE de 0: NO sembrar desde
+    // sub.ai_detected_score, porque ese valor YA incluye el speedBoost que se
+    // le suma abajo → al recalificar se sumaría el speedBoost de nuevo (doble
+    // conteo acumulativo → falso 'sospechoso'). La señal de las preguntas que
+    // NO se recalifican se preserva por la rama de skip por pregunta (re-inyecta
+    // prev.ai_likelihood desde __breakdown), no por la semilla de submission.
+    let maxAiLikelihood = 0;
     const aiReasonBuckets: { qid: string; likelihood: number; reason: string }[] = [];
 
     // Bucket de preguntas abiertas que necesitan IA — se calificará en

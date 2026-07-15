@@ -44,6 +44,21 @@ describe("toCSV", () => {
     const csv = toCSV([{ a: null, b: undefined, c: 0 }]);
     expect(csv).toBe("a,b,c\n,,0");
   });
+
+  it("neutraliza celdas de fórmula (CSV injection: = + - @) con apóstrofo", () => {
+    const csv = toCSV([{ name: '=HYPERLINK("http://evil","x")' }]);
+    // Se antepone ' y, por contener comillas/coma, va entrecomillado.
+    expect(csv).toContain(`"'=HYPERLINK`);
+    expect(toCSV([{ v: "@SUM(A1)" }])).toBe("v\n'@SUM(A1)");
+    expect(toCSV([{ v: "+1+1" }])).toBe("v\n'+1+1");
+  });
+
+  it("NO antepone apóstrofo a números legítimos (incl. negativos y decimales con coma)", () => {
+    expect(toCSV([{ v: -5 }])).toBe("v\n-5");
+    expect(toCSV([{ v: "-5" }])).toBe("v\n-5");
+    expect(toCSV([{ v: "4,5" }])).toBe('v\n"4,5"'); // coma → entrecomillado, sin apóstrofo
+    expect(toCSV([{ v: "-3.14" }])).toBe("v\n-3.14");
+  });
 });
 
 describe("parseCSV", () => {

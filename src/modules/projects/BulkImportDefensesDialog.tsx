@@ -243,7 +243,11 @@ export function BulkImportDefensesDialog({
         }
       }
 
-      const dedup = dedupeBySubmission(rows, submissionIdByEmail);
+      // safeRows (NO rows): las filas descartadas por el guard de desalineación
+      // de columnas NO deben llegar a aplicarse. Con `rows` una fila mal alineada
+      // tipo `email,0,8,,` (factor "0") pasaba a toApply → final_grade =
+      // submission_grade × 0 = 0, en SILENCIO, pese a mostrarse como error.
+      const dedup = dedupeBySubmission(safeRows, submissionIdByEmail);
       setEmailsNoSubmission(dedup.skippedNoSubmission);
       setDuplicateGroup(dedup.skippedDuplicateGroup);
 
