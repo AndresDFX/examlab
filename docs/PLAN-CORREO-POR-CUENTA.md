@@ -88,3 +88,31 @@ falla auth (para no perder la notificación). Todos los edges de correo lo usan.
 
 Antes de prometer "From institucional", confirmar con el IT de cada institución que puede
 publicar **SPF/DKIM/DMARC** en su dominio (o usar el SMTP de su propio proveedor / un ESP).
+
+## 8. Aclaración técnica — ¿una cuenta puede enviar "como" otro dominio?
+
+**Pregunta**: con la app de Google creada bajo `@correounivalle.edu.co`, ¿se puede hacer que
+salgan correos con el dominio de otra institución (ej. `@lanuevaamerica.edu.co`)?
+
+**Respuesta: NO** (no por sí sola). Dos muros independientes:
+
+1. **Autenticación/propiedad**: una "app" de Google (proyecto Cloud / cliente OAuth) es solo
+   credenciales de API — **no define el remitente**. El remitente = la **cuenta que autentica**
+   (App Password u OAuth token), no el dueño de la app. Google solo deja enviar como una
+   dirección que la cuenta autenticada **posee** (o un alias "enviar como" ya verificado). Las
+   credenciales de correounivalle autentican como correounivalle. Enviar como `@lanuevaamerica`
+   requiere autorización **del lado de lanuevaamerica**: sus propias credenciales SMTP/App
+   Password, o consentimiento OAuth de un usuario suyo, o domain-wide delegation de su admin de
+   Workspace. Que la app sea tuya es irrelevante.
+2. **Entregabilidad (SPF/DKIM/DMARC)**: aunque forzaras el `From`, el receptor valida contra el
+   **DNS de lanuevaamerica**. Enviando por correounivalle/Google: SPF no lista ese emisor, DKIM
+   firma con `d=correounivalle` (no alinea), DMARC de lanuevaamerica → cuarentena/rechazo. Solo
+   el DNS de lanuevaamerica puede autorizar el emisor; desde correounivalle no se arregla =
+   spoofing → spam.
+
+**Corolario para el diseño**: el dominio del remitente lo determina **quién autentica + qué DNS
+lo respalda**, no quién creó la app. Por eso la Fase 1 es que **cada institución cargue SU PROPIA
+cuenta** (`tenant_email_settings`), no reutilizar la cuenta de la plataforma. Alternativa sin
+credenciales de cada institución: `From` verificado propio + `Reply-To` = correo de la
+institución/docente (sin spoofear). El modelo "app OAuth multi-dominio" existe (cada usuario/
+dominio consiente), pero requiere revisión de la app OAuth por Google (scopes sensibles).
