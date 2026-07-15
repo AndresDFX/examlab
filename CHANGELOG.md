@@ -29,6 +29,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   - `proximo` es una sub-vista por fecha DENTRO de `en_curso` (no es un estado persistido).
   - Finalizar es acción de docente del curso o Admin/SuperAdmin (validado en la RPC).
   - **Cascade al finalizar** (mig `20260991000000`): un trigger `AFTER UPDATE OF status` cierra en cascada lo asociado — exámenes/pizarras (`status='closed'`), talleres/proyectos/encuestas (cerrados SOLO si NINGÚN otro curso ligado sigue `<> 'finalizado'` — caveat M:N), foros (`manually_closed_at`), juegos Kahoot en vivo (`ended`), ventanas de check-in QR. NO cierra sesiones de asistencia ni contenidos/videos (histórico/consultable). NO auto-reabre al reabrir el curso. Funciones `close_*_for_course` son `SECURITY DEFINER` y **REVOCADAS de PUBLIC** (internas). Al agregar una entidad nueva ligada a curso con estado cerrado, sumar su `close_*` al orquestador.
+  - **Contraseña temporal FIJA `Temporal#123` para todos** (no aleatoria por usuario). Decisión explícita del usuario (2026-07-14): prefiere una clave uniforme conocida —que el docente dicta en clase— aunque sea insegura, en vez de una temporal única por estudiante que nunca se comunica. El default del edge `bulk-import-users` es `Temporal#123` (era `Cambiar#123`); el template CSV del UI ya lo sugiere. Guardada en claro en `admin_visible_passwords`. Login = correo institucional + `Temporal#123`.
   - **Correo de bienvenida al curso — se envía al PUBLICAR, no al matricular en borrador** (mig `20261130000000`). Matricular a un estudiante en un curso en `borrador` NO emite bienvenida (el curso aún no está disponible; el trigger de matrícula `notify_course_enrollment_welcome` salta `status='borrador'`). La bienvenida sale cuando el curso pasa `borrador → en_curso`: trigger `trg_course_published_welcome` (`AFTER UPDATE OF status`) inserta una notif `course_welcome` por cada estudiante ya matriculado → pipeline de email. Matricular DIRECTO en un curso ya publicado (`<> borrador`) sí emite al instante (comportamiento previo, mig `20261110000000`). Esto permite importar/matricular en borrador sin spamear correos ni entregar claves temporales antes de tiempo.
 - **Filtros de grids**: el filtro de ESTADO abre por defecto en lo vigente/activo (no "Todos"); el usuario puede cambiar a Todos/cerrados. (`c3271a5`)
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
@@ -65,6 +66,22 @@ publicación; solo el de matrícula (mig `20261110000000`), que además no chequ
   por la ráfaga de 80 correos, no config. No se cambió la lógica de reintento.
 - Invariante nueva registrada arriba (Estados de curso). Requiere **Publish** en Lovable
   para que la mig quede versionada en el entorno (ya está aplicada en la DB de prod).
+
+**Diagnóstico "estudiantes no pueden acceder" + contraseña temporal fija.**
+Estudiantes de los 2 cursos nuevos no podían entrar. Diagnóstico en prod: el correo de
+login (institucional) y la cuenta eran correctos (80/80 con password, email confirmado,
+`auth.email == institutional_email`), pero **nunca se les envió el correo de credenciales**
+(`force_password_change:false` en el import omite el welcome/reset) → tenían una temporal
+única `Fes-XXXX#7` que nadie les comunicó. Solo 9/80 habían entrado.
+- **Decisión del usuario**: la contraseña temporal debe ser **fija `Temporal#123` para todos**
+  (aunque sea insegura). Edge `bulk-import-users`: default `Cambiar#123` → `Temporal#123`.
+- **Fix inmediato**: reset de los 71 estudiantes que nunca entraron → `encrypted_password =
+  crypt('Temporal#123', gen_salt('bf'))`, `must_change_password=false`, `admin_visible_passwords`
+  actualizado. **Login real verificado** (HTTP 200 + access_token con `Temporal#123`).
+- **Videos de intro**: los MP4 (`docs/demos/student/output/modulo-s01.mp4` = "Panel del
+  Estudiante" / explorar; `modulo-overview.mp4` = recorrido general) NO están hospedados —
+  `videoUrl` es `null` en `tour-config.ts`, no hay links públicos. NO existe video de "cómo
+  iniciar sesión" (los demos arrancan ya logueados). Para tener links hay que hospedarlos.
 
 ### 2026-06-19
 

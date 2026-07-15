@@ -355,7 +355,7 @@ Deno.serve(async (req) => {
           for (let attempt = 1; attempt <= 3; attempt++) {
             createResult = await adminClient.auth.admin.createUser({
               email: institutional_email,
-              password: password || "Cambiar#123",
+              password: password || "Temporal#123",
               email_confirm: true,
               user_metadata: { full_name, institutional_email, personal_email },
             });
@@ -447,7 +447,7 @@ Deno.serve(async (req) => {
                 {
                   user_id: userId,
                   tenant_id: effectiveTenantId,
-                  password: password || "Cambiar#123",
+                  password: password || "Temporal#123",
                   set_by: u.user.id,
                 },
                 { onConflict: "user_id" },
