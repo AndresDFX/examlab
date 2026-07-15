@@ -30,7 +30,7 @@ fix correcto ya existía en `intro_videos` (mig 20261039): Admin→tenant, Docen
 | 11 | `exam_assignments` (staff_manage) | media | ✅ **fixed** `20261200000000` | Docente→`_teaches_exam(exam_id)`. Verificado: docente NO asigna alumno a examen ajeno. |
 | 12 | `workshop_groups` + `workshop_group_members` | media | ✅ **fixed** `20261200000000` | Docente→`_teaches_workshop` / `_teaches_workshop_group`. |
 | 13 | `project_groups` + `project_group_members` | media | ✅ **fixed** `20261200000000` | Docente→`_teaches_project` / `_teaches_project_group`. |
-| 14 | `generated_contents` (owner, WITH CHECK) | baja | ⬜ **a revisar** | El WITH CHECK del `_owner` es owner-based (`teacher_id=auth.uid()`) — probablemente OK; confirmar que un docente no cambie `teacher_id`/`course_id` a uno ajeno. |
+| 14 | `generated_contents` (owner) | baja | ✅ **fixed** `20261210000000` | La rama dueño no acotaba `course_id`; ahora dueño+admin exigen NULL o `course_in_my_tenant`. `teacher_id` no reasignable (WITH CHECK). Verificado 3/3. |
 
 ## Helpers agregados (mig 20261190000000)
 
