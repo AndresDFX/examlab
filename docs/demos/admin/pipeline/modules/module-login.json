@@ -1,0 +1,26 @@
+{
+  "id": "modulo-login",
+  "title": "ExamLab — Intro de marca (card, ~13s)",
+  "series": "social",
+  "role": "Docente",
+  "appPath": "/app/teacher/exams",
+  "readySelectors": ["[data-tour-id=\"role-switcher\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "+0%", "pitch": "+0Hz" },
+  "_nota": "Clip de marca / bumper (NO es un tutorial de login: por diseño el login queda fuera de cámara, ver README del pipeline). Card-only reproducible. Sirve como intro de bienvenida para el correo a estudiantes.",
+  "scenes": [
+    {
+      "id": "marca",
+      "kind": "card",
+      "narration": "ExamLab: la plataforma educativa con inteligencia artificial.",
+      "card": { "kicker": "", "title": "ExamLab", "subtitle": "Plataforma educativa con IA", "bg": "linear-gradient(135deg,#0b1220,#1d4ed8)" },
+      "bufferMs": 800
+    },
+    {
+      "id": "ingreso",
+      "kind": "card",
+      "narration": "Ingresa con tu correo institucional y la contraseña que recibiste, y explora tu panel.",
+      "card": { "kicker": "Cómo entrar", "title": "Tu correo institucional", "subtitle": "+ la contraseña que recibiste", "bg": "linear-gradient(135deg,#1d4ed8,#0b1220)" },
+      "bufferMs": 1000
+    }
+  ]
+}

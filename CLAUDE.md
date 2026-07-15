@@ -890,51 +890,24 @@ Generador paramétrico de sesiones (`GenerateSessionsDialog`) ya existía en `sr
   ```
   Evita renderizar el AlertDialog Radix real (que requiere portal). Aplicado en `FeedbackCommentAttachments.test.tsx`.
 
-## Grabación de tours para HeyGen (avatars IA)
+## Videos demo (pipeline propio, es-CO)
 
-Pipeline para regenerar los 3 background videos que se overlapean con un avatar HeyGen. Vive en `docs/heygen/`.
+> **HeyGen quedó DEPRECADO** (el usuario ya no usa esa herramienta; `docs/heygen/` se eliminó). Los videos demo ya NO llevan avatar overlay: se generan 100% con el pipeline propio (grabación Playwright de la app real + voz edge-tts + mux ffmpeg).
+
+Pipeline en [docs/demos/admin/pipeline/](docs/demos/admin/pipeline/) (los 3 roles comparten esa carpeta). Corre desde `C:/Temp/examlab-rec/` (copia de trabajo); el repo es la FUENTE de los specs.
 
 ### Estructura
 
-- `docs/heygen/README.md` — pipeline general.
-- `docs/heygen/admin.md` / `docente.md` / `estudiante.md` — guión que va al avatar (sección `> Script`) + recomendaciones de cortes visuales por segundo.
-- `docs/heygen/recordings/admin.webm` + `teacher.webm` + `student.webm` — los 3 backgrounds (versionados en git con nombres limpios sin timestamp).
-- `docs/heygen/recordings/README.md` — cómo regenerar + cómo usar en HeyGen.
-- `scripts/record-tour.ts` — script Playwright que recorre la app real (https://examlab.lovable.app).
-- `.env.recording` (gitignored) — credenciales del usuario demo.
-- `recordings/` (gitignored como `/recordings/` anchored — para NO matchear `docs/heygen/recordings/`) — output dir efímero con archivos timestamped.
+- `modules/module-*.json` — **un spec por video** (obligatorio: TODO video debe tener spec). Convención de `id`/archivo: `module-NN`=Admin, `module-sNN`=Estudiante, `module-tNN`=Docente, `module-overview`=recorrido general, `module-{promo,social,login}`=marketing (`series:"social"`). Cada spec: `id` (`modulo-*`), `series` (rol → carpeta `output/`), `role`, `appPath`, `scenes[]` con `narration` + `beats`/`card`.
+- `make.mjs <ids>` — driver: por cada id corre `gen-voice.py` (edge-tts, `es-CO-GonzaloNeural`) → `record-module.mjs` (Playwright contra prod `examlab.lovable.app`, login fuera de cámara, mono-institución "Demo Global Corp") → `build-mux.mjs` (mux voz+video → `docs/demos/<series>/output/modulo-*.mp4`).
+- `build-serie.mjs <roles>` — **concatena** todos los `modulo-*.mp4` de un rol (orden por nombre) en `docs/demos/<rol>/serie-<rol>-completa.mp4` (concat demuxer `-c copy`, lossless). Reproducible: reconstruye la serie tras regrabar módulos. Las series NO tienen module-spec propio (son derivadas).
 
-### Correr (Windows)
+### Reglas (memoria [[demo-videos-un-modulo-por-video]])
 
-```bash
-# Usar NODE, NO bun. Razón: bun + playwright en Windows tiene bug
-# con remote-debugging-pipe → chromium.launch() timeout 180s.
-# Node 22+ con --experimental-strip-types corre el mismo .ts en <1s.
-node --experimental-strip-types scripts/record-tour.ts --role=admin
-node --experimental-strip-types scripts/record-tour.ts --role=teacher
-node --experimental-strip-types scripts/record-tour.ts --role=student
-
-# Después copiar al dir versionado (sin timestamp):
-cp recordings/admin-*.webm docs/heygen/recordings/admin.webm
-cp recordings/teacher-*.webm docs/heygen/recordings/teacher.webm
-cp recordings/student-*.webm docs/heygen/recordings/student.webm
-```
-
-En Mac/Linux probablemente `bun run record:tour:teacher` funcione (el bug es solo en Windows). Igual el `package.json` ya tiene los scripts npm apuntando a `node --experimental-strip-types`.
-
-### Cuenta multi-rol + `selectActiveRole` + SPA nav
-
-`test-fesna@examlab.test` (FESNA) tiene los 3 roles. Por defecto entra como Admin. Para grabar Docente/Estudiante el script:
-
-1. `login()` → submit → redirect `/app`.
-2. `selectActiveRole(role)` → `waitForSelector('[data-tour-id="role-switcher"]', timeout: 8s)` → lee el rol actual del trigger; si ya es el target, skip. Si no, click en `[role="combobox"]` (Radix), click en la option, espera 1.5s para que el sidebar re-renderee con el nav del rol nuevo.
-3. `recordScenes()` navega entre módulos via CLICKS en `[data-tour-nav="..."]` del sidebar (SPA navigation — NO recarga, preserva el active role que vive en memoria del módulo `active-role-signal.ts`, sin localStorage). Para rutas no presentes en el sidebar del rol activo (ej. `/app/messages` cross-rol, `/app/trash`), fallback a `page.goto()` + `selectActiveRole()` para re-seleccionar.
-
-Si el active role se pierde entre scenes, el video del Docente termina mostrando el sidebar del Admin — bug reportado en el primer round antes del fix de SPA navigation.
-
-### `ffmpeg` de Playwright es minimal
-
-Playwright bundle-ea su propio `ffmpeg` en `~/.cache/ms-playwright/ffmpeg-*/`, pero ese build es solo para muxing VP8/VP9 (lo que graba) y NO incluye `libx264` ni `-preset`. Para convertir a MP4 hay que instalar ffmpeg standalone (`winget install ffmpeg`). HeyGen acepta `.webm` directo, así que la conversión es opcional.
+- **Un módulo de la plataforma por video** (aunque quede corto).
+- **Narración autocontenida y reordenable**: NADA de números de módulo ni encadenar ("en el siguiente módulo…").
+- **En texto visible: "institución", NUNCA "tenant"**.
+- `ffmpeg` bundled en `C:/Temp/examlab-rec/ffmpeg/...` (el de Playwright no trae `libx264`).
 
 ## Estado actual del proyecto (snapshot 2026-06-08)
 
