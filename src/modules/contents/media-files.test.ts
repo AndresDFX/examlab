@@ -39,15 +39,19 @@ describe("isImageFile", () => {
 });
 
 describe("isEditableImageFile", () => {
-  it("solo raster editables en canvas", () => {
-    for (const n of ["a.png", "a.jpg", "a.jpeg", "a.webp", "a.bmp", "a.avif"]) {
+  it("solo raster que canvas re-exporta fielmente (png/jpg/webp)", () => {
+    for (const n of ["a.png", "a.jpg", "a.jpeg", "a.webp"]) {
       expect(isEditableImageFile(n)).toBe(true);
     }
   });
-  it("excluye vectorial (svg) y animada (gif)", () => {
+  it("excluye vectorial (svg), animada (gif) y bmp/avif (canvas no los re-exporta fiel)", () => {
     expect(isEditableImageFile("a.svg")).toBe(false);
     expect(isEditableImageFile("a.gif")).toBe(false);
     expect(isEditableImageFile("a.pdf")).toBe(false);
+    // bmp/avif siguen siendo VISUALIZABLES pero NO editables: canvas.toBlob no
+    // los re-exporta fielmente (guardaría un PNG con extensión .bmp/.avif).
+    expect(isEditableImageFile("a.bmp")).toBe(false);
+    expect(isEditableImageFile("a.avif")).toBe(false);
   });
 });
 

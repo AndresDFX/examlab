@@ -144,6 +144,13 @@ export function docxXmlToText(documentXml: string | null | undefined): string {
   let s = documentXml;
   s = s.replace(/<w:tab\b[^>]*\/?>/g, "\t");
   s = s.replace(/<w:br\b[^>]*\/?>/g, "\n");
+  // Tablas: preservar estructura fila/columna (como xlsx) en vez de aplanar
+  // cada celda a una línea suelta. Fin de celda → tab, fin de fila → salto.
+  // El `</w:p>` de la última línea de la celda se colapsa con el fin de celda
+  // para no meter un salto dentro de la fila.
+  s = s.replace(/<\/w:p>\s*<\/w:tc>/g, "\t");
+  s = s.replace(/<\/w:tc>/g, "\t");
+  s = s.replace(/<\/w:tr>/g, "\n");
   s = s.replace(/<\/w:p>/g, "\n");
   s = s.replace(/<[^>]+>/g, "");
   s = decodeXmlEntities(s);

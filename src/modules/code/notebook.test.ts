@@ -95,6 +95,36 @@ describe("notebookCodeToScript", () => {
     expect(s2).toContain("import numpy");
   });
 
+  it("descarta sintaxis IPython no-Python (asignación-shell y ayuda) sin romper el resto", () => {
+    const nb = parseNotebook(
+      JSON.stringify({
+        cells: [
+          {
+            cell_type: "code",
+            source: "files = !ls\nhelp_me?\nobj.method??\nprint(files)\nx = 1 + 2",
+          },
+        ],
+      }),
+    );
+    const s = notebookCodeToScript(nb);
+    // Las 3 formas IPython se descartan (romperían el script combinado)...
+    expect(s).not.toContain("!ls");
+    expect(s).not.toContain("help_me?");
+    expect(s).not.toContain("obj.method??");
+    // ...pero el Python válido sobrevive intacto.
+    expect(s).toContain("print(files)");
+    expect(s).toContain("x = 1 + 2");
+  });
+
+  it("no confunde un '?' dentro de un string con ayuda de IPython", () => {
+    const nb = parseNotebook(
+      JSON.stringify({ cells: [{ cell_type: "code", source: 'print("¿listo?")\ny = 5' }] }),
+    );
+    const s = notebookCodeToScript(nb);
+    expect(s).toContain('print("¿listo?")');
+    expect(s).toContain("y = 5");
+  });
+
   it("separa bloques con doble salto de línea", () => {
     const nb = parseNotebook(NB);
     const script = notebookCodeToScript(nb);

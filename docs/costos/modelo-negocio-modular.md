@@ -6,8 +6,7 @@
 > **⚠️ Segmentación, precios y métrica VIGENTES: ver [propuesta-v2.md](propuesta-v2.md)** (2026-07-15).
 > Este doc aporta la **arquitectura modular de gating/planes**; la segmentación por tamaño
 > (Pequeña ≤1.500 / Mediana ≤10.000 / Grande >10.000), los precios y la facturación por **matrículas**
-> vigentes están en la v2. **Pendiente (decisión de producto):** reconciliar la tabla de planes
-> modulares y el tier Free "Aula" contra las franjas de la v2.
+> vigentes están en la v2. **Reconciliación resuelta** en §2 ("Reconciliación con propuesta-v2").
 
 ---
 
@@ -66,6 +65,27 @@ Cuatro planes en escalera acumulativa (cada tier = el anterior + más), sobre un
 - El costo de IA por franja (Gemini Flash a ~$0,06/est-mes): ~$16/mes @250 · ~$95/mes @1.500 · ~$315/mes @5.000. Profesional absorbe ese costo con margen; **BYOK lo lleva a ~$0** (descuento posible).
 - **Modo administrado** = capa de *servicio* (onboarding + operación gestionada), aplicable como recargo sobre cualquier plan pago. No es un tier aparte; replica la diferencia self-managed vs administrado del pricing actual.
 - El eje de **estudiantes** (50/250/1.500/5.000) es **ortogonal** al gating de módulos: se vende como bloques adicionales sin cambiar el set de `module_visibility` (ver §3).
+
+### Reconciliación con propuesta-v2 (decisión de producto · 2026-07-15)
+
+[propuesta-v2.md](propuesta-v2.md) es la fuente **vigente** de segmentación, precios y métrica de
+facturación. Este documento aporta la **arquitectura de gating por módulos** (§4), que sigue válida.
+Se reconcilian en **dos dimensiones ortogonales**:
+
+- **(A) Qué incluye cada plan** = la escalera modular de arriba (Aula → Esencial → Profesional →
+  Institucional). Es el `module_visibility` + entitlements de §4. **Se conserva.**
+- **(B) Cuánto cuesta según tamaño** = las **franjas de v2** (Pequeña ≤1.500 · Mediana ≤10.000 ·
+  Grande >10.000, con los precios de propuesta-v2 §2). El eje de tamaño de este doc
+  (50/250/1.500/5.000) queda **reemplazado por las franjas de v2** al cotizar.
+- **Free "Aula" (≤50): se conserva** como tier de adquisición/piloto **gratis**, por **debajo** de la
+  Pequeña-entrada (≤500) de v2 — es el funnel de entrada, no una franja paga.
+- **Métrica: matrículas activas por período** (no estudiantes-cabeza; v2 §1). Los topes
+  50/250/1.500/5.000 se leen como **matrículas**.
+- **⚠️ Cambio de estrategia de IA (vigente = v2):** este doc gateaba la IA como **upsell premium**
+  (recién desde Profesional). **v2 la incluye en TODAS las franjas** (con tope de consumo o BYO a
+  mayor escala) como diferenciador de adquisición. **Rige el modelo de v2 (IA incluida-con-tope);**
+  el gating de IA como feature premium de la tabla de arriba queda superado por esa decisión. (Si
+  negocio prefiere volver a IA-como-upsell, es el único punto a revertir.)
 
 ---
 

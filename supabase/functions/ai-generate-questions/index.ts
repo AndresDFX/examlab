@@ -197,7 +197,17 @@ async function extractOfficeText(buf: Uint8Array, ext: string): Promise<string> 
       return t ? `(Diapositiva ${i + 1})\n${t}` : "";
     })
     .filter(Boolean);
-  return parts.join("\n\n");
+  // Notas del orador (ppt/notesSlides): explicación docente por diapositiva.
+  const noteNames = Object.keys(files)
+    .filter((n) => /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(n))
+    .sort((a, b) => {
+      const na = parseInt(a.match(/notesSlide(\d+)\.xml/)![1], 10);
+      const nb = parseInt(b.match(/notesSlide(\d+)\.xml/)![1], 10);
+      return na - nb;
+    });
+  const notes = noteNames.map((n) => pptxSlideXmlToText(dec.decode(files[n]))).filter(Boolean);
+  const slidesText = parts.join("\n\n");
+  return notes.length ? `${slidesText}\n\n(Notas del orador)\n${notes.join("\n\n")}` : slidesText;
 }
 
 /** Extrae texto de un PDF con unpdf. Best-effort: escaneado/cifrado o fallo → "". */

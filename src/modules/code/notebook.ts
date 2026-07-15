@@ -85,10 +85,18 @@ export function notebookCodeToScript(nb: ParsedNotebook | null): string {
     const firstNonEmpty = lines.find((l) => l.trim().length > 0) ?? "";
     if (/^\s*%%/.test(firstNonEmpty)) continue;
     const cleaned = lines
-      // Quita magics de LÍNEA (`%matplotlib inline`) y comandos de shell
-      // (`!pip install x`) — inválidos en Python plano. La magic ocupa toda la
-      // línea, así que se descarta la línea entera.
-      .filter((line) => !/^\s*[%!]/.test(line))
+      // Quita sintaxis específica de IPython que NO es Python plano y, al
+      // combinarse en UN solo script, provoca un SyntaxError que anula TODA la
+      // corrida (el alumno ve 0 output). Descartamos la línea entera:
+      //  - magic de línea (`%matplotlib inline`) y comando shell (`!pip install`);
+      //  - asignación-shell (`files = !ls`) — no empieza con %/! pero es IPython;
+      //  - ayuda (`obj?` / `func??`) — termina en ?, tampoco es Python válido.
+      .filter((line) => {
+        if (/^\s*[%!]/.test(line)) return false;
+        if (/^\s*[\w.]+\s*=\s*!/.test(line)) return false;
+        if (/^\s*[\w.()[\]"']+\?{1,2}\s*$/.test(line)) return false;
+        return true;
+      })
       .join("\n")
       .trim();
     if (cleaned.length > 0) blocks.push(cleaned);

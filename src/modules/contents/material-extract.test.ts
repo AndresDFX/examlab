@@ -131,6 +131,22 @@ describe("robustez de decodeXmlEntities (via docx/pptx)", () => {
   });
 });
 
+describe("docx tablas", () => {
+  it("preserva estructura fila/columna (tab entre celdas, salto entre filas)", () => {
+    const xml =
+      "<w:tbl>" +
+      "<w:tr><w:tc><w:p><w:r><w:t>A1</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>B1</w:t></w:r></w:p></w:tc></w:tr>" +
+      "<w:tr><w:tc><w:p><w:r><w:t>A2</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>B2</w:t></w:r></w:p></w:tc></w:tr>" +
+      "</w:tbl>";
+    expect(docxXmlToText(xml)).toBe("A1\tB1\nA2\tB2");
+  });
+
+  it("párrafos normales (fuera de tabla) siguen separados por salto", () => {
+    const xml = "<w:p><w:r><w:t>Uno</w:t></w:r></w:p><w:p><w:r><w:t>Dos</w:t></w:r></w:p>";
+    expect(docxXmlToText(xml)).toBe("Uno\nDos");
+  });
+});
+
 describe("xlsx", () => {
   it("isOfficeDoc incluye xlsx", () => {
     expect(isOfficeDoc("datos.xlsx")).toBe(true);
