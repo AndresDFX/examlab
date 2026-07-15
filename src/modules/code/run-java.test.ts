@@ -38,6 +38,31 @@ describe("deriveMainClass", () => {
     `;
     expect(deriveMainClass(src)).toBe("Calculadora");
   });
+
+  it("elige la clase que DECLARA main aunque haya una public class sin main (single-file)", () => {
+    const src = `public class Board {}\nclass Game { public static void main(String[] a){ System.out.println("ok"); } }`;
+    expect(deriveMainClass(src)).toBe("Game");
+  });
+
+  it("mantiene la public class cuando ELLA declara main, con una clase interna presente (regresión)", () => {
+    const src = `public class Board { class Inner {} public static void main(String[] a){} }`;
+    expect(deriveMainClass(src)).toBe("Board");
+  });
+
+  it("no confunde 'class' dentro de comentarios/strings con una declaración", () => {
+    const src = `
+      // class Fake { main }
+      public class Real {
+        String s = "class Bogus {";
+        public static void main(String[] a){}
+      }`;
+    expect(deriveMainClass(src)).toBe("Real");
+  });
+
+  it("main en la segunda public class (tras otra clase) → la segunda", () => {
+    const src = `class A {}\npublic class B { public static void main(String[] a){} }`;
+    expect(deriveMainClass(src)).toBe("B");
+  });
 });
 
 describe("deriveMainClassFromFiles", () => {
@@ -114,6 +139,17 @@ describe("deriveMainClassFromFiles", () => {
     expect(deriveMainClassFromFiles([{ filename: "Solo.java", content: src }])).toBe(
       deriveMainClass(src),
     );
+  });
+
+  it("elige la clase con main cuando la public class del MISMO archivo no lo tiene", () => {
+    const files = [
+      {
+        filename: "Mixed.java",
+        content:
+          'public class Board {}\nclass Game { public static void main(String[] a){ System.out.println("ok"); } }',
+      },
+    ];
+    expect(deriveMainClassFromFiles(files)).toBe("Game");
   });
 });
 

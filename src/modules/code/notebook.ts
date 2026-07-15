@@ -72,18 +72,27 @@ export function parseNotebook(jsonText: string | null | undefined): ParsedNotebo
  * cell-magics `%%…`) porque no son Python válido para un intérprete plano.
  * Las celdas vacías se omiten.
  */
+// Cell-magics que cambian el INTÉRPRETE de toda la celda (o cuyo cuerpo no se
+// debe ejecutar como Python) → descartamos la celda completa. Las que NO cambian
+// el intérprete (%%time, %%timeit, %%capture, %%prun, %%pypy…) tienen cuerpo
+// Python válido: NO se descartan; el filtro de línea de abajo quita solo la línea
+// `%%...` y el cuerpo se ejecuta normal (antes se perdía la celda entera → el
+// alumno veía la salida incompleta sin ningún error).
+const INTERPRETER_CELL_MAGICS = new Set([
+  "bash", "sh", "script", "html", "javascript", "js", "perl", "ruby",
+  "latex", "markdown", "md", "svg", "writefile", "python2",
+]);
+
 export function notebookCodeToScript(nb: ParsedNotebook | null): string {
   if (!nb) return "";
   const blocks: string[] = [];
   for (const cell of nb.cells) {
     if (cell.cell_type !== "code") continue;
     const lines = cell.source.split("\n");
-    // Cell-magic (`%%bash`, `%%html`, `%%javascript`…): la magic cambia el
-    // intérprete de TODA la celda, así que el cuerpo NO es Python. Descartamos
-    // la celda completa — antes solo se quitaba la 1ª línea y el resto se
-    // ejecutaba como Python inválido.
     const firstNonEmpty = lines.find((l) => l.trim().length > 0) ?? "";
-    if (/^\s*%%/.test(firstNonEmpty)) continue;
+    // Solo descartar la celda si su cell-magic cambia el intérprete (whitelist).
+    const cellMagic = firstNonEmpty.match(/^\s*%%(\w+)/);
+    if (cellMagic && INTERPRETER_CELL_MAGICS.has(cellMagic[1].toLowerCase())) continue;
     const cleaned = lines
       // Quita sintaxis específica de IPython que NO es Python plano y, al
       // combinarse en UN solo script, provoca un SyntaxError que anula TODA la

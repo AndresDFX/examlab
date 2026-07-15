@@ -443,7 +443,18 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (claimErr || !claimed) continue; // otro worker lo claimeó
 
-    const result = await processOne(job);
+    // try/catch OBLIGATORIO: processOne hace `await fetch(...)` sin protección;
+    // si el fetch rechaza (blip de red → TypeError) o el runtime mata el worker,
+    // la excepción escaparía del handler y el job quedaría CLGADO en 'processing'
+    // (el drain solo toma 'pending' → nunca se recupera solo). Convirtiendo el
+    // throw en un result.ok=false, entra en la lógica de re-encolado/failed que
+    // ya existe (igual que el ai-grading-worker).
+    let result: { ok: boolean; error?: string; insertedCount?: number | null; newSourceId?: string };
+    try {
+      result = await processOne(job);
+    } catch (e) {
+      result = { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
     if (result.ok) {
       succeeded++;
       const update: Record<string, unknown> = {
@@ -470,14 +481,25 @@ Deno.serve(async (req) => {
         // dispatch manual) lo intentará otra vez. started_at se limpia
         // para que el monitor de "stuck jobs" no lo confunda con un
         // job colgado.
-        await db
-          .from("ai_generation_queue")
-          .update({
-            status: "pending",
-            started_at: null,
-            last_error: `Reintento automático tras error transitorio (intento ${nextAttempts}/${MAX_ATTEMPTS}): ${result.error}`,
-          })
-          .eq("id", job.id);
+        const reenqueue: Record<string, unknown> = {
+          status: "pending",
+          started_at: null,
+          last_error: `Reintento automático tras error transitorio (intento ${nextAttempts}/${MAX_ATTEMPTS}): ${result.error}`,
+        };
+        // content_generation en modo CREAR ya insertó su fila en
+        // generated_contents ANTES de fallar el fetch. Si re-encolamos sin
+        // recordarla, el próximo intento vuelve al Path A y crea OTRA fila
+        // huérfana (contenidos duplicados atascados). Propagamos el id creado
+        // + pasamos el job a modo REGENERAR para que el retry reuse esa fila.
+        if (
+          result.newSourceId &&
+          job.kind === "content_generation" &&
+          job.source_id === NIL_UUID
+        ) {
+          reenqueue.source_id = result.newSourceId;
+          reenqueue.body = { ...(job.body ?? {}), regenerate: true, target_id: result.newSourceId };
+        }
+        await db.from("ai_generation_queue").update(reenqueue).eq("id", job.id);
         // No bumpeamos failed counter — el usuario verá "pending" con
         // last_error que explica el reintento en curso.
       } else {

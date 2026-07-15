@@ -108,7 +108,87 @@ function loadToolsJar(): Promise<Uint8Array> {
   return p;
 }
 
+/**
+ * Reemplaza comentarios (línea `//` y bloque `/* *​/`) y literales (string `"…"`,
+ * char `'…'`) por espacios de la MISMA longitud (preserva índices y saltos de
+ * línea). Sirve para contar llaves `{}` solo del código real, sin las que
+ * aparezcan dentro de comentarios o strings.
+ */
+function stripCommentsAndStrings(src: string): string {
+  let out = "";
+  let i = 0;
+  const n = src.length;
+  while (i < n) {
+    const c = src[i];
+    const d = i + 1 < n ? src[i + 1] : "";
+    if (c === "/" && d === "/") {
+      while (i < n && src[i] !== "\n") { out += " "; i++; }
+      continue;
+    }
+    if (c === "/" && d === "*") {
+      out += "  "; i += 2;
+      while (i < n && !(src[i] === "*" && src[i + 1] === "/")) { out += src[i] === "\n" ? "\n" : " "; i++; }
+      if (i < n) { out += "  "; i += 2; }
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      const quote = c;
+      out += " "; i++;
+      while (i < n && src[i] !== quote) {
+        if (src[i] === "\\") { out += "  "; i += 2; continue; }
+        out += src[i] === "\n" ? "\n" : " "; i++;
+      }
+      if (i < n) { out += " "; i++; }
+      continue;
+    }
+    out += c; i++;
+  }
+  return out;
+}
+
+/**
+ * Nombre de la clase TOP-LEVEL que contiene el método `main`. Las clases
+ * top-level no se anidan entre sí, así que el `main` (esté donde esté, incluso en
+ * una clase interna) pertenece a la última clase top-level (brace-depth 0)
+ * declarada ANTES de la posición del `main`. Devuelve null si no hay `main`.
+ *
+ * Corrige el bug de elegir la `public class` en vez de la que realmente declara
+ * `main`: p.ej. `public class Board {}  class Game { …main… }` → "Game" (no
+ * "Board"), que es lo que `java <Class>` necesita para no dar "main not found".
+ */
+function deriveClassContainingMain(source: string): string | null {
+  const skeleton = stripCommentsAndStrings(source);
+  const mainMatch = /\bpublic\s+static\s+void\s+main\s*\(/.exec(skeleton);
+  if (!mainMatch) return null;
+  const mainPos = mainMatch.index;
+
+  // Profundidad de llaves acumulada por índice (sobre el skeleton).
+  const depthAt = new Array<number>(skeleton.length + 1);
+  let depth = 0;
+  for (let k = 0; k < skeleton.length; k++) {
+    depthAt[k] = depth;
+    if (skeleton[k] === "{") depth++;
+    else if (skeleton[k] === "}") depth = Math.max(0, depth - 1);
+  }
+  depthAt[skeleton.length] = depth;
+
+  // Última declaración de clase/enum/record/interface top-level (depth 0) que
+  // aparece antes del main.
+  const declRe = /\b(?:class|enum|record|interface)\s+([A-Za-z_$][A-Za-z0-9_$]*)/g;
+  let chosen: string | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = declRe.exec(skeleton)) !== null) {
+    if (m.index >= mainPos) break;
+    if (depthAt[m.index] === 0) chosen = m[1];
+  }
+  return chosen;
+}
+
 export function deriveMainClass(source: string): string {
+  // Preferir la clase que REALMENTE declara main; solo si no hay main caemos al
+  // comportamiento histórico (public class o "Main") — NO a una clase no-pública.
+  const byMain = deriveClassContainingMain(source);
+  if (byMain) return byMain;
   const m = source.match(/public\s+class\s+([A-Za-z_$][A-Za-z0-9_$]*)/);
   return m ? m[1] : "Main";
 }
@@ -164,7 +244,14 @@ export function deriveMainClassFromFiles(files: JavaSourceFile[]): string {
   if (!files || files.length === 0) return "Main";
   const withMain = files.find((f) => hasMainMethod(f.content));
   if (withMain) {
-    return deriveTopLevelClass(withMain.content) ?? deriveMainClass(withMain.content);
+    // La clase que DECLARA main manda (no la public class del archivo): si
+    // `main` está en una clase package-private junto a una public sin main,
+    // ejecutar la public daría "main method not found".
+    return (
+      deriveClassContainingMain(withMain.content) ??
+      deriveTopLevelClass(withMain.content) ??
+      deriveMainClass(withMain.content)
+    );
   }
   // Fallback: primera clase declarada en el primer archivo no vacío.
   for (const f of files) {

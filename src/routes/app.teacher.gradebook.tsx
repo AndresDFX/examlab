@@ -898,10 +898,17 @@ function Gradebook() {
       const PASS_STYLE = 3;
       const FAIL_STYLE = 4;
 
-      // Conjunto de columnas que llevan NOTA (item + asistencia + cortes +
-      // final) → son las únicas que se colorean por aprobado/reprobado.
+      // Columnas que se colorean por aprobado/reprobado. SOLO las que están en la
+      // escala del curso [min,max]: asistencia por corte, notas de corte y final.
+      // Las columnas de ITEM (kind='item') llevan la nota CRUDA en escala max_score
+      // (un taller 40/100 se escribe "40"); compararla contra passing_grade (0..5)
+      // pintaba casi todo VERDE (40>=3) aunque 40/100 = 2.0 reprobó. No las
+      // coloreamos: el crudo no es comparable con passing_grade y su reescalado
+      // correcto depende de max_score/is_external por columna.
       const gradeKeys = new Set<string>();
-      exportCols.forEach((ec) => gradeKeys.add(ec.key));
+      exportCols.forEach((ec) => {
+        if (ec.kind === "attendance") gradeKeys.add(ec.key);
+      });
       cuts.forEach((cut) => gradeKeys.add(`${cut.name} (${cut.weight}%)`));
       gradeKeys.add(t("hc_routesAppTeacherGradebook.csvFinalGrade"));
 

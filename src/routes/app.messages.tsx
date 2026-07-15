@@ -680,6 +680,18 @@ function MessagesPage() {
       );
       return;
     }
+    // El envío INMEDIATO rechaza >4000 por el CHECK de messages.body (23514) y el
+    // usuario ve el error; el programado guardaba en scheduled_messages (CHECK
+    // <=10000) y el dispatch lo truncaba con left(body,4000) → pérdida silenciosa.
+    // Igualamos el límite efectivo acá para que el usuario lo acorte, no se trunque.
+    if (body.trim().length > 4000) {
+      toast.error(
+        i18n.t("toast.routes_app_messages.messageTooLong", {
+          defaultValue: "El mensaje no puede superar los 4000 caracteres.",
+        }),
+      );
+      return;
+    }
     const v = validateScheduledSend(directScheduleAt);
     if (!v.ok) {
       toast.error(v.error ?? t("hc_routesAppMessages.invalidDate"));

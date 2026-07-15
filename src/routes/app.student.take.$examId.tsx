@@ -126,8 +126,7 @@ function isQuestionAnswered(q: Question, answers: Record<string, unknown>): bool
     // Si no hay starter_code en la BD pero la pregunta es Java codigo,
     // el editor muestra JAVA_STARTER por defecto — eso cuenta como
     // tener contenido visible (se persistirá en mergeStarterCodeAnswers).
-    const starter =
-      (q.starter_code ?? "").trim() || (q.type === "codigo" ? getStarterCode(q.language) : "");
+    const starter = (q.starter_code ?? "").trim() || defaultStarterFor(q);
     const code = (typeof v === "string" ? v : "").trim() || starter.trim();
     return code.length > 0;
   }
@@ -153,6 +152,24 @@ function getUnansweredIndices(questions: Question[], answers: Record<string, unk
   return out;
 }
 
+/**
+ * Plantilla por DEFECTO que el editor muestra para una pregunta de código
+ * cuando el docente no configuró starter_code. Debe coincidir EXACTO con lo que
+ * el render pinta (JAVA_GUI_STARTER/JAVAFX_STARTER/PYTHON_GUI_STARTER según
+ * java_framework, y getStarterCode para 'codigo'), para que gui persista/detecte
+ * su contenido visible igual que 'codigo' (antes gui caía a '' → entrega vacía).
+ */
+function defaultStarterFor(q: Question): string {
+  if (q.type === "codigo") return getStarterCode(q.language) || "";
+  if (q.type === "python_gui") return PYTHON_GUI_STARTER;
+  if (q.type === "java_gui") {
+    const fw =
+      (q.options as { java_framework?: "swing" | "javafx" } | null)?.java_framework ?? "swing";
+    return fw === "javafx" ? JAVAFX_STARTER : JAVA_GUI_STARTER;
+  }
+  return "";
+}
+
 /** Persiste plantilla de código como respuesta si el estudiante no escribió nada (para entrega correcta). */
 function mergeStarterCodeAnswers(
   questions: Question[],
@@ -164,14 +181,11 @@ function mergeStarterCodeAnswers(
     const cur = next[q.id];
     const empty = cur === undefined || cur === null || String(cur).trim() === "";
     if (!empty) continue;
-    // Fallback al starter_code de la pregunta. Si no hay y la pregunta
-    // es Java codigo, usa JAVA_STARTER (mismo template que ve el alumno
-    // por defecto en el editor) para que la entrega no llegue vacía.
-    const fallback = (q.starter_code ?? "").trim()
-      ? q.starter_code
-      : q.type === "codigo"
-        ? getStarterCode(q.language) || null
-        : null;
+    // Fallback al starter_code de la pregunta; si no hay, la plantilla por
+    // defecto que ve el alumno en el editor (incluye java_gui/python_gui, no
+    // solo 'codigo') para que la entrega no llegue vacía y se detecte como
+    // respondida igual que 'codigo'.
+    const fallback = (q.starter_code ?? "").trim() ? q.starter_code : defaultStarterFor(q) || null;
     if (fallback) next[q.id] = fallback;
   }
   return next;
@@ -876,6 +890,13 @@ function TakeExam() {
       __saved_at: savedAt,
     };
     answersRef.current = currentAnswers;
+    // LIMITACIÓN CONOCIDA (docs/HALLAZGOS-BUGS-2026-07-15-ronda2.md #N11): este
+    // UPDATE reescribe focus_warnings + answers.__warning_events con el valor LOCAL.
+    // warningsRef.current solo se sincroniza desde el server en el load/resume, así
+    // que si el docente PERDONA una advertencia desde el monitor a un alumno aún en
+    // curso, el próximo heartbeat la pisa. Fix pendiente: suscribir a
+    // postgres_changes de esta fila de submissions y hacer merge hacia abajo cuando
+    // el server trae focus_warnings menor (requiere prueba multi-cliente).
     const currentWarnings = warningsRef.current;
     if (isOnline()) {
       await supabase
