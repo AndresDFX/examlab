@@ -7,6 +7,7 @@ consulta SQL directa a prod el 2026-07-07) y **precios de terceros** (Gemini, Su
 |---|---|
 | [analisis-costos.md](analisis-costos.md) | Análisis completo: metodología, datos reales, precios, costo de IA por operación / por estudiante / **por tamaño de institución**, almacenamiento, infraestructura, aislamiento regulatorio, conclusiones y monitoreo. |
 | [resumen-ejecutivo.md](resumen-ejecutivo.md) | Una página para propuestas comerciales: cifras clave + tabla por tamaño de institución + palancas comerciales. |
+| [propuesta-v2.md](propuesta-v2.md) | **v2 (2026-07-15)** — re-segmentación por tamaño (Pequeña ≤1.500 / Mediana ≤10.000 / Grande >10.000), precios sugeridos + costo-beneficio + margen por franja, política de IA (cliente paga BYO vs incluida) y métrica de facturación (matrículas, no cabezas). |
 
 Relacionados:
 - [../demos/presentacion/modelo-costos-ia-almacenamiento.md](../demos/presentacion/modelo-costos-ia-almacenamiento.md) — versión para presentación (misma base de datos y cálculos).
