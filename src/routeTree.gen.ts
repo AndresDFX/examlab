@@ -46,6 +46,7 @@ import { Route as AppTeacherAiCronRouteImport } from './routes/app.teacher.ai-cr
 import { Route as AppSuperadminTenantsRouteImport } from './routes/app.superadmin.tenants'
 import { Route as AppSuperadminSystemRouteImport } from './routes/app.superadmin.system'
 import { Route as AppSuperadminSupportRouteImport } from './routes/app.superadmin.support'
+import { Route as AppSuperadminPricingCalculatorRouteImport } from './routes/app.superadmin.pricing-calculator'
 import { Route as AppStudentWorkshopsRouteImport } from './routes/app.student.workshops'
 import { Route as AppStudentProjectsRouteImport } from './routes/app.student.projects'
 import { Route as AppStudentPollsRouteImport } from './routes/app.student.polls'
@@ -270,6 +271,12 @@ const AppSuperadminSystemRoute = AppSuperadminSystemRouteImport.update({
   path: '/superadmin/system',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSuperadminPricingCalculatorRoute =
+  AppSuperadminPricingCalculatorRouteImport.update({
+    id: '/superadmin/pricing-calculator',
+    path: '/superadmin/pricing-calculator',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppSuperadminSupportRoute = AppSuperadminSupportRouteImport.update({
   id: '/superadmin/support',
   path: '/superadmin/support',
@@ -542,6 +549,7 @@ export interface FileRoutesByFullPath {
   '/app/student/polls': typeof AppStudentPollsRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
+  '/app/superadmin/pricing-calculator': typeof AppSuperadminPricingCalculatorRoute
   '/app/superadmin/support': typeof AppSuperadminSupportRoute
   '/app/superadmin/system': typeof AppSuperadminSystemRoute
   '/app/superadmin/tenants': typeof AppSuperadminTenantsRoute
@@ -622,6 +630,7 @@ export interface FileRoutesByTo {
   '/app/student/polls': typeof AppStudentPollsRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
+  '/app/superadmin/pricing-calculator': typeof AppSuperadminPricingCalculatorRoute
   '/app/superadmin/support': typeof AppSuperadminSupportRoute
   '/app/superadmin/system': typeof AppSuperadminSystemRoute
   '/app/superadmin/tenants': typeof AppSuperadminTenantsRoute
@@ -705,6 +714,7 @@ export interface FileRoutesById {
   '/app/student/polls': typeof AppStudentPollsRoute
   '/app/student/projects': typeof AppStudentProjectsRoute
   '/app/student/workshops': typeof AppStudentWorkshopsRoute
+  '/app/superadmin/pricing-calculator': typeof AppSuperadminPricingCalculatorRoute
   '/app/superadmin/support': typeof AppSuperadminSupportRoute
   '/app/superadmin/system': typeof AppSuperadminSystemRoute
   '/app/superadmin/tenants': typeof AppSuperadminTenantsRoute
@@ -789,6 +799,7 @@ export interface FileRouteTypes {
     | '/app/student/polls'
     | '/app/student/projects'
     | '/app/student/workshops'
+    | '/app/superadmin/pricing-calculator'
     | '/app/superadmin/support'
     | '/app/superadmin/system'
     | '/app/superadmin/tenants'
@@ -869,6 +880,7 @@ export interface FileRouteTypes {
     | '/app/student/polls'
     | '/app/student/projects'
     | '/app/student/workshops'
+    | '/app/superadmin/pricing-calculator'
     | '/app/superadmin/support'
     | '/app/superadmin/system'
     | '/app/superadmin/tenants'
@@ -951,6 +963,7 @@ export interface FileRouteTypes {
     | '/app/student/polls'
     | '/app/student/projects'
     | '/app/student/workshops'
+    | '/app/superadmin/pricing-calculator'
     | '/app/superadmin/support'
     | '/app/superadmin/system'
     | '/app/superadmin/tenants'
@@ -1250,6 +1263,13 @@ declare module '@tanstack/react-router' {
       path: '/superadmin/system'
       fullPath: '/app/superadmin/system'
       preLoaderRoute: typeof AppSuperadminSystemRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/superadmin/pricing-calculator': {
+      id: '/app/superadmin/pricing-calculator'
+      path: '/superadmin/pricing-calculator'
+      fullPath: '/app/superadmin/pricing-calculator'
+      preLoaderRoute: typeof AppSuperadminPricingCalculatorRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/superadmin/support': {
@@ -1622,6 +1642,7 @@ interface AppRouteChildren {
   AppStudentPollsRoute: typeof AppStudentPollsRoute
   AppStudentProjectsRoute: typeof AppStudentProjectsRoute
   AppStudentWorkshopsRoute: typeof AppStudentWorkshopsRoute
+  AppSuperadminPricingCalculatorRoute: typeof AppSuperadminPricingCalculatorRoute
   AppSuperadminSupportRoute: typeof AppSuperadminSupportRoute
   AppSuperadminSystemRoute: typeof AppSuperadminSystemRoute
   AppSuperadminTenantsRoute: typeof AppSuperadminTenantsRoute
@@ -1693,6 +1714,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppStudentPollsRoute: AppStudentPollsRoute,
   AppStudentProjectsRoute: AppStudentProjectsRoute,
   AppStudentWorkshopsRoute: AppStudentWorkshopsRoute,
+  AppSuperadminPricingCalculatorRoute: AppSuperadminPricingCalculatorRoute,
   AppSuperadminSupportRoute: AppSuperadminSupportRoute,
   AppSuperadminSystemRoute: AppSuperadminSystemRoute,
   AppSuperadminTenantsRoute: AppSuperadminTenantsRoute,

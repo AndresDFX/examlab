@@ -92,6 +92,7 @@ import {
   Video,
   ListOrdered,
   Building2,
+  Calculator,
   Wrench,
   Palette,
   HelpCircle,
@@ -455,6 +456,13 @@ const NAV: NavItem[] = [
     to: "/app/superadmin/system",
     labelKey: "nav.system",
     icon: Wrench,
+    roles: ["SuperAdmin"],
+  },
+  {
+    // Calculadora interna de costos/precio (SuperAdmin-only, no se expone a Admin).
+    to: "/app/superadmin/pricing-calculator",
+    labelKey: "nav.pricingCalculator",
+    icon: Calculator,
     roles: ["SuperAdmin"],
   },
   // Diagnóstico de infraestructura (`/app/admin/system`) ya no vive en
