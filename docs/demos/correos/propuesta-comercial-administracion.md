@@ -81,8 +81,8 @@ La IA viene **incluida** (genera y califica exámenes, talleres y proyectos; **t
 > **El valor mensual depende de la cantidad de usuarios activos** (docentes + estudiantes), y **los usuarios desactivados no cuentan**, así solo pagan por lo que usan. Todas las funciones vienen incluidas en todos los planes.
 >
 > Para que se hagan una idea completa:
-> - 📹 Recorrido general: [Ver el demo general](https://drive.google.com/file/d/1Hzl720ggUeavr5XUtOZNNlhraT9qhBpB/view?usp=sharing)
-> - 🛠️ Administrador: [Ver serie completa](https://drive.google.com/file/d/1xTbj_XR-39isn_RMwp9KQO4rkubZe3XL/view?usp=sharing) · 👩‍🏫 Docente: [Ver serie completa](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing) · 🎓 Estudiante: [Ver serie completa](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing)
+> - 📹 Recorrido general: [Ver el demo general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4)
+> - 🛠️ Administrador: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 Docente: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 Estudiante: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
 > - 📊 Presentación general: [Abrir presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
 >
 > Si les hace sentido, armamos una reunión corta, les muestro en vivo cómo quedaría el espacio de [Institución] y les paso una **cotización cerrada según su número de usuarios**. 🙌
@@ -98,7 +98,7 @@ La IA viene **incluida** (genera y califica exámenes, talleres y proyectos; **t
 >
 > 💰 El valor **depende de la cantidad de usuarios activos** (los desactivados no cuentan). Todas las funciones en todos los planes.
 >
-> 🎬 Demo y series: 📹 [General](https://drive.google.com/file/d/1Hzl720ggUeavr5XUtOZNNlhraT9qhBpB/view?usp=sharing) · 🛠️ [Admin](https://drive.google.com/file/d/1xTbj_XR-39isn_RMwp9KQO4rkubZe3XL/view?usp=sharing) · 👩‍🏫 [Docente](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing) · 🎓 [Estudiante](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing) · 📊 [Presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
+> 🎬 Demo y series: 📹 [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · 🛠️ [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · 📊 [Presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
 >
 > ¿Armamos una llamada corta y te paso la cotización según su número de usuarios? 🚀
 
@@ -110,5 +110,5 @@ La IA viene **incluida** (genera y califica exámenes, talleres y proyectos; **t
 - **Reemplaza** `[Institución]`, `[Nombre]`, `[Tu nombre]` y `[correo / WhatsApp]`.
 - **IA:** decide si el cliente pone su API key (sin costo de IA para ti) o si la incluyes como add-on medido — impacta el margen.
 - **Onboarding:** define si el montaje inicial va incluido o como valor único (según tamaño de la institución).
-- **Enlaces ya embebidos** (Drive/Slides); canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). Adjunta la **presentación comercial** cuando avances a números.
+- **Enlaces ya embebidos** (Supabase Storage / Google Slides); canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). Adjunta la **presentación comercial** cuando avances a números.
 - Diferencia clave vs. [`correo-3-mi-institucion.md`](correo-3-mi-institucion.md): allí la institución **se auto-administra**; aquí **tú operas** — súbelo como un servicio premium, no como el mismo precio de plataforma sola.

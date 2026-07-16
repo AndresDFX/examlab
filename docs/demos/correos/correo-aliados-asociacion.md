@@ -42,10 +42,10 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 > Asociarte es **gratis**, sin metas obligatorias, y te paso todos los materiales para vender (demos en video, presentaciones y cuentas de prueba).
 >
 > **🎬 Mira el producto** (videos y presentación, para que lo conozcas y lo muestres):
-> - 📹 Recorrido general: [Ver demo general](https://drive.google.com/file/d/1Hzl720ggUeavr5XUtOZNNlhraT9qhBpB/view?usp=sharing)
-> - 🛠️ Todas las funcionalidades — Administrador: [Ver serie completa](https://drive.google.com/file/d/1xTbj_XR-39isn_RMwp9KQO4rkubZe3XL/view?usp=sharing)
-> - 👩‍🏫 Todas las funcionalidades — Docente: [Ver serie completa](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing)
-> - 🎓 Todas las funcionalidades — Estudiante: [Ver serie completa](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing)
+> - 📹 Recorrido general: [Ver demo general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4)
+> - 🛠️ Todas las funcionalidades — Administrador: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4)
+> - 👩‍🏫 Todas las funcionalidades — Docente: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4)
+> - 🎓 Todas las funcionalidades — Estudiante: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
 > - 📊 Presentación general: [Abrir presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
 >
 > Te adjunto la **presentación del programa** con el detalle. Si te suena, armamos una llamada corta y dejamos por escrito modalidad y %. ¿Le entramos? 🚀
@@ -63,7 +63,7 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 > Gratis asociarse y te paso todo para vender (demos + presentaciones + cuentas de prueba). Te mando la presentación 👇 ¿lo miramos? 🚀
 >
 > 🎬 Videos y presentación:
-> 📹 [General](https://drive.google.com/file/d/1Hzl720ggUeavr5XUtOZNNlhraT9qhBpB/view?usp=sharing) · 🛠️ [Admin](https://drive.google.com/file/d/1xTbj_XR-39isn_RMwp9KQO4rkubZe3XL/view?usp=sharing) · 👩‍🏫 [Docente](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing) · 🎓 [Estudiante](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing) · 📊 [Presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
+> 📹 [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · 🛠️ [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · 📊 [Presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
 
 ---
 
@@ -81,7 +81,7 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 - **Adjunta** la presentación [`../presentacion/ExamLab-Presentacion-Aliados.pptx`](../presentacion/ExamLab-Presentacion-Aliados.pptx).
 - **Ajusta los %** (10 / 15 / 20) y los ejemplos a tu política comercial real antes de comprometerlos. Los precios usados ($149 / $349 / $799, planes Pequeña/Mediana/Grande **v3**) son los de referencia de la presentación comercial — manténlos sincronizados (ver [`../../costos/analisis/modelo-precios-v3.md`](../../costos/analisis/modelo-precios-v3.md)).
 - Reemplaza `[Nombre]` y, en la presentación (última diapositiva), `[tu correo / WhatsApp aquí]`.
-- **Videos y presentación ya embebidos** (Drive/Slides) en ambas versiones. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). El **manual** no va en esta versión de los correos.
+- **Videos y presentación ya embebidos** (Supabase Storage / Google Slides) en ambas versiones. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). El **manual** no va en esta versión de los correos.
   - (Clip corto para WhatsApp/redes, si lo quieres adjuntar aparte: `../social/output/modulo-social.mp4`)
 - En WhatsApp el texto del enlace `[Ver](url)` no se renderiza como en el correo; al pegarlo, deja que WhatsApp muestre la URL clickeable o usa un acortador.
 - Si tras asociarse el aliado va a mostrar la plataforma, entrégale una cuenta de prueba con [`correo-entrega-cuenta-docente.md`](correo-entrega-cuenta-docente.md).

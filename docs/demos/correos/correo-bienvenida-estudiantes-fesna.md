@@ -23,7 +23,7 @@ Versión del correo de bienvenida **específica para FESNA** (estudiantes de **L
 > 4. **Contraseña:** la **temporal** que te compartimos. En tu **primer ingreso** te pedirá cambiarla por una propia. ¿No la tienes? Usa **"¿Olvidaste tu contraseña?"**. ✅
 >
 > **🎬 Recorrido en video** — mira todo lo que puedes hacer:
-> 👉 [🎓 Ver el recorrido del estudiante](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing)
+> 👉 [🎓 Ver el recorrido del estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
 > *(Al ingresar por primera vez también verás un tour guiado paso a paso.)*
 >
 > **📸 Así se ve por dentro:**
@@ -68,7 +68,7 @@ Versión del correo de bienvenida **específica para FESNA** (estudiantes de **L
 > 👤 Usuario: tu correo **@lanuevaamerica.edu.co**
 > 🔑 Clave: la **temporal** (en el primer ingreso la cambias). ¿No la tienes? *"¿Olvidaste tu contraseña?"*.
 >
-> 🎬 Mira todo lo que puedes hacer 👉 https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing
+> 🎬 Mira todo lo que puedes hacer 👉 https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4
 >
 > Adentro: cursos, exámenes, talleres, proyectos, notas, asistencia (QR), encuestas/Kahoot, pizarras en vivo, calendario, **tutor IA**, videos, mensajes y certificados. Cualquier cosa me escribes 🙌
 

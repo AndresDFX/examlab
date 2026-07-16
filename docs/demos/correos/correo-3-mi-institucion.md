@@ -16,12 +16,12 @@ Lo que más me ha servido es que la **IA me quita de encima lo repetitivo**: me 
 Para que te hagas una idea, te dejo todo:
 
 **1) Vistazo rápido (2 min) — demo general**
-👉 [▶️ Ver el demo general](https://drive.google.com/file/d/1Hzl720ggUeavr5XUtOZNNlhraT9qhBpB/view?usp=sharing)
+👉 [▶️ Ver el demo general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4)
 
 **2) Demos completas por perfil (a fondo)**
-- Administrador: [Ver recorrido completo](https://drive.google.com/file/d/1xTbj_XR-39isn_RMwp9KQO4rkubZe3XL/view?usp=sharing)
-- Docente: [Ver recorrido completo](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing)
-- Estudiante: [Ver recorrido completo](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing)
+- Administrador: [Ver recorrido completo](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4)
+- Docente: [Ver recorrido completo](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4)
+- Estudiante: [Ver recorrido completo](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
 
 **3) Presentaciones**
 - **[General](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)** — qué es y qué hace la plataforma.
@@ -37,6 +37,6 @@ Un abrazo,
 ### Notas para ti (borrar antes de enviar)
 - **Personaliza el resultado concreto** entre corchetes — es tu mejor argumento (lo estás usando de verdad).
 - **Presentación general:** ya va embebida como enlace (Google Slides) en el cuerpo — es la que se comparte siempre por ahora. La **comercial** se adjunta como archivo (`ExamLab-Presentacion-Comercial.pptx`) o pega su enlace donde dice "Comercial".
-- **Videos ya embebidos** (Demo general, Administrador, Docente, Estudiante → Drive). Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md).
+- **Videos ya embebidos** (Demo general, Administrador, Docente, Estudiante → Supabase Storage). Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md).
 - El **manual de usuario** no va en esta versión de los correos (se agregará más adelante).
 - En la comercial los precios son de referencia ($99 / $299 / $1.000 por mes, con un plan a la medida — "Contáctanos" — para más de 5.000 estudiantes) — ajústalos antes de mostrarlos.

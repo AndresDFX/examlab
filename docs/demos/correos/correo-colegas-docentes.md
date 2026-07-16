@@ -30,10 +30,10 @@ Para gente con la que **eres docente** (pares). Tono de colega a colega: que lo 
 > Un par de cosas para que no te tome por sorpresa: la cuenta **no trae estudiantes** (eso lo hace un administrador), así que el ciclo completo de calificar entregas reales se aprecia mejor en los videos. Y si en algún momento la **IA no responde**, casi siempre es disponibilidad del modelo (es un entorno de demo) — espera un ratito y reintenta.
 >
 > **🎬 Videos por rol + presentación** (para que veas el panorama completo):
-> - 📹 Recorrido general: [Ver demo general](https://drive.google.com/file/d/1Hzl720ggUeavr5XUtOZNNlhraT9qhBpB/view?usp=sharing)
-> - 🛠️ Todas las funcionalidades — Administrador: [Ver serie completa](https://drive.google.com/file/d/1xTbj_XR-39isn_RMwp9KQO4rkubZe3XL/view?usp=sharing)
-> - 👩‍🏫 Todas las funcionalidades — Docente: [Ver serie completa](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing)
-> - 🎓 Todas las funcionalidades — Estudiante: [Ver serie completa](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing)
+> - 📹 Recorrido general: [Ver demo general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4)
+> - 🛠️ Todas las funcionalidades — Administrador: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4)
+> - 👩‍🏫 Todas las funcionalidades — Docente: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4)
+> - 🎓 Todas las funcionalidades — Estudiante: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
 > - 📊 Presentación general: [Abrir presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
 >
 > Si después de verla te gusta y crees que a otros profes les serviría, **pásala** — ese es el mejor favor que me puedes hacer 🙌. Y cualquier comentario, por crudo que sea, lo recibo feliz.
@@ -55,7 +55,7 @@ Para gente con la que **eres docente** (pares). Tono de colega a colega: que lo 
 > Pruébala: crea un **curso** y deja que la **IA te arme un examen o taller**. Si te gusta y crees que a otros profes les sirve, **pásala** 🙌. Cualquier comentario, bienvenido.
 >
 > 🎬 Videos y presentación:
-> 📹 [General](https://drive.google.com/file/d/1Hzl720ggUeavr5XUtOZNNlhraT9qhBpB/view?usp=sharing) · 🛠️ [Admin](https://drive.google.com/file/d/1xTbj_XR-39isn_RMwp9KQO4rkubZe3XL/view?usp=sharing) · 👩‍🏫 [Docente](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing) · 🎓 [Estudiante](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing) · 📊 [Presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
+> 📹 [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · 🛠️ [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · 📊 [Presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
 
 **Variante B — más corta y directa:**
 
@@ -64,7 +64,7 @@ Para gente con la que **eres docente** (pares). Tono de colega a colega: que lo 
 > Te paso **cuenta de prueba gratis** (limitada): 🔗 https://examlab.lovable.app/auth → *ExamLab Demo* → `[tu correo demo]` / `ExamlabDemo2026`. Crea un curso y deja que la IA te arme un examen 🤖. Si te gusta, **pásala** 🙌
 >
 > 🎬 Videos y presentación:
-> 📹 [General](https://drive.google.com/file/d/1Hzl720ggUeavr5XUtOZNNlhraT9qhBpB/view?usp=sharing) · 🛠️ [Admin](https://drive.google.com/file/d/1xTbj_XR-39isn_RMwp9KQO4rkubZe3XL/view?usp=sharing) · 👩‍🏫 [Docente](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing) · 🎓 [Estudiante](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing) · 📊 [Presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
+> 📹 [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · 🛠️ [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · 📊 [Presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
 
 ---
 
@@ -75,6 +75,6 @@ Para gente con la que **eres docente** (pares). Tono de colega a colega: que lo 
 - **Oferta vigente:** licencia de docente gratis **por tiempo limitado**, con cuentas ya creadas — no inventes precios ni fechas, deja "por tiempo limitado". Detalle del primer acceso en [`correo-entrega-cuenta-docente.md`](correo-entrega-cuenta-docente.md).
 - **Sé honesto con el testimonio:** el texto está redactado como *"la armé / quiero que la revisen"* (seguro aunque aún no la uses a diario). Si ya la usaste de verdad en tus clases, suma un dato propio (*"me ahorró X horas este corte"*).
 - **Adjuntar opcional:** el video de cómo ingresar [`../social/output/modulo-login.mp4`](../social/output/modulo-login.mp4). Para enganchar antes, manda primero el clip social [`../social/output/modulo-social.mp4`](../social/output/modulo-social.mp4) o el promo [`../social/output/modulo-promo.mp4`](../social/output/modulo-promo.mp4).
-- **Videos y presentación ya embebidos** (Drive/Slides) en el correo y en ambos WhatsApp. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). El **manual** no va en esta versión de los correos.
+- **Videos y presentación ya embebidos** (Supabase Storage / Google Slides) en el correo y en ambos WhatsApp. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). El **manual** no va en esta versión de los correos.
 - **Modelo de IA (si preguntan por el costo):** la IA viene incluida; el docente/institución pone **su propia API key** (sin sobrecosto) o la usa como **add-on medido por consumo**, y la **cola de procesamiento** (modo inmediato o en cola) controla cuándo y cuánto corre la IA. Con Gemini Flash el consumo estimado es **≈ US$0,06 por estudiante/mes** (medido con datos reales: el Tutor IA promedia 3.522 tokens de entrada + 190 de salida por mensaje). Detalle y aritmética en [`../../costos/modelo-costos-ia-almacenamiento.md`](../../costos/modelo-costos-ia-almacenamiento.md) y en la presentación **Independientes**.
 - En WhatsApp el texto `[Ver](url)` no se renderiza como en el correo; al pegar, deja la URL clickeable o usa un acortador.

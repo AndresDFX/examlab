@@ -8,12 +8,12 @@ cruda). La **presentación general** es la que se comparte siempre por ahora.
 | Recurso | Enlace |
 |---|---|
 | **Presentación general** (Google Slides) | https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true |
-| **Demo general** (modulo-overview) | https://drive.google.com/file/d/1Hzl720ggUeavr5XUtOZNNlhraT9qhBpB/view?usp=sharing |
-| **Serie Administrador** (completa) | https://drive.google.com/file/d/1xTbj_XR-39isn_RMwp9KQO4rkubZe3XL/view?usp=sharing |
-| **Serie Docente** (completa) | https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing |
-| **Serie Estudiante** (completa) | https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing |
+| **Demo general** (modulo-overview) | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4 |
+| **Serie Administrador** (completa) | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4 |
+| **Serie Docente** (completa) | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4 |
+| **Serie Estudiante** (completa) | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4 |
 
 > El **manual de usuario** no se incluye en esta versión de los correos (se agregará más adelante).
 
 > Los `.mp4` locales (`docs/demos/.../*.mp4`) son los archivos fuente; los
-> enlaces de arriba (Drive/Slides) son los que se comparten en los correos.
+> enlaces de arriba (Supabase Storage / Google Slides) son los que se comparten en los correos.

@@ -23,7 +23,7 @@ Mensaje para que el **docente/administrador le dé la bienvenida a sus estudiant
 > 4. **Contraseña:** la **temporal** que te compartimos. En tu **primer ingreso** te pedirá cambiarla por una propia. Si no la tienes, usa **"¿Olvidaste tu contraseña?"** en la pantalla de inicio. ✅
 >
 > **🎬 Recorrido por la plataforma** — mira todo lo que puedes hacer como estudiante:
-> 👉 [🎓 Ver el recorrido del estudiante](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing)
+> 👉 [🎓 Ver el recorrido del estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
 >
 > *(Además, al ingresar por primera vez verás un **tour guiado paso a paso**; puedes repetirlo cuando quieras desde el menú de tu avatar → "Ver tour guiado".)*
 >
@@ -59,7 +59,7 @@ Mensaje para que el **docente/administrador le dé la bienvenida a sus estudiant
 > 👤 Usuario: **tu correo institucional** (con el que te matriculamos)
 > 🔑 Clave: la **temporal** que te pasamos (en el primer ingreso la cambias). ¿No la tienes? Usa *"¿Olvidaste tu contraseña?"*.
 >
-> 🎬 Mira **todo lo que puedes hacer** como estudiante 👉 https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing
+> 🎬 Mira **todo lo que puedes hacer** como estudiante 👉 https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4
 >
 > Adentro tienes: cursos, exámenes, talleres, proyectos, calificaciones, asistencia (check-in con QR), encuestas/Kahoot, pizarras en vivo, calendario, **tutor IA** del curso, videos, mensajes y certificados. Guarda el enlace en favoritos (anda también en el celu). Cualquier cosa me escribes 🙌
 

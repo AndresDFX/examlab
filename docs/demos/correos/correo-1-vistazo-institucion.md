@@ -13,13 +13,13 @@ Como te comenté, por fin te paso el demo de **ExamLab**, la plataforma educativ
 
 Para que te hagas una idea rápida, arranca con este **video general** (poco más de 2 minutos); ahí se ve cómo funciona para los tres perfiles: administrador, docente y estudiante.
 
-👉 **Demo general:** [▶️ Ver el video (≈2 min)](https://drive.google.com/file/d/1Hzl720ggUeavr5XUtOZNNlhraT9qhBpB/view?usp=sharing)
+👉 **Demo general:** [▶️ Ver el video (≈2 min)](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4)
 
 Y si quieres ir más a fondo, acá están los **recorridos completos** por cada perfil:
 
-- **Administrador:** [Ver recorrido completo](https://drive.google.com/file/d/1xTbj_XR-39isn_RMwp9KQO4rkubZe3XL/view?usp=sharing)
-- **Docente:** [Ver recorrido completo](https://drive.google.com/file/d/1RBaxQHVpYxPuiIhLHnP4EKfmAeLq_32O/view?usp=sharing)
-- **Estudiante:** [Ver recorrido completo](https://drive.google.com/file/d/1OhQAJz4M5M2w3R_QGZTTd4CsD8OMdF5u/view?usp=sharing)
+- **Administrador:** [Ver recorrido completo](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4)
+- **Docente:** [Ver recorrido completo](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4)
+- **Estudiante:** [Ver recorrido completo](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
 
 Te comparto también la **[presentación general](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)** con los puntos clave de la plataforma, por si quieres tenerla a mano.
 
@@ -32,6 +32,6 @@ Un abrazo,
 
 ### Notas para ti (borrar antes de enviar)
 - **Presentación:** la **general** ya va embebida como enlace (Google Slides) en el cuerpo — es la que se comparte siempre por ahora. Si prefieres adjuntar el archivo, expórtala de Slides a `.pptx`.
-- **Videos ya embebidos** (no hay que pegar nada): Demo general, Administrador, Docente y Estudiante apuntan a los videos en Drive. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md).
+- **Videos ya embebidos** (no hay que pegar nada): Demo general, Administrador, Docente y Estudiante apuntan a los videos en Supabase Storage. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md).
 - El **manual de usuario** no va en esta versión de los correos (se agregará más adelante).
 - Este correo **no** menciona precios ni planes — es el primer vistazo.
