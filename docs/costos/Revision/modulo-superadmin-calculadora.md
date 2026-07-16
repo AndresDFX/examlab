@@ -1,20 +1,20 @@
 # Plan del módulo SuperAdmin — Calculadora de costos y precio de venta
 
-> Feature interna de ExamLab (React 18 + TanStack Router + TS + Supabase). Solo rol **SuperAdmin**. Permite cotizar un cliente (por matrículas/licencias) devolviendo costo de infra estimado y precio de venta sugerido con margen parametrizable, para los 3 modelos de negocio (licencia self-host, licencia administrada dedicada, SaaS compartido).
+> Feature interna de ExamLab (React 18 + TanStack Router + TS + Supabase). Solo rol **SuperAdmin**. Permite cotizar un cliente (por matrículas/licencias) devolviendo costo de infra estimado y precio de venta sugerido con margen parametrizable, para los 3 modelos de negocio. **La infraestructura la proporciona SIEMPRE ExamLab** — los 3 modelos NO se diferencian por quién pone la infra (siempre yo), sino por **quién administra el tenant**: sin administración mía (AUTO, self-service del cliente), con administración mía (ADMINISTRADA), e independientes con mi administración (sub-segmento de la administrada sobre infra compartida).
 
 ---
 
 ## 1. Objetivo y user story
 
-**Objetivo.** Dar al SuperAdmin una herramienta que, ingresando el tamaño del cliente y unas pocas variables comerciales, calcule en **≤30 s** el costo de infraestructura aproximado y el **precio de venta sugerido** con un margen predeterminado (editable), y lo contraste contra el precio de lista v3 y el comparable de mercado.
+**Objetivo.** Dar al SuperAdmin una herramienta que, ingresando el tamaño del cliente y unas pocas variables comerciales, calcule en **≤30 s** el costo de infraestructura aproximado (siempre a cargo de ExamLab) y el **precio de venta sugerido** con un margen predeterminado (editable), y lo contraste contra el precio de lista v3 y el comparable de mercado.
 
 **User story principal**
-> *Como SuperAdmin, quiero ingresar el nº de matrículas activas de un prospecto, elegir plan/modalidad/add-ons y un margen objetivo, para obtener al instante el costo real que me genera ese cliente y un precio de venta defendible, y así cerrar la cotización en la misma llamada.*
+> *Como SuperAdmin, quiero ingresar el nº de matrículas activas de un prospecto, elegir plan/modalidad/add-ons y un margen objetivo, para obtener al instante el costo real que me genera ese cliente (infra mía + operación) y un precio de venta defendible, y así cerrar la cotización en la misma llamada.*
 
 **Stories secundarias**
 - Como SuperAdmin, quiero **editar los supuestos de costo** (fijo mensual, $/GB, $/matrícula, costo humano, márgenes default) sin tocar código, para reflejar cambios de precios de Supabase/Lovable/salarios.
 - Como SuperAdmin, quiero una **tabla por escala** (250 → 100k matrículas) y **export CSV**, para adjuntar la cotización a una propuesta.
-- Como SuperAdmin, quiero que el cálculo **cambie según el modelo de negocio** (licencia self-host vs administrada dedicada vs SaaS compartido), porque la estructura de costo es distinta en cada uno.
+- Como SuperAdmin, quiero que el cálculo **cambie según el modelo de negocio** (sin administración mía vs con administración mía vs independiente con mi administración), porque lo que cambia entre ellos es **si sumo el costo humano de operación y el nivel de soporte** — NO la infra, que siempre es mía y nunca cuesta $0.
 
 ---
 
@@ -61,22 +61,27 @@ Todos con componentes del design system (`Label required`, `DecimalInput`, `Sele
 | **Licencias de estudiante** | `DecimalInput` | visible si modo = licencias |
 | **Factor materias/alumno** | `DecimalInput` | default `6` (1 alumno en 6 materias = 6 matrículas). `matriculas = licencias × factor` |
 | **Plan** | `Select` | Starter / Pequeña / Mediana / Grande / Enterprise |
-| **Modalidad** | `Select` | `Auto` \| `Administrada` (+costo humano) |
-| **Modelo de negocio** | `Select` | `1 Licencia self-host` \| `2 Licencia administrada (dedicada)` \| `3 SaaS compartido` |
+| **Modelo de negocio** | `Select` | `1 Sin administración (AUTO)` \| `2 Con administración (ADMINISTRADA)` \| `3 Independiente con mi administración` |
+| **Modalidad** | `Select` (derivado, editable solo excepcionalmente) | `Auto` \| `Administrada`. Se **auto-fija por el modelo**: modelo 1 → Auto; modelos 2 y 3 → Administrada. Determina el costo humano y qué precio de lista se compara (`listAuto`/`listAdmin`) |
+| **Tipo de infra (aislamiento)** | `Select`/`Switch` | `Compartida (RLS)` (default) \| `Dedicada (Supabase por tenant gestionado por ExamLab)`. La dedicada activa el add-on de aislamiento ($99). **Ambas son infra de ExamLab** — no existe opción "infra del cliente" |
 | **Margen objetivo %** | `DecimalInput` (coma) | default desde `pricing_assumptions` (90%). Rango 0–99 |
 | **Descuento pago anual** | `Switch` | −10% al precio final |
-| **Add-on: IA administrada** | `Switch` | $0.10/matr/mes (costo real $0.062) |
+| **Add-on: IA administrada** | `Switch` | $0.10/matr/mes (costo real $0.062). Excepción al BYO ($0 IA por defecto) |
 | **Add-on: Storage extra (GB)** | `DecimalInput` | GB sobre el cap del plan; $10/100GB |
 | **Add-on: Code runner ilimitado** | `Switch` | $49/mes |
-| **Add-on: Aislamiento dedicado** | `Switch` | $99/mes (auto-forzado en modelo 2) |
+| **Add-on: Aislamiento dedicado** | `Switch` | $99/mes. Supabase dedicado por tenant **gestionado por ExamLab** (Habeas Data / SOC2). Independiente del modelo de administración |
 | **Add-on: SSO/SAML** | `Switch` | $99 setup (amortizado) + $29/mes |
 | **Add-on: Certificación oficial** | `Switch` | $29/mes |
 
 **Comportamiento reactivo**
 - `matriculas` derivado con `useMemo` de `licencias × factor` cuando modo = licencias.
 - Al elegir **plan**, se sugiere automáticamente por `matriculas` (chip "Plan sugerido: Mediana") pero el SuperAdmin puede overridear.
-- **Modelo 2** fuerza `aislamiento = true` y habilita costo humano si modalidad = Administrada.
-- **Modelo 1** oculta modalidad Administrada (self-host = el cliente opera) y cambia el motor a "estimación de infra del cliente + precio de licencia".
+- **Modelo de negocio ⇒ modalidad + costo humano** (única palanca que cambia entre modelos):
+  - **Modelo 1 (sin administración)** → modalidad = **Auto** (bloqueada), **sin costo humano**. El cliente auto-administra su tenant sobre mi infra; yo doy soporte básico como SuperAdmin (incluido, costo marginal absorbido en el fijo).
+  - **Modelo 2 (con administración)** → modalidad = **Administrada** (bloqueada), **suma costo humano $225** (yo opero el tenant).
+  - **Modelo 3 (independiente con mi administración)** → modalidad = **Administrada**, **infra compartida forzada** (aislamiento deshabilitado; nunca dedicada para un independiente), escala chica (plan Starter/Pequeña), costo humano **reducido** (`$225 × factor_humano_independiente`, default 0,5) porque un independiente demanda menos operación que una institución.
+- **Aislamiento dedicado** es un add-on **ortogonal** al modelo de administración: cualquiera de los modelos 1 o 2 puede contratarlo (siempre resuelto en MI infra). El modelo 3 lo tiene deshabilitado por definición.
+- **En ningún modelo la infra es del cliente ni cuesta $0**: `costoInfra` parte del fijo compartido (~$51) + marginal. Ver §4.2.
 - Patrón `let cancelled = false` no aplica (cálculo es puro/local); el fetch de `pricing_assumptions` sí lleva el guard estándar.
 
 ---
@@ -85,11 +90,14 @@ Todos con componentes del design system (`Label required`, `DecimalInput`, `Sele
 
 Todo el motor vive en un **helper puro testeable** `src/modules/pricing/pricing-engine.ts` (sin React, sin `Date.now`) → habilita `bun test` sin jsdom. La UI solo lo invoca.
 
+**Invariante del motor (corrección clave v3.1):** la infra la pone SIEMPRE ExamLab. Por tanto `costoInfra(N) ≥ COSTO_FIJO_MENSUAL > 0` en **todos** los modelos — no existe una rama "self-host" con `costoInfra ≈ 0`. Lo único que difiere entre modelos es la suma del **costo humano** y el **nivel de soporte**.
+
 ### 4.1 Constantes base (de `pricing_assumptions`, valores v3)
 
 ```
-COSTO_FIJO_MENSUAL      = 51      // Supabase 25 + Lovable 25 + dominio 1
+COSTO_FIJO_MENSUAL      = 51      // Supabase 25 + Lovable 25 + dominio 1 (IA BYO = 0, Lambda free tier)
 COSTO_HUMANO_ADMIN      = 225     // tech $1800/mes ÷ 8 clientes
+FACTOR_HUMANO_INDEP     = 0.5     // el independiente demanda ~mitad de operación (modelo 3)
 STORAGE_OVERAGE_USD_GB  = 0.0213  // Supabase overage
 EGRESS_OVERAGE_USD_GB   = 0.09
 MARGEN_DEFAULT          = 0.90    // margen sobre precio (gross margin)
@@ -106,7 +114,7 @@ scale = [
   {matr: 100000, infra: 900, usdPerMatr: 0.009},
 ]
 
-// Catálogo de planes
+// Catálogo de planes (infraEst = costo de infra atribuido, amortizado sobre el pool compartido — SIEMPRE > 0)
 plans = {
   Starter:    {cap: 200,    gb: 25,  listAuto: 79,   listAdmin: null, infraEst: 10, adminOfrecido: false},
   Pequena:    {cap: 1000,   gb: 50,  listAuto: 149,  listAdmin: 449,  infraEst: 15, adminOfrecido: true},
@@ -120,26 +128,34 @@ addons = {
   iaAdmin:      {list: 0.10, cost: 0.062, unidad: "por matrícula/mes"},
   storageExtra: {list: 10,   cost: 2.13,  unidad: "por 100 GB/mes"},
   codeRunner:   {list: 49,   cost: 5,     unidad: "por mes"},
-  aislamiento:  {list: 99,   cost: 75,    unidad: "por mes"},   // Supabase Pro dedicado + ops
+  aislamiento:  {list: 99,   cost: 75,    unidad: "por mes"},   // Supabase dedicado por tenant GESTIONADO por ExamLab + ops
   ssoSetup:     {list: 99,   cost: 50,    unidad: "una vez"},   // amortizar /12
   ssoMensual:   {list: 29,   cost: 0,     unidad: "por mes"},
   certificacion:{list: 29,   cost: 0,     unidad: "por mes"},
 }
 ```
 
-### 4.2 Costo de infra atribuido al cliente `costoInfra(N)`
+### 4.2 Costo de infra atribuido al cliente `costoInfra(N)` — **siempre > 0, en todos los modelos**
 
-Interpolación **lineal por tramos** sobre `usdPerMatr` de la curva, más piso de fijo:
+La infra es de ExamLab en los 3 modelos. Se ofrecen dos vistas, ambas **con piso positivo**:
 
 ```
-if (N <= 0) costoInfra = COSTO_FIJO_MENSUAL           // solo fijo, sin marginal
+// Vista STANDALONE (conservadora): "si este cliente estuviera solo en la plataforma"
+if (N <= 0) costoInfra = COSTO_FIJO_MENSUAL           // solo fijo compartido — NUNCA $0
 else:
   usd = interp(N, scale, "usdPerMatr")                // interpolación entre puntos
   costoMarginal = N × usd
-  costoInfra = max(COSTO_FIJO_MENSUAL, costoMarginal)  // el fijo domina hasta ~1000 matr
+  costoInfra = max(COSTO_FIJO_MENSUAL, costoMarginal)  // el fijo compartido domina hasta ~1000 matr
+
+// Vista AMORTIZADA (multi-tenant real): la infra atribuida al cliente cuando ya hay varios tenants
+// compartiendo el fijo de ~$51 → se aproxima con plans[plan].infraEst (10/15/30/80/200), también > 0.
+costoInfraAtribuido = plans[plan].infraEst
 ```
 
-Cross-check con `plans[plan].infraEst` (mostrar ambos; si difieren >30% marcar `StatusBadge` "revisar plan vs volumen").
+- **Corrección v3.1:** se eliminó la antigua rama "Modelo 1 self-host → `costoInfra ≈ 0` (infra del cliente)". Esa rama era incorrecta: el cliente NUNCA hospeda su infra. `costoInfra` parte del fijo compartido + marginal y **es siempre positivo**.
+- El motor muestra **ambas vistas** y usa por defecto la STANDALONE (conservadora) para la cotización; la AMORTIZADA (`infraEst`) es el número que aparece en la tabla de márgenes de v3 y aplica cuando la plataforma ya aloja varios tenants (el fijo de $51 se reparte).
+- Si `costoInfra` (standalone, con piso $51) e `infraEst` (amortizado) difieren >30%, mostrar `StatusBadge "revisar plan vs volumen"` (típico en clientes chicos: el piso $51 sobre-atribuye porque no amortiza el fijo compartido).
+- **Aislamiento dedicado** (add-on): cuando está activo, la infra deja de ser el pool compartido y pasa a una instancia Supabase dedicada gestionada por ExamLab → se **suma** `addons.aislamiento.cost` ($75) al costo de infra. Sigue siendo infra mía; sigue siendo > 0.
 
 ### 4.3 Storage overage
 
@@ -151,12 +167,17 @@ storageOverage = gbSobre × STORAGE_OVERAGE_USD_GB
 ```
 Si `gbSobre > 0` sin add-on de storage marcado → warning "storage rompe el plan, agregar add-on o subir plan".
 
-### 4.4 Costo humano
+### 4.4 Costo humano (única palanca que separa los modelos)
 
 ```
-costoHumano = (modalidad === "Administrada") ? COSTO_HUMANO_ADMIN : 0
+costoHumano =
+  (modelo === 1 /* sin administración */)         ? 0
+: (modelo === 3 /* independiente con mi admin */)  ? COSTO_HUMANO_ADMIN × FACTOR_HUMANO_INDEP   // ~112.5
+: (modalidad === "Administrada")                   ? COSTO_HUMANO_ADMIN                          // 225 (modelo 2)
+: 0
 ```
-Bloqueado si `plan === "Starter"` (admin no ofrecido) → ver casos borde.
+- Modelo 1 no lleva humano de operación (el cliente auto-administra), pero **sí lleva soporte básico mío como SuperAdmin**, cuyo costo es marginal y se considera absorbido en el fijo compartido (no se suma aparte).
+- Bloqueado el modo Administrada si `plan === "Starter"` (admin no ofrecido) → ver casos borde.
 
 ### 4.5 Costo de add-ons (costo real a ExamLab)
 
@@ -170,38 +191,35 @@ addonCost =
 // storageExtra ya contabilizado en storageOverage
 ```
 
-### 4.6 Costo total y precio — por modelo de negocio
+### 4.6 Costo total — por modelo de negocio
 
-**Modelo 3 — SaaS compartido (marginal, el modelo actual):**
+La fórmula base es la misma en los 3 modelos; **la única diferencia es el costo humano** (y, si aplica, el add-on de aislamiento sumado dentro de `costoInfra`/`addonCost`). En ningún caso `costoInfra` es $0.
+
+**Modelo 1 — Sin administración mía (AUTO):**
 ```
-costoTotal = costoInfra(N) + costoHumano + addonCost + storageOverage
+costoTotal = costoInfra(N) + addonCost + storageOverage
+// costoHumano = 0. Yo pongo infra + licencias + soporte básico SuperAdmin; el cliente auto-administra.
 ```
 
-**Modelo 2 — Licencia administrada, instancia dedicada:**
+**Modelo 2 — Con administración mía (ADMINISTRADA):**
 ```
-// aislamiento forzado (Supabase dedicado por tenant, costo real 75)
-costoTotal = COSTO_FIJO_MENSUAL + addons.aislamiento.cost + costoHumano
-           + costoInfra_marginal_dedicado(N) + addonCost' + storageOverage
-// addonCost' no doble-cuenta aislamiento
+costoTotal = costoInfra(N) + COSTO_HUMANO_ADMIN + addonCost + storageOverage
+// yo opero el tenant (creo cursos, importo usuarios, capacito, soporte pleno). Aislamiento NO forzado:
+// es add-on independiente; por defecto la infra es RLS compartida en mi Supabase.
 ```
-> El costo humano es ineludible aquí; si modalidad = Auto en modelo 2, warning "una instancia dedicada casi siempre implica operación → considerar Administrada".
 
-**Modelo 1 — Licencia self-host (ExamLab NO hospeda):**
+**Modelo 3 — Independiente con mi administración (sub-segmento de 2):**
 ```
-costoExamLab      = onboardingAmortizado + soporteMensual   // ≈ 0 infra; solo horas
-costoInfraCliente = 25 (Supabase Pro) + 20 (hosting Vercel/estático) + 1 (dominio)
-                    + IA BYO (cliente) ≈ $46–70/mes    // se MUESTRA para justificar la licencia
+costoTotal = costoInfra(N) + (COSTO_HUMANO_ADMIN × FACTOR_HUMANO_INDEP) + addonCost + storageOverage
+// docente/profesional independiente o institución muy chica, SIEMPRE sobre infra COMPARTIDA (aislamiento deshabilitado),
+// con mi administración pero menor dedicación operativa → costo humano ~$112.5. Plan típico Starter/Pequeña.
 ```
-En este modelo el "precio sugerido" es la **licencia** (no un SaaS mensual):
-```
-precioLicenciaMensualEquivalente = plans[plan].listAuto × factorLicencia   // factorLicencia default 0.70
-precioLicenciaAnual = precioLicenciaMensualEquivalente × 12 + setupOneTime
-```
-Racional del `0.70`: el cliente asume su propia infra/ops → se descuenta ~30% del precio SaaS de lista. Parametrizable en `pricing_assumptions`.
 
-### 4.7 Precio sugerido (modelos 2 y 3) — margen **sobre precio**
+> **Aislamiento dedicado (add-on, cualquier modelo salvo el 3):** cuando se activa, `costoInfra` incorpora el costo de la instancia Supabase dedicada gestionada por ExamLab (`+$75` vía `addons.aislamiento.cost`). Se resuelve SIEMPRE en mi infra — nunca en infra del cliente. `addonCost` no debe doble-contar el aislamiento (se suma una sola vez).
 
-Se usa **margen bruto sobre precio** (no markup sobre costo):
+### 4.7 Precio sugerido (todos los modelos) — margen **sobre precio**
+
+Como la infra siempre es mía y `costoTotal` es siempre positivo, el precio sugerido se calcula igual en los 3 modelos: **margen bruto sobre precio** (no markup sobre costo):
 
 ```
 precioSugerido = costoTotal / (1 - margen)        // margen ∈ [0, 0.99)
@@ -221,7 +239,7 @@ deltaVsLista = precioSugerido - precioLista
 // StatusBadge: precioSugerido ≤ precioLista → "dentro de lista" (ok)
 //              precioSugerido  > precioLista → "sobre lista, revisar" (warning)
 ```
-El precio de lista es el **piso comercial**: si el cálculo por margen da menos que la lista, se recomienda cobrar la lista (mostrar ambos).
+El precio de lista es el **piso comercial**: si el cálculo por margen da menos que la lista, se recomienda cobrar la lista (mostrar ambos). Recordá: `precioLista` sale de `listAuto` para el modelo 1 y de `listAdmin` (auto + $300) para los modelos 2 y 3.
 
 ---
 
@@ -245,12 +263,12 @@ BEGIN
       singleton                boolean NOT NULL DEFAULT true,
       costo_fijo_mensual       numeric NOT NULL DEFAULT 51,
       costo_humano_admin       numeric NOT NULL DEFAULT 225,
+      factor_humano_indep      numeric NOT NULL DEFAULT 0.5,    -- modelo 3: operación reducida del independiente
       storage_overage_usd_gb   numeric NOT NULL DEFAULT 0.0213,
       egress_overage_usd_gb    numeric NOT NULL DEFAULT 0.09,
       gb_base_por_matricula    numeric NOT NULL DEFAULT 0.016,   -- ~16MB/matrícula/año
       margen_default           numeric NOT NULL DEFAULT 0.90,    -- margen sobre precio
       factor_materias_default  numeric NOT NULL DEFAULT 6,
-      factor_licencia_selfhost numeric NOT NULL DEFAULT 0.70,
       descuento_anual          numeric NOT NULL DEFAULT 0.10,
       scale_curve              jsonb  NOT NULL,   -- [{matr, infra, usdPerMatr}, ...]
       plans                    jsonb  NOT NULL,   -- {Starter:{cap,gb,listAuto,...}, ...}
@@ -298,6 +316,7 @@ END $$;
 
 - Envuelto en `DO $$ ... to_regclass ... $$` por la defensiva de Lovable (CLAUDE.md).
 - `is_super_admin()` ya bypassa/gate en el resto de RLS; aquí se usa como único predicado.
+- Cambio v3.1 vs versión previa: se reemplazó `factor_licencia_selfhost` (concepto self-host eliminado) por `factor_humano_indep` (modelo 3). El resto del schema se mantiene.
 - **UI de edición de supuestos:** panel `AdminPricingAssumptionsPanel` (o tab "Supuestos" dentro de la calculadora) con `DecimalInput` por constante numérica + editor JSON simple para curva/planes/add-ons. Guardar = `update` sobre la fila singleton (fire-and-forget con `friendlyError`).
 
 ---
@@ -316,11 +335,13 @@ END $$;
 | Precio de lista v3 | `$precioLista` + `deltaVsLista` |
 | Comparable mercado | rango de `comparables-mercado.md` (StatusBadge "competitivo" / "caro" / "barato") |
 
-- Modelo 1 reemplaza "Precio sugerido/mes" por **"Licencia anual sugerida"** + tile "Infra que paga el cliente/mes".
+- Los 3 modelos muestran el mismo hero SaaS mensual (no hay "licencia anual self-host"): lo que cambia entre ellos es `costoTotal` (con/sin humano) y por ende el margen. Se destaca un tile secundario **"Desglose de infra"** que muestra siempre `costoInfra > 0` (fijo compartido + marginal, + $75 si aislamiento dedicado) — evidencia de que la infra es mía en todo modelo.
+- Tile **"Tipo de infra"**: `Compartida (RLS)` o `Dedicada (gestionada por ExamLab)` — nunca "cliente".
+- Modelo 3 rotula el hero como **"Independiente (administrado)"** y muestra el costo humano reducido en el desglose.
 - `StatusBadge`: margen ≥ objetivo → `default/ok`; margen < objetivo → `warning`; precioSugerido > lista → `warning "sobre lista"`.
 
 ### 6.2 Tabla por escala
-`<Table resizable>` con `usePagination` + `useTableSort`, columnas: Matrículas · Plan sugerido · Costo infra · $/matrícula · Precio sugerido (auto) · Precio sugerido (admin) · Margen %. Filas = puntos de la curva (250, 500, 1k, 2.5k, 5k, 10k, 25k, 50k, 100k) recalculados con los supuestos actuales. Sirve para ver a partir de qué volumen conviene qué plan.
+`<Table resizable>` con `usePagination` + `useTableSort`, columnas: Matrículas · Plan sugerido · Costo infra · $/matrícula · Precio sugerido (auto) · Precio sugerido (admin) · Margen %. Filas = puntos de la curva (250, 500, 1k, 2.5k, 5k, 10k, 25k, 50k, 100k) recalculados con los supuestos actuales. Sirve para ver a partir de qué volumen conviene qué plan. La columna "Costo infra" nunca es $0 (piso = fijo compartido).
 
 ### 6.3 Export CSV
 Botón en `actions` del `PageHeader` (patrón `ImportExportMenu`): exporta (a) los inputs, (b) el desglose de costo (fijo/marginal/humano/addons/storage), (c) precio sugerido y comparativa vs lista, (d) la tabla por escala. Nombre `cotizacion-<cliente>-<fecha>.csv` (fecha vía `formatDateOnly`).
@@ -336,14 +357,15 @@ Toda cifra monetaria formateada con `Intl` es-CO / helpers; fechas por `src/lib/
 
 | Caso | Manejo |
 |---|---|
-| **0 matrículas** | `costoInfra = COSTO_FIJO_MENSUAL`, sin marginal. `precioSugerido` = piso = `plans[plan].listAuto`. Guardar contra división por cero en `$/matrícula` → mostrar "—". |
+| **0 matrículas** | `costoInfra = COSTO_FIJO_MENSUAL` (nunca $0), sin marginal. `precioSugerido` = piso = `plans[plan].listAuto` (o `listAdmin` según modelo). Guardar contra división por cero en `$/matrícula` → mostrar "—". |
 | **N > cap del plan** | Warning "volumen excede el cap del plan; sugerir plan superior o Enterprise". Autoselección de plan sugerido por `cap`. |
 | **Escala Enterprise (>10k)** | Precio pasa a "custom (desde $1499)". A **~50k matrículas** avisar el salto a **Supabase Team $599** (costo infra da $700 en la curva) → el $/matrícula sube; recomendar renegociar. |
 | **Storage rompe el plan** | Si `gbSobre > 0` y no hay add-on storage → `StatusBadge warning` + CTA "agregar Storage extra ($10/100GB) o subir plan". El overage se suma igual al costo para no subestimar. |
-| **Modalidad Admin en Starter** | Bloqueada (`plans.Starter.adminOfrecido = false`, CSV: "NO OFRECER"). El `Select` de modalidad deshabilita "Administrada" con `HelpHint` "Starter no admite modalidad administrada; el costo humano ($225) no cierra margen a $79". |
+| **Modelo 2/3 (Administrada) en Starter** | Bloqueada (`plans.Starter.adminOfrecido = false`, CSV: "NO OFRECER"). El `Select` de modelo deshabilita las opciones administradas con `HelpHint` "Starter no admite administración; el costo humano ($225) no cierra margen a $79". El independiente (modelo 3) sobre Starter usa su costo humano reducido pero igualmente se advierte el margen ajustado. |
 | **Margen ≥ 100%** | Validación `DecimalInput` clamp a 99% (evita división por cero/negativa en `1 - margen`). |
-| **Modelo 2 con Auto** | Warning "instancia dedicada casi siempre implica operación; considerar Administrada". |
-| **Modelo 1 (self-host)** | Oculta costo humano/modalidad admin; muestra infra del cliente ($46–70/mes) + licencia anual. No compara contra lista SaaS mensual, sino contra "SaaS anual × factor". |
+| **Modelo 1 (sin administración)** | modalidad Auto bloqueada; `costoHumano = 0`; `costoInfra` parte del fijo compartido (nunca $0) + marginal; compara contra `listAuto`. Yo doy soporte básico SuperAdmin (incluido). |
+| **Modelo 3 (independiente con mi administración)** | Infra **compartida forzada** (aislamiento deshabilitado — nunca dedicada para un independiente); `costoHumano = $225 × 0.5`; plan típico Starter/Pequeña; compara contra `listAdmin` cuando exista, si no advierte "sin lista administrada para este plan, cotizar a mano". |
+| **Aislamiento dedicado activado** | Suma $75 (costo real) al `costoInfra` (instancia Supabase gestionada por ExamLab). Nunca implica infra del cliente. `addonCost` no doble-cuenta el aislamiento. |
 | **`pricing_assumptions` ausente** | El front cae al fallback hardcodeado (idéntico al seed) y muestra badge "usando valores por defecto (tabla no encontrada)". |
 
 ---
@@ -351,16 +373,17 @@ Toda cifra monetaria formateada con `Intl` es-CO / helpers; fechas por `src/lib/
 ## 8. Plan de implementación por fases
 
 ### Fase 1 — MVP calculadora (motor + resultado) — **~1.5 días**
-- `pricing-engine.ts` puro con todas las fórmulas §4 (constantes hardcodeadas = fallback). **Tests** `pricing-engine.test.ts` (cross-check contra lista v3: Mediana costo 30 → margen 91%; curva de escala; casos borde 0/cap/Starter-admin).
+- `pricing-engine.ts` puro con todas las fórmulas §4 (constantes hardcodeadas = fallback). **Tests** `pricing-engine.test.ts` (cross-check contra lista v3: Mediana costo 30 → margen 91%; curva de escala; casos borde 0/cap/Starter-admin; **assert `costoInfra > 0` en todos los modelos, incluido el modelo 1**).
 - Ruta + nav item + i18n. Form con inputs §3.
-- Tarjeta de resultado §6.1 (modelos 2 y 3). Comparativa vs lista.
+- Tarjeta de resultado §6.1 (modelos 1 y 2: sin administración vs con administración). Comparativa vs lista.
 - **Sin DB todavía** (constantes en front).
 - Esfuerzo: motor 0.5d, UI form+resultado 0.75d, tests 0.25d.
 
-### Fase 2 — Parametrizable (DB + supuestos + modelo 1) — **~1 día**
+### Fase 2 — Parametrizable (DB + supuestos + modelo 3) — **~1 día**
 - Migración `pricing_assumptions` §5 + fetch con guard + fallback.
 - Panel/tab "Supuestos" editable (RLS SuperAdmin).
-- Modelo 1 (licencia self-host): infra cliente + licencia anual.
+- Modelo 3 (independiente con mi administración): infra compartida forzada + costo humano reducido (`factor_humano_indep`).
+- Toggle de aislamiento dedicado (add-on, suma $75 al costo de infra) para modelos 1 y 2.
 - Override efímero §6.4.
 - Esfuerzo: migración 0.25d, fetch+fallback 0.25d, panel edición 0.5d.
 
@@ -376,4 +399,6 @@ Toda cifra monetaria formateada con `Intl` es-CO / helpers; fechas por `src/lib/
 ### Dependencias / notas
 - Reusa 100% design system (`Card`, `DecimalInput`, `Select`, `Switch`, `StatusBadge`, `PageHeader`, `Table`, `usePagination`, `useTableSort`, `ImportExportMenu`, `HelpHint`) → sin componentes nuevos salvo la pantalla.
 - Sin edge functions ni IA: cálculo 100% client-side puro → instantáneo, testeable, sin costo.
+- **Invariante de negocio a preservar (v3.1):** la infra es SIEMPRE de ExamLab en los 3 modelos → `costoInfra` nunca es $0. No reintroducir una rama "self-host / infra del cliente". El único diferenciador de costo entre modelos es el **costo humano de operación** (0 en modelo 1, $225 en modelo 2, $112.5 en modelo 3) y el **nivel de soporte** (básico incluido en todos; operación plena en 2 y 3).
 - Invariante a mantener: si cambian los precios v3 (`modelo-precios-v3.md` / `calculadora.csv`), actualizar el **seed** de `pricing_assumptions` Y el fallback del front (documentar el par en la tabla de invariantes cross-file de CLAUDE.md).
+```
