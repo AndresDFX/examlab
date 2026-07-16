@@ -1,8 +1,8 @@
 -- Catálogo de VIDEOS DE AYUDA de la plataforma para el Asistente IA de plataforma.
 -- El edge platform-support-chat inyecta estos videos en la KB del prompt para que
 -- el asistente REFERENCIE el video tutorial del módulo que el usuario consulta.
--- Las URLs (video_url) se rellenan con los enlaces de Zupaviz una vez subidos los
--- videos: UPDATE public.platform_help_videos SET video_url='https://...' WHERE module_id='modulo-t03';
+-- Las URLs (video_url) se rellenan con los enlaces públicos de Supabase Storage (bucket help-videos) una vez subidos los
+-- videos: UPDATE public.platform_help_videos SET video_url='https://<proj>.supabase.co/storage/v1/object/public/help-videos/modulo-t03.mp4' WHERE module_id='modulo-t03';
 -- Seed derivado de docs/demos/admin/pipeline/modules/module-*.json (título + ruta + rol).
 DO $$
 BEGIN
@@ -13,7 +13,7 @@ BEGIN
       title       text NOT NULL,
       route       text,
       role        text,          -- 'Estudiante' | 'Docente' | 'Admin' | NULL (todos)
-      video_url   text,          -- URL de Zupaviz (NULL = "video en preparación")
+      video_url   text,          -- URL pública de Supabase Storage (NULL = "video en preparación")
       position    integer NOT NULL DEFAULT 0,
       is_active   boolean NOT NULL DEFAULT true,
       created_at  timestamptz NOT NULL DEFAULT now(),

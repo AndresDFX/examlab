@@ -155,7 +155,7 @@ function buildPlatformKb(rows: KbRow[]): string {
 
 // ── Videos de ayuda (platform_help_videos) → bloque para la KB ──
 // El asistente REFERENCIA el video tutorial del módulo que el usuario consulta,
-// con enlace (Markdown) si ya tiene URL de Zupaviz; si no, lo menciona como
+// con enlace (Markdown) si ya tiene URL pública de Supabase Storage; si no, lo menciona como
 // "en preparación". Se inyecta al inicio del bloque {{platform_kb}} del prompt.
 function buildHelpVideoBlock(
   rows: Array<{ title: string | null; route: string | null; video_url: string | null }>,
