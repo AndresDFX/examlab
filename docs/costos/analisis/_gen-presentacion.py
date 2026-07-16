@@ -1,9 +1,9 @@
 """
 Genera ExamLab-Presentacion-Comercial-v3.pptx con los datos del modelo
-económico v3 (docs/costos/Revision/).
+económico v3 (docs/costos/analisis/).
 
 Uso:
-    py docs/costos/Revision/_gen-presentacion.py
+    py docs/costos/analisis/_gen-presentacion.py
 
 Requiere: python-pptx (pip install python-pptx)
 
@@ -23,7 +23,7 @@ import os
 TEAL_DARK   = RGBColor(0x0F, 0x3E, 0x4C)   # Titular
 TEAL        = RGBColor(0x14, 0x7A, 0x8C)   # Acento primario
 TEAL_LIGHT  = RGBColor(0x2E, 0xB8, 0xC7)   # Acento claro / badges
-BLUE_ACCENT = RGBColor(0x1E, 0x5B, 0xAF)   # Precio destacado (Mediana)
+BLUE_ACCENT = RGBColor(0x4F, 0x46, 0xE5)   # Precio (indigo — igual al deck comercial sin versión)
 BG_WHITE    = RGBColor(0xFF, 0xFF, 0xFF)
 BG_SOFT     = RGBColor(0xF4, 0xF8, 0xFA)   # Fondo suave
 TEXT_MAIN   = RGBColor(0x1F, 0x2A, 0x33)
@@ -107,7 +107,7 @@ def slide_1_portada(prs):
                  "ExamLab",
                  size=54, bold=True, color=BG_WHITE, font="Calibri")
     add_text_box(slide, Inches(0.5), Inches(1.95), Inches(12.3), Inches(0.4),
-                 "La plataforma educativa con IA — planes v3 para tu institución",
+                 "La plataforma educativa con IA — planes para tu institución",
                  size=16, color=RGBColor(0xC8, 0xE8, 0xEE), font="Calibri")
     # Subtítulo grande
     add_text_box(slide, Inches(0.5), Inches(3.4), Inches(12.3), Inches(0.8),
@@ -118,7 +118,7 @@ def slide_1_portada(prs):
                  size=16, color=TEXT_MUTED, font="Calibri")
     # Etiqueta abajo
     add_text_box(slide, Inches(0.5), Inches(6.5), Inches(12.3), Inches(0.4),
-                 "PROPUESTA COMERCIAL · v3 · Julio 2026",
+                 "PROPUESTA COMERCIAL · Julio 2026",
                  size=11, bold=True, color=TEAL, font="Calibri")
 
 
@@ -191,8 +191,10 @@ def slide_3_plataforma(prs):
 def _plan_card(slide, x, w, plan_name, target, price, matriculas,
                is_popular=False):
     """Card individual de un plan."""
-    card_h = Inches(4.6)
-    card_y = Inches(2.7)
+    # Altura/posición ajustadas para que la card (y sus features) terminen
+    # en ~6.7in, dejando aire para el footer en 6.9in (antes se solapaban).
+    card_h = Inches(4.15)
+    card_y = Inches(2.55)
     line_color = GOLD if is_popular else RGBColor(0xD0, 0xD9, 0xE1)
     fill_color = BG_WHITE if not is_popular else RGBColor(0xFF, 0xFB, 0xF0)
     add_rect(slide, x, card_y, w, card_h,
@@ -210,38 +212,38 @@ def _plan_card(slide, x, w, plan_name, target, price, matriculas,
                      size=9, bold=True, color=BG_WHITE,
                      align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
     # Nombre plan
-    add_text_box(slide, x, card_y + Inches(0.35), w, Inches(0.5),
+    add_text_box(slide, x, card_y + Inches(0.30), w, Inches(0.5),
                  plan_name,
                  size=26, bold=True, color=TEAL_DARK,
                  align=PP_ALIGN.CENTER)
-    add_text_box(slide, x, card_y + Inches(0.9), w, Inches(0.35),
+    add_text_box(slide, x, card_y + Inches(0.85), w, Inches(0.35),
                  target,
                  size=12, color=TEXT_MUTED,
                  align=PP_ALIGN.CENTER)
     # Precio
-    add_text_box(slide, x, card_y + Inches(1.5), w, Inches(0.8),
+    add_text_box(slide, x, card_y + Inches(1.25), w, Inches(0.8),
                  price,
                  size=44, bold=True, color=BLUE_ACCENT,
                  align=PP_ALIGN.CENTER)
-    add_text_box(slide, x, card_y + Inches(2.35), w, Inches(0.3),
+    add_text_box(slide, x, card_y + Inches(2.05), w, Inches(0.3),
                  "USD / mes",
                  size=12, color=TEXT_MUTED,
                  align=PP_ALIGN.CENTER)
     # Divisor
-    div = slide.shapes.add_connector(1, x + Inches(0.4), card_y + Inches(2.75),
-                                     x + w - Inches(0.4), card_y + Inches(2.75))
+    div = slide.shapes.add_connector(1, x + Inches(0.4), card_y + Inches(2.45),
+                                     x + w - Inches(0.4), card_y + Inches(2.45))
     div.line.color.rgb = RGBColor(0xE0, 0xE6, 0xEC)
     # Matrículas
-    add_text_box(slide, x, card_y + Inches(2.9), w, Inches(0.3),
+    add_text_box(slide, x, card_y + Inches(2.55), w, Inches(0.3),
                  "Matrículas activas",
                  size=10, color=TEXT_MUTED,
                  align=PP_ALIGN.CENTER)
-    add_text_box(slide, x, card_y + Inches(3.2), w, Inches(0.4),
+    add_text_box(slide, x, card_y + Inches(2.85), w, Inches(0.4),
                  matriculas,
                  size=20, bold=True, color=TEAL_DARK,
                  align=PP_ALIGN.CENTER)
     # Features check
-    y_check = card_y + Inches(3.8)
+    y_check = card_y + Inches(3.35)
     for feat in ["Todas las funciones incluidas",
                  "Cursos y usuarios ilimitados",
                  "Soporte + backups incluidos"]:
@@ -254,7 +256,7 @@ def _plan_card(slide, x, w, plan_name, target, price, matriculas,
 
 def slide_4_planes(prs):
     slide = prs.slides.add_slide(prs.slide_layouts[6])
-    add_slide_header(slide, "Planes v3",
+    add_slide_header(slide, "Planes",
                      "Un precio para cada tamaño de institución")
     add_text_box(slide, Inches(0.5), Inches(1.7), Inches(12.3), Inches(0.4),
                  "Mismas funciones en todos los planes — solo cambia el tope de matrículas.",
@@ -271,11 +273,8 @@ def slide_4_planes(prs):
                "$349", "Hasta 3.000", is_popular=True)
     _plan_card(slide, x3, card_w, "Grande", "Institución grande",
                "$799", "Hasta 10.000")
-    # Enterprise nota
-    box = add_rect(slide, Inches(0.5), Inches(7.4 - 0.05), Inches(0),
-                   Inches(0.05), fill_rgb=TEAL, no_line=True)
-    # (footer)
-    add_text_box(slide, Inches(0.5), Inches(7.1), Inches(12.3), Inches(0.3),
+    # Footer Enterprise — debajo de las cards (que terminan en ~6.7in), sin solaparse.
+    add_text_box(slide, Inches(0.5), Inches(6.95), Inches(12.3), Inches(0.35),
                  "¿Más de 10.000 matrículas o requerimientos regulatorios? Plan Enterprise custom desde $1.499/mes · Contáctanos →",
                  size=10, italic=True, color=TEAL_DARK, align=PP_ALIGN.CENTER)
 
@@ -663,7 +662,7 @@ def build():
 
     # Salida: la presentación comercial vive en docs/demos/presentacion (junto a
     # las demás presentaciones). El generador y las fuentes de datos quedan en
-    # docs/costos/Revision.
+    # docs/costos/analisis.
     dest = os.path.abspath(os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "..", "..", "demos", "presentacion"))

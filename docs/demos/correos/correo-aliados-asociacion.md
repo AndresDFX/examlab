@@ -14,7 +14,7 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 | **Aliado Comercial** | Vendes y acompañas al cliente. | **15% recurrente** mientras siga activo (incluye renovaciones) |
 | **Aliado Premium** | Desde 5 instituciones activas a tu nombre. | **20% recurrente** + soporte prioritario y co-branding |
 
-> **La comisión es INDEPENDIENTE del plan.** Es un **% sobre el total que paga el cliente** (plan + modalidad + add-ons), no un monto fijo por venta. A mayor plan/modalidad que contrate, mayor tu comisión — con el **mismo** %. Ej. Aliado Comercial (15%): Pequeña $149 → **$22/mes** · Mediana $349 → **$52/mes** · Grande $799 → **$120/mes** · Grande Administrada $1.499 → **$225/mes**. Aplica igual a instituciones e independientes. Detalle completo: [`programa-aliados-v3.md`](../../costos/Revision/programa-aliados-v3.md).
+> **La comisión es INDEPENDIENTE del plan.** Es un **% sobre el total que paga el cliente** (plan + modalidad + add-ons), no un monto fijo por venta. A mayor plan/modalidad que contrate, mayor tu comisión — con el **mismo** %. Ej. Aliado Comercial (15%): Pequeña $149 → **$22/mes** · Mediana $349 → **$52/mes** · Grande $799 → **$120/mes** · Grande Administrada $1.499 → **$225/mes**. Aplica igual a instituciones e independientes. Detalle completo: [`programa-aliados-v3.md`](../../costos/analisis/programa-aliados-v3.md).
 
 **Reglas claras:** registro de oportunidad (el cliente que registras queda protegido **90 días**) · pago **mensual o trimestral** sobre lo efectivamente cobrado · **sin cuota de entrada** · no pones infraestructura ni el costo de IA (el cliente usa su propia API key) · te damos demos, presentaciones y cuentas de prueba.
 
@@ -79,7 +79,7 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 ## Notas para ti (borrar antes de enviar)
 
 - **Adjunta** la presentación [`../presentacion/ExamLab-Presentacion-Aliados.pptx`](../presentacion/ExamLab-Presentacion-Aliados.pptx).
-- **Ajusta los %** (10 / 15 / 20) y los ejemplos a tu política comercial real antes de comprometerlos. Los precios usados ($149 / $349 / $799, planes Pequeña/Mediana/Grande **v3**) son los de referencia de la presentación comercial — manténlos sincronizados (ver [`../../costos/Revision/modelo-precios-v3.md`](../../costos/Revision/modelo-precios-v3.md)).
+- **Ajusta los %** (10 / 15 / 20) y los ejemplos a tu política comercial real antes de comprometerlos. Los precios usados ($149 / $349 / $799, planes Pequeña/Mediana/Grande **v3**) son los de referencia de la presentación comercial — manténlos sincronizados (ver [`../../costos/analisis/modelo-precios-v3.md`](../../costos/analisis/modelo-precios-v3.md)).
 - Reemplaza `[Nombre]` y, en la presentación (última diapositiva), `[tu correo / WhatsApp aquí]`.
 - **Videos y presentación ya embebidos** (Drive/Slides) en ambas versiones. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). El **manual** no va en esta versión de los correos.
   - (Clip corto para WhatsApp/redes, si lo quieres adjuntar aparte: `../social/output/modulo-social.mp4`)

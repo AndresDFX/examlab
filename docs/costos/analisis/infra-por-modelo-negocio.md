@@ -1,6 +1,6 @@
 # Costo de infraestructura por modelo de negocio — ExamLab
 
-> Base: modelo v3 (`docs/costos/Revision/`). Moneda **USD/mes** salvo donde se indique anual. IA = **BYO** (cliente paga Gemini con su propia key → $0 para ExamLab). Videos por URL externa → no consumen storage. Costo fijo compartido actual ≈ **$51/mes** (Supabase Pro $25 + Lovable $25 + dominio $1; Lambda $0 free tier; Gemini $0).
+> Base: modelo v3 (`docs/costos/analisis/`). Moneda **USD/mes** salvo donde se indique anual. IA = **BYO** (cliente paga Gemini con su propia key → $0 para ExamLab). Videos por URL externa → no consumen storage. Costo fijo compartido actual ≈ **$51/mes** (Supabase Pro $25 + Lovable $25 + dominio $1; Lambda $0 free tier; Gemini $0).
 
 ## Premisa que corrige todo el documento: la infra es SIEMPRE mía
 

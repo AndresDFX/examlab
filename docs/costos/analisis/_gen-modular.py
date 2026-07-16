@@ -1,9 +1,9 @@
 """
 Genera ExamLab-Modelo-Modular.pptx a partir del modelo modular v3
-(docs/costos/Revision/modelo-modular-v3.md): SIN plan Free, base por matrículas
+(docs/costos/analisis/modelo-modular-v3.md): SIN plan Free, base por matrículas
 + add-ons a la carta, con bundles coherentes por perfil.
 
-Uso:  py docs/costos/Revision/_gen-modular.py
+Uso:  py docs/costos/analisis/_gen-modular.py
 Requiere: python-pptx. Mismo estilo (teal/azul, 16:9, Calibri) que la comercial.
 Salida → docs/demos/presentacion/ExamLab-Modelo-Modular.pptx
 """

@@ -1,4 +1,4 @@
-# docs/costos/Revision — Modelo económico ExamLab v3 (2026-07)
+# docs/costos/analisis — Modelo económico ExamLab v3 (2026-07)
 
 > **Revisión completa** del modelo de costos y precios de ExamLab.
 > Reemplaza a los documentos históricos de `../` (v1 y v2) con precios

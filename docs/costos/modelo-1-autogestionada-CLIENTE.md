@@ -1,7 +1,7 @@
 # ExamLab — Institución autogestionada
 ### La plataforma es tuya, la infraestructura la ponemos nosotros
 
-> Consulta también la presentación adjunta: **ExamLab-Presentacion-Comercial-v3.pptx**
+> Consulta también la **presentación comercial adjunta**.
 
 ---
 
@@ -90,4 +90,4 @@ Una universidad Grande self-service (8.500 matrículas) que en Canvas pagaría ~
 3. **Configuras tu marca e importas tus cursos y usuarios** — self-service, con nuestra documentación y soporte de incidencias.
 4. **Empiezas a operar.** Actualizaciones, backups y seguridad corren por nuestra cuenta.
 
-**Próximos pasos:** revisa la presentación adjunta (**ExamLab-Presentacion-Comercial-v3.pptx**) y agenda una demo para ver la plataforma con tus propios casos de uso. Te ayudamos a dimensionar el plan y los add-ons que mejor se ajusten a tu institución.
+**Próximos pasos:** revisa la **presentación comercial adjunta** y agenda una demo para ver la plataforma con tus propios casos de uso. Te ayudamos a dimensionar el plan y los add-ons que mejor se ajusten a tu institución.
