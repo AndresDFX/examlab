@@ -107,6 +107,11 @@ interface Whiteboard {
   is_shared_with_course: boolean;
   /** draft | published | closed (mig 20260990000000). nullish ⇒ published. */
   status: string | null;
+  /** Curso asociado embebido en la query del grid (whiteboards.course_id →
+   *  courses). Se lee acá y NO desde `draftCourses` (que solo se carga al abrir
+   *  el dialog) — si no, la columna "Curso" salía "—" aunque la pizarra tuviera
+   *  curso. `deleted_at` para no mostrar el nombre si el curso está en papelera. */
+  courses?: { id: string; name: string; deleted_at: string | null } | null;
 }
 
 function TeacherWhiteboards() {
@@ -225,7 +230,7 @@ function TeacherWhiteboards() {
     const { data, error } = await db
       .from("whiteboards")
       .select(
-        "id, owner_id, name, description, created_at, updated_at, course_id, is_shared_with_course, status",
+        "id, owner_id, name, description, created_at, updated_at, course_id, is_shared_with_course, status, courses(id, name, deleted_at)",
       )
       // Ocultar pizarras en papelera de la lista del docente.
       .is("deleted_at", null)
@@ -262,7 +267,7 @@ function TeacherWhiteboards() {
   const sort = useTableSort(filtered, {
     columns: {
       name: (w) => w.name,
-      course: (w) => draftCourses.find((c) => c.id === w.course_id)?.name ?? "",
+      course: (w) => (w.courses && !w.courses.deleted_at ? w.courses.name : ""),
       shared: (w) => w.is_shared_with_course,
       status: (w) => (w.status ?? "published") as string,
       updated_at: (w) => w.updated_at,
@@ -672,9 +677,11 @@ function TeacherWhiteboards() {
                   />
                 ) : null}
                 {pagination.paginatedItems.map((w) => {
-                  const courseName = w.course_id
-                    ? (draftCourses.find((c) => c.id === w.course_id)?.name ?? "—")
-                    : "—";
+                  // El nombre viene embebido en la query (w.courses); no
+                  // depende de draftCourses (que solo se carga al abrir el dialog).
+                  // Si el curso está en papelera, no mostramos su nombre.
+                  const courseName =
+                    w.courses && !w.courses.deleted_at ? w.courses.name : "—";
                   return (
                     <TableRow
                       key={w.id}
