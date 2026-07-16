@@ -153,6 +153,29 @@ function buildPlatformKb(rows: KbRow[]): string {
   return acc.trim();
 }
 
+// ── Videos de ayuda (platform_help_videos) → bloque para la KB ──
+// El asistente REFERENCIA el video tutorial del módulo que el usuario consulta,
+// con enlace (Markdown) si ya tiene URL de Zupaviz; si no, lo menciona como
+// "en preparación". Se inyecta al inicio del bloque {{platform_kb}} del prompt.
+function buildHelpVideoBlock(
+  rows: Array<{ title: string | null; route: string | null; video_url: string | null }>,
+): string {
+  const lines = rows
+    .map((r) => {
+      const t = (r.title || "").trim();
+      if (!t) return "";
+      const link = r.video_url ? `[${t}](${r.video_url})` : `${t} (video en preparación)`;
+      return `- ${link}${r.route ? ` — sección \`${r.route}\`` : ""}`;
+    })
+    .filter(Boolean);
+  if (!lines.length) return "";
+  return (
+    "## Videos de ayuda de la plataforma\n" +
+    'Cuando guíes al usuario sobre un módulo o pantalla, MENCIONA el video tutorial correspondiente de esta lista e incluye su enlace en Markdown si está disponible. Si figura como "(video en preparación)", menciona que existe pero aún sin enlace.\n' +
+    lines.join("\n")
+  );
+}
+
 // ── Handler ──
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -266,7 +289,26 @@ Deno.serve(async (req) => {
       .in("audience", kbAudience)
       .order("position", { ascending: true });
 
-    const platformKb = buildPlatformKb((kbRows ?? []) as KbRow[]);
+    // Videos de ayuda del rol activo (SuperAdmin usa los de Admin). Defensivo:
+    // si la tabla aún no existe (entorno sin la migración), la query falla suave
+    // (data=null) y no se inyecta nada — el asistente sigue funcionando.
+    const roleForVideos = promptRole === "SuperAdmin" ? "Admin" : promptRole;
+    const { data: videoRows } = await admin
+      .from("platform_help_videos")
+      .select("title, route, video_url, role, position, is_active")
+      .eq("is_active", true)
+      .order("position", { ascending: true });
+    const relevantVideos = ((videoRows ?? []) as Array<{
+      title: string | null;
+      route: string | null;
+      video_url: string | null;
+      role: string | null;
+    }>).filter((v) => v.role === roleForVideos || v.role == null);
+    const videoBlock = buildHelpVideoBlock(relevantVideos);
+
+    const docKb = buildPlatformKb((kbRows ?? []) as KbRow[]);
+    // El bloque de videos va PRIMERO para que quepa aunque la KB de docs sea larga.
+    const platformKb = videoBlock ? `${videoBlock}\n\n${docKb}` : docKb;
 
     // Conciencia temporal (es-CO / America/Bogota), calculada server-side.
     const currentDatetime = new Intl.DateTimeFormat("es-CO", {
