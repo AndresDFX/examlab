@@ -62,6 +62,18 @@ const TEMPLATES: Record<string, { labelKey: string; code: string }> = {
     D --> E
     E --> F[Fin]`,
   },
+  // Topología de red: Mermaid no tiene un tipo "red" nativo, pero un flowchart
+  // modela la topología (nodos = dispositivos, aristas = enlaces). Útil para
+  // los cursos de redes/cableado (PC–Switch–Router–Internet).
+  network: {
+    labelKey: "diagramEditor.tmplNetwork",
+    code: `flowchart TD
+    NET(("Internet")) --> R["Router  g0/0: 192.168.1.1"]
+    R --> SW["Switch"]
+    SW --> PC1["PC-1  192.168.1.10"]
+    SW --> PC2["PC-2  192.168.1.11"]
+    SW --> SRV["Servidor  192.168.1.20"]`,
+  },
   stateDiagram: {
     labelKey: "diagramEditor.tmplState",
     code: `stateDiagram-v2

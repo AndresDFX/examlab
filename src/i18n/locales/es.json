@@ -4758,13 +4758,14 @@
     "parseError": "No se pudo leer el notebook."
   },
   "diagramEditor": {
-    "templatesLabel": "Plantillas UML:",
+    "templatesLabel": "Plantillas:",
     "tmplClasses": "Clases",
     "tmplSequence": "Secuencia",
     "tmplER": "Entidad-Relación",
     "tmplFlow": "Flujo",
     "tmplState": "Estados",
     "tmplActivity": "Actividad",
+    "tmplNetwork": "Red",
     "tabCode": "Código",
     "tabPreview": "Vista previa",
     "placeholder": "Escribe tu diagrama Mermaid aquí...",

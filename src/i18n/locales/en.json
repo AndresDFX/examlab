@@ -4758,13 +4758,14 @@
     "parseError": "Could not read the notebook."
   },
   "diagramEditor": {
-    "templatesLabel": "UML Templates:",
+    "templatesLabel": "Templates:",
     "tmplClasses": "Classes",
     "tmplSequence": "Sequence",
     "tmplER": "Entity-Relationship",
     "tmplFlow": "Flowchart",
     "tmplState": "State",
     "tmplActivity": "Activity",
+    "tmplNetwork": "Network",
     "tabCode": "Code",
     "tabPreview": "Preview",
     "placeholder": "Write your Mermaid diagram here...",
