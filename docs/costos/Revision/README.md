@@ -23,9 +23,14 @@
 | [modelo-precios-v3.md](modelo-precios-v3.md) | La nueva propuesta: 3 planes visibles (Pequeña / Mediana / Grande) + Enterprise custom + 6 add-ons. Con racional de cada precio. |
 | [add-ons.md](add-ons.md) | Detalle de los 6 add-ons: precio, costo real, margen, enforcement técnico. |
 | [comparables-mercado.md](comparables-mercado.md) | Precios verificados 2026 de Moodle Cloud, Canvas, Blackboard, Chamilo. Posicionamiento de ExamLab. |
-| [escenarios.md](escenarios.md) | Casos concretos: 3 clientes tipo con números reales de ganancia neta y payback. |
+| [escenarios.md](escenarios.md) | Casos concretos: 6 clientes tipo con números reales de ganancia neta y payback. |
 | [calculadora.csv](calculadora.csv) | **Hoja de cálculo lista para importar** en Excel/Google Sheets. Simula escala + plan + add-ons + costo real + margen. |
 | [riesgos-y-supuestos.md](riesgos-y-supuestos.md) | Supuestos del modelo, riesgos operativos, palancas de mitigación. |
+| [almacenamiento-esperado.md](almacenamiento-esperado.md) | **Storage esperado** por escala y por plan, precio del extra ($10/100 GB), enforcement y cuándo mover a Cloudflare R2. |
+| [infra-por-modelo-negocio.md](infra-por-modelo-negocio.md) | **Costo de infra por los 3 modelos de negocio** (licencia sin admin / con admin / SaaS independientes), con margen y recomendación de mix. |
+| [plan-migracion-aislamiento.md](plan-migracion-aislamiento.md) | **Plan de migración** Lovable → AWS / Supabase dedicado para aislamiento multi-tenant, por fases. |
+| [modulo-superadmin-calculadora.md](modulo-superadmin-calculadora.md) | **Plan de la feature** SuperAdmin: calculadora in-app de costo/precio con margen parametrizable por X licencias. |
+| [_gen-presentacion.py](_gen-presentacion.py) | Generador de la presentación comercial v3 → `../../demos/presentacion/ExamLab-Presentacion-Comercial-v3.pptx`. |
 
 ---
 

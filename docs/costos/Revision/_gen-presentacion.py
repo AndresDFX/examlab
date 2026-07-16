@@ -542,6 +542,51 @@ def slide_9_cierre(prs):
 
 # ── Main ─────────────────────────────────────────────────────────────
 
+def slide_storage(prs):
+    """Almacenamiento incluido por plan + precio de storage extra (cliente)."""
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    add_slide_header(slide, "Almacenamiento",
+                     "Cuánto espacio incluye cada plan")
+    add_text_box(slide, Inches(0.5), Inches(1.7), Inches(12.3), Inches(0.45),
+                 "El material y las entregas se guardan en la plataforma. Los videos van por enlace "
+                 "externo (YouTube/Drive) — no ocupan tu espacio.",
+                 size=13, color=TEXT_MUTED)
+    # 3 cards de storage por plan
+    cards = [
+        ("Pequeña", "50 GB", "~7× lo que usa una institución de 1.000 matrículas", TEAL),
+        ("Mediana", "100 GB", "~5× lo que usa una institución de 3.000 matrículas", BLUE_ACCENT),
+        ("Grande", "200 GB", "~3× lo que usa una institución de 10.000 matrículas", TEAL_DARK),
+    ]
+    card_w = Inches(3.95)
+    gap = Inches(0.25)
+    xs = [Inches(0.5), Inches(0.5) + card_w + gap, Inches(0.5) + 2 * (card_w + gap)]
+    card_y = Inches(2.45)
+    card_h = Inches(2.35)
+    for (name, gb, note, accent), x in zip(cards, xs):
+        add_rect(slide, x, card_y, card_w, card_h, fill_rgb=BG_SOFT,
+                 line_rgb=accent, line_width_pt=1.5)
+        add_text_box(slide, x + Inches(0.3), card_y + Inches(0.25), card_w - Inches(0.6),
+                     Inches(0.4), name, size=15, bold=True, color=TEXT_MUTED)
+        add_text_box(slide, x + Inches(0.3), card_y + Inches(0.7), card_w - Inches(0.6),
+                     Inches(0.7), gb, size=40, bold=True, color=accent)
+        add_text_box(slide, x + Inches(0.3), card_y + Inches(1.55), card_w - Inches(0.6),
+                     Inches(0.7), note, size=11, color=TEXT_MAIN)
+    # Callout: storage extra + tip video externo
+    y_call = 5.25
+    add_rect(slide, Inches(0.5), Inches(y_call), Inches(12.3), Inches(1.4),
+             fill_rgb=RGBColor(0xE8, 0xF6, 0xF9), line_rgb=TEAL_LIGHT, line_width_pt=1.5)
+    add_text_box(slide, Inches(0.8), Inches(y_call + 0.18), Inches(11.7), Inches(0.4),
+                 "¿Necesitas más espacio?  Storage adicional: $10 / 100 GB al mes.",
+                 size=15, bold=True, color=TEAL_DARK)
+    add_text_box(slide, Inches(0.8), Inches(y_call + 0.62), Inches(11.7), Inches(0.7),
+                 "El espacio incluido cubre con holgura a más del 99% de las instituciones. "
+                 "Antes de ampliar, siempre conviene enlazar los videos y el material pesado por URL "
+                 "externa (gratis). El add-on de storage es solo para material propietario que no se "
+                 "pueda externalizar. Enterprise: almacenamiento a medida.",
+                 size=11, color=TEXT_MAIN)
+    add_page_footer(slide, 5, 10)
+
+
 def build():
     prs = Presentation()
     prs.slide_width = SLIDE_W
@@ -551,14 +596,21 @@ def build():
     slide_2_por_que(prs)
     slide_3_plataforma(prs)
     slide_4_planes(prs)
+    slide_storage(prs)          # storage incluido por plan + extra (cliente)
     slide_5_todo_incluido(prs)
     slide_6_ia_flexible(prs)
     slide_7_comparativa(prs)
     slide_8_valor_ahorro(prs)
     slide_9_cierre(prs)
 
-    out = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                       "ExamLab-Presentacion-Comercial-v3.pptx")
+    # Salida: la presentación comercial vive en docs/demos/presentacion (junto a
+    # las demás presentaciones). El generador y las fuentes de datos quedan en
+    # docs/costos/Revision.
+    dest = os.path.abspath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..", "..", "demos", "presentacion"))
+    os.makedirs(dest, exist_ok=True)
+    out = os.path.join(dest, "ExamLab-Presentacion-Comercial-v3.pptx")
     prs.save(out)
     print(f"[OK] Generado: {out}")
     print(f"     {len(prs.slides)} slides · 16:9 widescreen")

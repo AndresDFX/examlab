@@ -1,20 +1,84 @@
-# docs/costos — Análisis de costos de ExamLab
+# 💰 Modelo económico ExamLab — documento principal
 
-Documentos de análisis de costos de operación, con **datos reales de producción** (verificados por
-consulta SQL directa a prod el 2026-07-07) y **precios de terceros** (Gemini, Supabase).
+Hub de **costos, precios y modelos de negocio** de ExamLab. Empezá por acá y navegá
+al documento que necesites con la tabla de contenido de abajo.
 
-> **📌 Referencia comercial VIGENTE: [propuesta-v2.md](propuesta-v2.md)** (segmentación por tamaño,
-> precios y política de IA). Los demás documentos conservan válidos sus **datos de costo** (base de
-> cálculo); su segmentación/precios **v1** (250/1.500/5.000) son contexto histórico — **cotizar con la v2**.
+> **Estado:** la versión vigente es **v3 (2026-07)**, en [`Revision/`](Revision/).
+> Los documentos v1/v2 quedaron archivados en [`historico/`](historico/) como
+> referencia. Moneda **USD/mes** salvo donde se indique. Locale **es-CO**.
+
+---
+
+## 🚀 Empezá acá (según qué necesitás)
+
+| Quiero… | Andá a |
+|---|---|
+| **Vender / cotizar** un cliente en 1 hoja | [`Revision/resumen-ejecutivo.md`](Revision/resumen-ejecutivo.md) |
+| Ver los **planes y precios** vigentes | [`Revision/modelo-precios-v3.md`](Revision/modelo-precios-v3.md) |
+| Entender el **costo real de infra** (qué pago yo) | [`Revision/analisis-infra-2026.md`](Revision/analisis-infra-2026.md) |
+| Saber cuánto **storage** cubre cada plan y el precio del extra | [`Revision/almacenamiento-esperado.md`](Revision/almacenamiento-esperado.md) |
+| Decidir **cómo vender** (licencia vs SaaS vs administrado) | [`Revision/infra-por-modelo-negocio.md`](Revision/infra-por-modelo-negocio.md) |
+| Planear la **migración** para aislar clientes | [`Revision/plan-migracion-aislamiento.md`](Revision/plan-migracion-aislamiento.md) |
+| **Simular** un número (X licencias → costo/precio) | [`Revision/calculadora.csv`](Revision/calculadora.csv) o el módulo in-app → [`Revision/modulo-superadmin-calculadora.md`](Revision/modulo-superadmin-calculadora.md) |
+| Mostrarle la propuesta a un **cliente** | Presentación comercial → [`../demos/presentacion/ExamLab-Presentacion-Comercial-v3.pptx`](../demos/presentacion/ExamLab-Presentacion-Comercial-v3.pptx) |
+| Reclutar un **aliado / revendedor** | [`../demos/correos/correo-aliados-asociacion.md`](../demos/correos/correo-aliados-asociacion.md) + [`../demos/presentacion/ExamLab-Presentacion-Aliados.pptx`](../demos/presentacion/ExamLab-Presentacion-Aliados.pptx) |
+
+> ⚠️ **Cliente vs interno.** La **presentación comercial** (client-facing) muestra
+> planes, storage y ahorro — **nunca** costos ni márgenes. Todo lo que tenga
+> costo/margen (este folder `Revision/`) es de **uso interno**.
+
+---
+
+## 📚 Tabla de contenido
+
+### 1. v3 — modelo vigente (`Revision/`)
 
 | Documento | Para qué |
 |---|---|
-| [analisis-costos.md](analisis-costos.md) | Análisis completo: metodología, datos reales, precios, costo de IA por operación / por estudiante / **por tamaño de institución**, almacenamiento, infraestructura, aislamiento regulatorio, conclusiones y monitoreo. |
-| [resumen-ejecutivo.md](resumen-ejecutivo.md) | Una página para propuestas comerciales: cifras clave + tabla por tamaño de institución + palancas comerciales. |
-| [propuesta-v2.md](propuesta-v2.md) | **v2 (2026-07-15)** — re-segmentación por tamaño (Pequeña ≤1.500 / Mediana ≤10.000 / Grande >10.000), precios sugeridos + costo-beneficio + margen por franja, política de IA (cliente paga BYO vs incluida) y métrica de facturación (matrículas, no cabezas). |
-| [modelo-costos-ia-almacenamiento.md](modelo-costos-ia-almacenamiento.md) | Modelo de costos de IA + almacenamiento con aritmética por plan (versión orientada a presentación; misma base de datos y cálculos que el análisis). |
-| [modelo-negocio-modular.md](modelo-negocio-modular.md) | Modelo de negocio / planes modulares (documento de producto). |
+| [`Revision/README.md`](Revision/README.md) | Índice del modelo v3 + cambios vs v1/v2 + convención de facturación (por matrícula activa). |
+| [`Revision/resumen-ejecutivo.md`](Revision/resumen-ejecutivo.md) | **One-pager comercial.** Precios + margen + comparables. |
+| [`Revision/modelo-precios-v3.md`](Revision/modelo-precios-v3.md) | 3 planes (Pequeña/Mediana/Grande) + Enterprise + 6 add-ons, con racional de cada precio. |
+| [`Revision/analisis-infra-2026.md`](Revision/analisis-infra-2026.md) | Costos verificados 2026-07 (Supabase/Lovable/AWS/dominio) + break-points de cada quota. |
+| [`Revision/almacenamiento-esperado.md`](Revision/almacenamiento-esperado.md) | **Storage esperado por escala + por plan + precio del extra + Cloudflare R2.** (informe detallado v3) |
+| [`Revision/add-ons.md`](Revision/add-ons.md) | Los 6 add-ons: precio, costo, margen, enforcement. |
+| [`Revision/comparables-mercado.md`](Revision/comparables-mercado.md) | Moodle / Canvas / Blackboard / Chamilo 2026 + posicionamiento. |
+| [`Revision/escenarios.md`](Revision/escenarios.md) | 6 clientes tipo con precio, costo, ganancia y payback. |
+| [`Revision/calculadora.csv`](Revision/calculadora.csv) | Simulador para Excel/Sheets. |
+| [`Revision/riesgos-y-supuestos.md`](Revision/riesgos-y-supuestos.md) | Supuestos, riesgos y palancas de mitigación. |
 
-**Nota:** los precios de terceros (Google, Supabase) están sujetos a cambio — verificar en la fuente
-antes de cotizar en firme. Las cifras de uso se recalibran con los datos propios de cada institución
-(ver §12 "Monitoreo recomendado" del análisis completo).
+### 2. Modelos de negocio + infraestructura + migración (nuevo en v3)
+
+| Documento | Para qué |
+|---|---|
+| [`Revision/infra-por-modelo-negocio.md`](Revision/infra-por-modelo-negocio.md) | **Costo de infra aproximado por cada modelo de negocio** (licencia sin admin mía / licencia con admin mía / SaaS independientes) a 200–10.000 matrículas, con margen y recomendación de mix. |
+| [`Revision/plan-migracion-aislamiento.md`](Revision/plan-migracion-aislamiento.md) | **Plan de migración** Lovable → AWS / Supabase dedicado para aislar clientes (Habeas Data/SOC2), por fases, con recomendación por modelo. |
+| [`Revision/modulo-superadmin-calculadora.md`](Revision/modulo-superadmin-calculadora.md) | **Plan de la feature in-app** (SuperAdmin) que calcula costo + precio de venta con margen parametrizable para X licencias. |
+
+### 3. Presentaciones (`../demos/presentacion/`)
+
+| Deck | Audiencia | Estado |
+|---|---|---|
+| `ExamLab-Presentacion-Comercial-v3.pptx` | Cliente | **Vigente (v3)** — planes, **storage por plan + extra**, comparativa, ahorro. Generado por [`Revision/_gen-presentacion.py`](Revision/_gen-presentacion.py). |
+| `ExamLab-Presentacion-Aliados.pptx` | Aliados/revendedores | Programa de comisiones (Referido 10% / Comercial 15% / Premium 20%) con ejemplos a precio v3. |
+| `ExamLab-Presentacion-General.pptx` | General (v1/v2) | Histórica — recorrido de producto. |
+| `ExamLab-Modelo-Modular.pptx`, `-Comercial.pptx`, `-Comercial-Administrada.pptx`, `-Independientes.pptx` | Varias (v1/v2) | Históricas. |
+
+### 4. Histórico v1/v2 (`historico/`)
+
+Modelo v1/v2 (precios y escalera anteriores) — **superado por `Revision/`**, se conserva como referencia:
+[`historico/resumen-ejecutivo.md`](historico/resumen-ejecutivo.md) ·
+[`historico/analisis-costos.md`](historico/analisis-costos.md) ·
+[`historico/modelo-costos-ia-almacenamiento.md`](historico/modelo-costos-ia-almacenamiento.md) ·
+[`historico/modelo-negocio-modular.md`](historico/modelo-negocio-modular.md) ·
+[`historico/propuesta-v2.md`](historico/propuesta-v2.md).
+
+---
+
+## 🔑 Fundamentos del modelo v3 (resumen de una línea)
+
+- **Stack:** Lovable (hosting SPA, $25) + Supabase Pro ($25) + AWS Lambda (code runner, free tier) + dominio ($1) ⇒ **~$51/mes fijo compartido**. IA = **BYO** (la paga el cliente) ⇒ $0 IA para ExamLab.
+- **Facturación por matrícula activa** (no por cabezas). Costo marginal $0.007–0.02/matrícula/mes al escalar.
+- **Planes:** Pequeña $149 (≤1.000, 50 GB) · Mediana $349 (≤3.000, 100 GB) · Grande $799 (≤10.000, 200 GB) · Enterprise custom. Administrada +$300/mes. Storage extra $10/100 GB.
+- **Tres modelos de negocio** (ver [`infra-por-modelo-negocio.md`](Revision/infra-por-modelo-negocio.md)): licencia self-host (mi infra ≈ $0), licencia dedicada gestionada (aislada, yo opero), SaaS compartido (independientes).
+
+> Los precios de terceros cambian ~2×/año — reverificá en las páginas oficiales antes de firmar (links en `Revision/analisis-infra-2026.md`).

@@ -35,7 +35,7 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 > - **Aliado Comercial** — vendes y acompañas → **15% recurrente** mientras el cliente siga activo (también las renovaciones).
 > - **Aliado Premium** — desde 5 instituciones → **20% recurrente** + beneficios.
 >
-> **Un ejemplo:** como Aliado Comercial, 3 instituciones grandes ($1.000/mes c/u) te dejan **$450/mes recurrentes** (~$5.400/año), y se repite cada año que renueven. 💸
+> **Un ejemplo:** como Aliado Comercial, 3 instituciones en plan Grande ($799/mes c/u) te dejan **~$360/mes recurrentes** (~$4.320/año), y se repite cada año que renueven. Con servicio administrado ($1.499/mes c/u) serían **~$675/mes** (~$8.100/año). 💸
 >
 > Asociarte es **gratis**, sin metas obligatorias, y te paso todos los materiales para vender (demos en video, presentaciones y cuentas de prueba).
 >
@@ -56,7 +56,7 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 >
 > Es la plataforma educativa con IA que arma y califica evaluaciones sola. Tú pones los contactos, yo pongo plataforma + soporte.
 >
-> 💸 Ganas así: **referido 10%** del 1er año · **aliado comercial 15% recurrente** · **premium 20%**. Ej: 3 instituciones grandes = ~$450/mes recurrentes.
+> 💸 Ganas así: **referido 10%** del 1er año · **aliado comercial 15% recurrente** · **premium 20%**. Ej: 3 instituciones plan Grande ($799/mes) = ~$360/mes recurrentes.
 >
 > Gratis asociarse y te paso todo para vender (demos + presentaciones + cuentas de prueba). Te mando la presentación 👇 ¿lo miramos? 🚀
 >
@@ -77,7 +77,7 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 ## Notas para ti (borrar antes de enviar)
 
 - **Adjunta** la presentación [`../presentacion/ExamLab-Presentacion-Aliados.pptx`](../presentacion/ExamLab-Presentacion-Aliados.pptx).
-- **Ajusta los %** (15 / 25 / 35) y los ejemplos a tu política comercial real antes de comprometerlos. Los precios usados ($99 / $299 / $1.000) son los de referencia de la presentación comercial — manténlos sincronizados.
+- **Ajusta los %** (10 / 15 / 20) y los ejemplos a tu política comercial real antes de comprometerlos. Los precios usados ($149 / $349 / $799, planes Pequeña/Mediana/Grande **v3**) son los de referencia de la presentación comercial — manténlos sincronizados (ver [`../../costos/Revision/modelo-precios-v3.md`](../../costos/Revision/modelo-precios-v3.md)).
 - Reemplaza `[Nombre]` y, en la presentación (última diapositiva), `[tu correo / WhatsApp aquí]`.
 - **Videos y presentación ya embebidos** (Drive/Slides) en ambas versiones. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). El **manual** no va en esta versión de los correos.
   - (Clip corto para WhatsApp/redes, si lo quieres adjuntar aparte: `../social/output/modulo-social.mp4`)
