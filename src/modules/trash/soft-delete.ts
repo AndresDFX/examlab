@@ -57,8 +57,34 @@ export const TRASH_NAME_COL: Record<TrashTable, string> = {
   tenants: "name",
 };
 
+/**
+ * Error de Supabase/Postgres preservando `code`/`details`/`hint` — NO solo el
+ * `message`. Sin el `code`, `friendlyError()` no puede mapear el SQLSTATE
+ * (RLS 42501, FK 23503, RAISE P0001…) y cae al fallback genérico
+ * "Error desconocido" — bug reportado en el bulk hard-delete de la Papelera del
+ * SuperAdmin. Preservar el `code` deja que el mensaje salga traducido al español.
+ */
+export interface DbErr {
+  message: string;
+  code?: string;
+  details?: string;
+  hint?: string;
+}
+
+function toResultError(
+  error: { message?: string; code?: string; details?: string; hint?: string } | null | undefined,
+): DbErr | null {
+  if (!error) return null;
+  return {
+    message: error.message ?? "Error",
+    ...(error.code ? { code: error.code } : {}),
+    ...(error.details ? { details: error.details } : {}),
+    ...(error.hint ? { hint: error.hint } : {}),
+  };
+}
+
 interface SoftDeleteResult {
-  error: { message: string } | null;
+  error: DbErr | null;
 }
 
 /** Conteo del contenido asociado a un curso — para advertir antes de borrarlo.
@@ -77,13 +103,13 @@ export interface CourseContentSummary {
 
 export async function courseContentSummary(
   courseId: string,
-): Promise<{ data: CourseContentSummary | null; error: { message: string } | null }> {
+): Promise<{ data: CourseContentSummary | null; error: DbErr | null }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
   const { data, error } = await db.rpc("course_content_summary", { _course_id: courseId });
   return {
     data: (data as CourseContentSummary) ?? null,
-    error: error ? { message: error.message } : null,
+    error: toResultError(error),
   };
 }
 
@@ -112,7 +138,7 @@ export async function softDeleteCourseCascade(
     _course_id: courseId,
     _cascade: cascade,
   });
-  return { error: error ? { message: error.message } : null };
+  return { error: toResultError(error) };
 }
 
 /**
@@ -145,7 +171,7 @@ export async function softDelete(
     .from(table)
     .update({ deleted_at: new Date().toISOString(), deleted_by: actorId })
     .eq("id", id);
-  return { error: error ? { message: error.message } : null };
+  return { error: toResultError(error) };
 }
 
 /** Versión bulk: marca N filas como borradas de un solo UPDATE. Usada
@@ -167,7 +193,7 @@ export async function softDeleteMany(
     .from(table)
     .update({ deleted_at: new Date().toISOString(), deleted_by: actorId })
     .in("id", ids);
-  return { error: error ? { message: error.message } : null };
+  return { error: toResultError(error) };
 }
 
 /**
@@ -182,17 +208,17 @@ export async function restoreItem(table: TrashTable, id: string): Promise<SoftDe
   const db = supabase as any;
   if (table === "tenants") {
     const { error } = await db.rpc("restore_tenant", { _tenant_id: id });
-    return { error: error ? { message: error.message } : null };
+    return { error: toResultError(error) };
   }
   // Cursos: restore_course_cascade desempaca los children borrados en la misma
   // operación de cascada (mismo deleted_at). Restaurar el curso vuelve a traer
   // su contenido. Los borrados individuales previos quedan en papelera.
   if (table === "courses") {
     const { error } = await db.rpc("restore_course_cascade", { _course_id: id });
-    return { error: error ? { message: error.message } : null };
+    return { error: toResultError(error) };
   }
   const { error } = await db.rpc("trash_restore_item", { _table: table, _id: id });
-  return { error: error ? { message: error.message } : null };
+  return { error: toResultError(error) };
 }
 
 /**
@@ -208,10 +234,10 @@ export async function hardDeleteItem(table: TrashTable, id: string): Promise<Sof
   const db = supabase as any;
   if (table === "tenants") {
     const { error } = await db.rpc("hard_delete_tenant", { _tenant_id: id });
-    return { error: error ? { message: error.message } : null };
+    return { error: toResultError(error) };
   }
   const { error } = await db.rpc("trash_hard_delete_item", { _table: table, _id: id });
-  return { error: error ? { message: error.message } : null };
+  return { error: toResultError(error) };
 }
 
 /**
@@ -228,5 +254,5 @@ export async function softDeleteTenant(tenantId: string): Promise<SoftDeleteResu
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
   const { error } = await db.rpc("soft_delete_tenant", { _tenant_id: tenantId });
-  return { error: error ? { message: error.message } : null };
+  return { error: toResultError(error) };
 }

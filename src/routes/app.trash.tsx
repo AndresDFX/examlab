@@ -377,10 +377,10 @@ function TrashPage() {
         );
       } else {
         const first = failed[0];
-        const detail = friendlyError(
-        first.error ?? undefined,
-        t("trash.unknownError", { defaultValue: "Error desconocido" }),
-      );
+        // Sin fallback genérico: con el `code` preservado (soft-delete.ts),
+        // friendlyError traduce el SQLSTATE a español; si no lo reconoce,
+        // muestra el mensaje real en vez de ocultarlo tras "Error desconocido".
+        const detail = friendlyError(first.error ?? undefined);
         toast.error(
           i18n.t("toast.routes_app_trash.bulkRestorePartialError", {
             defaultValue:
@@ -434,10 +434,10 @@ function TrashPage() {
         // diagnosticar qué tabla/FK lo bloqueaba (caso reportado al
         // hard-delete tenants con dependencias RESTRICT).
         const first = failed[0];
-        const detail = friendlyError(
-        first.error ?? undefined,
-        t("trash.unknownError", { defaultValue: "Error desconocido" }),
-      );
+        // Sin fallback genérico: con el `code` preservado (soft-delete.ts),
+        // friendlyError traduce el SQLSTATE a español; si no lo reconoce,
+        // muestra el mensaje real en vez de ocultarlo tras "Error desconocido".
+        const detail = friendlyError(first.error ?? undefined);
         toast.error(
           i18n.t("toast.routes_app_trash.bulkHardDeletePartialError", {
             defaultValue:
