@@ -64,6 +64,7 @@ import { HelpHint } from "@/components/ui/help-hint";
 import {
   Upload,
   FileUp,
+  FolderUp,
   X,
   Info,
   AlertTriangle,
@@ -129,6 +130,38 @@ const INLINE_BODY_EXTENSIONS = [".java", ".py", ".js", ".ipynb", ".csv"];
  *  Los .ipynb se limpian de outputs antes (stripNotebookOutputs), así que el
  *  body queda chico aunque el notebook original traiga plots embebidos. */
 const MAX_INLINE_BODY_CHARS = 500_000;
+
+/** Archivos "basura" del SO que aparecen al seleccionar una CARPETA completa
+ *  (una subcarpeta por sesión, p.ej. `Clases/Sesion 1/...`). Se saltan en
+ *  SILENCIO — no son contenido y ensuciarían la lista + los toasts. Los
+ *  dotfiles (`.algo`) también se ignoran. */
+const JUNK_FILENAMES = new Set(["desktop.ini", ".ds_store", "thumbs.db"]);
+/** Cuántos nombres listar en el toast agregado antes de "y N más". */
+const TOAST_NAME_PREVIEW = 4;
+
+/** Ruta relativa del archivo dentro de la carpeta elegida (`webkitdirectory`
+ *  la puebla, p.ej. "Clases/Sesion 1/Sesion 1 - ....pptx"); cae al nombre
+ *  suelto cuando viene del picker de archivos normal. Se usa para dedupe. */
+const relPathOf = (f: File): string => f.webkitRelativePath || f.name;
+
+/** Nombre base para el path de Storage. En un pick de CARPETA, dos sesiones
+ *  pueden tener un archivo con el MISMO nombre (p.ej. "notas.pptx" en cada
+ *  subcarpeta) → colisionarían en `.../contentId/notas.pptx`. Doblamos la
+ *  subcarpeta dentro del nombre (sin el 1er segmento, común a todos) para que
+ *  `slugifyFilename` produzca un nombre único. Picks normales (sin ruta
+ *  relativa) devuelven el nombre tal cual → comportamiento idéntico al previo. */
+const storageRelName = (f: File): string => {
+  const rp = relPathOf(f);
+  const slash = rp.indexOf("/");
+  return slash >= 0 ? rp.slice(slash + 1) : rp;
+};
+
+/** Une los primeros N nombres para un toast agregado; añade "y M más". */
+const previewNames = (names: string[]): string => {
+  const head = names.slice(0, TOAST_NAME_PREVIEW).join(", ");
+  const rest = names.length - TOAST_NAME_PREVIEW;
+  return rest > 0 ? `${head} y ${rest} más` : head;
+};
 
 interface CourseOption {
   id: string;
@@ -273,46 +306,74 @@ export function UploadExternalContentDialog({
     setDurationInput(String(parseDurationInput(durationInput)));
   };
 
+  // Recibe archivos del picker de archivos O del picker de CARPETA
+  // (`webkitdirectory`). En el picker de carpeta el navegador ya aplana el
+  // árbol: la `FileList` trae SOLO archivos (nunca carpetas) de TODAS las
+  // subcarpetas recursivamente, con `webkitRelativePath` = ruta relativa.
+  // Así, al pasar `Clases/` con una subcarpeta por sesión, se extraen los
+  // archivos de dentro de cada subcarpeta sin traer las carpetas.
   const onFilesPicked = (list: FileList | null) => {
     if (!list) return;
     const incoming = Array.from(list);
-    // Validamos cada uno por extensión + tamaño. Filas inválidas se
-    // descartan con toast — no bloqueamos las válidas porque el docente
-    // ya hizo el esfuerzo de pickear varios.
+    // Al elegir una carpeta llegan decenas de archivos; en vez de un toast
+    // por archivo inválido (spam), agregamos por categoría y mostramos uno.
     const valid: File[] = [];
+    const unsupported: string[] = [];
+    const oversize: string[] = [];
+    let stoppedForTotal = false;
+    // Dedupe: evita duplicar si se re-elige la misma carpeta o un archivo ya
+    // cargado. Clave = ruta relativa (o nombre) + tamaño.
+    const seen = new Set(files.map((f) => `${relPathOf(f)}:${f.size}`));
     let totalBytes = files.reduce((acc, f) => acc + f.size, 0);
     for (const f of incoming) {
+      const lowerName = f.name.toLowerCase();
+      // Basura del SO (desktop.ini, .DS_Store, Thumbs.db) y dotfiles: fuera, en silencio.
+      if (JUNK_FILENAMES.has(lowerName) || f.name.startsWith(".")) continue;
+      const key = `${relPathOf(f)}:${f.size}`;
+      if (seen.has(key)) continue;
       const ext = f.name.slice(f.name.lastIndexOf(".")).toLowerCase();
       if (!ACCEPTED_EXTENSIONS.includes(ext)) {
-        toast.error(
-          i18n.t("toast.modules_contents_UploadExternalContentDialog.unsupportedFormat", {
-            defaultValue: "Formato no soportado: {{fileName}}",
-            fileName: f.name,
-          }),
-        );
+        unsupported.push(f.name);
         continue;
       }
       if (f.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-        toast.error(
-          i18n.t("toast.modules_contents_UploadExternalContentDialog.fileTooLarge", {
-            defaultValue: "Archivo > {{maxMb}} MB: {{fileName}}",
-            maxMb: MAX_FILE_SIZE_MB,
-            fileName: f.name,
-          }),
-        );
+        oversize.push(f.name);
         continue;
       }
       if (totalBytes + f.size > MAX_TOTAL_SIZE_MB * 1024 * 1024) {
-        toast.error(
-          i18n.t("toast.modules_contents_UploadExternalContentDialog.totalSizeExceeded", {
-            defaultValue: "Excede el total de {{maxTotalMb}} MB",
-            maxTotalMb: MAX_TOTAL_SIZE_MB,
-          }),
-        );
+        stoppedForTotal = true;
         break;
       }
+      seen.add(key);
       totalBytes += f.size;
       valid.push(f);
+    }
+    if (unsupported.length) {
+      toast.error(
+        i18n.t("toast.modules_contents_UploadExternalContentDialog.unsupportedFormatMany", {
+          defaultValue: "{{count}} archivo(s) omitido(s) por formato no soportado: {{names}}",
+          count: unsupported.length,
+          names: previewNames(unsupported),
+        }),
+      );
+    }
+    if (oversize.length) {
+      toast.error(
+        i18n.t("toast.modules_contents_UploadExternalContentDialog.fileTooLargeMany", {
+          defaultValue: "{{count}} archivo(s) omitido(s) por superar {{maxMb}} MB: {{names}}",
+          count: oversize.length,
+          maxMb: MAX_FILE_SIZE_MB,
+          names: previewNames(oversize),
+        }),
+      );
+    }
+    if (stoppedForTotal) {
+      toast.error(
+        i18n.t("toast.modules_contents_UploadExternalContentDialog.totalSizeExceeded", {
+          defaultValue: "Excede el total de {{maxTotalMb}} MB",
+          maxTotalMb: MAX_TOTAL_SIZE_MB,
+        }),
+      );
     }
     if (valid.length === 0) return;
     // En modo "material_individual" forzamos un solo archivo (= 1 sesión).
@@ -435,7 +496,9 @@ export function UploadExternalContentDialog({
     const uploaded: Array<{ name: string; path: string; kind: string; body?: string }> = [];
     const failed: string[] = [];
     for (const f of files) {
-      const safeName = slugifyFilename(f.name);
+      // storageRelName dobla la subcarpeta (en picks de carpeta) para que dos
+      // sesiones con un archivo homónimo no colisionen en el mismo path.
+      const safeName = slugifyFilename(storageRelName(f));
       const path = `${user.id}/${contentId}/${safeName}`;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: upErr } = await (supabase.storage as any)
@@ -895,6 +958,36 @@ export function UploadExternalContentDialog({
                 onChange={(e) => onFilesPicked(e.target.files)}
               />
             </label>
+            {/* Picker de CARPETA (curso_completo): recorre subcarpetas
+                recursivamente y extrae solo los archivos de dentro. Ideal
+                para pasar una carpeta "Clases/" con una subcarpeta por sesión. */}
+            {mode === "curso_completo" && (
+              <label
+                className={`flex items-center justify-center gap-2 border-2 border-dashed rounded-md p-2.5 text-xs transition-colors ${
+                  saving
+                    ? "cursor-not-allowed border-muted opacity-60"
+                    : "cursor-pointer border-muted-foreground/30 hover:border-primary/50 hover:bg-accent/30"
+                }`}
+              >
+                <FolderUp className="h-4 w-4 text-muted-foreground" />
+                <span className="text-muted-foreground">
+                  {t("hc_modulesContentsUploadExternalContentDialog.pickerFolder", {
+                    defaultValue:
+                      "…o elegir una carpeta completa (recorre subcarpetas y toma los archivos de adentro)",
+                  })}
+                </span>
+                <input
+                  type="file"
+                  // `webkitdirectory`/`directory` no están en los tipos de React;
+                  // habilitan la selección de carpeta con recursión automática.
+                  {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
+                  multiple
+                  className="hidden"
+                  disabled={saving}
+                  onChange={(e) => onFilesPicked(e.target.files)}
+                />
+              </label>
+            )}
             {files.length > 0 && (
               <ul className="space-y-1 max-h-32 overflow-y-auto">
                 {files.map((f, idx) => (
@@ -905,7 +998,7 @@ export function UploadExternalContentDialog({
                     <Badge variant="secondary" className="text-[10px]">
                       {(f.size / 1024).toFixed(0)} KB
                     </Badge>
-                    <span className="flex-1 truncate">{f.name}</span>
+                    <span className="flex-1 truncate" title={relPathOf(f)}>{relPathOf(f)}</span>
                     <button
                       type="button"
                       onClick={() => removeFile(idx)}
