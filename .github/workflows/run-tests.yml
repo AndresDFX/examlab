@@ -38,7 +38,13 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          # Versión FIJA (no "latest"): con "latest", setup-bun consulta
+          # api.github.com/repos/oven-sh/bun/git/refs/tags para resolver el
+          # último tag, y cuando la API de GitHub falla (503 transitorio) el
+          # workflow completo se cae. Con una versión exacta, descarga el
+          # release directamente sin tocar la tags-API → CI resiliente y
+          # determinista. Bump manual cuando se quiera actualizar Bun.
+          bun-version: 1.3.14
 
       - name: Cache dependencies
         # Acelera runs sucesivos: si bun.lock no cambio, reusa node_modules.
