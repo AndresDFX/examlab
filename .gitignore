@@ -66,3 +66,6 @@ supabase/.temp/
 *.gslides
 # Secrets de restauración (token sbp_, service_role, DB password) — NUNCA commitear
 docker/restore.env
+
+# Windows Explorer folder config (ruido en docs/demos/*)
+desktop.ini
