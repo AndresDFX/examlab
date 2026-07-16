@@ -30,7 +30,13 @@
 | [infra-por-modelo-negocio.md](infra-por-modelo-negocio.md) | **Costo de infra por los 3 modelos de negocio** (licencia sin admin / con admin / SaaS independientes), con margen y recomendación de mix. |
 | [plan-migracion-aislamiento.md](plan-migracion-aislamiento.md) | **Plan de migración** Lovable → AWS / Supabase dedicado para aislamiento multi-tenant, por fases. |
 | [modulo-superadmin-calculadora.md](modulo-superadmin-calculadora.md) | **Plan de la feature** SuperAdmin: calculadora in-app de costo/precio con margen parametrizable por X licencias. |
-| [_gen-presentacion.py](_gen-presentacion.py) | Generador de la presentación comercial v3 → `../../demos/presentacion/ExamLab-Presentacion-Comercial-v3.pptx`. |
+| [modelo-modular-v3.md](modelo-modular-v3.md) | **Modelo modular** (sin Free): base por matrículas + add-ons, con bundles coherentes por perfil y reglas de coherencia. |
+| [programa-aliados-v3.md](programa-aliados-v3.md) | **Programa de aliados**: la comisión (10/15/20%) es un % **independiente del plan** que contrate el cliente. |
+| **🔒 Docs internos (NO cliente) — homólogos de cada presentación** | |
+| [interno-comercial-v3.md](interno-comercial-v3.md) | Espejo interno de la presentación comercial: costo/margen por plan + **mi costo de IA cuando administro/IA-administrada** (no gratis para mí). |
+| [interno-modular-v3.md](interno-modular-v3.md) | Espejo interno del modelo modular: costo/margen de cada bundle y add-on. |
+| [interno-aliados-v3.md](interno-aliados-v3.md) | Espejo interno del programa de aliados: impacto de la comisión en mi margen neto. |
+| [_gen-presentacion.py](_gen-presentacion.py) · [_gen-modular.py](_gen-modular.py) | Generadores de las presentaciones comercial v3 y modular → `../../demos/presentacion/`. |
 
 ---
 

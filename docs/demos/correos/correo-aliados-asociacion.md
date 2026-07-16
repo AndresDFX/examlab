@@ -14,6 +14,8 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 | **Aliado Comercial** | Vendes y acompañas al cliente. | **15% recurrente** mientras siga activo (incluye renovaciones) |
 | **Aliado Premium** | Desde 5 instituciones activas a tu nombre. | **20% recurrente** + soporte prioritario y co-branding |
 
+> **La comisión es INDEPENDIENTE del plan.** Es un **% sobre el total que paga el cliente** (plan + modalidad + add-ons), no un monto fijo por venta. A mayor plan/modalidad que contrate, mayor tu comisión — con el **mismo** %. Ej. Aliado Comercial (15%): Pequeña $149 → **$22/mes** · Mediana $349 → **$52/mes** · Grande $799 → **$120/mes** · Grande Administrada $1.499 → **$225/mes**. Aplica igual a instituciones e independientes. Detalle completo: [`programa-aliados-v3.md`](../../costos/Revision/programa-aliados-v3.md).
+
 **Reglas claras:** registro de oportunidad (el cliente que registras queda protegido **90 días**) · pago **mensual o trimestral** sobre lo efectivamente cobrado · **sin cuota de entrada** · no pones infraestructura ni el costo de IA (el cliente usa su propia API key) · te damos demos, presentaciones y cuentas de prueba.
 
 > Los % son de referencia — ajústalos a tu política antes de cerrar el acuerdo.

@@ -587,6 +587,63 @@ def slide_storage(prs):
     add_page_footer(slide, 5, 10)
 
 
+def slide_ia_costo(prs):
+    """Costo de IA (BYO) — hero $0 recargo + tabla de estimado por escala."""
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    add_slide_header(slide, "IA, sin letra chica",
+                     "El costo de IA es bajo, transparente y bajo tu control")
+    add_text_box(slide, Inches(0.5), Inches(1.7), Inches(12.3), Inches(0.55),
+                 "Con el modelo BYO, tu suscripción ExamLab no incluye ningún recargo por IA: "
+                 "conectas tu propia clave de Gemini/OpenAI y pagas solo el uso real, directo al proveedor.",
+                 size=13, color=TEXT_MUTED)
+    # Hero $0
+    hero_y = Inches(2.45)
+    add_rect(slide, Inches(0.5), hero_y, Inches(4.1), Inches(3.1),
+             fill_rgb=RGBColor(0xF0, 0xF9, 0xFB), line_rgb=TEAL, line_width_pt=2.0)
+    add_text_box(slide, Inches(0.7), hero_y + Inches(0.35), Inches(3.7), Inches(0.5),
+                 "Recargo de IA en tu plan", size=14, bold=True, color=TEAL_DARK,
+                 align=PP_ALIGN.CENTER)
+    add_text_box(slide, Inches(0.7), hero_y + Inches(0.95), Inches(3.7), Inches(1.2),
+                 "$0", size=90, bold=True, color=TEAL, align=PP_ALIGN.CENTER,
+                 anchor=MSO_ANCHOR.MIDDLE)
+    add_text_box(slide, Inches(0.7), hero_y + Inches(2.35), Inches(3.7), Inches(0.6),
+                 "Pagas la IA directo a Google/OpenAI, según tu consumo real.",
+                 size=11, color=TEXT_MAIN, align=PP_ALIGN.CENTER)
+    # Tabla estimado (col der)
+    tx = Inches(4.95)
+    tw = Inches(7.85)
+    add_text_box(slide, tx, hero_y - Inches(0.05), tw, Inches(0.4),
+                 "Estimado de costo de IA al mes (modo BYO)", size=13, bold=True, color=TEAL_DARK)
+    rows = [
+        ("Matrículas activas", "Uso típico", "Uso intensivo", True),
+        ("200", "~$12", "~$40", False),
+        ("1.000", "~$60", "~$200", False),
+        ("3.000", "~$180", "~$600", False),
+        ("10.000", "~$600", "~$2.000", False),
+    ]
+    ry = hero_y + Inches(0.45)
+    rh = Inches(0.5)
+    col_x = [tx + Inches(0.15), tx + Inches(3.5), tx + Inches(5.7)]
+    for (c0, c1, c2, is_head) in rows:
+        add_rect(slide, tx, ry, tw, rh,
+                 fill_rgb=TEAL if is_head else BG_SOFT, no_line=True)
+        hc = BG_WHITE if is_head else TEXT_MAIN
+        add_text_box(slide, col_x[0], ry, Inches(3.3), rh, c0, size=12,
+                     bold=is_head, color=hc, anchor=MSO_ANCHOR.MIDDLE)
+        add_text_box(slide, col_x[1], ry, Inches(2.1), rh, c1, size=12,
+                     bold=(is_head or True) if not is_head else True,
+                     color=(BG_WHITE if is_head else TEAL_DARK), anchor=MSO_ANCHOR.MIDDLE)
+        add_text_box(slide, col_x[2], ry, Inches(2.0), rh, c2, size=12,
+                     color=(BG_WHITE if is_head else TEXT_MUTED), anchor=MSO_ANCHOR.MIDDLE)
+        ry += rh + Inches(0.06)
+    add_text_box(slide, tx, ry + Inches(0.05), tw, Inches(0.75),
+                 "Valores estimados en USD/mes, pagados directamente a tu proveedor de IA (Google/OpenAI) "
+                 "según tu consumo real — no son un cargo de ExamLab. ¿Prefieres no administrar la clave? "
+                 "Con el add-on de IA administrada, ExamLab se encarga de todo por $0.10 por matrícula/mes.",
+                 size=10, italic=True, color=TEXT_MUTED)
+    add_page_footer(slide, 7, 11)
+
+
 def build():
     prs = Presentation()
     prs.slide_width = SLIDE_W
@@ -599,6 +656,7 @@ def build():
     slide_storage(prs)          # storage incluido por plan + extra (cliente)
     slide_5_todo_incluido(prs)
     slide_6_ia_flexible(prs)
+    slide_ia_costo(prs)         # costo de IA (BYO) — $0 recargo + estimado por escala
     slide_7_comparativa(prs)
     slide_8_valor_ahorro(prs)
     slide_9_cierre(prs)
