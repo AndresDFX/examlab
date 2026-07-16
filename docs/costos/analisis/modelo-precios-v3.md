@@ -42,7 +42,7 @@
 
 - Cursos, exámenes, talleres, proyectos ilimitados
 - Calificación con IA (BYO: usás tu propia clave de Gemini)
-- Kahoot, encuestas, pizarra colaborativa
+- Reto en vivo, encuestas, pizarra colaborativa
 - Foro por curso, banco de preguntas, biblioteca de videos (URL externa)
 - Certificados con QR verificable
 - Multi-tenant aislado por RLS
@@ -111,7 +111,7 @@
 **Objetivo**: colegios medianos, academias, cursos online independientes.
 
 **Por qué $149**:
-- Competitivo con Moodle Cloud ~$1,180/año (500 users) = $98/mes. ExamLab es +50% pero incluye IA + Kahoot + proyectos + anti-plagio que Moodle NO tiene out-of-the-box.
+- Competitivo con Moodle Cloud ~$1,180/año (500 users) = $98/mes. ExamLab es +50% pero incluye IA + Reto en vivo + proyectos + anti-plagio que Moodle NO tiene out-of-the-box.
 - A 1,000 matrículas = $0.15/matrícula/mes → **~2× más barato que Moodle Cloud** y ~5× más barato que Canvas.
 
 **Costo real**: ~$15/mes (fracción del $51 fijo + algo de storage/egress marginal). Margen 90%.

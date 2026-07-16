@@ -17,7 +17,7 @@
 │                     ├── Storage (buckets compartidos)        │
 │                     ├── Edge Functions (24 fns)              │
 │                     ├── Auth (bulk import, SSO)              │
-│                     ├── Realtime (Kahoot en vivo, chat)      │
+│                     ├── Realtime (Reto en vivo, chat)      │
 │                     └── pg_cron (17 jobs programados)        │
 │                              │                               │
 │                              ▼                               │
@@ -125,8 +125,8 @@ Escala esperada: 10,000 estudiantes con exámenes de programación (Java/Python)
 | **DB size 8 GB** | ~50,000 (0.16 MB/matrícula: perfiles + entregas texto) | $0.125/GB → despreciable a esta escala |
 | **Storage 100 GB** | ~15,000 (material 6 MB/curso + ZIPs 5 MB × ~2/año/matrícula) | $0.02/GB → **~$1/100 GB extra** |
 | **Egress 250 GB** | ~5,000–10,000 (varía si suben videos) | $0.09/GB → **~$9/100 GB extra** |
-| **Edge Functions 2M** | ~15,000 (heartbeat Kahoot + autosave + notifs + cron) | $2/1M → **~$2/1M extra** |
-| **Realtime 500 conex** | Kahoot en vivo simultáneo en 5+ cursos con 100+ alumnos c/u | $10/1000 → raro en producción |
+| **Edge Functions 2M** | ~15,000 (heartbeat Reto en vivo + autosave + notifs + cron) | $2/1M → **~$2/1M extra** |
+| **Realtime 500 conex** | Reto en vivo simultáneo en 5+ cursos con 100+ alumnos c/u | $10/1000 → raro en producción |
 | **Auth MAUs 100k** | 100,000 matrículas activas únicas por mes | $3.25/1000 → **muy lejos** |
 
 ### 4.2. Curva de costo real por escala

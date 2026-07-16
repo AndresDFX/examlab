@@ -14,8 +14,8 @@
 | Material por curso | 6 MB (real hoy) | Prod 2026-07-07 | Bajo — sube gradual |
 | Videos: URL externa (YouTube/Vimeo), NO subidos al Storage | Política contractual | Recomendación | **Medio** — si el cliente sube al Storage, revienta egress |
 | ZIPs de proyectos | 5 MB/entrega × ~2/matrícula/año | Estimado | Bajo |
-| Edge functions por matrícula/mes | ~50-100 (Kahoot, autosave, notifs) | Estimado | Medio a 15k matrículas |
-| Realtime peak | 100-200 conexiones concurrentes | Kahoot en vivo típico | Bajo hasta 500 |
+| Edge functions por matrícula/mes | ~50-100 (Reto en vivo, autosave, notifs) | Estimado | Medio a 15k matrículas |
+| Realtime peak | 100-200 conexiones concurrentes | Reto en vivo típico | Bajo hasta 500 |
 
 ### 1.2. Sobre economía
 
@@ -106,7 +106,7 @@
 
 **Mitigación**:
 - **Mensaje**: "Chamilo gratis + tu tiempo de admin = ~$350/mes valorizado. ExamLab $149 es más barato y no gestiones servidores".
-- **Diferenciación por features**: IA + Kahoot + anti-plagio + UI moderna que Chamilo no tiene.
+- **Diferenciación por features**: IA + Reto en vivo + anti-plagio + UI moderna que Chamilo no tiene.
 
 #### R8. Concentración en pocos clientes grandes
 
@@ -142,7 +142,7 @@
 
 **Mitigación**:
 - **First mover advantage**: capturar clientes ancla con contratos multi-año.
-- **Barrera de entrada baja pero foso alto**: features acumulados (IA embebida, Kahoot, anti-plagio, code runner) toman ~1 año en replicar.
+- **Barrera de entrada baja pero foso alto**: features acumulados (IA embebida, Reto en vivo, anti-plagio, code runner) toman ~1 año en replicar.
 - **Marca en el nicho**: publicar casos de estudio con universidades.
 
 ## 3. Métricas a monitorear mensualmente

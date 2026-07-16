@@ -20,7 +20,7 @@ Si tienes entre 1 y 3 cursos y hasta unos 500 alumnos activos, este es tu plan. 
 
 Tú te concentras en enseñar y evaluar; nosotros mantenemos la plataforma funcionando.
 
-**Todo el producto, sin recortes.** Cursos, exámenes, talleres y proyectos ilimitados; calificación con IA; Kahoot y encuestas; pizarra colaborativa; foro por curso; banco de preguntas; biblioteca de videos (por enlace); certificados con QR verificable; y respaldos diarios.
+**Todo el producto, sin recortes.** Cursos, exámenes, talleres y proyectos ilimitados; calificación con IA; Reto en vivo y encuestas; pizarra colaborativa; foro por curso; banco de preguntas; biblioteca de videos (por enlace); certificados con QR verificable; y respaldos diarios.
 
 **¿Prefieres operar tú mismo?** También ofrecemos la modalidad **autoservicio** (tú administras tu espacio), más económica. Te ayudamos a elegir la que mejor se ajuste.
 
@@ -66,7 +66,7 @@ Precios de referencia para el perfil independiente (bundle **con nuestra adminis
 - **Tu marca:** tu logo y tus colores en toda la experiencia del alumno.
 - **Certificados verificables** que dan valor formal a tus cursos.
 
-**Comparación de ahorro:** las plataformas institucionales como **Canvas** o **Blackboard** ni siquiera se venden a docentes independientes —exigen contratos corporativos de decenas de miles de dólares al año—, y **Moodle** exige que montes y mantengas tú mismo un servidor (o pagar Moodle Cloud desde ~$98/mes y aun así sin IA ni Kahoot ni anti-plagio, y operándolo tú solo).
+**Comparación de ahorro:** las plataformas institucionales como **Canvas** o **Blackboard** ni siquiera se venden a docentes independientes —exigen contratos corporativos de decenas de miles de dólares al año—, y **Moodle** exige que montes y mantengas tú mismo un servidor (o pagar Moodle Cloud desde ~$98/mes y aun así sin IA ni Reto en vivo ni anti-plagio, y operándolo tú solo).
 
 | Opción | Costo típico | Quién lo opera | IA / anti-plagio incluidos |
 |---|---|---|---|

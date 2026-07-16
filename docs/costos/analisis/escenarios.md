@@ -27,7 +27,7 @@
 
 **Payback del CAC** ($1,000 estimado): 8.4 meses.
 
-**Comparable Moodle Cloud Small** ($490/año, hasta 200 users): 300 alumnos NO caben en Small, tendrían que ir a Medium ($1,180/año). Comparable **ExamLab** cobra $1,608/año vs Moodle Medium $1,180/año — 36% más caro, pero ExamLab tiene IA + Kahoot + anti-plagio + UI moderna.
+**Comparable Moodle Cloud Small** ($490/año, hasta 200 users): 300 alumnos NO caben en Small, tendrían que ir a Medium ($1,180/año). Comparable **ExamLab** cobra $1,608/año vs Moodle Medium $1,180/año — 36% más caro, pero ExamLab tiene IA + Reto en vivo + anti-plagio + UI moderna.
 
 ---
 

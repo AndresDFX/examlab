@@ -18,7 +18,7 @@ Fuente: [moodlecloud.com/standard-plans](https://www.moodlecloud.com/standard-pl
 **Notas**:
 - Moodle Cloud es hosted managed — pagás por la cantidad de usuarios activos.
 - **No incluye IA** (integración con OpenAI/otros es plugin extra).
-- **No incluye Kahoot** (plugin de encuestas básico).
+- **No incluye Reto en vivo** (plugin de encuestas básico).
 - **No incluye anti-plagio** (Turnitin es integración extra ~$5-10/usuario/año).
 - Interfaz percibida como "años 2010" comparado con productos modernos.
 
@@ -88,7 +88,7 @@ Fuente: [chamilo.org](https://chamilo.org) + [BeezNest hosted](https://beeznest.
 **Notas**:
 - Similar a Google Classroom — competitivo por precio pero limitado en features educativos.
 - Fuerte para colegios/universidades que ya son Microsoft-heavy.
-- ExamLab compite por: banco de preguntas, IA de calificación, Kahoot integrado.
+- ExamLab compite por: banco de preguntas, IA de calificación, Reto en vivo integrado.
 
 ## 7. Docebo, TalentLMS, Absorb
 
@@ -143,14 +143,14 @@ $3.00+ ─┤ (custom deals)
 |---|---|---|
 | Precio Medium (500 users) | $98/mes | $149/mes (Pequeña) |
 | IA de calificación | Plugin extra | Incluida (BYO) |
-| Kahoot en vivo | Plugin básico | Nativo con PIN + QR |
+| Reto en vivo | Plugin básico | Nativo con PIN + QR |
 | Anti-plagio | Turnitin extra | Detección con IA incluida |
 | UI | 2010 | 2026 (React + shadcn) |
 | Multi-idioma | Amplio | es-CO + en |
 | Setup | Self-service | Self-service o guided |
 
 **Ganador por precio absoluto**: Moodle Cloud (~30-50% más barato en tier Small/Medium).
-**Ganador por features**: ExamLab (IA + Kahoot + antiplagio integrados).
+**Ganador por features**: ExamLab (IA + Reto en vivo + antiplagio integrados).
 **Ganador por experiencia**: ExamLab (UI moderna).
 
 ### vs. Canvas (competidor premium)
@@ -186,7 +186,7 @@ ExamLab es de hecho **más barato** que Chamilo self-hosted cuando se valoriza e
 
 ### Para colegios ya en Google Workspace
 
-**Mensaje**: "Google Classroom te da lo básico. ExamLab te da la evaluación digital profesional (banco de preguntas, IA, anti-plagio, Kahoot integrado). Puedes seguir usando tu Google Workspace para lo demás — nosotros nos integramos con SSO."
+**Mensaje**: "Google Classroom te da lo básico. ExamLab te da la evaluación digital profesional (banco de preguntas, IA, anti-plagio, Reto en vivo integrado). Puedes seguir usando tu Google Workspace para lo demás — nosotros nos integramos con SSO."
 
 ### Para universidades ya en Moodle
 

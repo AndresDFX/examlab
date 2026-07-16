@@ -206,7 +206,7 @@ Cada combo está construido para que **cada pieza refuerce a la otra** y no haya
 
 ## 5. Outline de slides para la presentación (pptx a generar después)
 
-> ~14 slides. Estilo: limpio, numérico, un mensaje por slide. En texto visible usar **"institución"**, nunca "tenant". Marca "Reto en vivo" (no "Kahoot") en material comercial.
+> ~14 slides. Estilo: limpio, numérico, un mensaje por slide. En texto visible usar **"institución"**, nunca "tenant". Usar SIEMPRE la marca propia **"Reto en vivo"** en material comercial (nunca nombres de terceros).
 
 1. **Portada** — "ExamLab · Modelo Modular v3 — Planes que crecen con tu institución". Sin Free, sin letra chica.
 2. **El problema** — LMS incumbentes: caros (Canvas $45k–135k/año), rígidos, o gratis-pero-limitados (Moodle). ExamLab: el punto medio moderno con IA.

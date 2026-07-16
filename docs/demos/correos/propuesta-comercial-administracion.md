@@ -27,7 +27,7 @@ La institución obtiene su **espacio propio en ExamLab** (con su marca), y **yo 
 - **Configuración académica:** cortes y pesos de calificación, escalas, certificados con su formato, prompts de IA a la medida de cada curso.
 - **Soporte:** canal de soporte para docentes y estudiantes + acompañamiento (resolvemos dudas y problemas de uso).
 - **Operación:** respaldos periódicos de la base de datos, actualizaciones de la plataforma y monitoreo — todo transparente para ustedes.
-- **Todas las funciones incluidas:** exámenes y talleres con **IA que genera y califica**, detección de copia, proyectos con sustentación, asistencia con QR, encuestas/Kahoot, pizarras en vivo, **tutor IA** para estudiantes, mensajería, reportes y actas. No hay "funciones premium" recortadas: **todo viene en todos los planes**.
+- **Todas las funciones incluidas:** exámenes y talleres con **IA que genera y califica**, detección de copia, proyectos con sustentación, asistencia con QR, encuestas/Reto en vivo, pizarras en vivo, **tutor IA** para estudiantes, mensajería, reportes y actas. No hay "funciones premium" recortadas: **todo viene en todos los planes**.
 
 ---
 

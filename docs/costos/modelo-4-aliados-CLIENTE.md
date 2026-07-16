@@ -37,7 +37,7 @@ No necesitas operar la plataforma ni dar soporte técnico: **tú acercas al clie
 
 ## 3. Planes y precios que puede contratar tu cliente
 
-Todos los planes incluyen el mismo producto completo (cursos, exámenes, talleres, proyectos, calificación con IA, Kahoot, encuestas, pizarra, foros, banco de preguntas, certificados con QR, multi-tenant aislado y backups). Lo que cambia es el tope de matrículas y el nivel de soporte.
+Todos los planes incluyen el mismo producto completo (cursos, exámenes, talleres, proyectos, calificación con IA, Reto en vivo, encuestas, pizarra, foros, banco de preguntas, certificados con QR, datos aislados por institución y backups). Lo que cambia es el tope de matrículas y el nivel de soporte.
 
 | Plan | Precio/mes | Matrículas | Soporte | Storage incluido |
 |---|---:|---|---|---|
@@ -46,7 +46,7 @@ Todos los planes incluyen el mismo producto completo (cursos, exámenes, tallere
 | **Grande** | $799 | ≤10.000 | SLA 24h + Slack | 200 GB |
 | **Enterprise** | desde $1.499 | >10.000 | SLA 4h + gerente de cuenta | Custom |
 
-**Modalidad Administrada (+$300/mes):** disponible en cualquier plan. ExamLab opera el tenant por el cliente (onboarding, importación de usuarios, branding, capacitación y soporte pleno).
+**Modalidad Administrada (+$300/mes):** disponible en cualquier plan. ExamLab opera la institución por el cliente (onboarding, importación de usuarios, branding, capacitación y soporte pleno).
 
 ### Add-ons frecuentes (todos suman a tu comisión)
 
@@ -85,14 +85,14 @@ El mismo caso Grande según tu modalidad: **Referido 10 %** → $80/mes durante 
 
 **Tú (el aliado):**
 - Ingreso **recurrente** que escala con el crecimiento del cliente, sin operar infraestructura ni soporte.
-- Un producto moderno y diferenciado (IA, anti-plagio, code runner, Kahoot) fácil de presentar.
+- Un producto moderno y diferenciado (IA, anti-plagio, code runner, Reto en vivo) fácil de presentar.
 - Como Aliado Premium: soporte prioritario y **co-branding**.
 
 **El cliente:** una plataforma con IA por una fracción del costo de las alternativas enterprise:
 
 | Plataforma | Escala comparable | Precio | ExamLab |
 |---|---|---:|---|
-| Moodle Cloud | 500 usuarios | ~$98/mes (limitado, sin IA) | Pequeña $149 con IA + Kahoot + anti-plagio |
+| Moodle Cloud | 500 usuarios | ~$98/mes (limitado, sin IA) | Pequeña $149 con IA + Reto en vivo + anti-plagio |
 | Canvas (negociado) | 3.000 estudiantes | ~$2.500/mes | Mediana $349 (**~7× más barato**) |
 | Blackboard | 3.000 estudiantes | $3.000–8.000/mes | Mediana $349 (**10–25× más barato**) |
 

@@ -17,13 +17,13 @@ Para instituciones que quieren **administrar su propia plataforma** — colegios
 
 Es una modalidad **self-service** con respaldo:
 
-- **Tú administras tu institución (tenant):** creas cursos, importas estudiantes y docentes, configuras tu branding (logo, colores) y operas exámenes, talleres, proyectos y calificaciones — todo desde el panel, sin depender de nadie.
+- **Tú administras tu institución:** creas cursos, importas estudiantes y docentes, configuras tu branding (logo, colores) y operas exámenes, talleres, proyectos y calificaciones — todo desde el panel, sin depender de nadie.
 - **Nosotros ponemos y mantenemos la infraestructura:** hospedaje, base de datos, backups diarios, seguridad y actualizaciones continuas (nuevas funciones y correcciones sin costo adicional).
 - **Soporte incluido en todos los planes:** alta de tu institución, gestión de licencias, atención de incidencias y actualizaciones. El nivel de respuesta escala con tu plan.
 
 Todos los planes incluyen el **producto completo**, sin recortes de funciones:
 
-Cursos, exámenes, talleres y proyectos ilimitados · Calificación con IA · Kahoot y encuestas · Pizarra colaborativa · Foro por curso · Banco de preguntas · Biblioteca de videos (por URL externa) · Certificados con QR verificable · Aislamiento de datos por institución · Backups diarios.
+Cursos, exámenes, talleres y proyectos ilimitados · Calificación con IA · Reto en vivo y encuestas · Pizarra colaborativa · Foro por curso · Banco de preguntas · Biblioteca de videos (por URL externa) · Certificados con QR verificable · Aislamiento de datos por institución · Backups diarios.
 
 ---
 
@@ -67,7 +67,7 @@ Cursos, exámenes, talleres y proyectos ilimitados · Calificación con IA · Ka
 
 ## 5. Qué ganas — y cuánto ahorras
 
-- **Producto completo desde el primer plan:** IA de calificación, anti-plagio, Kahoot, proyectos con código y una interfaz moderna que Moodle no trae de fábrica.
+- **Producto completo desde el primer plan:** IA de calificación, anti-plagio, Reto en vivo, proyectos con código y una interfaz moderna que Moodle no trae de fábrica.
 - **Autonomía total:** administras tu institución a tu ritmo, sin depender de un proveedor para cada cambio.
 - **Cero costo de infraestructura oculto:** hospedaje, backups, seguridad y actualizaciones incluidos.
 
@@ -75,7 +75,7 @@ Cursos, exámenes, talleres y proyectos ilimitados · Calificación con IA · Ka
 
 | Plataforma | Costo anual aprox. | ExamLab Mediana |
 |---|---|---|
-| Moodle Cloud | ~$1.180/año (y con menos funciones) | **$4.188/año** con IA + Kahoot + anti-plagio |
+| Moodle Cloud | ~$1.180/año (y con menos funciones) | **$4.188/año** con IA + Reto en vivo + anti-plagio |
 | Canvas (negociado) | $24.000–$30.000/año | **$4.188/año → hasta 7× más barato** |
 | Blackboard | $36.000–$96.000/año | **$4.188/año → 10–25× más barato** |
 

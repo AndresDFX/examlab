@@ -40,7 +40,7 @@ Justificado por costo real de tech junior (~$1,800/mes cargado × 1 tech por 8 c
 | Blackboard | $0.50–3.00 | Enterprise |
 | Chamilo self-hosted | $0.00 | Open source (competencia gratis) |
 
-**ExamLab se posiciona ~40% más barato que Moodle Cloud, 3-20× más barato que Canvas.** Justificable por: producto SaaS multi-tenant listo + IA embebida + Kahoot/proyectos/anti-plagio en el mismo paquete.
+**ExamLab se posiciona ~40% más barato que Moodle Cloud, 3-20× más barato que Canvas.** Justificable por: producto SaaS multi-tenant listo + IA embebida + Reto en vivo/proyectos/anti-plagio en el mismo paquete.
 
 ## Ganancia esperada con 20 clientes distribuidos
 

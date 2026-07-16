@@ -7,9 +7,10 @@ Uso:
 
 Requiere: python-pptx (pip install python-pptx)
 
-Diseño: 16:9 widescreen (13.3 × 7.5 in), paleta teal/azul, tipografía
-Helvetica-like. Similar en look al ExamLab-Presentacion-Comercial.pptx
-original pero con precios v3 y nuevos slides (comparables + ahorro).
+Diseño: 16:9 widescreen (13.3 × 7.5 in), paleta indigo/violeta alineada al
+ExamLab-Presentacion-Comercial.pptx ORIGINAL (títulos indigo oscuro #1E1B4B,
+acento indigo #4F46E5, violeta #7C3AED, verde #059669), tipografía
+Helvetica-like. Mismos colores que el deck original + precios/slides v3.
 """
 
 from pptx import Presentation
@@ -20,16 +21,19 @@ from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 import os
 
 # ── Paleta de marca ──────────────────────────────────────────────────
-TEAL_DARK   = RGBColor(0x0F, 0x3E, 0x4C)   # Titular
-TEAL        = RGBColor(0x14, 0x7A, 0x8C)   # Acento primario
-TEAL_LIGHT  = RGBColor(0x2E, 0xB8, 0xC7)   # Acento claro / badges
-BLUE_ACCENT = RGBColor(0x4F, 0x46, 0xE5)   # Precio (indigo — igual al deck comercial sin versión)
+# Alineada al ExamLab-Presentacion-Comercial.pptx ORIGINAL (indigo/violeta),
+# NO al teal previo. Los nombres TEAL_* se conservan por compatibilidad con el
+# resto del generador, pero sus valores ya son indigo/violeta.
+TEAL_DARK   = RGBColor(0x1E, 0x1B, 0x4B)   # Titular — indigo muy oscuro (original)
+TEAL        = RGBColor(0x4F, 0x46, 0xE5)   # Acento primario — indigo
+TEAL_LIGHT  = RGBColor(0x7C, 0x3A, 0xED)   # Acento claro / badges — violeta
+BLUE_ACCENT = RGBColor(0x4F, 0x46, 0xE5)   # Precio — indigo (igual al deck original)
 BG_WHITE    = RGBColor(0xFF, 0xFF, 0xFF)
-BG_SOFT     = RGBColor(0xF4, 0xF8, 0xFA)   # Fondo suave
-TEXT_MAIN   = RGBColor(0x1F, 0x2A, 0x33)
-TEXT_MUTED  = RGBColor(0x64, 0x74, 0x80)
+BG_SOFT     = RGBColor(0xEE, 0xF2, 0xFF)   # Fondo suave — indigo-50
+TEXT_MAIN   = RGBColor(0x1F, 0x29, 0x37)   # Texto principal — slate oscuro (original)
+TEXT_MUTED  = RGBColor(0x64, 0x74, 0x8B)   # Texto atenuado — slate (original)
 GOLD        = RGBColor(0xE1, 0x9A, 0x1F)   # Highlight "más popular"
-GREEN_OK    = RGBColor(0x1F, 0x8F, 0x4F)   # Checks
+GREEN_OK    = RGBColor(0x05, 0x96, 0x69)   # Checks — verde (original)
 
 # 16:9 widescreen
 SLIDE_W = Inches(13.333)
@@ -108,13 +112,13 @@ def slide_1_portada(prs):
                  size=54, bold=True, color=BG_WHITE, font="Calibri")
     add_text_box(slide, Inches(0.5), Inches(1.95), Inches(12.3), Inches(0.4),
                  "La plataforma educativa con IA — planes para tu institución",
-                 size=16, color=RGBColor(0xC8, 0xE8, 0xEE), font="Calibri")
+                 size=16, color=RGBColor(0xC7, 0xD2, 0xFE), font="Calibri")
     # Subtítulo grande
     add_text_box(slide, Inches(0.5), Inches(3.4), Inches(12.3), Inches(0.8),
                  "Pequeña, Mediana o Grande: hay un plan a tu medida",
                  size=32, bold=True, color=TEAL_DARK, font="Calibri")
     add_text_box(slide, Inches(0.5), Inches(4.3), Inches(12.3), Inches(0.5),
-                 "IA incluida (con tu API key) · Multi-tenant seguro · Setup en días, no meses",
+                 "IA incluida (con tu API key) · Seguro y privado · Setup en días, no meses",
                  size=16, color=TEXT_MUTED, font="Calibri")
     # Etiqueta abajo
     add_text_box(slide, Inches(0.5), Inches(6.5), Inches(12.3), Inches(0.4),
@@ -165,7 +169,7 @@ def slide_3_plataforma(prs):
         ("🤖", "Tutor IA por curso", "Lee el material del curso y responde al alumno"),
         ("🚫", "Anti-plagio con IA", "Detección de copia entre entregas"),
         ("📊", "Libro de calificaciones", "Con pesos por corte + acta oficial exportable"),
-        ("📱", "Kahoot en vivo", "Con PIN + QR, hasta 10k alumnos concurrentes"),
+        ("📱", "Reto en vivo", "Con PIN + QR, hasta 10k alumnos concurrentes"),
         ("✅", "Asistencia con QR rotativo", "Auto check-in del estudiante"),
         ("💬", "Mensajería + foros + broadcast", "Con etiquetas #contenido"),
         ("🖥️", "Code runner Java/Python", "Ejecución server-side en exámenes"),
@@ -298,7 +302,7 @@ def slide_5_todo_incluido(prs):
         "Asistencia con QR rotativo (auto check-in)",
         "Sincronización con Google/Microsoft Calendar",
         "Mensajería 1-a-1, foros y difusión",
-        "Encuestas + Kahoot en vivo con PIN",
+        "Encuestas + Reto en vivo con PIN",
         "Certificados con QR verificable",
         "Ejecución de código (Java/Python) en línea",
         "Multi-sede, branding y auditoría",
@@ -383,7 +387,7 @@ def slide_6_ia_flexible(prs):
     bullets_ad = [
         "$0.10 por matrícula activa / mes",
         "Sin gestión de Google Cloud del lado del cliente",
-        "Tope de consumo configurable por tenant",
+        "Tope de consumo configurable por institución",
         "Facturación incluida en la factura de ExamLab",
         "Ideal para instituciones sin equipo TI dedicado",
     ]
@@ -413,7 +417,7 @@ def slide_7_comparativa(prs):
     rows = [
         ("Producto", "USD/mes total", "Por matrícula/mes", "Notas"),
         ("Chamilo self-hosted", "~$350 (valorizado)", "$0.12", "Gratis + admin server + VPS"),
-        ("ExamLab Mediana", "$349", "$0.12", "IA + Kahoot + antifraude incluidos"),
+        ("ExamLab Mediana", "$349", "$0.12", "IA + Reto en vivo + antifraude incluidos"),
         ("Moodle Cloud Standard (750)", "$173", "$0.23", "Sin IA nativa, plugin extra"),
         ("Canvas Small (negociado)", "$2.500", "$0.83", "Contract 3 años típico"),
         ("Blackboard mid-market", "$5.000+", "$1.67+", "Setup + capacitación aparte"),
@@ -464,7 +468,7 @@ def slide_8_valor_ahorro(prs):
     for i, (num, label) in enumerate(metrics):
         x = Inches(0.5 + i * 3.1)
         add_rect(slide, x, row_y, card_w, Inches(1.7),
-                 fill_rgb=RGBColor(0xF4, 0xF8, 0xFA), no_line=True)
+                 fill_rgb=RGBColor(0xEE, 0xF2, 0xFF), no_line=True)
         add_text_box(slide, x, row_y + Inches(0.15), card_w, Inches(0.6),
                      num, size=32, bold=True, color=BLUE_ACCENT,
                      align=PP_ALIGN.CENTER)
@@ -506,7 +510,7 @@ def slide_9_cierre(prs):
                  size=40, bold=True, color=BG_WHITE)
     add_text_box(slide, Inches(0.5), Inches(1.3), Inches(12.3), Inches(0.7),
                  "Control a tu institución.",
-                 size=40, bold=True, color=RGBColor(0xC8, 0xE8, 0xEE))
+                 size=40, bold=True, color=RGBColor(0xC7, 0xD2, 0xFE))
     # Bloque central
     add_text_box(slide, Inches(0.5), Inches(3.0), Inches(12.3), Inches(0.5),
                  "Empieza con el plan que se ajusta a tu tamaño y crece cuando lo necesites.",
@@ -515,7 +519,7 @@ def slide_9_cierre(prs):
     y = 3.9
     puntos = [
         ("★", "IA para generar, calificar, tutorizar y detectar copia"),
-        ("★", "Multi-tenant seguro con aislamiento por RLS"),
+        ("★", "Seguridad de nivel empresarial y datos privados por institución"),
         ("★", "Setup en días · Soporte en español · Sin contract mínimo"),
     ]
     for icon, txt in puntos:
