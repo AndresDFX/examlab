@@ -542,18 +542,20 @@ async function main() {
   const page = await context.newPage();
 
   const offsets = []; let t0 = 0;
-  // El rol Admin (default de la cuenta) NO redirige en rutas /app/admin/*, así
-  // que para Admin navegamos DIRECTO a appPath (rápido). Docente/Estudiante sí
-  // requieren aterrizar en /app, fijar el rol y navegar por SPA (su rol activo
-  // es efímero y un reload a /app/teacher|student/* redirige al dashboard).
+  // TODOS los roles (incl. Admin) aterrizan en /app, fijan su rol vía el
+  // role-switcher y navegan por SPA a appPath. El rol activo vive en MEMORIA
+  // (active-role-signal, NO localStorage) y un page.goto lo resetea: la cuenta
+  // demo multi-rol arranca por defecto en DOCENTE (no Admin), así que un
+  // cold-goto directo a /app/admin/* caía al dashboard → root cause del "sin
+  // navegación" en los módulos con tabs (academic/ai-prompts/settings/
+  // report-templates). Antes se asumía "Admin es el default → goto directo".
   const roleLabel = spec.role ?? "Administrador";
-  const isAdminRole = /admin/i.test(roleLabel);
-  let currentRoute = isAdminRole ? (spec.appPath || "/app") : "/app";
+  let currentRoute = "/app";
   const mark = (i, label) => { offsets[i] = Date.now() - t0; console.log(`  [${i + 1}/${scenes.length}] @${offsets[i]}ms — ${label}`); };
 
   try {
-    // Admin: directo a appPath (rápido). Docente/Estudiante: a /app (luego SPA-nav).
-    await page.goto(`${APP_URL}${isAdminRole ? (spec.appPath || "/app") : "/app"}`, { waitUntil: "domcontentloaded" });
+    // Todos aterrizan en /app; el rol + SPA-nav a appPath ocurren en la escena 0.
+    await page.goto(`${APP_URL}/app`, { waitUntil: "domcontentloaded" });
     // Carátula de la 1ª escena ASAP → cubre la carga (pre-roll mínimo).
     if (scenes[0].kind === "card") await overlay(page, scenes[0].card);
     await sleep(300);
@@ -567,10 +569,10 @@ async function main() {
       if (sc.kind === "card") {
         if (i > 0) await overlay(page, sc.card); // la 1ª ya está puesta
         if (i === 0) {
-          // Admin: ya estamos en appPath (goto directo). Docente/Estudiante:
-          // fijar el rol y navegar por SPA para preservar el rol activo.
+          // Fijar el rol (role-switcher) y navegar por SPA a appPath para TODOS
+          // los roles — preserva el rol activo (en memoria) que un goto resetea.
           await selectRole(page, roleLabel);
-          if (!isAdminRole && spec.appPath && spec.appPath !== "/app") {
+          if (spec.appPath && spec.appPath !== "/app") {
             await spaNavigate(page, spec.appPath);
             currentRoute = spec.appPath;
           }

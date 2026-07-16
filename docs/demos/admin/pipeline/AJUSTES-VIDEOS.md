@@ -44,9 +44,15 @@ Docente / Estudiante). Tenerlo en cuenta al volver a generar cualquier video.
   sin su nota — era su fuente). Usá entidades dedicadas por seed.
 - **Cuenta demo:** `test-demo-global-corp@examlab.test` (3 roles). Cambiar de rol
   **por SPA** (role-switcher), nunca `page.goto` (resetea el rol activo en memoria
-  → cae al dashboard de Admin). Rutas sin nav item (`/app/messages`,
+  → cae al dashboard). Rutas sin nav item (`/app/messages`,
   `/app/student/take/$id`) → navegar por click/Link SPA, o aceptar que el contexto
-  caiga a Admin si el contenido a mostrar es un modal que llena la pantalla.
+  caiga al dashboard si el contenido a mostrar es un modal que llena la pantalla.
+  - **⚠ La cuenta demo arranca por defecto en DOCENTE, NO en Admin.** Por eso el
+    recorder (escena 0) fija el rol con `selectRole` + navega por SPA a `appPath`
+    para **TODOS los roles, incluido Admin** (antes hacía cold-`goto` directo a
+    `/app/admin/*` asumiendo "Admin es el default" → caía al dashboard → los
+    módulos con tabs, academic/ai-prompts/settings/report-templates, salían "sin
+    navegación"). Fix en `record-module.mjs` 2026-07-15. NO revertir a cold-goto.
 
 ## 3. Sincronía narración ↔ visual (`syncWord`)
 
