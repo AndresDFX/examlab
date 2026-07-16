@@ -29,6 +29,24 @@ al documento que necesites con la tabla de contenido de abajo.
 
 ---
 
+## 🎯 Los 4 modelos de negocio — un par de documentos por modelo
+
+En la **raíz** de esta carpeta, cada modelo tiene un documento **INTERNO** (detalle de
+costos/margen, NO enviar al cliente) y uno **CLIENTE** (para enviar junto con su presentación).
+
+| # | Modelo | 🔒 Interno (costos) | 📤 Cliente (enviar) | 🖥️ Presentación adjunta |
+|---|---|---|---|---|
+| 1 | **Autogestionada** (sin admin mía — el cliente opera su tenant) | [interno](modelo-1-autogestionada-INTERNO.md) | [cliente](modelo-1-autogestionada-CLIENTE.md) | `ExamLab-Presentacion-Comercial-v3.pptx` |
+| 2 | **Administrada** (con admin mía — yo opero el tenant) | [interno](modelo-2-administrada-INTERNO.md) | [cliente](modelo-2-administrada-CLIENTE.md) | `ExamLab-Presentacion-Comercial-Administrada.pptx` |
+| 3 | **Independientes** (docente/profesional, con mi admin ligera) | [interno](modelo-3-independientes-INTERNO.md) | [cliente](modelo-3-independientes-CLIENTE.md) | `ExamLab-Presentacion-Independientes.pptx` |
+| 4 | **Aliados** (canal por comisión %) | [interno](modelo-4-aliados-INTERNO.md) | [cliente](modelo-4-aliados-CLIENTE.md) | `ExamLab-Presentacion-Aliados.pptx` |
+
+> En **todos** los modelos la **infra la provee ExamLab** (no self-host). La diferencia es
+> **quién administra el tenant**. El análisis profundo que sustenta estos números vive en
+> [`Revision/`](Revision/) (infra por modelo, precios, add-ons, storage, escenarios).
+
+---
+
 ## 📚 Tabla de contenido
 
 ### 1. v3 — modelo vigente (`Revision/`)
