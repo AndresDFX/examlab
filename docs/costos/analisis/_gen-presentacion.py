@@ -29,8 +29,8 @@ TEAL        = RGBColor(0x4F, 0x46, 0xE5)   # Acento primario — indigo
 TEAL_LIGHT  = RGBColor(0x7C, 0x3A, 0xED)   # Acento claro / badges — violeta
 BLUE_ACCENT = RGBColor(0x4F, 0x46, 0xE5)   # Precio — indigo (igual al deck original)
 BG_WHITE    = RGBColor(0xFF, 0xFF, 0xFF)
-BG_SOFT     = RGBColor(0xEE, 0xF2, 0xFF)   # Fondo suave — indigo-50
-TEXT_MAIN   = RGBColor(0x1F, 0x29, 0x37)   # Texto principal — slate oscuro (original)
+BG_SOFT     = RGBColor(0xF5, 0xF3, 0xFF)   # Fondo suave — indigo-50
+TEXT_MAIN   = RGBColor(0x33, 0x41, 0x55)   # Texto principal — slate (original)
 TEXT_MUTED  = RGBColor(0x64, 0x74, 0x8B)   # Texto atenuado — slate (original)
 GOLD        = RGBColor(0xE1, 0x9A, 0x1F)   # Highlight "más popular"
 GREEN_OK    = RGBColor(0x05, 0x96, 0x69)   # Checks — verde (original)
@@ -150,7 +150,7 @@ def slide_2_por_que(prs):
     # Callout box
     y_call = 5.8
     box = add_rect(slide, Inches(0.5), Inches(y_call), Inches(12.3), Inches(0.8),
-                   fill_rgb=RGBColor(0xE8, 0xF6, 0xF9),
+                   fill_rgb=RGBColor(0xE0, 0xE7, 0xFF),
                    line_rgb=TEAL_LIGHT, line_width_pt=1.5)
     add_text_box(slide, Inches(0.8), Inches(y_call + 0.15), Inches(11.8), Inches(0.5),
                  "★  Una sola plataforma, en español, lista para tu institución — sin instalar nada.",
@@ -199,7 +199,7 @@ def _plan_card(slide, x, w, plan_name, target, price, matriculas,
     # en ~6.7in, dejando aire para el footer en 6.9in (antes se solapaban).
     card_h = Inches(4.15)
     card_y = Inches(2.55)
-    line_color = GOLD if is_popular else RGBColor(0xD0, 0xD9, 0xE1)
+    line_color = GOLD if is_popular else RGBColor(0xE2, 0xE8, 0xF0)
     fill_color = BG_WHITE if not is_popular else RGBColor(0xFF, 0xFB, 0xF0)
     add_rect(slide, x, card_y, w, card_h,
              fill_rgb=fill_color,
@@ -236,7 +236,7 @@ def _plan_card(slide, x, w, plan_name, target, price, matriculas,
     # Divisor
     div = slide.shapes.add_connector(1, x + Inches(0.4), card_y + Inches(2.45),
                                      x + w - Inches(0.4), card_y + Inches(2.45))
-    div.line.color.rgb = RGBColor(0xE0, 0xE6, 0xEC)
+    div.line.color.rgb = RGBColor(0xE2, 0xE8, 0xF0)
     # Matrículas
     add_text_box(slide, x, card_y + Inches(2.55), w, Inches(0.3),
                  "Matrículas activas",
@@ -322,7 +322,7 @@ def slide_5_todo_incluido(prs):
     # Callout final
     y_call = 5.7
     box = add_rect(slide, Inches(0.5), Inches(y_call), Inches(12.3), Inches(1.0),
-                   fill_rgb=RGBColor(0xE8, 0xF6, 0xF9),
+                   fill_rgb=RGBColor(0xE0, 0xE7, 0xFF),
                    line_rgb=TEAL_LIGHT, line_width_pt=1.5)
     add_text_box(slide, Inches(0.8), Inches(y_call + 0.15), Inches(11.8), Inches(0.35),
                  "★  BYO API Key (Bring Your Own Key)",
@@ -346,7 +346,7 @@ def slide_6_ia_flexible(prs):
     card_w = Inches(6.0)
     # Card 1: BYO
     add_rect(slide, Inches(0.5), card_y, card_w, card_h,
-             fill_rgb=RGBColor(0xF0, 0xF9, 0xFB),
+             fill_rgb=RGBColor(0xF5, 0xF3, 0xFF),
              line_rgb=TEAL, line_width_pt=2.0)
     add_text_box(slide, Inches(0.8), card_y + Inches(0.25), card_w - Inches(0.4),
                  Inches(0.5),
@@ -375,7 +375,7 @@ def slide_6_ia_flexible(prs):
     x2 = Inches(6.83)
     add_rect(slide, x2, card_y, card_w, card_h,
              fill_rgb=BG_WHITE,
-             line_rgb=RGBColor(0xD0, 0xD9, 0xE1), line_width_pt=1.0)
+             line_rgb=RGBColor(0xE2, 0xE8, 0xF0), line_width_pt=1.0)
     add_text_box(slide, x2 + Inches(0.3), card_y + Inches(0.25),
                  card_w - Inches(0.4), Inches(0.5),
                  "🤖  IA administrada (add-on)",
@@ -427,7 +427,7 @@ def slide_7_comparativa(prs):
     for i, row in enumerate(rows):
         header = i == 0
         highlight = row[0] == "ExamLab Mediana"
-        bg = TEAL_DARK if header else (RGBColor(0xE8, 0xF6, 0xF9) if highlight else (
+        bg = TEAL_DARK if header else (RGBColor(0xE0, 0xE7, 0xFF) if highlight else (
             BG_WHITE if i % 2 == 1 else BG_SOFT))
         text_color = BG_WHITE if header else (TEAL_DARK if highlight else TEXT_MAIN)
         bold = header or highlight
@@ -468,7 +468,7 @@ def slide_8_valor_ahorro(prs):
     for i, (num, label) in enumerate(metrics):
         x = Inches(0.5 + i * 3.1)
         add_rect(slide, x, row_y, card_w, Inches(1.7),
-                 fill_rgb=RGBColor(0xEE, 0xF2, 0xFF), no_line=True)
+                 fill_rgb=RGBColor(0xF5, 0xF3, 0xFF), no_line=True)
         add_text_box(slide, x, row_y + Inches(0.15), card_w, Inches(0.6),
                      num, size=32, bold=True, color=BLUE_ACCENT,
                      align=PP_ALIGN.CENTER)
@@ -577,7 +577,7 @@ def slide_storage(prs):
     # Callout: storage extra + tip video externo
     y_call = 5.25
     add_rect(slide, Inches(0.5), Inches(y_call), Inches(12.3), Inches(1.4),
-             fill_rgb=RGBColor(0xE8, 0xF6, 0xF9), line_rgb=TEAL_LIGHT, line_width_pt=1.5)
+             fill_rgb=RGBColor(0xE0, 0xE7, 0xFF), line_rgb=TEAL_LIGHT, line_width_pt=1.5)
     add_text_box(slide, Inches(0.8), Inches(y_call + 0.18), Inches(11.7), Inches(0.4),
                  "¿Necesitas más espacio?  Storage adicional: $10 / 100 GB al mes.",
                  size=15, bold=True, color=TEAL_DARK)
@@ -602,7 +602,7 @@ def slide_ia_costo(prs):
     # Hero $0
     hero_y = Inches(2.45)
     add_rect(slide, Inches(0.5), hero_y, Inches(4.1), Inches(3.1),
-             fill_rgb=RGBColor(0xF0, 0xF9, 0xFB), line_rgb=TEAL, line_width_pt=2.0)
+             fill_rgb=RGBColor(0xF5, 0xF3, 0xFF), line_rgb=TEAL, line_width_pt=2.0)
     add_text_box(slide, Inches(0.7), hero_y + Inches(0.35), Inches(3.7), Inches(0.5),
                  "Recargo de IA en tu plan", size=14, bold=True, color=TEAL_DARK,
                  align=PP_ALIGN.CENTER)

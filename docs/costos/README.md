@@ -79,7 +79,7 @@ costos/margen, NO enviar al cliente) y uno **CLIENTE** (para enviar junto con su
 | `ExamLab-Presentacion-Comercial-v3.pptx` | Cliente | **Vigente (v3)** — planes, **storage por plan + extra**, comparativa, ahorro. Generado por [`analisis/_gen-presentacion.py`](analisis/_gen-presentacion.py). |
 | `ExamLab-Presentacion-Aliados.pptx` | Aliados/revendedores | Programa de comisiones (Referido 10% / Comercial 15% / Premium 20%) con ejemplos a precio v3. |
 | `ExamLab-Presentacion-General.pptx` | General (v1/v2) | Histórica — recorrido de producto. |
-| `ExamLab-Modelo-Modular.pptx`, `-Comercial.pptx`, `-Comercial-Administrada.pptx`, `-Independientes.pptx` | Varias (v1/v2) | Históricas. |
+| `ExamLab-Presentacion-Modelo-Modular.pptx`, `-Comercial.pptx`, `-Comercial-Administrada.pptx`, `-Independientes.pptx` | Varias (v1/v2) | Históricas. |
 
 ### 4. Histórico v1/v2 (`analisis/historico/`)
 

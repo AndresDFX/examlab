@@ -1,11 +1,12 @@
 """
-Genera ExamLab-Modelo-Modular.pptx a partir del modelo modular v3
+Genera ExamLab-Presentacion-Modelo-Modular.pptx a partir del modelo modular v3
 (docs/costos/analisis/modelo-modular-v3.md): SIN plan Free, base por matrículas
 + add-ons a la carta, con bundles coherentes por perfil.
 
 Uso:  py docs/costos/analisis/_gen-modular.py
-Requiere: python-pptx. Mismo estilo (teal/azul, 16:9, Calibri) que la comercial.
-Salida → docs/demos/presentacion/ExamLab-Modelo-Modular.pptx
+Requiere: python-pptx. Misma paleta indigo/violeta (16:9, Calibri) que los decks
+originales (Comercial/Aliados/General/etc.).
+Salida → docs/demos/presentacion/ExamLab-Presentacion-Modelo-Modular.pptx
 """
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
@@ -14,16 +15,18 @@ from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 import os
 
-TEAL_DARK  = RGBColor(0x0F, 0x3E, 0x4C)
-TEAL       = RGBColor(0x14, 0x7A, 0x8C)
-TEAL_LIGHT = RGBColor(0x2E, 0xB8, 0xC7)
-BLUE_ACCENT= RGBColor(0x1E, 0x5B, 0xAF)
+# Paleta compartida con los decks originales (indigo/violeta), NO teal.
+# Idéntica a _gen-presentacion.py y a Comercial/Aliados/General/etc.
+TEAL_DARK  = RGBColor(0x1E, 0x1B, 0x4B)   # Titular — indigo muy oscuro
+TEAL       = RGBColor(0x4F, 0x46, 0xE5)   # Acento primario — indigo
+TEAL_LIGHT = RGBColor(0x7C, 0x3A, 0xED)   # Acento claro — violeta
+BLUE_ACCENT= RGBColor(0x4F, 0x46, 0xE5)   # Azul/indigo (igual al original; era #1E5BAF)
 BG_WHITE   = RGBColor(0xFF, 0xFF, 0xFF)
-BG_SOFT    = RGBColor(0xF4, 0xF8, 0xFA)
-TEXT_MAIN  = RGBColor(0x1F, 0x2A, 0x33)
-TEXT_MUTED = RGBColor(0x64, 0x74, 0x80)
+BG_SOFT    = RGBColor(0xF5, 0xF3, 0xFF)   # Fondo suave — violeta-50 (original)
+TEXT_MAIN  = RGBColor(0x33, 0x41, 0x55)   # Texto principal — slate (original)
+TEXT_MUTED = RGBColor(0x64, 0x74, 0x8B)   # Texto atenuado — slate (original)
 GOLD       = RGBColor(0xE1, 0x9A, 0x1F)
-GREEN_OK   = RGBColor(0x1F, 0x8F, 0x4F)
+GREEN_OK   = RGBColor(0x05, 0x96, 0x69)   # Verde (original)
 
 SLIDE_W = Inches(13.333)
 SLIDE_H = Inches(7.5)
@@ -91,7 +94,7 @@ def s_portada(prs):
                  "Modelo modular", size=54, bold=True, color=BG_WHITE)
     add_text_box(s, Inches(1), Inches(4.4), Inches(11.3), Inches(0.6),
                  "Un plan base por tamaño + add-ons a la carta. Sin versión gratuita: pagas por lo que usas.",
-                 size=18, color=RGBColor(0xC9, 0xDD, 0xE3))
+                 size=18, color=RGBColor(0xC7, 0xD2, 0xFE))
 
 
 def s_filosofia(prs):
@@ -99,7 +102,7 @@ def s_filosofia(prs):
     header(s, "Cómo se arma", "Dos capas: un plan base + los add-ons que necesites")
     # Base card
     add_rect(s, Inches(0.5), Inches(1.9), Inches(6.0), Inches(4.4),
-             fill_rgb=RGBColor(0xF0, 0xF9, 0xFB), line_rgb=TEAL, line_width_pt=2.0)
+             fill_rgb=RGBColor(0xF5, 0xF3, 0xFF), line_rgb=TEAL, line_width_pt=2.0)
     add_text_box(s, Inches(0.8), Inches(2.15), Inches(5.4), Inches(0.5),
                  "1 · Plan base (obligatorio)", size=18, bold=True, color=TEAL_DARK)
     add_text_box(s, Inches(0.8), Inches(2.75), Inches(5.4), Inches(0.5),
@@ -113,7 +116,7 @@ def s_filosofia(prs):
                      italic=(i == 4))
     # Add-ons card
     add_rect(s, Inches(6.83), Inches(1.9), Inches(6.0), Inches(4.4),
-             fill_rgb=BG_WHITE, line_rgb=RGBColor(0xD0, 0xD9, 0xE1), line_width_pt=1.0)
+             fill_rgb=BG_WHITE, line_rgb=RGBColor(0xE2, 0xE8, 0xF0), line_width_pt=1.0)
     add_text_box(s, Inches(7.13), Inches(2.15), Inches(5.4), Inches(0.5),
                  "2 · Add-ons (opcionales, a la carta)", size=18, bold=True, color=TEAL_DARK)
     for i, t in enumerate(["IA administrada — $0,10/matrícula",
@@ -206,7 +209,7 @@ def s_coherencia(prs):
                  size=11, italic=True, color=TEXT_MUTED)
     # Incluido en tiers altos
     add_rect(s, Inches(6.83), Inches(1.95), Inches(6.0), Inches(4.3),
-             fill_rgb=RGBColor(0xF0, 0xF9, 0xFB), line_rgb=TEAL_LIGHT, line_width_pt=1.5)
+             fill_rgb=RGBColor(0xF5, 0xF3, 0xFF), line_rgb=TEAL_LIGHT, line_width_pt=1.5)
     add_text_box(s, Inches(7.13), Inches(2.2), Inches(5.4), Inches(0.4),
                  "Incluido sin cargo en tiers altos", size=15, bold=True, color=TEAL_DARK)
     for i, t in enumerate(["SSO / SAML → incluido en Grande",
@@ -229,7 +232,7 @@ def s_cierre(prs):
     add_text_box(s, Inches(1), Inches(3.9), Inches(11.3), Inches(0.8),
                  "Empezás con el plan de tu tamaño y sumás solo los add-ons que tu institución "
                  "realmente necesita. Sin versión gratuita, sin pagar por lo que no usás.",
-                 size=17, color=RGBColor(0xC9, 0xDD, 0xE3))
+                 size=17, color=RGBColor(0xC7, 0xD2, 0xFE))
 
 
 def build():
@@ -245,7 +248,7 @@ def build():
     dest = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                         "..", "..", "demos", "presentacion"))
     os.makedirs(dest, exist_ok=True)
-    out = os.path.join(dest, "ExamLab-Modelo-Modular.pptx")
+    out = os.path.join(dest, "ExamLab-Presentacion-Modelo-Modular.pptx")
     prs.save(out)
     print(f"[OK] Generado: {out}")
     print(f"     {len(prs.slides._sldIdLst)} slides · 16:9 widescreen")
