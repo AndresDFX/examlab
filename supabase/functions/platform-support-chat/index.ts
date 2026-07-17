@@ -23,7 +23,9 @@ import { adminClient as admin, corsHeaders, userClientFromRequest } from "../_sh
 import {
   buildSupportSystemPrompt,
   truncateHistory,
-  PLATFORM_SUPPORT_FALLBACK,
+  supportUseCaseForRole,
+  supportFallbackForRole,
+  supportRoleGuardrails,
   type ChatMessage,
 } from "./support-prompt.ts";
 import {
@@ -40,9 +42,9 @@ const MAX_USER_MESSAGE_LENGTH = 4000;
 const KB_PER_DOC_CHARS = 6000;
 const KB_TOTAL_CHARS = 22000;
 
-// El fallback del template vive en support-prompt.ts (byte-idéntico con el
-// seed SQL 20261063000020 y con el defaultPrompt del AdminPromptsPanel).
-const FALLBACK_TEMPLATE = PLATFORM_SUPPORT_FALLBACK;
+// Los fallbacks de las plantillas viven en support-prompt.ts, uno por rol
+// (byte-idéntico con el seed SQL + el defaultPrompt del AdminPromptsPanel).
+// El edge los resuelve con supportFallbackForRole(promptRole).
 
 // ── AI gateway: reutiliza el patrón del tutor-chat ──
 let requestModelHint: { authHeader?: string | null } = {};
@@ -66,8 +68,23 @@ function isRetryableAiBody(text: string): boolean {
 }
 
 async function callAi(messages: Array<{ role: string; content: string }>) {
-  const m = await resolveActiveModel(requestModelHint);
-  const res = await aiChatCompletionFailover(m, { model: m.model, messages });
+  let m: Awaited<ReturnType<typeof resolveActiveModel>>;
+  let res: Awaited<ReturnType<typeof aiChatCompletionFailover>>;
+  try {
+    m = await resolveActiveModel(requestModelHint);
+    res = await aiChatCompletionFailover(m, { model: m.model, messages });
+  } catch (e) {
+    // resolveActiveModel puede lanzar "Falta la API key de Gemini/OpenAI…"
+    // (nombra el proveedor activo + una ruta admin) y el failover puede lanzar el
+    // error de red con el URL del endpoint del proveedor. NO filtrar eso al
+    // cliente (el asistente lo usan TODOS los roles) — detalle solo a logs.
+    console.error(
+      `[platform-support-chat] AI setup/call failed: ${e instanceof Error ? e.message : String(e)}`,
+    );
+    throw new Error(
+      "El asistente no está disponible en este momento. Intenta de nuevo en unos minutos.",
+    );
+  }
   if (res.ok) {
     const json = await res.json();
     const content = json.choices?.[0]?.message?.content ?? "";
@@ -86,11 +103,14 @@ async function callAi(messages: Array<{ role: string; content: string }>) {
     errText.includes("invalid_api_key") ||
     errText.toLowerCase().includes("invalid api key");
   if (isKeyInvalid) {
+    // NO filtrar al cliente el nombre del secret ni el proveedor activo (config
+    // interna). El asistente lo usan TODOS los roles; el detalle técnico va solo
+    // a los logs del edge.
+    console.error(
+      `[platform-support-chat] AI key inválida/expirada (provider=${m.provider}, status=${res.status})`,
+    );
     throw new Error(
-      `La API key del proveedor de IA (${m.provider}) está inválida o expirada. ` +
-        `Actualiza el secret correspondiente ` +
-        `(${m.provider === "openai" ? "OPENAI_API_KEY" : "GEMINI_API_KEY"}) ` +
-        `o cambia el proveedor activo desde Configuración → Modelo IA.`,
+      "El asistente no está disponible en este momento. Intenta más tarde o contacta al módulo Soporte.",
     );
   }
   const isOverload = RETRYABLE_STATUS.has(res.status) || isRetryableAiBody(errText);
@@ -99,7 +119,10 @@ async function callAi(messages: Array<{ role: string; content: string }>) {
       "El proveedor de IA está saturado en este momento. Intenta de nuevo en unos segundos.",
     );
   }
-  throw new Error(`AI error ${res.status}: ${errText.slice(0, 500)}`);
+  // NO reenviar al cliente el cuerpo crudo de error del proveedor (puede traer
+  // internos: endpoints, ids de modelo/proyecto, trazas). Detalle → logs.
+  console.error(`[platform-support-chat] AI error ${res.status}: ${errText.slice(0, 500)}`);
+  throw new Error("El asistente no está disponible en este momento. Intenta de nuevo en unos minutos.");
 }
 
 // ── Resolver del system prompt del asistente ──
@@ -107,25 +130,32 @@ async function callAi(messages: Array<{ role: string; content: string }>) {
 // un curso):
 //   1. tenant global    (course_id IS NULL, tenant_id=<tenant>)
 //   2. platform default  (course_id IS NULL, tenant_id IS NULL)
-//   3. fallback hardcodeado (FALLBACK_TEMPLATE)
+//   3. fallback hardcodeado (el `fallback` recibido, por rol)
 // `admin` bypasea RLS: traemos las filas globales y rankeamos en JS.
-async function resolvePlatformSupportTemplate(tenantId: string | null): Promise<string> {
+// Parametrizado por use_case: el asistente resuelve la plantilla EDITABLE del
+// rol activo (platform_support / _docente / _estudiante), con su fallback
+// hardcodeado si ai_prompts no tiene fila.
+async function resolvePlatformSupportTemplate(
+  tenantId: string | null,
+  useCase: string,
+  fallback: string,
+): Promise<string> {
   const { data, error } = await admin
     .from("ai_prompts")
     .select("system_prompt, course_id, tenant_id")
-    .eq("use_case", "platform_support")
+    .eq("use_case", useCase)
     .is("course_id", null);
-  if (error || !data || data.length === 0) return FALLBACK_TEMPLATE;
+  if (error || !data || data.length === 0) return fallback;
   // Scope de tenant: la capa "tenant global" (tenant_id != NULL) debe
   // matchear SOLO el tenant del Admin. La platform-default (tenant_id
   // NULL) sirve a todos.
   const scoped = data.filter(
     (r) => r.tenant_id === tenantId || r.tenant_id === null,
   );
-  if (scoped.length === 0) return FALLBACK_TEMPLATE;
+  if (scoped.length === 0) return fallback;
   const rank = (row: { tenant_id: string | null }): number => (row.tenant_id ? 2 : 1);
   const sorted = [...scoped].sort((a, b) => rank(b) - rank(a));
-  return sorted[0]?.system_prompt || FALLBACK_TEMPLATE;
+  return sorted[0]?.system_prompt || fallback;
 }
 
 // ── KB de la plataforma → bloque de texto para el prompt ──
@@ -245,7 +275,12 @@ Deno.serve(async (req) => {
     if (sErr || !session) throw new Error("Sesión no encontrada");
     if (session.user_id !== userId) throw new Error("No autorizado");
 
-    const tenantId = (session as { tenant_id?: string | null }).tenant_id ?? null;
+    // SEGURIDAD (fuga cross-tenant): NO confiar en session.tenant_id. El WITH
+    // CHECK del INSERT/UPDATE de platform_support_sessions solo valida user_id,
+    // así que un usuario puede setear tenant_id a una institución AJENA por REST
+    // crudo; usarlo aquí (lookup RLS-bypass de tenants.name + plantilla del
+    // tenant) revelaría el nombre/existencia de otra institución. El tenant
+    // efectivo se deriva SIEMPRE del PERFIL server-verificado (más abajo).
 
     // Multi-tenant: resolver modelo activo para el tenant del Admin.
     setRequestModelHint({ authHeader: req.headers.get("Authorization") });
@@ -269,8 +304,10 @@ Deno.serve(async (req) => {
       .eq("id", userId)
       .maybeSingle();
     const adminName = (profile as { full_name?: string | null } | null)?.full_name ?? null;
+    // Tenant efectivo = SOLO el del perfil server-verificado (ver nota de
+    // seguridad arriba). Para SuperAdmin es NULL → "tu institución" genérico.
     const effectiveTenantId =
-      tenantId ?? (profile as { tenant_id?: string | null } | null)?.tenant_id ?? null;
+      (profile as { tenant_id?: string | null } | null)?.tenant_id ?? null;
 
     let tenantName: string | null = null;
     if (effectiveTenantId) {
@@ -317,14 +354,25 @@ Deno.serve(async (req) => {
       timeStyle: "short",
     }).format(new Date());
 
-    // Construir prompt.
-    const template = await resolvePlatformSupportTemplate(effectiveTenantId);
+    // Construir prompt. La plantilla EDITABLE se resuelve por rol (validado en
+    // servidor): platform_support (Admin/SA) / _docente / _estudiante. Así un
+    // estudiante/docente NO recibe la plantilla admin-céntrica (que lo enmarca
+    // como "administrador" y enumera módulos de rol superior).
+    const template = await resolvePlatformSupportTemplate(
+      effectiveTenantId,
+      supportUseCaseForRole(promptRole),
+      supportFallbackForRole(promptRole),
+    );
     const roleLabelEs: Record<string, string> = {
       SuperAdmin: "SuperAdministrador de la plataforma",
       Admin: "Administrador de la institución",
       Docente: "Docente",
       Estudiante: "Estudiante",
     };
+    // Barandas de seguridad NO editables (viven en el código, no en ai_prompts):
+    // negativa DURA a explicar funciones de otro rol (sin el carve-out "salvo que
+    // lo pregunte"), prohibición de internos/precios/otras instituciones y
+    // defensa anti-inyección. Se appendean DESPUÉS de sustituir los {{...}}.
     const systemPrompt =
       buildSupportSystemPrompt({
         template,
@@ -334,7 +382,8 @@ Deno.serve(async (req) => {
         tenantName,
         adminName,
       }) +
-      `\n\nEl usuario actual es **${roleLabelEs[promptRole] ?? "usuario"}**. Adapta tus explicaciones a lo que ESE rol puede hacer en ExamLab; usa "tú". No expliques funciones exclusivas de otros roles salvo que lo pregunte explícitamente.`;
+      `\n\nEl usuario actual es **${roleLabelEs[promptRole] ?? "usuario"}**. Adapta tus explicaciones a lo que ESE rol puede hacer en ExamLab; usa "tú".` +
+      supportRoleGuardrails(promptRole);
 
     // Truncar historial y agregar el nuevo turno.
     const truncatedHistory = truncateHistory(historyMsgs, MAX_HISTORY_MESSAGES);
@@ -379,7 +428,12 @@ Deno.serve(async (req) => {
         },
       ])
       .select("id, role, created_at");
-    if (insErr) throw insErr;
+    if (insErr) {
+      // NO reenviar el error crudo de Postgres (nombres de tabla/constraint) al
+      // cliente. Detalle → logs; mensaje genérico al usuario.
+      console.error(`[platform-support-chat] insert messages failed: ${insErr.message ?? insErr}`);
+      throw new Error("No se pudo guardar la conversación en este momento. Intenta de nuevo.");
+    }
 
     // Bumpear updated_at de la sesión.
     await admin
@@ -413,6 +467,9 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e: unknown) {
+    // Los mensajes que llegan acá ya están saneados en su origen (callAi, insert,
+    // auth/sesión). Logueamos el detalle igual para diagnóstico server-side.
+    console.error(`[platform-support-chat] handler error: ${e instanceof Error ? e.message : String(e)}`);
     const msg = e instanceof Error ? e.message : "Error interno";
     return new Response(JSON.stringify({ error: msg }), {
       status: 500,

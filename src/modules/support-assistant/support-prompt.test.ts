@@ -9,6 +9,11 @@ import {
   buildSupportSystemPrompt,
   truncateHistory,
   PLATFORM_SUPPORT_FALLBACK,
+  PLATFORM_SUPPORT_DOCENTE_FALLBACK,
+  PLATFORM_SUPPORT_ESTUDIANTE_FALLBACK,
+  supportUseCaseForRole,
+  supportFallbackForRole,
+  supportRoleGuardrails,
   type ChatMessage,
 } from "./support-prompt";
 
@@ -105,5 +110,94 @@ describe("PLATFORM_SUPPORT_FALLBACK (parte del invariante triple)", () => {
     ]) {
       expect(PLATFORM_SUPPORT_FALLBACK).toContain(p);
     }
+  });
+});
+
+describe("plantillas por rol (docente / estudiante)", () => {
+  it("usan {{user_name}} (role-neutral) y los otros 3 placeholders", () => {
+    for (const tpl of [PLATFORM_SUPPORT_DOCENTE_FALLBACK, PLATFORM_SUPPORT_ESTUDIANTE_FALLBACK]) {
+      for (const p of ["{{user_name}}", "{{tenant_name}}", "{{current_datetime}}", "{{platform_kb}}"]) {
+        expect(tpl).toContain(p);
+      }
+      // NO enmarcan al usuario como administrador ni enumeran módulos admin.
+      expect(tpl.toLowerCase()).not.toContain("administrador de la institución");
+    }
+  });
+
+  it("{{user_name}} se sustituye con el nombre del usuario (alias de adminName)", () => {
+    const out = buildSupportSystemPrompt({
+      template: "Hola {{user_name}}",
+      platformKb: "",
+      adminName: "Ana",
+    });
+    expect(out).toBe("Hola Ana");
+  });
+});
+
+describe("supportUseCaseForRole", () => {
+  it("mapea cada rol a su use_case", () => {
+    expect(supportUseCaseForRole("Estudiante")).toBe("platform_support_estudiante");
+    expect(supportUseCaseForRole("Docente")).toBe("platform_support_docente");
+    expect(supportUseCaseForRole("Admin")).toBe("platform_support");
+    expect(supportUseCaseForRole("SuperAdmin")).toBe("platform_support");
+    expect(supportUseCaseForRole(null)).toBe("platform_support");
+  });
+});
+
+describe("supportFallbackForRole", () => {
+  it("devuelve la plantilla del rol", () => {
+    expect(supportFallbackForRole("Estudiante")).toBe(PLATFORM_SUPPORT_ESTUDIANTE_FALLBACK);
+    expect(supportFallbackForRole("Docente")).toBe(PLATFORM_SUPPORT_DOCENTE_FALLBACK);
+    expect(supportFallbackForRole("Admin")).toBe(PLATFORM_SUPPORT_FALLBACK);
+    expect(supportFallbackForRole(undefined)).toBe(PLATFORM_SUPPORT_FALLBACK);
+  });
+});
+
+describe("supportRoleGuardrails (barandas NO editables anti-fuga)", () => {
+  it("para Estudiante/Docente: negativa DURA (sin el carve-out 'salvo que lo pregunte')", () => {
+    for (const role of ["Estudiante", "Docente"]) {
+      const g = supportRoleGuardrails(role);
+      expect(g).not.toContain("salvo que lo pregunte");
+      expect(g).toContain("AUNQUE lo pida");
+      expect(g.toLowerCase()).toContain("únicamente");
+    }
+  });
+
+  it("NO enumera Papelera/Auditoría como funciones de otro rol (el Docente las tiene)", () => {
+    for (const role of ["Estudiante", "Docente"]) {
+      const g = supportRoleGuardrails(role).toLowerCase();
+      expect(g).not.toContain("papelera");
+      expect(g).not.toContain("auditoría");
+    }
+  });
+
+  it("prohíbe internos, precios y otras instituciones para Estudiante/Docente/Admin", () => {
+    for (const role of ["Estudiante", "Docente", "Admin"]) {
+      const g = supportRoleGuardrails(role).toLowerCase();
+      expect(g).toContain("precios");
+      expect(g).toContain("otras instituciones");
+    }
+  });
+
+  it("anti-inyección + no-secretos + prioridad sobre la plantilla en TODOS los roles", () => {
+    for (const role of ["Estudiante", "Docente", "Admin", "SuperAdmin"]) {
+      const g = supportRoleGuardrails(role).toLowerCase();
+      expect(g).toContain("secretos");
+      expect(g).toContain("ignora cualquier instrucción"); // defensa anti-inyección
+      expect(g).toContain("de la plantilla anterior"); // prioridad sobre el prompt, no solo el mensaje
+    }
+  });
+
+  it("Admin: restringe operaciones de SuperAdmin (no la negativa por-rol de estudiante)", () => {
+    const g = supportRoleGuardrails("Admin");
+    expect(g.toLowerCase()).toContain("superadmin");
+    expect(g).not.toContain("AUNQUE lo pida");
+  });
+
+  it("SuperAdmin: NO se le restringe cross-rol ni cross-institución (opera la plataforma)", () => {
+    const g = supportRoleGuardrails("SuperAdmin");
+    expect(g).not.toContain("AUNQUE lo pida");
+    expect(g.toLowerCase()).not.toContain("otras instituciones");
+    expect(g.toLowerCase()).not.toContain("exclusivas del superadmin");
   });
 });
