@@ -30,7 +30,7 @@ import {
   userClientFromRequest,
 } from "../_shared/admin.ts";
 import { auditFromEdge } from "../_shared/audit.ts";
-import { asciiEmailSubject, emailMimeContent } from "../_shared/email.ts";
+import { asciiEmailSubject, emailMimeContent, formatEmailAddress } from "../_shared/email.ts";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -344,7 +344,7 @@ Deno.serve(async (req: Request) => {
       // 1) Al NUEVO email — confirmación.
       try {
         await client.send({
-          from: `${fromName} <${from}>`,
+          from: formatEmailAddress(fromName, from),
           to: newEmail,
           replyTo: from,
           subject: asciiEmailSubject(`${fromName}: Confirma tu nuevo correo`),
@@ -363,7 +363,7 @@ Deno.serve(async (req: Request) => {
       if (currentEmail) {
         try {
           await client.send({
-            from: `${fromName} <${from}>`,
+            from: formatEmailAddress(fromName, from),
             to: currentEmail,
             replyTo: from,
             // asciiEmailSubject: denomailer rompe asuntos no-ASCII largos (emoji

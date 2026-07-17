@@ -70,3 +70,35 @@ export function asciiEmailSubject(subject: string): string {
   // Defensivo: nunca empezar con "=?" (denomailer lo re-encodearía como RFC 2047).
   return ascii.startsWith("=?") ? ascii.slice(1) : ascii;
 }
+
+/**
+ * Transliterate el DISPLAY-NAME de una dirección de correo a ASCII seguro.
+ *
+ * POR QUÉ: denomailer 1.6.0 escribe el From/To/Cc como `${name} <${mail}>` con el
+ * display-name CRUDO (sin RFC 2047 ni escaping). Un `name` no-ASCII (acentos/emoji
+ * — comunísimo en nombres de institución es-CO: "Fundación", "Institución Ñandú",
+ * "Colegio 🎓") produce un header From con UTF-8 crudo → mojibake ("FundaciÃ³n") y
+ * header RFC 5322 inválido (penaliza deliverability, receptores estrictos lo
+ * rechazan). Misma clase que el bug del asunto — y como el asunto YA se sanea,
+ * el From con el MISMO nombre debe sanearse igual. Además quita CR/LF/TAB y los
+ * caracteres de sintaxis `"<>` → cierra un vector de CRLF/header-injection
+ * (`email_from_name` es editable por el Admin del tenant y hoy no filtra CRLF).
+ */
+export function asciiDisplayName(name: string): string {
+  return (name ?? "")
+    .replace(/[\r\n\t]+/g, " ")
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "") // marcas diacríticas combinantes
+    .replace(/[^\x20-\x7E]/g, "") // emoji / símbolos / control no-ASCII
+    .replace(/["<>]/g, "") // no romper la sintaxis `Name <addr>` (anti header-injection)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Arma `Name <email>` para el campo from/to de denomailer, con el display-name
+ *  transliterado a ASCII (ver asciiDisplayName). Si el nombre queda vacío,
+ *  devuelve solo `<email>`. La dirección se preserva SIEMPRE tal cual. */
+export function formatEmailAddress(name: string, email: string): string {
+  const n = asciiDisplayName(name);
+  return n ? `${n} <${email}>` : `<${email}>`;
+}

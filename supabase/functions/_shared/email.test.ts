@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { asciiEmailSubject, b64MimeBody, emailMimeContent } from "./email";
+import {
+  asciiEmailSubject,
+  asciiDisplayName,
+  formatEmailAddress,
+  b64MimeBody,
+  emailMimeContent,
+} from "./email";
 
 // Todo char > 0x7E rompe el encoder de asunto de denomailer 1.6.0. El asunto
 // que sale de asciiEmailSubject DEBE ser ASCII imprimible puro y NO empezar con
@@ -54,6 +60,50 @@ describe("asciiEmailSubject", () => {
       "Fundación Ñandú: 🚀 evaluación de programación",
     ];
     for (const i of inputs) expect(isSafeSubject(asciiEmailSubject(i))).toBe(true);
+  });
+});
+
+describe("asciiDisplayName / formatEmailAddress (display-name del From)", () => {
+  const isSafeName = (s: string) => /^[\x20-\x7E]*$/.test(s) && !/["<>]/.test(s);
+
+  it("transliterá acentos y quita ñ del nombre de institución", () => {
+    expect(asciiDisplayName("Fundación Ñandú")).toBe("Fundacion Nandu");
+    expect(asciiDisplayName("Institución Educativa")).toBe("Institucion Educativa");
+  });
+
+  it("quita emoji y símbolos no-ASCII", () => {
+    expect(asciiDisplayName("Colegio 🎓")).toBe("Colegio");
+    expect(asciiDisplayName("ExamLab · Notificaciones")).toBe("ExamLab Notificaciones");
+  });
+
+  it("quita comillas y ángulos (anti header-injection de sintaxis)", () => {
+    expect(asciiDisplayName('Rogue" <evil@x>')).toBe("Rogue evil@x");
+  });
+
+  it("colapsa CR/LF/TAB (anti CRLF header-injection)", () => {
+    expect(asciiDisplayName("Marca\r\nBcc: victima@x.com")).toBe("Marca Bcc: victima@x.com");
+    expect(asciiDisplayName("Marca\r\nBcc: victima@x.com")).not.toContain("\n");
+  });
+
+  it("nombre ASCII pasa intacto; nulo → vacío", () => {
+    expect(asciiDisplayName("ExamLab")).toBe("ExamLab");
+    // @ts-expect-error guard de nullish
+    expect(asciiDisplayName(null)).toBe("");
+  });
+
+  it("formatEmailAddress arma 'Name <email>' saneado y preserva la dirección", () => {
+    expect(formatEmailAddress("Fundación X", "no-reply@x.edu.co")).toBe(
+      "Fundacion X <no-reply@x.edu.co>",
+    );
+    // nombre vacío tras sanear → solo <email>
+    expect(formatEmailAddress("🎓", "a@b.co")).toBe("<a@b.co>");
+    expect(formatEmailAddress("", "a@b.co")).toBe("<a@b.co>");
+  });
+
+  it("el resultado del display-name siempre cumple el contrato seguro", () => {
+    for (const n of ["Fundación Ñandú", "Colegio 🎓", 'X" <y>', "A\r\nB"]) {
+      expect(isSafeName(asciiDisplayName(n))).toBe(true);
+    }
   });
 });
 

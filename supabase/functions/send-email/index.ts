@@ -33,7 +33,7 @@
 
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { adminClient, corsHeaders, jsonError, jsonResponse } from "../_shared/admin.ts";
-import { asciiEmailSubject, emailMimeContent } from "../_shared/email.ts";
+import { asciiEmailSubject, emailMimeContent, formatEmailAddress } from "../_shared/email.ts";
 
 // ── Replicación del helper `shouldSendEmail` ─────────────────────────
 // MANTENER SINCRONIZADO con `src/modules/notifications/notification-email.ts`
@@ -601,7 +601,10 @@ Deno.serve(async (req: Request) => {
       },
     });
     const mailOptions = {
-      from: `${fromName} <${from}>`,
+      // formatEmailAddress: display-name del From transliterado a ASCII (el
+      // email_from_name del tenant puede traer acentos/emoji → mojibake + CRLF-
+      // injection si va crudo). Ver _shared/email.ts. La dirección se preserva.
+      from: formatEmailAddress(fromName, from),
       // Array de recipients — denomailer hace 1 transacción SMTP con
       // múltiples RCPT TO. El alumno ve a ambos addresses en el header
       // "Para:" del correo (mismo usuario, sus dos correos — no es leak
@@ -709,7 +712,7 @@ Deno.serve(async (req: Request) => {
         smtp_port: port,
         smtp_source: smtpSource,
         smtp_ms: Date.now() - smtpStartMs,
-        sender: `${fromName} <${from}>`,
+        sender: formatEmailAddress(fromName, from),
         recipients_count: recipients.length,
         // Lista de destinatarios — útil para diagnóstico si el alumno reclama
         // "no me llegó al personal". NO incluimos el contenido del mensaje.

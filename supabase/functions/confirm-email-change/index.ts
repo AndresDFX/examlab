@@ -28,7 +28,7 @@
 
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { adminClient, corsHeaders, jsonError, jsonResponse } from "../_shared/admin.ts";
-import { asciiEmailSubject, emailMimeContent } from "../_shared/email.ts";
+import { asciiEmailSubject, emailMimeContent, formatEmailAddress } from "../_shared/email.ts";
 
 function escapeHtml(input: string): string {
   return input
@@ -236,7 +236,7 @@ Deno.serve(async (req: Request) => {
         },
       });
       await client.send({
-        from: `${fromName} <${from}>`,
+        from: formatEmailAddress(fromName, from),
         to: oldEmail,
         replyTo: from,
         // asciiEmailSubject: denomailer rompe asuntos no-ASCII largos (emoji ✅
