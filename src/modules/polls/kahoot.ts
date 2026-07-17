@@ -109,16 +109,14 @@ export interface KahootState {
   responders_by_option: Record<string, KahootResponder[]> | null;
 }
 
-/** Construye la URL del QR para unirse a un Kahoot (deep-link a la app del
- *  estudiante). El alumno escanea → aterriza en /app/student/polls?kahootPin=…
- *  → si no está logueado, el login lo trae de vuelta acá (returnTo) → la
- *  página auto-une por PIN vía `kahoot_join_game` y redirige al juego. La
- *  seguridad la enforza el RPC (matrícula al curso + poll no borrado); el PIN
- *  por sí solo no da acceso. Análogo a `buildAttendanceCheckInUrl`. */
+/** Construye la URL del QR para unirse a un Reto en vivo. Es PÚBLICA: el
+ *  jugador escanea → aterriza en /reto/<pin> (fuera de /app, SIN login) →
+ *  ingresa su correo institucional → el RPC anon `kahoot_join_public` valida
+ *  matrícula al curso + un jugador por correo y devuelve un token para jugar.
+ *  El PIN por sí solo no da acceso (hace falta un correo matriculado); la
+ *  seguridad la enforzan los RPCs `kahoot_*_public` (SECURITY DEFINER). */
 export function buildKahootJoinUrl(origin: string, pin: string): string {
-  const url = new URL("/app/student/polls", origin);
-  url.searchParams.set("kahootPin", pin);
-  return url.toString();
+  return new URL(`/reto/${encodeURIComponent(pin)}`, origin).toString();
 }
 
 /** Segundos restantes de la pregunta actual, dado el reloj local. Devuelve

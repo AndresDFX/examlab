@@ -16,6 +16,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthIndexRouteImport } from './routes/auth.index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as VerifyShortCodeRouteImport } from './routes/verify.$shortCode'
+import { Route as RetoPinRouteImport } from './routes/reto.$pin'
 import { Route as AuthSsoCallbackRouteImport } from './routes/auth.sso-callback'
 import { Route as AuthResetPasswordRouteImport } from './routes/auth.reset-password'
 import { Route as AuthConfirmEmailChangeRouteImport } from './routes/auth.confirm-email-change'
@@ -124,6 +125,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const VerifyShortCodeRoute = VerifyShortCodeRouteImport.update({
   id: '/verify/$shortCode',
   path: '/verify/$shortCode',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RetoPinRoute = RetoPinRouteImport.update({
+  id: '/reto/$pin',
+  path: '/reto/$pin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthSsoCallbackRoute = AuthSsoCallbackRouteImport.update({
@@ -271,17 +277,17 @@ const AppSuperadminSystemRoute = AppSuperadminSystemRouteImport.update({
   path: '/superadmin/system',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSuperadminSupportRoute = AppSuperadminSupportRouteImport.update({
+  id: '/superadmin/support',
+  path: '/superadmin/support',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSuperadminPricingCalculatorRoute =
   AppSuperadminPricingCalculatorRouteImport.update({
     id: '/superadmin/pricing-calculator',
     path: '/superadmin/pricing-calculator',
     getParentRoute: () => AppRoute,
   } as any)
-const AppSuperadminSupportRoute = AppSuperadminSupportRouteImport.update({
-  id: '/superadmin/support',
-  path: '/superadmin/support',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppStudentWorkshopsRoute = AppStudentWorkshopsRouteImport.update({
   id: '/student/workshops',
   path: '/student/workshops',
@@ -522,6 +528,7 @@ export interface FileRoutesByFullPath {
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sso-callback': typeof AuthSsoCallbackRoute
+  '/reto/$pin': typeof RetoPinRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
@@ -603,6 +610,7 @@ export interface FileRoutesByTo {
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sso-callback': typeof AuthSsoCallbackRoute
+  '/reto/$pin': typeof RetoPinRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app': typeof AppIndexRoute
   '/auth': typeof AuthIndexRoute
@@ -687,6 +695,7 @@ export interface FileRoutesById {
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sso-callback': typeof AuthSsoCallbackRoute
+  '/reto/$pin': typeof RetoPinRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
@@ -772,6 +781,7 @@ export interface FileRouteTypes {
     | '/auth/confirm-email-change'
     | '/auth/reset-password'
     | '/auth/sso-callback'
+    | '/reto/$pin'
     | '/verify/$shortCode'
     | '/app/'
     | '/auth/'
@@ -853,6 +863,7 @@ export interface FileRouteTypes {
     | '/auth/confirm-email-change'
     | '/auth/reset-password'
     | '/auth/sso-callback'
+    | '/reto/$pin'
     | '/verify/$shortCode'
     | '/app'
     | '/auth'
@@ -936,6 +947,7 @@ export interface FileRouteTypes {
     | '/auth/confirm-email-change'
     | '/auth/reset-password'
     | '/auth/sso-callback'
+    | '/reto/$pin'
     | '/verify/$shortCode'
     | '/app/'
     | '/auth/'
@@ -1008,6 +1020,7 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
+  RetoPinRoute: typeof RetoPinRoute
   VerifyShortCodeRoute: typeof VerifyShortCodeRoute
 }
 
@@ -1060,6 +1073,13 @@ declare module '@tanstack/react-router' {
       path: '/verify/$shortCode'
       fullPath: '/verify/$shortCode'
       preLoaderRoute: typeof VerifyShortCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reto/$pin': {
+      id: '/reto/$pin'
+      path: '/reto/$pin'
+      fullPath: '/reto/$pin'
+      preLoaderRoute: typeof RetoPinRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/sso-callback': {
@@ -1265,18 +1285,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSuperadminSystemRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/superadmin/pricing-calculator': {
-      id: '/app/superadmin/pricing-calculator'
-      path: '/superadmin/pricing-calculator'
-      fullPath: '/app/superadmin/pricing-calculator'
-      preLoaderRoute: typeof AppSuperadminPricingCalculatorRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/app/superadmin/support': {
       id: '/app/superadmin/support'
       path: '/superadmin/support'
       fullPath: '/app/superadmin/support'
       preLoaderRoute: typeof AppSuperadminSupportRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/superadmin/pricing-calculator': {
+      id: '/app/superadmin/pricing-calculator'
+      path: '/superadmin/pricing-calculator'
+      fullPath: '/app/superadmin/pricing-calculator'
+      preLoaderRoute: typeof AppSuperadminPricingCalculatorRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/student/workshops': {
@@ -1777,6 +1797,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
+  RetoPinRoute: RetoPinRoute,
   VerifyShortCodeRoute: VerifyShortCodeRoute,
 }
 export const routeTree = rootRouteImport

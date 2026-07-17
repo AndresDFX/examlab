@@ -117,15 +117,15 @@ describe("KAHOOT_SHAPES", () => {
 });
 
 describe("buildKahootJoinUrl", () => {
-  it("apunta a /app/student/polls con el PIN en kahootPin", () => {
+  it("apunta a la ruta pública /reto/<pin> (sin login)", () => {
     expect(buildKahootJoinUrl("https://examlab.lovable.app", "842803")).toBe(
-      "https://examlab.lovable.app/app/student/polls?kahootPin=842803",
+      "https://examlab.lovable.app/reto/842803",
     );
   });
 
   it("respeta el origin pasado (no hardcodea host)", () => {
     expect(buildKahootJoinUrl("http://localhost:5173", "000111")).toBe(
-      "http://localhost:5173/app/student/polls?kahootPin=000111",
+      "http://localhost:5173/reto/000111",
     );
   });
 });
