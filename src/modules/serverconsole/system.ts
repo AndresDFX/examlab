@@ -147,7 +147,9 @@ export function getNode(sys: System, absPath: string): FsNode | null {
   let cur: FsNode = sys.root;
   for (const part of parts) {
     if (cur.type !== "dir") return null;
-    const next = cur.children[part];
+    // Anotación explícita: rompe una inferencia circular espuria de tsc (TS7022)
+    // sobre `next` y documenta el tipo del acceso indexado.
+    const next: FsNode | undefined = cur.children[part];
     if (!next) return null;
     cur = next;
   }

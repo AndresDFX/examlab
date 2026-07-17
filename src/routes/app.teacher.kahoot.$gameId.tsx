@@ -38,6 +38,9 @@ import {
   Zap,
   Rocket,
   CheckCircle2,
+  Copy,
+  Check,
+  Link2,
 } from "lucide-react";
 
 // Clave de localStorage para la preferencia "auto-avanzar cuando todos
@@ -120,10 +123,46 @@ function KahootHost() {
     };
   }, [gameId]);
 
-  // Origin para el QR de unión. Se lee POST-mount (no en render) para no
-  // romper la hidratación SSR (regla del proyecto: nunca window.* en render).
+  // Origin para el QR + el enlace de unión. Se lee POST-mount (no en render)
+  // para no romper la hidratación SSR (regla del proyecto: nunca window.* en render).
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
+
+  // Enlace público para unirse SIN escanear (los alumnos lo abren y solo ponen
+  // su correo institucional). Mismo destino que el QR: /reto/<pin>.
+  const joinUrl = origin && state?.game?.pin ? buildKahootJoinUrl(origin, state.game.pin) : "";
+  const [linkCopied, setLinkCopied] = useState(false);
+  const copyJoinLink = async () => {
+    if (!joinUrl) return;
+    try {
+      await navigator.clipboard.writeText(joinUrl);
+      setLinkCopied(true);
+      toast.success(t("kahoot.linkCopied", { defaultValue: "Enlace copiado" }));
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      toast.error(t("kahoot.linkCopyError", { defaultValue: "No se pudo copiar el enlace" }));
+    }
+  };
+
+  // Animación del leaderboard: al abrir la tabla de posiciones, cada puntaje
+  // "cuenta hacia arriba" desde el de la RONDA ANTERIOR hasta el nuevo. Guardamos
+  // los puntajes de la última tabla mostrada (prevScoresRef) y, al ENTRAR al
+  // estado 'leaderboard', fijamos el `from` (lbFrom) con esos valores y
+  // actualizamos el ref a los actuales para la próxima vuelta.
+  const prevScoresRef = useRef<Record<string, number>>({});
+  const [lbFrom, setLbFrom] = useState<Record<string, number>>({});
+  const lastStatusRef = useRef<string>("");
+  useEffect(() => {
+    if (!state) return;
+    const st = state.game.status;
+    if (st === "leaderboard" && lastStatusRef.current !== "leaderboard") {
+      setLbFrom({ ...prevScoresRef.current });
+      const snap: Record<string, number> = {};
+      for (const p of state.players) snap[p.id] = p.score;
+      prevScoresRef.current = snap;
+    }
+    lastStatusRef.current = st;
+  }, [state]);
 
   useEffect(() => {
     const onFs = () => setIsFs(!!document.fullscreenElement);
@@ -289,12 +328,40 @@ function KahootHost() {
               {origin && game.pin && (
                 <div className="flex flex-col items-center gap-1.5">
                   <div className="rounded-lg bg-white p-3">
-                    <QRCodeSVG value={buildKahootJoinUrl(origin, game.pin)} size={148} />
+                    <QRCodeSVG value={joinUrl} size={148} />
                   </div>
                   <span className="text-[11px] text-muted-foreground">{t("kahoot.scanToJoin")}</span>
                 </div>
               )}
             </div>
+
+            {/* Enlace para unirse SIN escanear: el docente lo copia y lo comparte
+                (chat de clase, plataforma, proyector); el alumno lo abre y solo
+                pone su correo institucional. Mismo destino que el QR. */}
+            {joinUrl && (
+              <div className="mx-auto w-full max-w-xl space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  {t("kahoot.orShareLink", { defaultValue: "O comparte este enlace para unirse sin escanear:" })}
+                </p>
+                <div className="flex items-center gap-2 rounded-lg border bg-muted/40 p-2">
+                  <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="flex-1 truncate text-left text-sm font-medium tabular-nums" title={joinUrl}>
+                    {joinUrl.replace(/^https?:\/\//, "")}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant={linkCopied ? "secondary" : "default"}
+                    onClick={() => void copyJoinLink()}
+                    className="shrink-0 gap-1.5"
+                  >
+                    {linkCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {linkCopied
+                      ? t("kahoot.linkCopied", { defaultValue: "Copiado" })
+                      : t("kahoot.copyLink", { defaultValue: "Copiar enlace" })}
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="flex flex-wrap items-center justify-center gap-2 min-h-12">
               {players.length === 0 ? (
                 <span className="text-sm text-muted-foreground">{t("kahoot.waitingPlayers")}</span>
@@ -369,13 +436,20 @@ function KahootHost() {
                     <div className="flex items-center gap-3 text-lg font-semibold">
                       <KahootShapeIcon icon={shape.icon} className="h-7 w-7 shrink-0" />
                       <span className="flex-1">{o.label}</span>
-                      <span className="tabular-nums text-base opacity-90">{responders.length}</span>
+                      {/* El conteo POR OPCIÓN solo se muestra en el REVEAL (al
+                          terminar el tiempo). Durante la pregunta la pantalla del
+                          host está proyectada a la clase: mostrar cuántos van por
+                          cada opción revelaría la respuesta y arrastraría el voto. */}
+                      {game.status === "reveal" && (
+                        <span className="tabular-nums text-base opacity-90">{responders.length}</span>
+                      )}
                       {game.status === "reveal" && o.is_correct === true && (
                         <Crown className="h-6 w-6 shrink-0" />
                       )}
                     </div>
-                    {/* Quiénes respondieron esta opción — solo lo ve el host. */}
-                    {responders.length > 0 && (
+                    {/* Quiénes respondieron cada opción — SOLO en el reveal, por la
+                        misma razón (no exponer quién eligió qué en vivo). */}
+                    {game.status === "reveal" && responders.length > 0 && (
                       <div className="flex flex-wrap gap-1">
                         {responders.map((r) => (
                           <span
@@ -383,9 +457,7 @@ function KahootHost() {
                             className="inline-flex max-w-[160px] items-center gap-1 truncate rounded bg-white/20 px-1.5 py-0.5 text-[11px] font-medium"
                             title={r.nickname}
                           >
-                            {game.status === "reveal" && r.is_correct && (
-                              <CheckCircle2 className="h-3 w-3 shrink-0" />
-                            )}
+                            {r.is_correct && <CheckCircle2 className="h-3 w-3 shrink-0" />}
                             <span className="truncate">{r.nickname}</span>
                           </span>
                         ))}
@@ -447,7 +519,7 @@ function KahootHost() {
             <h2 className="text-3xl font-bold text-center flex items-center justify-center gap-2">
               <Trophy className="h-7 w-7 text-amber-500" /> {t("kahoot.leaderboard")}
             </h2>
-            <Leaderboard ranked={ranked} />
+            <Leaderboard ranked={ranked} prevScores={lbFrom} />
             <div className="flex justify-center">
               <Button size="lg" disabled={advancing} onClick={() => void advance("next")}>
                 <ChevronRight className="h-5 w-5 mr-2" />
@@ -480,23 +552,84 @@ function KahootHost() {
   );
 }
 
-function Leaderboard({ ranked }: { ranked: { id: string; nickname: string; score: number }[] }) {
+/** Cuenta un número de `from` a `to` con easeOutCubic (~1s), driveado por
+ *  requestAnimationFrame (usa el timestamp del rAF — sin Date.now/performance).
+ *  Init determinista (val=from) → SSR-safe; la animación corre post-mount. */
+function useCountUp(from: number, to: number, durationMs = 1000): number {
+  const [val, setVal] = useState(from);
+  useEffect(() => {
+    if (from === to) {
+      setVal(to);
+      return;
+    }
+    let raf = 0;
+    let startTs: number | null = null;
+    const step = (ts: number) => {
+      if (startTs === null) startTs = ts;
+      const t = Math.min(1, (ts - startTs) / durationMs);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setVal(Math.round(from + (to - from) * eased));
+      if (t < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [from, to, durationMs]);
+  return val;
+}
+
+function LeaderboardRow({
+  rank,
+  nickname,
+  from,
+  to,
+  max,
+}: {
+  rank: number;
+  nickname: string;
+  from: number;
+  to: number;
+  max: number;
+}) {
+  // El puntaje cuenta hacia arriba; la barra crece con el MISMO valor animado
+  // para que número y barra suban al unísono (efecto tipo Kahoot).
+  const value = useCountUp(from, to);
+  const widthPct = Math.max(18, (value / max) * 100);
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-6 text-right font-bold tabular-nums text-muted-foreground">{rank}</span>
+      <div className="flex-1 rounded-lg bg-muted/50 overflow-hidden">
+        <div
+          className="bg-primary/80 text-primary-foreground px-3 py-2 rounded-lg flex items-center justify-between min-w-fit"
+          style={{ width: `${widthPct}%` }}
+        >
+          <span className="font-medium truncate">{nickname}</span>
+          <span className="font-bold tabular-nums ml-2">{value}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Leaderboard({
+  ranked,
+  prevScores,
+}: {
+  ranked: { id: string; nickname: string; score: number }[];
+  /** Puntaje de cada jugador en la RONDA ANTERIOR (para animar el aumento). */
+  prevScores?: Record<string, number>;
+}) {
   const max = Math.max(1, ...ranked.map((p) => p.score));
   return (
     <div className="space-y-2">
       {ranked.slice(0, 8).map((p, i) => (
-        <div key={p.id} className="flex items-center gap-3">
-          <span className="w-6 text-right font-bold tabular-nums text-muted-foreground">{i + 1}</span>
-          <div className="flex-1 rounded-lg bg-muted/50 overflow-hidden">
-            <div
-              className="bg-primary/80 text-primary-foreground px-3 py-2 rounded-lg flex items-center justify-between min-w-fit transition-all"
-              style={{ width: `${Math.max(18, (p.score / max) * 100)}%` }}
-            >
-              <span className="font-medium truncate">{p.nickname}</span>
-              <span className="font-bold tabular-nums ml-2">{p.score}</span>
-            </div>
-          </div>
-        </div>
+        <LeaderboardRow
+          key={p.id}
+          rank={i + 1}
+          nickname={p.nickname}
+          from={prevScores?.[p.id] ?? 0}
+          to={p.score}
+          max={max}
+        />
       ))}
     </div>
   );
