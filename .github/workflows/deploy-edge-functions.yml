@@ -77,7 +77,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # Necesitamos al menos el commit anterior para `git diff` y
           # detectar qué funciones cambiaron. fetch-depth: 0 trae todo el

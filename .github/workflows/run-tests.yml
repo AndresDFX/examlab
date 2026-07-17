@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -48,7 +48,7 @@ jobs:
 
       - name: Cache dependencies
         # Acelera runs sucesivos: si bun.lock no cambio, reusa node_modules.
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: node_modules
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
@@ -93,7 +93,7 @@ jobs:
       #     lcov.info listo para upload-action).
       - name: Upload coverage report
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: |
