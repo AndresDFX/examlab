@@ -30,7 +30,7 @@ import {
   userClientFromRequest,
 } from "../_shared/admin.ts";
 import { auditFromEdge } from "../_shared/audit.ts";
-import { emailMimeContent } from "../_shared/email.ts";
+import { asciiEmailSubject, emailMimeContent } from "../_shared/email.ts";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -347,7 +347,7 @@ Deno.serve(async (req: Request) => {
           from: `${fromName} <${from}>`,
           to: newEmail,
           replyTo: from,
-          subject: `${fromName}: Confirma tu nuevo correo`,
+          subject: asciiEmailSubject(`${fromName}: Confirma tu nuevo correo`),
           mimeContent: emailMimeContent(confirmText, confirmHtml),
           headers: {
             "X-Entity-Ref-ID": `email-change-confirm-${userId}-${Date.now()}`,
@@ -366,7 +366,9 @@ Deno.serve(async (req: Request) => {
             from: `${fromName} <${from}>`,
             to: currentEmail,
             replyTo: from,
-            subject: `${fromName}: ⚠️ Se solicitó cambiar el correo de tu cuenta`,
+            // asciiEmailSubject: denomailer rompe asuntos no-ASCII largos (emoji
+            // ⚠️ + acentos) → cuerpo MIME crudo. Ver _shared/email.ts.
+            subject: asciiEmailSubject(`${fromName}: ⚠️ Se solicitó cambiar el correo de tu cuenta`),
             mimeContent: emailMimeContent(noticeText, noticeHtml),
             headers: {
               "X-Entity-Ref-ID": `email-change-notice-${userId}-${Date.now()}`,

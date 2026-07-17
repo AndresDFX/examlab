@@ -33,7 +33,7 @@
 
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { adminClient, corsHeaders, jsonError, jsonResponse } from "../_shared/admin.ts";
-import { emailMimeContent } from "../_shared/email.ts";
+import { asciiEmailSubject, emailMimeContent } from "../_shared/email.ts";
 
 // ── Replicación del helper `shouldSendEmail` ─────────────────────────
 // MANTENER SINCRONIZADO con `src/modules/notifications/notification-email.ts`
@@ -619,31 +619,23 @@ Deno.serve(async (req: Request) => {
       // varios correos en el inbox. Idempotente: si el title ya empieza
       // con el brand, no lo duplicamos.
       //
-      // IMPORTANTE — uso ":" (ASCII) y NO "—" (em-dash U+2014):
-      //   denomailer 1.6.0 codifica el subject con RFC 2047 encoded-word
-      //   (=?UTF-8?Q?...?=) cuando detecta cualquier char > 0x7F. Si el
-      //   resultado supera 75 bytes lo parte con \n+TAB en lugar de
-      //   CRLF+SPACE, y algunos relays SMTP (notablemente Gmail outbound)
-      //   re-encoden esa partición mal. El cliente final ve un trozo
-      //   suelto del subject ("n II?=") arriba de los otros headers y
-      //   pierde sincronía con el parseo MIME del cuerpo (queda como
-      //   texto crudo). Forzando ":" mantenemos el prefijo en ASCII puro
-      //   — solo el title del row entra al encoded-word y suele caber.
-      //
-      // Sanitización del título: si el title viene con chars de control
-      // o saltos de línea (raro pero posible si el docente inyecta
-      // metadata), los limpiamos. Newlines en headers SMTP son una de
-      // las clásicas inyecciones (header injection attack).
-      subject: (() => {
-        const cleanTitle = (row.title ?? "")
-          .replace(/[\r\n\t]+/g, " ")
-          .trim()
-          .slice(0, 200); // tope defensivo para no sobrepasar límites SMTP
-        if (cleanTitle.toLowerCase().startsWith(fromName.toLowerCase())) {
-          return cleanTitle;
-        }
-        return `${fromName}: ${cleanTitle}`;
-      })(),
+      // asciiEmailSubject(): transliteramos el asunto a ASCII PURO. denomailer
+      // 1.6.0 rompe el encoded-word RFC 2047 de cualquier asunto no-ASCII largo
+      // (parte el quoted-printable con `=\r\n` DENTRO del encoded-word, sin
+      // folding) → el cliente muestra el cuerpo MIME como texto crudo (bug del
+      // correo de bienvenida: "🎓 … Administración …"). Como denomailer solo
+      // deja pasar el asunto intacto si es ASCII puro, quitamos emoji + acentos
+      // acá. El cuerpo conserva UTF-8 completo (base64). Ver _shared/email.ts.
+      // También limpia saltos/tabs → defensa contra header-injection.
+      subject: asciiEmailSubject(
+        (() => {
+          const cleanTitle = (row.title ?? "").trim().slice(0, 200); // tope SMTP
+          if (cleanTitle.toLowerCase().startsWith(fromName.toLowerCase())) {
+            return cleanTitle;
+          }
+          return `${fromName}: ${cleanTitle}`;
+        })(),
+      ),
       // Cuerpo en base64 vía mimeContent (NO `content`/`html`) para esquivar el
       // quoted-printable en minúsculas de denomailer 1.6.0 que rompe el render en
       // Outlook/Hotmail. Ver _shared/email.ts.

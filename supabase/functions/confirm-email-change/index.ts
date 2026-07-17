@@ -28,7 +28,7 @@
 
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { adminClient, corsHeaders, jsonError, jsonResponse } from "../_shared/admin.ts";
-import { emailMimeContent } from "../_shared/email.ts";
+import { asciiEmailSubject, emailMimeContent } from "../_shared/email.ts";
 
 function escapeHtml(input: string): string {
   return input
@@ -239,7 +239,9 @@ Deno.serve(async (req: Request) => {
         from: `${fromName} <${from}>`,
         to: oldEmail,
         replyTo: from,
-        subject: `${fromName}: ✅ Tu correo fue cambiado — 24h para revertir si no fuiste vos`,
+        // asciiEmailSubject: denomailer rompe asuntos no-ASCII largos (emoji ✅
+        // + acentos + em-dash) → cuerpo MIME crudo. Ver _shared/email.ts.
+        subject: asciiEmailSubject(`${fromName}: ✅ Tu correo fue cambiado — 24h para revertir si no fuiste vos`),
         mimeContent: emailMimeContent(text, html),
         headers: {
           "X-Entity-Ref-ID": `email-change-applied-${row.user_id}-${Date.now()}`,
