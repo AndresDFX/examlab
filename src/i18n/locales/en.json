@@ -4837,6 +4837,8 @@
     "copyLink": "Copy link",
     "linkCopied": "Copied",
     "linkCopyError": "Couldn't copy the link",
+    "soundOn": "Turn on sound",
+    "soundOff": "Mute",
     "pinLabel": "Game PIN",
     "waitingPlayers": "Waiting for players…",
     "start": "Start",

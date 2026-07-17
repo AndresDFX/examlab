@@ -22,6 +22,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useKahootGame } from "@/modules/polls/use-kahoot-game";
+import { kahootSound } from "@/modules/polls/kahoot-sound";
+import { useKahootMuted } from "@/modules/polls/use-kahoot-muted";
 import { KAHOOT_SHAPES, secondsLeft, getReadySecondsLeft, buildKahootJoinUrl } from "@/modules/polls/kahoot";
 import { KahootShapeIcon } from "@/modules/polls/KahootShapeIcon";
 import { QRCodeSVG } from "qrcode.react";
@@ -41,6 +43,8 @@ import {
   Copy,
   Check,
   Link2,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 
 // Clave de localStorage para la preferencia "auto-avanzar cuando todos
@@ -152,16 +156,32 @@ function KahootHost() {
   const prevScoresRef = useRef<Record<string, number>>({});
   const [lbFrom, setLbFrom] = useState<Record<string, number>>({});
   const lastStatusRef = useRef<string>("");
+  // Sonido (mutable). El host reproduce los efectos de FASE (proyectados a la
+  // clase); los jugadores tienen sus propios efectos de respuesta.
+  const { muted, toggle: toggleMuted } = useKahootMuted();
+  const prevPlayerCountRef = useRef(0);
   useEffect(() => {
     if (!state) return;
     const st = state.game.status;
-    if (st === "leaderboard" && lastStatusRef.current !== "leaderboard") {
-      setLbFrom({ ...prevScoresRef.current });
-      const snap: Record<string, number> = {};
-      for (const p of state.players) snap[p.id] = p.score;
-      prevScoresRef.current = snap;
+    if (st !== lastStatusRef.current) {
+      // Sonido por transición de fase.
+      if (st === "question") kahootSound.start();
+      else if (st === "reveal") kahootSound.reveal();
+      else if (st === "leaderboard") kahootSound.leaderboard();
+      else if (st === "podium" || st === "ended") kahootSound.podium();
+      // Al ENTRAR al leaderboard: fijar el `from` de la animación de puntajes.
+      if (st === "leaderboard") {
+        setLbFrom({ ...prevScoresRef.current });
+        const snap: Record<string, number> = {};
+        for (const p of state.players) snap[p.id] = p.score;
+        prevScoresRef.current = snap;
+      }
     }
     lastStatusRef.current = st;
+    // Blip cuando entra un jugador nuevo (solo en la sala).
+    const n = state.players.length;
+    if (st === "lobby" && n > prevPlayerCountRef.current) kahootSound.join();
+    prevPlayerCountRef.current = n;
   }, [state]);
 
   useEffect(() => {
@@ -302,6 +322,14 @@ function KahootHost() {
           <Badge variant="outline" className="gap-1">
             <Users className="h-3 w-3" /> {players.length}
           </Badge>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleMuted}
+            title={muted ? t("kahoot.soundOn", { defaultValue: "Activar sonido" }) : t("kahoot.soundOff", { defaultValue: "Silenciar" })}
+          >
+            {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </Button>
           <Button variant="ghost" size="icon" onClick={toggleFs} title={t("kahoot.fullscreen")}>
             {isFs ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
           </Button>
@@ -637,21 +665,37 @@ function Leaderboard({
 
 function Podium({ ranked }: { ranked: { id: string; nickname: string; score: number }[] }) {
   const top = ranked.slice(0, 3);
-  const heights = ["h-40", "h-32", "h-24"];
+  const heights = ["h-44", "h-36", "h-28"]; // 1º / 2º / 3º
   const order = [1, 0, 2]; // 2º, 1º, 3º para el clásico podio centrado
+  // Entrada escalonada + dramática: 3º entra primero, luego 2º, y el 1º de
+  // último (con zoom + corona). Delays por PUESTO (índice), no por orden visual.
+  const delay = ["delay-500", "delay-200", "delay-0"];
+  const barColor = [
+    "bg-amber-400 text-amber-950",
+    "bg-slate-300 text-slate-900",
+    "bg-orange-400 text-orange-950",
+  ];
   return (
     <>
-      <div className="flex items-end justify-center gap-3">
+      <div className="flex items-end justify-center gap-3 sm:gap-4">
         {order.map((idx) => {
           const p = top[idx];
-          if (!p) return <div key={idx} className="w-24" />;
+          if (!p) return <div key={idx} className="w-28 sm:w-32" />;
           return (
-            <div key={p.id} className="flex flex-col items-center gap-2 w-24">
-              <span className="font-semibold truncate max-w-full text-sm">{p.nickname}</span>
+            <div
+              key={p.id}
+              className={`flex flex-col items-center gap-2 w-28 sm:w-32 animate-in slide-in-from-bottom-10 fade-in fill-mode-both duration-700 ${idx === 0 ? "zoom-in-95" : ""} ${delay[idx]}`}
+            >
+              {idx === 0 && <Crown className="h-7 w-7 text-amber-400 animate-bounce" />}
+              {/* Nombre COMPLETO (sin truncar): puede envolver en 2-3 líneas; el
+                  min-h alinea las barras aunque los nombres tengan distinto largo. */}
+              <span className="flex min-h-[2.75rem] items-end justify-center text-center text-xs sm:text-sm font-semibold leading-tight break-words">
+                {p.nickname}
+              </span>
               <div
-                className={`w-full ${heights[idx]} rounded-t-lg flex flex-col items-center justify-start pt-2 ${idx === 0 ? "bg-amber-400 text-amber-950" : idx === 1 ? "bg-slate-300 text-slate-900" : "bg-orange-400 text-orange-950"}`}
+                className={`w-full ${heights[idx]} rounded-t-lg flex flex-col items-center justify-start pt-2 shadow-lg ${barColor[idx]}`}
               >
-                <span className="text-2xl font-black">{idx + 1}</span>
+                <span className="text-3xl font-black">{idx + 1}</span>
                 <span className="text-sm font-bold tabular-nums">{p.score}</span>
               </div>
             </div>
@@ -659,13 +703,13 @@ function Podium({ ranked }: { ranked: { id: string; nickname: string; score: num
         })}
       </div>
       {ranked.length > 3 && (
-        <div className="space-y-1 max-w-sm mx-auto pt-4">
+        <div className="space-y-1 max-w-md mx-auto pt-4 animate-in fade-in fill-mode-both duration-500 delay-700">
           {ranked.slice(3, 10).map((p, i) => (
-            <div key={p.id} className="flex items-center justify-between text-sm px-2">
-              <span className="text-muted-foreground">
+            <div key={p.id} className="flex items-center justify-between gap-3 text-sm px-2">
+              <span className="text-muted-foreground text-left break-words">
                 {i + 4}. {p.nickname}
               </span>
-              <span className="font-medium tabular-nums">{p.score}</span>
+              <span className="font-medium tabular-nums shrink-0">{p.score}</span>
             </div>
           ))}
         </div>

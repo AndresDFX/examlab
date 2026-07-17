@@ -18,9 +18,11 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useKahootGame } from "@/modules/polls/use-kahoot-game";
+import { kahootSound } from "@/modules/polls/kahoot-sound";
+import { useKahootMuted } from "@/modules/polls/use-kahoot-muted";
 import { KAHOOT_SHAPES, secondsLeft, getReadySecondsLeft } from "@/modules/polls/kahoot";
 import { KahootShapeIcon } from "@/modules/polls/KahootShapeIcon";
-import { CheckCircle2, XCircle, Trophy, Crown, Hourglass, Rocket } from "lucide-react";
+import { CheckCircle2, XCircle, Trophy, Crown, Hourglass, Rocket, Volume2, VolumeX } from "lucide-react";
 
 export const Route = createFileRoute("/app/student/kahoot/$gameId")({ component: KahootPlayer });
 
@@ -41,12 +43,24 @@ function KahootPlayer() {
   // tap single). Evita el doble-disparo del auto-envío. Se limpia al cambiar
   // de pregunta.
   const autoSentRef = useRef<string | null>(null);
+  const { muted, toggle: toggleMuted } = useKahootMuted();
+  // Sonido de resultado (correcto/incorrecto) una sola vez por pregunta al reveal.
+  const revealPlayedRef = useRef<string | null>(null);
 
   useEffect(() => {
     setNowMs(Date.now());
     const id = setInterval(() => setNowMs(Date.now()), 250);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (!state) return;
+    const { game, question, me } = state;
+    if (game.status === "reveal" && question && me && revealPlayedRef.current !== question.id) {
+      revealPlayedRef.current = question.id;
+      if (me.answered) kahootSound[me.my_is_correct ? "correct" : "wrong"]();
+    }
+  }, [state]);
 
   // Reset de la selección cuando cambia la pregunta activa.
   useEffect(() => {
@@ -65,6 +79,7 @@ function KahootPlayer() {
         toast.error(friendlyError(e));
         return;
       }
+      if (optionIds.length > 0) kahootSound.submit();
       await reload();
     } finally {
       setSubmitting(false);
@@ -125,16 +140,27 @@ function KahootPlayer() {
         <Badge variant="secondary" className="text-sm py-1 px-3">
           {me?.nickname ?? t("kahoot.spectator")}
         </Badge>
-        {me && (
-          <div className="flex items-center gap-2 text-sm">
-            <Badge variant="outline" className="gap-1 tabular-nums">
-              <Trophy className="h-3 w-3" /> {me.score}
-            </Badge>
-            <Badge variant="outline" className="tabular-nums">
-              #{me.rank}
-            </Badge>
-          </div>
-        )}
+        <div className="flex items-center gap-2 text-sm">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={toggleMuted}
+            title={muted ? t("kahoot.soundOn", { defaultValue: "Activar sonido" }) : t("kahoot.soundOff", { defaultValue: "Silenciar" })}
+          >
+            {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </Button>
+          {me && (
+            <>
+              <Badge variant="outline" className="gap-1 tabular-nums">
+                <Trophy className="h-3 w-3" /> {me.score}
+              </Badge>
+              <Badge variant="outline" className="tabular-nums">
+                #{me.rank}
+              </Badge>
+            </>
+          )}
+        </div>
       </div>
 
       {/* ── ESPERANDO AL DOCENTE (host ausente) ── */}

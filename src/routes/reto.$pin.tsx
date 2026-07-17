@@ -30,6 +30,8 @@ import { ErrorState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { usePublicKahootGame } from "@/modules/polls/use-public-kahoot-game";
+import { kahootSound } from "@/modules/polls/kahoot-sound";
+import { useKahootMuted } from "@/modules/polls/use-kahoot-muted";
 import { KAHOOT_SHAPES, secondsLeft, getReadySecondsLeft } from "@/modules/polls/kahoot";
 import { KahootShapeIcon } from "@/modules/polls/KahootShapeIcon";
 import {
@@ -41,6 +43,8 @@ import {
   Rocket,
   Radio,
   Mail,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 
 export const Route = createFileRoute("/reto/$pin")({
@@ -201,6 +205,8 @@ function RetoPlay({
   const [selected, setSelected] = useState<string[]>([]);
   const [nowMs, setNowMs] = useState(0);
   const autoSentRef = useRef<string | null>(null);
+  const { muted, toggle: toggleMuted } = useKahootMuted();
+  const revealPlayedRef = useRef<string | null>(null);
 
   useEffect(() => {
     setNowMs(Date.now());
@@ -212,6 +218,16 @@ function RetoPlay({
     setSelected([]);
     autoSentRef.current = null;
   }, [state?.question?.id]);
+
+  // Sonido de resultado (correcto/incorrecto) una vez por pregunta al reveal.
+  useEffect(() => {
+    if (!state) return;
+    const { game, question, me } = state;
+    if (game.status === "reveal" && question && me && revealPlayedRef.current !== question.id) {
+      revealPlayedRef.current = question.id;
+      if (me.answered) kahootSound[me.my_is_correct ? "correct" : "wrong"]();
+    }
+  }, [state]);
 
   const submit = async (optionIds: string[], allowEmpty = false) => {
     if ((optionIds.length === 0 && !allowEmpty) || submitting) return;
@@ -225,6 +241,7 @@ function RetoPlay({
         toast.error(friendlyError(e));
         return;
       }
+      if (optionIds.length > 0) kahootSound.submit();
       await reload();
     } finally {
       setSubmitting(false);
@@ -287,16 +304,27 @@ function RetoPlay({
         <Badge variant="secondary" className="text-sm py-1 px-3 max-w-[60vw] truncate">
           {me?.nickname ?? player.nickname}
         </Badge>
-        {me && (
-          <div className="flex items-center gap-2 text-sm">
-            <Badge variant="outline" className="gap-1 tabular-nums">
-              <Trophy className="h-3 w-3" /> {me.score}
-            </Badge>
-            <Badge variant="outline" className="tabular-nums">
-              #{me.rank}
-            </Badge>
-          </div>
-        )}
+        <div className="flex items-center gap-2 text-sm">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={toggleMuted}
+            title={muted ? "Activar sonido" : "Silenciar"}
+          >
+            {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </Button>
+          {me && (
+            <>
+              <Badge variant="outline" className="gap-1 tabular-nums">
+                <Trophy className="h-3 w-3" /> {me.score}
+              </Badge>
+              <Badge variant="outline" className="tabular-nums">
+                #{me.rank}
+              </Badge>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Host ausente */}
