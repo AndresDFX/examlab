@@ -49,6 +49,12 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 > - 🏢 Operación de plataforma — SuperAdmin: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-superadmin.mp4)
 > - 📊 Presentación general: [Abrir presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)
 >
+> **📁 Propuestas por modelo de negocio** (para mostrarle a cada cliente la que le sirve):
+> - 💼 Comercial — planes y precios por institución: [Abrir](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-comercial.pptx)
+> - 🛎️ Servicio administrado — nosotros operamos la institución: [Abrir](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-comercial-administrada.pptx)
+> - 🧩 Modelo modular — contratar por funcionalidad: [Abrir](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-modelo-modular.pptx)
+> - 👤 Independientes — docentes/tutores particulares: [Abrir](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-independientes.pptx)
+>
 > **Y para que la pruebes con tus propias manos**, te dejé acceso de **Administrador** en nuestra institución de demostración **Demo Global Corp**: entra a https://examlab.lovable.app, selecciona *Demo Global Corp* al iniciar sesión, y usa las credenciales que te comparto por separado. Así navegas todo el rol Admin sin tocar datos reales.
 >
 > Te adjunto la **presentación del programa** con el detalle. Si te suena, armamos una llamada corta y dejamos por escrito modalidad y %. ¿Le entramos? 🚀
@@ -67,6 +73,8 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 >
 > 🎬 Videos y presentación:
 > 📹 [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · 🛠️ [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · 🏢 [SuperAdmin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-superadmin.mp4) · 📊 [Presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)
+>
+> 📁 Modelos de negocio: 💼 [Comercial](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-comercial.pptx) · 🛎️ [Administrado](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-comercial-administrada.pptx) · 🧩 [Modular](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-modelo-modular.pptx) · 👤 [Independientes](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-independientes.pptx)
 
 ---
 
