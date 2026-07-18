@@ -1854,7 +1854,7 @@ function ExamMonitor() {
         .eq("id", row.submissionId);
       if (error) {
         setRegradeAllRows((prev) =>
-          prev.map((r, i) => (i === idx ? { ...r, status: "failed", error: error.message } : r)),
+          prev.map((r, i) => (i === idx ? { ...r, status: "failed", error: friendlyError(error) } : r)),
         );
         return false;
       }

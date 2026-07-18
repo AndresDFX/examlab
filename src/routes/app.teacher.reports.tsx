@@ -868,9 +868,7 @@ function Inner() {
       setGenSavedId(null);
     } catch (e) {
       toast.error(
-        e instanceof Error
-          ? e.message
-          : i18n.t("toast.routes_app_teacher_reports.generateReportError", { defaultValue: "Error al generar el informe" }),
+        friendlyError(e, i18n.t("toast.routes_app_teacher_reports.generateReportError", { defaultValue: "Error al generar el informe" })),
       );
     }
     setGenBuilding(false);

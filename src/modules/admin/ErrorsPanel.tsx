@@ -37,6 +37,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
+import { formatDateTime } from "@/shared/lib/format";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import {
@@ -872,7 +873,10 @@ function EventDetailBlock({
               <DetailRow k={t("hc_modulesAdminErrorsPanel.detailCourse")} v={ev.course_name} />
             )}
             {ev.reviewed_at && (
-              <DetailRow k={t("hc_modulesAdminErrorsPanel.detailReviewed")} v={ev.reviewed_at} />
+              <DetailRow
+                k={t("hc_modulesAdminErrorsPanel.detailReviewed")}
+                v={formatDateTime(ev.reviewed_at)}
+              />
             )}
             <DetailRow k={t("hc_modulesAdminErrorsPanel.detailId")} v={ev.id} mono />
           </div>

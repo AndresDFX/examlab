@@ -860,7 +860,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7 shrink-0"
+                          className="h-8 w-8 shrink-0"
                           disabled={isRequeueing}
                           onClick={() => void requeueJob(j)}
                           title={

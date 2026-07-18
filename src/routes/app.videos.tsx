@@ -626,7 +626,7 @@ function VideoLibrary() {
         toast.warning(
           i18n.t("toast.routes_app_videos.videoDeletedOrphanFile", {
             defaultValue: "Video eliminado, pero quedó el archivo huérfano en Storage ({{error}})",
-            error: stErr.message,
+            error: friendlyError(stErr),
           }),
         );
       } else {

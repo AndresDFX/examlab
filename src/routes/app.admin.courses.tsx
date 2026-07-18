@@ -1125,7 +1125,7 @@ export function AdminCourses() {
       // Si es unique_violation (dos cortes con el mismo nombre en el
       // mismo curso) lo traducimos al mensaje humano.
       const friendly = friendlyUniqueViolation(e);
-      const msg = friendly ?? (e instanceof Error ? e.message : String(e));
+      const msg = friendly ?? friendlyError(e);
       toast.error(
         i18n.t("toast.routes_app_admin_courses.courseSavedCutsSyncFailed", {
           defaultValue: "Curso guardado, pero falló la sincronización de cortes: {{error}}",

@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { formatDateOnly } from "@/shared/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RowAction } from "@/components/ui/row-action";
@@ -759,7 +760,7 @@ function StudentGrades() {
                   </div>
                   {cb.cut.start_date && cb.cut.end_date && (
                     <Badge variant="outline" className="text-[10px]">
-                      {cb.cut.start_date} → {cb.cut.end_date}
+                      {formatDateOnly(cb.cut.start_date)} → {formatDateOnly(cb.cut.end_date)}
                     </Badge>
                   )}
                 </CardHeader>

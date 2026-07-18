@@ -56,7 +56,7 @@ import { TableEmpty } from "@/components/ui/empty-state";
 import { Search, Link2, Unlink, CheckCircle2, Video, FileText, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
-import { formatDateTime } from "@/shared/lib/format";
+import { formatDateTime, formatDateOnly } from "@/shared/lib/format";
 import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
 
@@ -495,7 +495,7 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
                             )}
                           </TableCell>
                           <TableCell className="hidden sm:table-cell text-xs text-muted-foreground tabular-nums">
-                            {s.session_date}
+                            {formatDateOnly(s.session_date)}
                           </TableCell>
                           <TableCell>
                             <Select

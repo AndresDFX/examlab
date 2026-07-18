@@ -1699,7 +1699,7 @@ function TeacherWorkshops() {
           i18n.t("toast.routes_app_teacher_workshops.gradeSavedRecomputeFailed", {
             defaultValue:
               "Calificación guardada, pero falló recalcular calificación global: {{error}}",
-            error: subErr.message,
+            error: friendlyError(subErr),
           }),
         );
       } else {
@@ -2035,7 +2035,7 @@ function TeacherWorkshops() {
       toast.error(
         i18n.t("toast.routes_app_teacher_workshops.detectionFailed", {
           defaultValue: "No se pudo ejecutar la detección: {{error}}",
-          error: e instanceof Error ? e.message : String(e),
+          error: friendlyError(e),
         }),
       );
     } finally {

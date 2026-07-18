@@ -1807,7 +1807,7 @@ function Gradebook() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-6 px-2 text-[10px] gap-1"
+                            className="h-8 px-2 text-[10px] gap-1"
                             onClick={() => setDetailCutId(c.id)}
                             disabled={itemCount === 0}
                             title={
@@ -1980,7 +1980,7 @@ function Gradebook() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 text-[11px]"
+                                className="h-8 text-[11px]"
                                 onClick={() =>
                                   void issueCertForStudent(row.student.id, row.finalGrade)
                                 }

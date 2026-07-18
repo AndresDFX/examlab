@@ -3630,10 +3630,7 @@ function TeacherProjects() {
                                                       .createSignedUrl(p, 60);
                                                     if (error || !data?.signedUrl) {
                                                       toast.error(
-                                                        error?.message ??
-                                                          t(
-                                                            "hc_routesAppTeacherProjects.couldNotGenerateDownloadLink",
-                                                          ),
+                                                        friendlyError(error, t("hc_routesAppTeacherProjects.couldNotGenerateDownloadLink")),
                                                       );
                                                       return;
                                                     }
@@ -3667,10 +3664,7 @@ function TeacherProjects() {
                                                       .createSignedUrl(a.zip_path, 60);
                                                     if (error || !data?.signedUrl) {
                                                       toast.error(
-                                                        error?.message ??
-                                                          t(
-                                                            "hc_routesAppTeacherProjects.couldNotGenerateDownloadLink",
-                                                          ),
+                                                        friendlyError(error, t("hc_routesAppTeacherProjects.couldNotGenerateDownloadLink")),
                                                       );
                                                       return;
                                                     }

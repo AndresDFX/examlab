@@ -522,7 +522,7 @@ function SuperAdminTenantsPage() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const data = provData as any;
           if (provErr || !data?.ok) {
-            const msg = data?.error || provErr?.message || tl("hc_routesAppSuperadminTenants.unknownError");
+            const msg = data?.error || friendlyError(provErr, tl("hc_routesAppSuperadminTenants.unknownError"));
             toast.error(
               i18n.t("superadminTenants.testUserCreationFailed", {
                 defaultValue:
@@ -545,7 +545,7 @@ function SuperAdminTenantsPage() {
             i18n.t("superadminTenants.testUserCreationFailed", {
               defaultValue:
                 "Institución creada, pero falló crear usuario de prueba: {{error}}",
-              error: e instanceof Error ? e.message : String(e),
+              error: friendlyError(e),
             }),
             { duration: 8000 },
           );

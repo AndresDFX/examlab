@@ -879,7 +879,7 @@ function TeacherAttendance() {
     }));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any).from("attendance_sessions").insert(payload);
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(friendlyError(error));
     await loadCourse();
     const suffix =
       unmatchedCuts > 0
