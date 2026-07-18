@@ -25,6 +25,28 @@ import {
 
 const PRIVILEGED = new Set(["useradd", "groupadd", "usermod", "userdel", "groupdel"]);
 
+/** Comandos conocidos — para el autocompletado con Tab (1er token). */
+const COMMANDS = [
+  "pwd", "whoami", "hostname", "echo", "cd", "ls", "mkdir", "touch", "cat",
+  "cp", "mv", "rm", "chmod", "chown", "chgrp", "groupadd", "useradd", "adduser",
+  "usermod", "id", "apt", "apt-get", "systemctl", "df", "du", "ps", "top",
+  "kill", "crontab", "ip", "ss", "netstat", "journalctl", "tar", "clear",
+  "sudo", "nano", "vi", "vim",
+];
+
+/** Prefijo común más largo de una lista de strings (para el autocompletado). */
+function longestCommonPrefix(items: string[]): string {
+  if (items.length === 0) return "";
+  let p = items[0];
+  for (const s of items.slice(1)) {
+    let i = 0;
+    while (i < p.length && i < s.length && p[i] === s[i]) i++;
+    p = p.slice(0, i);
+    if (!p) break;
+  }
+  return p;
+}
+
 /** Tokeniza respetando comillas simples/dobles. */
 function tokenize(line: string): string[] {
   const out: string[] = [];
@@ -42,6 +64,13 @@ export class ShellInterpreter {
   readonly sys: System;
   /** Historial de líneas ejecutadas (no vacías) — para command_used. */
   readonly history: string[] = [];
+  /**
+   * Solicitud de editor de texto pendiente (nano/vi/vim). Como la consola es
+   * simulada (no hay PTY), un `nano <archivo>` NO edita inline: el comando
+   * setea esto y la UI (ServerConsole) abre un editor overlay. Al guardar la UI
+   * llama `saveEditor(content)`; al salir sin guardar, `cancelEditor()`.
+   */
+  editorRequest: { path: string; display: string; content: string } | null = null;
 
   constructor(sys: System) {
     this.sys = sys;
@@ -160,6 +189,7 @@ export class ShellInterpreter {
       case "journalctl": return this.journalctl();
       case "tar": return this.tar(args);
       case "clear": return { out: [] };
+      case "nano": case "vi": case "vim": return this.nano(cmd, args);
       default:
         return { out: [`${cmd}: command not found`] };
     }
@@ -264,6 +294,119 @@ export class ShellInterpreter {
     } else if (!existing) {
       pdir.children[base] = { type: "file", name: base, owner: this.sys.user, group: this.sys.user, mode: 0o644, content };
     }
+  }
+
+  /**
+   * nano/vi/vim — abre un editor de texto sobre un archivo. Como no hay PTY,
+   * NO edita inline: setea `editorRequest` y devuelve sin salida; la UI abre el
+   * editor overlay. Sin argumento abre un buffer nuevo sin nombre (se pedirá al
+   * guardar); con un directorio como destino, error como el nano real.
+   */
+  private nano(cmd: string, args: string[]): ShellResult {
+    const target = args.find((a) => !a.startsWith("-"));
+    if (!target) {
+      // Buffer nuevo sin nombre: se guarda con "touch"-like al escribir el nombre.
+      this.editorRequest = { path: "", display: cmd, content: "" };
+      return { out: [] };
+    }
+    const abs = resolvePath(this.sys, target);
+    const node = getNode(this.sys, abs);
+    if (node && node.type === "dir") return { out: [`${cmd}: ${target}: Es un directorio`] };
+    const { parent } = splitPath(abs);
+    if (!node && !getDir(this.sys, parent)) {
+      return { out: [`${cmd}: no se puede crear ${target}: No existe el directorio`] };
+    }
+    this.editorRequest = {
+      path: abs,
+      display: target,
+      content: node && node.type === "file" ? node.content : "",
+    };
+    return { out: [] };
+  }
+
+  /** Guarda el contenido del editor en el archivo (creándolo si es nuevo). */
+  saveEditor(content: string): string[] {
+    const req = this.editorRequest;
+    this.editorRequest = null;
+    if (!req || !req.path) return [];
+    const { parent, base } = splitPath(req.path);
+    const pdir = getDir(this.sys, parent);
+    if (!pdir) return [`nano: no se pudo guardar ${req.display}: No existe el directorio`];
+    const existing = pdir.children[base];
+    if (existing && existing.type === "dir") return [`nano: ${req.display}: Es un directorio`];
+    if (existing && existing.type === "file") {
+      existing.content = content;
+    } else {
+      pdir.children[base] = {
+        type: "file",
+        name: base,
+        owner: this.sys.user,
+        group: this.sys.user,
+        mode: 0o644,
+        content,
+      };
+    }
+    return [];
+  }
+
+  /** Cierra el editor sin guardar. */
+  cancelEditor(): void {
+    this.editorRequest = null;
+  }
+
+  /**
+   * Autocompletado con Tab. Completa el ÚLTIMO token: si es el 1er token (o
+   * viene tras `sudo`) → nombres de comando; si es un argumento → archivos/
+   * directorios (respeta prefijos de ruta como `/etc/pas` o `sub/fi`).
+   * Devuelve la línea (posiblemente completada al prefijo común) y, cuando hay
+   * varias opciones, la lista para mostrarla como en bash.
+   */
+  complete(rawLine: string): { line: string; candidates: string[] } {
+    const line = rawLine;
+    const endsWithSpace = /\s$/.test(line);
+    let head = "";
+    let token = "";
+    if (endsWithSpace) {
+      head = line;
+      token = "";
+    } else {
+      const idx = line.lastIndexOf(" ");
+      head = idx < 0 ? "" : line.slice(0, idx + 1);
+      token = idx < 0 ? line : line.slice(idx + 1);
+    }
+    const before = tokenize(head.trim());
+    const eff = before[0] === "sudo" ? before.slice(1) : before;
+    const completingCommand = eff.length === 0;
+
+    if (completingCommand) {
+      const cands = COMMANDS.filter((c) => c.startsWith(token)).sort();
+      if (cands.length === 0) return { line, candidates: [] };
+      if (cands.length === 1) return { line: head + cands[0] + " ", candidates: [] };
+      const common = longestCommonPrefix(cands);
+      return { line: head + common, candidates: cands };
+    }
+
+    // Argumento → completar ruta.
+    const slash = token.lastIndexOf("/");
+    const dirPart = slash < 0 ? "" : token.slice(0, slash + 1);
+    const base = slash < 0 ? token : token.slice(slash + 1);
+    const dirAbs = resolvePath(this.sys, dirPart === "" ? "." : dirPart);
+    const dirNode = getDir(this.sys, dirAbs);
+    if (!dirNode) return { line, candidates: [] };
+    const entries = Object.values(dirNode.children)
+      .filter((n) => n.name.startsWith(base))
+      .map((n) => ({ name: n.name, isDir: n.type === "dir" }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (entries.length === 0) return { line, candidates: [] };
+    if (entries.length === 1) {
+      const e = entries[0];
+      return { line: head + dirPart + e.name + (e.isDir ? "/" : " "), candidates: [] };
+    }
+    const common = longestCommonPrefix(entries.map((e) => e.name));
+    return {
+      line: head + dirPart + common,
+      candidates: entries.map((e) => (e.isDir ? e.name + "/" : e.name)),
+    };
   }
 
   private cpmv(args: string[], move: boolean): ShellResult {

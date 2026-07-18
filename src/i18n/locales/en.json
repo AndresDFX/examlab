@@ -9078,7 +9078,11 @@
   "serverConsole": {
     "welcome": "Server console. You are «{{user}}». Use Linux commands (pwd, ls, mkdir, chmod, sudo …).",
     "title": "Server console",
-    "hint": "Privileged commands (useradd, apt install, systemctl) require `sudo`. ↑/↓ arrows for history.",
-    "focus": "Server console"
+    "hint": "Privileged commands (useradd, apt install, systemctl) require `sudo`. ↑/↓ arrows for history, Tab autocompletes and `nano` edits files.",
+    "focus": "Server console",
+    "editorNewBuffer": "New buffer",
+    "editorSave": "^O Save & exit",
+    "editorExit": "^X Exit",
+    "editorHint": "Ctrl+O save · Ctrl+X / Esc exit"
   }
 }

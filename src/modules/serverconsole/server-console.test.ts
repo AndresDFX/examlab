@@ -125,3 +125,49 @@ describe("(de)serialización de la respuesta", () => {
     expect(parseServerAnswer({ nope: 1 })).toBeNull();
   });
 });
+
+describe("nano (editor) + autocompletado (Tab)", () => {
+  it("nano abre editorRequest y saveEditor escribe el archivo (queda en historial)", () => {
+    const sys = baseSystem("alumno");
+    const sh = new ShellInterpreter(sys);
+    const out = sh.execute("nano notas.txt");
+    expect(out).toEqual([]);
+    expect(sh.editorRequest).not.toBeNull();
+    expect(sh.editorRequest?.content).toBe("");
+    sh.saveEditor("hola mundo\n");
+    expect(sh.editorRequest).toBeNull();
+    const n = getNode(sys, "/home/alumno/notas.txt");
+    expect(n?.type).toBe("file");
+    expect((n as { content: string }).content).toBe("hola mundo\n");
+    expect(sh.history).toContain("nano notas.txt");
+  });
+  it("nano sobre archivo existente carga su contenido; cancelEditor no lo cambia", () => {
+    const sys = baseSystem("alumno");
+    const sh = new ShellInterpreter(sys);
+    sh.execute("echo hola > f.txt");
+    sh.execute("nano f.txt");
+    expect(sh.editorRequest?.content).toBe("hola\n");
+    sh.cancelEditor();
+    expect((getNode(sys, "/home/alumno/f.txt") as { content: string }).content).toBe("hola\n");
+  });
+  it("nano sobre un directorio da error y no abre editor", () => {
+    const sys = baseSystem("alumno");
+    const sh = new ShellInterpreter(sys);
+    const out = sh.execute("nano /etc");
+    expect(out[0]).toContain("Es un directorio");
+    expect(sh.editorRequest).toBeNull();
+  });
+  it("complete: comando único vs prefijo común", () => {
+    const sh = new ShellInterpreter(baseSystem("alumno"));
+    expect(sh.complete("who").line).toBe("whoami ");
+    const r = sh.complete("ch");
+    expect(r.candidates).toEqual(expect.arrayContaining(["chmod", "chown", "chgrp"]));
+    expect(r.line).toBe("ch");
+    expect(sh.complete("sudo userm").line).toBe("sudo usermod ");
+  });
+  it("complete: ruta de archivo (único) y directorio (con /)", () => {
+    const sh = new ShellInterpreter(baseSystem("alumno"));
+    expect(sh.complete("cat /etc/host").line).toBe("cat /etc/hostname ");
+    expect(sh.complete("cd /ho").line).toBe("cd /home/");
+  });
+});

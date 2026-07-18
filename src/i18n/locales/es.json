@@ -9078,7 +9078,11 @@
   "serverConsole": {
     "welcome": "Consola del servidor. Estás como «{{user}}». Usa comandos de Linux (pwd, ls, mkdir, chmod, sudo …).",
     "title": "Consola del servidor",
-    "hint": "Comandos privilegiados (useradd, apt install, systemctl) requieren `sudo`. Flechas ↑/↓ para el historial.",
-    "focus": "Consola del servidor"
+    "hint": "Comandos privilegiados (useradd, apt install, systemctl) requieren `sudo`. Flechas ↑/↓ para el historial, Tab autocompleta y `nano` edita archivos.",
+    "focus": "Consola del servidor",
+    "editorNewBuffer": "Buffer nuevo",
+    "editorSave": "^O Guardar y salir",
+    "editorExit": "^X Salir",
+    "editorHint": "Ctrl+O guardar · Ctrl+X / Esc salir"
   }
 }

@@ -40,8 +40,12 @@ export function ServerConsole({ scenario, value, onChange, readOnly }: Props) {
   const [prompt, setPrompt] = useState("$");
   const [input, setInput] = useState("");
   const [histIdx, setHistIdx] = useState<number | null>(null);
+  // Editor de texto (nano/vi/vim). Cuando != null se muestra el overlay del
+  // editor sobre la consola; `content` es la copia de trabajo del textarea.
+  const [editor, setEditor] = useState<{ display: string; content: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<HTMLTextAreaElement>(null);
 
   // Init/reanudar: sistema fresco desde el escenario + replay del historial.
   // `value` se lee solo aquí (al montar / cambiar de escenario).
@@ -77,6 +81,10 @@ export function ServerConsole({ scenario, value, onChange, readOnly }: Props) {
     if (el) el.scrollTop = el.scrollHeight;
   }, [lines]);
 
+  useEffect(() => {
+    if (editor) setTimeout(() => editorRef.current?.focus(), 0);
+  }, [editor]);
+
   const run = () => {
     const st = stateRef.current;
     if (!st || readOnly) return;
@@ -91,7 +99,25 @@ export function ServerConsole({ scenario, value, onChange, readOnly }: Props) {
       ...out.map((o): Line => ({ text: o, kind: "out" })),
     ]);
     setPrompt(st.sh.prompt());
+    // nano/vi/vim: el comando abrió un editor → mostramos el overlay y
+    // serializamos recién al guardar/cancelar.
+    if (st.sh.editorRequest) {
+      setEditor({ display: st.sh.editorRequest.display, content: st.sh.editorRequest.content });
+      return;
+    }
     onChange?.(serializeServerAnswer(st.sys, [...st.sh.history]));
+  };
+
+  const closeEditor = (save: boolean) => {
+    const st = stateRef.current;
+    if (!st || !editor) return;
+    const out = save ? st.sh.saveEditor(editor.content) : (st.sh.cancelEditor(), [] as string[]);
+    if (out.length) {
+      setLines((prev) => [...prev, ...out.map((o): Line => ({ text: o, kind: "out" }))]);
+    }
+    onChange?.(serializeServerAnswer(st.sys, [...st.sh.history]));
+    setEditor(null);
+    setTimeout(() => inputRef.current?.focus(), 0);
   };
 
   const recall = (dir: -1 | 1) => {
@@ -106,7 +132,7 @@ export function ServerConsole({ scenario, value, onChange, readOnly }: Props) {
   };
 
   return (
-    <div className="rounded-md border overflow-hidden">
+    <div className="relative rounded-md border overflow-hidden">
       <div className="bg-muted/40 px-3 py-2 text-xs">
         <div className="flex items-center gap-1.5 font-medium">
           <Terminal className="h-3.5 w-3.5" />
@@ -153,6 +179,20 @@ export function ServerConsole({ scenario, value, onChange, readOnly }: Props) {
                 } else if (e.key === "ArrowDown") {
                   e.preventDefault();
                   recall(1);
+                } else if (e.key === "Tab") {
+                  // Autocompletado como en una terminal real (NO mover el foco).
+                  e.preventDefault();
+                  const st = stateRef.current;
+                  if (!st) return;
+                  const res = st.sh.complete(input);
+                  if (res.line !== input) setInput(res.line);
+                  if (res.candidates.length > 1) {
+                    setLines((prev) => [
+                      ...prev,
+                      { text: `${st.sh.prompt()}${input}`, kind: "cmd" },
+                      { text: res.candidates.join("   "), kind: "out" },
+                    ]);
+                  }
                 }
               }}
               aria-label={t("serverConsole.focus", { defaultValue: "Consola del servidor" })}
@@ -164,6 +204,56 @@ export function ServerConsole({ scenario, value, onChange, readOnly }: Props) {
           </div>
         )}
       </div>
+
+      {/* Editor de texto (nano/vi/vim) — overlay tipo pantalla completa de nano. */}
+      {editor && (
+        <div className="absolute inset-0 z-10 flex flex-col bg-zinc-950 font-mono text-xs">
+          <div className="flex items-center justify-between bg-zinc-100 text-zinc-900 px-3 py-1 font-medium">
+            <span>GNU nano</span>
+            <span className="truncate max-w-[60%]">
+              {editor.display || t("serverConsole.editorNewBuffer", { defaultValue: "Buffer nuevo" })}
+            </span>
+          </div>
+          <textarea
+            ref={editorRef}
+            value={editor.content}
+            onChange={(e) => setEditor((ed) => (ed ? { ...ed, content: e.target.value } : ed))}
+            onKeyDown={(e) => {
+              // ^O / ^S = guardar y salir · ^X / Esc = salir sin guardar.
+              if ((e.ctrlKey || e.metaKey) && (e.key === "o" || e.key === "s" || e.key === "x")) {
+                e.preventDefault();
+                closeEditor(e.key !== "x");
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                closeEditor(false);
+              }
+            }}
+            spellCheck={false}
+            autoCapitalize="off"
+            autoComplete="off"
+            className="flex-1 resize-none bg-zinc-950 text-zinc-100 caret-emerald-300 p-3 outline-none whitespace-pre"
+          />
+          <div className="flex items-center gap-3 bg-zinc-900 text-zinc-300 px-3 py-1.5 text-[11px]">
+            <button
+              type="button"
+              onClick={() => closeEditor(true)}
+              className="rounded bg-emerald-700 px-2 py-1 text-zinc-50 hover:bg-emerald-600"
+            >
+              {t("serverConsole.editorSave", { defaultValue: "^O Guardar y salir" })}
+            </button>
+            <button
+              type="button"
+              onClick={() => closeEditor(false)}
+              className="rounded bg-zinc-700 px-2 py-1 text-zinc-50 hover:bg-zinc-600"
+            >
+              {t("serverConsole.editorExit", { defaultValue: "^X Salir" })}
+            </button>
+            <span className="text-zinc-500 hidden sm:inline">
+              {t("serverConsole.editorHint", { defaultValue: "Ctrl+O guardar · Ctrl+X / Esc salir" })}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
