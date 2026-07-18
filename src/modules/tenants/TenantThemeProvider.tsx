@@ -44,40 +44,74 @@ import { useTheme } from "@/hooks/use-theme";
 import { getActiveRoleSignal, subscribeActiveRole } from "@/modules/tenants/active-role-signal";
 import type { AppRole } from "@/hooks/use-auth";
 
+/** Set canónico de CSS vars que este provider gestiona. Lo usan
+ *  clearTenantVars y el snapshot del cache pre-paint. */
+const TENANT_VARS = [
+  "--primary",
+  "--primary-foreground",
+  "--primary-glow",
+  "--ring",
+  "--sidebar",
+  "--sidebar-foreground",
+  "--sidebar-primary",
+  "--sidebar-primary-foreground",
+  "--sidebar-accent",
+  "--sidebar-accent-foreground",
+  "--sidebar-border",
+  "--sidebar-ring",
+  "--sidebar-icon-color",
+  "--secondary",
+  "--secondary-foreground",
+  "--accent",
+  "--accent-foreground",
+  "--background",
+  "--foreground",
+  "--card",
+  "--card-foreground",
+  "--popover",
+  "--popover-foreground",
+  "--muted",
+  "--brand-primary",
+  "--brand-secondary",
+] as const;
+
+// Cache pre-paint del branding: el tenant llega por fetch (useEffect), así que
+// SIN cache cada carga fría pintaba el theme default y "saltaba" al branding
+// cuando la query resolvía (~0.5-2s) — el flash de "carga rara" reportado.
+// Tras aplicar las vars, las serializamos acá; el <script> inline de
+// __root.tsx las re-aplica ANTES del primer paint (solo en /app/*). Mantener
+// el nombre de la key EN SYNC con ese script (misma invariante que
+// `examlab-theme`).
+const TENANT_VARS_CACHE_KEY = "examlab-tenant-vars";
+
+/** Snapshot de las vars actualmente aplicadas → localStorage (pre-paint). */
+function cacheTenantVars(root: HTMLElement): void {
+  try {
+    const snap: Record<string, string> = {};
+    for (const v of TENANT_VARS) {
+      const val = root.style.getPropertyValue(v);
+      if (val) snap[v] = val;
+    }
+    localStorage.setItem(TENANT_VARS_CACHE_KEY, JSON.stringify(snap));
+  } catch {
+    /* noop — el cache es solo una optimización visual */
+  }
+}
+
+function clearTenantVarsCache(): void {
+  try {
+    localStorage.removeItem(TENANT_VARS_CACHE_KEY);
+  } catch {
+    /* noop */
+  }
+}
+
 /** Limpia TODAS las CSS vars que el provider haya seteado. Se usa cuando
  *  el SuperAdmin tiene el rol activo y no está "viendo como" otra
  *  institución — queremos el theme default de la plataforma, sin
  *  branding de ningún tenant. */
 function clearTenantVars(root: HTMLElement): void {
-  const vars = [
-    "--primary",
-    "--primary-foreground",
-    "--primary-glow",
-    "--ring",
-    "--sidebar",
-    "--sidebar-foreground",
-    "--sidebar-primary",
-    "--sidebar-primary-foreground",
-    "--sidebar-accent",
-    "--sidebar-accent-foreground",
-    "--sidebar-border",
-    "--sidebar-ring",
-    "--sidebar-icon-color",
-    "--secondary",
-    "--secondary-foreground",
-    "--accent",
-    "--accent-foreground",
-    "--background",
-    "--foreground",
-    "--card",
-    "--card-foreground",
-    "--popover",
-    "--popover-foreground",
-    "--muted",
-    "--brand-primary",
-    "--brand-secondary",
-  ];
-  for (const v of vars) root.style.removeProperty(v);
+  for (const v of TENANT_VARS) root.style.removeProperty(v);
 }
 
 function normalizeHex(value: string | null | undefined): string | null {
@@ -287,6 +321,8 @@ export function TenantThemeProvider({ children }: { children: React.ReactNode })
     // /, el override de localStorage se ignora y los CSS vars del
     // provider se limpian.
     if (!isAuthenticatedZone) {
+      // Limpia las vars pero CONSERVA el cache pre-paint: al volver a /app
+      // el script inline de __root re-aplica el branding sin flash.
       clearTenantVars(root);
       return;
     }
@@ -299,6 +335,9 @@ export function TenantThemeProvider({ children }: { children: React.ReactNode })
     // effect re-aplica los colores de su tenant.
     if (activeRole === "SuperAdmin" && !readTenantOverride()) {
       clearTenantVars(root);
+      // También el cache: el próximo load de /app debe pintar el theme
+      // default desde el primer frame, no el branding del último tenant.
+      clearTenantVarsCache();
       return;
     }
     const primary = normalizeHex(tenant?.primary_color);
@@ -443,6 +482,11 @@ export function TenantThemeProvider({ children }: { children: React.ReactNode })
     else root.style.removeProperty("--brand-primary");
     if (secondary) root.style.setProperty("--brand-secondary", secondary);
     else root.style.removeProperty("--brand-secondary");
+
+    // Snapshot → localStorage para que el próximo load pinte el branding
+    // desde el PRIMER frame (script pre-paint de __root.tsx). Cierra el
+    // flash "carga rara": default theme → salto al branding del tenant.
+    cacheTenantVars(root);
   }, [
     tenant?.primary_color,
     tenant?.secondary_color,

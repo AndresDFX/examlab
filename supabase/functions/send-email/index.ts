@@ -107,6 +107,21 @@ function isPermanentMailboxError(msg: string): boolean {
  * diferencia de los permanentes (5.x.x mailbox), que NO se reintentan.
  * Detecta códigos SMTP 4.x.x / 4xx + patrones de throttle/timeout/conexión.
  */
+/**
+ * Throttle de LOGIN del proveedor SMTP (Gmail `454 4.7.0 Too many login
+ * attempts`). Es transitorio PERO reintentarlo de inmediato lo EMPEORA: cada
+ * intento del edge abre una conexión SMTP nueva (= un login más) y el backoff
+ * interno (1s/3s) no alcanza para que Gmail libere el rate limit. Tormenta real
+ * (2026-07-18): un lote de correos → 454 → cron cada 5 min reintenta 50 × 3
+ * logins c/u → el throttle se auto-sostiene (183 fallos/hora). Ante esto:
+ * fallar RÁPIDO (1 solo login) y dejar que el cron de reintentos lo retome con
+ * su backoff exponencial (mig 20261320000000).
+ */
+function isLoginThrottleError(msg: string): boolean {
+  const m = (msg ?? "").toLowerCase();
+  return /too many login|4\.7\.0/.test(m) && /login|attempt/.test(m);
+}
+
 function isTransientSmtpError(msg: string): boolean {
   const m = (msg ?? "").toLowerCase();
   // 5.x.x / 5xx = permanente → nunca transitorio.
@@ -689,6 +704,11 @@ Deno.serve(async (req: Request) => {
       await attemptSmtpSend();
     } catch (e) {
       lastErr = (e instanceof Error ? e.message : String(e)).slice(0, 200);
+      if (isLoginThrottleError(lastErr)) {
+        // Throttle de login: NO reintentar acá (cada intento = un login más que
+        // alimenta el rate limit). El cron lo retoma con backoff exponencial.
+        break;
+      }
       if (
         attempt < MAX_ATTEMPTS &&
         isTransientSmtpError(lastErr) &&

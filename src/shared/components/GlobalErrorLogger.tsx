@@ -92,7 +92,14 @@ export function GlobalErrorLogger() {
         // inofensivo del browser que dispara cuando un layout se
         // redimensiona durante un commit de React. NO rompe la app pero
         // spammea audit_logs. Reportado en `/app/teacher/attendance`.
-        msg.startsWith("ResizeObserver loop")
+        msg.startsWith("ResizeObserver loop") ||
+        // Extensiones que INYECTAN scripts inline en la página (el filename es
+        // nuestra app, así que isExtensionNoise no las atrapa; el MENSAJE es la
+        // firma): Firefox iOS (__firefox__), wallets cripto (window.ethereum),
+        // mods de YouTube. Visto en prod desde /auth (2026-07-12), 4 eventos.
+        msg.includes("__firefox__") ||
+        msg.includes("window.ethereum") ||
+        msg.includes("refresh_youtube_quality")
       );
     };
 

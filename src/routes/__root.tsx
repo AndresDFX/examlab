@@ -121,6 +121,19 @@ function RootShell({ children }: { children: React.ReactNode }) {
             __html: `(function(){try{var t=localStorage.getItem('examlab-theme');if(t==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`,
           }}
         />
+        {/* Pre-paint del BRANDING del tenant: re-aplica las CSS vars cacheadas
+            por TenantThemeProvider (key 'examlab-tenant-vars', mantener en
+            sync) ANTES del primer paint, SOLO en /app/*. Sin esto, cada carga
+            fría pintaba el theme default y "saltaba" al branding cuando el
+            fetch del tenant resolvía (~0.5-2s) — el flash de carga reportado.
+            El provider re-aplica/corrige al montar (el cache es solo el primer
+            frame); <html> ya tiene suppressHydrationWarning para el atributo
+            style, igual que para la clase .dark. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var p=location.pathname;if(p!=='/app'&&p.indexOf('/app/')!==0)return;var v=JSON.parse(localStorage.getItem('examlab-tenant-vars')||'null');if(v)for(var k in v)document.documentElement.style.setProperty(k,v[k]);}catch(e){}})();`,
+          }}
+        />
         {/* PWA en vertical: el manifest ya declara orientation:"portrait", pero
             las PWA YA INSTALADAS cachean el manifest viejo (orientation:"any") y
             seguían abriendo en horizontal. Este lock en runtime fuerza vertical
