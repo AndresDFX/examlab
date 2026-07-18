@@ -27,7 +27,7 @@
     {
       "id": "vista",
       "kind": "platform",
-      "narration": "El estudiante elige uno de sus cursos y conversa con un Asistente de inteligencia artificial. El asistente conoce el material de ese curso, así que responde dudas y explica conceptos apoyándose en los contenidos que el docente compartió. Y además hay un Asistente de plataforma para resolver dudas sobre el uso de la app. Es un acompañamiento disponible en todo momento.",
+      "narration": "El estudiante elige uno de sus cursos y conversa con el Tutor del curso. El tutor conoce el material de ese curso, así que responde dudas y explica conceptos apoyándose en los contenidos que el docente compartió. Y además tiene el Asistente IA para resolver dudas sobre el uso de la app. Es un acompañamiento disponible en todo momento.",
       "bufferMs": 800,
       "beats": [
         {

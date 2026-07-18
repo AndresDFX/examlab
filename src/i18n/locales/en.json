@@ -117,7 +117,7 @@
     "errors": "Errors",
     "trash": "Trash",
     "support": "Support",
-    "supportAssistant": "Platform assistant",
+    "supportAssistant": "AI Assistant",
     "academic": "Academic",
     "tenants": "Institutions",
     "system": "System",
@@ -4584,7 +4584,7 @@
     "filterModuleBranding": "Institutional branding",
     "filterModuleTutor": "Course tutor",
     "filterModuleReports": "Reports",
-    "filterModuleSupport": "Platform assistant",
+    "filterModuleSupport": "AI Assistant",
     "showingCount": "Showing {{shown}} of {{total}}",
     "brandingTitle": "Institutional branding",
     "brandingHelpHint": "These values are injected into the Content Generation prompt as {{university_name}}, {{logo_url}}, {{primary_color}} and {{secondary_color}}. They also appear on the cover of the generated .pptx.",
@@ -4945,7 +4945,21 @@
     "connectError": "We couldn't connect you to the challenge",
     "connectErrorHint": "The challenge may have ended or the link is no longer valid.",
     "useAnotherEmail": "Use another email",
-    "thanksClose": "Thanks for playing. You can close this page now."
+    "thanksClose": "Thanks for playing. You can close this page now.",
+    "menuHistory": "Game history",
+    "historyTitle": "Game history",
+    "historySubtitle": "Every time you hosted this live challenge is logged here.",
+    "historyFinished": "Finished",
+    "historyUnfinished": "Not finished",
+    "historyEmpty": "You haven't hosted this challenge yet",
+    "historyEmptyHint": "When you host it live, each game will show up here.",
+    "historyStatGames": "Times played",
+    "historyStatPlayers": "Players (total)",
+    "historyStatFinished": "Finished",
+    "historyColDate": "Date",
+    "historyColStatus": "Status",
+    "historyColPlayers": "Players",
+    "historyColWinner": "Winner"
   },
   "questionBank": {
     "type": {
@@ -5253,7 +5267,8 @@
     "mixedInfoBody": "On save, the question editor will open so you can add open (text) and/or closed (single choice) questions. You need at least one to publish.",
     "slotReservationsCount": "{{count}} reservation(s)",
     "mixedResultsPrivacy": "Open answers are seen only by the teacher.",
-    "mixedNoAnswers": "No answers yet."
+    "mixedNoAnswers": "No answers yet.",
+    "searchPlaceholder": "Search survey…"
   },
   "teacherAttendance": {
     "statusPresentShort": "P",
@@ -8767,14 +8782,14 @@
     "deactivatedBody": "Your account was deactivated. Contact your institution's administrator to reactivate it."
   },
   "supportAssistant": {
-    "title": "Platform assistant",
+    "title": "AI Assistant",
     "subtitle": "Ask how to use and configure ExamLab. It answers using the platform documentation.",
     "clear": "Clear conversation",
     "loadErrorTitle": "We couldn’t load the assistant",
     "thinking": "The assistant is thinking…",
     "inputPlaceholder": "E.g.: How do I define a course’s grading periods and weights?",
     "send": "Send",
-    "emptyTitle": "Your platform assistant",
+    "emptyTitle": "Your AI Assistant",
     "emptyBody": "Ask me how to create courses and define grading periods, configure AI, manage users, issue certificates, review the audit log, and more. I answer using the ExamLab documentation.",
     "emptyHint": "If something isn’t in the documentation, I’ll suggest opening a ticket in Support.",
     "roleYou": "You",

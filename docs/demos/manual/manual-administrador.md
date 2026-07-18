@@ -247,15 +247,15 @@ Centro de ajustes de la institución, organizado en pestañas.
 
 ![Configuración](screenshots/administrador/21-admin_settings.png)
 
-### Asistente de la plataforma
+### Asistente IA
 
 Un chat de **ayuda de uso de la app**, disponible desde el menú para todos los roles. Te explica **cómo usar y configurar ExamLab como administrador**: gestionar usuarios y roles, definir la estructura académica, configurar correos y branding, elegir el modelo de IA, revisar auditoría y estadísticas, etc.
 
-- Ábrelo desde **Asistente de la plataforma** en el menú y pregunta con tus palabras.
+- Ábrelo desde **Asistente IA** en el menú y pregunta con tus palabras.
 - Adapta las respuestas a tu rol (administrador de la institución).
 - Es autoservicio: para escalar al equipo de plataforma usa el módulo **Soporte**.
 
-> No lo confundas con el **Tutor del curso**, que es el tutor con IA que acompaña a los estudiantes dentro de cada curso. El **Asistente de la plataforma** te ayuda a ti a usar ExamLab; el **Tutor del curso** ayuda al estudiante con el contenido de su curso.
+> No lo confundas con el **Tutor del curso**, que es el tutor con IA que acompaña a los estudiantes dentro de cada curso. El **Asistente IA** te ayuda a ti a usar ExamLab; el **Tutor del curso** ayuda al estudiante con el contenido de su curso.
 
 ### Mensajes (pie de página)
 

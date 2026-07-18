@@ -1,6 +1,6 @@
 # Manual de usuario — ExamLab
 
-ExamLab es una plataforma educativa con **inteligencia artificial** que reúne, en un solo lugar, todo el ciclo académico: cursos, evaluaciones, asistencia, contenidos, comunicación y actividades en vivo. La IA te ahorra horas — **genera** exámenes, talleres, proyectos y material de clase, **califica** las entregas con retroalimentación, **detecta copias** entre entregas, pone un **Tutor del curso** al servicio de los estudiantes y un **Asistente de la plataforma** que ayuda a todos los roles a usar la app. Y para dinamizar la clase, el **Reto en vivo** convierte cualquier tema en una trivia proyectable donde los estudiantes compiten desde su celular.
+ExamLab es una plataforma educativa con **inteligencia artificial** que reúne, en un solo lugar, todo el ciclo académico: cursos, evaluaciones, asistencia, contenidos, comunicación y actividades en vivo. La IA te ahorra horas — **genera** exámenes, talleres, proyectos y material de clase, **califica** las entregas con retroalimentación, **detecta copias** entre entregas, pone un **Tutor del curso** al servicio de los estudiantes y un **Asistente IA** que ayuda a todos los roles a usar la app. Y para dinamizar la clase, el **Reto en vivo** convierte cualquier tema en una trivia proyectable donde los estudiantes compiten desde su celular.
 
 Este manual está organizado por **rol**. Abre el que corresponda a tu perfil:
 

@@ -253,11 +253,11 @@ Registro de actividad para revisar qué pasó y cuándo dentro del ámbito de tu
 
 ![Auditoría](screenshots/docente/20-teacher_audit_logs.png)
 
-### Asistente de la plataforma
+### Asistente IA
 
-Un chat de **ayuda de uso de la app**, disponible desde el menú para todos los roles. A diferencia del **Tutor del curso** (que responde a tus estudiantes sobre el material del curso), el **Asistente de la plataforma** te explica **cómo usar ExamLab como docente**: crear un curso, armar y aplicar un examen, calificar con IA, definir cortes y pesos, llevar la asistencia, etc.
+Un chat de **ayuda de uso de la app**, disponible desde el menú para todos los roles. A diferencia del **Tutor del curso** (que responde a tus estudiantes sobre el material del curso), el **Asistente IA** te explica **cómo usar ExamLab como docente**: crear un curso, armar y aplicar un examen, calificar con IA, definir cortes y pesos, llevar la asistencia, etc.
 
-- Ábrelo desde **Asistente de la plataforma** en el menú y pregunta con tus palabras.
+- Ábrelo desde **Asistente IA** en el menú y pregunta con tus palabras.
 - Adapta las respuestas a tu rol: te guía en lo que **tú** puedes hacer como docente.
 - Si algo no está en la documentación, te sugiere abrir un ticket de Soporte.
 

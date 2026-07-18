@@ -48,7 +48,7 @@ Mismas franjas que la suscripción estándar de ExamLab (por cantidad de usuario
 
 ## Modelo de IA — ustedes controlan el gasto (Cola de procesamiento)
 
-La IA viene **incluida** (genera y califica exámenes, talleres y proyectos; **Tutor del curso** para estudiantes; **Asistente de la plataforma** para el administrador; detección de copia). Lo importante para el presupuesto: **el costo de la IA lo controlan ustedes**.
+La IA viene **incluida** (genera y califica exámenes, talleres y proyectos; **Tutor del curso** para estudiantes; **Asistente IA** para el administrador; detección de copia). Lo importante para el presupuesto: **el costo de la IA lo controlan ustedes**.
 
 - **Su propia API key** (Gemini / OpenAI): la IA corre con su clave → **sin sobrecosto de IA** de mi parte.
 - **O como add-on medido por consumo**, si prefieren no gestionar la clave (yo la administro y se factura por uso).

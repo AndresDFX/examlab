@@ -280,25 +280,25 @@ const USE_CASES: UseCaseDef[] = [
   {
     key: "platform_support",
     module: "support",
-    label: "Asistente de la plataforma — Administrador",
+    label: "Asistente IA — Administrador",
     description:
-      "System prompt del Asistente de la plataforma para el rol ADMIN (y SuperAdmin). Responde dudas de USO/configuración de ExamLab anclado a la documentación (platform_kb_docs). Placeholders: {{admin_name}}, {{tenant_name}}, {{current_datetime}} y {{platform_kb}}. El edge añade barandas de seguridad NO editables (no filtrar internos/precios/otras instituciones). Debe mantenerse byte-idéntico con el seed y el fallback del edge.",
+      "System prompt del Asistente IA para el rol ADMIN (y SuperAdmin). Responde dudas de USO/configuración de ExamLab anclado a la documentación (platform_kb_docs). Placeholders: {{admin_name}}, {{tenant_name}}, {{current_datetime}} y {{platform_kb}}. El edge añade barandas de seguridad NO editables (no filtrar internos/precios/otras instituciones). Debe mantenerse byte-idéntico con el seed y el fallback del edge.",
     defaultPrompt: PLATFORM_SUPPORT_FALLBACK,
   },
   {
     key: "platform_support_docente",
     module: "support",
-    label: "Asistente de la plataforma — Docente",
+    label: "Asistente IA — Docente",
     description:
-      "System prompt del Asistente de la plataforma para el rol DOCENTE. Mismo asistente, plantilla adaptada a lo que un docente puede hacer. Placeholders: {{user_name}}, {{tenant_name}}, {{current_datetime}} y {{platform_kb}}. El edge añade barandas de seguridad NO editables. Byte-idéntico con el seed y el fallback del edge.",
+      "System prompt del Asistente IA para el rol DOCENTE. Mismo asistente, plantilla adaptada a lo que un docente puede hacer. Placeholders: {{user_name}}, {{tenant_name}}, {{current_datetime}} y {{platform_kb}}. El edge añade barandas de seguridad NO editables. Byte-idéntico con el seed y el fallback del edge.",
     defaultPrompt: PLATFORM_SUPPORT_DOCENTE_FALLBACK,
   },
   {
     key: "platform_support_estudiante",
     module: "support",
-    label: "Asistente de la plataforma — Estudiante",
+    label: "Asistente IA — Estudiante",
     description:
-      "System prompt del Asistente de la plataforma para el rol ESTUDIANTE. Mismo asistente, plantilla adaptada a lo que un estudiante puede hacer. Placeholders: {{user_name}}, {{tenant_name}}, {{current_datetime}} y {{platform_kb}}. El edge añade barandas de seguridad NO editables (un estudiante no obtiene instrucciones de funciones de rol superior aunque las pida). Byte-idéntico con el seed y el fallback del edge.",
+      "System prompt del Asistente IA para el rol ESTUDIANTE. Mismo asistente, plantilla adaptada a lo que un estudiante puede hacer. Placeholders: {{user_name}}, {{tenant_name}}, {{current_datetime}} y {{platform_kb}}. El edge añade barandas de seguridad NO editables (un estudiante no obtiene instrucciones de funciones de rol superior aunque las pida). Byte-idéntico con el seed y el fallback del edge.",
     defaultPrompt: PLATFORM_SUPPORT_ESTUDIANTE_FALLBACK,
   },
 ];

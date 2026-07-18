@@ -117,7 +117,7 @@
     "errors": "Errores",
     "trash": "Papelera",
     "support": "Soporte",
-    "supportAssistant": "Asistente de la plataforma",
+    "supportAssistant": "Asistente IA",
     "academic": "Académico",
     "tenants": "Instituciones",
     "system": "Sistema",
@@ -4584,7 +4584,7 @@
     "filterModuleBranding": "Marca institucional",
     "filterModuleTutor": "Tutor del curso",
     "filterModuleReports": "Informes",
-    "filterModuleSupport": "Asistente de la plataforma",
+    "filterModuleSupport": "Asistente IA",
     "showingCount": "Mostrando {{shown}} de {{total}}",
     "brandingTitle": "Marca institucional",
     "brandingHelpHint": "Estos valores se inyectan al prompt de Generación de contenidos como {{university_name}}, {{logo_url}}, {{primary_color}} y {{secondary_color}}. Aparecen también en la portada del .pptx generado.",
@@ -4945,7 +4945,21 @@
     "connectError": "No pudimos conectarte al reto",
     "connectErrorHint": "El reto pudo haber terminado o el enlace ya no es válido.",
     "useAnotherEmail": "Usar otro correo",
-    "thanksClose": "Gracias por participar. Ya puedes cerrar esta página."
+    "thanksClose": "Gracias por participar. Ya puedes cerrar esta página.",
+    "menuHistory": "Historial de juegos",
+    "historyTitle": "Historial de juegos",
+    "historySubtitle": "Cada vez que hospedaste este reto en vivo queda registrado aquí.",
+    "historyFinished": "Finalizado",
+    "historyUnfinished": "Sin terminar",
+    "historyEmpty": "Todavía no has hospedado este reto",
+    "historyEmptyHint": "Cuando lo hospedes en vivo, cada partida aparecerá acá.",
+    "historyStatGames": "Veces jugado",
+    "historyStatPlayers": "Jugadores (total)",
+    "historyStatFinished": "Finalizados",
+    "historyColDate": "Fecha",
+    "historyColStatus": "Estado",
+    "historyColPlayers": "Jugadores",
+    "historyColWinner": "Ganador"
   },
   "questionBank": {
     "type": {
@@ -5253,7 +5267,8 @@
     "mixedInfoBody": "Al guardar se abrirá el editor de preguntas para que agregues abiertas (texto) y/o cerradas (opción única). Necesitas al menos una para publicar.",
     "slotReservationsCount": "{{count}} reserva(s)",
     "mixedResultsPrivacy": "Las respuestas abiertas solo las ve el docente.",
-    "mixedNoAnswers": "Sin respuestas todavía."
+    "mixedNoAnswers": "Sin respuestas todavía.",
+    "searchPlaceholder": "Buscar encuesta…"
   },
   "teacherAttendance": {
     "statusPresentShort": "P",
@@ -8767,14 +8782,14 @@
     "deactivatedBody": "Tu cuenta fue desactivada. Contactá al administrador de tu institución para reactivarla."
   },
   "supportAssistant": {
-    "title": "Asistente de la plataforma",
+    "title": "Asistente IA",
     "subtitle": "Pregunta cómo usar y configurar ExamLab. Responde con la documentación de la plataforma.",
     "clear": "Limpiar conversación",
     "loadErrorTitle": "No pudimos cargar el asistente",
     "thinking": "El asistente está pensando…",
     "inputPlaceholder": "Ej.: ¿Cómo defino los cortes y pesos de un curso?",
     "send": "Enviar",
-    "emptyTitle": "Tu asistente de plataforma",
+    "emptyTitle": "Tu Asistente IA",
     "emptyBody": "Pregúntame cómo crear cursos y definir cortes, configurar la IA, gestionar usuarios, emitir certificados, revisar la auditoría y más. Respondo con la documentación de ExamLab.",
     "emptyHint": "Si algo no está en la documentación, te sugeriré abrir un ticket en Soporte.",
     "roleYou": "Tú",

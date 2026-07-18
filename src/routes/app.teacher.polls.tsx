@@ -94,9 +94,12 @@ import {
   ArrowRightLeft,
   Shuffle,
   MessageSquareText,
+  Search,
+  History,
 } from "lucide-react";
 import { usePollRealtime } from "@/modules/polls/use-poll-realtime";
 import { KahootQuestionsEditor } from "@/modules/polls/KahootQuestionsEditor";
+import { KahootHistoryDialog } from "@/modules/polls/KahootHistoryDialog";
 import { PollQuestionsEditor } from "@/modules/polls/PollQuestionsEditor";
 import { optionFillPercent } from "@/modules/polls/poll-results";
 import { cn } from "@/shared/lib/utils";
@@ -219,6 +222,7 @@ function TeacherPolls() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string>("all");
   // Filtro de estado del grid: por defecto "abiertas" (oculta las cerradas,
   // incl. las que el cascade cerró al finalizar el curso). Paridad con los
@@ -244,6 +248,8 @@ function TeacherPolls() {
   const [duplicateFor, setDuplicateFor] = useState<Poll | null>(null);
   // Kahoot: encuesta cuyas preguntas se están editando (abre el editor).
   const [questionsFor, setQuestionsFor] = useState<Poll | null>(null);
+  // Kahoot: encuesta cuyo historial de juegos hospedados se está viendo.
+  const [historyFor, setHistoryFor] = useState<Poll | null>(null);
   // Mixta: encuesta cuyas preguntas (abiertas/cerradas) se están editando.
   const [mixedQuestionsFor, setMixedQuestionsFor] = useState<{ id: string; title: string } | null>(
     null,
@@ -455,6 +461,11 @@ function TeacherPolls() {
 
   const filteredPolls = useMemo(() => {
     let arr = polls;
+    // Búsqueda por título (paridad con los demás grids docentes).
+    const q = search.trim().toLowerCase();
+    if (q) {
+      arr = arr.filter((p) => (p.title ?? "").toLowerCase().includes(q));
+    }
     if (courseFilter !== "all") {
       // El filtro por curso ahora matchea contra el set linkeado (no solo
       // el ancla). Una encuesta multi-curso aparece en el filtro de
@@ -472,7 +483,7 @@ function TeacherPolls() {
       arr = arr.filter((p) => pollIsOpen(p) === wantOpen);
     }
     return arr;
-  }, [polls, courseFilter, pollStatusFilter]);
+  }, [polls, search, courseFilter, pollStatusFilter]);
 
   // Orden por columna (asc/desc al clic en el encabezado), persistido.
   const sort = useTableSort(filteredPolls, {
@@ -844,6 +855,16 @@ function TeacherPolls() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {/* Buscador por título (paridad con los demás grids docentes). */}
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("teacherPolls.searchPlaceholder", { defaultValue: "Buscar encuesta…" })}
+            className="pl-8 h-9 text-xs"
+          />
+        </div>
         {/* Filtro de estado: por defecto "abiertas" (oculta cerradas, incl. las
             que el cascade cerró al finalizar el curso). Siempre visible. */}
         <Select
@@ -1041,6 +1062,11 @@ function TeacherPolls() {
                                       disabled: hosting === p.id,
                                       onClick: () => void hostKahoot(p),
                                     },
+                                    {
+                                      label: i18n.t("kahoot.menuHistory", { defaultValue: "Historial de juegos" }),
+                                      icon: History,
+                                      onClick: () => setHistoryFor(p),
+                                    },
                                     { label: t("common.edit"), icon: Pencil, onClick: () => setEditPoll(p) },
                                     // Re-jugar un Kahoot terminado = Duplicar
                                     // (copia preguntas, nace borrador). El
@@ -1220,6 +1246,13 @@ function TeacherPolls() {
         onOpenChange={(open) => !open && setMixedQuestionsFor(null)}
         onSaved={() => setRetryNonce((n) => n + 1)}
       />
+      {historyFor && (
+        <KahootHistoryDialog
+          pollId={historyFor.id}
+          pollTitle={historyFor.title}
+          onClose={() => setHistoryFor(null)}
+        />
+      )}
     </div>
   );
 }

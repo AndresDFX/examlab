@@ -152,11 +152,11 @@ Retos tipo trivia en vivo que el docente proyecta en clase: respondes preguntas 
 
 <!-- screenshot sugerido: pantalla del jugador en un Reto en vivo (opciones de colores + cronómetro) -->
 
-### Asistente de la plataforma
+### Asistente IA
 
-Un chat de **ayuda de uso de la app**, disponible desde el menú. A diferencia del **Tutor del curso** (que responde sobre el material de tu curso), el Asistente de la plataforma te explica **cómo usar ExamLab**: cómo entregar un taller, ver tus notas, registrar tu asistencia, unirte a un reto en vivo, etc.
+Un chat de **ayuda de uso de la app**, disponible desde el menú. A diferencia del **Tutor del curso** (que responde sobre el material de tu curso), el Asistente IA te explica **cómo usar ExamLab**: cómo entregar un taller, ver tus notas, registrar tu asistencia, unirte a un reto en vivo, etc.
 
-- Ábrelo desde **Asistente de la plataforma** en el menú y pregunta con tus palabras.
+- Ábrelo desde **Asistente IA** en el menú y pregunta con tus palabras.
 - Adapta las respuestas a tu rol: como estudiante, te guía en lo que **tú** puedes hacer.
 - Si algo no está en la documentación, te sugiere a quién consultar.
 
