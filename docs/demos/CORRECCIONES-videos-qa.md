@@ -77,14 +77,12 @@ Pipeline: specs en `admin/pipeline/modules/`, se re-graban con `make.mjs <id>` +
 | 15 | Herramientas OK | ✅ | — |
 | 16 | Cron IA OK | ✅ | — |
 
-## Resumen de estado (2026-07-18)
-- ✅ **APLICADO**: fix técnico transversal (punto muerto 02/06 + s01 sync, re-grabados) ·
-  rename tutor/asistente · s05 (entrega de proyecto) · **s09 (pizarra compartida en lista)** ·
-  **s10 (chat real del tutor)** · ~19 videos que el QA marcó OK.
-- 🟡 **PARCIAL** (data lista, falta escena que abra el ejemplo): s03 (examen entrable, falta pregunta de código) · admin-02, admin-06 (punto muerto ya OK; falta la escena de ejemplo).
-- 🔴 **PENDIENTE** (escena + data + re-grabar): s02, s04, s07, s12 · t02, t03, t05, t11, t12 · admin-05, 13, 14.
-- ⚠ **Riesgo**: t03/t05 (y s02 parcialmente) piden mostrar **generación con IA en vivo**,
-  que en el entorno demo es intermitente (disponibilidad del modelo) → grabarla de forma
-  determinista no es fiable; se recomienda o bien sembrar el resultado, o narrar sin prometer la demo en vivo.
-- **Nota de método**: cada 🎬 = escena de demostración en el spec + dato en Demo Global Corp +
-  re-grabar. No es un pase automático; se hace por lotes y conviene revisar el MP4 resultante.
+## Resumen de estado (2026-07-18, CERRADO)
+Con la key de Gemini puesta en el tenant de prueba (modo sync) se completaron los ejemplos con IA + el resto.
+
+- ✅ **APLICADO — Estudiante (todos)**: s01 (sync), s02 (resalta "Tutor del curso"), s03 (examen entrable), s04 (nota + retroalimentación en la tarjeta), s05 (entrega de proyecto), s07 (card "Check-in disponible" — check-in sembrado), s09 (pizarra compartida en la lista), s10 (chat real del tutor), s12 (calendario con clases de julio sembradas).
+- ✅ **APLICADO — Docente**: t03 (**preguntas con IA en vivo**, genera + muestra el resultado), t05 (**entregables con IA**), t11 (abre el **editor de pizarra** vía route → toolbar + librerías), t12 (creación de encuesta con tipo "Reto en vivo").
+- ✅ **APLICADO — Admin**: 02/06 (punto muerto), 05 (crear contenido), 13 (ticket de soporte), 14 (papelera con item sembrado).
+- 🟡 **PARCIAL — t02**: la columna de acciones SE VE, pero abrir el menú por `rowaction:0` falla estructuralmente en el recorder (`openMenu: rect NULL`, no reproducible a ciegas). El resto del módulo (fila de curso + crear curso) sí se muestra. Limitación de la herramienta de grabación, no de la plataforma.
+- **IA en vivo — resuelto**: key de Gemini en Demo Global Corp + modo sync (verificada HTTP 200); t03/t05/05 generaron en vivo (esperas de hasta 90s). **La key es temporal**: tras grabar se revirtió la config del tenant a su estado original (sin key, modo async); el dueño rota la key por su lado.
+- **Series subidas a help-videos** (misma URL estable): serie-estudiante, serie-docente (720p), serie-admin (720p).
