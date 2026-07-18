@@ -1035,12 +1035,13 @@ export function AdminCourses() {
       ? periods.find((p) => p.id === editing.period_id)
       : null;
     const periodText = selectedPeriod?.code ?? editing.period?.trim() ?? null;
-    // Nombre / programa / código / semestre se DERIVAN de la asignatura del plan
-    // (fuente de verdad). Aunque el state ya los tiene seteados desde el onChange,
-    // los re-derivamos acá para garantizar la invariante al guardar.
+    // Programa / código / semestre se DERIVAN de la asignatura del plan (fuente
+    // de verdad de la identidad académica). El NOMBRE en cambio es PROPIO del
+    // curso: la "versión" puntual de la asignatura (grupo/jornada/cohorte) —
+    // editable en el form, con la asignatura solo como fallback si quedó vacío.
     const selectedSubject = subjects.find((s) => s.id === editing.subject_id);
     const payload = {
-      name: selectedSubject?.name ?? editing.name,
+      name: editing.name?.trim() || selectedSubject?.name || "",
       description: editing.description || null,
       period: periodText || null,
       // Opcionales: solo persistimos si tienen valor — null para limpiar.
@@ -2232,23 +2233,25 @@ export function AdminCourses() {
           </DialogHeader>
           {editing && (
             <div className="space-y-3">
-              {/* Nombre — DERIVADO de la asignatura del plan (solo lectura). El
-                  curso ya no guarda un nombre propio editable: se toma de la
-                  asignatura elegida abajo. Solo el Periodo queda como dato
-                  manual del curso. */}
+              {/* Nombre — PROPIO del curso (editable). Se PRELLENA con el nombre
+                  de la asignatura al elegirla (conveniencia), pero el curso es
+                  donde vive el nombre puntual de ESTA "versión" de la asignatura
+                  (grupo, jornada, cohorte, periodo): "Paradigmas de Programación
+                  — Grupo 2 Noche". La identidad académica (código, programa,
+                  semestre) sigue derivada de la asignatura; el nombre no. */}
               <div data-tour-id="course-field-name">
-                <Label>{t("hc_routesAppAdminCourses.fieldName")}</Label>
+                <Label required>{t("hc_routesAppAdminCourses.fieldName")}</Label>
                 <Input
                   value={editing.name ?? ""}
-                  readOnly
-                  disabled
+                  onChange={(e) => setEditing({ ...editing, name: e.target.value })}
                   placeholder={t("courses.nameFromSubjectPlaceholder", {
-                    defaultValue: "Se toma de la asignatura del plan",
+                    defaultValue: "Se prellena con la asignatura — personalízalo si quieres",
                   })}
                 />
                 <p className="text-[11px] text-muted-foreground mt-1">
                   {t("courses.nameFromSubjectHint", {
-                    defaultValue: "El nombre se toma de la asignatura del plan seleccionada.",
+                    defaultValue:
+                      "Se prellena con la asignatura del plan; puedes personalizarlo para esta versión del curso (ej. grupo, jornada o cohorte).",
                   })}
                 </p>
               </div>
@@ -2329,11 +2332,11 @@ export function AdminCourses() {
                   );
                 })()}
               </div>
-              {/* Asignatura del plan — OBLIGATORIA y FUENTE DE VERDAD del curso.
-                  Al elegirla, el curso hereda: nombre, programa, semestre, escala
-                  y pesos. Es el único driver de la identidad académica del curso;
-                  el resto de campos de arriba (nombre, programa) son solo lectura
-                  derivada, y únicamente el Periodo queda como dato manual. */}
+              {/* Asignatura del plan — OBLIGATORIA y fuente de verdad de la
+                  IDENTIDAD ACADÉMICA del curso (código, programa, semestre,
+                  escala y pesos). Al elegirla PRELLENA también el nombre como
+                  conveniencia, pero el nombre es PROPIO del curso (editable
+                  arriba) — es donde se nombra esta "versión" de la asignatura. */}
               <div data-tour-id="course-field-subject">
                 <Label required>{t("hc_routesAppAdminCourses.fieldPlanSubject")}</Label>
                 <Select
@@ -2342,11 +2345,17 @@ export function AdminCourses() {
                     const subj = subjects.find((s) => s.id === v);
                     if (!subj) return;
                     const ev = subj.sistema_evaluacion ?? {};
+                    // PREFILL inteligente del nombre: solo si está vacío o si
+                    // sigue siendo el nombre "de fábrica" de la asignatura
+                    // anterior (no personalizado). Un nombre que el admin ya
+                    // editó a mano NUNCA se pisa al cambiar de asignatura.
+                    const prevSubj = subjects.find((s) => s.id === editing.subject_id);
+                    const nameIsCustom =
+                      !!editing.name?.trim() && editing.name !== prevSubj?.name;
                     setEditing({
                       ...editing,
                       subject_id: v,
-                      // El NOMBRE del curso se toma de la asignatura.
-                      name: subj.name,
+                      name: nameIsCustom ? editing.name : subj.name,
                       // Programa + semestre heredados de la asignatura.
                       program_id: subj.program_id ?? null,
                       // El código de la asignatura queda como código del curso.

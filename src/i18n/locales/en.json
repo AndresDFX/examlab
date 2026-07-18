@@ -1122,8 +1122,8 @@
     "hideClosed": "Hide finished courses"
   },
   "courses": {
-    "nameFromSubjectPlaceholder": "Taken from the plan subject",
-    "nameFromSubjectHint": "The name is taken from the selected plan subject.",
+    "nameFromSubjectPlaceholder": "Prefilled from the subject — customize it if you want",
+    "nameFromSubjectHint": "Prefilled from the plan subject; customize it for this version of the course (e.g. group, shift or cohort).",
     "programFromSubjectPlaceholder": "Taken from the plan subject",
     "subjectRequiredPlaceholder": "Choose a plan subject",
     "noSubjectsHint": "There are no plan subjects. Create them first in Academic → Subjects to be able to create courses."

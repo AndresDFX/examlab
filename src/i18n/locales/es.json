@@ -1122,8 +1122,8 @@
     "hideClosed": "Ocultar cursos finalizados"
   },
   "courses": {
-    "nameFromSubjectPlaceholder": "Se toma de la asignatura del plan",
-    "nameFromSubjectHint": "El nombre se toma de la asignatura del plan seleccionada.",
+    "nameFromSubjectPlaceholder": "Se prellena con la asignatura — personalízalo si quieres",
+    "nameFromSubjectHint": "Se prellena con la asignatura del plan; puedes personalizarlo para esta versión del curso (ej. grupo, jornada o cohorte).",
     "programFromSubjectPlaceholder": "Se toma de la asignatura del plan",
     "subjectRequiredPlaceholder": "Elige una asignatura del plan",
     "noSubjectsHint": "No hay asignaturas en el plan. Créalas primero en Académico → Asignaturas para poder crear cursos."
