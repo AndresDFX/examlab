@@ -99,11 +99,11 @@ describe("computeQuote — costoTotal y precio", () => {
   });
   it("Starter + administración → warning (admin no ofrecido)", () => {
     const r = computeQuote(baseInput({ plan: "Starter", modelo: 2 }));
-    expect(r.warnings.some((w) => /no admite administraci/i.test(w))).toBe(true);
+    expect(r.warnings.some((w) => w.code === "admin_not_offered")).toBe(true);
   });
   it("volumen sobre el cap → warning", () => {
     const r = computeQuote(baseInput({ plan: "Pequena", matriculas: 5000 }));
-    expect(r.warnings.some((w) => /excede el cap/i.test(w))).toBe(true);
+    expect(r.warnings.some((w) => w.code === "volume_exceeds_cap")).toBe(true);
   });
 });
 

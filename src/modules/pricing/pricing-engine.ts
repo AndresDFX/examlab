@@ -119,6 +119,23 @@ export interface QuoteInput {
   certificacion: boolean;
 }
 
+/**
+ * Advertencia de negocio como CÓDIGO + params (no string), para que la UI la
+ * traduzca vía i18n. El motor es agnóstico al idioma; la calculadora mapea el
+ * code a `pricingCalculator.warn.<code>` interpolando los params.
+ */
+export interface PricingWarning {
+  code:
+    | "storage_cap"
+    | "admin_not_offered"
+    | "volume_exceeds_cap"
+    | "no_list_price"
+    | "above_list_price"
+    | "supabase_team_50k"
+    | "infra_mismatch";
+  params?: Record<string, string | number>;
+}
+
 export interface QuoteResult {
   matriculas: number;
   modalidad: "Auto" | "Administrada";
@@ -140,7 +157,7 @@ export interface QuoteResult {
   gbNecesario: number;
   gbIncluido: number;
   gbSobre: number;
-  warnings: string[];
+  warnings: PricingWarning[];
 }
 
 const clampMargen = (m: number) => Math.max(0, Math.min(0.99, m));
@@ -192,7 +209,7 @@ export function costoHumano(modelo: ModeloNegocio, a: PricingAssumptions): numbe
 }
 
 export function computeQuote(input: QuoteInput, a: PricingAssumptions = FALLBACK_ASSUMPTIONS): QuoteResult {
-  const warnings: string[] = [];
+  const warnings: PricingWarning[] = [];
   const n = Math.max(0, Math.floor(input.matriculas || 0));
   const modalidad = modalidadForModelo(input.modelo);
   const plan = a.plans[input.plan];
@@ -209,7 +226,7 @@ export function computeQuote(input: QuoteInput, a: PricingAssumptions = FALLBACK
   const gbSobre = Math.max(0, gbNecesario - gbIncluido + Math.max(0, input.storageExtraGb || 0));
   const storageOverage = gbSobre * a.storageOverageUsdGb;
   if (gbSobre > 0 && (input.storageExtraGb || 0) <= 0) {
-    warnings.push("El storage estimado rompe el cap del plan: agregar Storage extra ($10/100 GB) o subir de plan.");
+    warnings.push({ code: "storage_cap" });
   }
 
   // Humano
@@ -238,24 +255,22 @@ export function computeQuote(input: QuoteInput, a: PricingAssumptions = FALLBACK
 
   // Warnings de negocio
   if (input.modelo !== 1 && !plan.adminOfrecido) {
-    warnings.push(
-      `El plan ${input.plan} no admite administración (el costo humano no cierra margen a este precio). Usar plan Pequeña+ o modelo Autogestionado.`,
-    );
+    warnings.push({ code: "admin_not_offered", params: { plan: input.plan } });
   }
   if (plan.cap != null && n > plan.cap) {
-    warnings.push(`El volumen (${n}) excede el cap del plan ${input.plan} (${plan.cap}). Sugerir plan superior o Enterprise.`);
+    warnings.push({ code: "volume_exceeds_cap", params: { n, plan: input.plan, cap: plan.cap } });
   }
   if (modalidad === "Administrada" && precioLista == null) {
-    warnings.push("Este plan no tiene precio de lista administrada — cotizar a mano.");
+    warnings.push({ code: "no_list_price" });
   }
   if (deltaVsLista != null && deltaVsLista > 0.5) {
-    warnings.push("El precio sugerido supera el precio de lista — revisar (la lista es el piso comercial).");
+    warnings.push({ code: "above_list_price" });
   }
   if (n >= 45000) {
-    warnings.push("A ~50k matrículas se salta a Supabase Team ($599): el $/matrícula sube, renegociar.");
+    warnings.push({ code: "supabase_team_50k" });
   }
   if (Math.abs(infra - infraAtribuido) / Math.max(1, infra) > 0.3) {
-    warnings.push("Infra standalone vs amortizada difieren >30% (típico en clientes chicos: el fijo $51 sobre-atribuye).");
+    warnings.push({ code: "infra_mismatch" });
   }
 
   return {
