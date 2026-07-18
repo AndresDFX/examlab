@@ -1,0 +1,35 @@
+{
+  "id": "modulo-sa03",
+  "title": "Diagnósticos del sistema",
+  "series": "superadmin",
+  "role": "SuperAdmin",
+  "appPath": "/app/superadmin/system",
+  "readySelectors": ["text=Diagnósticos"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "El SuperAdmin también vigila la salud de la plataforma: que todo lo que la sostiene esté funcionando.",
+      "card": { "kicker": "ExamLab · SuperAdmin", "title": "Diagnósticos", "subtitle": "Salud del sistema de un vistazo" },
+      "bufferMs": 600
+    },
+    {
+      "id": "chequeos",
+      "kind": "platform",
+      "narration": "El panel de diagnósticos revisa los servicios críticos: el envío de correos, las notificaciones push, las tareas programadas y la conexión con la inteligencia artificial. Cada tarjeta muestra en verde lo que está sano y en rojo lo que necesita atención.",
+      "bufferMs": 1000,
+      "beats": [
+        { "target": "firstcard", "scale": 1.2, "hold": 4500, "side": "bottom", "focus": { "title": "Chequeos", "body": "Correo, push, cron e IA — verde/rojo." } },
+        { "target": "text:Correo", "scale": 1.4, "hold": 3500, "side": "bottom", "focus": { "title": "Correo (SMTP)", "body": "Verifica los secretos del envío de correo." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "Así, con un vistazo, el SuperAdmin confirma que la plataforma está operando bien y actúa antes de que un problema llegue a las instituciones.",
+      "card": { "kicker": "ExamLab · SuperAdmin", "title": "Operación confiable", "subtitle": "Detectar y actuar a tiempo" },
+      "bufferMs": 600
+    }
+  ]
+}

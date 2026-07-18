@@ -1,0 +1,59 @@
+{
+  "id": "modulo-sa01",
+  "title": "Panel del SuperAdmin",
+  "series": "superadmin",
+  "role": "SuperAdmin",
+  "appPath": "/app",
+  "readySelectors": ["[data-tour-nav=\"/app/superadmin/tenants\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Demostración del rol SuperAdmin en ExamLab: la operación de toda la plataforma, por encima de cada institución.",
+      "card": { "kicker": "ExamLab · Serie de demostración", "title": "Plataforma ExamLab", "subtitle": "Rol: SuperAdmin" },
+      "bufferMs": 600
+    },
+    {
+      "id": "identidad",
+      "kind": "platform",
+      "narration": "El SuperAdmin opera la plataforma completa. A diferencia de un administrador de institución, no está atado a una sola marca: gestiona todas las instituciones desde un mismo lugar.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-id=\"brand\"]", "scale": 1.7, "hold": 3600, "side": "right", "focus": { "title": "Plataforma", "body": "Vista de plataforma, no de una sola institución." } },
+        { "target": "[data-tour-id=\"role-switcher\"]", "scale": 1.6, "hold": 3400, "side": "right", "focus": { "title": "Tu rol", "body": "Operás como SuperAdmin." } }
+      ]
+    },
+    {
+      "id": "modulos",
+      "kind": "platform",
+      "narration": "Desde el menú, el SuperAdmin tiene las herramientas de plataforma: las instituciones, los diagnósticos del sistema, la calculadora de costos y el soporte a los administradores.",
+      "bufferMs": 900,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/superadmin/tenants\"]", "scale": 1.55, "hold": 2400, "side": "right", "syncWord": "instituciones", "focus": { "title": "Instituciones", "body": "Crear y administrar cada institución." } },
+        { "target": "[data-tour-nav=\"/app/superadmin/system\"]", "scale": 1.55, "hold": 2200, "side": "right", "syncWord": "diagnósticos", "focus": { "title": "Diagnósticos", "body": "Salud del sistema de un vistazo." } },
+        { "target": "[data-tour-nav=\"/app/superadmin/pricing-calculator\"]", "scale": 1.55, "hold": 2200, "side": "right", "syncWord": "costos", "focus": { "title": "Costos", "body": "Calculadora interna de precio." } },
+        { "target": "[data-tour-nav=\"/app/superadmin/support\"]", "scale": 1.55, "hold": 2400, "side": "right", "syncWord": "soporte", "focus": { "title": "Soporte", "body": "Peticiones de los administradores." } }
+      ]
+    },
+    {
+      "id": "dashboard",
+      "kind": "platform",
+      "narration": "El panel resume la plataforma entera: cuántas instituciones, usuarios y cursos hay en total, y el trabajo de inteligencia artificial pendiente. Debajo, las instituciones recientes y la actividad reciente de todo el sistema.",
+      "bufferMs": 700,
+      "beats": [
+        { "target": "stat:0", "scale": 1.7, "hold": 1600, "side": "bottom", "syncWord": "instituciones", "focus": { "title": "Instituciones", "body": "Total de instituciones en la plataforma." } },
+        { "target": "stat:1", "scale": 1.7, "hold": 1500, "side": "bottom", "syncWord": "usuarios", "focus": { "title": "Usuarios", "body": "Personas en todas las instituciones." } },
+        { "target": "card:Instituciones recientes", "scale": 1.3, "hold": 2000, "side": "bottom", "syncWord": "instituciones", "syncOccurrence": 2, "focus": { "title": "Instituciones recientes", "body": "Las últimas instituciones creadas." } },
+        { "target": "card:Actividad reciente", "scale": 1.3, "hold": 2600, "side": "bottom", "syncWord": "actividad", "focus": { "title": "Actividad reciente", "body": "Eventos de todo el sistema, en vivo." } }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "Así, desde un solo panel, el SuperAdmin ve el estado de toda la plataforma y llega a cada herramienta de operación con un clic.",
+      "card": { "kicker": "ExamLab · Rol SuperAdmin", "title": "Operación de plataforma", "subtitle": "Una vista sobre todas las instituciones" },
+      "bufferMs": 600
+    }
+  ]
+}
