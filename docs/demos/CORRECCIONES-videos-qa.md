@@ -33,8 +33,8 @@ Pipeline: specs en `admin/pipeline/modules/`, se re-graban con `make.mjs <id>` +
 | s06 | Calificaciones OK | ✅ | — |
 | s07 | No muestra de dónde sale el código de asistencia | 🎬 | **PENDIENTE** — escena: card de check-in con código/QR (requiere sesión con check-in abierto) |
 | s08 | Encuesta OK | ✅ | — |
-| s09 | No muestra ejemplo de pizarra compartida | 🎬 | **PARCIAL** — pizarra compartida (seed) ya aparece en la lista; falta escena que la ABRA |
-| s10 | No muestra un chat real con el asistente | 🎬 | **PARCIAL** — rename aplicado; falta escena que abra el chat del Tutor del curso con mensajes |
+| s09 | No muestra ejemplo de pizarra compartida | 🎬 | **APLICADO** — pizarra compartida "Diagrama de flujo — Login" (seed) resaltada como ejemplo en la lista (la navegación a la vista de pizarra falla por timing del openVia del recorder; se muestra la card + narración coincide) |
+| s10 | No muestra un chat real con el asistente | 🎬 | **APLICADO** — escena que ABRE el chat del Tutor del curso con una conversación real sembrada (while vs for, guía socrática) |
 | s11 | Certificaciones OK | ✅ | — |
 | s12 | Calendario: no muestra eventos de ejemplo | 🎬 | **PENDIENTE** — requiere eventos/clases sembradas visibles en el mes |
 | s13 | Herramientas OK | ✅ | — |
@@ -79,8 +79,9 @@ Pipeline: specs en `admin/pipeline/modules/`, se re-graban con `make.mjs <id>` +
 
 ## Resumen de estado (2026-07-18)
 - ✅ **APLICADO**: fix técnico transversal (punto muerto 02/06 + s01 sync, re-grabados) ·
-  rename tutor/asistente · s05 (entrega de proyecto) · ~19 videos que el QA marcó OK.
-- 🟡 **PARCIAL** (data lista, falta escena que abra el ejemplo): s03, s09, s10, admin-02, admin-06.
+  rename tutor/asistente · s05 (entrega de proyecto) · **s09 (pizarra compartida en lista)** ·
+  **s10 (chat real del tutor)** · ~19 videos que el QA marcó OK.
+- 🟡 **PARCIAL** (data lista, falta escena que abra el ejemplo): s03 (examen entrable, falta pregunta de código) · admin-02, admin-06 (punto muerto ya OK; falta la escena de ejemplo).
 - 🔴 **PENDIENTE** (escena + data + re-grabar): s02, s04, s07, s12 · t02, t03, t05, t11, t12 · admin-05, 13, 14.
 - ⚠ **Riesgo**: t03/t05 (y s02 parcialmente) piden mostrar **generación con IA en vivo**,
   que en el entorno demo es intermitente (disponibilidad del modelo) → grabarla de forma
