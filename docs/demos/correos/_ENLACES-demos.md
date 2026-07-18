@@ -12,6 +12,7 @@ cruda). La **presentación general** es la que se comparte siempre por ahora.
 | **Serie Administrador** (completa) | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4 |
 | **Serie Docente** (completa) | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4 |
 | **Serie Estudiante** (completa) | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4 |
+| **Serie SuperAdmin** (completa) | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-superadmin.mp4 |
 
 > El **manual de usuario** no se incluye en esta versión de los correos (se agregará más adelante).
 

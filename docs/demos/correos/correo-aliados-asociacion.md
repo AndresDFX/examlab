@@ -46,7 +46,10 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 > - 🛠️ Todas las funcionalidades — Administrador: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4)
 > - 👩‍🏫 Todas las funcionalidades — Docente: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4)
 > - 🎓 Todas las funcionalidades — Estudiante: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
+> - 🏢 Operación de plataforma — SuperAdmin: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-superadmin.mp4)
 > - 📊 Presentación general: [Abrir presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
+>
+> **Y para que la pruebes con tus propias manos**, te dejé acceso de **Administrador** en nuestra institución de demostración **Demo Global Corp**: entra a https://examlab.lovable.app, selecciona *Demo Global Corp* al iniciar sesión, y usa las credenciales que te comparto por separado. Así navegas todo el rol Admin sin tocar datos reales.
 >
 > Te adjunto la **presentación del programa** con el detalle. Si te suena, armamos una llamada corta y dejamos por escrito modalidad y %. ¿Le entramos? 🚀
 
@@ -63,7 +66,7 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 > Gratis asociarse y te paso todo para vender (demos + presentaciones + cuentas de prueba). Te mando la presentación 👇 ¿lo miramos? 🚀
 >
 > 🎬 Videos y presentación:
-> 📹 [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · 🛠️ [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · 📊 [Presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
+> 📹 [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · 🛠️ [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · 🏢 [SuperAdmin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-superadmin.mp4) · 📊 [Presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
 
 ---
 

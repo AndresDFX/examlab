@@ -15,8 +15,12 @@ const MODULE_PATH = process.argv[2] ?? "C:/Temp/examlab-rec/modules/module-01.js
 const spec = JSON.parse(readFileSync(MODULE_PATH, "utf8"));
 const INFO = JSON.parse(readFileSync("C:/Temp/examlab-rec/tenant-info.json", "utf8"));
 const APP_URL = INFO.appUrl ?? "https://examlab.lovable.app";
-const EMAIL = INFO.adminCreds.email;
-const PASSWORD = INFO.adminCreds.password;
+// SuperAdmin (role="SuperAdmin"): cuenta cross-tenant (no pertenece a una
+// institución). Usa `superAdminCreds` de tenant-info.json y en el login elige
+// la opción "vista cross-tenant" en vez de una institución.
+const IS_SA = spec.role === "SuperAdmin";
+const EMAIL = IS_SA ? (INFO.superAdminCreds?.email ?? INFO.adminCreds.email) : INFO.adminCreds.email;
+const PASSWORD = IS_SA ? (INFO.superAdminCreds?.password ?? INFO.adminCreds.password) : INFO.adminCreds.password;
 const TENANT_NAME = INFO.tenant.name;
 const OUT = "C:/Temp/examlab-rec/out";
 const AUDIO = "C:/Temp/examlab-rec/audio2";
@@ -518,7 +522,12 @@ async function loginAndGetState(browser) {
   await page.waitForSelector('input[type="email"]', { timeout: 20000 });
   await page.locator("#li-tenant").click();
   await page.waitForSelector('[role="option"]', { timeout: 5000 });
-  await page.getByRole("option", { name: TENANT_NAME, exact: true }).first().click();
+  if (IS_SA) {
+    // SuperAdmin: opción "— SuperAdmin: vista cross-tenant —" (sin institución).
+    await page.getByRole("option", { name: /cross-tenant/i }).first().click();
+  } else {
+    await page.getByRole("option", { name: TENANT_NAME, exact: true }).first().click();
+  }
   await page.fill('input[type="email"]', EMAIL);
   await page.fill('input[type="password"]', PASSWORD);
   await page.waitForFunction(() => { const b = document.querySelector('button[type="submit"]'); return b && !b.disabled; }, { timeout: 8000 }).catch(() => {});
