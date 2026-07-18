@@ -137,7 +137,7 @@ const MODULES: Array<{
   { key: "calendar", label: "Calendario" },
   // Mismo nombre que el sidebar (`nav.studentCertificates: "Certificaciones"`).
   { key: "certificates", label: "Certificaciones" },
-  { key: "tutor", label: "Asistente IA" },
+  { key: "tutor", label: "Tutor del curso" },
   { key: "question_bank", label: "Banco de preguntas" },
   // Sidebar dice solo "Prompts" — eliminamos el sufijo "IA".
   { key: "ai_prompts", label: "Prompts" },
@@ -161,7 +161,7 @@ const MODULES: Array<{
   { key: "support", label: "Soporte" },
   // Asistente IA de plataforma — chat de ayuda de uso para el Admin.
   // Solo aplica a Admin y SuperAdmin (Docente/Estudiante sin pantalla).
-  { key: "support_assistant", label: "Asistente IA" },
+  { key: "support_assistant", label: "Asistente de la plataforma" },
   // Sidebar dice "Videos" — quitamos "Biblioteca de" del label aunque
   // el módulo SEA conceptualmente una biblioteca.
   { key: "videos", label: "Videos" },

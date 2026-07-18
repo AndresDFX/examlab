@@ -46,7 +46,7 @@
       "kind": "card",
       "route": "/app/teacher/attendance",
       "narration": "Y mucho más:",
-      "card": { "kicker": "", "title": "Todo en un lugar", "subtitle": "asistencia · tutor IA" },
+      "card": { "kicker": "", "title": "Todo en un lugar", "subtitle": "asistencia · tutor del curso" },
       "bufferMs": 400
     },
     {

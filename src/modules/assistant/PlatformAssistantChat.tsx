@@ -214,7 +214,7 @@ export function PlatformAssistantChat() {
     <div className="container mx-auto space-y-4 p-4 sm:p-6">
       <PageHeader
         icon={<Bot className="h-6 w-6 text-indigo-500" />}
-        title={t("supportAssistant.title", { defaultValue: "Asistente IA de plataforma" })}
+        title={t("supportAssistant.title", { defaultValue: "Asistente de la plataforma" })}
         subtitle={t("supportAssistant.subtitle", {
           defaultValue:
             "Pregunta cómo usar ExamLab. Responde con la documentación de la plataforma, adaptada a tu rol.",

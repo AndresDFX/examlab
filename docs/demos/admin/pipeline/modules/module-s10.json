@@ -1,6 +1,6 @@
 {
   "id": "modulo-s10",
-  "title": "Tutor IA (Estudiante)",
+  "title": "Tutor del curso (Estudiante)",
   "series": "student",
   "role": "Estudiante",
   "appPath": "/app/student/tutor",
@@ -16,10 +16,10 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "El Asistente IA, desde el rol Estudiante.",
+      "narration": "El Tutor del curso, desde el rol Estudiante.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Tutor IA",
+        "title": "Tutor del curso",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200
@@ -36,7 +36,7 @@
           "hold": 3600,
           "side": "right",
           "focus": {
-            "title": "Tutor IA",
+            "title": "Tutor del curso",
             "body": "Tu acompañante de estudio."
           }
         },
