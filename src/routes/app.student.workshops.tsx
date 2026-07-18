@@ -817,7 +817,7 @@ function StudentWorkshops() {
                 para tener más espacio al resolver. Persistido. El botón va
                 con margen derecho para no chocar con la X de cierre. */}
             <div className="flex items-center justify-between gap-2 pr-7">
-              <DialogTitle className="truncate">{questionsWs?.workshop.title}</DialogTitle>
+              <DialogTitle className="min-w-0 flex-1 truncate">{questionsWs?.workshop.title}</DialogTitle>
               <Button
                 type="button"
                 variant="ghost"

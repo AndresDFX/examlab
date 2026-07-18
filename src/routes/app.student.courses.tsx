@@ -683,7 +683,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
 
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div className="space-y-1 min-w-0">
               <CardTitle className="text-lg truncate">{course.name}</CardTitle>
               {course.description && (
@@ -1142,17 +1142,17 @@ function ScheduledItemBadge({ item }: { item: ScheduledItem }) {
         ? `/app/student/project/${item.id}`
         : `/app/student/exams`;
   return (
-    <Link to={href}>
+    <Link to={href} className="max-w-full min-w-0">
       <Badge
         variant="outline"
-        className={`text-[11px] flex items-center gap-1 cursor-pointer hover:bg-muted/60 transition-colors ${
+        className={`text-[11px] flex items-center gap-1 max-w-[220px] cursor-pointer hover:bg-muted/60 transition-colors ${
           isPastDue
             ? "border-amber-400/60 bg-amber-50/40 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
             : ""
         }`}
       >
         {icon}
-        {item.title}
+        <span className="truncate">{item.title}</span>
       </Badge>
     </Link>
   );
@@ -1503,7 +1503,7 @@ function SubscribeCalendarButton() {
         <button
           type="button"
           onClick={() => void showFallback()}
-          className="text-[10px] text-muted-foreground underline hover:text-foreground"
+          className="inline-flex items-center min-h-8 py-1.5 text-[10px] text-muted-foreground underline hover:text-foreground"
         >
           {t("courseBoard.subscribeFallbackLink")}
         </button>

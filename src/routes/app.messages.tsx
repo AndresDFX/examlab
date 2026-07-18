@@ -1615,7 +1615,7 @@ function MessagesPage() {
               <>
                 {/* Toolbar bulk: visible cuando hay selección */}
                 {selectedConvIds.size > 0 && (
-                  <div className="sticky top-0 z-10 flex items-center gap-1 border-b bg-background/95 px-2 py-1.5 backdrop-blur">
+                  <div className="sticky top-0 z-10 flex flex-wrap items-center gap-1 border-b bg-background/95 px-2 py-1.5 backdrop-blur">
                     <span className="text-xs font-medium mr-1">
                       {t("hc_routesAppMessages.conversationsSelected", {
                         count: selectedConvIds.size,
@@ -2245,12 +2245,12 @@ function MessagesPage() {
                                         )}
                                       </p>
                                       {!selectMode && eligibleForBulk && (
-                                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                           <Button
                                             type="button"
                                             variant="ghost"
                                             size="icon"
-                                            className="h-5 w-5 text-primary-foreground hover:text-primary-foreground"
+                                            className="h-8 w-8 text-primary-foreground hover:text-primary-foreground"
                                             onClick={() => startEdit(m)}
                                             title={t("hc_routesAppMessages.editMessage")}
                                             aria-label={t("hc_routesAppMessages.editMessageAria", {
@@ -2263,7 +2263,7 @@ function MessagesPage() {
                                             type="button"
                                             variant="ghost"
                                             size="icon"
-                                            className="h-5 w-5 text-primary-foreground hover:text-primary-foreground"
+                                            className="h-8 w-8 text-primary-foreground hover:text-primary-foreground"
                                             onClick={() => void deleteMessage(m)}
                                             title={t("hc_routesAppMessages.deleteMessage")}
                                             aria-label={t("hc_routesAppMessages.deleteMessageAria", {

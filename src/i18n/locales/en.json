@@ -4959,7 +4959,8 @@
     "historyColDate": "Date",
     "historyColStatus": "Status",
     "historyColPlayers": "Players",
-    "historyColWinner": "Winner"
+    "historyColWinner": "Winner",
+    "emailPlaceholder": "your.name@institution.edu"
   },
   "questionBank": {
     "type": {
@@ -5364,7 +5365,10 @@
     "duplicateCopySnippetsHint": "Clones the prepared snippets (without the output of their last run).",
     "noContent": "No content",
     "contentPickerSearchPlaceholder": "Search by name or topic…",
-    "noResults": "No results."
+    "noResults": "No results.",
+    "csvName": "name",
+    "csvEmail": "email",
+    "csvAttendancePct": "% Attendance"
   },
   "privacy": {
     "lastUpdated": "Last updated: {{date}}",

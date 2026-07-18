@@ -750,7 +750,7 @@ function StudentGrades() {
           ) : (
             cutsBreakdown.map((cb) => (
               <Card key={cb.cut.id}>
-                <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+                <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 space-y-0">
                   <div>
                     <CardTitle className="text-base">{cb.cut.name}</CardTitle>
                     <p className="text-xs text-muted-foreground">

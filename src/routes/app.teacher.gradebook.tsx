@@ -2331,9 +2331,9 @@ function renderCutDetailGrouped({
                 const att = attendanceFor(s.id);
                 return (
                   <TableRow key={s.id}>
-                    <TableCell className="sticky left-0 z-10 bg-card">
-                      <div className="font-medium text-sm">{s.full_name}</div>
-                      <div className="text-xs text-muted-foreground">{s.institutional_email}</div>
+                    <TableCell className="sticky left-0 z-10 bg-card max-w-36 sm:max-w-48">
+                      <div className="font-medium text-sm truncate" title={s.full_name}>{s.full_name}</div>
+                      <div className="text-xs text-muted-foreground truncate" title={s.institutional_email}>{s.institutional_email}</div>
                     </TableCell>
                     {showWorkshops && (
                       <TableCell className="text-center text-sm tabular-nums">
@@ -2758,9 +2758,9 @@ function renderEditableGrid({
           )}
           {students.map((s) => (
             <TableRow key={s.id}>
-              <TableCell className="sticky left-0 z-10 bg-card">
-                <div className="font-medium text-sm">{s.full_name}</div>
-                <div className="text-xs text-muted-foreground">{s.institutional_email}</div>
+              <TableCell className="sticky left-0 z-10 bg-card max-w-36 sm:max-w-48">
+                <div className="font-medium text-sm truncate" title={s.full_name}>{s.full_name}</div>
+                <div className="text-xs text-muted-foreground truncate" title={s.institutional_email}>{s.institutional_email}</div>
               </TableCell>
               {columns.map((col) => {
                 const g = getGrade(s.id, col);

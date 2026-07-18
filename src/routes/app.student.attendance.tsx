@@ -711,7 +711,7 @@ function StudentAttendance() {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-7 px-2 text-[11px]"
+                                    className="h-8 px-2 text-[11px]"
                                     onClick={() => {
                                       const { kind, src } = buildVideoEmbedUrl(video.url);
                                       setRecordingDialog({
@@ -731,7 +731,7 @@ function StudentAttendance() {
                                     asChild
                                     size="sm"
                                     variant="outline"
-                                    className="h-7 px-2 text-[11px]"
+                                    className="h-8 px-2 text-[11px]"
                                   >
                                     <a
                                       href={s.recording_url}
@@ -751,7 +751,7 @@ function StudentAttendance() {
                                     asChild
                                     size="sm"
                                     variant="outline"
-                                    className="h-7 px-2 text-[11px]"
+                                    className="h-8 px-2 text-[11px]"
                                   >
                                     <a
                                       href={s.notes_url}
@@ -777,7 +777,7 @@ function StudentAttendance() {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-7 px-2 text-[11px]"
+                                    className="h-8 px-2 text-[11px]"
                                     onClick={() =>
                                       setSnippetsSession({
                                         id: s.id,
@@ -797,7 +797,7 @@ function StudentAttendance() {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-7 px-2 text-[11px] border-sky-400/60 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/30"
+                                    className="h-8 px-2 text-[11px] border-sky-400/60 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/30"
                                     onClick={() =>
                                       setSharedWhiteboardSession({
                                         id: s.id,
@@ -978,7 +978,7 @@ function CheckInDialog({
       onClick={onClose}
     >
       <div
-        className="bg-card border rounded-lg shadow-lg w-full max-w-sm p-4"
+        className="bg-card border rounded-lg shadow-lg w-full max-w-sm p-4 max-h-[85dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="text-base font-semibold mb-3">{title}</div>

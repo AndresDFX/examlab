@@ -837,14 +837,18 @@ function TeacherAttendance() {
   const buildAttendanceCsv = (): string => {
     if (!sessions.length || !students.length) return "";
     const csvRows = students.map((s) => {
-      const row: any = { nombre: s.full_name, email: s.institutional_email };
+      const row: any = {
+        [t("teacherAttendance.csvName", { defaultValue: "nombre" })]: s.full_name,
+        [t("teacherAttendance.csvEmail", { defaultValue: "email" })]: s.institutional_email,
+      };
       sessions.forEach((sess) => {
         const label = sess.title ? `${sess.session_date} - ${sess.title}` : sess.session_date;
         row[label] = getStatus(sess.id, s.id) || "—";
       });
       const total = sessions.length;
       const present = sessions.filter((sess) => getStatus(sess.id, s.id) === "presente").length;
-      row["% Asistencia"] = total > 0 ? `${Math.round((present / total) * 100)}%` : "—";
+      row[t("teacherAttendance.csvAttendancePct", { defaultValue: "% Asistencia" })] =
+        total > 0 ? `${Math.round((present / total) * 100)}%` : "—";
       return row;
     });
     return toCSV(csvRows);

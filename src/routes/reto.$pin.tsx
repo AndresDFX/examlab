@@ -170,7 +170,7 @@ function EmailGate({ pin, onJoined }: { pin: string; onJoined: (p: StoredPlayer)
                 autoComplete="email"
                 autoCapitalize="none"
                 spellCheck={false}
-                placeholder="tu.nombre@institucion.edu.co"
+                placeholder={t("kahoot.emailPlaceholder", { defaultValue: "tu.nombre@institucion.edu.co" })}
                 className="pl-9"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -310,7 +310,7 @@ function RetoPlay({
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/40 flex flex-col items-center justify-center p-4 gap-5">
       {/* Encabezado del jugador */}
-      <div className="w-full max-w-md flex items-center justify-between">
+      <div className="w-full max-w-md flex flex-wrap items-center justify-between gap-2">
         <Badge variant="secondary" className="text-sm py-1 px-3 max-w-[60vw] truncate">
           {me?.nickname ?? player.nickname}
         </Badge>

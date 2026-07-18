@@ -3280,7 +3280,7 @@ function ResultsDialog({
                                 <Spinner size="xs" />
                               ) : (
                                 <RowActionsMenu
-                                  className="h-5 w-5 shrink-0"
+                                  className="h-8 w-8 shrink-0"
                                   label={t("teacherPolls.manageVoteAria", { name: display })}
                                   actions={[
                                     ...freeSlots.map((fs) => ({
@@ -3305,7 +3305,7 @@ function ResultsDialog({
                                 type="button"
                                 size="icon"
                                 variant="ghost"
-                                className="h-4 w-4 shrink-0 text-muted-foreground hover:text-destructive"
+                                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                                 disabled={isClearing}
                                 onClick={() => void clearVoteFor(v.user_id, v.full_name)}
                                 title={t("teacherPolls.clearVoteTitle")}
@@ -3559,7 +3559,7 @@ function MixedResultsDialog({
                                         type="button"
                                         size="icon"
                                         variant="ghost"
-                                        className="h-4 w-4 shrink-0 text-muted-foreground hover:text-destructive"
+                                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                                         disabled={clearing.has(key)}
                                         onClick={() => void clearOne(q.id, v.user_id, v.full_name)}
                                         title={t("teacherPolls.clearVoteTitle")}
@@ -3602,7 +3602,7 @@ function MixedResultsDialog({
                                   type="button"
                                   size="icon"
                                   variant="ghost"
-                                  className="h-5 w-5 shrink-0 text-muted-foreground hover:text-destructive"
+                                  className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                                   disabled={clearing.has(key)}
                                   onClick={() => void clearOne(q.id, r.user_id, r.full_name)}
                                   title={t("teacherPolls.clearVoteTitle")}
