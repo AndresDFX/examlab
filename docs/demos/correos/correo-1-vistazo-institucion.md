@@ -21,7 +21,7 @@ Y si quieres ir más a fondo, acá están los **recorridos completos** por cada 
 - **Docente:** [Ver recorrido completo](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4)
 - **Estudiante:** [Ver recorrido completo](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
 
-Te comparto también la **[presentación general](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)** con los puntos clave de la plataforma, por si quieres tenerla a mano.
+Te comparto también la **[presentación general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)** con los puntos clave de la plataforma, por si quieres tenerla a mano.
 
 Míralo con calma cuando tengas un rato y me cuentas qué te parece. Cualquier duda me escribes y lo vemos. 🙌
 

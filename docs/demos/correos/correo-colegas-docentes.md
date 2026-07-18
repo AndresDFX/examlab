@@ -34,7 +34,7 @@ Para gente con la que **eres docente** (pares). Tono de colega a colega: que lo 
 > - 🛠️ Todas las funcionalidades — Administrador: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4)
 > - 👩‍🏫 Todas las funcionalidades — Docente: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4)
 > - 🎓 Todas las funcionalidades — Estudiante: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
-> - 📊 Presentación general: [Abrir presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
+> - 📊 Presentación general: [Abrir presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)
 >
 > Si después de verla te gusta y crees que a otros profes les serviría, **pásala** — ese es el mejor favor que me puedes hacer 🙌. Y cualquier comentario, por crudo que sea, lo recibo feliz.
 >
@@ -55,7 +55,7 @@ Para gente con la que **eres docente** (pares). Tono de colega a colega: que lo 
 > Pruébala: crea un **curso** y deja que la **IA te arme un examen o taller**. Si te gusta y crees que a otros profes les sirve, **pásala** 🙌. Cualquier comentario, bienvenido.
 >
 > 🎬 Videos y presentación:
-> 📹 [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · 🛠️ [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · 📊 [Presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
+> 📹 [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · 🛠️ [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · 📊 [Presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)
 
 **Variante B — más corta y directa:**
 
@@ -64,7 +64,7 @@ Para gente con la que **eres docente** (pares). Tono de colega a colega: que lo 
 > Te paso **cuenta de prueba gratis** (limitada): 🔗 https://examlab.lovable.app/auth → *ExamLab Demo* → `[tu correo demo]` / `ExamlabDemo2026`. Crea un curso y deja que la IA te arme un examen 🤖. Si te gusta, **pásala** 🙌
 >
 > 🎬 Videos y presentación:
-> 📹 [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · 🛠️ [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · 📊 [Presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
+> 📹 [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · 🛠️ [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · 📊 [Presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)
 
 ---
 

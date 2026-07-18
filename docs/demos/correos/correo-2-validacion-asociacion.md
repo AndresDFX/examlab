@@ -24,7 +24,7 @@ Te dejo todo para que lo revises a tu ritmo:
 - Estudiante: [Ver recorrido completo](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
 
 **3) Presentaciones**
-- **[General](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)** — qué es y qué hace la plataforma.
+- **[General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)** — qué es y qué hace la plataforma.
 - **Comercial** — el modelo de planes (se diferencian por cantidad de usuarios; las funciones son las mismas en todos, y el API key de IA lo pone la institución) para que veamos números y viabilidad.
 
 Lo que me interesa de ti: cómo lo ves funcionando en una institución real, qué le falta o le sobra, y si tiene sentido que **nos asociemos** para llevarlo a clientes. Cuando lo revises, armamos una llamada y lo aterrizamos.

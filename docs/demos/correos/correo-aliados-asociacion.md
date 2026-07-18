@@ -2,7 +2,7 @@
 
 Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una **comisión** por cada una. Tono informal.
 
-> **Adjuntar:** [`../presentacion/ExamLab-Presentacion-Aliados.pptx`](../presentacion/ExamLab-Presentacion-Aliados.pptx) (el programa con los % y ejemplos de ganancia).
+> **Presentación del programa** (link estable, o adjunta el archivo): https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-aliados.pptx (el programa con los % y ejemplos de ganancia).
 
 ---
 
@@ -47,7 +47,7 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 > - 👩‍🏫 Todas las funcionalidades — Docente: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4)
 > - 🎓 Todas las funcionalidades — Estudiante: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
 > - 🏢 Operación de plataforma — SuperAdmin: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-superadmin.mp4)
-> - 📊 Presentación general: [Abrir presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
+> - 📊 Presentación general: [Abrir presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)
 >
 > **Y para que la pruebes con tus propias manos**, te dejé acceso de **Administrador** en nuestra institución de demostración **Demo Global Corp**: entra a https://examlab.lovable.app, selecciona *Demo Global Corp* al iniciar sesión, y usa las credenciales que te comparto por separado. Así navegas todo el rol Admin sin tocar datos reales.
 >
@@ -66,7 +66,7 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 > Gratis asociarse y te paso todo para vender (demos + presentaciones + cuentas de prueba). Te mando la presentación 👇 ¿lo miramos? 🚀
 >
 > 🎬 Videos y presentación:
-> 📹 [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · 🛠️ [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · 🏢 [SuperAdmin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-superadmin.mp4) · 📊 [Presentación](https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true)
+> 📹 [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · 🛠️ [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · 🏢 [SuperAdmin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-superadmin.mp4) · 📊 [Presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)
 
 ---
 
@@ -81,10 +81,10 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 
 ## Notas para ti (borrar antes de enviar)
 
-- **Adjunta** la presentación [`../presentacion/ExamLab-Presentacion-Aliados.pptx`](../presentacion/ExamLab-Presentacion-Aliados.pptx).
+- **Presentación del programa**: comparte el link estable https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-aliados.pptx (o adjunta `../presentacion/ExamLab-Presentacion-Aliados.pptx` si prefieres archivo).
 - **Ajusta los %** (10 / 15 / 20) y los ejemplos a tu política comercial real antes de comprometerlos. Los precios usados ($149 / $349 / $799, planes Pequeña/Mediana/Grande **v3**) son los de referencia de la presentación comercial — manténlos sincronizados (ver [`../../costos/analisis/modelo-precios-v3.md`](../../costos/analisis/modelo-precios-v3.md)).
 - Reemplaza `[Nombre]` y, en la presentación (última diapositiva), `[tu correo / WhatsApp aquí]`.
-- **Videos y presentación ya embebidos** (Supabase Storage / Google Slides) en ambas versiones. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). El **manual** no va en esta versión de los correos.
+- **Videos y presentación ya embebidos** (Supabase Storage — links estables) en ambas versiones. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). El **manual** no va en esta versión de los correos.
   - (Clip corto para WhatsApp/redes, si lo quieres adjuntar aparte: `../social/output/modulo-social.mp4`)
 - En WhatsApp el texto del enlace `[Ver](url)` no se renderiza como en el correo; al pegarlo, deja que WhatsApp muestre la URL clickeable o usa un acortador.
 - Si tras asociarse el aliado va a mostrar la plataforma, entrégale una cuenta de prueba con [`correo-entrega-cuenta-docente.md`](correo-entrega-cuenta-docente.md).

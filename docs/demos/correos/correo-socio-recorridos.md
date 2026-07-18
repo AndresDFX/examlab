@@ -5,9 +5,10 @@
 > Reemplaza `{{NOMBRE}}` y el destinatario antes de enviar. NO se envía solo:
 > lo copias/envías tú desde tu correo.
 >
-> Enlaces de video: bucket público `help-videos` de Supabase. El de **SuperAdmin**
-> queda activo en cuanto subas los 6 MP4 de `docs/demos/superadmin/` a ese bucket
-> (dashboard de Supabase). Los otros tres ya están en línea.
+> Enlaces: videos en el bucket público `help-videos` y presentación en
+> `help-docs` (Supabase Storage, links ESTABLES — si el archivo cambia se
+> re-sube al mismo nombre y el link se mantiene). Los 4 videos de rol ya
+> están en línea, incluido el de SuperAdmin.
 
 **Para:** {{CORREO_SOCIO}}
 **Asunto:** ExamLab — recorrido completo por rol + acceso para que la pruebes 🤝
@@ -33,7 +34,7 @@ mensajería, certificados y más.
   https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4
 
 **📊 Presentación comercial de la plataforma** (planes, alcance y propuesta de valor):
-https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing
+https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx
 
 **🔑 Y para que la pruebes tú mismo** — te dejé acceso de **Administrador** en nuestra
 institución de demostración **Demo Global Corp**:

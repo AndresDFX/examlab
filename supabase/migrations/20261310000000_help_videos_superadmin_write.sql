@@ -10,6 +10,19 @@
 DO $$
 BEGIN
   IF to_regclass('storage.objects') IS NOT NULL THEN
+    -- SELECT para authenticated (igual que tenant_logos_select): el bucket es
+    -- público (las lecturas van por la URL pública), pero el INSERT de
+    -- storage-api usa RETURNING → la RLS exige TAMBIÉN una policy de SELECT
+    -- sobre la fila nueva, o el upload falla 403 "new row violates row-level
+    -- security policy" AUNQUE la policy de INSERT pase (verificado en prod:
+    -- el INSERT directo a storage.objects pasaba y el upload HTTP no).
+    DROP POLICY IF EXISTS help_videos_select ON storage.objects;
+    CREATE POLICY help_videos_select
+      ON storage.objects
+      FOR SELECT
+      TO authenticated
+      USING (bucket_id = 'help-videos');
+
     DROP POLICY IF EXISTS help_videos_insert_superadmin ON storage.objects;
     CREATE POLICY help_videos_insert_superadmin
       ON storage.objects

@@ -5,9 +5,19 @@ Fuente única de los enlaces que se embeben en los correos/WhatsApp de
 cada correo** (van embebidos como `[texto](enlace)` para no mostrar la URL
 cruda). La **presentación general** es la que se comparte siempre por ahora.
 
+> **Links estables**: videos en el bucket `help-videos` y presentaciones en
+> `help-docs` (ambos públicos, Supabase Storage). Si un archivo cambia, se
+> re-sube al MISMO nombre (upsert) y el enlace se mantiene — no usar
+> Drive/Slides, cuyos links cambian por archivo.
+
 | Recurso | Enlace |
 |---|---|
-| **Presentación general** (Google Slides) | https://docs.google.com/presentation/d/1sWge1X-VYNdHr8DaFsDZex77PXDS42Z_/edit?usp=sharing&ouid=100422511609582840150&rtpof=true&sd=true |
+| **Presentación general** | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx |
+| **Presentación comercial** (vigente, sin versión en el nombre) | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-comercial.pptx |
+| **Presentación aliados** | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-aliados.pptx |
+| **Presentación comercial administrada** | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-comercial-administrada.pptx |
+| **Presentación independientes** | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-independientes.pptx |
+| **Presentación modelo modular** | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-modelo-modular.pptx |
 | **Demo general** (modulo-overview) | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4 |
 | **Serie Administrador** (completa) | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4 |
 | **Serie Docente** (completa) | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4 |
