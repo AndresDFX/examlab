@@ -89,9 +89,17 @@ const INIT = `(() => {
   } catch (e) {}
   const css = document.createElement('style');
   css.textContent = \`
+    /* opacity:0 por defecto → el cursor NO se ve a menos que se muestre
+       explícitamente. Antes salía como un "punto muerto" azul en el CENTRO
+       (left/top 50%) durante la carga inicial, antes del primer beat, y
+       hideCursor(true) recién lo ocultaba tras la navegación (QA reportó
+       "un punto durante 3-4s que no hace nada" en Modulo-02 y Modulo-06,
+       cuyos primeros targets tardan en renderizar). El dot nunca se mueve ni
+       se muestra a propósito en el pipeline actual → ocultarlo por defecto no
+       tiene contra. */
     #demo-cursor{position:fixed;left:50%;top:50%;width:22px;height:22px;border-radius:50%;
       background:rgba(37,99,235,.30);border:2px solid #1D4ED8;z-index:2147483647;pointer-events:none;
-      transform:translate(-50%,-50%);box-shadow:0 0 0 5px rgba(37,99,235,.12);}
+      opacity:0;transform:translate(-50%,-50%);box-shadow:0 0 0 5px rgba(37,99,235,.12);}
     .demo-hole{position:absolute;z-index:9000;border-radius:12px;outline:3px solid #1D4ED8;outline-offset:0;
       box-shadow:0 0 0 99999px rgba(2,6,23,.55);pointer-events:none;transition:opacity .2s ease;}
     .demo-pop{position:absolute;z-index:9001;background:#fff;color:#0b1220;border-radius:12px;padding:12px 14px;
