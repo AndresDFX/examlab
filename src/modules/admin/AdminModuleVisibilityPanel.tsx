@@ -42,6 +42,7 @@ import { RowAction } from "@/components/ui/row-action";
 import { toast } from "sonner";
 import { Layers, ChevronUp, ChevronDown, GripVertical, Save, RotateCcw } from "lucide-react";
 import { invalidateModuleVisibility } from "@/hooks/use-module-visibility";
+import { MODULE_CATALOG, type ModuleRoleKey as CatalogModuleRoleKey } from "@/shared/lib/module-catalog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
 
@@ -59,155 +60,13 @@ type Row = {
   tenant_id: string | null;
 };
 
-type ModuleRoleKey = "Admin" | "Docente" | "Estudiante" | "SuperAdmin";
+type ModuleRoleKey = CatalogModuleRoleKey;
 
-/**
- * Lista canónica de FILAS del panel. La mayoría de filas usa `key` como
- * module_key directo (1:1 con la tabla `module_visibility`). Algunas son
- * VIRTUALES: una sola fila en el panel pero internamente se mapea a >1
- * module_key dependiendo del rol. Ej.: "Calificaciones" muestra UN sólo
- * row con switches Admin/Docente/Estudiante, pero detrás:
- *   - Docente → escribe `gradebook` (la vista del docente)
- *   - Estudiante → escribe `grades` (la vista del estudiante)
- * Es el MISMO concepto del producto ("calificaciones"), expuesto distinto
- * a cada rol; antes el panel mostraba 2 filas separadas y los Admins se
- * confundían sobre cuál tocar.
- *
- * `roleKeyMap` (opcional) define el remapeo: si para un rol está
- * presente, ese key se usa; si no, cae al `key` por defecto. Ej.:
- *   - Para el Admin nunca hay vista "Calificaciones" propia, mapeamos
- *     a `gradebook` (override-friendly: si lo prendés, Admin igual ve
- *     todo por has_role).
- */
-// Labels alineados al sidebar (fuente de verdad: `nav.*` en
-// src/i18n/locales/es.json). Si renombrás un item del nav, sincronizar
-// acá también — el panel y el sidebar deben mostrar el mismo texto.
-// Casos donde el i18n del nav tiene una variante "studentX" usamos la
-// del rol staff para no descolocar (los labels para el alumno difieren
-// solo cuando el módulo se llama distinto, ej. /app/student/certificates
-// → "Certificaciones" es el mismo nombre para los 3 roles).
-const MODULES: Array<{
-  key: string;
-  label: string;
-  roleKeyMap?: Partial<Record<ModuleRoleKey, string>>;
-}> = [
-  { key: "dashboard", label: "Dashboard" },
-  // Académico: programas / asignaturas / periodos. Solo aplica al rol
-  // Admin (estructura cross-curso). El SuperAdmin lo hereda vía Admin.
-  // Antes vivía como tab de Configuración → Institución y no era
-  // togglable desde acá; se sacó a su módulo propio para que el
-  // SuperAdmin pueda definir el orden/visibilidad central de los Admin.
-  { key: "academic", label: "Académico" },
-  { key: "courses", label: "Cursos" },
-  { key: "contents", label: "Contenidos" },
-  { key: "exams", label: "Exámenes" },
-  { key: "workshops", label: "Talleres" },
-  { key: "projects", label: "Proyectos" },
-  // Pizarras (Excalidraw) — Docente edita, Estudiante ve compartidas.
-  // Seed en migración 20260807000000.
-  { key: "whiteboards", label: "Pizarras" },
-  {
-    // Unificación: antes había dos filas separadas (`gradebook`,
-    // `grades`); las colapsamos en una sola "Calificaciones" — es el
-    // mismo módulo conceptual, solo cambia la VISTA por rol.
-    //
-    // SuperAdmin se mapea a `gradebook` (igual que Admin/Docente): el
-    // SA cross-tenant ve el gradebook del docente para auditar. SIN
-    // este mapping, el toggle del SA escribía `module_key='calificaciones'`
-    // (fallback al virtual key) pero el sidebar leía `module_key='gradebook'`
-    // (mapping de `/app/teacher/gradebook` en NAV_PATH_TO_MODULE), así
-    // el toggle no surtía efecto — bug reportado por el usuario.
-    key: "calificaciones",
-    label: "Calificaciones",
-    roleKeyMap: {
-      Admin: "gradebook",
-      SuperAdmin: "gradebook",
-      Docente: "gradebook",
-      Estudiante: "grades",
-    },
-  },
-  { key: "attendance", label: "Asistencia" },
-  // Encuestas (mig 20260720000000) — Docente y Estudiante. Tipos:
-  // single/multiple/slot. Async tipo Doodle o en vivo en sesión.
-  { key: "polls", label: "Encuestas" },
-  // Foro: módulo histórico — no tiene item directo en el sidebar (vive
-  // dentro del detalle de cada curso). Lo dejamos togglable acá para
-  // que el admin pueda ocultarlo a estudiantes globalmente.
-  { key: "forum", label: "Foro" },
-  { key: "calendar", label: "Calendario" },
-  // Mismo nombre que el sidebar (`nav.studentCertificates: "Certificaciones"`).
-  { key: "certificates", label: "Certificaciones" },
-  { key: "tutor", label: "Tutor del curso" },
-  { key: "question_bank", label: "Banco de preguntas" },
-  // Sidebar dice solo "Prompts" — eliminamos el sufijo "IA".
-  { key: "ai_prompts", label: "Prompts" },
-  { key: "ai_cron", label: "Cola" },
-  { key: "statistics", label: "Estadísticas" },
-  // Mensajes vive en la campana del header (no es item del sidebar
-  // independiente), pero el toggle existe para poder apagar el módulo
-  // a un rol entero.
-  { key: "messages", label: "Mensajes" },
-  // Notificaciones — campana del header. Apagado por rol gate-ea el
-  // fetch + realtime + toasts del hook useNotifications. Para SuperAdmin
-  // tiene además el efecto de silenciar la mensajería cross-tenant
-  // (que ya está restringida por can_message a Admin↔SA, pero el toggle
-  // permite cortar la campana entera si el SA quiere usar la
-  // plataforma en modo "solo gestión"). Cuando OFF, el bell se oculta.
-  { key: "notifications", label: "Notificaciones" },
-  // Soporte — canal Admin (tenant) → SuperAdmin para PQRS. Solo aplica
-  // a Admin (abre tickets) y SuperAdmin (los gestiona). Docente y
-  // Estudiante no tienen pantalla — sus toggles quedan no-op. Cuando el
-  // Admin abre un ticket, dispara una notif a todos los SA.
-  { key: "support", label: "Soporte" },
-  // Asistente IA de plataforma — chat de ayuda de uso para el Admin.
-  // Solo aplica a Admin y SuperAdmin (Docente/Estudiante sin pantalla).
-  { key: "support_assistant", label: "Asistente IA" },
-  // Sidebar dice "Videos" — quitamos "Biblioteca de" del label aunque
-  // el módulo SEA conceptualmente una biblioteca.
-  { key: "videos", label: "Videos" },
-  // "Usuarios" unificado: una sola fila en el panel pero internamente
-  // se mapea a 2 module_keys distintos porque CADA ROL ve una pantalla
-  // distinta del mismo concepto:
-  //   - Admin / SuperAdmin → `users` (CRUD completo del tenant en
-  //     /app/admin/users).
-  //   - Docente → `teacher_students` (vista de sus alumnos en
-  //     /app/teacher/students, con "Ver como" acotado).
-  //   - Estudiante: el módulo no aplica (no hay pantalla "Usuarios"
-  //     para alumno). El toggle de la columna queda como no-op visual;
-  //     escribirlo no rompe nada (no hay ruta que lo lea para Estudiante).
-  // Mismo patrón virtual que "calificaciones" (gradebook ↔ grades).
-  {
-    key: "users",
-    label: "Usuarios",
-    roleKeyMap: {
-      Admin: "users",
-      SuperAdmin: "users",
-      Docente: "teacher_students",
-    },
-  },
-  { key: "reports", label: "Informes" },
-  // Auditoría: variantes Admin y Docente apuntan al mismo módulo.
-  { key: "audit_logs", label: "Auditoría" },
-  // Papelera (mig 20260816000000): items soft-deletados de las 8
-  // entidades principales. Solo staff (Docente / Admin / SuperAdmin).
-  { key: "trash", label: "Papelera" },
-  // Instituciones — panel cross-tenant del SuperAdmin. En scope tenant
-  // este toggle es no-op (un Admin de tenant nunca ve `/app/superadmin/
-  // tenants` por RBAC), pero lo dejamos togglable para que el SuperAdmin
-  // pueda reordenar / esconder el ítem en su propio menú desde el panel
-  // global.
-  { key: "tenants", label: "Instituciones" },
-  // Sistema — diagnóstico de infraestructura cross-tenant (health
-  // check de edge functions, secrets, runtime). Solo SuperAdmin lo ve
-  // en el sidebar (RBAC); el panel lo expone para que reordene / esconda.
-  { key: "system", label: "Sistema" },
-  // Configuración — `/app/admin/settings`. El toggle controla SOLO el
-  // sidebar (posición + visibility). La ruta SIGUE siendo accesible
-  // por URL directa aunque esté apagada — escape hatch intencional
-  // para que un admin no se quede sin acceso si apaga toda la matriz
-  // por error. Por eso NO aparece en PREFIX_TO_MODULE del ModuleRouteGuard.
-  { key: "configuration", label: "Configuración" },
-];
+// Filas del panel "Módulos": fuente de verdad en module-catalog.ts (single
+// source of truth de la organización de módulos). Guardrail de consistencia
+// (cada ModuleKey tiene fila; rutas mapean a módulos válidos) en
+// module-catalog.test.ts.
+const MODULES = MODULE_CATALOG;
 
 /**
  * Módulos PROPIOS del SuperAdmin (paneles cross-tenant). No tienen pantalla

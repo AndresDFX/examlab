@@ -20,7 +20,7 @@ import type { ModuleKey } from "@/hooks/use-module-visibility";
 // asociaciones path→module para que el ítem del nav y el contenido de
 // la ruta se enciendan/apaguen juntos. Si agregás una ruta nueva al
 // nav, agregá su prefijo acá también.
-const PREFIX_TO_MODULE: Array<[string, ModuleKey]> = [
+export const PREFIX_TO_MODULE: Array<[string, ModuleKey]> = [
   // ── Admin ─────────────────────────────────────────────────────────
   ["/app/admin/academic", "academic"],
   ["/app/admin/courses", "courses"],
@@ -43,6 +43,12 @@ const PREFIX_TO_MODULE: Array<[string, ModuleKey]> = [
 
   // ── Soporte Admin ─────────────────────────────────────────────────
   ["/app/admin/support", "support"],
+
+  // ── Asistente IA de plataforma (todos los roles) ──────────────────
+  // Sin este prefijo, apagar el módulo "support_assistant" ocultaba el
+  // ítem del sidebar pero /app/assistant seguía accesible por URL.
+  // Detectado por el guardrail module-catalog.test.ts (NAV↔PREFIX sync).
+  ["/app/assistant", "support_assistant"],
 
   // ── Docente ───────────────────────────────────────────────────────
   ["/app/teacher/courses", "courses"],

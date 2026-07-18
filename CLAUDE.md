@@ -673,6 +673,34 @@ Sistema de "borrado reversible" para 8 entidades padre: `courses`, `exams`, `wor
 - **Limitación V1**: `generated_contents` soft-delete NO borra archivos del Storage. Quedan disponibles al restaurar; al hard-delete físico quedan huérfanos hasta cleanup manual (TODO v2 — job que limpie storage al purge).
 - **Tests** ([src/modules/trash/soft-delete.test.ts](src/modules/trash/soft-delete.test.ts)): cobertura del set canónico de tablas + `TRASH_TABLE_LABEL` / `TRASH_NAME_COL`.
 
+### Organización de módulos — fuente única + guardrail (OBLIGATORIO al crear un módulo)
+
+Un "módulo" es una unidad del menú/plataforma con visibilidad y orden configurables por rol
+(panel Admin **Módulos** → tabla `module_visibility`). La **fuente única de verdad** de qué módulos
+existen y cómo mapean vive en [src/shared/lib/module-catalog.ts](src/shared/lib/module-catalog.ts):
+`ALL_MODULE_KEYS` (lista runtime, exhaustiva vs el type `ModuleKey`), `MODULE_CATALOG` (filas del
+panel, incluye virtuales `calificaciones`→gradebook/grades y `users`→users/teacher_students vía
+`roleKeyMap`) y `NAV_PATH_TO_MODULE` (mapeo ruta del sidebar→módulo, para orden/visibility). El
+gating de RUTAS vive en `PREFIX_TO_MODULE` ([ModuleRouteGuard.tsx](src/shared/components/ModuleRouteGuard.tsx))
+— con prefijos + sub-rutas.
+
+**Guardrail automático** ([src/shared/lib/module-catalog.test.ts](src/shared/lib/module-catalog.test.ts)
++ el check de compile-time `_exhaustiveModuleKeys` en module-catalog.ts): rompe el build / los
+tests si un módulo no está registrado en todos lados. Corre en `bun test` (o vitest). NO editar el
+test para "hacerlo pasar" — arreglar la inconsistencia real.
+
+**Checklist para agregar un módulo nuevo** (o al renombrar/borrar uno):
+1. `ModuleKey` en [use-module-visibility.ts](src/hooks/use-module-visibility.ts) — agregar el key al union.
+2. `ALL_MODULE_KEYS` en [module-catalog.ts](src/shared/lib/module-catalog.ts) — agregar el key (el check de exhaustividad rompe el build si falta).
+3. `MODULE_CATALOG` (misma file) — agregar la fila del panel `{ key, label }` (o virtual con `roleKeyMap`).
+4. `NAV_PATH_TO_MODULE` (misma file) — mapear la(s) ruta(s) EXACTA(s) del sidebar → el módulo.
+5. `PREFIX_TO_MODULE` en [ModuleRouteGuard.tsx](src/shared/components/ModuleRouteGuard.tsx) — mapear el prefijo de ruta (para que el toggle enforce el acceso; sin esto la URL queda accesible aunque el módulo esté off). Excepciones intencionales: `dashboard` (`/app`) y `configuration` (escape hatch).
+6. NAV item en [AppLayout.tsx](src/shared/components/AppLayout.tsx) con `roles` + `data-tour-nav`.
+7. Regla RBAC en [rbac.ts](src/shared/lib/rbac.ts) si aplica (rutas `/app/teacher/*` que el SuperAdmin acceda necesitan excepción explícita — ver convención).
+8. Seed en `module_visibility` (migración) si querés un default distinto de "visible para todos".
+9. Clave `nav.*` en `src/i18n/locales/{es,en}.json` para el label del sidebar.
+10. Correr `bun test` — el guardrail valida 2–5 automáticamente.
+
 ### Snippets de código por sesión
 
 Cada `attendance_session` puede tener N snippets de código (Java/Python/JavaScript) que el docente prepara en clase y los alumnos ven (y opcionalmente ejecutan) desde su vista de asistencia.

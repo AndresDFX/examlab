@@ -26,6 +26,7 @@ import {
   type ModuleKey,
   type RoleKey,
 } from "@/hooks/use-module-visibility";
+import { moduleForNavPath } from "@/shared/lib/module-catalog";
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from "@/i18n";
 // ThemeToggle + LanguageSwitcher se siguen usando en el drawer mobile
 // (Sheet más abajo), donde sí hay espacio para botones inline. En el
@@ -899,94 +900,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   // desde el panel "Visibilidad y orden" debe estar acá, incluyendo
   // las variantes admin/teacher/student. Si falta el mapping, el
   // item NO respeta el orden del panel.
-  const NAV_PATH_TO_MODULE: Array<[string, ModuleKey]> = [
-    // Dashboard — única ruta sin sufijo de rol. Se puede reordenar
-    // desde el panel admin (algunos admins prefieren tenerlo al final).
-    ["/app", "dashboard"],
-    // Cursos — visible en los 3 roles, mismo módulo conceptual.
-    ["/app/admin/courses", "courses"],
-    ["/app/teacher/courses", "courses"],
-    ["/app/student/courses", "courses"],
-    ["/app/teacher/workshops", "workshops"],
-    ["/app/student/workshops", "workshops"],
-    ["/app/teacher/projects", "projects"],
-    ["/app/student/projects", "projects"],
-    ["/app/teacher/exams", "exams"],
-    ["/app/student/exams", "exams"],
-    ["/app/teacher/gradebook", "gradebook"],
-    ["/app/student/grades", "grades"],
-    ["/app/teacher/attendance", "attendance"],
-    ["/app/student/attendance", "attendance"],
-    ["/app/teacher/calendar", "calendar"],
-    ["/app/student/calendar", "calendar"],
-    ["/app/student/certificates", "certificates"],
-    ["/app/certificates", "certificates"],
-    ["/app/teacher/question-bank", "question_bank"],
-    // Prompts IA — variante admin y docente apuntan al mismo módulo.
-    ["/app/teacher/ai-prompts", "ai_prompts"],
-    ["/app/admin/ai-prompts", "ai_prompts"],
-    // Cron IA — gestión de la cola de calificación con IA + (Admin) los
-    // pg_cron de Supabase. Ambas variantes mapean al mismo módulo para
-    // que el orden quede unificado entre roles.
-    ["/app/teacher/ai-cron", "ai_cron"],
-    ["/app/admin/ai-cron", "ai_cron"],
-    // Estadísticas — variante docente (por curso) y admin (agregada)
-    // mapean al mismo módulo. Estudiante no tiene ruta (no aplica).
-    ["/app/teacher/statistics", "statistics"],
-    ["/app/admin/statistics", "statistics"],
-    ["/app/teacher/contents", "contents"],
-    ["/app/videos", "videos"],
-    ["/app/student/tutor", "tutor"],
-    ["/app/teacher/students", "teacher_students"],
-    // /app/admin/users → `users` (NO `teacher_students`). En el panel
-    // "Módulos" la fila "Usuarios" es virtual: mapea Admin/SuperAdmin →
-    // users y Docente → teacher_students vía roleKeyMap. El sidebar lee
-    // este mapa para gatear la visibilidad del item Admin.
-    ["/app/admin/users", "users"],
-    ["/app/admin/report-templates", "reports"],
-    ["/app/teacher/reports", "reports"],
-    // Académico: solo Admin (estructura programas/asignaturas/periodos).
-    ["/app/admin/academic", "academic"],
-    // Encuestas: Docente y Estudiante mapean al mismo módulo.
-    ["/app/teacher/polls", "polls"],
-    ["/app/student/polls", "polls"],
-    // Auditoría: variantes Admin y Docente.
-    ["/app/teacher/audit-logs", "audit_logs"],
-    ["/app/admin/audit-logs", "audit_logs"],
-    // Pizarras (Excalidraw embebido) — Docente edita, Estudiante ve las
-    // compartidas. Ambas rutas mapean al mismo `module_key`.
-    ["/app/teacher/whiteboards", "whiteboards"],
-    ["/app/student/whiteboards", "whiteboards"],
-    // Papelera (mig 20260816000000 + seed 20260816000010): Docente / Admin
-    // / SuperAdmin acceden al módulo; Estudiante no aplica (no borra
-    // entidades soft-deletables). RLS de cada tabla acota qué ve cada uno.
-    ["/app/trash", "trash"],
-    // Sistema (SuperAdmin-only): panel de diagnóstico de infraestructura.
-    // El panel "Módulos" tiene el toggle para reordenar/esconder.
-    ["/app/superadmin/system", "system"],
-    // Instituciones (SuperAdmin-only): panel cross-tenant. Sin este
-    // mapping el ítem del sidebar ignoraba el toggle de orden/visibility
-    // del panel "Módulos" — bug detectado en auditoría 2026-09.
-    ["/app/superadmin/tenants", "tenants"],
-    // Asistente IA de plataforma (Admin; SuperAdmin lo hereda). Mapea a
-    // su propio module_key para respetar orden/visibility del panel.
-    ["/app/assistant", "support_assistant"],
-    // Soporte (Admin + SuperAdmin): el panel "Módulos" tiene UNA fila
-    // "support" que decide visibility/orden para ambos lados a la vez.
-    ["/app/admin/support", "support"],
-    ["/app/superadmin/support", "support"],
-    // Configuración (Admin / SuperAdmin): el toggle controla SOLO el
-    // sidebar (orden + visibility). La ruta queda siempre accesible por
-    // URL — escape hatch documentado en ModuleRouteGuard. Por eso este
-    // mapping vive en NAV_PATH_TO_MODULE pero NO en PREFIX_TO_MODULE.
-    ["/app/admin/settings", "configuration"],
-  ];
-  // Resuelve módulo para un path (helper local). Si no hay match,
-  // null (no controlado por toggles, no participa en sort).
-  const moduleForNav = (to: string): ModuleKey | null => {
-    const found = NAV_PATH_TO_MODULE.find(([prefix]) => to === prefix);
-    return found ? found[1] : null;
-  };
+  // Mapeo ruta del sidebar → módulo: fuente de verdad en module-catalog.ts
+  // (guardrail de consistencia en module-catalog.test.ts).
+  const moduleForNav = moduleForNavPath;
   // Pre-computamos el set de moduleKeys para los cuales EXISTE un item
   // SA-only dedicado en el NAV. Caso: Soporte tiene 2 items distintos
   // (`/app/admin/support` con roles=["Admin"] y `/app/superadmin/support`
