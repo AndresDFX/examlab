@@ -45,7 +45,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { TableEmpty } from "@/components/ui/empty-state";
+import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { SearchInput } from "@/components/ui/search-input";
 import { Stethoscope, AlertTriangle, MessageSquare, CheckCircle2, RefreshCw, ExternalLink, Lock, ClipboardList, CalendarCheck, FileText, Hammer, FolderKanban, Gavel, Sparkles, Users, Scale, CalendarCheck2 } from "lucide-react";
@@ -831,17 +831,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
           </div>
         )}
         {loadError && !loading && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            {loadError}
-            <Button
-              variant="outline"
-              size="sm"
-              className="ml-2"
-              onClick={() => void loadAll()}
-            >
-              <RefreshCw className="h-3.5 w-3.5 mr-1" /> {t("courseDiagnostic.retry")}
-            </Button>
-          </div>
+          <ErrorState message={loadError} onRetry={() => void loadAll()} />
         )}
 
         {!loading && !loadError && (

@@ -1670,7 +1670,7 @@ function AdminUsers() {
                     >
                       {t("users.personalEmail")}
                     </SortableHead>
-                    <SortableHead sortKey="roles" sort={sort} className="hidden xs:table-cell w-40">
+                    <SortableHead sortKey="roles" sort={sort} className="hidden sm:table-cell w-40">
                       {t("common.roles")}
                     </SortableHead>
                     {/* Columna Institución solo visible al SuperAdmin.

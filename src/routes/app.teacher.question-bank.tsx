@@ -24,7 +24,7 @@ import { Switch } from "@/components/ui/switch";
 import { Spinner } from "@/components/ui/spinner";
 import { PageLoader } from "@/components/ui/loaders";
 import { PageHeader } from "@/components/ui/page-header";
-import { RowAction } from "@/components/ui/row-action";
+import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { HelpHint } from "@/components/ui/help-hint";
 import {
@@ -856,16 +856,19 @@ function QuestionBankPage() {
                         {r.times_used}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <RowAction label={t("common.edit")} icon={Pencil} onClick={() => openEdit(r)} />
-                          <RowAction label={t("common.duplicate")} icon={Copy} onClick={() => duplicate(r)} />
-                          <RowAction
-                            label={t("common.delete")}
-                            icon={Trash2}
-                            tone="destructive"
-                            onClick={() => void remove(r)}
-                          />
-                        </div>
+                        <RowActionsMenu
+                          actions={[
+                            { label: t("common.edit"), icon: Pencil, onClick: () => openEdit(r) },
+                            { label: t("common.duplicate"), icon: Copy, onClick: () => duplicate(r) },
+                            {
+                              label: t("common.delete"),
+                              icon: Trash2,
+                              tone: "destructive",
+                              separatorBefore: true,
+                              onClick: () => void remove(r),
+                            },
+                          ]}
+                        />
                       </TableCell>
                     </TableRow>
                   ))
