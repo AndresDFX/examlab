@@ -1,14 +1,14 @@
 # Manual de usuario — ExamLab
 
-ExamLab es una plataforma educativa con **inteligencia artificial** que reúne, en un solo lugar, todo el ciclo académico: cursos, evaluaciones, asistencia, contenidos y comunicación. La IA te ahorra horas — **genera** exámenes/talleres/proyectos y material de clase, **califica** las entregas con retroalimentación, **detecta copias** y ofrece un **tutor** a los estudiantes.
+ExamLab es una plataforma educativa con **inteligencia artificial** que reúne, en un solo lugar, todo el ciclo académico: cursos, evaluaciones, asistencia, contenidos, comunicación y actividades en vivo. La IA te ahorra horas — **genera** exámenes, talleres, proyectos y material de clase, **califica** las entregas con retroalimentación, **detecta copias** entre entregas, pone un **Tutor del curso** al servicio de los estudiantes y un **Asistente de la plataforma** que ayuda a todos los roles a usar la app. Y para dinamizar la clase, el **Reto en vivo** convierte cualquier tema en una trivia proyectable donde los estudiantes compiten desde su celular.
 
 Este manual está organizado por **rol**. Abre el que corresponda a tu perfil:
 
 - 🛠️ **[Administrador](manual-administrador.md)** — gestiona toda la institución (usuarios, cursos, estructura académica, certificados, configuración) y supervisa evaluaciones y calificaciones.
 - 👩‍🏫 **[Docente](manual-docente.md)** — crea cursos y evaluaciones (con ayuda de la IA), califica, lleva asistencia y consolida notas.
-- 🎓 **[Estudiante](manual-estudiante.md)** — presenta exámenes, talleres y proyectos, consulta sus notas y usa el tutor de IA.
+- 🎓 **[Estudiante](manual-estudiante.md)** — presenta exámenes, talleres y proyectos, consulta sus notas y usa el **Tutor del curso**.
 
-> **SuperAdmin (dueño de la plataforma):** este rol opera **cross-tenant** (gestiona varias instituciones desde una sola consola) y, por su naturaleza interna, no tiene un manual público en este paquete. Su operación se documenta en los runbooks internos del equipo de plataforma. Si necesitas la guía SuperAdmin, contáctanos por el canal de **Soporte**.
+> **SuperAdmin (dueño de la plataforma):** este rol opera **entre varias instituciones** (las gestiona todas desde una sola consola) y, por su naturaleza interna, no tiene un manual público en este paquete. Su operación se documenta en los runbooks internos del equipo de plataforma. Si necesitas la guía SuperAdmin, contáctanos por el canal de **Soporte**.
 
 ---
 

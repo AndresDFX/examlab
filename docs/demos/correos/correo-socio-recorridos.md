@@ -36,6 +36,12 @@ mensajería, certificados y más.
 **📊 Presentación comercial de la plataforma** (planes, alcance y propuesta de valor):
 https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx
 
+**📘 Manuales de usuario** (PDF, guías completas por rol):
+- General: https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual.pdf
+- Administrador: https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-administrador.pdf
+- Docente: https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-docente.pdf
+- Estudiante: https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-estudiante.pdf
+
 **🔑 Y para que la pruebes tú mismo** — te dejé acceso de **Administrador** en nuestra
 institución de demostración **Demo Global Corp**:
 

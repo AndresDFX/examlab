@@ -34,10 +34,10 @@ Mensaje para que el **docente/administrador le dé la bienvenida a sus estudiant
 > - 📁 **Proyectos** — sube tu código/documentos y el link del repo
 > - 📊 **Calificaciones** — sigue tus notas por corte y la nota final
 > - ✅ **Asistencia** — marca presente con el código/QR de la clase
-> - 🗳️ **Encuestas** — responde encuestas y juegos tipo Kahoot
+> - 🗳️ **Encuestas** — responde encuestas y retos en vivo
 > - 🎨 **Pizarras** — pizarras compartidas en vivo con el docente
 > - 📅 **Calendario** — fechas de clases, entregas y exámenes
-> - 🤖 **Tutor IA** — pregúntale al tutor sobre el material del curso
+> - 🤖 **Tutor del curso** — pregúntale al tutor sobre el material del curso
 > - 🎬 **Videos** — biblioteca de videos del curso
 > - 💬 **Mensajes** — escríbele a tu docente
 > - 🏅 **Certificados** — descarga tus certificados de aprobación
@@ -61,7 +61,7 @@ Mensaje para que el **docente/administrador le dé la bienvenida a sus estudiant
 >
 > 🎬 Mira **todo lo que puedes hacer** como estudiante 👉 https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4
 >
-> Adentro tienes: cursos, exámenes, talleres, proyectos, calificaciones, asistencia (check-in con QR), encuestas/Kahoot, pizarras en vivo, calendario, **tutor IA** del curso, videos, mensajes y certificados. Guarda el enlace en favoritos (anda también en el celu). Cualquier cosa me escribes 🙌
+> Adentro tienes: cursos, exámenes, talleres, proyectos, calificaciones, asistencia (check-in con QR), encuestas y retos en vivo, pizarras en vivo, calendario, **Tutor del curso**, videos, mensajes y certificados. Guarda el enlace en favoritos (anda también en el celu). Cualquier cosa me escribes 🙌
 
 ---
 

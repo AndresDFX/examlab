@@ -24,6 +24,7 @@ Versión del correo de bienvenida **específica para la UNIAJC** (correo `@estud
 >
 > **🎬 Recorrido en video** — mira todo lo que puedes hacer:
 > 👉 [🎓 Ver el recorrido del estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
+> 📘 [Descargar el manual del estudiante (PDF)](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-estudiante.pdf)
 > *(Al ingresar por primera vez también verás un tour guiado paso a paso.)*
 >
 > **📸 Así se ve por dentro:**
@@ -37,8 +38,8 @@ Versión del correo de bienvenida **específica para la UNIAJC** (correo `@estud
 > *Presentas tus exámenes en línea:*
 > ![Exámenes](../manual/screenshots/estudiante/04-student_exams.png)
 >
-> *Tutor IA: pregúntale sobre el material del curso:*
-> ![Tutor IA](../manual/screenshots/estudiante/05-student_tutor.png)
+> *Tutor del curso: pregúntale sobre el material del curso:*
+> ![Tutor del curso](../manual/screenshots/estudiante/05-student_tutor.png)
 >
 > *Sigues tus notas por corte y la nota final:*
 > ![Calificaciones](../manual/screenshots/estudiante/09-student_grades.png)
@@ -49,7 +50,7 @@ Versión del correo de bienvenida **específica para la UNIAJC** (correo `@estud
 > *Y descargas tus certificados de aprobación:*
 > ![Certificados](../manual/screenshots/estudiante/11-student_certificates.png)
 >
-> **✨ Todo lo que puedes hacer** (una vez dentro): Cursos · Exámenes · Talleres · Proyectos · Calificaciones · Asistencia (QR) · Encuestas/Kahoot · Pizarras en vivo · Calendario · **Tutor IA** · Videos · Mensajes · Certificados.
+> **✨ Todo lo que puedes hacer** (una vez dentro): Cursos · Exámenes · Talleres · Proyectos · Calificaciones · Asistencia (QR) · Encuestas y retos en vivo · Pizarras en vivo · Calendario · **Tutor del curso** · Videos · Mensajes · Certificados.
 >
 > 💡 Guarda **examlab.lovable.app** en favoritos (funciona también en el celular). Si no ves un curso, avísame. ¡Nos vemos en clase! 🚀
 >
@@ -70,7 +71,7 @@ Versión del correo de bienvenida **específica para la UNIAJC** (correo `@estud
 >
 > 🎬 Mira todo lo que puedes hacer 👉 https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4
 >
-> Adentro: cursos, exámenes, talleres, proyectos, notas, asistencia (QR), encuestas/Kahoot, pizarras en vivo, calendario, **tutor IA**, videos, mensajes y certificados. Cualquier cosa me escribes 🙌
+> Adentro: cursos, exámenes, talleres, proyectos, notas, asistencia (QR), encuestas y retos en vivo, pizarras en vivo, calendario, **Tutor del curso**, videos, mensajes y certificados. Cualquier cosa me escribes 🙌
 
 ---
 

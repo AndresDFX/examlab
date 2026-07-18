@@ -23,6 +23,8 @@ Y si quieres ir más a fondo, acá están los **recorridos completos** por cada 
 
 Te comparto también la **[presentación general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)** con los puntos clave de la plataforma, por si quieres tenerla a mano.
 
+Y si prefieres leerlo con calma, te dejo los **manuales de usuario en PDF**: [📘 Manual del administrador](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-administrador.pdf) y [📗 Manual general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual.pdf).
+
 Míralo con calma cuando tengas un rato y me cuentas qué te parece. Cualquier duda me escribes y lo vemos. 🙌
 
 Un abrazo,
@@ -33,5 +35,5 @@ Un abrazo,
 ### Notas para ti (borrar antes de enviar)
 - **Presentación:** la **general** ya va embebida como enlace (Google Slides) en el cuerpo — es la que se comparte siempre por ahora. Si prefieres adjuntar el archivo, expórtala de Slides a `.pptx`.
 - **Videos ya embebidos** (no hay que pegar nada): Demo general, Administrador, Docente y Estudiante apuntan a los videos en Supabase Storage. Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md).
-- El **manual de usuario** no va en esta versión de los correos (se agregará más adelante).
+- Los **manuales de usuario** (PDF) van embebidos como enlace: el del **administrador** y el **general**.
 - Este correo **no** menciona precios ni planes — es el primer vistazo.

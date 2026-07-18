@@ -25,6 +25,7 @@ Para que te hagas una idea, te dejo todo:
 
 **3) Presentaciones**
 - **[General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)** — qué es y qué hace la plataforma.
+- 📘 **[Manual del administrador](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-administrador.pdf)** (PDF) — la guía completa de la operación.
 - **Comercial** — los planes (se diferencian por cantidad de usuarios; todas las funciones vienen en todos). El **costo de IA lo controla la institución**: pone su propia API key (sin sobrecosto) o la incluye como add-on medido, y con la **cola de procesamiento** decide cuándo y cuánto corre la IA. Con Gemini Flash el consumo estimado es **≈ US$0,06 por estudiante/mes** (una fracción del plan; cálculos en la propuesta de costos). Para que veamos cómo encajaría con nosotros.
 
 Si lo ves con sentido, armamos una reunión y te muestro en vivo cómo la uso en mis clases. Me encantaría que la institución le sacara el mismo provecho. 🙌
@@ -38,5 +39,5 @@ Un abrazo,
 - **Personaliza el resultado concreto** entre corchetes — es tu mejor argumento (lo estás usando de verdad).
 - **Presentación general:** ya va embebida como enlace (Google Slides) en el cuerpo — es la que se comparte siempre por ahora. La **comercial** se adjunta como archivo (`ExamLab-Presentacion-Comercial.pptx`) o pega su enlace donde dice "Comercial".
 - **Videos ya embebidos** (Demo general, Administrador, Docente, Estudiante → Supabase Storage). Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md).
-- El **manual de usuario** no va en esta versión de los correos (se agregará más adelante).
+- El **manual del administrador** (PDF) va embebido como enlace.
 - En la comercial los precios son de referencia ($99 / $299 / $1.000 por mes, con un plan a la medida — "Contáctanos" — para más de 5.000 estudiantes) — ajústalos antes de mostrarlos.

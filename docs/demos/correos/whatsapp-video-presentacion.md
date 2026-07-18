@@ -45,6 +45,7 @@
 > 👩‍🏫 Funcionalidades — Docente: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4)
 > 🎓 Funcionalidades — Estudiante: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
 > 📊 Presentación general: [Abrir presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)
+> 📘 Manual de usuario (PDF): [Descargar](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual.pdf)
 
 ---
 
@@ -53,4 +54,4 @@
 - Reemplaza `[Nombre]`.
 - La frase *"lo estoy probando"* de la versión con más gancho: úsala solo si **de verdad** ya la probaste; si no, quítala.
 - Si vas a mandar también la cuenta de prueba, usa el mensaje dedicado [`correo-entrega-cuenta-docente.md`](correo-entrega-cuenta-docente.md) (o los datos del Excel [`ExamLab-Usuarios-Demo.xlsx`](ExamLab-Usuarios-Demo.xlsx) + el video de cómo ingresar `../social/output/modulo-login.mp4`) en un mensaje aparte.
-- **Bloque de videos y presentación** — ya embebidos (Supabase Storage / Google Slides). Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). El **manual** no va en esta versión. En WhatsApp el texto `[Ver](url)` no se renderiza como en el correo; al pegar, deja la URL clickeable.
+- **Bloque de videos y presentación** — ya embebidos (Supabase Storage / Google Slides). Enlaces canónicos en [`_ENLACES-demos.md`](_ENLACES-demos.md). El **manual de usuario** (PDF) va embebido como enlace. En WhatsApp el texto `[Ver](url)` no se renderiza como en el correo; al pegar, deja la URL clickeable.
