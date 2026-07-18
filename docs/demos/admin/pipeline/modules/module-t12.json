@@ -58,62 +58,6 @@
       ]
     },
     {
-      "id": "kahoot-ia",
-      "kind": "platform",
-      "openVia": {
-        "target": "rowaction:0",
-        "menuItem": "Preguntas"
-      },
-      "ready": [
-        "[role=\"dialog\"]"
-      ],
-      "narration": "Y aquí está la magia del reto en vivo: abrimos sus preguntas, escribimos los temas —pilas, colas, listas y árboles—, y la inteligencia artificial las genera. En segundos crea cada pregunta con sus opciones de colores y la respuesta correcta marcada.",
-      "bufferMs": 900,
-      "beats": [
-        {
-          "typeInto": true,
-          "target": "[placeholder^=\"Temas o contenido\"]",
-          "scale": 1.1,
-          "syncWord": "temas",
-          "text": "Pilas, colas, listas enlazadas y árboles binarios",
-          "hold": 900
-        },
-        {
-          "click": true,
-          "target": "button:Generar",
-          "syncWord": "genera",
-          "afterClickMs": 15000,
-          "focusTarget": "[role=\"dialog\"]",
-          "scale": 1,
-          "hold": 2000,
-          "side": "bottom",
-          "focus": {
-            "title": "Generando con IA",
-            "body": "Preguntas, opciones y la correcta — listas para jugar."
-          }
-        }
-      ]
-    },
-    {
-      "id": "kahoot-listo",
-      "kind": "platform",
-      "narration": "Las preguntas quedan listas, con su tiempo y sus puntos. Y desde el menú, Hospedar en vivo arranca el juego con un PIN para que los estudiantes entren desde su celular y compitan en tiempo real.",
-      "bufferMs": 1000,
-      "beats": [
-        {
-          "target": "[role=\"dialog\"]",
-          "scale": 1,
-          "hold": 8000,
-          "side": "bottom",
-          "syncWord": "listas",
-          "focus": {
-            "title": "Listo para jugar",
-            "body": "Hospedar en vivo genera un PIN y un podio en tiempo real."
-          }
-        }
-      ]
-    },
-    {
       "id": "outro",
       "kind": "card",
       "narration": "Con encuestas y retos en vivo conviertes cualquier clase en una dinámica participativa: recoges opiniones, asignas cupos o pones a competir a tu grupo, todo en segundos.",

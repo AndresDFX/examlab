@@ -46,10 +46,7 @@
     {
       "id": "abrir",
       "kind": "card",
-      "openVia": {
-        "target": "rowaction:0",
-        "menuItem": "Abrir"
-      },
+      "route": "/app/teacher/whiteboards/cc28ef0d-9110-46e9-a9f8-547095be7369",
       "ready": [
         ".App-toolbar"
       ],
