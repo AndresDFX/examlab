@@ -53,19 +53,19 @@
       ]
     },
     {
-      "id": "entrega",
+      "id": "resultado",
       "kind": "platform",
-      "openDialog": "text:Iniciar entrega",
-      "narration": "Para entregar, el estudiante abre el taller, revisa las instrucciones y envía su trabajo desde aquí mismo.",
-      "bufferMs": 800,
+      "narration": "Cuando el docente califica, el estudiante ve en la misma tarjeta del taller su nota y la retroalimentación detallada. Aquí, por ejemplo, este taller quedó calificado con una observación del docente sobre su trabajo.",
+      "bufferMs": 900,
       "beats": [
         {
-          "target": "firstcard",
-          "hold": 5000,
-          "side": "right",
+          "target": "text:Excelente trabajo",
+          "scale": 1.08,
+          "hold": 6500,
+          "side": "top",
           "focus": {
-            "title": "Tu entrega",
-            "body": "Instrucciones y espacio para responder y enviar."
+            "title": "Nota y retroalimentación",
+            "body": "El estudiante recibe su calificación y el comentario del docente."
           }
         }
       ]

@@ -41,13 +41,23 @@
           }
         },
         {
+          "target": "text:Check-in de asistencia disponible",
+          "scale": 1.1,
+          "hold": 6000,
+          "side": "bottom",
+          "focus": {
+            "title": "Check-in disponible",
+            "body": "Cuando el docente lo abre: escanea el QR o escribe el código rotativo."
+          }
+        },
+        {
           "target": "firstcard",
           "scale": 1.12,
-          "hold": 5500,
+          "hold": 4500,
           "side": "bottom",
           "focus": {
             "title": "Tu asistencia",
-            "body": "Check-in con código rotativo."
+            "body": "Historial de sesiones de clase."
           }
         }
       ]
