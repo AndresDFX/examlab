@@ -49,6 +49,16 @@
             "title": "Pizarras compartidas",
             "body": "Colaboración en vivo con el docente."
           }
+        },
+        {
+          "target": "text:Diagrama de flujo",
+          "scale": 1.08,
+          "hold": 4200,
+          "side": "bottom",
+          "focus": {
+            "title": "Pizarra del curso",
+            "body": "Ej.: un diagrama de flujo compartido por el docente."
+          }
         }
       ]
     },
