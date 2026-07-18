@@ -278,7 +278,7 @@ export function PptxViewerDialog({
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7"
+                          className="h-8 w-8"
                           disabled={idx === 0}
                           onClick={() => moveSlide(idx, -1)}
                           title={t("pptxViewer.moveUp")}
@@ -288,7 +288,7 @@ export function PptxViewerDialog({
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7"
+                          className="h-8 w-8"
                           disabled={idx === slides.length - 1}
                           onClick={() => moveSlide(idx, 1)}
                           title={t("pptxViewer.moveDown")}
@@ -298,7 +298,7 @@ export function PptxViewerDialog({
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7"
+                          className="h-8 w-8"
                           onClick={() => removeSlide(idx)}
                           title={t("pptxViewer.removeSlide")}
                         >

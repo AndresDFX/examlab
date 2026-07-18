@@ -235,7 +235,7 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
                 {visible.map((b) => (
                   <div
                     key={b._key}
-                    className={`rounded-md border p-3 grid grid-cols-2 sm:grid-cols-[120px_104px_104px_130px_minmax(150px,1fr)_36px] items-end gap-2 ${
+                    className={`rounded-md border p-3 grid grid-cols-1 sm:grid-cols-[120px_104px_104px_130px_minmax(150px,1fr)_36px] items-end gap-2 ${
                       overlapKeys.has(b._key)
                         ? "border-amber-400 bg-amber-50/50 dark:bg-amber-500/5"
                         : ""

@@ -232,7 +232,7 @@ export function computeQuote(input: QuoteInput, a: PricingAssumptions = FALLBACK
   const margenPct = precioSugerido > 0 ? margenUsd / precioSugerido : 0;
   const markupPct = costoTotal > 0 ? margenUsd / costoTotal : 0;
 
-  // Comparación vs lista v3
+  // Comparación vs precio de lista
   const precioLista = modalidad === "Administrada" ? plan.listAdmin : plan.listAuto;
   const deltaVsLista = precioLista == null ? null : precioSugerido - precioLista;
 
@@ -249,7 +249,7 @@ export function computeQuote(input: QuoteInput, a: PricingAssumptions = FALLBACK
     warnings.push("Este plan no tiene precio de lista administrada — cotizar a mano.");
   }
   if (deltaVsLista != null && deltaVsLista > 0.5) {
-    warnings.push("El precio sugerido supera el precio de lista v3 — revisar (la lista es el piso comercial).");
+    warnings.push("El precio sugerido supera el precio de lista — revisar (la lista es el piso comercial).");
   }
   if (n >= 45000) {
     warnings.push("A ~50k matrículas se salta a Supabase Team ($599): el $/matrícula sube, renegociar.");

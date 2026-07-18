@@ -702,12 +702,12 @@ function AdminSupportPage() {
                       </span>
                       {/* Tap target ≥ 32x32px en mobile — el ícono X de
                           h-3 w-3 (12px) sin padding era casi imposible
-                          de clickear con el dedo. h-7 w-7 = 28px botón
+                          de clickear con el dedo. h-8 w-8 = 28px botón
                           + ícono h-3.5 w-3.5 centrado da target táctil. */}
                       <button
                         type="button"
                         onClick={() => removeAttachment(idx)}
-                        className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 transition-colors"
+                        className="h-8 w-8 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 transition-colors"
                         title={t("common.remove")}
                         aria-label={t("adminSupport.removeAttachmentAria", {
                           name: file.name,

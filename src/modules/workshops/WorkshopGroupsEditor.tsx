@@ -365,7 +365,7 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                       onClick={() => deleteGroup(g)}
                       title={t("hc_modulesWorkshopsWorkshopGroupsEditor.deleteGroupTooltip")}
                     >
@@ -447,7 +447,7 @@ function DraggableStudent({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 shrink-0"
+            className="h-8 w-8 shrink-0"
             aria-label={t("hc_modulesWorkshopsWorkshopGroupsEditor.moveToOtherGroup")}
             title={t("hc_modulesWorkshopsWorkshopGroupsEditor.moveToOtherGroup")}
             onPointerDown={(e) => e.stopPropagation()}

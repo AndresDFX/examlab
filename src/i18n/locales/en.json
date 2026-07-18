@@ -2381,7 +2381,9 @@
     "gateHintQueue": "Continue in queue: the job is queued and processed when the worker runs. No immediate quota cost.",
     "gateCancel": "Cancel",
     "gateProceedAsync": "Continue in queue",
-    "gateActivate": "Activate immediate AI"
+    "gateActivate": "Activate immediate AI",
+    "workerReportedFailure": "The worker reported a job failure",
+    "unknownError": "Unknown error"
   },
   "tenantQuota": {
     "defaultTitle": "User licenses",
@@ -4459,7 +4461,9 @@
     "fromName": "Sender name",
     "incomplete": "Fill host, port, user, password and sender to use your own SMTP.",
     "saved": "Email settings saved",
-    "saveError": "Could not save"
+    "saveError": "Could not save",
+    "replyTo": "Reply-To email",
+    "replyToHint": "Where students' replies go. Applies even if you don't use your own SMTP; the sender (From) doesn't change."
   },
   "superadminTenants": {
     "title": "Institutions",
@@ -4930,7 +4934,18 @@
     "autoAdvanceFiring": "Everyone answered — advancing…",
     "allAnswered": "Everyone answered — you can advance",
     "lockNow": "Advance now",
-    "getReady": "Get ready!"
+    "getReady": "Get ready!",
+    "retoBrand": "Live challenge",
+    "joinTitle": "Join the challenge",
+    "joinHint": "Enter your institutional email to join. No sign-in needed.",
+    "institutionalEmail": "Institutional email",
+    "enterGame": "Enter the challenge",
+    "joinDisclaimer": "Only emails enrolled in the course can join. One player per email.",
+    "invalidEmail": "Enter a valid institutional email",
+    "connectError": "We couldn't connect you to the challenge",
+    "connectErrorHint": "The challenge may have ended or the link is no longer valid.",
+    "useAnotherEmail": "Use another email",
+    "thanksClose": "Thanks for playing. You can close this page now."
   },
   "questionBank": {
     "type": {
@@ -6172,7 +6187,8 @@
     "pickerMulti": "Click to choose files or drag them here",
     "removeFile": "Remove file",
     "uploading": "Uploading {{done}} / {{total}} file(s)…",
-    "languageSpanish": "Spanish"
+    "languageSpanish": "Spanish",
+    "pickerFolder": "…or pick a whole folder (recurses into subfolders and takes the files inside)"
   },
   "hc_modulesExamsExamNotesManager": {
     "statusApproved": "Approved",
@@ -6677,7 +6693,8 @@
     "allAttemptsUsed": "You have used all your attempts. You cannot submit again.",
     "warningSingleAttempt": "Note: this workshop allows only ONE submission — review everything before sending.",
     "warningOneAttemptLeft": "Note: you have 1 attempt left — review everything before sending.",
-    "networkScenarioMissing": "This network question has no valid scenario configured."
+    "networkScenarioMissing": "This network question has no valid scenario configured.",
+    "serverScenarioMissing": "This console question has no valid scenario configured."
   },
   "hc_router": {
     "updating": "Updating…",
@@ -8850,7 +8867,8 @@
     "cat_system_alerts_label": "System alerts",
     "cat_system_alerts_desc": "Notifications to admins when a threshold is crossed (storage, errors, etc.). Does NOT affect transactional emails (password reset, email change).",
     "cat_welcome_label": "Welcome (new users)",
-    "cat_welcome_desc": "Automatic email with a link to set a password, sent when creating a new user (individual form or bulk CSV import). Turn it off if you hand out passwords manually or use SSO."
+    "cat_welcome_desc": "Automatic email with a link to set a password, sent when creating a new user (individual form or bulk CSV import). Turn it off if you hand out passwords manually or use SSO.",
+    "suppressionsIntro": "ExamLab <strong>will not send emails</strong> to these addresses. Useful when a mailbox bounces constantly (Gmail \"mailbox full\" / nonexistent user) and the sender account fills up with \"Mail Delivery Subsystem\" notices. In-app notifications still arrive. Remove the address once the mailbox is freed up."
   },
   "hc_modulesMessagingTagTextarea": {
     "noTitle": "(untitled)",
@@ -9041,5 +9059,11 @@
     "endpointA": "Endpoint A",
     "endpointB": "Endpoint B",
     "addLink": "Add link"
+  },
+  "serverConsole": {
+    "welcome": "Server console. You are «{{user}}». Use Linux commands (pwd, ls, mkdir, chmod, sudo …).",
+    "title": "Server console",
+    "hint": "Privileged commands (useradd, apt install, systemctl) require `sudo`. ↑/↓ arrows for history.",
+    "focus": "Server console"
   }
 }

@@ -1204,7 +1204,7 @@ function SuperAdminTenantsPage() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-7 w-7 shrink-0"
+                    className="h-8 w-8 shrink-0"
                     onClick={() => {
                       void navigator.clipboard.writeText(testUserCreds.email);
                       toast.success(
@@ -1228,7 +1228,7 @@ function SuperAdminTenantsPage() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-7 w-7 shrink-0"
+                    className="h-8 w-8 shrink-0"
                     onClick={() => {
                       void navigator.clipboard.writeText(testUserCreds.password);
                       toast.success(

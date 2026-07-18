@@ -2381,7 +2381,9 @@
     "gateHintQueue": "Continuar en cola: el job se encola y procesa cuando corra el worker. Sin costo de cuota inmediato.",
     "gateCancel": "Cancelar",
     "gateProceedAsync": "Continuar en cola",
-    "gateActivate": "Activar IA inmediata"
+    "gateActivate": "Activar IA inmediata",
+    "workerReportedFailure": "El worker reportó falla en el job",
+    "unknownError": "Error desconocido"
   },
   "tenantQuota": {
     "defaultTitle": "Licencias de usuarios",
@@ -4459,7 +4461,9 @@
     "fromName": "Nombre del remitente",
     "incomplete": "Completa host, puerto, usuario, contraseña y remitente para usar SMTP propio.",
     "saved": "Configuración de correo guardada",
-    "saveError": "No se pudo guardar"
+    "saveError": "No se pudo guardar",
+    "replyTo": "Correo de respuesta (Reply-To)",
+    "replyToHint": "A dónde llegan las respuestas de los alumnos. Se aplica aunque no uses SMTP propio; el remitente (From) no cambia."
   },
   "superadminTenants": {
     "title": "Instituciones",
@@ -4930,7 +4934,18 @@
     "autoAdvanceFiring": "Todos respondieron — avanzando…",
     "allAnswered": "Todos respondieron — puedes avanzar",
     "lockNow": "Avanzar ahora",
-    "getReady": "¡Prepárate!"
+    "getReady": "¡Prepárate!",
+    "retoBrand": "Reto en vivo",
+    "joinTitle": "Únete al reto",
+    "joinHint": "Ingresa tu correo institucional para participar. No necesitas iniciar sesión.",
+    "institutionalEmail": "Correo institucional",
+    "enterGame": "Entrar al reto",
+    "joinDisclaimer": "Solo pueden participar los correos matriculados en el curso. Un jugador por correo.",
+    "invalidEmail": "Ingresa un correo institucional válido",
+    "connectError": "No pudimos conectarte al reto",
+    "connectErrorHint": "El reto pudo haber terminado o el enlace ya no es válido.",
+    "useAnotherEmail": "Usar otro correo",
+    "thanksClose": "Gracias por participar. Ya puedes cerrar esta página."
   },
   "questionBank": {
     "type": {
@@ -6172,7 +6187,8 @@
     "pickerMulti": "Click para elegir archivos o arrastra aquí",
     "removeFile": "Quitar archivo",
     "uploading": "Subiendo {{done}} / {{total}} archivo(s)…",
-    "languageSpanish": "Español"
+    "languageSpanish": "Español",
+    "pickerFolder": "…o elegir una carpeta completa (recorre subcarpetas y toma los archivos de adentro)"
   },
   "hc_modulesExamsExamNotesManager": {
     "statusApproved": "Aprobada",
@@ -6677,7 +6693,8 @@
     "allAttemptsUsed": "Ya consumiste todos tus intentos. No puedes volver a entregar.",
     "warningSingleAttempt": "Aviso: este taller admite UNA sola entrega — revisa todo antes de enviar.",
     "warningOneAttemptLeft": "Aviso: te queda 1 intento — revisa todo antes de enviar.",
-    "networkScenarioMissing": "Esta pregunta de red no tiene un escenario válido configurado."
+    "networkScenarioMissing": "Esta pregunta de red no tiene un escenario válido configurado.",
+    "serverScenarioMissing": "Esta pregunta de consola no tiene un escenario válido configurado."
   },
   "hc_router": {
     "updating": "Actualizando…",
@@ -8850,7 +8867,8 @@
     "cat_system_alerts_label": "Alertas del sistema",
     "cat_system_alerts_desc": "Notificaciones a admins cuando se cruza un umbral (almacenamiento, errores, etc.). NO afecta correos transaccionales (reset de contraseña, cambio de email).",
     "cat_welcome_label": "Bienvenida (nuevos usuarios)",
-    "cat_welcome_desc": "Correo automático con link para definir contraseña, enviado al crear un usuario nuevo (form individual o bulk import CSV). Apágalo si repartes contraseñas manualmente o usas SSO."
+    "cat_welcome_desc": "Correo automático con link para definir contraseña, enviado al crear un usuario nuevo (form individual o bulk import CSV). Apágalo si repartes contraseñas manualmente o usas SSO.",
+    "suppressionsIntro": "ExamLab <strong>no enviará correos</strong> a estas direcciones. Útil cuando un buzón rebota constantemente (Gmail \"bandeja llena\" / usuario inexistente) y la cuenta remitente se llena de avisos de \"Mail Delivery Subsystem\". Las notificaciones in-app siguen llegando. Quita la dirección cuando el buzón se libere."
   },
   "hc_modulesMessagingTagTextarea": {
     "noTitle": "(sin título)",
@@ -9041,5 +9059,11 @@
     "endpointA": "Extremo A",
     "endpointB": "Extremo B",
     "addLink": "Agregar enlace"
+  },
+  "serverConsole": {
+    "welcome": "Consola del servidor. Estás como «{{user}}». Usa comandos de Linux (pwd, ls, mkdir, chmod, sudo …).",
+    "title": "Consola del servidor",
+    "hint": "Comandos privilegiados (useradd, apt install, systemctl) requieren `sudo`. Flechas ↑/↓ para el historial.",
+    "focus": "Consola del servidor"
   }
 }

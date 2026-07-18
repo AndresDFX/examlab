@@ -366,7 +366,7 @@ function PricingCalculatorPage() {
                   value={quote.dollarPorMatricula == null ? "—" : usd(quote.dollarPorMatricula, 3)}
                 />
                 <Metric
-                  label="Vs. lista v3"
+                  label="Vs. precio de lista"
                   value={
                     quote.precioLista == null
                       ? "—"

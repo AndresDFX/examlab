@@ -3468,7 +3468,7 @@ function FilesByClassDialog({
           type="button"
           disabled={busy}
           onClick={primaryAction}
-          className="flex items-center justify-center w-6 h-6 hover:bg-muted/60 transition-colors disabled:opacity-60"
+          className="flex items-center justify-center w-8 h-8 hover:bg-muted/60 transition-colors disabled:opacity-60"
           title={`${label} — ${primaryHint}`}
           aria-label={`${label} — ${primaryHint}`}
         >
@@ -3478,7 +3478,7 @@ function FilesByClassDialog({
           <button
             type="button"
             onClick={() => (isEditableImg ? setImageEditFile(f) : openViewer("edit"))}
-            className="flex items-center justify-center w-6 h-6 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+            className="flex items-center justify-center w-8 h-8 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
             title={`${label} — ${t("contents.editOnline")}`}
             aria-label={`${label} — ${t("contents.editOnline")}`}
           >
@@ -3490,7 +3490,7 @@ function FilesByClassDialog({
             type="button"
             disabled={busy}
             onClick={() => onDownload(fileWithBody)}
-            className="flex items-center justify-center w-6 h-6 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
+            className="flex items-center justify-center w-8 h-8 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
             title={`${label} — ${t("contents.downloadHint")}`}
             aria-label={`${label} — ${t("contents.downloadHint")}`}
           >
@@ -3500,7 +3500,7 @@ function FilesByClassDialog({
         <button
           type="button"
           onClick={() => onDeleteFile(f)}
-          className="flex items-center justify-center w-6 h-6 border-l text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+          className="flex items-center justify-center w-8 h-8 border-l text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
           title={`${label} — ${t("contents.deleteFileHint")}`}
           aria-label={`${label} — ${t("contents.deleteFileHint")}`}
         >
@@ -3561,7 +3561,7 @@ function FilesByClassDialog({
           <button
             type="button"
             onClick={() => (isEditableImg ? setImageEditFile(f) : openViewer("edit"))}
-            className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
             title={t("contents.editOnline")}
             aria-label={t("contents.editOnline")}
           >
@@ -3573,7 +3573,7 @@ function FilesByClassDialog({
             type="button"
             disabled={busy}
             onClick={() => onDownload(fileWithBody)}
-            className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground transition-colors disabled:opacity-60"
+            className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground transition-colors disabled:opacity-60"
             title={t("contents.downloadHint")}
             aria-label={t("contents.downloadHint")}
           >
@@ -3583,7 +3583,7 @@ function FilesByClassDialog({
         <button
           type="button"
           onClick={() => onDeleteFile(f)}
-          className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
           title={t("contents.deleteFileHint")}
           aria-label={t("contents.deleteFileHint")}
         >

@@ -248,7 +248,9 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
         if (error || d?.failed > 0) {
           const detail =
             (await extractEdgeError(error, data)) ||
-            (d?.failed > 0 ? "El worker reportó falla en el job" : "Error desconocido");
+            (d?.failed > 0
+              ? i18n.t("aiQueue.workerReportedFailure")
+              : i18n.t("aiQueue.unknownError"));
           toast.error(i18n.t("aiQueue.toastCouldNotProcess") + ": " + detail);
         } else if (d?.succeeded === 0 && d?.processed === 0) {
           toast.info(i18n.t("aiQueue.toastJobNoLongerPending"));

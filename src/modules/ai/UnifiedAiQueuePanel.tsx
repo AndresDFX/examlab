@@ -1722,7 +1722,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7"
+                            className="h-8 w-8"
                             disabled={busy}
                             onClick={() => void retryJob(j)}
                             title={j.status === "cancelled" ? t("unifiedAiQueue.requeue") : t("unifiedAiQueue.retry")}
@@ -1738,7 +1738,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7"
+                            className="h-8 w-8"
                             disabled={busy}
                             onClick={() => void processOne(j)}
                             title={t("unifiedAiQueue.processNow")}
@@ -1757,7 +1757,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-7 w-7 text-orange-600 hover:text-orange-700 hover:bg-orange-500/10 dark:text-orange-400 dark:hover:text-orange-300"
+                              className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-500/10 dark:text-orange-400 dark:hover:text-orange-300"
                               disabled={busy}
                               onClick={() => openReject(j)}
                               title={t("unifiedAiQueue.rejectWithReason")}
@@ -1771,7 +1771,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                             disabled={busy}
                             onClick={() => void cancelJob(j)}
                             title={
@@ -1787,7 +1787,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400 dark:hover:text-emerald-300"
+                            className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400 dark:hover:text-emerald-300"
                             onClick={() => void acknowledgeReject(j)}
                             title={t("unifiedAiQueue.closeConversation")}
                           >

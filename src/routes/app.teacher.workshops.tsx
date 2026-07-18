@@ -3377,7 +3377,7 @@ function TeacherWorkshops() {
                               type="button"
                               size="icon"
                               variant="ghost"
-                              className="h-7 w-7"
+                              className="h-8 w-8"
                               onClick={moveUp}
                               disabled={idx === 0}
                               title={t("teacherWorkshops.videoMoveUp")}
@@ -3388,7 +3388,7 @@ function TeacherWorkshops() {
                               type="button"
                               size="icon"
                               variant="ghost"
-                              className="h-7 w-7"
+                              className="h-8 w-8"
                               onClick={moveDown}
                               disabled={idx === formIntroVideos.length - 1}
                               title={t("teacherWorkshops.videoMoveDown")}
@@ -3399,7 +3399,7 @@ function TeacherWorkshops() {
                               type="button"
                               size="icon"
                               variant="ghost"
-                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                               onClick={removeRow}
                               title={t("teacherWorkshops.videoRemove")}
                             >

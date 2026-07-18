@@ -18,6 +18,7 @@
  * logueado).
  */
 import { createFileRoute } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -114,13 +115,14 @@ function RetoPublic() {
 
 // ── Compuerta de correo institucional ──
 function EmailGate({ pin, onJoined }: { pin: string; onJoined: (p: StoredPlayer) => void }) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
 
   const join = async () => {
     const clean = email.trim();
     if (!clean || clean.indexOf("@") < 1) {
-      toast.error("Ingresa un correo institucional válido");
+      toast.error(t("kahoot.invalidEmail", { defaultValue: "Ingresa un correo institucional válido" }));
       return;
     }
     setBusy(true);
@@ -142,19 +144,22 @@ function EmailGate({ pin, onJoined }: { pin: string; onJoined: (p: StoredPlayer)
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/40 flex flex-col items-center justify-center p-4 gap-5">
       <div className="flex items-center gap-2 text-primary">
         <Radio className="h-6 w-6" />
-        <span className="text-lg font-black tracking-tight">Reto en vivo</span>
+        <span className="text-lg font-black tracking-tight">{t("kahoot.retoBrand", { defaultValue: "Reto en vivo" })}</span>
       </div>
       <Card className="w-full max-w-sm">
         <CardContent className="p-6 space-y-4">
           <div className="text-center space-y-1">
-            <h1 className="text-xl font-bold">Únete al reto</h1>
+            <h1 className="text-xl font-bold">{t("kahoot.joinTitle", { defaultValue: "Únete al reto" })}</h1>
             <p className="text-sm text-muted-foreground">
-              Ingresa tu <strong>correo institucional</strong> para participar. No necesitas iniciar sesión.
+              {t("kahoot.joinHint", {
+                defaultValue:
+                  "Ingresa tu correo institucional para participar. No necesitas iniciar sesión.",
+              })}
             </p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="reto-email" required>
-              Correo institucional
+              {t("kahoot.institutionalEmail", { defaultValue: "Correo institucional" })}
             </Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -178,10 +183,12 @@ function EmailGate({ pin, onJoined }: { pin: string; onJoined: (p: StoredPlayer)
           </div>
           <Button className="w-full" size="lg" disabled={busy} onClick={() => void join()}>
             {busy ? <Spinner size="sm" className="mr-2" /> : null}
-            Entrar al reto
+            {t("kahoot.enterGame", { defaultValue: "Entrar al reto" })}
           </Button>
           <p className="text-center text-[11px] leading-tight text-muted-foreground">
-            Solo pueden participar los correos matriculados en el curso. Un jugador por correo.
+            {t("kahoot.joinDisclaimer", {
+              defaultValue: "Solo pueden participar los correos matriculados en el curso. Un jugador por correo.",
+            })}
           </p>
         </CardContent>
       </Card>
@@ -200,6 +207,7 @@ function RetoPlay({
   player: StoredPlayer;
   onReset: () => void;
 }) {
+  const { t } = useTranslation();
   const { state, loading, error, reload } = usePublicKahootGame(player.gameId, player.playerId);
   const [submitting, setSubmitting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
@@ -279,12 +287,14 @@ function RetoPlay({
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 gap-4">
         <ErrorState
-          message="No pudimos conectarte al reto"
-          hint="El reto pudo haber terminado o el enlace ya no es válido."
+          message={t("kahoot.connectError", { defaultValue: "No pudimos conectarte al reto" })}
+          hint={t("kahoot.connectErrorHint", {
+            defaultValue: "El reto pudo haber terminado o el enlace ya no es válido.",
+          })}
           onRetry={() => void reload()}
         />
         <Button variant="outline" onClick={onReset}>
-          Usar otro correo
+          {t("kahoot.useAnotherEmail", { defaultValue: "Usar otro correo" })}
         </Button>
       </div>
     );
@@ -310,7 +320,7 @@ function RetoPlay({
             size="icon"
             className="h-8 w-8"
             onClick={toggleMuted}
-            title={muted ? "Activar sonido" : "Silenciar"}
+            title={muted ? t("kahoot.soundOn", { defaultValue: "Activar sonido" }) : t("kahoot.soundOff", { defaultValue: "Silenciar" })}
           >
             {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
           </Button>
@@ -332,9 +342,11 @@ function RetoPlay({
         <Card className="w-full max-w-md">
           <CardContent className="p-6 text-center space-y-3">
             <Hourglass className="h-10 w-10 mx-auto text-amber-500 animate-pulse" />
-            <h1 className="text-xl font-bold">Esperando al docente…</h1>
+            <h1 className="text-xl font-bold">{t("kahoot.hostAwayTitle", { defaultValue: "Esperando al docente…" })}</h1>
             <p className="text-muted-foreground text-sm">
-              El docente no está presente en la sala. Cuando regrese, el reto continúa.
+              {t("kahoot.hostAwayBody", {
+                defaultValue: "El docente no está presente en la sala. Cuando regrese, el reto continúa.",
+              })}
             </p>
             {me && <Badge className="text-base py-1 px-4">{me.nickname}</Badge>}
           </CardContent>
@@ -346,8 +358,8 @@ function RetoPlay({
         <Card className="w-full max-w-md">
           <CardContent className="p-6 text-center space-y-3">
             <Hourglass className="h-10 w-10 mx-auto text-primary animate-pulse" />
-            <h1 className="text-xl font-bold">¡Ya estás dentro!</h1>
-            <p className="text-muted-foreground text-sm">Espera a que el docente inicie el reto.</p>
+            <h1 className="text-xl font-bold">{t("kahoot.youAreIn", { defaultValue: "¡Ya estás dentro!" })}</h1>
+            <p className="text-muted-foreground text-sm">{t("kahoot.waitForHost", { defaultValue: "Espera a que el docente inicie el reto." })}</p>
             <Badge className="text-base py-1 px-4">{me?.nickname}</Badge>
           </CardContent>
         </Card>
@@ -360,7 +372,7 @@ function RetoPlay({
           className="w-full max-w-md text-center space-y-5 animate-in fade-in zoom-in-95 duration-300"
         >
           <Rocket className="h-12 w-12 mx-auto text-primary animate-bounce" />
-          <h1 className="text-2xl font-black">¡Prepárate!</h1>
+          <h1 className="text-2xl font-black">{t("kahoot.getReady", { defaultValue: "¡Prepárate!" })}</h1>
           <p className="text-base text-muted-foreground">{question.text}</p>
           <div
             key={`ready-n-${getReady}`}
@@ -391,15 +403,15 @@ function RetoPlay({
                 ) : (
                   <Hourglass className="h-10 w-10 mx-auto text-amber-500" />
                 )}
-                <p className="font-semibold">{me?.answered ? "¡Respuesta enviada!" : "¡Tiempo!"}</p>
-                <p className="text-sm text-muted-foreground">Espera a los demás…</p>
+                <p className="font-semibold">{me?.answered ? t("kahoot.answerSent", { defaultValue: "¡Respuesta enviada!" }) : t("kahoot.timeUpTitle", { defaultValue: "¡Tiempo!" })}</p>
+                <p className="text-sm text-muted-foreground">{t("kahoot.waitOthers", { defaultValue: "Espera a los demás…" })}</p>
               </CardContent>
             </Card>
           ) : (
             <>
               {question.multi_select && (
                 <p className="text-center text-xs font-medium text-muted-foreground">
-                  Puedes marcar varias opciones y confirmar.
+                  {t("kahoot.multiSelectHint", { defaultValue: "Puedes marcar varias opciones y confirmar." })}
                 </p>
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -448,7 +460,7 @@ function RetoPlay({
                   onClick={() => void submit(selected)}
                 >
                   {submitting ? <Spinner size="sm" className="mr-2" /> : null}
-                  Confirmar respuesta
+                  {t("kahoot.confirmAnswer", { defaultValue: "Confirmar respuesta" })}
                 </Button>
               )}
             </>
@@ -463,18 +475,18 @@ function RetoPlay({
             {me.my_is_correct === true ? (
               <>
                 <CheckCircle2 className="h-14 w-14 mx-auto text-emerald-500" />
-                <h1 className="text-2xl font-black text-emerald-600 dark:text-emerald-400">¡Correcto!</h1>
+                <h1 className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{t("kahoot.correct", { defaultValue: "¡Correcto!" })}</h1>
                 <p className="text-lg font-semibold">+{me.my_points}</p>
               </>
             ) : me.answered ? (
               <>
                 <XCircle className="h-14 w-14 mx-auto text-rose-500" />
-                <h1 className="text-2xl font-black text-rose-600 dark:text-rose-400">Incorrecto</h1>
+                <h1 className="text-2xl font-black text-rose-600 dark:text-rose-400">{t("kahoot.incorrect", { defaultValue: "Incorrecto" })}</h1>
               </>
             ) : (
               <>
                 <Hourglass className="h-14 w-14 mx-auto text-muted-foreground" />
-                <h1 className="text-xl font-bold text-muted-foreground">Sin respuesta</h1>
+                <h1 className="text-xl font-bold text-muted-foreground">{t("kahoot.noAnswer", { defaultValue: "Sin respuesta" })}</h1>
               </>
             )}
             <div className="flex items-center justify-center gap-2 pt-2">
@@ -494,9 +506,9 @@ function RetoPlay({
         <Card className="w-full max-w-md animate-in fade-in zoom-in-95 duration-300">
           <CardContent className="p-6 text-center space-y-3">
             <Trophy className="h-12 w-12 mx-auto text-amber-500" />
-            <p className="text-sm text-muted-foreground">Tu posición</p>
+            <p className="text-sm text-muted-foreground">{t("kahoot.yourPosition", { defaultValue: "Tu posición" })}</p>
             <p className="text-5xl font-black tabular-nums">#{me.rank}</p>
-            <p className="text-lg font-semibold tabular-nums">{me.score} pts</p>
+            <p className="text-lg font-semibold tabular-nums">{me.score} {t("kahoot.points", { defaultValue: "pts" })}</p>
           </CardContent>
         </Card>
       )}
@@ -510,15 +522,15 @@ function RetoPlay({
             ) : (
               <Trophy className="h-14 w-14 mx-auto text-muted-foreground" />
             )}
-            <h1 className="text-2xl font-black">¡Fin del reto!</h1>
+            <h1 className="text-2xl font-black">{t("kahoot.gameOver", { defaultValue: "¡Fin del reto!" })}</h1>
             {me && (
               <>
                 <p className="text-5xl font-black tabular-nums">#{me.rank}</p>
-                <p className="text-lg font-semibold tabular-nums">{me.score} pts</p>
+                <p className="text-lg font-semibold tabular-nums">{me.score} {t("kahoot.points", { defaultValue: "pts" })}</p>
               </>
             )}
             {game.status === "ended" && (
-              <p className="text-xs text-muted-foreground">Gracias por participar. Ya puedes cerrar esta página.</p>
+              <p className="text-xs text-muted-foreground">{t("kahoot.thanksClose", { defaultValue: "Gracias por participar. Ya puedes cerrar esta página." })}</p>
             )}
           </CardContent>
         </Card>
