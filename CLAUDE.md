@@ -27,7 +27,7 @@ bun run dev              # localhost:5173
 
 **Cuentas de testing (tenant FESNA)** — verificadas el 2026-06-08:
 - **SuperAdmin (cross-tenant)**: `castano.julian@correounivalle.edu.co` / `Tester#12345`. Tenant_id=NULL. Acceso a `/app/superadmin/*` + bypass de RLS via `is_super_admin()`.
-- **Multi-rol (Admin + Docente + Estudiante) en FESNA**: `test-fesna@examlab.test` / `WyEBPdxMCRZVFp`. user_id `d0495677-9f20-4f6f-b4f2-7f616b608a04`. Tenant FESNA (`231c9e47-e50d-45a9-8782-af38087656a4`). Útil para testing programático de los 3 roles sin crear cuentas separadas — el role-switcher del sidebar cambia entre ellos.
+- **Multi-rol (Admin + Docente + Estudiante) en FESNA**: `test-fesna@examlab.test`. user_id `d0495677-9f20-4f6f-b4f2-7f616b608a04`. Tenant FESNA (`231c9e47-e50d-45a9-8782-af38087656a4`). Tenía los 3 roles → útil para validar flows Admin/Docente/Estudiante con el mismo user. **⚠️ La contraseña `WyEBPdxMCRZVFp` YA NO funciona** (verificado 2026-07-19: "Invalid login credentials"): la cuenta migró a SSO el 2026-06-12, así que NO sirve para login por password/REST. Para testing programático por REST necesitás otra cuenta con password auth.
 
 **Tenant FESNA — estado** (snapshot 2026-06-08):
 - 1 curso activo: `Paradigmas de Programación Junio 2026` (id `01b397a3-e74f-4f66-becf-c63b643f247f`).
@@ -36,6 +36,8 @@ bun run dev              # localhost:5173
 - `email_settings.enabled_kinds.welcome = false` (no manda welcome email al bulk import).
 
 **Validaciones de campo desde shell** (sin browser, via REST):
+
+> ⚠️ El ejemplo de abajo usa `test-fesna`, cuya contraseña ya NO funciona (migró a SSO, ver arriba). El PATRÓN sigue válido — reemplazá el email/password por una cuenta con password auth vigente.
 
 ```bash
 # Login a Supabase Auth

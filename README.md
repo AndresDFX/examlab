@@ -131,7 +131,7 @@ bun run build
 | Rol | Email | Password |
 |---|---|---|
 | SuperAdmin (cross-tenant) | `castano.julian@correounivalle.edu.co` | `Tester#12345` |
-| Multi-rol (Admin + Docente + Estudiante) en FESNA | `test-fesna@examlab.test` | `WyEBPdxMCRZVFp` |
+| Multi-rol (Admin + Docente + Estudiante) en FESNA | `test-fesna@examlab.test` | ⚠️ migró a SSO (2026-06-12) — la contraseña ya no funciona |
 
 La cuenta multi-rol facilita testing — el role-switcher del sidebar cambia entre los 3 roles sin re-login.
 
