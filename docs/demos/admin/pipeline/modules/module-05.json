@@ -2,15 +2,24 @@
   "id": "modulo-05",
   "title": "Contenidos",
   "appPath": "/app/teacher/contents",
-  "readySelectors": ["[data-tour-id=\"upload-external-content\"]"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "[data-tour-id=\"upload-external-content\"]"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
       "narration": "Contenidos: el material de estudio del curso, que puede subirse o generarse con inteligencia artificial.",
-      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Contenidos", "subtitle": "Demo Global Corp" },
-      "bufferMs": 600
+      "card": {
+        "kicker": "ExamLab · Demo Global Corp",
+        "title": "Contenidos",
+        "subtitle": "Rol: Administrador"
+      },
+      "bufferMs": 500
     },
     {
       "id": "crear-contenido",
@@ -19,18 +28,54 @@
       "narration": "Abrimos Nuevo contenido para generarlo con IA. Le ponemos un nombre para identificarlo en la lista. Describimos el tema con el detalle que queramos. Elegimos el modo: un material puntual o el curso completo. Y los tipos de contenido a generar, como teoría, ejercicios o diapositivas. La inteligencia artificial produce el material, listo para revisar antes de publicarlo. Y como las sesiones se alinean con el material, la clase de cada sesión aparece automáticamente.",
       "bufferMs": 900,
       "beats": [
-        { "target": "field:Nombre", "hold": 4500, "side": "right", "focus": { "title": "Nombre del contenido", "body": "Para identificarlo en la lista." } },
-        { "target": "field:Tema", "hold": 6500, "side": "right", "focus": { "title": "Tema", "body": "Describe qué generar, con todo el detalle que quieras." } },
-        { "target": "field:Modo", "hold": 5000, "side": "right", "focus": { "title": "Modo", "body": "Un material puntual o el curso completo." } },
-        { "target": "field:Tipos", "hold": 6000, "side": "right", "focus": { "title": "Tipos de contenido", "body": "Teoría, ejercicios, diapositivas… la IA los genera." } }
+        {
+          "target": "field:Nombre",
+          "hold": 4500,
+          "side": "right",
+          "focus": {
+            "title": "Nombre del contenido",
+            "body": "Para identificarlo en la lista."
+          }
+        },
+        {
+          "target": "field:Tema",
+          "hold": 6500,
+          "side": "right",
+          "focus": {
+            "title": "Tema",
+            "body": "Describe qué generar, con todo el detalle que quieras."
+          }
+        },
+        {
+          "target": "field:Modo",
+          "hold": 5000,
+          "side": "right",
+          "focus": {
+            "title": "Modo",
+            "body": "Un material puntual o el curso completo."
+          }
+        },
+        {
+          "target": "field:Tipos",
+          "hold": 6000,
+          "side": "right",
+          "focus": {
+            "title": "Tipos de contenido",
+            "body": "Teoría, ejercicios, diapositivas… la IA los genera."
+          }
+        }
       ]
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "Así reunís todo el material del curso en un solo lugar, subido o generado con IA y listo para tus estudiantes.",
-      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Siguiente módulo", "subtitle": "Biblioteca de Videos" },
-      "bufferMs": 600
+      "card": {
+        "kicker": "ExamLab · Rol Administrador",
+        "title": "Contenidos",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 500
     }
   ]
 }

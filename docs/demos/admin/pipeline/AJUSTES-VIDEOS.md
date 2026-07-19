@@ -148,3 +148,49 @@ edge-tts + ffmpeg) contra la app publicada; no se genera sin ese paso.
   reforzar que se pueden **editar las preguntas del reto** (abrir "Preguntas del reto",
   editar texto/opciones/tiempo/puntos, marcar la correcta) además de generarlas con IA. Hoy
   el beat `kahoot-ia` muestra la generación; sumar un beat corto de edición manual.
+
+---
+
+## 10. Ronda de correcciones 2026-07-18 (feedback demo + admin)
+
+Cambios aplicados al PIPELINE (no re-autorear specs por módulo):
+
+- **Carátula azul menos tiempo — `record-module.mjs`**: las escenas `card` ya no se quedan
+  azules toda la narración. Tras mostrar el azul `min(escena, CARD_BLUE_MS=2600ms)` se limpia
+  el overlay y la narración sigue sobre la pantalla REAL del módulo (ya cargada detrás).
+  - Excepción `holdCard:true`: carátulas de MARCA (intro/outro del recorrido general) se quedan
+    azules toda la escena. Las de módulo NO llevan holdCard → revelan.
+  - Límite: si la PÁGINA tarda en cargar (waitReady largo), el azul cubre la carga y el reveal
+    queda al final (el mux comprime la cola silenciosa a ~2.2s igual). El reveal luce en páginas
+    de carga rápida y en los divisores del recorrido (nav ya cargada).
+- **Voz "trabada al iniciar" — `build-mux.mjs`**: `LEAD` 250→600ms + `afade=t=in:d=0.15` por
+  narración + `afade=t=in:d=0.12` global sobre el amix. Mata el click/garble de arranque de los
+  mp3 de edge-tts.
+- **`createbtn` doc-wide — `record-module.mjs`**: el resolver buscaba solo en `<main>`; el botón
+  "Nuevo X" del `PageHeader` a veces queda FUERA de `<main>` → `openDialog` no abría el diálogo
+  (root cause de "no muestra el formulario" en Soporte). Ahora cae a búsqueda doc-wide (excluye tabs).
+
+Cambios en SPECS:
+
+- **Outro sin "Siguiente módulo"** (admin 01-16): la carátula de cierre ya NO dice "Siguiente
+  módulo" con el nombre del PRÓXIMO (el usuario lo leía como "el módulo se llama Siguiente
+  módulo"). Ahora recapitula el módulo ACTUAL (`title = spec.title`, `subtitle = "Demo Global Corp"`).
+  Video autocontenido, sin encadenar (alineado con la regla de narración de CLAUDE.md).
+- **Intro nombra el módulo** (admin 01-16): `title = spec.title` (antes "Demo Global Corp" genérico
+  para todos). Buffers de intro/outro bajados a 500ms.
+- **module-02 Usuarios**: la escena "alta" ahora `openDialog:createbtn` y recorre los campos REALES
+  del form (Nombre completo, Email institucional, Contraseña inicial, Roles, Inscribir en curso) —
+  antes solo hacía zoom al botón (el usuario no veía el formulario).
+- **module-07 Configuración de IA**: la tab "Prompts" carga LENTO ("Cargando prompts…" varios seg) →
+  `readySelectors` ahora exige `text=Mostrando` (aparece solo con los prompts cargados), así el
+  recorder no mide la tab vacía. La tab "Modelo" apuntaba a `text:Modelo activo` (NO existe) →
+  cambiado a `field:Proveedor` + `field:API key` (labels reales).
+- **module-16 Cola de IA**: salía VACÍA (0/0/0/0, "Sin jobs"). Requiere SEED de las colas antes de
+  grabar (`scratchpad/seed-cron-pg.mjs`: jobs pending/processing/failed/done marcados
+  `body._demo_seed=true`, apuntando a entregas reales para que los títulos resuelvan). Limpiar con
+  `scratchpad/cleanup-cron-seed.mjs` al terminar. Los jobs seedeados van en estados NO-pending para
+  que el worker hourly no los reprocese (salvo 1 pending, riesgo mínimo en tenant demo).
+- **Recorrido general (overview)**: divisores de sección con `bufferMs` 700 (revelan la app);
+  intro/outro `holdCard:true` + buffer 800. La escena de exámenes ahora muestra la LISTA real
+  (`maincard`) además del botón "Generar con IA" (antes solo el botón → "no muestra nada específico").
+  Narración de usuarios reescrita (evita el trabalenguas "los matricula; al inscribirlos" del seg ~24).

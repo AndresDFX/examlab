@@ -16,11 +16,11 @@
       "kind": "card",
       "narration": "Los informes: las plantillas de actas y boletines en PDF.",
       "card": {
-        "kicker": "ExamLab · Rol Administrador",
+        "kicker": "ExamLab · Demo Global Corp",
         "title": "Informes",
-        "subtitle": "Plantillas globales"
+        "subtitle": "Rol: Administrador"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     },
     {
       "id": "vista",
@@ -124,10 +124,10 @@
       "narration": "Así, con plantillas globales y variables dinámicas, generás actas y boletines en PDF con los datos reales de cada estudiante.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
-        "title": "Siguiente módulo",
-        "subtitle": "Auditoría"
+        "title": "Informes",
+        "subtitle": "Demo Global Corp"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     }
   ]
 }

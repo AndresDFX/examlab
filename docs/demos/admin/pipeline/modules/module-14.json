@@ -15,11 +15,11 @@
       "kind": "card",
       "narration": "La papelera: borrar ya no es para siempre.",
       "card": {
-        "kicker": "ExamLab · Rol Administrador",
+        "kicker": "ExamLab · Demo Global Corp",
         "title": "Papelera",
-        "subtitle": "Recuperar lo eliminado"
+        "subtitle": "Rol: Administrador"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     },
     {
       "id": "item",
@@ -99,10 +99,10 @@
       "narration": "Así, cualquier borrado tiene treinta días de margen para recuperarse: eliminar deja de dar miedo.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
-        "title": "Siguiente módulo",
-        "subtitle": "Cuenta y Sesión"
+        "title": "Papelera",
+        "subtitle": "Demo Global Corp"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     }
   ]
 }

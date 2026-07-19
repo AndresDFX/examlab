@@ -15,11 +15,11 @@
       "kind": "card",
       "narration": "Gestión de cursos. Veamos cómo se crea un curso y qué información se define.",
       "card": {
-        "kicker": "ExamLab · Rol Administrador",
+        "kicker": "ExamLab · Demo Global Corp",
         "title": "Gestión de Cursos",
-        "subtitle": "Demo Global Corp"
+        "subtitle": "Rol: Administrador"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     },
     {
       "id": "crear-curso",
@@ -81,10 +81,10 @@
       "narration": "Así de simple: con la asignatura como base, un curso queda listo con su programa, sus fechas y sus cortes bien definidos.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
-        "title": "Siguiente módulo",
-        "subtitle": "Contenidos"
+        "title": "Gestión de Cursos",
+        "subtitle": "Demo Global Corp"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     }
   ]
 }

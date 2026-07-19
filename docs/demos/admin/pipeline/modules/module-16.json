@@ -15,11 +15,11 @@
       "kind": "card",
       "narration": "La cola de inteligencia artificial de ExamLab.",
       "card": {
-        "kicker": "ExamLab · Rol Administrador",
+        "kicker": "ExamLab · Demo Global Corp",
         "title": "Cola de IA",
-        "subtitle": "Generación y calificación"
+        "subtitle": "Rol: Administrador"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     },
     {
       "id": "cola",
@@ -57,11 +57,11 @@
       "kind": "card",
       "narration": "Así, desde un solo lugar, el administrador controla toda la inteligencia artificial de ExamLab: generación y calificación bajo la vista.",
       "card": {
-        "kicker": "ExamLab · Serie de demostración",
-        "title": "Fin del recorrido",
-        "subtitle": "Rol Administrador · Demo Global Corp"
+        "kicker": "ExamLab · Rol Administrador",
+        "title": "Cola de IA",
+        "subtitle": "Demo Global Corp"
       },
-      "bufferMs": 800
+      "bufferMs": 500
     }
   ]
 }

@@ -26,6 +26,12 @@ const OUT = "C:/Temp/examlab-rec/out";
 const AUDIO = "C:/Temp/examlab-rec/audio2";
 const FFPROBE = "C:/Temp/examlab-rec/ffmpeg/ffmpeg-8.1.1-essentials_build/bin/ffprobe.exe";
 const VIEWPORT = { width: 1920, height: 1080 };
+// Máximo que la carátula (pantalla azul) permanece puesta ANTES de revelar la
+// plataforma ya cargada detrás. Feedback del usuario: "la pantalla azul se
+// queda mucho tiempo mientras habla". Las carátulas de MARCA (intro/outro del
+// recorrido) usan `holdCard:true` para quedarse toda la escena; el resto revela
+// la app tras este cap y sigue la narración sobre la pantalla real del módulo.
+const CARD_BLUE_MS = 2600;
 
 const scenes = spec.scenes;
 const narrMs = scenes.map((_, i) => Math.round(parseFloat(execFileSync(FFPROBE, ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", `${AUDIO}/scene-${i + 1}.mp3`]).toString().trim()) * 1000));
@@ -107,6 +113,14 @@ const INIT = `(() => {
       font-family:Inter,system-ui,sans-serif;pointer-events:none;}
     .demo-pop b{display:block;font-size:15px;margin-bottom:4px;color:#1D4ED8;}
     .demo-pop span{font-size:13px;line-height:1.4;color:#334155;}
+    /* Toasts de sonner = RUIDO de grabación (notifs realtime tipo "Check-in de
+       asistencia abierto" que llegan a la cuenta demo). Se neutralizan:
+       opacity:0 (no se ven en el video) + pointer-events:none (no interceptan
+       clicks — root cause de "diálogo abierto: false" en Soporte, el toast
+       tapaba el botón "Nuevo ticket" arriba a la derecha). Se mantienen en el
+       DOM: Playwright trata opacity:0 como "visible", así que el waitText de la
+       serie Docente (timing de "generada", etc.) sigue funcionando. */
+    [data-sonner-toaster],.toaster{opacity:0 !important;pointer-events:none !important;}
   \`;
   (document.head||document.documentElement).appendChild(css);
   const dot=document.createElement('div'); dot.id='demo-cursor';
@@ -248,8 +262,8 @@ function fitScale(rect, requested) {
 async function cameraSetup(page) {
   await page.evaluate(() => { const b = document.body; b.style.transformOrigin = "0 0"; b.style.transform = "none"; });
 }
-async function measureTargets(page, targets, scroll = false) {
-  return await page.evaluate(({ targets, scroll }) => {
+async function measureTargets(page, targets, scroll = false, mark = false) {
+  return await page.evaluate(({ targets, scroll, mark }) => {
     const rc = (el) => { if (!el) return null; const r = el.getBoundingClientRect(); return { left: r.left, top: r.top, width: r.width, height: r.height, cx: r.left + r.width / 2, cy: r.top + r.height / 2 }; };
     const cardOf = (txt) => { const h = [...document.querySelectorAll("*")].find((e) => (e.textContent || "").trim() === txt && e.children.length <= 3); return h ? h.closest("div") : null; };
     const grids = [...document.querySelectorAll('main .grid, main [class*="grid"]')];
@@ -331,8 +345,15 @@ async function measureTargets(page, targets, scroll = false) {
         el = bell ? (bell.closest(".flex.items-center.justify-between") || bell.parentElement?.parentElement || bell.parentElement) : null;
       }
       else if (ts === "createbtn") {
-        // Botón primario "Nuevo/Nueva/Crear/Agregar" de la vista (o tab) activa.
-        el = [...document.querySelectorAll("main button")].find((b) => /^\s*(nuev|crear|agregar|añadir)/i.test(b.textContent || "")) || null;
+        // Botón primario "Nuevo/Nueva/Crear/Agregar". Se busca primero en <main>;
+        // si no aparece (el botón vive en el PageHeader, que en algunas pantallas
+        // queda FUERA de <main> → openDialog no abría el diálogo, root cause de
+        // "no muestra el formulario" en Soporte/Usuarios), se cae a búsqueda
+        // doc-wide excluyendo tabs.
+        const rxC = /^\s*(nuev|crear|agregar|a[ñn]adir)/i;
+        el = [...document.querySelectorAll("main button")].find((b) => rxC.test(b.textContent || ""))
+          || [...document.querySelectorAll("button")].find((b) => b.getAttribute("role") !== "tab" && rxC.test(b.textContent || ""))
+          || null;
       }
       else if (ts.startsWith("button:")) {
         // BOTÓN por texto, excluyendo tabs (Radix TabsTrigger es <button
@@ -361,9 +382,13 @@ async function measureTargets(page, targets, scroll = false) {
       }
       else el = document.querySelector(ts);
       if (scroll && el) el.scrollIntoView({ block: "center", inline: "nearest" });
+      // mark: etiqueta el elemento resuelto para poder hacerle un click NATIVO
+      // por JS después (el.click()), inmune a overlays/toasts que taparían un
+      // click por coordenadas — root cause de "diálogo abierto: false" en Soporte.
+      if (mark && el) el.setAttribute("data-demo-hit", "1");
       return rc(el);
     });
-  }, { targets, scroll });
+  }, { targets, scroll, mark });
 }
 async function cameraTo(page, c, scale, ms = 650, overpan = false) {
   if (!c) return;
@@ -613,12 +638,25 @@ async function main() {
           await waitReady(page, sc.ready ?? spec.readySelectors);
           await killTour(page); await cameraSetup(page); await hideCursor(page, true);
         }
-        await sleep(Math.max(0, target(i) - (Date.now() - s)));
-        // Solo limpiar el overlay si la SIGUIENTE escena es plataforma (necesita ver
-        // la app). Entre cards consecutivos (o si es la última escena) lo mantenemos
-        // puesto: el overlay() siguiente reemplaza su contenido → cero parpadeo de la
-        // plataforma de fondo entre escenas tipo card.
-        if (scenes[i + 1] && scenes[i + 1].kind !== "card") await clearOverlay(page);
+        // Carátula breve → revelar la plataforma. Se muestra el azul por
+        // min(escena, CARD_BLUE_MS) y luego se limpia el overlay para que el
+        // resto de la narración corra sobre la pantalla REAL del módulo (ya
+        // cargada detrás). Excepciones: `holdCard:true` (carátulas de marca,
+        // se quedan azules toda la escena) y cuando la SIGUIENTE escena también
+        // es card (entre cards consecutivos el próximo overlay() reemplaza el
+        // contenido → cero parpadeo de la plataforma de fondo).
+        const totalCard = target(i);
+        const nextIsCard = scenes[i + 1] && scenes[i + 1].kind === "card";
+        const blueCap = sc.blueMs ?? CARD_BLUE_MS;
+        if (!nextIsCard && !sc.holdCard) {
+          await sleep(Math.max(0, Math.min(totalCard, blueCap) - (Date.now() - s)));
+          await page.evaluate(() => { document.body.style.transform = "none"; document.body.style.willChange = "auto"; });
+          await clearOverlay(page);
+          await sleep(Math.max(0, totalCard - (Date.now() - s)));
+        } else {
+          await sleep(Math.max(0, totalCard - (Date.now() - s)));
+          if (!nextIsCard) await clearOverlay(page);
+        }
       } else {
         // platform: cámara identidad → (opcional) abrir vía menú / cambiar de
         // tab → medir los targets de ESTA escena just-in-time (las tabs y el
@@ -633,9 +671,21 @@ async function main() {
           // ya oscurece la página); cada campo se enfoca con spotlight + popover
           // a escala 1.0 (sin zoom de cámara → no se transforma el portal).
           // Se hace scroll dentro del diálogo a cada campo antes de medirlo.
-          const [trig] = await measureTargets(page, [sc.openDialog]);
-          if (trig) await page.mouse.click(trig.cx, trig.cy);
-          await page.locator('[role="dialog"]').first().waitFor({ timeout: 4000 }).catch(() => {});
+          // Click NATIVO al trigger (el.click() por JS): inmune a que un toast
+          // realtime u overlay tape el botón (el click por coordenadas fallaba
+          // en Soporte cuando "Nuevo ticket" quedaba bajo un toast). Fallback a
+          // click por coordenadas si el diálogo no abrió.
+          const [trig] = await measureTargets(page, [sc.openDialog], false, true);
+          let opened = false;
+          if (trig) {
+            await page.evaluate(() => { const el = document.querySelector('[data-demo-hit]'); if (el) el.click(); });
+            opened = await page.locator('[role="dialog"]').first().waitFor({ timeout: 3500 }).then(() => true).catch(() => false);
+            if (!opened) {
+              await page.mouse.click(trig.cx, trig.cy);
+              opened = await page.locator('[role="dialog"]').first().waitFor({ timeout: 3500 }).then(() => true).catch(() => false);
+            }
+          }
+          await page.evaluate(() => document.querySelector('[data-demo-hit]')?.removeAttribute('data-demo-hit'));
           await sleep(700);
           console.log(`  → diálogo abierto: ${await page.evaluate(() => !!document.querySelector('[role="dialog"]'))}`);
           const words = sceneWords[i];

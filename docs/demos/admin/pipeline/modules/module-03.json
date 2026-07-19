@@ -2,15 +2,24 @@
   "id": "modulo-03",
   "title": "Estructura Académica",
   "appPath": "/app/admin/academic",
-  "readySelectors": ["[role=\"tab\"]"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "[role=\"tab\"]"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
       "narration": "Estructura académica. Definimos el catálogo de la institución: carreras, asignaturas y periodos.",
-      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Estructura Académica", "subtitle": "Demo Global Corp" },
-      "bufferMs": 600
+      "card": {
+        "kicker": "ExamLab · Demo Global Corp",
+        "title": "Estructura Académica",
+        "subtitle": "Rol: Administrador"
+      },
+      "bufferMs": 500
     },
     {
       "id": "carreras",
@@ -19,8 +28,26 @@
       "narration": "En Carreras viven los programas de la institución, como Ingeniería de Software. Cada carrera agrupa sus asignaturas y se crea con un clic.",
       "bufferMs": 800,
       "beats": [
-        { "target": "createbtn", "scale": 1.6, "hold": 3800, "side": "bottom", "focus": { "title": "Nueva carrera", "body": "Agrega un programa académico a la institución." } },
-        { "target": "row:0", "scale": 1.0, "hold": 4500, "side": "bottom", "focus": { "title": "Carreras", "body": "Los programas de la institución, p. ej. Ingeniería de Software." } }
+        {
+          "target": "createbtn",
+          "scale": 1.6,
+          "hold": 3800,
+          "side": "bottom",
+          "focus": {
+            "title": "Nueva carrera",
+            "body": "Agrega un programa académico a la institución."
+          }
+        },
+        {
+          "target": "row:0",
+          "scale": 1,
+          "hold": 4500,
+          "side": "bottom",
+          "focus": {
+            "title": "Carreras",
+            "body": "Los programas de la institución, p. ej. Ingeniería de Software."
+          }
+        }
       ]
     },
     {
@@ -30,8 +57,26 @@
       "narration": "Las asignaturas son el corazón del catálogo: cada una guarda su sílabo —objetivos, contenidos, bibliografía e intensidad horaria— y se asocia a una carrera y un semestre. Al crear un curso, la asignatura define su nombre y su programa, y todo eso se hereda.",
       "bufferMs": 900,
       "beats": [
-        { "target": "createbtn", "scale": 1.6, "hold": 4500, "side": "bottom", "focus": { "title": "Nueva asignatura", "body": "Define la asignatura y su sílabo completo." } },
-        { "target": "row:0", "scale": 1.0, "hold": 6500, "side": "bottom", "focus": { "title": "Asignaturas", "body": "Cada una con su sílabo: objetivos, contenidos, bibliografía e intensidad." } }
+        {
+          "target": "createbtn",
+          "scale": 1.6,
+          "hold": 4500,
+          "side": "bottom",
+          "focus": {
+            "title": "Nueva asignatura",
+            "body": "Define la asignatura y su sílabo completo."
+          }
+        },
+        {
+          "target": "row:0",
+          "scale": 1,
+          "hold": 6500,
+          "side": "bottom",
+          "focus": {
+            "title": "Asignaturas",
+            "body": "Cada una con su sílabo: objetivos, contenidos, bibliografía e intensidad."
+          }
+        }
       ]
     },
     {
@@ -41,16 +86,38 @@
       "narration": "Los periodos académicos, como el primer semestre de 2026, marcan la ventana temporal de los cursos, con sus fechas de inicio y fin.",
       "bufferMs": 800,
       "beats": [
-        { "target": "createbtn", "scale": 1.6, "hold": 3800, "side": "bottom", "focus": { "title": "Nuevo periodo", "body": "Agrega un semestre o cuatrimestre." } },
-        { "target": "row:0", "scale": 1.0, "hold": 4500, "side": "bottom", "focus": { "title": "Periodos", "body": "Ej. 2026-I, con sus fechas de inicio y fin." } }
+        {
+          "target": "createbtn",
+          "scale": 1.6,
+          "hold": 3800,
+          "side": "bottom",
+          "focus": {
+            "title": "Nuevo periodo",
+            "body": "Agrega un semestre o cuatrimestre."
+          }
+        },
+        {
+          "target": "row:0",
+          "scale": 1,
+          "hold": 4500,
+          "side": "bottom",
+          "focus": {
+            "title": "Periodos",
+            "body": "Ej. 2026-I, con sus fechas de inicio y fin."
+          }
+        }
       ]
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "Con carreras, asignaturas y periodos bien definidos, tu institución tiene un catálogo académico sólido sobre el cual construir todos los cursos.",
-      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Siguiente módulo", "subtitle": "Gestión de Cursos" },
-      "bufferMs": 600
+      "card": {
+        "kicker": "ExamLab · Rol Administrador",
+        "title": "Estructura Académica",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 500
     }
   ]
 }

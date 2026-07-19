@@ -2,23 +2,83 @@
   "id": "modulo-02",
   "title": "Gestión de Usuarios y Roles",
   "appPath": "/app/admin/users",
-  "readySelectors": ["[data-tour-id=\"create-user\"]", "main table tbody tr"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "[data-tour-id=\"create-user\"]",
+    "main table tbody tr"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
       "narration": "Gestión de usuarios y roles. Administramos las personas de Demo Global Corp y definimos lo que cada una puede hacer.",
-      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Usuarios y Roles", "subtitle": "Demo Global Corp" },
-      "bufferMs": 600
+      "card": {
+        "kicker": "ExamLab · Demo Global Corp",
+        "title": "Gestión de Usuarios y Roles",
+        "subtitle": "Rol: Administrador"
+      },
+      "bufferMs": 500
     },
     {
       "id": "alta",
       "kind": "platform",
-      "narration": "Creamos una persona con el botón Nuevo usuario: indicamos su correo, su nombre y sus roles, y le damos una contraseña temporal que deberá cambiar en su primer ingreso.",
-      "bufferMs": 800,
+      "openDialog": "createbtn",
+      "narration": "Creamos una persona con Nuevo usuario. Escribimos su nombre completo y su correo institucional. Le damos una contraseña inicial que deberá cambiar en su primer ingreso. Marcamos sus roles —administrador, docente o estudiante— y, si queremos, la inscribimos directamente en un curso.",
+      "bufferMs": 900,
       "beats": [
-        { "target": "[data-tour-id=\"create-user\"]", "scale": 1.7, "hold": 5500, "side": "bottom", "focus": { "title": "Nuevo usuario", "body": "Crea una persona y asigna sus roles y contraseña temporal." } }
+        {
+          "target": "field:Nombre",
+          "hold": 3000,
+          "side": "right",
+          "syncWord": "nombre",
+          "focus": {
+            "title": "Nombre completo",
+            "body": "El nombre de la persona."
+          }
+        },
+        {
+          "target": "field:Email institucional",
+          "hold": 3200,
+          "side": "right",
+          "syncWord": "correo",
+          "focus": {
+            "title": "Correo institucional",
+            "body": "Con él inicia sesión en la plataforma."
+          }
+        },
+        {
+          "target": "field:Contraseña",
+          "hold": 4000,
+          "side": "right",
+          "syncWord": "contraseña",
+          "focus": {
+            "title": "Contraseña inicial",
+            "body": "Temporal: la cambia en su primer ingreso."
+          }
+        },
+        {
+          "target": "field:Roles",
+          "hold": 3800,
+          "side": "right",
+          "syncWord": "roles",
+          "focus": {
+            "title": "Roles",
+            "body": "Administrador, docente o estudiante."
+          }
+        },
+        {
+          "target": "field:Inscribir",
+          "hold": 3500,
+          "side": "right",
+          "syncWord": "inscribimos",
+          "focus": {
+            "title": "Inscribir en un curso",
+            "body": "Opcional: la matricula al crearla."
+          }
+        }
       ]
     },
     {
@@ -27,8 +87,26 @@
       "narration": "El rol es la pieza clave del control de acceso: define qué módulos ve y qué puede hacer cada persona. La lista muestra los roles de cada usuario; un docente ve sus herramientas de enseñanza, un estudiante solo las suyas.",
       "bufferMs": 900,
       "beats": [
-        { "target": "th:Roles", "scale": 1.7, "hold": 4200, "side": "bottom", "focus": { "title": "Roles", "body": "Definen qué ve y qué puede hacer cada persona." } },
-        { "target": "row:0", "scale": 1.0, "hold": 4200, "side": "bottom", "focus": { "title": "Cada usuario", "body": "Sus roles aparecen en la lista, junto a su nombre y correo." } }
+        {
+          "target": "th:Roles",
+          "scale": 1.7,
+          "hold": 4200,
+          "side": "bottom",
+          "focus": {
+            "title": "Roles",
+            "body": "Definen qué ve y qué puede hacer cada persona."
+          }
+        },
+        {
+          "target": "row:0",
+          "scale": 1,
+          "hold": 4200,
+          "side": "bottom",
+          "focus": {
+            "title": "Cada usuario",
+            "body": "Sus roles aparecen en la lista, junto a su nombre y correo."
+          }
+        }
       ]
     },
     {
@@ -37,16 +115,34 @@
       "narration": "Para grupos grandes, importamos muchos usuarios a la vez desde un archivo. Y cada usuario ofrece acciones de soporte: iniciar sesión como esa persona o restablecer su contraseña, todo registrado en la auditoría.",
       "bufferMs": 800,
       "beats": [
-        { "target": "[data-tour-id=\"bulk-import-users\"]", "scale": 1.7, "hold": 4500, "side": "bottom", "focus": { "title": "Importar en lote", "body": "Carga muchos usuarios desde un archivo CSV." } },
-        { "target": "rowaction:0", "clickToOpen": true, "hold": 5500, "side": "left" }
+        {
+          "target": "[data-tour-id=\"bulk-import-users\"]",
+          "scale": 1.7,
+          "hold": 4500,
+          "side": "bottom",
+          "focus": {
+            "title": "Importar en lote",
+            "body": "Carga muchos usuarios desde un archivo CSV."
+          }
+        },
+        {
+          "target": "rowaction:0",
+          "clickToOpen": true,
+          "hold": 5500,
+          "side": "left"
+        }
       ]
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "Así gestionamos a las personas de la institución y controlamos, con roles claros, qué puede hacer cada una.",
-      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Siguiente módulo", "subtitle": "Estructura Académica" },
-      "bufferMs": 600
+      "card": {
+        "kicker": "ExamLab · Rol Administrador",
+        "title": "Gestión de Usuarios y Roles",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 500
     }
   ]
 }

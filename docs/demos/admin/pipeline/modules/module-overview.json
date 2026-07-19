@@ -4,8 +4,13 @@
   "series": "presentacion",
   "role": "Administrador",
   "appPath": "/app",
-  "readySelectors": ["[data-tour-id=\"role-switcher\"]"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "[data-tour-id=\"role-switcher\"]"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
@@ -16,7 +21,8 @@
         "title": "Una plataforma, tres roles",
         "subtitle": "Administrador · Docente · Estudiante"
       },
-      "bufferMs": 2600
+      "holdCard": true,
+      "bufferMs": 800
     },
     {
       "id": "admin-panel",
@@ -42,13 +48,13 @@
       "kind": "card",
       "role": "Administrador",
       "route": "/app/admin/users",
-      "narration": "Da de alta a docentes y estudiantes, define sus roles y los matricula; al inscribirlos, reciben un correo de bienvenida automático.",
+      "narration": "Da de alta a docentes y estudiantes, les asigna sus roles y los matricula en el curso. Apenas quedan inscritos, reciben un correo de bienvenida.",
       "card": {
         "kicker": "ExamLab · Administrador",
         "title": "Usuarios y roles",
         "subtitle": "Altas, roles y matrículas"
       },
-      "bufferMs": 2300
+      "bufferMs": 700
     },
     {
       "id": "admin-usuarios-view",
@@ -80,24 +86,35 @@
         "title": "Crear y evaluar con IA",
         "subtitle": "Exámenes, talleres y proyectos"
       },
-      "bufferMs": 2600
+      "bufferMs": 700
     },
     {
       "id": "docente-view",
       "kind": "platform",
-      "narration": "Al armar una evaluación, la IA propone las preguntas y la rúbrica; el docente solo ajusta. Los exámenes incluyen tiempo y control de pantalla para evitar fraude.",
+      "narration": "El docente arma sus exámenes, talleres y proyectos. Y la inteligencia artificial le propone las preguntas y la rúbrica a partir de un tema; el docente solo ajusta.",
       "bufferMs": 900,
       "beats": [
         {
+          "target": "maincard",
+          "scale": 1.03,
+          "hold": 4200,
+          "side": "top",
+          "syncWord": "arma",
+          "focus": {
+            "title": "Tus evaluaciones",
+            "body": "Exámenes, talleres y proyectos del curso, en un solo lugar."
+          }
+        },
+        {
           "target": "createbtn",
-          "scale": 1.5,
-          "hold": 5400,
+          "scale": 1.45,
+          "hold": 4200,
           "side": "left",
           "overpan": true,
           "syncWord": "propone",
           "focus": {
             "title": "Generar con IA",
-            "body": "Preguntas y rúbrica a partir de un tema; proctoring incluido."
+            "body": "Preguntas y rúbrica a partir de un tema; el docente ajusta."
           }
         }
       ]
@@ -113,7 +130,7 @@
         "title": "Calificación con IA",
         "subtitle": "Feedback y antifraude"
       },
-      "bufferMs": 2700
+      "bufferMs": 700
     },
     {
       "id": "docente-calif-view",
@@ -145,7 +162,7 @@
         "title": "Aprender y entregar",
         "subtitle": "Exámenes, talleres y proyectos"
       },
-      "bufferMs": 2600
+      "bufferMs": 700
     },
     {
       "id": "estudiante-view",
@@ -177,7 +194,7 @@
         "title": "Tutor con IA",
         "subtitle": "Responde sobre el material del curso"
       },
-      "bufferMs": 2500
+      "bufferMs": 700
     },
     {
       "id": "estudiante-tutor-view",
@@ -207,7 +224,8 @@
         "title": "La IA te devuelve tiempo",
         "subtitle": "Administrador · Docente · Estudiante"
       },
-      "bufferMs": 2600
+      "bufferMs": 800,
+      "holdCard": true
     }
   ]
 }

@@ -15,11 +15,11 @@
       "kind": "card",
       "narration": "La auditoría: el registro de todo lo que pasa en la institución.",
       "card": {
-        "kicker": "ExamLab · Rol Administrador",
+        "kicker": "ExamLab · Demo Global Corp",
         "title": "Auditoría",
-        "subtitle": "Demo Global Corp"
+        "subtitle": "Rol: Administrador"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     },
     {
       "id": "auditoria",
@@ -57,10 +57,10 @@
       "narration": "Con la auditoría tienes trazabilidad completa: cada acción queda registrada para responder reclamos con evidencia.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
-        "title": "Siguiente módulo",
-        "subtitle": "Soporte"
+        "title": "Auditoría",
+        "subtitle": "Demo Global Corp"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     }
   ]
 }

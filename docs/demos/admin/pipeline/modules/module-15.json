@@ -16,11 +16,11 @@
       "kind": "card",
       "narration": "Tu cuenta y la sesión.",
       "card": {
-        "kicker": "ExamLab · Rol Administrador",
+        "kicker": "ExamLab · Demo Global Corp",
         "title": "Cuenta y Sesión",
-        "subtitle": "Demo Global Corp"
+        "subtitle": "Rol: Administrador"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     },
     {
       "id": "cuenta",
@@ -83,10 +83,10 @@
       "narration": "Así, desde el pie del menú controlas tu identidad y tu sesión: alternas de rol, sigues avisos y mensajes, y sales con la seguridad de que el contexto queda limpio.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
-        "title": "Siguiente módulo",
-        "subtitle": "Cola de IA"
+        "title": "Cuenta y Sesión",
+        "subtitle": "Demo Global Corp"
       },
-      "bufferMs": 800
+      "bufferMs": 500
     }
   ]
 }

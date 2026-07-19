@@ -27,7 +27,10 @@ const GAP = 120;         // separación mínima anti-solapamiento entre narracio
 const MAX_GAP = 4500;    // hueco silencioso máximo tolerado a 1× (ms)
 const COMP = 2200;       // a cuánto se comprime un hueco largo (ms) → timelapse
 const TAIL = 1200;       // cola de video tras la última narración (ms)
-const LEAD = 250;        // pequeño respiro de video ANTES de la 1ª narración (ms)
+const LEAD = 600;        // respiro de video/silencio ANTES de la 1ª narración (ms).
+                         // Subido de 250 → 600: con 250 la voz arrancaba casi en
+                         // t=0 y sonaba "trabada"/abrupta al iniciar. El respiro
+                         // + el afade-in de abajo dan un arranque limpio.
 
 const { offsets, vstart } = JSON.parse(readFileSync("C:/Temp/examlab-rec/scene-offsets.json", "utf8"));
 const durMs = (f) => Math.round(parseFloat(execFileSync(FP, ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString().trim()) * 1000);
@@ -97,9 +100,14 @@ const vParts = segs.map((sg, k) => {
 const vConcatIn = segs.map((_, k) => `[v${k}]`).join("");
 const vFilter = `${vSplit};${vParts.join(";")};${vConcatIn}concat=n=${segs.length}:v=1:a=0[vout]`;
 
-const aParts = newStart.map((d, i) => `[${i + 1}]adelay=${Math.round(d)}:all=1[a${i + 1}]`);
+// afade-in de 150ms al inicio de CADA narración: mata el "click"/garble de
+// arranque de los mp3 de edge-tts (síntoma reportado: "se traba la voz al
+// iniciar" y "no se entiende" en algunos arranques). Es un fade corto: no
+// recorta contenido audible, solo suaviza el ataque del 1er fonema.
+const aParts = newStart.map((d, i) => `[${i + 1}]afade=t=in:st=0:d=0.15,adelay=${Math.round(d)}:all=1[a${i + 1}]`);
 const aMixIn = newStart.map((_, i) => `[a${i + 1}]`).join("");
-const aFilter = `${aParts.join(";")};${aMixIn}amix=inputs=${N}:normalize=0:dropout_transition=0[aout]`;
+// afade-in global de 120ms sobre la mezcla: cubre el priming de amix en t≈0.
+const aFilter = `${aParts.join(";")};${aMixIn}amix=inputs=${N}:normalize=0:dropout_transition=0[amixraw];[amixraw]afade=t=in:st=0:d=0.12[aout]`;
 
 const inputs = ["-i", RAW];
 for (let i = 1; i <= N; i++) inputs.push("-i", `${AUDIO}/scene-${i}.mp3`);

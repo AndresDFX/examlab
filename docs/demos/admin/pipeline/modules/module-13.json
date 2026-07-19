@@ -15,11 +15,11 @@
       "kind": "card",
       "narration": "El canal de soporte con la plataforma: peticiones, quejas, reclamos y sugerencias.",
       "card": {
-        "kicker": "ExamLab · Rol Administrador",
+        "kicker": "ExamLab · Demo Global Corp",
         "title": "Soporte",
-        "subtitle": "PQRS hacia la plataforma"
+        "subtitle": "Rol: Administrador"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     },
     {
       "id": "soporte",
@@ -66,10 +66,10 @@
       "narration": "Así tienes un canal directo con la plataforma para resolver cualquier PQRS sin salir de ExamLab.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
-        "title": "Siguiente módulo",
-        "subtitle": "Papelera"
+        "title": "Soporte",
+        "subtitle": "Demo Global Corp"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     }
   ]
 }

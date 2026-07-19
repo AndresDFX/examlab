@@ -2,15 +2,24 @@
   "id": "modulo-06",
   "title": "Biblioteca de Videos",
   "appPath": "/app/videos",
-  "readySelectors": ["text=Nuevo video"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "text=Nuevo video"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
       "narration": "Biblioteca de videos: un solo lugar para todos los videos de la institución, reutilizables en cualquier curso.",
-      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Biblioteca de Videos", "subtitle": "Demo Global Corp" },
-      "bufferMs": 600
+      "card": {
+        "kicker": "ExamLab · Demo Global Corp",
+        "title": "Biblioteca de Videos",
+        "subtitle": "Rol: Administrador"
+      },
+      "bufferMs": 500
     },
     {
       "id": "crear-video",
@@ -19,18 +28,54 @@
       "narration": "Agregamos un video con Nuevo video. Le ponemos un título. Pegamos la URL, de YouTube, Vimeo o un archivo directo. Una descripción opcional para identificarlo. Y, si queremos, lo asociamos a un curso, o lo dejamos global, disponible para todos.",
       "bufferMs": 900,
       "beats": [
-        { "target": "field:Título", "hold": 4000, "side": "right", "focus": { "title": "Título", "body": "El nombre del video." } },
-        { "target": "field:URL", "hold": 5500, "side": "right", "focus": { "title": "URL", "body": "YouTube, Vimeo o un archivo MP4 directo." } },
-        { "target": "field:Descripción", "hold": 4000, "side": "right", "focus": { "title": "Descripción", "body": "Notas internas para identificarlo (opcional)." } },
-        { "target": "field:Curso", "hold": 5000, "side": "right", "focus": { "title": "Curso", "body": "Asócialo a un curso o déjalo global, para todos." } }
+        {
+          "target": "field:Título",
+          "hold": 4000,
+          "side": "right",
+          "focus": {
+            "title": "Título",
+            "body": "El nombre del video."
+          }
+        },
+        {
+          "target": "field:URL",
+          "hold": 5500,
+          "side": "right",
+          "focus": {
+            "title": "URL",
+            "body": "YouTube, Vimeo o un archivo MP4 directo."
+          }
+        },
+        {
+          "target": "field:Descripción",
+          "hold": 4000,
+          "side": "right",
+          "focus": {
+            "title": "Descripción",
+            "body": "Notas internas para identificarlo (opcional)."
+          }
+        },
+        {
+          "target": "field:Curso",
+          "hold": 5000,
+          "side": "right",
+          "focus": {
+            "title": "Curso",
+            "body": "Asócialo a un curso o déjalo global, para todos."
+          }
+        }
       ]
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "Así centralizas todos tus videos en un solo lugar y los reutilizas donde los necesites, sin volver a subir nada.",
-      "card": { "kicker": "ExamLab · Rol Administrador", "title": "Siguiente módulo", "subtitle": "Configuración de IA" },
-      "bufferMs": 600
+      "card": {
+        "kicker": "ExamLab · Rol Administrador",
+        "title": "Biblioteca de Videos",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 500
     }
   ]
 }
