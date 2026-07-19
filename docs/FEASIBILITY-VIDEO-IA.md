@@ -79,7 +79,7 @@ propia key y asume el consumo — ver T&C / `CLAUDE.md`).
 | **Veo vía Gemini API** (recomendada) | Misma key, integra con la cola; clips cortos con audio. Requiere plan de pago. |
 | **OpenAI Sora vía API** | El provider `openai` ya está soportado en `ai_model_settings`; Sora por API permite texto→video. Otra key (`OPENAI_API_KEY`) ya existente. Misma necesidad de async + costo. |
 | **Runway / Pika / Luma / Kling** | APIs dedicadas de video; mayor control creativo pero **key e integración aparte** (no reusan el provider actual). |
-| **HeyGen (avatar)** | Ya lo usamos para los tours/demos (`docs/heygen/`). Ideal para **video explicativo con presentador** (voz + avatar sobre guion), distinto a clips generativos. Para "video educativo hablado" suele ser mejor que Veo. |
+| **HeyGen (avatar)** | Lo usamos un tiempo para los tours/demos pero se **deprecó** (los videos demo ahora se generan con pipeline propio: Playwright + edge-tts + ffmpeg, ver `docs/demos/`). Sigue siendo una opción para **video explicativo con presentador** (voz + avatar sobre guion), distinto a clips generativos. Para "video educativo hablado" suele ser mejor que Veo. |
 
 ## Recomendación
 
