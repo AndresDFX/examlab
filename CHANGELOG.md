@@ -46,6 +46,11 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## Historial
 
+### 2026-07-19
+
+- **Regeneración de videos demo (recorrido general + serie admin) con correcciones de QA.** Pipeline (`docs/demos/admin/pipeline/`): arranque de voz limpio (LEAD + afade en `build-mux.mjs`), carátulas azules que revelan la app tras un cap (`record-module.mjs`), `createbtn` doc-wide + click nativo por JS (inmune a toasts que tapaban el botón), toasts de sonner ocultos en grabación. Specs: outro deja de decir "Siguiente módulo" (recapitula el módulo actual), intro nombra el módulo, module-02 abre el form de usuario, module-07 espera a que carguen los prompts, module-16 con cola de IA sembrada, overview muestra la lista real de exámenes. Datos demo (Demo Global Corp): cursos a `en_curso` + `end_date` futura, notificaciones marcadas leídas. QA con 15 agentes en paralelo. Commits `fecd8ce3` (videos).
+- **Organización de la documentación + archivado de obsoletos.** Barrido de 128 `.md`. Raíz reducida a `CLAUDE.md`/`README.md`/`CHANGELOG.md`; se archivó a `docs/archive/` el intento de self-host con Docker/AWS (abandonado por Lovable), el contexto pre-`CLAUDE.md` (`EXAMLAB-CONTEXT`/`PROJECT_CONTEXT`), y los reportes de hallazgos/QA/auditorías ya resueltos (`HALLAZGOS-*`, `AUDITORIA-PAPELERA`, `QA-RESULTADOS`, `REVISION-SEGURIDAD`, serie `audit/00-06`, planes superados). Se borró `Conversacion.md` (export crudo de chat). Nuevos índices `docs/README.md` + `docs/archive/README.md`. README sin secciones obsoletas de HeyGen/Docker. Credencial `test-fesna` marcada obsoleta (migró a SSO 2026-06-12, password no funciona). Clasificación asistida por workflow (9 agentes). Commits `9ea7d917`, `64d6345e`, `b79be5e5`.
+
 ### 2026-07-15
 
 **Correo: enfoque "From verificado + Reply-To" (sin spoofear).** Implementa la alternativa
