@@ -160,7 +160,7 @@ workshops/projects/attendance_sessions/whiteboards/generated_contents/polls) que
   elegibles. Fix: embed + skip.
 - 3 finders fallidos por conexión revisados a mano (board-content-upload, WorkshopQuestions,
   SessionWhiteboardDialog) → **limpios** (escrituras / read-by-PK). Resto de course-pickers ya filtran.
-  Detalle en `docs/AUDITORIA-PAPELERA-SELECCION-2026-06-30.md`.
+  Detalle en `docs/archive/hallazgos-resueltos/AUDITORIA-PAPELERA-SELECCION-2026-06-30.md`.
 
 ### b) Revisión de `audit_logs` de prod (2026-07-07)
 - **[fix] `RangeError: Invalid time value` en `/app/teacher/exams/$examId`** (`app.unhandled_rejection`,

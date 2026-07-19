@@ -15,7 +15,7 @@ Hospedada en Lovable (https://examlab.lovable.app) sobre Supabase (PostgreSQL + 
 - [Estructura del repo](#estructura-del-repo)
 - [Despliegue](#despliegue)
 - [Testing](#testing)
-- [Grabación de tours HeyGen](#grabación-de-tours-heygen)
+- [Videos demo](#videos-demo)
 - [Documentación interna](#documentación-interna)
 - [Git workflow](#git-workflow)
 
@@ -193,21 +193,20 @@ examlab/
 │       ├── generate-contents/
 │       ├── send-email/          # SMTP gateway
 │       └── ...
-├── scripts/
-│   ├── record-tour.ts           # Graba videos para HeyGen (Playwright)
-│   └── generate-icons.js        # Icons PWA
+├── scripts/                     # Utilidades: gen de manuales/presentaciones, iconos PWA, audit i18n
 ├── aws/code-runner/             # Lambda handler para Java/Python GUI
 │   ├── app.py
 │   ├── GuiBootstrap.java
 │   ├── TkinterBootstrap.py
 │   └── Dockerfile
 ├── docs/
-│   └── heygen/                  # Pipeline para videos HeyGen
-│       ├── README.md
-│       ├── admin.md             # Guión + scenes para HeyGen
-│       ├── docente.md
-│       ├── estudiante.md
-│       └── recordings/          # 3 background videos versionados
+│   ├── demos/                   # Videos demo (pipeline propio: Playwright + edge-tts + ffmpeg)
+│   │   ├── admin/pipeline/      # make.mjs, record-module.mjs, build-mux.mjs + specs module-*.json
+│   │   ├── correos/             # Plantillas de correos de difusión
+│   │   └── manual/              # Manuales por rol (Admin/Docente/Estudiante)
+│   ├── costos/                  # Análisis de costos + modelos de negocio
+│   ├── audit/                   # Auditorías de seguridad (históricas)
+│   └── archive/                 # Documentación obsoleta archivada
 │           ├── admin.webm
 │           ├── teacher.webm
 │           └── student.webm
@@ -243,7 +242,7 @@ Sin el guard, una sola migración fallida aborta todo el deploy.
 
 ### AWS Lambda code-runner (opcional)
 
-El edge `execute-code` puede routear a un Lambda en AWS para Java/Python GUI con screenshot via Xvfb. Si no se usa, los otros providers (OnlineCompiler, JDoodle, CheerpJ client-side) cubren los lenguajes básicos. Build del Lambda con `aws/code-runner/Dockerfile` (incluye `python3-tkinter`, `openjfx`, `xvfb`). Ver `README_DOCKER.md`.
+El edge `execute-code` puede routear a un Lambda en AWS para Java/Python GUI con screenshot via Xvfb. Si no se usa, los otros providers (OnlineCompiler, JDoodle, CheerpJ client-side) cubren los lenguajes básicos. Build del Lambda con `aws/code-runner/Dockerfile` (incluye `python3-tkinter`, `openjfx`, `xvfb`). Ver `aws/code-runner/README.md`.
 
 ---
 
@@ -275,30 +274,29 @@ Tests existentes cubren helpers de:
 
 ---
 
-## Grabación de tours HeyGen
+## Videos demo
 
-Los 3 videos de bienvenida (Admin, Docente, Estudiante) que muestran la app real con un avatar IA superpuesto. Pipeline en `docs/heygen/`.
+Los videos de demostración se generan con un **pipeline propio** (sin avatar): graba la app real con Playwright, sintetiza la narración con edge-tts (`es-CO-GonzaloNeural`) y mezcla audio+video con ffmpeg. Un módulo de la plataforma por video.
 
 ```bash
-# IMPORTANTE: usar NODE, no bun, en Windows
-# (bun + playwright tiene bug de remote-debugging-pipe que timeout 180s)
-node --experimental-strip-types scripts/record-tour.ts --role=admin
-node --experimental-strip-types scripts/record-tour.ts --role=teacher
-node --experimental-strip-types scripts/record-tour.ts --role=student
+# Desde la copia de trabajo (C:/Temp/examlab-rec). Un id = un módulo.
+node make.mjs 01 02 03        # voz → grabar (vs prod) → mux → docs/demos/<serie>/output/
+node build-serie.mjs admin    # concatena los módulos en serie-admin-completa.mp4
 ```
 
-Requiere `.env.recording` con credenciales del usuario demo + `bunx playwright install chromium`. Detalles en `docs/heygen/README.md`.
+Pipeline + specs en `docs/demos/admin/pipeline/` (compartido por las 4 series: Admin, Docente, Estudiante, recorrido general). Convenciones y aprendizajes en `docs/demos/admin/pipeline/AJUSTES-VIDEOS.md`.
 
-Los 3 webm versionados viven en `docs/heygen/recordings/` (no en `recordings/` raíz que es gitignored).
+> HeyGen (avatar IA superpuesto) quedó **deprecado**; `docs/heygen/` se eliminó. El `scripts/record-tour.ts` es legacy de ese flujo.
 
 ---
 
 ## Documentación interna
 
 - **`CLAUDE.md`** — contexto técnico exhaustivo para asistentes IA (Claude Code, Cursor, etc.). Cubre arquitectura, design system, RBAC, RLS, migraciones críticas, convenciones de código (~50 reglas), patrones de bugs comunes, cuentas de testing, snapshot del proyecto. **Si vas a modificar el código, leelo ANTES**.
-- **`docs/heygen/`** — pipeline de generación de videos para HeyGen.
-- **`README_DOCKER.md`** — instrucciones para buildear el Lambda code-runner.
-- **`aws/code-runner/README.md`** — detalles del Lambda.
+- **`docs/README.md`** — índice de la documentación de `docs/` (referencia/setup, planes activos, negocio, demos, archivo).
+- **`docs/demos/`** — pipeline propio de videos demo + manuales por rol + plantillas de correo.
+- **`aws/code-runner/README.md`** — build del Lambda code-runner (Java/Python GUI).
+- **`docs/archive/`** — documentación obsoleta archivada (Docker self-host, contexto pre-CLAUDE.md, hallazgos resueltos).
 
 ---
 
@@ -324,7 +322,7 @@ Convenciones:
 
 - `.env` (anon key pública es OK, pero NO incluir SERVICE_ROLE_KEY si la pegás).
 - `.env.recording` (credenciales del usuario demo para Playwright).
-- `recordings/` (videos efímeros con timestamp; los versionados van en `docs/heygen/recordings/`).
+- `recordings/` (videos efímeros de grabación; los videos demo versionados van en `docs/demos/<serie>/output/`).
 - `*.json` con credenciales de Google service account o AWS.
 
 ---

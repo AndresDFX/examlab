@@ -415,7 +415,7 @@ _Generado para el proyecto ExamLab. Ajustar casos si se añaden rutas o funcione
 
 ## 11. Cortes evaluativos y nueva jerarquía de calificación
 
-> **Regla de negocio inmutable** (ver `EXAMLAB-CONTEXT.md`):
+> **Regla de negocio inmutable** (ver `CLAUDE.md` → "Modelo de pesos / cortes"):
 > Curso → Σ(Cortes × peso) → Σ([Talleres, Exámenes, Proyectos, Asistencia] × peso interno).
 > Las pruebas de esta sección reemplazan los casos previos basados en `course.exam_weight` /
 > `course.workshop_weight` globales.
