@@ -4566,7 +4566,9 @@
     "backToCrossTenant": "Back to cross-tenant mode",
     "emailCopied": "Email copied",
     "passwordCopied": "Password copied",
-    "credentialsCopied": "Credentials copied"
+    "credentialsCopied": "Credentials copied",
+    "searchPlaceholder": "Search by name, slug or domain…",
+    "noMatches": "No matches. Adjust your search."
   },
   "adminPromptsPanel": {
     "loadingPrompts": "Loading prompts…",

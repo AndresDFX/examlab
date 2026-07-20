@@ -12,13 +12,14 @@
  * por manipulación de URL, RLS rechaza las operaciones.
  */
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { resizeImageForLogo } from "@/modules/tenants/image-resize";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { HexColorInput } from "@/components/ui/hex-color-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -163,9 +164,24 @@ function SuperAdminTenantsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, isSuper]);
 
+  // Búsqueda (nombre / slug / dominio de email) — patrón estándar de los
+  // grids de la app (SearchInput). Flujo obligatorio: filtrar → ORDENAR →
+  // paginar (sort y pagination operan sobre `filtered`).
+  const [search, setSearch] = useState("");
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return tenants;
+    return tenants.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        t.slug.toLowerCase().includes(q) ||
+        (t.email_domain ?? "").toLowerCase().includes(q),
+    );
+  }, [tenants, search]);
+
   // Orden por columna (click en el encabezado alterna asc/desc). Va ENTRE
-  // el listado y la paginación: cargar → ordenar → paginar.
-  const sort = useTableSort(tenants, {
+  // el listado filtrado y la paginación: cargar → filtrar → ordenar → paginar.
+  const sort = useTableSort(filtered, {
     columns: {
       name: (r) => r.name,
       slug: (r) => r.slug,
@@ -176,11 +192,12 @@ function SuperAdminTenantsPage() {
     storageKey: "examlab_sort:superadmin_tenants",
   });
 
-  // Paginación client-side sobre el listado completo de tenants (ordenado).
+  // Paginación client-side sobre el listado filtrado + ordenado. El resetKey
+  // incluye la búsqueda para volver a la página 1 al cambiar el filtro.
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:superadmin_tenants",
-    resetKey: sort.resetKey,
+    resetKey: `${search}|${sort.resetKey}`,
   });
 
   // Gate de rol — los no-SuperAdmin redirigen al dashboard.
@@ -739,6 +756,14 @@ function SuperAdminTenantsPage() {
         }
       />
 
+      {tenants.length > 0 && (
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder={tl("superadminTenants.searchPlaceholder")}
+        />
+      )}
+
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           {loading ? (
@@ -755,6 +780,8 @@ function SuperAdminTenantsPage() {
                 </Button>
               }
             />
+          ) : pagination.totalItems === 0 ? (
+            <TableEmpty text={tl("superadminTenants.noMatches")} />
           ) : (
             <Table fixed resizable>
               <TableHeader>
