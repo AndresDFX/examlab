@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { GraduationCap, AlertTriangle } from "lucide-react";
+import { readLastRoute } from "@/shared/lib/last-route";
 import { logEvent } from "@/shared/lib/audit";
 
 // El path "/auth/sso-callback" se agrega a FileRoutesByPath cuando
@@ -128,8 +129,10 @@ function SsoCallbackPage() {
         toast.success(t("auth.welcome"));
         // Hard navigate (no client routing) — `useTenant` se rehidrata
         // en el reload con el `tenant_slug` resuelto en el edge. Si el
-        // user es SuperAdmin sin tenant, /app maneja el caso.
-        window.location.href = "/app";
+        // user es SuperAdmin sin tenant, /app maneja el caso. Resolvemos la
+        // última ruta ACÁ (readLastRoute) para aterrizar directo y evitar el
+        // 2º reload del boot-restore del dashboard (recarga doble).
+        window.location.href = readLastRoute() ?? "/app";
       } catch (e) {
         if (cancelled) return;
         setError(

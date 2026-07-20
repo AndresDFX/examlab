@@ -31,6 +31,7 @@ import { getTenantSlugFromUrl } from "@/modules/tenants/url";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { requestBrowserSaveCredential } from "@/shared/lib/credential-store";
 import { consumeReturnTo } from "@/shared/lib/return-to";
+import { readLastRoute } from "@/shared/lib/last-route";
 
 export const Route = createFileRoute("/auth/")({
   head: () => ({
@@ -214,7 +215,7 @@ function AuthPage() {
         // podría tener uno legítimo de antes; si es regular, `useTenant` lo
         // ignora). NO bajamos checkingSession: mantenemos el loader mientras
         // el hard-navigate descarga la página → cero flash del formulario.
-        window.location.href = consumeReturnTo() ?? "/app";
+        window.location.href = consumeReturnTo() ?? readLastRoute() ?? "/app";
       } else {
         setCheckingSession(false); // sin sesión → revelar el formulario
       }
@@ -422,7 +423,7 @@ function AuthPage() {
       // Volver al deep-link protegido si el usuario llegó por uno (ej. QR de
       // Kahoot / asistencia); si no, a /app. consumeReturnTo valida que sea
       // una ruta interna (anti open-redirect).
-      window.location.href = consumeReturnTo() ?? "/app";
+      window.location.href = consumeReturnTo() ?? readLastRoute() ?? "/app";
     } catch (err) {
       console.error("[auth] post-login validation failed", err);
       await supabase.auth.signOut({ scope: "local" }); // ver nota arriba

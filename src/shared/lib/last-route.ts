@@ -57,6 +57,24 @@ export function saveLastRoute(pathname: string): void {
  * window.location porque la ruta puede tener segmentos dinámicos que el
  * `navigate({to})` tipado de TanStack no resuelve desde un string concreto).
  */
+/**
+ * Lee la última ruta restaurable SIN consumir el flag one-shot ni depender del
+ * `initialPath`. Sirve para que el LOGIN resuelva el destino final ANTES de la
+ * 1ª navegación dura: así el boot aterriza DIRECTO en la última ruta (no en
+ * `/app`) y `consumeBootLastRoute` ya no dispara el 2º `window.location.replace`
+ * — eliminando la recarga doble determinista al iniciar sesión.
+ */
+export function readLastRoute(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const v = window.localStorage.getItem(KEY);
+    if (v && isRestorable(v)) return v;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 export function consumeBootLastRoute(): string | null {
   if (typeof window === "undefined") return null;
   if (bootRestoreConsumed) return null;
