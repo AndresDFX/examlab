@@ -162,7 +162,8 @@
     "themeDark": "Dark",
     "language": "Language",
     "options": "Options",
-    "changeTheme": "Change theme"
+    "changeTheme": "Change theme",
+    "aiAssistant": "AI Assistant"
   },
   "roles": {
     "Admin": "Admin",
@@ -4780,13 +4781,17 @@
     "emptyHint": "Write Mermaid code and switch to preview"
   },
   "tutorIndex": {
-    "title": "Course tutor",
-    "subtitle": "Choose a course to start (or continue) a conversation with the course tutor.",
+    "title": "AI Assistant",
+    "subtitle": "Chat with the platform assistant or with the tutor of each of your courses.",
     "loading": "Loading courses…",
     "loadError": "Could not load your courses",
     "emptyTitle": "You are not enrolled in any course",
     "emptyDescription": "The course tutor is trained with each course's context. Once enrolled, you'll be able to start a conversation here.",
-    "loadErrorFallback": "Could not load your courses."
+    "loadErrorFallback": "Could not load your courses.",
+    "platformCardTitle": "Platform assistant",
+    "platformCardSubtitle": "Get help on how to use ExamLab.",
+    "platformBadge": "Platform",
+    "coursesHeading": "Course tutors"
   },
   "superadminSystem": {
     "title": "System",

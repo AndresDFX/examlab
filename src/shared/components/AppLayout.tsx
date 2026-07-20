@@ -327,15 +327,17 @@ const NAV: NavItem[] = [
     icon: CalendarDays,
     roles: ["Estudiante"],
   },
-  // Tutor IA: ruta índice que lista cursos del alumno y enlaza al chat
-  // específico de cada curso (`/app/student/tutor/$courseId`). Antes no
-  // había entrada en el sidebar porque el chat exige courseId y no se
-  // puede poner una URL parametrizada en el menú; la nueva ruta index
-  // sirve como punto de entrada.
+  // Asistente de IA (estudiante): ítem UNIFICADO. La ruta índice
+  // `/app/student/tutor` lista, como primera tarjeta DESTACADA, el
+  // Asistente de la plataforma (`/app/assistant`) y debajo los tutores
+  // por curso (`/app/student/tutor/$courseId`). Antes eran dos ítems
+  // separados ("Tutor del curso" + "Asistente IA"); se fusionaron en el
+  // sidebar del alumno (el ítem `/app/assistant` de abajo ya solo lo ven
+  // Docente/Admin). Módulo `tutor`.
   {
     to: "/app/student/tutor",
-    labelKey: "nav.tutor",
-    icon: Sparkles,
+    labelKey: "nav.aiAssistant",
+    icon: Bot,
     roles: ["Estudiante"],
   },
   // Estadísticas — vista por curso (Docente) y agregada (Admin).
@@ -419,14 +421,17 @@ const NAV: NavItem[] = [
   // SuperAdmin la ve heredada de Admin. RLS de cada tabla acota qué
   // items ven en la papelera (docente: su curso; admin: su tenant).
   { to: "/app/trash", labelKey: "nav.trash", icon: Trash2, roles: ["Docente", "Admin"] },
-  // Asistente IA de plataforma — chat de ayuda de USO de ExamLab para TODOS
-  // los roles (clon del Tutor IA del alumno, sin curso). El edge adapta la KB
-  // + el prompt al rol activo. SuperAdmin lo hereda de Admin.
+  // Asistente IA de plataforma — chat de ayuda de USO de ExamLab. El edge
+  // adapta la KB + el prompt al rol activo. SuperAdmin lo hereda de Admin.
+  // NOTA: el ESTUDIANTE ya NO lo ve como ítem propio del sidebar — accede al
+  // mismo `/app/assistant` desde la tarjeta destacada del "Asistente de IA"
+  // unificado (arriba). Acá queda solo para Docente/Admin. Módulo
+  // `support_assistant` (que además gatea esa tarjeta en la vista del alumno).
   {
     to: "/app/assistant",
     labelKey: "nav.supportAssistant",
     icon: Bot,
-    roles: ["Estudiante", "Docente", "Admin"],
+    roles: ["Docente", "Admin"],
   },
   // Soporte (PQRS) — Admin abre tickets hacia el SuperAdmin; el SA los
   // gestiona en su propia ruta. Ambos items mapean al MISMO module_key

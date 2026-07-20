@@ -19,7 +19,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { friendlyError } from "@/shared/lib/db-errors";
-import { Sparkles, ChevronRight, BookOpen } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { useModuleVisibility, isModuleEnabled } from "@/hooks/use-module-visibility";
+import { Sparkles, ChevronRight, BookOpen, Bot } from "lucide-react";
 
 export const Route = createFileRoute("/app/student/tutor/")({ component: TutorIndex });
 
@@ -37,6 +39,11 @@ interface CourseRow {
 function TutorIndex() {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { map: moduleMap } = useModuleVisibility();
+  // El estudiante accede al Asistente de la plataforma desde ESTA vista (tarjeta
+  // destacada arriba); se oculta solo si el Admin desactivó el módulo
+  // `support_assistant`. Ruta student-only → rol = Estudiante.
+  const showPlatform = isModuleEnabled(moduleMap, "support_assistant", "Estudiante");
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -75,8 +82,38 @@ function TutorIndex() {
       <PageHeader
         title={t("tutorIndex.title")}
         subtitle={t("tutorIndex.subtitle")}
-        icon={<Sparkles className="h-6 w-6 text-indigo-500" />}
+        icon={<Bot className="h-6 w-6 text-primary" />}
       />
+
+      {/* Asistente de la plataforma — un chat MÁS, un poco más destacado que los
+          tutores por curso. Enlaza a /app/assistant (mismo chat de ayuda de uso). */}
+      {showPlatform && (
+        <Link to="/app/assistant" className="block">
+          <Card className="border-primary/50 bg-primary/5 ring-1 ring-primary/20 hover:bg-primary/10 transition-colors cursor-pointer">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-md bg-primary/15 flex items-center justify-center shrink-0">
+                <Bot className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm truncate">{t("tutorIndex.platformCardTitle")}</span>
+                  <Badge variant="secondary" className="text-[9px] shrink-0">
+                    {t("tutorIndex.platformBadge")}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground truncate mt-0.5">
+                  {t("tutorIndex.platformCardSubtitle")}
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            </CardContent>
+          </Card>
+        </Link>
+      )}
+
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-1">
+        {t("tutorIndex.coursesHeading")}
+      </h3>
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">

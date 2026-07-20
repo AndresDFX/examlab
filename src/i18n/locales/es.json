@@ -162,7 +162,8 @@
     "themeDark": "Oscuro",
     "language": "Idioma",
     "options": "Opciones",
-    "changeTheme": "Cambiar tema"
+    "changeTheme": "Cambiar tema",
+    "aiAssistant": "Asistente de IA"
   },
   "roles": {
     "Admin": "Administrador",
@@ -4780,13 +4781,17 @@
     "emptyHint": "Escribe código Mermaid y cambia a vista previa"
   },
   "tutorIndex": {
-    "title": "Tutor del curso",
-    "subtitle": "Elige un curso para iniciar (o continuar) una conversación con el tutor del curso.",
+    "title": "Asistente de IA",
+    "subtitle": "Habla con el asistente de la plataforma o con el tutor de cada uno de tus cursos.",
     "loading": "Cargando cursos…",
     "loadError": "No pudimos cargar tus cursos",
     "emptyTitle": "No estás matriculado en ningún curso",
     "emptyDescription": "El tutor del curso se entrena con el contexto de cada curso. Cuando te matriculen, podrás iniciar una conversación aquí.",
-    "loadErrorFallback": "No pudimos cargar tus cursos."
+    "loadErrorFallback": "No pudimos cargar tus cursos.",
+    "platformCardTitle": "Asistente de la plataforma",
+    "platformCardSubtitle": "Resuelve dudas sobre cómo usar ExamLab.",
+    "platformBadge": "Plataforma",
+    "coursesHeading": "Tutores por curso"
   },
   "superadminSystem": {
     "title": "Sistema",

@@ -1144,13 +1144,13 @@ export const STUDENT_TOUR: TourStep[] = [
     side: "right",
   },
 
-  // ─── Tutor IA ───────────────────────────────────────────────────────
+  // ─── Asistente de IA (plataforma + tutores por curso) ───────────────
   {
     element: '[data-tour-module="tutor"]',
     route: "/app/student/tutor",
-    title: "Tutor del curso",
+    title: "Asistente de IA",
     description:
-      "Chat con un tutor que <strong>lee los materiales del curso</strong> (guías, presentaciones y lecturas que subió tu docente) y responde anclado a su contenido — no solo a los títulos. Pedile que te explique un concepto, te ejemplifique un caso o te guíe en un ejercicio.",
+      "Todo tu apoyo con IA en un solo lugar. Arriba, el <strong>Asistente de la plataforma</strong> (resuelve dudas de cómo usar ExamLab). Debajo, un <strong>tutor por cada curso</strong> que lee los materiales que subió tu docente (guías, presentaciones, lecturas) y responde anclado a su contenido — pedile que te explique un concepto o te guíe en un ejercicio.",
     side: "right",
   },
 
