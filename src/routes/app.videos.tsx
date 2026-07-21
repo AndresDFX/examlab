@@ -67,7 +67,7 @@ import {
   Trash2,
   Upload,
   Link as LinkIcon,
-  Edit2,
+  Pencil,
   Globe,
 } from "lucide-react";
 import { useActiveRole } from "@/hooks/use-active-role";
@@ -863,7 +863,7 @@ function VideoLibrary() {
                             actions={[
                               {
                                 label: t("videosPage.actionEdit"),
-                                icon: Edit2,
+                                icon: Pencil,
                                 onClick: () => openEdit(v),
                               },
                               {

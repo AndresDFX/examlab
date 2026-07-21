@@ -46,7 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Award, Download, Copy, ExternalLink, Ban } from "lucide-react";
+import { Award, Download, Link2, ExternalLink, Ban } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { downloadCertificate, buildVerifyUrl } from "@/modules/certificates/certificate-pdf";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -526,7 +526,7 @@ function CertificatesAdmin() {
                             },
                             {
                               label: t("hc_routesAppCertificates.actionCopyVerifyLink"),
-                              icon: Copy,
+                              icon: Link2,
                               onClick: () => handleCopyLink(c),
                             },
                             {

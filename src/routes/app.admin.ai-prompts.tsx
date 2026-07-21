@@ -15,7 +15,7 @@ import { useActiveRole } from "@/hooks/use-active-role";
 import { readTenantOverride } from "@/modules/tenants/use-tenant";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/ui/page-header";
-import { FileText, Cpu } from "lucide-react";
+import { FileText, Sparkles, Cpu } from "lucide-react";
 import { AdminPromptsPanel } from "@/modules/admin/AdminPromptsPanel";
 import { AdminModelPanel } from "@/modules/admin/AdminModelPanel";
 
@@ -41,7 +41,7 @@ function AdminAIConfig() {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<FileText className="h-6 w-6 text-indigo-500" />}
+        icon={<Sparkles className="h-6 w-6 text-indigo-500" />}
         title={t("adminAiConfig.title")}
         subtitle={
           isSuperAdminCrossTenant

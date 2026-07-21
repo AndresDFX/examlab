@@ -263,7 +263,7 @@ function StudentCourses() {
   if (loadError) {
     return (
       <div className="space-y-5">
-        <PageHeader icon={<Calendar className="h-6 w-6" />} title={t("nav.studentCourses")} />
+        <PageHeader icon={<BookOpen className="h-6 w-6" />} title={t("nav.studentCourses")} />
         <ErrorState
           message={t("hc_routesAppStudentCourses.loadCoursesErrorTitle")}
           hint={loadError}
@@ -280,7 +280,7 @@ function StudentCourses() {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<Calendar className="h-6 w-6" />}
+        icon={<BookOpen className="h-6 w-6" />}
         title={t("nav.studentCourses")}
         subtitle={t("courseBoard.indexSubtitle")}
       />

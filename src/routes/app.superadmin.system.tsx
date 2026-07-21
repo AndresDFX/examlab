@@ -18,7 +18,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/ui/page-header";
-import { Database, KeyRound, Wrench, ShieldEllipsis, Settings2, Mail } from "lucide-react";
+import { Database, KeyRound, Wrench, Settings2, Mail } from "lucide-react";
 import { AdminEdgeSecretsPanel } from "@/modules/admin/AdminEdgeSecretsPanel";
 import { SystemDiagnosticsPanel } from "@/modules/admin/SystemDiagnosticsPanel";
 import { DbBackupsPanel } from "@/modules/admin/DbBackupsPanel";
@@ -39,7 +39,7 @@ function SuperAdminSystem() {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<ShieldEllipsis className="h-6 w-6 text-rose-500" />}
+        icon={<Wrench className="h-6 w-6 text-rose-500" />}
         title={t("superadminSystem.title")}
         subtitle={t("superadminSystem.subtitle")}
       />

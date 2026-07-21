@@ -54,6 +54,7 @@ import {
   Users as UsersIcon,
   Eye,
   EyeOff,
+  LogIn,
   GraduationCap,
   Briefcase,
   ShieldCheck,
@@ -1813,7 +1814,7 @@ function AdminUsers() {
                               if (r.roles.includes("Admin") && !isSuperAdminCaller) return null;
                               return {
                                 label: t("adminUsers.actionImpersonate"),
-                                icon: Eye,
+                                icon: LogIn,
                                 hint: t("adminUsers.actionImpersonateHint", { name: r.full_name }),
                                 onClick: () => void handleImpersonate(r),
                                 // Pinta el ícono con el primary del tenant

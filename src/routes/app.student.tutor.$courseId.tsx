@@ -287,7 +287,7 @@ function TutorChat() {
     <div className="container mx-auto space-y-4 p-4 sm:p-6">
       <PageHeader
         backTo="/app/student/courses"
-        icon={<Sparkles className="h-6 w-6 text-indigo-500" />}
+        icon={<Bot className="h-6 w-6 text-indigo-500" />}
         title={course ? t("hc_routesAppStudentTutorCourseId.titleWithCourse", { course: course.name }) : t("hc_routesAppStudentTutorCourseId.title")}
         subtitle={t("hc_routesAppStudentTutorCourseId.subtitle")}
         actions={

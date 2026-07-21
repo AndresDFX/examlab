@@ -39,7 +39,7 @@ import { useTableSort } from "@/hooks/use-table-sort";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { useTranslation } from "react-i18next";
 import {
-  Shield,
+  ShieldEllipsis,
   AlertTriangle,
   AlertCircle,
   ShieldAlert,
@@ -541,7 +541,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
       <PageHeader
         title={t("audit.title")}
         subtitle={mode === "admin" ? t("audit.subtitleAdmin") : t("audit.subtitleTeacher")}
-        icon={<Shield className="h-6 w-6" />}
+        icon={<ShieldEllipsis className="h-6 w-6" />}
         actions={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
