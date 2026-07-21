@@ -27,21 +27,22 @@ entidad/estado). **20 inconsistencias confirmadas.** Solo texto VISIBLE al usuar
 - "Pizarras compartidas" → "Pizarras" (1 paso).
 - Catálogo de Módulos: "Foro" → "Foros".
 
+## ✅ Verificado — ya estaba resuelto
+
+**Naming del Asistente (el workflow lo marcó "alta", pero el hallazgo era stale).** Al
+verificar el estado real del código, el naming YA es consistente y sin colisión:
+- Asistente de plataforma (`/app/assistant`): **"Asistente de la plataforma"** en todas
+  las superficies — `nav.supportAssistant` (es.json:120), `filterModuleSupport` (:4606),
+  `supportAssistant.title` (:8812), `tutorIndex.platformCardTitle` (:4809), y el
+  `defaultValue` de `PlatformAssistantChat.tsx:217`. EN = "Platform Assistant".
+- Tutor/umbrella del estudiante: **"Asistente de IA"** (`nav.aiAssistant` :166,
+  `tutorIndex.title` :4802). Catálogo de Módulos: **"Tutor del curso"** (`nav.tutor` :154)
+  — correcto para el panel de configuración (distingue los dos módulos).
+- No queda ninguna variante "Asistente IA" (sin "de") en texto visible. Sin acción.
+
 ## 🟡 Pendiente de decisión de producto
 
-1. **Naming del Asistente (alta).** Conviven tres formas para dos conceptos:
-   - Tutor por curso: sidebar/página "Asistente de IA" (con "de"), catálogo "Tutor del curso".
-   - Asistente de plataforma (`/app/assistant`): sidebar/página "Asistente IA" (sin "de"),
-     tarjeta destacada "Asistente de la plataforma", tour "Asistente de IA".
-   - Recomendación: canónico **"Asistente de IA"** para el tutor por curso y
-     **"Asistente de la plataforma"** para el de plataforma (evita el choque de nombres
-     casi idénticos). Requiere confirmar el naming antes de tocar nav/catálogo/tour.
-   - Ubicaciones: `nav.aiAssistant` (es.json:166), `nav.supportAssistant` (:120),
-     `supportAssistant.title` (:8812), `supportAssistant.emptyTitle` (:8819),
-     `tutorIndex.platformCardTitle` (:4809), `module-catalog.ts:104,112`,
-     `PlatformAssistantChat.tsx:217,320`, `tour-config.ts:1151,1153`.
-
-2. **"Mis cursos" / "Mis estudiantes" (media/baja).** Los tours de Docente/Estudiante
+1. **"Mis cursos" / "Mis estudiantes" (media/baja).** Los tours de Docente/Estudiante
    titulan pasos "Mis cursos" y "Mis estudiantes" mientras el sidebar dice "Cursos"/
    "Usuarios". Probablemente **intencional** (personalización de la vista propia). Si se
    quiere unificar, decidir si el nav docente pasa a "Mis cursos"/"Mis estudiantes" o el
