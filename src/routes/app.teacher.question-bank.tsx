@@ -64,6 +64,8 @@ import {
   Copy,
   Sparkles,
   Globe,
+  CircleDashed,
+  BarChart3,
 } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
@@ -76,6 +78,16 @@ import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
+import { StatCard } from "@/components/ui/stat-card";
+import {
+  useMultiSelect,
+  MultiSelectHeaderCheckbox,
+  MultiSelectCheckbox,
+  MultiSelectToolbar,
+  BulkDeleteDialog,
+} from "@/components/ui/multi-select";
+import { logEvent } from "@/shared/lib/audit";
+import { isStaffRole, isAdminLike as isAdminLikeRole } from "@/shared/lib/roles";
 
 export const Route = createFileRoute("/app/teacher/question-bank")({
   component: QuestionBankPage,
@@ -211,16 +223,13 @@ function QuestionBankPage() {
   const [aiCount, setAiCount] = useState(5);
   const [aiLoading, setAiLoading] = useState(false);
 
-  const isAdmin = roles.includes("Admin");
-  const isDocente = roles.includes("Docente");
-  const isSuperAdmin = roles.includes("SuperAdmin");
   // Admin y SuperAdmin ven TODOS los cursos visibles (la RLS de `courses`
   // ya los acota: Admin a su tenant, SuperAdmin cross-tenant / al tenant del
   // override). El Docente solo los suyos vía course_teachers. Antes esto
-  // gateaba solo por `isAdmin` → un SuperAdmin PURO (sin rol Admin) caía al
+  // gateaba solo por Admin → un SuperAdmin PURO (sin rol Admin) caía al
   // branch de course_teachers y veía 0 cursos, dejando el banco inservible
   // pese a estar en su nav.
-  const isAdminLike = isAdmin || isSuperAdmin;
+  const isAdminLike = isAdminLikeRole(roles);
 
   // Cargar cursos del docente
   useEffect(() => {
@@ -306,6 +315,22 @@ function QuestionBankPage() {
     });
   }, [rows, search, filterType, filterDifficulty]);
 
+  // Quick-stats del banco del curso seleccionado (sobre `rows` completos,
+  // no `filtered` → no se mueven al filtrar). Cuatro tiles: total,
+  // compartidas con la institución, sin usar y usos totales.
+  const bankStats = useMemo(() => {
+    let shared = 0,
+      unused = 0,
+      uses = 0;
+    for (const r of rows) {
+      if (r.shared_org) shared++;
+      const u = r.times_used ?? 0;
+      if (u === 0) unused++;
+      uses += u;
+    }
+    return { total: rows.length, shared, unused, uses };
+  }, [rows]);
+
   const sort = useTableSort(filtered, {
     columns: {
       content: (r) => r.content,
@@ -324,6 +349,41 @@ function QuestionBankPage() {
     storageKey: "examlab_pag:teacher_question_bank",
     resetKey: `${search}|${filterType}|${filterDifficulty}|${courseId}|${sort.resetKey}`,
   });
+
+  // Multi-selección + bulk delete. Opera sobre `sort.sorted` (todos los
+  // items filtrados+ordenados, NO los paginados) para que "seleccionar
+  // todos" abarque todas las páginas del filtro activo.
+  const sel = useMultiSelect(sort.sorted);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const selectedBankItems = useMemo(
+    () =>
+      sort.sorted
+        .filter((r) => sel.isSelected(r.id))
+        .map((r) => ({ id: r.id, label: r.content.slice(0, 80) })),
+    [sort.sorted, sel],
+  );
+
+  const handleBulkDelete = async (ids: string[]) => {
+    const { error } = await db.from("question_bank").delete().in("id", ids);
+    if (error) throw new Error(error.message);
+    toast.success(
+      i18n.t("toast.routes_app_teacher_question_bank.bulkDeleted", {
+        defaultValue: "{{count}} pregunta(s) eliminada(s)",
+        count: ids.length,
+      }),
+    );
+    void logEvent({
+      action: "question_bank.deleted",
+      category: "question_bank",
+      actorRole: roles[0],
+      entityType: "question_bank",
+      courseId: courseId || undefined,
+      courseName: courses.find((c) => c.id === courseId)?.name,
+      metadata: { count: ids.length, ids },
+    });
+    sel.clear();
+    await load();
+  };
 
   // Export del banco filtrado. No soportamos import porque las preguntas
   // (con options JSON, starter_code, expected_rubric) no caben en CSV plano;
@@ -463,10 +523,22 @@ function QuestionBankPage() {
             defaultValue: "Pregunta actualizada",
           }),
         );
+        void logEvent({
+          action: "question_bank.updated",
+          category: "question_bank",
+          actorRole: roles[0],
+          entityType: "question_bank",
+          entityId: editing.id,
+          entityName: (draft.content ?? "").slice(0, 80),
+          courseId,
+          courseName: courses.find((c) => c.id === courseId)?.name,
+        });
       } else {
-        const { error } = await db
+        const { data: inserted, error } = await db
           .from("question_bank")
-          .insert({ ...payload, created_by: user.id });
+          .insert({ ...payload, created_by: user.id })
+          .select("id")
+          .single();
         if (error) {
           toast.error(friendlyError(error));
           return;
@@ -476,6 +548,16 @@ function QuestionBankPage() {
             defaultValue: "Pregunta agregada al banco",
           }),
         );
+        void logEvent({
+          action: "question_bank.created",
+          category: "question_bank",
+          actorRole: roles[0],
+          entityType: "question_bank",
+          entityId: inserted?.id,
+          entityName: (draft.content ?? "").slice(0, 80),
+          courseId,
+          courseName: courses.find((c) => c.id === courseId)?.name,
+        });
       }
       setDialogOpen(false);
       await load();
@@ -502,6 +584,16 @@ function QuestionBankPage() {
         defaultValue: "Pregunta eliminada",
       }),
     );
+    void logEvent({
+      action: "question_bank.deleted",
+      category: "question_bank",
+      actorRole: roles[0],
+      entityType: "question_bank",
+      entityId: r.id,
+      entityName: r.content.slice(0, 80),
+      courseId: r.course_id,
+      courseName: courses.find((c) => c.id === r.course_id)?.name,
+    });
     setRows((prev) => prev.filter((x) => x.id !== r.id));
   };
 
@@ -553,6 +645,16 @@ function QuestionBankPage() {
           defaultValue: "Generación encolada. Aparecerá en el banco al procesarse.",
         }),
       );
+      void logEvent({
+        action: "question_bank.created",
+        category: "question_bank",
+        actorRole: roles[0],
+        entityType: "question_bank",
+        entityName: aiTopics.slice(0, 80),
+        courseId,
+        courseName: courses.find((c) => c.id === courseId)?.name,
+        metadata: { ai_generated: true, mode: "queued", type: aiType, count },
+      });
       setAiOpen(false);
       setAiTopics("");
       return;
@@ -583,6 +685,16 @@ function QuestionBankPage() {
           n,
         }),
       );
+      void logEvent({
+        action: "question_bank.created",
+        category: "question_bank",
+        actorRole: roles[0],
+        entityType: "question_bank",
+        entityName: aiTopics.slice(0, 80),
+        courseId,
+        courseName: courses.find((c) => c.id === courseId)?.name,
+        metadata: { ai_generated: true, mode: "sync", type: aiType, count: n },
+      });
       setAiOpen(false);
       setAiTopics("");
       await load();
@@ -596,7 +708,7 @@ function QuestionBankPage() {
   // durante ~500ms hasta que el profile carga (bug reportado al entrar
   // al módulo como Admin).
   if (authLoading) return <PageLoader />;
-  if (!isAdmin && !isDocente && !isSuperAdmin) {
+  if (!isStaffRole(roles)) {
     return <p className="text-muted-foreground p-6">{t("questionBank.staffOnly")}</p>;
   }
 
@@ -651,6 +763,31 @@ function QuestionBankPage() {
           </div>
         }
       />
+
+      {/* Stats 4-card — pulso rápido del banco del curso seleccionado. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard
+          icon={Library}
+          label={t("questionBank.statTotal", { defaultValue: "Total de preguntas" })}
+          value={bankStats.total}
+        />
+        <StatCard
+          icon={Globe}
+          label={t("questionBank.statShared", { defaultValue: "Compartidas con la institución" })}
+          value={bankStats.shared}
+          tone={bankStats.shared > 0 ? "success" : "default"}
+        />
+        <StatCard
+          icon={CircleDashed}
+          label={t("questionBank.statUnused", { defaultValue: "Sin usar" })}
+          value={bankStats.unused}
+        />
+        <StatCard
+          icon={BarChart3}
+          label={t("questionBank.statUses", { defaultValue: "Usos totales" })}
+          value={bankStats.uses}
+        />
+      </div>
 
       {/* Filtros */}
       <Card>
@@ -736,6 +873,14 @@ function QuestionBankPage() {
         </CardContent>
       </Card>
 
+      <MultiSelectToolbar
+        count={sel.count}
+        onClear={sel.clear}
+        onDelete={() => setBulkDeleteOpen(true)}
+        entityNameSingular={t("questionBank.bulkEntitySingular", { defaultValue: "pregunta" })}
+        entityNamePlural={t("questionBank.bulkEntityPlural", { defaultValue: "preguntas" })}
+      />
+
       {/* Tabla */}
       <Card>
         <CardContent className="p-0 overflow-x-auto">
@@ -753,6 +898,9 @@ function QuestionBankPage() {
             <Table resizable>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <MultiSelectHeaderCheckbox state={sel} />
+                  </TableHead>
                   <SortableHead sortKey="content" sort={sort}>
                     {t("questionBank.colQuestion")}
                   </SortableHead>
@@ -790,7 +938,7 @@ function QuestionBankPage() {
               <TableBody>
                 {filtered.length === 0 ? (
                   <TableEmpty
-                    colSpan={8}
+                    colSpan={9}
                     text={
                       !courseId
                         ? t("questionBank.emptyNoCourseText")
@@ -814,7 +962,13 @@ function QuestionBankPage() {
                   />
                 ) : (
                   pagination.paginatedItems.map((r) => (
-                    <TableRow key={r.id}>
+                    <TableRow
+                      key={r.id}
+                      data-state={sel.isSelected(r.id) ? "selected" : undefined}
+                    >
+                      <TableCell className="w-10">
+                        <MultiSelectCheckbox id={r.id} state={sel} />
+                      </TableCell>
                       <TableCell className="max-w-md">
                         <div className="line-clamp-2 text-sm">{r.content}</div>
                       </TableCell>
@@ -1059,6 +1213,10 @@ function QuestionBankPage() {
                       type="button"
                       onClick={() => removeTag(t)}
                       className="hover:text-destructive"
+                      aria-label={i18n.t("questionBank.removeTag", {
+                        label: t,
+                        defaultValue: "Quitar etiqueta {{label}}",
+                      })}
                     >
                       <XIcon className="h-3 w-3" />
                     </button>
@@ -1193,6 +1351,15 @@ function QuestionBankPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        items={selectedBankItems}
+        entityNameSingular={t("questionBank.bulkEntitySingular", { defaultValue: "pregunta" })}
+        entityNamePlural={t("questionBank.bulkEntityPlural", { defaultValue: "preguntas" })}
+        onConfirm={handleBulkDelete}
+      />
 
       <aiGate.GateDialog />
     </div>
