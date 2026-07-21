@@ -2528,7 +2528,7 @@
       "purgedSummary": "Purgados: {{info}} info, {{warning}} warning, {{error}} error/critical"
     },
     "modules_admin_AdminCertificateSettingsPanel": {
-      "tenantUnavailable": "No se pudo determinar el tenant para subir la imagen.",
+      "tenantUnavailable": "No se pudo determinar la institución para subir la imagen.",
       "unsupportedFormat": "Formato no soportado. Usa PNG, JPG, SVG o WebP.",
       "imageTooLarge": "La imagen no puede pesar más de 2 MB.",
       "imageUploaded": "Imagen subida. Recuerda 'Guardar configuración' para aplicarla.",
@@ -5008,7 +5008,7 @@
     "courseLabel": "Curso",
     "noCoursesAssigned": "No tenés cursos asignados",
     "selectCoursePlaceholder": "Selecciona un curso",
-    "noCoursesHint": "Pedile al Admin del tenant que te asigne a un curso para empezar.",
+    "noCoursesHint": "Pedile al Admin de la institución que te asigne a un curso para empezar.",
     "typeLabel": "Tipo",
     "allTypes": "Todos los tipos",
     "difficultyLabel": "Dificultad",
@@ -5599,7 +5599,7 @@
     "modelHelpGeminiLabel": "Gemini:",
     "modelHelpOutro": "El modelo debe estar disponible en tu cuenta del proveedor.",
     "apiKeyAlertGlobal": "Esta key se usa para jobs internos de la plataforma. Si la dejás vacía, los jobs caen al secret <code>{{secret}}</code> en Supabase → Edge Function Secrets como último fallback.",
-    "apiKeyAlertTenant": "Cada institución usa su propia API key del provider activo (cobra a su cuenta).<strong> La key es obligatoria</strong> — sin ella la IA no funciona en tu tenant. La key se guarda cifrada en la DB y nunca se muestra completa (solo los últimos 4 caracteres).",
+    "apiKeyAlertTenant": "Cada institución usa su propia API key del provider activo (cobra a su cuenta).<strong> La key es obligatoria</strong> — sin ella la IA no funciona en tu institución. La key se guarda cifrada en la DB y nunca se muestra completa (solo los últimos 4 caracteres).",
     "apiKeyLabelOpenai": "API key de OpenAI",
     "apiKeyHelpHintOpenaiGenerate": "Generala en <link>platform.openai.com/api-keys</link>.",
     "apiKeyHelpHintOpenaiBilling": "Necesitas saldo o un método de pago activo en tu cuenta de OpenAI.",

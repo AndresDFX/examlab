@@ -98,7 +98,7 @@ export const MODULE_CATALOG: ModuleCatalogEntry[] = [
   },
   { key: "attendance", label: "Asistencia" },
   { key: "polls", label: "Encuestas" },
-  { key: "forum", label: "Foro" },
+  { key: "forum", label: "Foros" },
   { key: "calendar", label: "Calendario" },
   { key: "certificates", label: "Certificaciones" },
   { key: "tutor", label: "Tutor del curso" },

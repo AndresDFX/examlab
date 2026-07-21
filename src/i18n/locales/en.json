@@ -2528,7 +2528,7 @@
       "purgedSummary": "Purged: {{info}} info, {{warning}} warning, {{error}} error/critical"
     },
     "modules_admin_AdminCertificateSettingsPanel": {
-      "tenantUnavailable": "Couldn't determine the tenant to upload the image.",
+      "tenantUnavailable": "Couldn't determine the institution to upload the image.",
       "unsupportedFormat": "Unsupported format. Use PNG, JPG, SVG, or WebP.",
       "imageTooLarge": "The image can't be larger than 2 MB.",
       "imageUploaded": "Image uploaded. Remember to click 'Save settings' to apply it.",
@@ -5008,7 +5008,7 @@
     "courseLabel": "Course",
     "noCoursesAssigned": "You have no courses assigned",
     "selectCoursePlaceholder": "Select a course",
-    "noCoursesHint": "Ask your tenant Admin to assign you to a course to get started.",
+    "noCoursesHint": "Ask your institution Admin to assign you to a course to get started.",
     "typeLabel": "Type",
     "allTypes": "All types",
     "difficultyLabel": "Difficulty",
@@ -5599,7 +5599,7 @@
     "modelHelpGeminiLabel": "Gemini:",
     "modelHelpOutro": "The model must be available in your provider account.",
     "apiKeyAlertGlobal": "This key is used for internal platform jobs. If you leave it empty, jobs fall back to the <code>{{secret}}</code> secret in Supabase → Edge Function Secrets as a last resort.",
-    "apiKeyAlertTenant": "Each institution uses its own API key for the active provider (charged to its account).<strong> The key is required</strong> — without it, AI doesn't work in your tenant. The key is stored encrypted in the DB and is never shown in full (only the last 4 characters).",
+    "apiKeyAlertTenant": "Each institution uses its own API key for the active provider (charged to its account).<strong> The key is required</strong> — without it, AI doesn't work in your institution. The key is stored encrypted in the DB and is never shown in full (only the last 4 characters).",
     "apiKeyLabelOpenai": "OpenAI API key",
     "apiKeyHelpHintOpenaiGenerate": "Generate it at <link>platform.openai.com/api-keys</link>.",
     "apiKeyHelpHintOpenaiBilling": "You need credit or an active payment method on your OpenAI account.",

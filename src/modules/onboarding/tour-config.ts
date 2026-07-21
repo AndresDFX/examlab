@@ -231,7 +231,7 @@ export const ADMIN_TOUR: TourStep[] = [
   {
     element: '[data-tour-module="certificates"]',
     route: "/app/certificates",
-    title: "Certificados",
+    title: "Certificaciones",
     description:
       "Plantillas y emisiones de certificados de finalización. Definís el diseño una vez (logo, firma, texto) y se aplica a los alumnos que aprueben el curso.",
     side: "right",
@@ -335,7 +335,7 @@ export const ADMIN_TOUR: TourStep[] = [
     clickBefore: '[data-tour-id="settings-ai-tab"]',
     title: "Configurá tu API key de IA",
     description:
-      "<p><strong>Importante:</strong> tu institución necesita su propia API key para usar la calificación con IA, generación de contenidos y detección de copia.</p><ol><li>Entrá a esta pestaña <em>Modelo IA</em>.</li><li>Elegí proveedor: <em>Google Gemini</em> (recomendado, hay tier gratuito) u <em>OpenAI</em>.</li><li>Pegá la API key generada en tu cuenta del proveedor.</li><li>Guardá.</li></ol><p>El costo se cobra a tu cuenta del proveedor — no a ExamLab. Sin esta key, las funciones de IA no funcionan en tu tenant.</p>",
+      "<p><strong>Importante:</strong> tu institución necesita su propia API key para usar la calificación con IA, generación de contenidos y detección de copia.</p><ol><li>Entrá a esta pestaña <em>Modelo IA</em>.</li><li>Elegí proveedor: <em>Google Gemini</em> (recomendado, hay tier gratuito) u <em>OpenAI</em>.</li><li>Pegá la API key generada en tu cuenta del proveedor.</li><li>Guardá.</li></ol><p>El costo se cobra a tu cuenta del proveedor — no a ExamLab. Sin esta key, las funciones de IA no funcionan en tu institución.</p>",
     side: "bottom",
     waitMs: 4000,
   },
@@ -816,7 +816,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-module="polls"]',
     route: "/app/teacher/polls",
     escapeBefore: true,
-    title: "Encuestas y retos en vivo",
+    title: "Encuestas",
     description:
       "Cuatro tipos en un solo lugar: <strong>opción única</strong> o <strong>múltiple</strong> para votar en clase, <strong>cupo (Doodle)</strong> para coordinar fechas, y <strong>retos en vivo</strong> — un quiz gamificado en tiempo real. Desde el menú de cada fila podés <strong>duplicarla</strong>, <strong>compartir un enlace único</strong> y en <em>Ver resultados</em> ver <strong>qué eligió cada alumno</strong>. Tip: clic en el encabezado de una columna ordena el grid.",
     side: "right",
@@ -919,7 +919,7 @@ export const TEACHER_TOUR: TourStep[] = [
   {
     element: '[data-tour-module="certificates"]',
     route: "/app/certificates",
-    title: "Certificados",
+    title: "Certificaciones",
     description:
       "Cuando un alumno aprueba el curso, acá podés <strong>ver el certificado emitido</strong> y reenviárselo si lo perdió. El diseño lo define la institución, vos solo confirmás que lleguen.",
     side: "right",
@@ -1108,7 +1108,7 @@ export const STUDENT_TOUR: TourStep[] = [
   {
     element: '[data-tour-module="polls"]',
     route: "/app/student/polls",
-    title: "Encuestas y retos en vivo",
+    title: "Encuestas",
     description:
       "Votás encuestas del docente (única, múltiple o por cupo tipo Doodle). Si lo permite, podés <strong>cambiar</strong> o <strong>quitar</strong> tu respuesta.<br><strong>Para unirte a un reto en vivo:</strong><ol><li>Cuando el docente lo inicie, aparece arriba una tarjeta de juego.</li><li>Escaneá el <strong>QR</strong> o tipeá el <strong>PIN</strong> que él proyecta.</li><li>Esperá en la <em>sala</em> a que arranque.</li><li>Respondé cada pregunta a tiempo — ganás puntos por acertar rápido.</li></ol>",
     side: "right",
@@ -1118,7 +1118,7 @@ export const STUDENT_TOUR: TourStep[] = [
   {
     element: '[data-tour-module="whiteboards"]',
     route: "/app/student/whiteboards",
-    title: "Pizarras compartidas",
+    title: "Pizarras",
     description:
       "Las pizarras que tu docente comparte con el curso. Read-only — podés ver los diagramas que él explicó en clase y volver a consultarlos cuando estudies.",
     side: "right",
@@ -1138,7 +1138,7 @@ export const STUDENT_TOUR: TourStep[] = [
   {
     element: '[data-tour-module="certificates"]',
     route: "/app/student/certificates",
-    title: "Certificados",
+    title: "Certificaciones",
     description:
       "Cuando apruebes un curso, su certificado aparece acá. Descargable en PDF, con código de verificación pública. Los <strong>foros</strong> de cada curso viven dentro del curso, no como módulo aparte.",
     side: "right",
