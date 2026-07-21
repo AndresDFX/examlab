@@ -214,7 +214,7 @@ export function PlatformAssistantChat() {
     <div className="container mx-auto space-y-4 p-4 sm:p-6">
       <PageHeader
         icon={<Bot className="h-6 w-6 text-indigo-500" />}
-        title={t("supportAssistant.title", { defaultValue: "Asistente IA" })}
+        title={t("supportAssistant.title", { defaultValue: "Asistente de la plataforma" })}
         subtitle={t("supportAssistant.subtitle", {
           defaultValue:
             "Pregunta cómo usar ExamLab. Responde con la documentación de la plataforma, adaptada a tu rol.",
@@ -317,7 +317,7 @@ function EmptyChat() {
         <Bot className="h-8 w-8 text-indigo-500" />
       </div>
       <h2 className="text-base font-semibold">
-        {t("supportAssistant.emptyTitle", { defaultValue: "Tu Asistente IA" })}
+        {t("supportAssistant.emptyTitle", { defaultValue: "Tu asistente de la plataforma" })}
       </h2>
       <p className="text-sm text-muted-foreground max-w-md mx-auto">
         {t("supportAssistant.emptyBody", {
