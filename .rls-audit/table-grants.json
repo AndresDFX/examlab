@@ -1,0 +1,1267 @@
+[
+ {
+  "table_name": "academic_periods",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "academic_periods",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "academic_programs",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "academic_programs",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "academic_subjects",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "academic_subjects",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "admin_visible_passwords",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "admin_visible_passwords",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "ai_generation_queue",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "ai_generation_queue",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "ai_grading_queue",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "ai_grading_queue",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "ai_model_settings",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "ai_model_settings",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "ai_override_activations",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "ai_override_activations",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "ai_override_codes",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "ai_override_codes",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "ai_prompts",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "ai_prompts",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "app_settings",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "app_settings",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "assessment_templates",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "assessment_templates",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "attendance_check_in_state",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "attendance_check_in_state",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "attendance_records",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "attendance_records",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "attendance_sessions",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "attendance_sessions",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "audit_logs",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "audit_logs",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "audit_retention_settings",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "audit_retention_settings",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "calendar_oauth_states",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "calendar_oauth_states",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "certificate_settings",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "certificate_settings",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "certificates",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "certificates",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "code_execution_settings",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "code_execution_settings",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "code_executions",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "code_executions",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "content_brand_config",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "content_brand_config",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "content_course_assignments",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "content_course_assignments",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "conversations",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "conversations",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "course_actas",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "course_actas",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "course_certificate_settings",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "course_certificate_settings",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "course_enrollments",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "course_enrollments",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "course_grading_config",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "course_grading_config",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "course_schedules",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "course_schedules",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "course_teachers",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "course_teachers",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "courses",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "courses",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "cron_job_descriptions",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "cron_job_descriptions",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "db_backups",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "db_backups",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "email_change_tokens",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "email_change_tokens",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "email_settings",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "email_settings",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "email_suppressions",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "email_suppressions",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "error_event_status",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "error_event_status",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "exam_assignments",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "exam_assignments",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "exam_notes",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "exam_notes",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "exam_timer_controls",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "exam_timer_controls",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "exams",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "exams",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "feedback_attachments",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "feedback_attachments",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "feedback_comments",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "feedback_comments",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "feedback_threads",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "feedback_threads",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "forum_replies",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "forum_replies",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "forum_threads",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "forum_threads",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "forum_upvotes",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "forum_upvotes",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "forums",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "forums",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "generated_contents",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "generated_contents",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "generated_reports",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "generated_reports",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "grade_cut_items",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "grade_cut_items",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "grade_cuts",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "grade_cuts",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "group_chat_members",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "group_chat_members",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "group_chats",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "group_chats",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "kahoot_answers",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "kahoot_answers",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "kahoot_games",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "kahoot_games",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "kahoot_players",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "kahoot_players",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "kahoot_question_options",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "kahoot_question_options",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "kahoot_questions",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "kahoot_questions",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "message_attachments",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "message_attachments",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "messages",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "messages",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "module_visibility",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "module_visibility",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "notifications",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "notifications",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "password_reset_tokens",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "password_reset_tokens",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "platform_help_videos",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "platform_help_videos",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "platform_holidays",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "platform_holidays",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "platform_kb_docs",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "platform_kb_docs",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "platform_settings",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "platform_settings",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "platform_support_messages",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "platform_support_messages",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "platform_support_sessions",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "platform_support_sessions",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "poll_calendar_events",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "poll_calendar_events",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "poll_courses",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "poll_courses",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "poll_options",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "poll_options",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "poll_question_responses",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "poll_question_responses",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "poll_questions",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "poll_questions",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "poll_responses",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "poll_responses",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "polls",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "polls",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "pricing_assumptions",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "pricing_assumptions",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "profiles",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "profiles",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_assignments",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_assignments",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_courses",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_courses",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_files",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_files",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_group_members",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_group_members",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_groups",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_groups",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_intro_videos",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_intro_videos",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_submission_attachments",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_submission_attachments",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_submission_files",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_submission_files",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_submission_video_views",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_submission_video_views",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_submissions",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "project_submissions",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "projects",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "projects",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "push_config",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "push_config",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "push_subscriptions",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "push_subscriptions",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "question_bank",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "question_bank",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "questions",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "questions",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "rate_limit_events",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "rate_limit_events",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "report_templates",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "report_templates",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "scheduled_messages",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "scheduled_messages",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "session_code_snippets",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "session_code_snippets",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "session_snippet_files",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "session_snippet_files",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "similarity_pairs",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "similarity_pairs",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "student_calendar_tokens",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "student_calendar_tokens",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "submissions",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "submissions",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "support_ticket_attachments",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "support_ticket_attachments",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "support_ticket_messages",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "support_ticket_messages",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "support_tickets",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "support_tickets",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "system_settings",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "system_settings",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "teacher_google_tokens",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "teacher_google_tokens",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "tenant_email_settings",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,SELECT,UPDATE"
+ },
+ {
+  "table_name": "tenants",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "tenants",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "tutor_chat_messages",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "tutor_chat_messages",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "tutor_chat_sessions",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "tutor_chat_sessions",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "user_roles",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "user_roles",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "video_views",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "video_views",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "videos",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "videos",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "whiteboard_pages",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "whiteboard_pages",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "whiteboards",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "whiteboards",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_assignments",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_assignments",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_courses",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_courses",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_group_members",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_group_members",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_groups",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_groups",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_intro_videos",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_intro_videos",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_questions",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_questions",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_submission_answers",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_submission_answers",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_submission_video_views",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_submission_video_views",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_submissions",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshop_submissions",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshops",
+  "grantee": "anon",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ },
+ {
+  "table_name": "workshops",
+  "grantee": "authenticated",
+  "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+ }
+]

@@ -1,0 +1,3702 @@
+[
+ {
+  "schemaname": "public",
+  "tablename": "academic_periods",
+  "policyname": "academic_periods_admin_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "academic_periods",
+  "policyname": "academic_periods_admin_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "academic_periods",
+  "policyname": "academic_periods_admin_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())",
+  "with_check": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "academic_periods",
+  "policyname": "academic_periods_read",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((tenant_id = current_tenant_id()) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "academic_programs",
+  "policyname": "academic_programs_admin_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "academic_programs",
+  "policyname": "academic_programs_admin_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "academic_programs",
+  "policyname": "academic_programs_admin_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())",
+  "with_check": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "academic_programs",
+  "policyname": "academic_programs_read",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((tenant_id = current_tenant_id()) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "academic_subjects",
+  "policyname": "academic_subjects_admin_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "academic_subjects",
+  "policyname": "academic_subjects_admin_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "academic_subjects",
+  "policyname": "academic_subjects_admin_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())",
+  "with_check": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "academic_subjects",
+  "policyname": "academic_subjects_read",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((tenant_id = current_tenant_id()) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "admin_visible_passwords",
+  "policyname": "avp_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (NOT (tenant_id IS DISTINCT FROM current_tenant_id()))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_generation_queue",
+  "policyname": "ai_gen_queue_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((created_by = auth.uid()) OR (has_role(auth.uid(), 'Admin'::app_role) AND (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = ai_generation_queue.created_by) AND (p.tenant_id = current_tenant_id()))))) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_generation_queue",
+  "policyname": "ai_gen_queue_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(created_by = auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_generation_queue",
+  "policyname": "ai_gen_queue_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((created_by = auth.uid()) OR (has_role(auth.uid(), 'Admin'::app_role) AND (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = ai_generation_queue.created_by) AND (p.tenant_id = current_tenant_id()))))) OR is_super_admin() OR ((course_id IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = ai_generation_queue.course_id) AND (ct.user_id = auth.uid()))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_generation_queue",
+  "policyname": "ai_gen_queue_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((created_by = auth.uid()) OR (has_role(auth.uid(), 'Admin'::app_role) AND (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = ai_generation_queue.created_by) AND (p.tenant_id = current_tenant_id()))))) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_grading_queue",
+  "policyname": "ai_grading_queue_insert_via_rpc",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "false"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_grading_queue",
+  "policyname": "ai_grading_queue_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((created_by = auth.uid()) OR ((course_id IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = ai_grading_queue.course_id) AND (ct.user_id = auth.uid()))))) OR ((course_id IS NOT NULL) AND is_admin_of_course_tenant(course_id)) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_model_settings",
+  "policyname": "ai_model_settings_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_model_settings",
+  "policyname": "ai_model_settings_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = current_tenant_id())))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_model_settings",
+  "policyname": "ai_model_settings_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())",
+  "with_check": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_override_activations",
+  "policyname": "ai_override_activations_select",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "((user_id = auth.uid()) OR (has_role(auth.uid(), 'Admin'::app_role) AND (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = ai_override_activations.user_id) AND (p.tenant_id = current_tenant_id()))))) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_override_codes",
+  "policyname": "ai_override_codes_admin_only",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = ai_override_codes.created_by) AND (p.tenant_id = current_tenant_id()))))) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = ai_override_codes.created_by) AND (p.tenant_id = current_tenant_id()))))) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_prompts",
+  "policyname": "ai_prompts_admin_write_global",
+  "cmd": "ALL",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(((course_id IS NULL) AND (tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role) AND (use_case <> ALL (ARRAY['platform_support'::text, 'platform_support_docente'::text, 'platform_support_estudiante'::text, 'platform_support_superadmin'::text, 'support_triage'::text]))) OR is_super_admin())",
+  "with_check": "(((course_id IS NULL) AND (tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role) AND (use_case <> ALL (ARRAY['platform_support'::text, 'platform_support_docente'::text, 'platform_support_estudiante'::text, 'platform_support_superadmin'::text, 'support_triage'::text]))) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_prompts",
+  "policyname": "ai_prompts_read_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((tenant_id = current_tenant_id()) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_prompts",
+  "policyname": "ai_prompts_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((tenant_id = current_tenant_id()) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_prompts",
+  "policyname": "ai_prompts_select_platform_default",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((course_id IS NULL) AND (tenant_id IS NULL))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_prompts",
+  "policyname": "ai_prompts_super_admin_all",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "is_super_admin()",
+  "with_check": "is_super_admin()"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_prompts",
+  "policyname": "ai_prompts_super_write_platform",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() AND (course_id IS NULL) AND (tenant_id IS NULL))",
+  "with_check": "(is_super_admin() AND (course_id IS NULL) AND (tenant_id IS NULL))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_prompts",
+  "policyname": "ai_prompts_teacher_course",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((course_id IS NOT NULL) AND (tenant_id = current_tenant_id()) AND (has_role(auth.uid(), 'Admin'::app_role) OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = ai_prompts.course_id) AND (ct.user_id = auth.uid()))))))",
+  "with_check": "((course_id IS NOT NULL) AND (tenant_id = current_tenant_id()) AND (has_role(auth.uid(), 'Admin'::app_role) OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = ai_prompts.course_id) AND (ct.user_id = auth.uid()))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "ai_prompts",
+  "policyname": "ai_prompts_teacher_write_course",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(((course_id IS NOT NULL) AND (tenant_id = current_tenant_id()) AND ((EXISTS ( SELECT 1\n   FROM course_teachers\n  WHERE ((course_teachers.course_id = ai_prompts.course_id) AND (course_teachers.user_id = auth.uid())))) OR has_role(auth.uid(), 'Admin'::app_role))) OR is_super_admin())",
+  "with_check": "(((course_id IS NOT NULL) AND (tenant_id = current_tenant_id()) AND ((EXISTS ( SELECT 1\n   FROM course_teachers\n  WHERE ((course_teachers.course_id = ai_prompts.course_id) AND (course_teachers.user_id = auth.uid())))) OR has_role(auth.uid(), 'Admin'::app_role))) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "app_settings",
+  "policyname": "app_settings_admin_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())",
+  "with_check": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "app_settings",
+  "policyname": "app_settings_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "app_settings",
+  "policyname": "app_settings_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((tenant_id = current_tenant_id()) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "app_settings",
+  "policyname": "app_settings_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((tenant_id = current_tenant_id()) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "app_settings",
+  "policyname": "app_settings_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())",
+  "with_check": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "assessment_templates",
+  "policyname": "assessment_templates_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(has_role(auth.uid(), 'Admin'::app_role) OR (created_by = auth.uid()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "assessment_templates",
+  "policyname": "assessment_templates_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(has_role(auth.uid(), 'Admin'::app_role) OR ((created_by = auth.uid()) AND (visibility = 'private'::text)))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "assessment_templates",
+  "policyname": "assessment_templates_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(has_role(auth.uid(), 'Admin'::app_role) OR (visibility = 'public'::text) OR (created_by = auth.uid()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "assessment_templates",
+  "policyname": "assessment_templates_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(has_role(auth.uid(), 'Admin'::app_role) OR (created_by = auth.uid()))",
+  "with_check": "(has_role(auth.uid(), 'Admin'::app_role) OR (created_by = auth.uid()))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "attendance_check_in_state",
+  "policyname": "check_in_state_teacher_admin",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(attendance_session_in_my_tenant(session_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)))",
+  "with_check": "(attendance_session_in_my_tenant(session_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "attendance_records",
+  "policyname": "attendance_records_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((auth.uid() = user_id) OR (attendance_session_in_my_tenant(session_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "attendance_records",
+  "policyname": "attendance_records_staff_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND attendance_session_in_my_tenant(session_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_attendance_session(session_id)) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND attendance_session_in_my_tenant(session_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_attendance_session(session_id)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "attendance_sessions",
+  "policyname": "attendance_sessions_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin() OR ((deleted_at IS NULL) AND (NOT _course_in_papelera(course_id)) AND (EXISTS ( SELECT 1\n   FROM course_enrollments ce\n  WHERE ((ce.course_id = attendance_sessions.course_id) AND (ce.user_id = auth.uid())))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "attendance_sessions",
+  "policyname": "attendance_sessions_staff_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_course(course_id)) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_course(course_id)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "audit_logs",
+  "policyname": "audit_logs_admin_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = current_tenant_id())) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "audit_logs",
+  "policyname": "audit_logs_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "true"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "audit_logs",
+  "policyname": "audit_logs_teacher_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(has_role(auth.uid(), 'Docente'::app_role) AND (tenant_id = current_tenant_id()) AND ((course_id IN ( SELECT course_teachers.course_id\n   FROM course_teachers\n  WHERE (course_teachers.user_id = auth.uid()))) OR (actor_id = auth.uid())))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "audit_retention_settings",
+  "policyname": "audit_retention_settings_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "audit_retention_settings",
+  "policyname": "audit_retention_settings_write",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin())",
+  "with_check": "(has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "certificate_settings",
+  "policyname": "certificate_settings_admin_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())",
+  "with_check": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "certificate_settings",
+  "policyname": "certificate_settings_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "certificate_settings",
+  "policyname": "certificate_settings_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((tenant_id = current_tenant_id()) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "certificate_settings",
+  "policyname": "certificate_settings_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((tenant_id = current_tenant_id()) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "certificate_settings",
+  "policyname": "certificate_settings_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())",
+  "with_check": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "certificates",
+  "policyname": "certificates_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((user_id = auth.uid()) OR (has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = certificates.course_id) AND (ct.user_id = auth.uid())))) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "code_execution_settings",
+  "policyname": "Admin can manage code_execution_settings",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin())",
+  "with_check": "(has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "code_execution_settings",
+  "policyname": "Authenticated can read code_execution_settings",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(auth.role() = 'authenticated'::text)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "code_executions",
+  "policyname": "code_executions_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(auth.uid() = user_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "code_executions",
+  "policyname": "code_executions_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((auth.uid() = user_id) OR ((submission_id IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM (submissions s\n     JOIN exams e ON ((e.id = s.exam_id)))\n  WHERE ((s.id = code_executions.submission_id) AND ((EXISTS ( SELECT 1\n           FROM course_teachers ct\n          WHERE ((ct.course_id = e.course_id) AND (ct.user_id = auth.uid())))) OR is_admin_of_course_tenant(e.course_id)))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "content_brand_config",
+  "policyname": "brand_admin_write",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM user_roles\n  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'Admin'::app_role))))",
+  "with_check": "(EXISTS ( SELECT 1\n   FROM user_roles\n  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'Admin'::app_role))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "content_brand_config",
+  "policyname": "brand_read",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "true",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "content_course_assignments",
+  "policyname": "cca_delete",
+  "cmd": "DELETE",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin() OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = content_course_assignments.course_id) AND (ct.user_id = auth.uid()))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "content_course_assignments",
+  "policyname": "cca_insert",
+  "cmd": "INSERT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(((created_by IS NULL) OR (created_by = auth.uid())) AND course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin() OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = content_course_assignments.course_id) AND (ct.user_id = auth.uid()))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "content_course_assignments",
+  "policyname": "cca_select",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin() OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = content_course_assignments.course_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM course_enrollments ce\n  WHERE ((ce.course_id = content_course_assignments.course_id) AND (ce.user_id = auth.uid()))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "content_course_assignments",
+  "policyname": "cca_update",
+  "cmd": "UPDATE",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin() OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = content_course_assignments.course_id) AND (ct.user_id = auth.uid()))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "conversations",
+  "policyname": "conversations insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(((user_a = auth.uid()) OR (user_b = auth.uid())) AND can_message(user_a, user_b))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "conversations",
+  "policyname": "conversations select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((user_a = auth.uid()) OR (user_b = auth.uid()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "conversations",
+  "policyname": "conversations update own clear",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((user_a = auth.uid()) OR (user_b = auth.uid()))",
+  "with_check": "((user_a = auth.uid()) OR (user_b = auth.uid()))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "course_actas",
+  "policyname": "course_actas_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR (generated_by = auth.uid()) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "course_actas",
+  "policyname": "course_actas_no_direct_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "false"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "course_actas",
+  "policyname": "course_actas_read",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = course_actas.course_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM course_enrollments ce\n  WHERE ((ce.course_id = course_actas.course_id) AND (ce.user_id = auth.uid())))) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "course_certificate_settings",
+  "policyname": "ccs_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "course_in_my_tenant(course_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "course_certificate_settings",
+  "policyname": "ccs_write",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Admin'::app_role) OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = course_certificate_settings.course_id) AND (ct.user_id = auth.uid()))))))",
+  "with_check": "(course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Admin'::app_role) OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = course_certificate_settings.course_id) AND (ct.user_id = auth.uid()))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "course_enrollments",
+  "policyname": "enrollments_admin_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(course_in_my_tenant(course_id) AND has_role(auth.uid(), 'Admin'::app_role))",
+  "with_check": "(course_in_my_tenant(course_id) AND has_role(auth.uid(), 'Admin'::app_role))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "course_enrollments",
+  "policyname": "enrollments_docente_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(_teaches_course(course_id) AND has_role(auth.uid(), 'Docente'::app_role))",
+  "with_check": "(_teaches_course(course_id) AND has_role(auth.uid(), 'Docente'::app_role))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "course_enrollments",
+  "policyname": "enrollments_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "((user_id = auth.uid()) OR is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR _teaches_course(course_id))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "course_grading_config",
+  "policyname": "cgc_admin_all",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "course_grading_config",
+  "policyname": "cgc_student_read",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((EXISTS ( SELECT 1\n   FROM course_enrollments ce\n  WHERE ((ce.course_id = course_grading_config.course_id) AND (ce.user_id = auth.uid())))) AND (NOT _course_in_papelera(course_id)))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "course_grading_config",
+  "policyname": "cgc_teacher_of_course",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(has_role(auth.uid(), 'Docente'::app_role) AND (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = course_grading_config.course_id) AND (ct.user_id = auth.uid())))))",
+  "with_check": "(has_role(auth.uid(), 'Docente'::app_role) AND (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = course_grading_config.course_id) AND (ct.user_id = auth.uid())))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "course_schedules",
+  "policyname": "course_schedules_read",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = course_schedules.course_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM course_enrollments ce\n  WHERE ((ce.course_id = course_schedules.course_id) AND (ce.user_id = auth.uid())))) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "course_schedules",
+  "policyname": "course_schedules_write",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Admin'::app_role) OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = course_schedules.course_id) AND (ct.user_id = auth.uid()))))))",
+  "with_check": "(course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Admin'::app_role) OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = course_schedules.course_id) AND (ct.user_id = auth.uid()))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "course_teachers",
+  "policyname": "course_teachers_admin_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(course_in_my_tenant(course_id) AND has_role(auth.uid(), 'Admin'::app_role))",
+  "with_check": "(course_in_my_tenant(course_id) AND has_role(auth.uid(), 'Admin'::app_role))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "course_teachers",
+  "policyname": "course_teachers_docente_manage_others",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(course_in_my_tenant(course_id) AND has_role(auth.uid(), 'Docente'::app_role) AND (user_id <> auth.uid()))",
+  "with_check": "(course_in_my_tenant(course_id) AND has_role(auth.uid(), 'Docente'::app_role) AND (user_id <> auth.uid()))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "course_teachers",
+  "policyname": "course_teachers_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Admin'::app_role) OR has_role(auth.uid(), 'Docente'::app_role))) OR _is_enrolled_in_course(course_id))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "courses",
+  "policyname": "courses_admin_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())",
+  "with_check": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Admin'::app_role)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "courses",
+  "policyname": "courses_docente_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((_teaches_course(id) AND has_role(auth.uid(), 'Docente'::app_role)) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "courses",
+  "policyname": "courses_docente_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Docente'::app_role)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "courses",
+  "policyname": "courses_docente_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((_teaches_course(id) AND has_role(auth.uid(), 'Docente'::app_role)) OR is_super_admin())",
+  "with_check": "(((tenant_id = current_tenant_id()) AND has_role(auth.uid(), 'Docente'::app_role)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "courses",
+  "policyname": "courses_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR ((tenant_id = current_tenant_id()) AND ((deleted_at IS NULL) OR has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "cron_job_descriptions",
+  "policyname": "cron_job_desc_admin_write",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "has_role(auth.uid(), 'Admin'::app_role)",
+  "with_check": "has_role(auth.uid(), 'Admin'::app_role)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "cron_job_descriptions",
+  "policyname": "cron_job_desc_read_all",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "true",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "db_backups",
+  "policyname": "db_backups_admin_all",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "is_super_admin()",
+  "with_check": "is_super_admin()"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "email_settings",
+  "policyname": "email_settings_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "true",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "email_settings",
+  "policyname": "email_settings_update_admin",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin())",
+  "with_check": "(has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "email_suppressions",
+  "policyname": "email_suppressions_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = current_tenant_id())))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "email_suppressions",
+  "policyname": "email_suppressions_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = current_tenant_id())))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "email_suppressions",
+  "policyname": "email_suppressions_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND ((tenant_id = current_tenant_id()) OR (tenant_id IS NULL))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "email_suppressions",
+  "policyname": "email_suppressions_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = current_tenant_id())))",
+  "with_check": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = current_tenant_id())))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "error_event_status",
+  "policyname": "error_event_status_manage",
+  "cmd": "ALL",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (EXISTS ( SELECT 1\n   FROM audit_logs a\n  WHERE ((a.id = error_event_status.audit_log_id) AND (a.tenant_id = current_tenant_id()))))))",
+  "with_check": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (EXISTS ( SELECT 1\n   FROM audit_logs a\n  WHERE ((a.id = error_event_status.audit_log_id) AND (a.tenant_id = current_tenant_id()))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "exam_assignments",
+  "policyname": "exam_assignments_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((auth.uid() = user_id) OR (exam_in_my_tenant(exam_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "exam_assignments",
+  "policyname": "exam_assignments_staff_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND exam_in_my_tenant(exam_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_exam(exam_id)) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND exam_in_my_tenant(exam_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_exam(exam_id)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "exam_notes",
+  "policyname": "Students manage own exam notes",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(auth.uid() = user_id)",
+  "with_check": "(auth.uid() = user_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "exam_notes",
+  "policyname": "exam_notes_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((auth.uid() = user_id) OR (EXISTS ( SELECT 1\n   FROM (exams e\n     JOIN course_teachers ct ON ((ct.course_id = e.course_id)))\n  WHERE ((e.id = exam_notes.exam_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM exams e\n  WHERE ((e.id = exam_notes.exam_id) AND is_admin_of_course_tenant(e.course_id)))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "exam_notes",
+  "policyname": "exam_notes_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((auth.uid() = user_id) OR (EXISTS ( SELECT 1\n   FROM (exams e\n     JOIN course_teachers ct ON ((ct.course_id = e.course_id)))\n  WHERE ((e.id = exam_notes.exam_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM exams e\n  WHERE ((e.id = exam_notes.exam_id) AND is_admin_of_course_tenant(e.course_id)))))",
+  "with_check": "((auth.uid() = user_id) OR (EXISTS ( SELECT 1\n   FROM (exams e\n     JOIN course_teachers ct ON ((ct.course_id = e.course_id)))\n  WHERE ((e.id = exam_notes.exam_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM exams e\n  WHERE ((e.id = exam_notes.exam_id) AND is_admin_of_course_tenant(e.course_id)))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "exam_timer_controls",
+  "policyname": "Students see own or global timer controls",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((target_user_id = auth.uid()) OR (target_user_id IS NULL))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "exam_timer_controls",
+  "policyname": "exam_timer_controls_write",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(exam_in_my_tenant(exam_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)))",
+  "with_check": "(exam_in_my_tenant(exam_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "exams",
+  "policyname": "exams_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role) OR ((deleted_at IS NULL) AND (NOT _course_in_papelera(course_id)) AND (EXISTS ( SELECT 1\n   FROM exam_assignments ea\n  WHERE ((ea.exam_id = exams.id) AND (ea.user_id = auth.uid()))))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "exams",
+  "policyname": "exams_staff_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_course(course_id)) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_course(course_id)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "feedback_attachments",
+  "policyname": "feedback_attachments delete own",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(uploaded_by = auth.uid())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "feedback_attachments",
+  "policyname": "feedback_attachments insert own",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((uploaded_by = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM feedback_comments c\n  WHERE ((c.id = feedback_attachments.comment_id) AND (c.user_id = auth.uid())))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "feedback_attachments",
+  "policyname": "feedback_attachments select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM (feedback_comments c\n     JOIN feedback_threads t ON ((t.id = c.thread_id)))\n  WHERE ((c.id = feedback_attachments.comment_id) AND (is_submission_owner(t.parent_kind, t.submission_id, auth.uid()) OR is_question_course_teacher(t.parent_kind, t.question_id, auth.uid())))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "feedback_comments",
+  "policyname": "feedback_comments delete own",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(user_id = auth.uid())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "feedback_comments",
+  "policyname": "feedback_comments insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((user_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM feedback_threads t\n  WHERE ((t.id = feedback_comments.thread_id) AND (t.closed = false) AND (is_submission_owner(t.parent_kind, t.submission_id, auth.uid()) OR is_question_course_teacher(t.parent_kind, t.question_id, auth.uid()))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "feedback_comments",
+  "policyname": "feedback_comments select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM feedback_threads t\n  WHERE ((t.id = feedback_comments.thread_id) AND (is_submission_owner(t.parent_kind, t.submission_id, auth.uid()) OR is_question_course_teacher(t.parent_kind, t.question_id, auth.uid())))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "feedback_comments",
+  "policyname": "feedback_comments update own",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(user_id = auth.uid())",
+  "with_check": "(user_id = auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "feedback_threads",
+  "policyname": "feedback_threads insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(is_submission_owner(parent_kind, submission_id, auth.uid()) OR is_question_course_teacher(parent_kind, question_id, auth.uid()))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "feedback_threads",
+  "policyname": "feedback_threads select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_submission_owner(parent_kind, submission_id, auth.uid()) OR is_question_course_teacher(parent_kind, question_id, auth.uid()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "feedback_threads",
+  "policyname": "feedback_threads update teacher",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "is_question_course_teacher(parent_kind, question_id, auth.uid())",
+  "with_check": "is_question_course_teacher(parent_kind, question_id, auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "forum_replies",
+  "policyname": "forum_replies_delete",
+  "cmd": "DELETE",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "((author_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM (forum_threads t\n     JOIN course_teachers ct ON ((ct.course_id = t.course_id)))\n  WHERE ((t.id = forum_replies.thread_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM forum_threads t\n  WHERE ((t.id = forum_replies.thread_id) AND is_admin_of_course_tenant(t.course_id)))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "forum_replies",
+  "policyname": "forum_replies_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((author_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM forum_threads t\n  WHERE ((t.id = forum_replies.thread_id) AND (t.is_locked = false) AND ((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(t.course_id)) OR (EXISTS ( SELECT 1\n           FROM course_teachers ct\n          WHERE ((ct.course_id = t.course_id) AND (ct.user_id = auth.uid())))) OR ((EXISTS ( SELECT 1\n           FROM course_enrollments ce\n          WHERE ((ce.course_id = t.course_id) AND (ce.user_id = auth.uid())))) AND is_forum_open(t.forum_id) AND (NOT _course_in_papelera(t.course_id))) OR is_super_admin())))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "forum_replies",
+  "policyname": "forum_replies_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM forum_threads t\n  WHERE ((t.id = forum_replies.thread_id) AND ((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(t.course_id)) OR (EXISTS ( SELECT 1\n           FROM course_teachers ct\n          WHERE ((ct.course_id = t.course_id) AND (ct.user_id = auth.uid())))) OR ((EXISTS ( SELECT 1\n           FROM course_enrollments ce\n          WHERE ((ce.course_id = t.course_id) AND (ce.user_id = auth.uid())))) AND (NOT _course_in_papelera(t.course_id))) OR is_super_admin()))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "forum_replies",
+  "policyname": "forum_replies_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((author_id = auth.uid()) OR (has_role(auth.uid(), 'Admin'::app_role) AND (EXISTS ( SELECT 1\n   FROM forum_threads t\n  WHERE ((t.id = forum_replies.thread_id) AND course_in_my_tenant(t.course_id))))) OR (EXISTS ( SELECT 1\n   FROM (forum_threads t\n     JOIN course_teachers ct ON ((ct.course_id = t.course_id)))\n  WHERE ((t.id = forum_replies.thread_id) AND (ct.user_id = auth.uid())))) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "forum_threads",
+  "policyname": "forum_threads_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(course_in_my_tenant(course_id) AND ((author_id = auth.uid()) OR has_role(auth.uid(), 'Admin'::app_role) OR (EXISTS ( SELECT 1\n   FROM course_teachers\n  WHERE ((course_teachers.course_id = forum_threads.course_id) AND (course_teachers.user_id = auth.uid()))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "forum_threads",
+  "policyname": "forum_threads_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((author_id = auth.uid()) AND ((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = forum_threads.course_id) AND (ct.user_id = auth.uid())))) OR ((EXISTS ( SELECT 1\n   FROM course_enrollments ce\n  WHERE ((ce.course_id = forum_threads.course_id) AND (ce.user_id = auth.uid())))) AND is_forum_open(forum_id) AND (NOT _course_in_papelera(course_id))) OR is_super_admin()))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "forum_threads",
+  "policyname": "forum_threads_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR (EXISTS ( SELECT 1\n   FROM course_teachers\n  WHERE ((course_teachers.course_id = forum_threads.course_id) AND (course_teachers.user_id = auth.uid())))) OR ((EXISTS ( SELECT 1\n   FROM course_enrollments\n  WHERE ((course_enrollments.course_id = forum_threads.course_id) AND (course_enrollments.user_id = auth.uid())))) AND (NOT _course_in_papelera(course_id))) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "forum_threads",
+  "policyname": "forum_threads_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(course_in_my_tenant(course_id) AND ((author_id = auth.uid()) OR has_role(auth.uid(), 'Admin'::app_role) OR (EXISTS ( SELECT 1\n   FROM course_teachers\n  WHERE ((course_teachers.course_id = forum_threads.course_id) AND (course_teachers.user_id = auth.uid()))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "forum_upvotes",
+  "policyname": "forum_upvotes_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(user_id = auth.uid())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "forum_upvotes",
+  "policyname": "forum_upvotes_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(user_id = auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "forum_upvotes",
+  "policyname": "forum_upvotes_select",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "((user_id = auth.uid()) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "forums",
+  "policyname": "forums_delete_teacher",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Admin'::app_role) OR (EXISTS ( SELECT 1\n   FROM course_teachers\n  WHERE ((course_teachers.course_id = forums.course_id) AND (course_teachers.user_id = auth.uid()))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "forums",
+  "policyname": "forums_insert_teacher",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((created_by = auth.uid()) AND ((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = forums.course_id) AND (ct.user_id = auth.uid())))) OR is_super_admin()))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "forums",
+  "policyname": "forums_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR (EXISTS ( SELECT 1\n   FROM course_teachers\n  WHERE ((course_teachers.course_id = forums.course_id) AND (course_teachers.user_id = auth.uid())))) OR ((EXISTS ( SELECT 1\n   FROM course_enrollments\n  WHERE ((course_enrollments.course_id = forums.course_id) AND (course_enrollments.user_id = auth.uid())))) AND (NOT _course_in_papelera(course_id))) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "forums",
+  "policyname": "forums_update_teacher",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Admin'::app_role) OR (EXISTS ( SELECT 1\n   FROM course_teachers\n  WHERE ((course_teachers.course_id = forums.course_id) AND (course_teachers.user_id = auth.uid()))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "generated_contents",
+  "policyname": "generated_contents_owner",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((((teacher_id = auth.uid()) OR has_role(auth.uid(), 'Admin'::app_role)) AND ((course_id IS NULL) OR course_in_my_tenant(course_id))) OR is_super_admin())",
+  "with_check": "((((teacher_id = auth.uid()) OR has_role(auth.uid(), 'Admin'::app_role)) AND ((course_id IS NULL) OR course_in_my_tenant(course_id))) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "generated_contents",
+  "policyname": "generated_contents_student_via_course",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((status = 'done'::content_status) AND (is_published = true) AND (deleted_at IS NULL) AND (EXISTS ( SELECT 1\n   FROM (content_course_assignments cca\n     JOIN course_enrollments ce ON ((ce.course_id = cca.course_id)))\n  WHERE ((cca.content_id = generated_contents.id) AND (ce.user_id = auth.uid())))) AND content_released_for_student(id))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "generated_contents",
+  "policyname": "generated_contents_student_via_session",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((deleted_at IS NULL) AND (EXISTS ( SELECT 1\n   FROM (attendance_sessions s\n     JOIN course_enrollments ce ON ((ce.course_id = s.course_id)))\n  WHERE ((s.content_id = generated_contents.id) AND (ce.user_id = auth.uid()) AND (s.deleted_at IS NULL)))) AND content_released_for_student(id))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "generated_reports",
+  "policyname": "generated_reports_delete",
+  "cmd": "DELETE",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "((created_by = auth.uid()) OR (course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin())))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "generated_reports",
+  "policyname": "generated_reports_insert",
+  "cmd": "INSERT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((created_by = auth.uid()) AND course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin() OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = generated_reports.course_id) AND (ct.user_id = auth.uid()))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "generated_reports",
+  "policyname": "generated_reports_select",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "((created_by = auth.uid()) OR (course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin() OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = generated_reports.course_id) AND (ct.user_id = auth.uid())))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "grade_cut_items",
+  "policyname": "cut_items_admin_all",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM grade_cuts gc\n  WHERE ((gc.id = grade_cut_items.cut_id) AND is_admin_of_course_tenant(gc.course_id))))",
+  "with_check": "(EXISTS ( SELECT 1\n   FROM grade_cuts gc\n  WHERE ((gc.id = grade_cut_items.cut_id) AND is_admin_of_course_tenant(gc.course_id))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "grade_cut_items",
+  "policyname": "cut_items_student_read",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM (grade_cuts gc\n     JOIN course_enrollments ce ON ((ce.course_id = gc.course_id)))\n  WHERE ((gc.id = grade_cut_items.cut_id) AND (ce.user_id = auth.uid()) AND (NOT _course_in_papelera(gc.course_id)))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "grade_cut_items",
+  "policyname": "cut_items_teacher_of_course",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(has_role(auth.uid(), 'Docente'::app_role) AND (EXISTS ( SELECT 1\n   FROM (grade_cuts gc\n     JOIN course_teachers ct ON ((ct.course_id = gc.course_id)))\n  WHERE ((gc.id = grade_cut_items.cut_id) AND (ct.user_id = auth.uid())))))",
+  "with_check": "(has_role(auth.uid(), 'Docente'::app_role) AND (EXISTS ( SELECT 1\n   FROM (grade_cuts gc\n     JOIN course_teachers ct ON ((ct.course_id = gc.course_id)))\n  WHERE ((gc.id = grade_cut_items.cut_id) AND (ct.user_id = auth.uid())))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "grade_cuts",
+  "policyname": "cuts_admin_all",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "grade_cuts",
+  "policyname": "cuts_student_read",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((EXISTS ( SELECT 1\n   FROM course_enrollments ce\n  WHERE ((ce.course_id = grade_cuts.course_id) AND (ce.user_id = auth.uid())))) AND (NOT _course_in_papelera(course_id)))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "grade_cuts",
+  "policyname": "cuts_teacher_of_course",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(has_role(auth.uid(), 'Docente'::app_role) AND (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = grade_cuts.course_id) AND (ct.user_id = auth.uid())))))",
+  "with_check": "(has_role(auth.uid(), 'Docente'::app_role) AND (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = grade_cuts.course_id) AND (ct.user_id = auth.uid())))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "group_chat_members",
+  "policyname": "group_chat_members select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "is_group_chat_member(group_id, auth.uid())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "group_chat_members",
+  "policyname": "group_chat_members update self",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(user_id = auth.uid())",
+  "with_check": "(user_id = auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "group_chats",
+  "policyname": "group_chats insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(created_by = auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "group_chats",
+  "policyname": "group_chats select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "is_group_chat_member(id, auth.uid())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "kahoot_answers",
+  "policyname": "kahoot_answers_select",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "((EXISTS ( SELECT 1\n   FROM kahoot_players p\n  WHERE ((p.id = kahoot_answers.player_id) AND (p.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM kahoot_games g\n  WHERE ((g.id = kahoot_answers.game_id) AND (_poll_anchor_teacher(g.poll_id, auth.uid()) OR _poll_admin_in_tenant(g.poll_id, auth.uid()))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "kahoot_games",
+  "policyname": "kahoot_games_select",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "((_poll_has_member(poll_id, auth.uid()) AND (NOT _poll_in_papelera(poll_id))) OR _poll_admin_in_tenant(poll_id, auth.uid()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "kahoot_players",
+  "policyname": "kahoot_players_select",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM kahoot_games g\n  WHERE ((g.id = kahoot_players.game_id) AND ((_poll_has_member(g.poll_id, auth.uid()) AND (NOT _poll_in_papelera(g.poll_id))) OR _poll_admin_in_tenant(g.poll_id, auth.uid())))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "kahoot_question_options",
+  "policyname": "kahoot_q_options_rw",
+  "cmd": "ALL",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM kahoot_questions q\n  WHERE ((q.id = kahoot_question_options.question_id) AND (_poll_anchor_teacher(q.poll_id, auth.uid()) OR _poll_admin_in_tenant(q.poll_id, auth.uid())))))",
+  "with_check": "(EXISTS ( SELECT 1\n   FROM kahoot_questions q\n  WHERE ((q.id = kahoot_question_options.question_id) AND (_poll_anchor_teacher(q.poll_id, auth.uid()) OR _poll_admin_in_tenant(q.poll_id, auth.uid())))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "kahoot_questions",
+  "policyname": "kahoot_questions_rw",
+  "cmd": "ALL",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(_poll_anchor_teacher(poll_id, auth.uid()) OR _poll_admin_in_tenant(poll_id, auth.uid()))",
+  "with_check": "(_poll_anchor_teacher(poll_id, auth.uid()) OR _poll_admin_in_tenant(poll_id, auth.uid()))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "message_attachments",
+  "policyname": "message_attachments delete own",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(uploaded_by = auth.uid())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "message_attachments",
+  "policyname": "message_attachments insert own",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((uploaded_by = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM messages m\n  WHERE ((m.id = message_attachments.message_id) AND (m.sender_id = auth.uid())))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "message_attachments",
+  "policyname": "message_attachments select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM messages m\n  WHERE (m.id = message_attachments.message_id)))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "messages",
+  "policyname": "messages delete own",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((sender_id = auth.uid()) AND (NOT _message_was_read_by_other(id)))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "messages",
+  "policyname": "messages insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((sender_id = auth.uid()) AND (((conversation_id IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM conversations c\n  WHERE ((c.id = messages.conversation_id) AND ((c.user_a = auth.uid()) OR (c.user_b = auth.uid())) AND can_message(c.user_a, c.user_b))))) OR ((group_id IS NOT NULL) AND is_group_chat_member(group_id, auth.uid()))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "messages",
+  "policyname": "messages select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(((conversation_id IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM conversations c\n  WHERE ((c.id = messages.conversation_id) AND (((c.user_a = auth.uid()) AND ((c.user_a_cleared_at IS NULL) OR (messages.created_at > c.user_a_cleared_at))) OR ((c.user_b = auth.uid()) AND ((c.user_b_cleared_at IS NULL) OR (messages.created_at > c.user_b_cleared_at)))))))) OR ((group_id IS NOT NULL) AND is_group_chat_member(group_id, auth.uid()) AND (NOT (EXISTS ( SELECT 1\n   FROM group_chat_members gcm\n  WHERE ((gcm.group_id = messages.group_id) AND (gcm.user_id = auth.uid()) AND (gcm.cleared_at IS NOT NULL) AND (messages.created_at <= gcm.cleared_at)))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "messages",
+  "policyname": "messages update sender",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((sender_id = auth.uid()) AND (NOT _message_was_read_by_other(id)))",
+  "with_check": "(sender_id = auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "module_visibility",
+  "policyname": "module_visibility_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = current_tenant_id())))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "module_visibility",
+  "policyname": "module_visibility_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = current_tenant_id())))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "module_visibility",
+  "policyname": "module_visibility_read",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((tenant_id IS NULL) OR (tenant_id = current_tenant_id()) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "module_visibility",
+  "policyname": "module_visibility_select_scoped",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((tenant_id IS NULL) OR (tenant_id = current_tenant_id()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "module_visibility",
+  "policyname": "module_visibility_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = current_tenant_id())))",
+  "with_check": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = current_tenant_id())))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "notifications",
+  "policyname": "notifications_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((auth.uid() = user_id) OR ((has_role(auth.uid(), 'Admin'::app_role) OR (has_role(auth.uid(), 'Docente'::app_role) AND (kind = ANY (ARRAY['exam'::text, 'info'::text, 'grade'::text, 'workshop'::text, 'system'::text])))) AND (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = notifications.user_id) AND (p.tenant_id = current_tenant_id()))))) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "notifications",
+  "policyname": "notifications_select_recipient",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(user_id = auth.uid())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "notifications",
+  "policyname": "notifications_update_recipient",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(auth.uid() = user_id)",
+  "with_check": "(auth.uid() = user_id)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "platform_help_videos",
+  "policyname": "phv_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "true",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "platform_help_videos",
+  "policyname": "phv_write",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "is_super_admin()",
+  "with_check": "is_super_admin()"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "platform_holidays",
+  "policyname": "platform_holidays_read",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "true",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "platform_holidays",
+  "policyname": "platform_holidays_write_sa",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "is_super_admin()",
+  "with_check": "is_super_admin()"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "platform_kb_docs",
+  "policyname": "platform_kb_docs_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "is_super_admin()",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "platform_kb_docs",
+  "policyname": "platform_kb_docs_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "is_super_admin()"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "platform_kb_docs",
+  "policyname": "platform_kb_docs_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((audience = 'all'::text) OR ((audience = 'estudiante'::text) AND (has_role(auth.uid(), 'Estudiante'::app_role) OR has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin())) OR ((audience = 'docente'::text) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin())) OR ((audience = 'admin'::text) AND (has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin())))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "platform_kb_docs",
+  "policyname": "platform_kb_docs_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "is_super_admin()",
+  "with_check": "is_super_admin()"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "platform_settings",
+  "policyname": "platform_settings_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "true",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "platform_settings",
+  "policyname": "platform_settings_update_super",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "is_super_admin()",
+  "with_check": "is_super_admin()"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "platform_support_messages",
+  "policyname": "platform_support_messages_delete",
+  "cmd": "DELETE",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM platform_support_sessions s\n  WHERE ((s.id = platform_support_messages.session_id) AND (s.user_id = auth.uid()))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "platform_support_messages",
+  "policyname": "platform_support_messages_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM platform_support_sessions s\n  WHERE ((s.id = platform_support_messages.session_id) AND (s.user_id = auth.uid()))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "platform_support_sessions",
+  "policyname": "platform_support_sessions_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(user_id = auth.uid())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "platform_support_sessions",
+  "policyname": "platform_support_sessions_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(user_id = auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "platform_support_sessions",
+  "policyname": "platform_support_sessions_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((user_id = auth.uid()) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "platform_support_sessions",
+  "policyname": "platform_support_sessions_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(user_id = auth.uid())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "poll_calendar_events",
+  "policyname": "poll_calendar_events_select",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "((user_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM (poll_courses pc\n     JOIN course_teachers ct ON ((ct.course_id = pc.course_id)))\n  WHERE ((pc.poll_id = poll_calendar_events.poll_id) AND (ct.user_id = auth.uid())))) OR (has_role(auth.uid(), 'Admin'::app_role) AND (EXISTS ( SELECT 1\n   FROM (poll_courses pc\n     JOIN courses c ON ((c.id = pc.course_id)))\n  WHERE ((pc.poll_id = poll_calendar_events.poll_id) AND (c.tenant_id = current_tenant_id()))))) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "poll_calendar_events",
+  "policyname": "poll_calendar_events_write",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((EXISTS ( SELECT 1\n   FROM (poll_courses pc\n     JOIN course_teachers ct ON ((ct.course_id = pc.course_id)))\n  WHERE ((pc.poll_id = poll_calendar_events.poll_id) AND (ct.user_id = auth.uid())))) OR (has_role(auth.uid(), 'Admin'::app_role) AND (EXISTS ( SELECT 1\n   FROM (poll_courses pc\n     JOIN courses c ON ((c.id = pc.course_id)))\n  WHERE ((pc.poll_id = poll_calendar_events.poll_id) AND (c.tenant_id = current_tenant_id()))))) OR is_super_admin())",
+  "with_check": "((EXISTS ( SELECT 1\n   FROM (poll_courses pc\n     JOIN course_teachers ct ON ((ct.course_id = pc.course_id)))\n  WHERE ((pc.poll_id = poll_calendar_events.poll_id) AND (ct.user_id = auth.uid())))) OR (has_role(auth.uid(), 'Admin'::app_role) AND (EXISTS ( SELECT 1\n   FROM (poll_courses pc\n     JOIN courses c ON ((c.id = pc.course_id)))\n  WHERE ((pc.poll_id = poll_calendar_events.poll_id) AND (c.tenant_id = current_tenant_id()))))) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "poll_courses",
+  "policyname": "poll_courses_delete_teacher",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(_poll_anchor_teacher(poll_id, auth.uid()) OR is_admin_of_course_tenant(course_id))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "poll_courses",
+  "policyname": "poll_courses_insert_teacher",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(_poll_anchor_teacher(poll_id, auth.uid()) OR is_admin_of_course_tenant(course_id))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "poll_courses",
+  "policyname": "poll_courses_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = poll_courses.course_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM course_enrollments ce\n  WHERE ((ce.course_id = poll_courses.course_id) AND (ce.user_id = auth.uid())))) OR is_admin_of_course_tenant(course_id))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "poll_courses",
+  "policyname": "poll_courses_update_teacher",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(_poll_anchor_teacher(poll_id, auth.uid()) OR is_admin_of_course_tenant(course_id))",
+  "with_check": "(_poll_anchor_teacher(poll_id, auth.uid()) OR is_admin_of_course_tenant(course_id))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "poll_options",
+  "policyname": "poll_options_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((_poll_has_member(poll_id, auth.uid()) OR _poll_admin_in_tenant(poll_id, auth.uid())) AND (NOT _poll_in_papelera(poll_id)))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "poll_options",
+  "policyname": "poll_options_write_teacher",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(_poll_anchor_teacher(poll_id, auth.uid()) OR _poll_admin_in_tenant(poll_id, auth.uid()))",
+  "with_check": "(_poll_anchor_teacher(poll_id, auth.uid()) OR _poll_admin_in_tenant(poll_id, auth.uid()))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "poll_question_responses",
+  "policyname": "pqr_no_direct_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "false",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "poll_question_responses",
+  "policyname": "pqr_no_direct_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "false"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "poll_question_responses",
+  "policyname": "pqr_no_direct_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "false",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "poll_question_responses",
+  "policyname": "pqr_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(((user_id = auth.uid()) OR _poll_linked_teacher(poll_id, auth.uid()) OR _poll_admin_in_tenant(poll_id, auth.uid())) AND (NOT _poll_in_papelera(poll_id)))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "poll_questions",
+  "policyname": "poll_questions_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((_poll_has_member(poll_id, auth.uid()) OR _poll_admin_in_tenant(poll_id, auth.uid())) AND (NOT _poll_in_papelera(poll_id)))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "poll_questions",
+  "policyname": "poll_questions_write",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(_poll_anchor_teacher(poll_id, auth.uid()) OR _poll_admin_in_tenant(poll_id, auth.uid()))",
+  "with_check": "(_poll_anchor_teacher(poll_id, auth.uid()) OR _poll_admin_in_tenant(poll_id, auth.uid()))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "poll_responses",
+  "policyname": "poll_responses_no_direct_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "false",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "poll_responses",
+  "policyname": "poll_responses_no_direct_write",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "false"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "poll_responses",
+  "policyname": "poll_responses_select_own_or_teacher",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((user_id = auth.uid()) OR _poll_linked_teacher(poll_id, auth.uid()) OR _poll_admin_in_tenant(poll_id, auth.uid()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "polls",
+  "policyname": "polls_select_course_members",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(_poll_linked_teacher(id, auth.uid()) OR ((is_published = true) AND (deleted_at IS NULL) AND (EXISTS ( SELECT 1\n   FROM (poll_courses pc\n     JOIN course_enrollments ce ON ((ce.course_id = pc.course_id)))\n  WHERE ((pc.poll_id = polls.id) AND (ce.user_id = auth.uid()))))) OR _poll_admin_in_tenant(id, auth.uid()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "polls",
+  "policyname": "polls_write_course_teacher",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((EXISTS ( SELECT 1\n   FROM course_teachers\n  WHERE ((course_teachers.course_id = polls.course_id) AND (course_teachers.user_id = auth.uid())))) OR is_admin_of_course_tenant(course_id))",
+  "with_check": "((EXISTS ( SELECT 1\n   FROM course_teachers\n  WHERE ((course_teachers.course_id = polls.course_id) AND (course_teachers.user_id = auth.uid())))) OR is_admin_of_course_tenant(course_id))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "pricing_assumptions",
+  "policyname": "pricing_assumptions_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "is_super_admin()"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "pricing_assumptions",
+  "policyname": "pricing_assumptions_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "is_super_admin()",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "pricing_assumptions",
+  "policyname": "pricing_assumptions_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "is_super_admin()",
+  "with_check": "is_super_admin()"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "profiles",
+  "policyname": "profiles_admin_delete_same_tenant",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id IS NOT NULL) AND (tenant_id = current_tenant_id())))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "profiles",
+  "policyname": "profiles_admin_manage_same_tenant",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id IS NOT NULL) AND (tenant_id = current_tenant_id())))",
+  "with_check": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id IS NOT NULL) AND (tenant_id = current_tenant_id())))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "profiles",
+  "policyname": "profiles_select_same_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((id = auth.uid()) OR ((tenant_id IS NOT NULL) AND (tenant_id = current_tenant_id())) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "profiles",
+  "policyname": "profiles_update_self",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(id = auth.uid())",
+  "with_check": "(id = auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_assignments",
+  "policyname": "project_assignments_manage_staff",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(project_in_my_tenant(project_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)))",
+  "with_check": "(project_in_my_tenant(project_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_assignments",
+  "policyname": "project_assignments_select_own",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((auth.uid() = user_id) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_courses",
+  "policyname": "project_courses_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "course_in_my_tenant(course_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_courses",
+  "policyname": "project_courses_staff_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)))",
+  "with_check": "(course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_files",
+  "policyname": "project_files_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(project_in_my_tenant(project_id) AND (EXISTS ( SELECT 1\n   FROM (projects p\n     JOIN courses c ON ((c.id = p.course_id)))\n  WHERE ((p.id = project_files.project_id) AND (p.deleted_at IS NULL) AND (c.deleted_at IS NULL)))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_files",
+  "policyname": "project_files_staff_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND project_in_my_tenant(project_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_project(project_id)) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND project_in_my_tenant(project_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_project(project_id)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_group_members",
+  "policyname": "project_group_members_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(project_group_in_my_tenant(group_id) AND ((EXISTS ( SELECT 1\n   FROM ((project_groups g\n     JOIN projects p ON ((p.id = g.project_id)))\n     JOIN courses c ON ((c.id = p.course_id)))\n  WHERE ((g.id = project_group_members.group_id) AND (p.deleted_at IS NULL) AND (c.deleted_at IS NULL)))) OR has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_group_members",
+  "policyname": "project_group_members_staff_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND project_group_in_my_tenant(group_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_project_group(group_id)) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND project_group_in_my_tenant(group_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_project_group(group_id)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_groups",
+  "policyname": "project_groups_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(project_in_my_tenant(project_id) AND ((EXISTS ( SELECT 1\n   FROM (projects p\n     JOIN courses c ON ((c.id = p.course_id)))\n  WHERE ((p.id = project_groups.project_id) AND (p.deleted_at IS NULL) AND (c.deleted_at IS NULL)))) OR has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_groups",
+  "policyname": "project_groups_staff_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND project_in_my_tenant(project_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_project(project_id)) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND project_in_my_tenant(project_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_project(project_id)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_intro_videos",
+  "policyname": "project_intro_videos_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(project_in_my_tenant(project_id) AND ((EXISTS ( SELECT 1\n   FROM (projects p\n     JOIN courses c ON ((c.id = p.course_id)))\n  WHERE ((p.id = project_intro_videos.project_id) AND (p.deleted_at IS NULL) AND (c.deleted_at IS NULL)))) OR has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_intro_videos",
+  "policyname": "project_intro_videos_write_teacher",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND project_in_my_tenant(project_id)) OR (EXISTS ( SELECT 1\n   FROM (projects p\n     JOIN course_teachers ct ON ((ct.course_id = p.course_id)))\n  WHERE ((p.id = project_intro_videos.project_id) AND (ct.user_id = auth.uid())))) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND project_in_my_tenant(project_id)) OR (EXISTS ( SELECT 1\n   FROM (projects p\n     JOIN course_teachers ct ON ((ct.course_id = p.course_id)))\n  WHERE ((p.id = project_intro_videos.project_id) AND (ct.user_id = auth.uid())))) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_submission_attachments",
+  "policyname": "psa_delete_owner_or_staff",
+  "cmd": "DELETE",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM (project_submission_files psf\n     JOIN project_submissions ps ON ((ps.id = psf.submission_id)))\n  WHERE ((psf.id = project_submission_attachments.project_submission_file_id) AND ((ps.user_id = auth.uid()) OR (EXISTS ( SELECT 1\n           FROM (projects p\n             JOIN course_teachers ct ON ((ct.course_id = p.course_id)))\n          WHERE ((p.id = ps.project_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n           FROM projects p\n          WHERE ((p.id = ps.project_id) AND is_admin_of_course_tenant(p.course_id))))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_submission_attachments",
+  "policyname": "psa_insert_owner_or_staff",
+  "cmd": "INSERT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(EXISTS ( SELECT 1\n   FROM (project_submission_files psf\n     JOIN project_submissions ps ON ((ps.id = psf.submission_id)))\n  WHERE ((psf.id = project_submission_attachments.project_submission_file_id) AND ((ps.user_id = auth.uid()) OR (EXISTS ( SELECT 1\n           FROM (projects p\n             JOIN course_teachers ct ON ((ct.course_id = p.course_id)))\n          WHERE ((p.id = ps.project_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n           FROM projects p\n          WHERE ((p.id = ps.project_id) AND is_admin_of_course_tenant(p.course_id))))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_submission_attachments",
+  "policyname": "psa_select_owner_or_staff",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM (project_submission_files psf\n     JOIN project_submissions ps ON ((ps.id = psf.submission_id)))\n  WHERE ((psf.id = project_submission_attachments.project_submission_file_id) AND ((ps.user_id = auth.uid()) OR (EXISTS ( SELECT 1\n           FROM (projects p\n             JOIN course_teachers ct ON ((ct.course_id = p.course_id)))\n          WHERE ((p.id = ps.project_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n           FROM projects p\n          WHERE ((p.id = ps.project_id) AND is_admin_of_course_tenant(p.course_id))))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_submission_files",
+  "policyname": "project_sub_files_owner_or_staff_insert",
+  "cmd": "INSERT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(EXISTS ( SELECT 1\n   FROM project_submissions ps\n  WHERE ((ps.id = project_submission_files.submission_id) AND ((ps.user_id = auth.uid()) OR (EXISTS ( SELECT 1\n           FROM (projects p\n             JOIN course_teachers ct ON ((ct.course_id = p.course_id)))\n          WHERE ((p.id = ps.project_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n           FROM projects p\n          WHERE ((p.id = ps.project_id) AND is_admin_of_course_tenant(p.course_id))))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_submission_files",
+  "policyname": "project_sub_files_owner_or_staff_select",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (EXISTS ( SELECT 1\n   FROM project_submissions ps\n  WHERE ((ps.id = project_submission_files.submission_id) AND ((ps.user_id = auth.uid()) OR (EXISTS ( SELECT 1\n           FROM (projects p\n             JOIN course_teachers ct ON ((ct.course_id = p.course_id)))\n          WHERE ((p.id = ps.project_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n           FROM projects p\n          WHERE ((p.id = ps.project_id) AND is_admin_of_course_tenant(p.course_id)))))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_submission_files",
+  "policyname": "project_sub_files_owner_or_staff_update",
+  "cmd": "UPDATE",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM project_submissions ps\n  WHERE ((ps.id = project_submission_files.submission_id) AND ((ps.user_id = auth.uid()) OR (EXISTS ( SELECT 1\n           FROM (projects p\n             JOIN course_teachers ct ON ((ct.course_id = p.course_id)))\n          WHERE ((p.id = ps.project_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n           FROM projects p\n          WHERE ((p.id = ps.project_id) AND is_admin_of_course_tenant(p.course_id))))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_submission_files",
+  "policyname": "project_sub_files_staff_delete",
+  "cmd": "DELETE",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM project_submissions ps\n  WHERE ((ps.id = project_submission_files.submission_id) AND ((EXISTS ( SELECT 1\n           FROM (projects p\n             JOIN course_teachers ct ON ((ct.course_id = p.course_id)))\n          WHERE ((p.id = ps.project_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n           FROM projects p\n          WHERE ((p.id = ps.project_id) AND is_admin_of_course_tenant(p.course_id))))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_submission_video_views",
+  "policyname": "project_submission_video_views_select_owner_or_staff",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM project_submissions s\n  WHERE ((s.id = project_submission_video_views.submission_id) AND ((s.user_id = auth.uid()) OR ((s.group_id IS NOT NULL) AND (EXISTS ( SELECT 1\n           FROM project_group_members\n          WHERE ((project_group_members.group_id = s.group_id) AND (project_group_members.user_id = auth.uid()))))) OR (EXISTS ( SELECT 1\n           FROM (projects p\n             JOIN course_teachers ct ON ((ct.course_id = p.course_id)))\n          WHERE ((p.id = s.project_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n           FROM projects p\n          WHERE ((p.id = s.project_id) AND is_admin_of_course_tenant(p.course_id))))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_submissions",
+  "policyname": "Students delete own project submissions in window",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((auth.uid() = user_id) AND (EXISTS ( SELECT 1\n   FROM projects p\n  WHERE ((p.id = project_submissions.project_id) AND (p.status = 'published'::text) AND ((p.due_date IS NULL) OR (p.due_date > now())) AND ((p.start_date IS NULL) OR (p.start_date <= now()))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_submissions",
+  "policyname": "project_submissions_delete_staff",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((EXISTS ( SELECT 1\n   FROM (projects p\n     JOIN course_teachers ct ON ((ct.course_id = p.course_id)))\n  WHERE ((p.id = project_submissions.project_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM projects p\n  WHERE ((p.id = project_submissions.project_id) AND is_admin_of_course_tenant(p.course_id)))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_submissions",
+  "policyname": "project_submissions_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((((auth.uid() = user_id) OR ((group_id IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM project_group_members m\n  WHERE ((m.group_id = project_submissions.group_id) AND (m.user_id = auth.uid())))))) AND (EXISTS ( SELECT 1\n   FROM (projects p\n     JOIN courses c ON ((c.id = p.course_id)))\n  WHERE ((p.id = project_submissions.project_id) AND (p.deleted_at IS NULL) AND (c.deleted_at IS NULL))))) OR (EXISTS ( SELECT 1\n   FROM (projects p\n     JOIN course_teachers ct ON ((ct.course_id = p.course_id)))\n  WHERE ((p.id = project_submissions.project_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM projects p\n  WHERE ((p.id = project_submissions.project_id) AND is_admin_of_course_tenant(p.course_id)))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_submissions",
+  "policyname": "project_submissions_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((auth.uid() = user_id) OR ((group_id IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM project_group_members m\n  WHERE ((m.group_id = project_submissions.group_id) AND (m.user_id = auth.uid()))))) OR (EXISTS ( SELECT 1\n   FROM (projects p\n     JOIN course_teachers ct ON ((ct.course_id = p.course_id)))\n  WHERE ((p.id = project_submissions.project_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM projects p\n  WHERE ((p.id = project_submissions.project_id) AND is_admin_of_course_tenant(p.course_id)))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_submissions",
+  "policyname": "project_submissions_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((auth.uid() = user_id) OR ((group_id IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM project_group_members m\n  WHERE ((m.group_id = project_submissions.group_id) AND (m.user_id = auth.uid()))))) OR (EXISTS ( SELECT 1\n   FROM (projects p\n     JOIN course_teachers ct ON ((ct.course_id = p.course_id)))\n  WHERE ((p.id = project_submissions.project_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM projects p\n  WHERE ((p.id = project_submissions.project_id) AND is_admin_of_course_tenant(p.course_id)))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_submissions",
+  "policyname": "restrict_write_inactive_student_ins",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "RESTRICTIVE",
+  "qual": null,
+  "with_check": "student_can_write(auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "project_submissions",
+  "policyname": "restrict_write_inactive_student_upd",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "RESTRICTIVE",
+  "qual": "student_can_write(auth.uid())",
+  "with_check": "student_can_write(auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "projects",
+  "policyname": "projects_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role) OR ((deleted_at IS NULL) AND (NOT _course_in_papelera(course_id)) AND (EXISTS ( SELECT 1\n   FROM project_assignments pa\n  WHERE ((pa.project_id = projects.id) AND (pa.user_id = auth.uid()))))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "projects",
+  "policyname": "projects_staff_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_course(course_id)) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_course(course_id)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "push_subscriptions",
+  "policyname": "push_subscriptions_owner",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(user_id = auth.uid())",
+  "with_check": "(user_id = auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "question_bank",
+  "policyname": "question_bank_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_admin_of_course_tenant(course_id) OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = question_bank.course_id) AND (ct.user_id = auth.uid())))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "question_bank",
+  "policyname": "question_bank_write",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_admin_of_course_tenant(course_id) OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = question_bank.course_id) AND (ct.user_id = auth.uid())))))",
+  "with_check": "(is_admin_of_course_tenant(course_id) OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = question_bank.course_id) AND (ct.user_id = auth.uid())))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "questions",
+  "policyname": "questions_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(exam_in_my_tenant(exam_id) AND (EXISTS ( SELECT 1\n   FROM (exams e\n     JOIN courses c ON ((c.id = e.course_id)))\n  WHERE ((e.id = questions.exam_id) AND (e.deleted_at IS NULL) AND (c.deleted_at IS NULL)))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "questions",
+  "policyname": "questions_staff_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND exam_in_my_tenant(exam_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_exam(exam_id)) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND exam_in_my_tenant(exam_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_exam(exam_id)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "report_templates",
+  "policyname": "report_templates_admin_global",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((owner_id IS NULL) AND (course_id IS NULL) AND is_super_admin())",
+  "with_check": "((owner_id IS NULL) AND (course_id IS NULL) AND is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "report_templates",
+  "policyname": "report_templates_owner_private",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((owner_id IS NOT NULL) AND (owner_id = auth.uid()))",
+  "with_check": "((owner_id IS NOT NULL) AND (owner_id = auth.uid()))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "report_templates",
+  "policyname": "report_templates_read",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(((owner_id IS NULL) AND (course_id IS NULL)) OR (owner_id = auth.uid()) OR ((course_id IS NOT NULL) AND course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Admin'::app_role) OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = report_templates.course_id) AND (ct.user_id = auth.uid())))))) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "report_templates",
+  "policyname": "report_templates_super_admin_all",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "is_super_admin()",
+  "with_check": "is_super_admin()"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "report_templates",
+  "policyname": "report_templates_teacher_override",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((owner_id IS NULL) AND (course_id IS NOT NULL) AND (parent_id IS NOT NULL) AND course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Admin'::app_role) OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = report_templates.course_id) AND (ct.user_id = auth.uid()))))))",
+  "with_check": "((owner_id IS NULL) AND (course_id IS NOT NULL) AND (parent_id IS NOT NULL) AND course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Admin'::app_role) OR (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = report_templates.course_id) AND (ct.user_id = auth.uid()))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "scheduled_messages",
+  "policyname": "scheduled_messages delete own",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((creator_id = auth.uid()) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "scheduled_messages",
+  "policyname": "scheduled_messages insert own",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((creator_id = auth.uid()) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin()))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "scheduled_messages",
+  "policyname": "scheduled_messages select own",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((creator_id = auth.uid()) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "scheduled_messages",
+  "policyname": "scheduled_messages update own",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((creator_id = auth.uid()) OR is_super_admin())",
+  "with_check": "((creator_id = auth.uid()) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "session_code_snippets",
+  "policyname": "session_code_snippets_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM attendance_sessions s\n  WHERE ((s.id = session_code_snippets.session_id) AND (is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(s.course_id)) OR (EXISTS ( SELECT 1\n           FROM course_teachers ct\n          WHERE ((ct.course_id = s.course_id) AND (ct.user_id = auth.uid())))) OR ((COALESCE(s.code_shared, false) = true) AND (s.deleted_at IS NULL) AND (NOT _course_in_papelera(s.course_id)) AND (EXISTS ( SELECT 1\n           FROM course_enrollments ce\n          WHERE ((ce.course_id = s.course_id) AND (ce.user_id = auth.uid())))))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "session_code_snippets",
+  "policyname": "session_code_snippets_write",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM attendance_sessions s\n  WHERE ((s.id = session_code_snippets.session_id) AND (is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(s.course_id)) OR (EXISTS ( SELECT 1\n           FROM course_teachers ct\n          WHERE ((ct.course_id = s.course_id) AND (ct.user_id = auth.uid()))))))))",
+  "with_check": "(EXISTS ( SELECT 1\n   FROM attendance_sessions s\n  WHERE ((s.id = session_code_snippets.session_id) AND (is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(s.course_id)) OR (EXISTS ( SELECT 1\n           FROM course_teachers ct\n          WHERE ((ct.course_id = s.course_id) AND (ct.user_id = auth.uid()))))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "session_snippet_files",
+  "policyname": "session_snippet_files_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM (session_code_snippets sn\n     JOIN attendance_sessions s ON ((s.id = sn.session_id)))\n  WHERE ((sn.id = session_snippet_files.snippet_id) AND (is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(s.course_id)) OR (EXISTS ( SELECT 1\n           FROM course_teachers ct\n          WHERE ((ct.course_id = s.course_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n           FROM course_enrollments ce\n          WHERE ((ce.course_id = s.course_id) AND (ce.user_id = auth.uid()))))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "session_snippet_files",
+  "policyname": "session_snippet_files_write",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM (session_code_snippets sn\n     JOIN attendance_sessions s ON ((s.id = sn.session_id)))\n  WHERE ((sn.id = session_snippet_files.snippet_id) AND (is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(s.course_id)) OR (EXISTS ( SELECT 1\n           FROM course_teachers ct\n          WHERE ((ct.course_id = s.course_id) AND (ct.user_id = auth.uid()))))))))",
+  "with_check": "(EXISTS ( SELECT 1\n   FROM (session_code_snippets sn\n     JOIN attendance_sessions s ON ((s.id = sn.session_id)))\n  WHERE ((sn.id = session_snippet_files.snippet_id) AND (is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(s.course_id)) OR (EXISTS ( SELECT 1\n           FROM course_teachers ct\n          WHERE ((ct.course_id = s.course_id) AND (ct.user_id = auth.uid()))))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "similarity_pairs",
+  "policyname": "similarity_pairs_delete_staff",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(similarity_ref_in_my_tenant(kind, ref_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "similarity_pairs",
+  "policyname": "similarity_pairs_insert_staff",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(similarity_ref_in_my_tenant(kind, ref_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "similarity_pairs",
+  "policyname": "similarity_pairs_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(similarity_ref_in_my_tenant(kind, ref_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "similarity_pairs",
+  "policyname": "similarity_pairs_update_staff",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(similarity_ref_in_my_tenant(kind, ref_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)))",
+  "with_check": "(similarity_ref_in_my_tenant(kind, ref_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "student_calendar_tokens",
+  "policyname": "student_calendar_tokens_read_own",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(user_id = auth.uid())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "submissions",
+  "policyname": "restrict_write_inactive_student_ins",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "RESTRICTIVE",
+  "qual": null,
+  "with_check": "student_can_write(auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "submissions",
+  "policyname": "restrict_write_inactive_student_upd",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "RESTRICTIVE",
+  "qual": "student_can_write(auth.uid())",
+  "with_check": "student_can_write(auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "submissions",
+  "policyname": "submissions_delete_staff",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((EXISTS ( SELECT 1\n   FROM (exams e\n     JOIN course_teachers ct ON ((ct.course_id = e.course_id)))\n  WHERE ((e.id = submissions.exam_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM exams e\n  WHERE ((e.id = submissions.exam_id) AND is_admin_of_course_tenant(e.course_id)))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "submissions",
+  "policyname": "submissions_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(((auth.uid() = user_id) AND (EXISTS ( SELECT 1\n   FROM (exams e\n     JOIN courses c ON ((c.id = e.course_id)))\n  WHERE ((e.id = submissions.exam_id) AND (e.deleted_at IS NULL) AND (c.deleted_at IS NULL))))) OR (EXISTS ( SELECT 1\n   FROM (exams e\n     JOIN course_teachers ct ON ((ct.course_id = e.course_id)))\n  WHERE ((e.id = submissions.exam_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM exams e\n  WHERE ((e.id = submissions.exam_id) AND is_admin_of_course_tenant(e.course_id)))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "submissions",
+  "policyname": "submissions_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((auth.uid() = user_id) OR (EXISTS ( SELECT 1\n   FROM (exams e\n     JOIN course_teachers ct ON ((ct.course_id = e.course_id)))\n  WHERE ((e.id = submissions.exam_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM exams e\n  WHERE ((e.id = submissions.exam_id) AND is_admin_of_course_tenant(e.course_id)))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "submissions",
+  "policyname": "submissions_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((auth.uid() = user_id) OR (EXISTS ( SELECT 1\n   FROM (exams e\n     JOIN course_teachers ct ON ((ct.course_id = e.course_id)))\n  WHERE ((e.id = submissions.exam_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM exams e\n  WHERE ((e.id = submissions.exam_id) AND is_admin_of_course_tenant(e.course_id)))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "support_ticket_attachments",
+  "policyname": "support_attachments_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (uploaded_by = auth.uid()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "support_ticket_attachments",
+  "policyname": "support_attachments_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((uploaded_by = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM support_tickets t\n  WHERE ((t.id = support_ticket_attachments.ticket_id) AND (t.deleted_at IS NULL) AND ((t.created_by = auth.uid()) OR is_super_admin())))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "support_ticket_attachments",
+  "policyname": "support_attachments_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM support_tickets t\n  WHERE ((t.id = support_ticket_attachments.ticket_id) AND ((t.created_by = auth.uid()) OR is_super_admin()))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "support_ticket_messages",
+  "policyname": "support_messages_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((sender_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM support_tickets t\n  WHERE ((t.id = support_ticket_messages.ticket_id) AND (t.deleted_at IS NULL) AND ((t.created_by = auth.uid()) OR is_super_admin())))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "support_ticket_messages",
+  "policyname": "support_messages_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM support_tickets t\n  WHERE ((t.id = support_ticket_messages.ticket_id) AND ((t.created_by = auth.uid()) OR is_super_admin()))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "support_tickets",
+  "policyname": "support_tickets_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "is_super_admin()",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "support_tickets",
+  "policyname": "support_tickets_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((created_by = auth.uid()) AND has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = ( SELECT profiles.tenant_id\n   FROM profiles\n  WHERE (profiles.id = auth.uid()))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "support_tickets",
+  "policyname": "support_tickets_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((created_by = auth.uid()) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "support_tickets",
+  "policyname": "support_tickets_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR ((created_by = auth.uid()) AND (deleted_at IS NULL)))",
+  "with_check": "(is_super_admin() OR ((created_by = auth.uid()) AND (deleted_at IS NULL)))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "system_settings",
+  "policyname": "system_settings_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "true",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "system_settings",
+  "policyname": "system_settings_update_admin",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "has_role(auth.uid(), 'Admin'::app_role)",
+  "with_check": "has_role(auth.uid(), 'Admin'::app_role)"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "teacher_google_tokens",
+  "policyname": "tgt_owner_all",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((teacher_id = auth.uid()) OR is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = teacher_google_tokens.teacher_id) AND (p.tenant_id = current_tenant_id()))))))",
+  "with_check": "((teacher_id = auth.uid()) OR is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = teacher_google_tokens.teacher_id) AND (p.tenant_id = current_tenant_id()))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "tenant_email_settings",
+  "policyname": "tenant_email_settings_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "is_super_admin()",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "tenant_email_settings",
+  "policyname": "tenant_email_settings_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = current_tenant_id())))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "tenant_email_settings",
+  "policyname": "tenant_email_settings_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = current_tenant_id())))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "tenant_email_settings",
+  "policyname": "tenant_email_settings_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = current_tenant_id())))",
+  "with_check": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = current_tenant_id())))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "tenants",
+  "policyname": "tenants_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "is_super_admin()",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "tenants",
+  "policyname": "tenants_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "is_super_admin()"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "tenants",
+  "policyname": "tenants_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((id = current_tenant_id()) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "tenants",
+  "policyname": "tenants_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "is_super_admin()",
+  "with_check": "is_super_admin()"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "tutor_chat_messages",
+  "policyname": "tutor_messages_select",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM tutor_chat_sessions s\n  WHERE ((s.id = tutor_chat_messages.session_id) AND ((s.user_id = auth.uid()) OR (has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(s.course_id)) OR (EXISTS ( SELECT 1\n           FROM course_teachers\n          WHERE ((course_teachers.course_id = s.course_id) AND (course_teachers.user_id = auth.uid())))) OR is_super_admin()))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "tutor_chat_sessions",
+  "policyname": "tutor_sessions_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((user_id = auth.uid()) OR (has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "tutor_chat_sessions",
+  "policyname": "tutor_sessions_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((user_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM course_enrollments\n  WHERE ((course_enrollments.course_id = tutor_chat_sessions.course_id) AND (course_enrollments.user_id = auth.uid())))) AND (NOT _course_in_papelera(course_id)))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "tutor_chat_sessions",
+  "policyname": "tutor_sessions_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((user_id = auth.uid()) OR (has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR (EXISTS ( SELECT 1\n   FROM course_teachers\n  WHERE ((course_teachers.course_id = tutor_chat_sessions.course_id) AND (course_teachers.user_id = auth.uid())))) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "tutor_chat_sessions",
+  "policyname": "tutor_sessions_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((user_id = auth.uid()) OR (has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "user_roles",
+  "policyname": "user_roles_admin_manage_same_tenant",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = user_roles.user_id) AND (p.tenant_id = current_tenant_id()))))))",
+  "with_check": "(is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = user_roles.user_id) AND (p.tenant_id = current_tenant_id()))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "user_roles",
+  "policyname": "user_roles_select_self_or_admin",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((user_id = auth.uid()) OR is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = user_roles.user_id) AND (p.tenant_id = current_tenant_id()))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "video_views",
+  "policyname": "video_views_insert_self",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(user_id = auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "video_views",
+  "policyname": "video_views_read_self",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((user_id = auth.uid()) OR is_super_admin() OR (EXISTS ( SELECT 1\n   FROM videos v\n  WHERE ((v.id = video_views.video_id) AND (v.tenant_id = current_tenant_id()) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "videos",
+  "policyname": "videos_read_in_tenant_or_global",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((tenant_id = current_tenant_id()) OR (tenant_id IS NULL) OR is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "videos",
+  "policyname": "videos_write_staff",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(((tenant_id = current_tenant_id()) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role))) OR is_super_admin())",
+  "with_check": "(((tenant_id = current_tenant_id()) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role))) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "whiteboard_pages",
+  "policyname": "whiteboard_pages_owner_write",
+  "cmd": "ALL",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM whiteboards w\n  WHERE ((w.id = whiteboard_pages.whiteboard_id) AND ((w.owner_id = auth.uid()) OR is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (w.tenant_id = current_tenant_id())) OR ((w.course_id IS NOT NULL) AND (EXISTS ( SELECT 1\n           FROM course_teachers ct\n          WHERE ((ct.course_id = w.course_id) AND (ct.user_id = auth.uid())))))))))",
+  "with_check": "(EXISTS ( SELECT 1\n   FROM whiteboards w\n  WHERE ((w.id = whiteboard_pages.whiteboard_id) AND ((w.owner_id = auth.uid()) OR is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (w.tenant_id = current_tenant_id())) OR ((w.course_id IS NOT NULL) AND (EXISTS ( SELECT 1\n           FROM course_teachers ct\n          WHERE ((ct.course_id = w.course_id) AND (ct.user_id = auth.uid())))))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "whiteboard_pages",
+  "policyname": "whiteboard_pages_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM whiteboards w\n  WHERE ((w.id = whiteboard_pages.whiteboard_id) AND ((w.owner_id = auth.uid()) OR is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (w.tenant_id = current_tenant_id())) OR ((w.is_shared_with_course = true) AND (w.course_id IS NOT NULL) AND (w.deleted_at IS NULL) AND (NOT _course_in_papelera(w.course_id)) AND (EXISTS ( SELECT 1\n           FROM course_enrollments ce\n          WHERE ((ce.course_id = w.course_id) AND (ce.user_id = auth.uid())))))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "whiteboards",
+  "policyname": "whiteboards_owner_write",
+  "cmd": "ALL",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "((owner_id = auth.uid()) OR is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = current_tenant_id())) OR ((course_id IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = whiteboards.course_id) AND (ct.user_id = auth.uid()))))))",
+  "with_check": "((owner_id = auth.uid()) OR is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = current_tenant_id())) OR ((course_id IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = whiteboards.course_id) AND (ct.user_id = auth.uid()))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "whiteboards",
+  "policyname": "whiteboards_select",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "((owner_id = auth.uid()) OR is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND (tenant_id = current_tenant_id())) OR ((course_id IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM course_teachers ct\n  WHERE ((ct.course_id = whiteboards.course_id) AND (ct.user_id = auth.uid()))))) OR ((is_shared_with_course = true) AND (course_id IS NOT NULL) AND (deleted_at IS NULL) AND (NOT _course_in_papelera(course_id)) AND (EXISTS ( SELECT 1\n   FROM course_enrollments ce\n  WHERE ((ce.course_id = whiteboards.course_id) AND (ce.user_id = auth.uid()))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_assignments",
+  "policyname": "workshop_assignments_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((auth.uid() = user_id) OR (workshop_in_my_tenant(workshop_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_assignments",
+  "policyname": "workshop_assignments_write",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(workshop_in_my_tenant(workshop_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)))",
+  "with_check": "(workshop_in_my_tenant(workshop_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_courses",
+  "policyname": "workshop_courses_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "course_in_my_tenant(course_id)",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_courses",
+  "policyname": "workshop_courses_staff_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin()))",
+  "with_check": "(course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin()))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_group_members",
+  "policyname": "workshop_group_members_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(workshop_group_in_my_tenant(group_id) AND ((EXISTS ( SELECT 1\n   FROM ((workshop_groups g\n     JOIN workshops w ON ((w.id = g.workshop_id)))\n     JOIN courses c ON ((c.id = w.course_id)))\n  WHERE ((g.id = workshop_group_members.group_id) AND (w.deleted_at IS NULL) AND (c.deleted_at IS NULL)))) OR has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_group_members",
+  "policyname": "workshop_group_members_staff_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND workshop_group_in_my_tenant(group_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_workshop_group(group_id)) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND workshop_group_in_my_tenant(group_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_workshop_group(group_id)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_groups",
+  "policyname": "workshop_groups_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(workshop_in_my_tenant(workshop_id) AND ((EXISTS ( SELECT 1\n   FROM (workshops w\n     JOIN courses c ON ((c.id = w.course_id)))\n  WHERE ((w.id = workshop_groups.workshop_id) AND (w.deleted_at IS NULL) AND (c.deleted_at IS NULL)))) OR has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_groups",
+  "policyname": "workshop_groups_staff_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND workshop_in_my_tenant(workshop_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_workshop(workshop_id)) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND workshop_in_my_tenant(workshop_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_workshop(workshop_id)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_intro_videos",
+  "policyname": "workshop_intro_videos_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(workshop_in_my_tenant(workshop_id) AND ((EXISTS ( SELECT 1\n   FROM (workshops w\n     JOIN courses c ON ((c.id = w.course_id)))\n  WHERE ((w.id = workshop_intro_videos.workshop_id) AND (w.deleted_at IS NULL) AND (c.deleted_at IS NULL)))) OR has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role) OR is_super_admin()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_intro_videos",
+  "policyname": "workshop_intro_videos_write_teacher",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND workshop_in_my_tenant(workshop_id)) OR (EXISTS ( SELECT 1\n   FROM (workshops w\n     JOIN course_teachers ct ON ((ct.course_id = w.course_id)))\n  WHERE ((w.id = workshop_intro_videos.workshop_id) AND (ct.user_id = auth.uid())))) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND workshop_in_my_tenant(workshop_id)) OR (EXISTS ( SELECT 1\n   FROM (workshops w\n     JOIN course_teachers ct ON ((ct.course_id = w.course_id)))\n  WHERE ((w.id = workshop_intro_videos.workshop_id) AND (ct.user_id = auth.uid())))) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_questions",
+  "policyname": "workshop_questions_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(workshop_in_my_tenant(workshop_id) AND (EXISTS ( SELECT 1\n   FROM (workshops w\n     JOIN courses c ON ((c.id = w.course_id)))\n  WHERE ((w.id = workshop_questions.workshop_id) AND (w.deleted_at IS NULL) AND (c.deleted_at IS NULL)))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_questions",
+  "policyname": "workshop_questions_staff_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND workshop_in_my_tenant(workshop_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_workshop(workshop_id)) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND workshop_in_my_tenant(workshop_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_workshop(workshop_id)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_submission_answers",
+  "policyname": "workshop_submission_answers_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM workshop_submissions ws\n  WHERE ((ws.id = workshop_submission_answers.submission_id) AND ((EXISTS ( SELECT 1\n           FROM (workshops w\n             JOIN course_teachers ct ON ((ct.course_id = w.course_id)))\n          WHERE ((w.id = ws.workshop_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n           FROM workshops w\n          WHERE ((w.id = ws.workshop_id) AND is_admin_of_course_tenant(w.course_id))))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_submission_answers",
+  "policyname": "workshop_submission_answers_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "(EXISTS ( SELECT 1\n   FROM workshop_submissions ws\n  WHERE ((ws.id = workshop_submission_answers.submission_id) AND ((ws.user_id = auth.uid()) OR ((ws.group_id IS NOT NULL) AND (EXISTS ( SELECT 1\n           FROM workshop_group_members m\n          WHERE ((m.group_id = ws.group_id) AND (m.user_id = auth.uid()))))) OR (EXISTS ( SELECT 1\n           FROM (workshops w\n             JOIN course_teachers ct ON ((ct.course_id = w.course_id)))\n          WHERE ((w.id = ws.workshop_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n           FROM workshops w\n          WHERE ((w.id = ws.workshop_id) AND is_admin_of_course_tenant(w.course_id))))))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_submission_answers",
+  "policyname": "workshop_submission_answers_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM workshop_submissions ws\n  WHERE ((ws.id = workshop_submission_answers.submission_id) AND ((ws.user_id = auth.uid()) OR ((ws.group_id IS NOT NULL) AND (EXISTS ( SELECT 1\n           FROM workshop_group_members m\n          WHERE ((m.group_id = ws.group_id) AND (m.user_id = auth.uid()))))) OR (EXISTS ( SELECT 1\n           FROM (workshops w\n             JOIN course_teachers ct ON ((ct.course_id = w.course_id)))\n          WHERE ((w.id = ws.workshop_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n           FROM workshops w\n          WHERE ((w.id = ws.workshop_id) AND is_admin_of_course_tenant(w.course_id))))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_submission_answers",
+  "policyname": "workshop_submission_answers_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM workshop_submissions ws\n  WHERE ((ws.id = workshop_submission_answers.submission_id) AND ((ws.user_id = auth.uid()) OR ((ws.group_id IS NOT NULL) AND (EXISTS ( SELECT 1\n           FROM workshop_group_members m\n          WHERE ((m.group_id = ws.group_id) AND (m.user_id = auth.uid()))))) OR (EXISTS ( SELECT 1\n           FROM (workshops w\n             JOIN course_teachers ct ON ((ct.course_id = w.course_id)))\n          WHERE ((w.id = ws.workshop_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n           FROM workshops w\n          WHERE ((w.id = ws.workshop_id) AND is_admin_of_course_tenant(w.course_id))))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_submission_video_views",
+  "policyname": "workshop_submission_video_views_select_owner_or_staff",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(EXISTS ( SELECT 1\n   FROM workshop_submissions s\n  WHERE ((s.id = workshop_submission_video_views.submission_id) AND ((s.user_id = auth.uid()) OR ((s.group_id IS NOT NULL) AND (EXISTS ( SELECT 1\n           FROM workshop_group_members\n          WHERE ((workshop_group_members.group_id = s.group_id) AND (workshop_group_members.user_id = auth.uid()))))) OR (EXISTS ( SELECT 1\n           FROM (workshops w\n             JOIN course_teachers ct ON ((ct.course_id = w.course_id)))\n          WHERE ((w.id = s.workshop_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n           FROM workshops w\n          WHERE ((w.id = s.workshop_id) AND is_admin_of_course_tenant(w.course_id))))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_submissions",
+  "policyname": "Students delete own workshop submissions in window",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((auth.uid() = user_id) AND (EXISTS ( SELECT 1\n   FROM workshops w\n  WHERE ((w.id = workshop_submissions.workshop_id) AND (w.status = 'published'::text) AND ((w.due_date IS NULL) OR (w.due_date > now())) AND ((w.start_date IS NULL) OR (w.start_date <= now()))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_submissions",
+  "policyname": "restrict_write_inactive_student_ins",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "RESTRICTIVE",
+  "qual": null,
+  "with_check": "student_can_write(auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_submissions",
+  "policyname": "restrict_write_inactive_student_upd",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "RESTRICTIVE",
+  "qual": "student_can_write(auth.uid())",
+  "with_check": "student_can_write(auth.uid())"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_submissions",
+  "policyname": "workshop_submissions_delete_staff",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((EXISTS ( SELECT 1\n   FROM (workshops w\n     JOIN course_teachers ct ON ((ct.course_id = w.course_id)))\n  WHERE ((w.id = workshop_submissions.workshop_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM workshops w\n  WHERE ((w.id = workshop_submissions.workshop_id) AND is_admin_of_course_tenant(w.course_id)))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_submissions",
+  "policyname": "workshop_submissions_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((((auth.uid() = user_id) OR ((group_id IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM workshop_group_members m\n  WHERE ((m.group_id = workshop_submissions.group_id) AND (m.user_id = auth.uid())))))) AND (EXISTS ( SELECT 1\n   FROM (workshops w\n     JOIN courses c ON ((c.id = w.course_id)))\n  WHERE ((w.id = workshop_submissions.workshop_id) AND (w.deleted_at IS NULL) AND (c.deleted_at IS NULL))))) OR (EXISTS ( SELECT 1\n   FROM (workshops w\n     JOIN course_teachers ct ON ((ct.course_id = w.course_id)))\n  WHERE ((w.id = workshop_submissions.workshop_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM workshops w\n  WHERE ((w.id = workshop_submissions.workshop_id) AND is_admin_of_course_tenant(w.course_id)))))"
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_submissions",
+  "policyname": "workshop_submissions_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((auth.uid() = user_id) OR ((group_id IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM workshop_group_members m\n  WHERE ((m.group_id = workshop_submissions.group_id) AND (m.user_id = auth.uid()))))) OR (EXISTS ( SELECT 1\n   FROM (workshops w\n     JOIN course_teachers ct ON ((ct.course_id = w.course_id)))\n  WHERE ((w.id = workshop_submissions.workshop_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM workshops w\n  WHERE ((w.id = workshop_submissions.workshop_id) AND is_admin_of_course_tenant(w.course_id)))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshop_submissions",
+  "policyname": "workshop_submissions_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((auth.uid() = user_id) OR ((group_id IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM workshop_group_members m\n  WHERE ((m.group_id = workshop_submissions.group_id) AND (m.user_id = auth.uid()))))) OR (EXISTS ( SELECT 1\n   FROM (workshops w\n     JOIN course_teachers ct ON ((ct.course_id = w.course_id)))\n  WHERE ((w.id = workshop_submissions.workshop_id) AND (ct.user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM workshops w\n  WHERE ((w.id = workshop_submissions.workshop_id) AND is_admin_of_course_tenant(w.course_id)))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshops",
+  "policyname": "workshops_select_in_tenant",
+  "cmd": "SELECT",
+  "roles": "public",
+  "permissive": "PERMISSIVE",
+  "qual": "(is_super_admin() OR (course_in_my_tenant(course_id) AND (has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role) OR ((deleted_at IS NULL) AND (NOT _course_in_papelera(course_id)) AND (EXISTS ( SELECT 1\n   FROM workshop_assignments wa\n  WHERE ((wa.workshop_id = workshops.id) AND (wa.user_id = auth.uid()))))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "public",
+  "tablename": "workshops",
+  "policyname": "workshops_staff_manage",
+  "cmd": "ALL",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_course(course_id)) OR is_super_admin())",
+  "with_check": "((has_role(auth.uid(), 'Admin'::app_role) AND course_in_my_tenant(course_id)) OR (has_role(auth.uid(), 'Docente'::app_role) AND _teaches_course(course_id)) OR is_super_admin())"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "db_backups_storage_delete_admin",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'db-backups'::text) AND is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "db_backups_storage_read_admin",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'db-backups'::text) AND is_super_admin())",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "feedback_attachments storage delete own folder",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'feedback-attachments'::text) AND ((auth.uid())::text = (storage.foldername(name))[1]))",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "feedback_attachments storage insert own folder",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((bucket_id = 'feedback-attachments'::text) AND ((auth.uid())::text = (storage.foldername(name))[1]))"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "feedback_attachments storage select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'feedback-attachments'::text) AND (((auth.uid())::text = (storage.foldername(name))[1]) OR (EXISTS ( SELECT 1\n   FROM ((feedback_attachments fa\n     JOIN feedback_comments fc ON ((fc.id = fa.comment_id)))\n     JOIN feedback_threads ft ON ((ft.id = fc.thread_id)))\n  WHERE ((fa.path = objects.name) AND (is_submission_owner(ft.parent_kind, ft.submission_id, auth.uid()) OR is_question_course_teacher(ft.parent_kind, ft.question_id, auth.uid())))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "gc_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'generated-contents'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (has_role(auth.uid(), 'Admin'::app_role) AND storage_owner_in_my_tenant((storage.foldername(name))[1])) OR is_super_admin()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "gc_read",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'generated-contents'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (has_role(auth.uid(), 'Admin'::app_role) AND storage_owner_in_my_tenant((storage.foldername(name))[1])) OR is_super_admin()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "gc_student_read_via_course",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'generated-contents'::text) AND (regexp_replace(name, '^.*/'::text, ''::text) !~* '(solucion|solution|guia[_ -]*docente|teacher[_ -]*guide|^examen|[_ -]examen|^exam[_ -]|[_ -]exam[_ -])'::text) AND (EXISTS ( SELECT 1\n   FROM ((generated_contents gc\n     JOIN content_course_assignments cca ON ((cca.content_id = gc.id)))\n     JOIN course_enrollments ce ON ((ce.course_id = cca.course_id)))\n  WHERE (((gc.id)::text = (storage.foldername(objects.name))[2]) AND (gc.status = 'done'::content_status) AND (gc.is_published = true) AND (gc.deleted_at IS NULL) AND (ce.user_id = auth.uid())))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "gc_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'generated-contents'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (has_role(auth.uid(), 'Admin'::app_role) AND storage_owner_in_my_tenant((storage.foldername(name))[1])) OR is_super_admin()))",
+  "with_check": "((bucket_id = 'generated-contents'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (has_role(auth.uid(), 'Admin'::app_role) AND storage_owner_in_my_tenant((storage.foldername(name))[1])) OR is_super_admin()))"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "gc_write",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((bucket_id = 'generated-contents'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (has_role(auth.uid(), 'Admin'::app_role) AND storage_owner_in_my_tenant((storage.foldername(name))[1])) OR is_super_admin()))"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "help_docs_insert_superadmin",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((bucket_id = 'help-docs'::text) AND is_super_admin())"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "help_docs_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(bucket_id = 'help-docs'::text)",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "help_docs_update_superadmin",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'help-docs'::text) AND is_super_admin())",
+  "with_check": "((bucket_id = 'help-docs'::text) AND is_super_admin())"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "help_videos_insert_superadmin",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((bucket_id = 'help-videos'::text) AND is_super_admin())"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "help_videos_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(bucket_id = 'help-videos'::text)",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "help_videos_update_superadmin",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'help-videos'::text) AND is_super_admin())",
+  "with_check": "((bucket_id = 'help-videos'::text) AND is_super_admin())"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "message_attachments storage delete own folder",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'message-attachments'::text) AND ((auth.uid())::text = (storage.foldername(name))[1]))",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "message_attachments storage insert own folder",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((bucket_id = 'message-attachments'::text) AND ((auth.uid())::text = (storage.foldername(name))[1]))"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "message_attachments storage select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'message-attachments'::text) AND (((auth.uid())::text = (storage.foldername(name))[1]) OR (EXISTS ( SELECT 1\n   FROM ((message_attachments ma\n     JOIN messages m ON ((m.id = ma.message_id)))\n     JOIN conversations c ON ((c.id = m.conversation_id)))\n  WHERE ((ma.path = objects.name) AND ((c.user_a = auth.uid()) OR (c.user_b = auth.uid())))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "project_files_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'project-files'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (EXISTS ( SELECT 1\n   FROM project_group_members m\n  WHERE (((m.group_id)::text = (storage.foldername(objects.name))[1]) AND (m.user_id = auth.uid())))) OR ((has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)) AND storage_project_sub_in_my_tenant((storage.foldername(name))[2])) OR is_super_admin()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "project_files_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'project-files'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (EXISTS ( SELECT 1\n   FROM project_group_members m\n  WHERE (((m.group_id)::text = (storage.foldername(objects.name))[1]) AND (m.user_id = auth.uid())))) OR ((has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)) AND storage_project_sub_in_my_tenant((storage.foldername(name))[2])) OR is_super_admin()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "project_files_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'project-files'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (EXISTS ( SELECT 1\n   FROM project_group_members m\n  WHERE (((m.group_id)::text = (storage.foldername(objects.name))[1]) AND (m.user_id = auth.uid())))) OR ((has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)) AND storage_project_sub_in_my_tenant((storage.foldername(name))[2])) OR is_super_admin()))",
+  "with_check": "((bucket_id = 'project-files'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (EXISTS ( SELECT 1\n   FROM project_group_members m\n  WHERE (((m.group_id)::text = (storage.foldername(objects.name))[1]) AND (m.user_id = auth.uid())))) OR ((has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)) AND storage_project_sub_in_my_tenant((storage.foldername(name))[2])) OR is_super_admin()))"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "project_files_upload",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((bucket_id = 'project-files'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (EXISTS ( SELECT 1\n   FROM project_group_members m\n  WHERE (((m.group_id)::text = (storage.foldername(objects.name))[1]) AND (m.user_id = auth.uid())))) OR ((has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)) AND storage_project_sub_in_my_tenant((storage.foldername(name))[2])) OR is_super_admin()))"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "support_attachments_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'support-attachments'::text) AND (is_super_admin() OR (EXISTS ( SELECT 1\n   FROM support_tickets t\n  WHERE (((t.id)::text = split_part(objects.name, '/'::text, 1)) AND (t.created_by = auth.uid()))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "support_attachments_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((bucket_id = 'support-attachments'::text) AND (is_super_admin() OR (EXISTS ( SELECT 1\n   FROM support_tickets t\n  WHERE (((t.id)::text = split_part(objects.name, '/'::text, 1)) AND (t.created_by = auth.uid()))))))"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "support_attachments_read",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'support-attachments'::text) AND (is_super_admin() OR (EXISTS ( SELECT 1\n   FROM support_tickets t\n  WHERE (((t.id)::text = split_part(objects.name, '/'::text, 1)) AND (t.created_by = auth.uid()))))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "tenant_logos_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'tenant-logos'::text) AND (is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND ((storage.foldername(name))[1] = (current_tenant_id())::text))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "tenant_logos_insert",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((bucket_id = 'tenant-logos'::text) AND (is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND ((storage.foldername(name))[1] = (current_tenant_id())::text))))"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "tenant_logos_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(bucket_id = 'tenant-logos'::text)",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "tenant_logos_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'tenant-logos'::text) AND (is_super_admin() OR (has_role(auth.uid(), 'Admin'::app_role) AND ((storage.foldername(name))[1] = (current_tenant_id())::text))))",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "videos_storage_delete_staff",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'videos'::text) AND (((has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)) AND storage_owner_in_my_tenant((storage.foldername(name))[1])) OR is_super_admin()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "videos_storage_read_authenticated",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "(bucket_id = 'videos'::text)",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "videos_storage_update_staff",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'videos'::text) AND (((has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)) AND storage_owner_in_my_tenant((storage.foldername(name))[1])) OR is_super_admin()))",
+  "with_check": "((bucket_id = 'videos'::text) AND (((has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)) AND storage_owner_in_my_tenant((storage.foldername(name))[1])) OR is_super_admin()))"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "videos_storage_write_staff",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((bucket_id = 'videos'::text) AND (((has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)) AND storage_owner_in_my_tenant((storage.foldername(name))[1])) OR is_super_admin()))"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "workshop_files_delete",
+  "cmd": "DELETE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'workshop-files'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (EXISTS ( SELECT 1\n   FROM workshop_group_members m\n  WHERE (((m.group_id)::text = (storage.foldername(objects.name))[1]) AND (m.user_id = auth.uid())))) OR ((has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)) AND storage_workshop_sub_in_my_tenant((storage.foldername(name))[2])) OR is_super_admin()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "workshop_files_select",
+  "cmd": "SELECT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'workshop-files'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (EXISTS ( SELECT 1\n   FROM workshop_group_members m\n  WHERE (((m.group_id)::text = (storage.foldername(objects.name))[1]) AND (m.user_id = auth.uid())))) OR ((has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)) AND storage_workshop_sub_in_my_tenant((storage.foldername(name))[2])) OR is_super_admin()))",
+  "with_check": null
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "workshop_files_update",
+  "cmd": "UPDATE",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": "((bucket_id = 'workshop-files'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (EXISTS ( SELECT 1\n   FROM workshop_group_members m\n  WHERE (((m.group_id)::text = (storage.foldername(objects.name))[1]) AND (m.user_id = auth.uid())))) OR ((has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)) AND storage_workshop_sub_in_my_tenant((storage.foldername(name))[2])) OR is_super_admin()))",
+  "with_check": "((bucket_id = 'workshop-files'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (EXISTS ( SELECT 1\n   FROM workshop_group_members m\n  WHERE (((m.group_id)::text = (storage.foldername(objects.name))[1]) AND (m.user_id = auth.uid())))) OR ((has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)) AND storage_workshop_sub_in_my_tenant((storage.foldername(name))[2])) OR is_super_admin()))"
+ },
+ {
+  "schemaname": "storage",
+  "tablename": "objects",
+  "policyname": "workshop_files_upload",
+  "cmd": "INSERT",
+  "roles": "authenticated",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "((bucket_id = 'workshop-files'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR (EXISTS ( SELECT 1\n   FROM workshop_group_members m\n  WHERE (((m.group_id)::text = (storage.foldername(objects.name))[1]) AND (m.user_id = auth.uid())))) OR ((has_role(auth.uid(), 'Docente'::app_role) OR has_role(auth.uid(), 'Admin'::app_role)) AND storage_workshop_sub_in_my_tenant((storage.foldername(name))[2])) OR is_super_admin()))"
+ }
+]

@@ -1,0 +1,891 @@
+[
+ {
+  "schema": "public",
+  "table": "academic_periods",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "academic_programs",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "academic_subjects",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "admin_visible_passwords",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "ai_generation_queue",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "ai_grading_queue",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "ai_model_settings",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "ai_override_activations",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "ai_override_codes",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "ai_prompts",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "8"
+ },
+ {
+  "schema": "public",
+  "table": "app_settings",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "5"
+ },
+ {
+  "schema": "public",
+  "table": "assessment_templates",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "attendance_check_in_state",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "attendance_records",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "attendance_sessions",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "audit_logs",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "audit_retention_settings",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "calendar_oauth_states",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "0"
+ },
+ {
+  "schema": "public",
+  "table": "certificate_settings",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "5"
+ },
+ {
+  "schema": "public",
+  "table": "certificates",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "code_execution_settings",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "code_executions",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "content_brand_config",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "content_course_assignments",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "conversations",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "course_actas",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "course_certificate_settings",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "course_enrollments",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "course_grading_config",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "course_schedules",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "course_teachers",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "courses",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "5"
+ },
+ {
+  "schema": "public",
+  "table": "cron_job_descriptions",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "db_backups",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "email_change_tokens",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "0"
+ },
+ {
+  "schema": "public",
+  "table": "email_settings",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "email_suppressions",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "error_event_status",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "exam_assignments",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "exam_notes",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "exam_timer_controls",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "exams",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "feedback_attachments",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "feedback_comments",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "feedback_threads",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "forum_replies",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "forum_threads",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "forum_upvotes",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "forums",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "generated_contents",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "generated_reports",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "grade_cut_items",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "grade_cuts",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "group_chat_members",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "group_chats",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "kahoot_answers",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "kahoot_games",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "kahoot_players",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "kahoot_question_options",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "kahoot_questions",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "message_attachments",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "messages",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "module_visibility",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "5"
+ },
+ {
+  "schema": "public",
+  "table": "notifications",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "password_reset_tokens",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "0"
+ },
+ {
+  "schema": "public",
+  "table": "platform_help_videos",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "platform_holidays",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "platform_kb_docs",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "platform_settings",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "platform_support_messages",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "platform_support_sessions",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "poll_calendar_events",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "poll_courses",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "poll_options",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "poll_question_responses",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "poll_questions",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "poll_responses",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "polls",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "pricing_assumptions",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "profiles",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "project_assignments",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "project_courses",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "project_files",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "project_group_members",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "project_groups",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "project_intro_videos",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "project_submission_attachments",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "project_submission_files",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "project_submission_video_views",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "project_submissions",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "7"
+ },
+ {
+  "schema": "public",
+  "table": "projects",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "push_config",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "0"
+ },
+ {
+  "schema": "public",
+  "table": "push_subscriptions",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "question_bank",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "questions",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "rate_limit_events",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "0"
+ },
+ {
+  "schema": "public",
+  "table": "report_templates",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "5"
+ },
+ {
+  "schema": "public",
+  "table": "scheduled_messages",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "session_code_snippets",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "session_snippet_files",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "similarity_pairs",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "student_calendar_tokens",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "submissions",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "6"
+ },
+ {
+  "schema": "public",
+  "table": "support_ticket_attachments",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "3"
+ },
+ {
+  "schema": "public",
+  "table": "support_ticket_messages",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "support_tickets",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "system_settings",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "teacher_google_tokens",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "tenant_email_settings",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "tenants",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "tutor_chat_messages",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "tutor_chat_sessions",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "user_roles",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "video_views",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "videos",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "whiteboard_pages",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "whiteboards",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "workshop_assignments",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "workshop_courses",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "workshop_group_members",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "workshop_groups",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "workshop_intro_videos",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "workshop_questions",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ },
+ {
+  "schema": "public",
+  "table": "workshop_submission_answers",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "4"
+ },
+ {
+  "schema": "public",
+  "table": "workshop_submission_video_views",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "1"
+ },
+ {
+  "schema": "public",
+  "table": "workshop_submissions",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "7"
+ },
+ {
+  "schema": "public",
+  "table": "workshops",
+  "rls_enabled": true,
+  "rls_forced": false,
+  "n_policies": "2"
+ }
+]
