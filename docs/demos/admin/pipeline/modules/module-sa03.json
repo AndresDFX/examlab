@@ -48,10 +48,11 @@
       "id": "diagnosticos",
       "kind": "platform",
       "tab": "Diagnósticos",
-      "narration": "La pestaña Diagnósticos revisa los servicios críticos —correo, notificaciones push, tareas programadas, inteligencia artificial— y muestra en verde lo sano y en rojo lo que necesita atención.",
-      "bufferMs": 900,
+      "narration": "La pestaña Diagnósticos corre chequeos en vivo de los servicios críticos: al refrescar, cada uno —edge functions, base de datos, almacenamiento, proveedor de IA, notificaciones push, correo y tareas programadas— se muestra en verde si está sano o en rojo si necesita atención.",
+      "bufferMs": 1200,
       "beats": [
-        { "target": "firstcard", "scale": 1.15, "hold": 4800, "side": "bottom", "focus": { "title": "Diagnósticos", "body": "Chequeos de servicios: verde/rojo." } }
+        { "click": true, "target": "button:Refrescar diagnóstico", "afterClickMs": 8000, "focusTarget": "button:Refrescar diagnóstico", "scale": 1.2, "hold": 3200, "side": "left", "syncWord": "refrescar", "focus": { "title": "Refrescar diagnóstico", "body": "Corre los chequeos de servicios en vivo." } },
+        { "target": "firstcard", "scale": 1.12, "hold": 6500, "side": "bottom", "syncWord": "verde", "focus": { "title": "Estado de servicios", "body": "En verde lo sano; en rojo lo que necesita atención." } }
       ]
     },
     {
