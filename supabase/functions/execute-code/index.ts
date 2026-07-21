@@ -121,6 +121,34 @@ interface ExecutionResult {
   httpStatus?: number;
 }
 
+/**
+ * fetch con timeout duro vía AbortController. Sin esto, un provider colgado
+ * deja la edge esperando hasta el timeout global de Supabase (~150s) y el
+ * estudiante ve un spinner eterno. Con el timeout recibe un error claro y
+ * accionable (reintentar / elegir otro compilador) en segundos.
+ */
+async function fetchWithTimeout(
+  url: string,
+  opts: RequestInit,
+  ms = 45_000,
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      throw new Error(
+        `El compilador no respondió en ${Math.round(ms / 1000)}s (timeout). ` +
+          `Intenta de nuevo o elige otro compilador.`,
+      );
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ──────────────────────────────────────────────
 // OnlineCompiler.io
 // ──────────────────────────────────────────────
@@ -157,7 +185,7 @@ async function executeWithOnlineCompiler(
 
   const startTime = Date.now();
 
-  const response = await fetch("https://api.onlinecompiler.io/api/run-code-sync/", {
+  const response = await fetchWithTimeout("https://api.onlinecompiler.io/api/run-code-sync/", {
     method: "POST",
     headers: {
       Authorization: apiKey,
@@ -302,7 +330,7 @@ async function executeWithJDoodle(
 
   const startTime = Date.now();
 
-  const response = await fetch("https://api.jdoodle.com/v1/execute", {
+  const response = await fetchWithTimeout("https://api.jdoodle.com/v1/execute", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -425,7 +453,7 @@ async function executeWithAwsLambda(
   // edge functions para aplicar inmediato.
 
   const startTime = Date.now();
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -604,12 +632,47 @@ Deno.serve(async (req) => {
     requestContext.default_provider = defaultProvider;
     requestContext.provider_overridden = overrideRequested;
 
-    const result =
-      effectiveProvider === "jdoodle"
-        ? await executeWithJDoodle(sourceCode, language, stdin)
-        : effectiveProvider === "aws_lambda"
-          ? await executeWithAwsLambda(sourceCode, language, stdin)
-          : await executeWithOnlineCompiler(sourceCode, language, stdin);
+    const runWithProvider = (p: string): Promise<ExecutionResult> =>
+      p === "jdoodle"
+        ? executeWithJDoodle(sourceCode, language, stdin)
+        : p === "aws_lambda"
+          ? executeWithAwsLambda(sourceCode, language, stdin)
+          : executeWithOnlineCompiler(sourceCode, language, stdin);
+
+    // Resiliencia: si el provider elegido NO está disponible (secret faltante,
+    // caído, timeout de red) y no es ya onlinecompiler, reintentamos con
+    // onlinecompiler para no hacerle perder la corrida al estudiante. Los
+    // errores de CÓDIGO del alumno NO llegan acá (los executors devuelven un
+    // ExecutionResult con exitCode!=0; solo LANZAN ante fallos de
+    // infraestructura/config del provider), así que el fallback nunca
+    // enmascara un error legítimo de compilación/ejecución.
+    let result: ExecutionResult;
+    let usedProvider = effectiveProvider;
+    try {
+      result = await runWithProvider(effectiveProvider);
+    } catch (provErr) {
+      if (effectiveProvider !== "onlinecompiler") {
+        usedProvider = "onlinecompiler";
+        void auditFromEdge(admin, {
+          actorId: u.user.id,
+          action: "code.provider_fallback",
+          category: "system",
+          severity: "warning",
+          entityType: "code_execution",
+          entityId: questionId,
+          metadata: {
+            ...requestContext,
+            failed_provider: effectiveProvider,
+            fallback_provider: "onlinecompiler",
+            reason: provErr instanceof Error ? provErr.message : String(provErr),
+          },
+        });
+        result = await runWithProvider("onlinecompiler");
+      } else {
+        throw provErr;
+      }
+    }
+    requestContext.provider_used = usedProvider;
 
     // Persistir ejecución. question_id es FK a questions(id): SOLO el flujo de
     // EXAMEN pasa un questions.id genuino (y siempre trae submissionId). Los
@@ -652,7 +715,7 @@ Deno.serve(async (req) => {
       entityId: questionId,
       metadata: {
         language,
-        provider: effectiveProvider,
+        provider: usedProvider,
         submission_id: submissionId ?? null,
         question_id: questionId,
         exit_code: result.exitCode,
@@ -685,7 +748,7 @@ Deno.serve(async (req) => {
         entityId: questionId,
         metadata: {
           language,
-          provider: effectiveProvider,
+          provider: usedProvider,
           submission_id: submissionId ?? null,
           question_id: questionId,
           exit_code: result.exitCode,
@@ -706,6 +769,7 @@ Deno.serve(async (req) => {
         exitCode: result.exitCode,
         executionTimeMs: result.executionTimeMs,
         signal: result.signal ?? null,
+        providerUsed: usedProvider,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
