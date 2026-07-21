@@ -51,6 +51,7 @@ import { setActiveRoleSignal } from "@/modules/tenants/active-role-signal";
 import { ImpersonationBanner } from "@/modules/admin/ImpersonationBanner";
 import { IMPERSONATION_TRANSITION_FLAG } from "@/modules/admin/impersonation";
 import { TenantOverrideBanner } from "@/modules/tenants/TenantOverrideBanner";
+import { TenantBillingBanner } from "@/modules/tenants/TenantBillingBanner";
 import { KahootLiveBanner } from "@/modules/polls/KahootLiveBanner";
 // Lazy: driver.js (+ su CSS) solo se descarga cuando REALMENTE corre un tour
 // (primer login del rol o "Ver tour"), no en el shell de cada página /app/*.
@@ -1686,6 +1687,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             directo"). Se auto-oculta dentro de la vista del juego. No durante
             un examen. El propio componente decide si hay algo que mostrar. */}
         {activeRole === "Estudiante" && !isTakingExam && <KahootLiveBanner />}
+        {/* Aviso de facturación para el Admin del tenant (por vencer / en gracia
+            / suspendida). Solo-lectura, vía my_tenant_billing (sin datos sensibles). */}
+        {activeRole === "Admin" && !isTakingExam && <TenantBillingBanner />}
         {/* Banner de solo-lectura para estudiantes graduados: pueden ver
             (certificados, notas) pero no crear entregas. No se muestra
             durante un examen. El bloqueo de escritura real lo impone RLS. */}
