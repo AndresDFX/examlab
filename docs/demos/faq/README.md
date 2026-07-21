@@ -56,15 +56,16 @@ node make.mjs faqa01 faqa02 faqa03 faqt01 faqt02 faqt03 faqs01 faqs02 faqs03
 #    → docs/demos/faq/output/modulo-faq*.mp4
 
 # 2) Subir al bucket help-videos + registrar/actualizar en platform_help_videos (kind='faq').
-#    Requiere SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY en el entorno.
+#    Auth = login SuperAdmin (lee URL/ANON de ../../../.env; NO requiere service_role key).
 node seed-faq-videos.mjs
 ```
 
-`seed-faq-videos.mjs` lee los specs `module-faq*.json`, sube cada `output/<id>.mp4` a
-`help-videos/faq/<id>.mp4` (público) y hace **upsert** de la fila en `platform_help_videos`
-con `kind='faq'`, `question`, `role`, `route` (= `appPath`) y `video_url` público. Deja la
-fila `is_active=true` solo si el MP4 existe; mientras no exista, el asistente no la ofrece
-(el edge filtra `is_active=true`).
+`seed-faq-videos.mjs` hace login como SuperAdmin (creds en el script, `.env` para URL/ANON —
+mismo patrón que `setup-tenant.mjs`), lee los specs `module-faq*.json`, sube cada
+`output/<id>.mp4` a `help-videos/faq/<id>.mp4` (bucket público) y hace **upsert** de la fila
+en `platform_help_videos` con `kind='faq'`, `question`, `role`, `route` (= `appPath`) y
+`video_url` público. Deja la fila `is_active=true` solo si el MP4 existe; mientras no exista,
+el asistente no la ofrece (el edge filtra `is_active=true` + `video_url IS NOT NULL`).
 
 ## Requisito de esquema
 

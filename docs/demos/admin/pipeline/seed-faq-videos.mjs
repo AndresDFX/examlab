@@ -2,36 +2,48 @@
 // `platform_help_videos` (kind='faq'). Fuente de verdad = los specs
 // `modules/module-faq*.json` del repo. Idempotente (upsert por título+rol).
 //
-// Requisitos de entorno:
-//   SUPABASE_URL               (ej. https://uxxpzfsfcnqiwwdxoelm.supabase.co)
-//   SUPABASE_SERVICE_ROLE_KEY  (service role — bypassa RLS; NO commitear)
+// Auth = login como SuperAdmin (mismo patrón que setup-tenant.mjs): NO requiere
+// service_role key. La RLS `phv_write = is_super_admin()` permite la escritura y
+// el bucket help-videos acepta la subida del SA. Lee URL/ANON de ../../../.env.
 //
 // Uso:  node seed-faq-videos.mjs [id ...]   (sin ids → todos los faq*)
 import { readFileSync, readdirSync, existsSync } from "node:fs";
-import { createClient } from "@supabase/supabase-js";
 
-const REPO = "C:/Projects/Personal/examlab";
+const REPO = "c:/Projects/Personal/examlab";
 const MODULES = `${REPO}/docs/demos/admin/pipeline/modules`;
 const OUTPUT = `${REPO}/docs/demos/faq/output`;
 const BUCKET = "help-videos";
+const SA_EMAIL = "castano.julian@correounivalle.edu.co";
+const SA_PASS = "Tester#12345";
 
-const URL = process.env.SUPABASE_URL;
-const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!URL || !KEY) {
-  console.error("Falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY en el entorno.");
-  process.exit(1);
+// .env → URL + ANON
+const env = {};
+for (const line of readFileSync(`${REPO}/.env`, "utf8").split("\n")) {
+  const m = line.match(/^\s*([A-Z_]+)\s*=\s*"?([^"\r\n]*)"?\s*$/);
+  if (m) env[m[1]] = m[2];
 }
-const db = createClient(URL, KEY, { auth: { persistSession: false } });
+const URL = env.VITE_SUPABASE_URL;
+const ANON = env.VITE_SUPABASE_PUBLISHABLE_KEY;
+if (!URL || !ANON) throw new Error("Falta VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY en .env");
+
+// 1) Login SuperAdmin → access_token
+const authRes = await fetch(`${URL}/auth/v1/token?grant_type=password`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json", apikey: ANON },
+  body: JSON.stringify({ email: SA_EMAIL, password: SA_PASS }),
+});
+const auth = await authRes.json();
+const TOKEN = auth.access_token;
+if (!TOKEN) throw new Error(`Login SA falló: ${JSON.stringify(auth)}`);
+const H = { apikey: ANON, Authorization: `Bearer ${TOKEN}` };
 
 const onlyIds = process.argv.slice(2);
 const specFiles = readdirSync(MODULES)
   .filter((f) => /^module-faq[ats]\d+\.json$/.test(f))
-  .filter((f) => !onlyIds.length || onlyIds.some((id) => f === `module-${id}.json`));
+  .filter((f) => !onlyIds.length || onlyIds.some((id) => f === `module-${id}.json`))
+  .sort();
 
-if (!specFiles.length) {
-  console.error("No se encontraron specs module-faq*.json.");
-  process.exit(1);
-}
+if (!specFiles.length) throw new Error("No se encontraron specs module-faq*.json.");
 
 let pos = 0;
 let ok = 0;
@@ -42,18 +54,21 @@ for (const f of specFiles) {
   const hasVideo = existsSync(mp4);
   const storagePath = `faq/${spec.id}.mp4`;
   let publicUrl = null;
+  pos += 10;
 
   try {
     if (hasVideo) {
       const bytes = readFileSync(mp4);
-      const up = await db.storage
-        .from(BUCKET)
-        .upload(storagePath, bytes, { contentType: "video/mp4", upsert: true });
-      if (up.error) throw up.error;
-      publicUrl = db.storage.from(BUCKET).getPublicUrl(storagePath).data.publicUrl;
+      // Subida idempotente (x-upsert). El bucket es público → URL pública directa.
+      const up = await fetch(`${URL}/storage/v1/object/${BUCKET}/${storagePath}`, {
+        method: "POST",
+        headers: { ...H, "Content-Type": "video/mp4", "x-upsert": "true" },
+        body: bytes,
+      });
+      if (!up.ok) throw new Error(`upload ${up.status}: ${(await up.text()).slice(0, 200)}`);
+      publicUrl = `${URL}/storage/v1/object/public/${BUCKET}/${storagePath}`;
     }
 
-    // Upsert por (title, role) — clave lógica estable del clip.
     const row = {
       title: spec.title,
       question: spec.question ?? null,
@@ -62,18 +77,28 @@ for (const f of specFiles) {
       route: spec.appPath ?? null,
       video_url: publicUrl,
       is_active: hasVideo, // sin MP4 aún → inactivo (el asistente no lo ofrece)
-      position: (pos += 10),
+      position: pos,
     };
-    const { data: existing } = await db
-      .from("platform_help_videos")
-      .select("id")
-      .eq("title", spec.title)
-      .eq("role", spec.role)
-      .maybeSingle();
-    const res = existing
-      ? await db.from("platform_help_videos").update(row).eq("id", existing.id)
-      : await db.from("platform_help_videos").insert(row);
-    if (res.error) throw res.error;
+
+    // Upsert por (title, role): clave lógica estable del clip.
+    const q = `title=eq.${encodeURIComponent(spec.title)}&role=eq.${encodeURIComponent(spec.role)}`;
+    const existRes = await fetch(`${URL}/rest/v1/platform_help_videos?select=id&${q}`, { headers: H });
+    const exist = await existRes.json();
+    let res;
+    if (Array.isArray(exist) && exist.length) {
+      res = await fetch(`${URL}/rest/v1/platform_help_videos?id=eq.${exist[0].id}`, {
+        method: "PATCH",
+        headers: { ...H, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify(row),
+      });
+    } else {
+      res = await fetch(`${URL}/rest/v1/platform_help_videos`, {
+        method: "POST",
+        headers: { ...H, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify(row),
+      });
+    }
+    if (!res.ok) throw new Error(`row ${res.status}: ${(await res.text()).slice(0, 200)}`);
 
     ok++;
     console.log(`✓ ${spec.id} — ${spec.role} — ${hasVideo ? "con video" : "SIN video (inactivo)"}`);
