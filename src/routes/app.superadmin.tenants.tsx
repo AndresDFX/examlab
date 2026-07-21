@@ -111,10 +111,6 @@ const fmtBytes = (n: number | null): string => {
   return `${(mb / 1024).toFixed(2).replace(".", ",")} GB`;
 };
 
-/** clase de color para un contador de licencia que superó su cupo. */
-const overCls = (n: number, max: number | null) =>
-  max != null && n > max ? "text-destructive font-semibold" : "";
-
 function SuperAdminTenantsPage() {
   const { t: tl } = useTranslation();
   const { roles, loading: authLoading } = useAuth();
@@ -850,7 +846,8 @@ function SuperAdminTenantsPage() {
                     {tl("superadminTenants.colStatus")}
                   </SortableHead>
                   <TableHead className="hidden lg:table-cell w-24">{tl("superadminTenants.colPlan")}</TableHead>
-                  <TableHead className="hidden md:table-cell">{tl("superadminTenants.colLicenses")}</TableHead>
+                  {/* La columna "Licencias" (A/D/E uso/cupo) se quitó del grid por ruido
+                      visual; el detalle de licencias vive en el diálogo "Facturación y plan". */}
                   <TableHead className="hidden lg:table-cell w-28">{tl("superadminTenants.colAi")}</TableHead>
                   <TableHead className="hidden xl:table-cell w-24">{tl("superadminTenants.colStorage", { defaultValue: "Almacenam." })}</TableHead>
                   <TableHead className="hidden xl:table-cell w-28">{tl("superadminTenants.colBilling")}</TableHead>
@@ -901,26 +898,6 @@ function SuperAdminTenantsPage() {
                         </Badge>
                       ) : (
                         <span className="text-muted-foreground text-xs">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell text-xs tabular-nums whitespace-nowrap">
-                      {overview[t.id] ? (
-                        <span title={tl("superadminTenants.licensesTitle")}>
-                          A{" "}
-                          <span className={overCls(overview[t.id].admins, overview[t.id].max_admins)}>
-                            {overview[t.id].admins}/{overview[t.id].max_admins ?? "∞"}
-                          </span>
-                          {" · "}D{" "}
-                          <span className={overCls(overview[t.id].teachers, overview[t.id].max_teachers)}>
-                            {overview[t.id].teachers}/{overview[t.id].max_teachers ?? "∞"}
-                          </span>
-                          {" · "}E{" "}
-                          <span className={overCls(overview[t.id].students, overview[t.id].max_students)}>
-                            {overview[t.id].students}/{overview[t.id].max_students ?? "∞"}
-                          </span>
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
