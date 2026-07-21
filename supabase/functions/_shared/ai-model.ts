@@ -144,42 +144,10 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
     };
   };
 
-  // 1) Tenant row (lo único que aplica para callers con tenant).
-  // CAMBIO IMPORTANTE: ya NO heredamos del platform default. Cada
-  // institución tiene que configurar su propia API key — si no lo hace,
-  // el edge falla con un mensaje claro pidiendo configurarla. Esto evita
-  // que un tenant consuma silenciosamente la cuota del SuperAdmin.
-  if (tenantId) {
-    const { data } = await adminClient
-      .from("ai_model_settings")
-      .select(
-        "provider, model, gemini_api_key, openai_api_key, gemini_fallback_keys, openai_fallback_keys",
-      )
-      .eq("is_active", true)
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-    if (data) {
-      const resolved = toActive(data as Row, "tenant");
-      cache.set(tenantId, resolved);
-      return resolved;
-    }
-    // Sin row del tenant → devolvemos el DEFAULT_MODEL con keys NULL.
-    // El wrapper de cada edge detectará la falta de key y tirará el
-    // error accionable ("Configúrala en Admin → IA → Modelo").
-    const stub: ActiveModel = { ...DEFAULT_MODEL, tenant_id: tenantId };
-    cache.set(tenantId, stub);
-    console.warn(
-      `[ai-model] tenant ${tenantId} sin fila en ai_model_settings; ` +
-        `el caller verá error pidiendo configurar la API key.`,
-    );
-    return stub;
-  }
-
-  // 2) Caller sin tenant resolvable (jobs internos, cron, etc.) — usa el
-  // platform default del SuperAdmin. Mig 20260719000000. Una sola fila
-  // activa con tenant_id IS NULL. Esto NO se aplica a tenants; los
-  // edges que sirven a usuarios resuelven el tenant via courseId/auth.
-  {
+  // Modelo COMPARTIDO de la plataforma: la fila activa del SuperAdmin
+  // (tenant_id IS NULL) o, si no existe, el fallback hardcodeado (Gemini
+  // directo, key NULL → cae al env GEMINI_API_KEY de la edge).
+  const platformShared = async (): Promise<ActiveModel> => {
     const { data } = await adminClient
       .from("ai_model_settings")
       .select(
@@ -188,16 +156,73 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
       .eq("is_active", true)
       .is("tenant_id", null)
       .maybeSingle();
-    if (data) {
-      const resolved = toActive(data as Row, "platform");
-      cache.set(null, resolved);
-      return resolved;
+    return data ? toActive(data as Row, "platform") : DEFAULT_MODEL;
+  };
+
+  // 1) Caller CON tenant → decide según `tenants.ai_mode` (módulo comercial,
+  // mig 20261340000000). Default 'shared'.
+  //   - 'shared'  (default): usa la IA COMPARTIDA de la plataforma. El tenant
+  //                NO necesita configurar su propia key — es el modo por
+  //                defecto al crear una institución.
+  //   - 'own'    : el tenant trae su propia API key → usa SU fila de
+  //                ai_model_settings; sin key = error accionable (para que NO
+  //                consuma silenciosamente la cuota compartida).
+  //   - 'managed': igual que 'shared' a nivel runtime (key de plataforma); la
+  //                medición/cobro del consumo es aparte (comercial).
+  if (tenantId) {
+    let aiMode = "shared";
+    try {
+      const { data: trow } = await adminClient
+        .from("tenants")
+        .select("ai_mode")
+        .eq("id", tenantId)
+        .maybeSingle();
+      aiMode = (trow as { ai_mode?: string } | null)?.ai_mode ?? "shared";
+    } catch {
+      // Columna ai_mode aún no publicada → tratamos como 'shared'.
+      aiMode = "shared";
     }
+
+    if (aiMode === "own") {
+      const { data } = await adminClient
+        .from("ai_model_settings")
+        .select(
+          "provider, model, gemini_api_key, openai_api_key, gemini_fallback_keys, openai_fallback_keys",
+        )
+        .eq("is_active", true)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (data) {
+        const resolved = toActive(data as Row, "tenant");
+        cache.set(tenantId, resolved);
+        return resolved;
+      }
+      // Sin row del tenant en modo 'own' → DEFAULT_MODEL con keys NULL.
+      // El wrapper de cada edge detecta la falta de key y tira el error
+      // accionable ("Configúrala en Admin → IA → Modelo").
+      const stub: ActiveModel = { ...DEFAULT_MODEL, tenant_id: tenantId };
+      cache.set(tenantId, stub);
+      console.warn(
+        `[ai-model] tenant ${tenantId} ai_mode=own sin fila en ai_model_settings; ` +
+          `el caller verá error pidiendo configurar la API key.`,
+      );
+      return stub;
+    }
+
+    // 'shared' | 'managed' → IA compartida de la plataforma. Cacheado bajo el
+    // tenantId (tenant_id en el modelo es solo para logging; las keys salen
+    // del platform default / env).
+    const shared = await platformShared();
+    const resolved: ActiveModel = { ...shared, tenant_id: tenantId };
+    cache.set(tenantId, resolved);
+    return resolved;
   }
 
-  // 3) Fallback hardcodeado (Gemini directo, key NULL → cae al env).
-  cache.set(null, DEFAULT_MODEL);
-  return DEFAULT_MODEL;
+  // 2) Caller sin tenant resolvable (jobs internos, cron, etc.) → IA
+  // compartida de la plataforma.
+  const resolved = await platformShared();
+  cache.set(null, resolved);
+  return resolved;
 }
 
 /** Limpia el cache. Útil cuando el admin cambia el provider del tenant. */
