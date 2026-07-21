@@ -63,8 +63,10 @@ import {
   Copy,
   KeyRound,
   Mail,
+  CreditCard,
 } from "lucide-react";
 import { TenantEmailSettingsDialog } from "@/modules/superadmin/TenantEmailSettingsDialog";
+import { TenantBillingDialog } from "@/modules/superadmin/TenantBillingDialog";
 import { startImpersonate } from "@/modules/admin/impersonation";
 import { AssignUsersToTenantDialog } from "@/modules/superadmin/AssignUsersToTenantDialog";
 import { isValidTenantSlug, slugifyTenantName } from "@/modules/tenants/tenant";
@@ -161,6 +163,7 @@ function SuperAdminTenantsPage() {
    *  para quitar). tenant=null = cerrado. */
   const [assignUsersTenant, setAssignUsersTenant] = useState<Tenant | null>(null);
   const [emailTenant, setEmailTenant] = useState<Tenant | null>(null);
+  const [billingTenant, setBillingTenant] = useState<Tenant | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -987,6 +990,17 @@ function SuperAdminTenantsPage() {
                             }),
                           },
                           {
+                            label: tl("superadminTenants.actionBilling", {
+                              defaultValue: "Facturación y plan",
+                            }),
+                            icon: CreditCard,
+                            onClick: () => setBillingTenant(t),
+                            hint: tl("superadminTenants.actionBillingHint", {
+                              defaultValue:
+                                "Plan, modo de IA, ciclo de facturación (fechas + gracia en días hábiles) y auto-suspensión.",
+                            }),
+                          },
+                          {
                             label: tl("superadminTenants.actionViewAs"),
                             icon: Eye,
                             onClick: () => viewAs(t),
@@ -1303,6 +1317,16 @@ function SuperAdminTenantsPage() {
           }}
           tenantId={emailTenant.id}
           tenantName={emailTenant.name}
+        />
+      )}
+
+      {billingTenant && (
+        <TenantBillingDialog
+          open={billingTenant !== null}
+          tenantId={billingTenant.id}
+          tenantName={billingTenant.name}
+          onClose={() => setBillingTenant(null)}
+          onSaved={load}
         />
       )}
 
