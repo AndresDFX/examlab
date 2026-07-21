@@ -209,11 +209,34 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
       return stub;
     }
 
-    // 'shared' | 'managed' → IA compartida de la plataforma. Cacheado bajo el
-    // tenantId (tenant_id en el modelo es solo para logging; las keys salen
-    // del platform default / env).
+    // 'shared' | 'managed' → IA compartida de la plataforma. Las keys salen del
+    // platform default (fila tenant_id IS NULL) + env. PERO, como fallback,
+    // anexamos la key PROPIA del tenant si la tiene: así los tenants que ya
+    // traían su key ANTES de la IA compartida (o el tenant demo) no se quedan
+    // sin IA si aún no existe la fila platform-default. Orden de intento
+    // (failover): platform → key propia → env. Cacheado bajo el tenantId.
     const shared = await platformShared();
-    const resolved: ActiveModel = { ...shared, tenant_id: tenantId };
+    const { data: ownRow } = await adminClient
+      .from("ai_model_settings")
+      .select(
+        "provider, model, gemini_api_key, openai_api_key, gemini_fallback_keys, openai_fallback_keys",
+      )
+      .eq("is_active", true)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    const own = ownRow ? toActive(ownRow as Row, "tenant") : null;
+    const resolved: ActiveModel = {
+      ...shared,
+      gemini_api_keys: dedupeNonEmpty([
+        ...shared.gemini_api_keys,
+        ...(own?.gemini_api_keys ?? []),
+      ]),
+      openai_api_keys: dedupeNonEmpty([
+        ...shared.openai_api_keys,
+        ...(own?.openai_api_keys ?? []),
+      ]),
+      tenant_id: tenantId,
+    };
     cache.set(tenantId, resolved);
     return resolved;
   }
