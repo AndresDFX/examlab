@@ -97,9 +97,19 @@ interface TenantOverview {
   max_admins: number | null;
   max_teachers: number | null;
   max_students: number | null;
+  storage_bytes: number | null;
+  storage_quota_mb: number | null;
   subscription_status: string;
   days_left: number | null;
 }
+
+/** Formatea bytes a una unidad legible (es-CO). */
+const fmtBytes = (n: number | null): string => {
+  if (n == null || n <= 0) return "0 MB";
+  const mb = n / (1024 * 1024);
+  if (mb < 1024) return `${mb >= 10 ? Math.round(mb) : mb.toFixed(1).replace(".", ",")} MB`;
+  return `${(mb / 1024).toFixed(2).replace(".", ",")} GB`;
+};
 
 /** clase de color para un contador de licencia que superó su cupo. */
 const overCls = (n: number, max: number | null) =>
@@ -842,6 +852,7 @@ function SuperAdminTenantsPage() {
                   <TableHead className="hidden lg:table-cell w-24">{tl("superadminTenants.colPlan")}</TableHead>
                   <TableHead className="hidden md:table-cell">{tl("superadminTenants.colLicenses")}</TableHead>
                   <TableHead className="hidden lg:table-cell w-28">{tl("superadminTenants.colAi")}</TableHead>
+                  <TableHead className="hidden xl:table-cell w-24">{tl("superadminTenants.colStorage", { defaultValue: "Almacenam." })}</TableHead>
                   <TableHead className="hidden xl:table-cell w-28">{tl("superadminTenants.colBilling")}</TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
@@ -931,6 +942,27 @@ function SuperAdminTenantsPage() {
                         </span>
                       ) : (
                         <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden xl:table-cell text-xs tabular-nums whitespace-nowrap">
+                      {overview[t.id] ? (
+                        <span
+                          title={
+                            overview[t.id].storage_quota_mb
+                              ? `Cupo: ${overview[t.id].storage_quota_mb} MB`
+                              : undefined
+                          }
+                        >
+                          {fmtBytes(overview[t.id].storage_bytes)}
+                          {overview[t.id].storage_quota_mb ? (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              / {overview[t.id].storage_quota_mb}MB
+                            </span>
+                          ) : null}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
                     <TableCell className="hidden xl:table-cell text-xs whitespace-nowrap">

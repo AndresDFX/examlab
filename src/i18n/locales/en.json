@@ -4583,7 +4583,8 @@
     "sub_cancelled": "Cancelled",
     "sub_past_due": "Grace period",
     "sub_courtesy": "Courtesy",
-    "daysLeft": "{{n}} d left"
+    "daysLeft": "{{n}} d left",
+    "colStorage": "Storage"
   },
   "adminPromptsPanel": {
     "loadingPrompts": "Loading prompts…",

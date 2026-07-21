@@ -4583,7 +4583,8 @@
     "sub_cancelled": "Cancelada",
     "sub_past_due": "En gracia",
     "sub_courtesy": "Cortesía",
-    "daysLeft": "Vence en {{n}} d"
+    "daysLeft": "Vence en {{n}} d",
+    "colStorage": "Almacenam."
   },
   "adminPromptsPanel": {
     "loadingPrompts": "Cargando prompts…",
