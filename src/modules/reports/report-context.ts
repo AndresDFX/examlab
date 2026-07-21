@@ -194,7 +194,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
   };
 
   // ── Cortes + items + asistencia (mismas queries del gradebook) ──
-  const [{ data: cuts }, { data: examsAll }, { data: workshopsAll }, { data: pcRows }, { data: sessions }] =
+  const [{ data: cuts }, { data: examsAll }, { data: wcRows }, { data: pcRows }, { data: sessions }] =
     await Promise.all([
       db
         .from("grade_cuts")
@@ -207,10 +207,13 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
         .eq("course_id", courseId)
         .is("deleted_at", null),
       db
-        .from("workshops")
-        .select("id, title, cut_id, weight, max_score, is_external, status")
-        .eq("course_id", courseId)
-        .is("deleted_at", null),
+        // Talleres por workshop_courses (M:N): peso/corte POR CURSO. Leer por
+        // workshops.course_id (ancla legacy) OMITÍA los talleres compartidos a
+        // un curso secundario del boletín → divergía del gradebook/estudiante/
+        // acta. Paridad con proyectos (project_courses) de justo abajo.
+        .from("workshop_courses")
+        .select("cut_id, weight, workshop:workshops(id, title, max_score, is_external, status, deleted_at)")
+        .eq("course_id", courseId),
       db
         .from("project_courses")
         .select("cut_id, weight, project:projects(id, title, max_score, is_external, deleted_at, status)")
@@ -238,15 +241,9 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     retry_mode: string | null;
     status: string | null;
   }>).filter((e) => !isDraft(e.status));
-  const workshops = ((workshopsAll ?? []) as Array<{
-    id: string;
-    title: string;
-    cut_id: string | null;
-    weight: number;
-    max_score: number;
-    is_external: boolean | null;
-    status: string | null;
-  }>).filter((w) => !isDraft(w.status));
+  const workshops = ((wcRows ?? []) as Array<{ cut_id: string | null; weight: number; workshop: { id: string; title: string; max_score: number; is_external: boolean | null; deleted_at: string | null; status: string | null } | null }>)
+    .filter((r): r is { cut_id: string | null; weight: number; workshop: { id: string; title: string; max_score: number; is_external: boolean | null; deleted_at: string | null; status: string | null } } => r.workshop != null && !r.workshop.deleted_at && !isDraft(r.workshop.status))
+    .map((r) => ({ id: r.workshop.id, title: r.workshop.title, cut_id: r.cut_id, weight: r.weight, max_score: r.workshop.max_score, is_external: r.workshop.is_external }));
 
   const projects = ((pcRows ?? []) as Array<{ cut_id: string | null; weight: number; project: { id: string; title: string; max_score: number; is_external: boolean | null; deleted_at: string | null; status: string | null } | null }>)
     .filter((r): r is { cut_id: string | null; weight: number; project: { id: string; title: string; max_score: number; is_external: boolean | null; deleted_at: string | null; status: string | null } } => r.project != null && !r.project.deleted_at && !isDraft(r.project.status))

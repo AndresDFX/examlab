@@ -548,12 +548,17 @@ function Gradebook() {
       }
       return { grade: null, isMakeup: false };
     } else if (col.kind === "workshop") {
-      const sub = wsSubs.find(
-        (s) =>
-          s.workshop_id === col.id &&
-          (s.user_id === studentId ||
-            (!!s.group_id && !!wsGroupsByUser.get(studentId)?.has(s.group_id))),
-      );
+      // Precedencia de GRUPO sobre la entrega individual obsoleta (modo mixto):
+      // si el alumno entregó individual ANTES de ser agrupado, esa fila vieja
+      // coexiste con la del grupo. La vista del estudiante ya prioriza la grupal
+      // (app.student.grades.tsx); acá replicamos para no divergir docente↔alumno.
+      const sub =
+        wsSubs.find(
+          (s) =>
+            s.workshop_id === col.id &&
+            !!s.group_id &&
+            !!wsGroupsByUser.get(studentId)?.has(s.group_id),
+        ) ?? wsSubs.find((s) => s.workshop_id === col.id && s.user_id === studentId);
       if (sub)
         return {
           grade: sub.final_grade ?? sub.ai_grade,
@@ -563,13 +568,14 @@ function Gradebook() {
         };
       return { grade: null, isMakeup: false };
     } else {
-      // project
-      const sub = projectSubs.find(
-        (s) =>
-          s.project_id === col.id &&
-          (s.user_id === studentId ||
-            (!!s.group_id && !!prjGroupsByUser.get(studentId)?.has(s.group_id))),
-      );
+      // project — misma precedencia de GRUPO sobre individual que en talleres.
+      const sub =
+        projectSubs.find(
+          (s) =>
+            s.project_id === col.id &&
+            !!s.group_id &&
+            !!prjGroupsByUser.get(studentId)?.has(s.group_id),
+        ) ?? projectSubs.find((s) => s.project_id === col.id && s.user_id === studentId);
       if (sub)
         return {
           grade: sub.final_grade ?? sub.ai_grade,
@@ -1038,12 +1044,14 @@ function Gradebook() {
       // Workshops — para is_external la nota está en escala del curso
       // (la captura ExternalGradesEditor con cap = grade_scale_max).
       for (const w of allWorkshops) {
-        const sub = wsSubs.find(
-          (s) =>
-            s.workshop_id === w.id &&
-            (s.user_id === stu.id ||
-              (!!s.group_id && !!wsGroupsByUser.get(stu.id)?.has(s.group_id))),
-        );
+        // Precedencia de GRUPO sobre individual obsoleta (igual que getGrade).
+        const sub =
+          wsSubs.find(
+            (s) =>
+              s.workshop_id === w.id &&
+              !!s.group_id &&
+              !!wsGroupsByUser.get(stu.id)?.has(s.group_id),
+          ) ?? wsSubs.find((s) => s.workshop_id === w.id && s.user_id === stu.id);
         const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
         const wMax = w.is_external ? max : (w.max_score ?? 100);
         allItems.push({
@@ -1055,12 +1063,13 @@ function Gradebook() {
 
       // Projects — misma regla que workshops para is_external.
       for (const p of projects) {
-        const sub = projectSubs.find(
-          (s) =>
-            s.project_id === p.id &&
-            (s.user_id === stu.id ||
-              (!!s.group_id && !!prjGroupsByUser.get(stu.id)?.has(s.group_id))),
-        );
+        const sub =
+          projectSubs.find(
+            (s) =>
+              s.project_id === p.id &&
+              !!s.group_id &&
+              !!prjGroupsByUser.get(stu.id)?.has(s.group_id),
+          ) ?? projectSubs.find((s) => s.project_id === p.id && s.user_id === stu.id);
         const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
         const pMax = p.is_external ? max : (p.max_score ?? 100);
         allItems.push({

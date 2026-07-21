@@ -230,9 +230,12 @@ function StudentGrades() {
             weight: wc.weight ?? 1,
           }));
         const wsIds = flatWorkshops.map((w: { id: string }) => w.id);
-        const groupWsIds = flatWorkshops
-          .filter((w: any) => (w.group_mode ?? "individual") !== "individual")
-          .map((w: { id: string }) => w.id);
+        // Entregas de grupo para TODOS los talleres — NO gatear por group_mode:
+        // fetchGroupSubs cortocircuita si el alumno no está en ningún grupo del
+        // item, así un miembro que no es el "último editor" ve SU nota grupal
+        // aunque group_mode haya cambiado o sea NULL (legacy). Los grupos son
+        // OPCIONALES (modo mixto): un alumno sin grupo cae a su entrega individual.
+        const groupWsIds = wsIds;
         // Flatten project_courses rows → per-course cut_id/weight override.
         // Excluimos drafts: si el proyecto está en borrador no debe pesar
         // todavía en la nota del estudiante.
@@ -247,9 +250,7 @@ function StudentGrades() {
             weight: pc.weight ?? 1,
           }));
         const prjIds = flatProjects.map((p: { id: string }) => p.id);
-        const groupPrjIds = flatProjects
-          .filter((p: any) => (p.group_mode ?? "individual") !== "individual")
-          .map((p: { id: string }) => p.id);
+        const groupPrjIds = prjIds;
         const sessIds = ((sessions ?? []) as { id: string }[]).map((s) => s.id);
 
         const [

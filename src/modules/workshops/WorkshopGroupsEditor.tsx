@@ -62,11 +62,24 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      // Matrícula de TODOS los cursos del taller (workshop_courses M:N), no solo
+      // el curso ancla: un taller compartido a un curso secundario debe permitir
+      // agrupar también a los alumnos de ese curso (si no, quedaban forzados a
+      // entrega individual). Fallback a [courseId] si no hay filas M:N.
+      const { data: wcRows } = await db
+        .from("workshop_courses")
+        .select("course_id")
+        .eq("workshop_id", workshopId);
+      const courseIds = Array.from(
+        new Set([courseId, ...((wcRows ?? []) as { course_id: string }[]).map((r) => r.course_id)]),
+      );
       const { data: enr } = await supabase
         .from("course_enrollments")
         .select("user_id")
-        .eq("course_id", courseId);
-      const userIds = (enr ?? []).map((e: { user_id: string }) => e.user_id);
+        .in("course_id", courseIds);
+      const userIds = Array.from(
+        new Set((enr ?? []).map((e: { user_id: string }) => e.user_id)),
+      );
       let profs: Student[] = [];
       if (userIds.length > 0) {
         const { data } = await supabase
