@@ -1,17 +1,18 @@
 /**
  * Edge Function: admin-delete-user
  *
- * Borra COMPLETAMENTE a un usuario:
- *   1. Auth (`auth.users`) — via Admin API.
- *   2. Profile + user_roles + tablas asociadas — cascadean automáticamente
- *      por las FKs `REFERENCES auth.users(id) ON DELETE CASCADE`.
+ * BORRADO LÓGICO de un usuario (no duro): marca `profiles.deleted_at` +
+ * `deleted_by` + `is_active=false` y banea al usuario en GoTrue. Nada se
+ * destruye — la fila de `auth.users`, el profile, roles y contenido se
+ * conservan y el usuario es RECUPERABLE (restaurando `deleted_at`).
  *
- * Por qué se necesita: antes el frontend hacía `delete from profiles`
- * directo, lo que dejaba la fila huérfana en `auth.users`. Al re-crear
- * un usuario con el mismo email, `check_email_taken` (que también mira
- * `auth.users.email`) reportaba "ya está en uso" aunque el profile no
- * existiera. La única forma de borrar de `auth.users` es con
- * `service_role` — de ahí esta edge.
+ * Efectos: baja el contador de licencias del tenant (tenant_role_count
+ * excluye deleted_at) y bloquea el acceso server-side (ban GoTrue +
+ * current_tenant_id() → NULL → RLS le corta todo, aun con token vivo).
+ * Los listados de usuarios ya filtran `deleted_at IS NULL`.
+ *
+ * (El borrado FÍSICO de `auth.users` queda para un flujo SA-only aparte;
+ * el default es lógico por decisión de producto — "no son borrados duros".)
  *
  * Autorización:
  *   - Admin: puede borrar usuarios de SU MISMO tenant.
@@ -114,13 +115,28 @@ Deno.serve(async (req) => {
       null;
     const targetName = (targetProfile as { full_name?: string | null } | null)?.full_name ?? null;
 
-    // Delete auth.users — cascadea profile + user_roles + todas las
-    // tablas con FK `ON DELETE CASCADE` a auth.users(id).
-    const { error: delErr } = await admin.auth.admin.deleteUser(targetId);
-    if (delErr) {
-      console.error("[admin-delete-user] deleteUser failed", delErr);
-      return jsonError(`No se pudo eliminar: ${delErr.message ?? "error interno"}`, 500);
+    // BORRADO LÓGICO (no duro): marca deleted_at + deleted_by + is_active=false
+    // y BANEA al usuario. La fila de auth.users y TODO el contenido del usuario
+    // se conservan (recuperable restaurando deleted_at). Efectos:
+    //   - El contador de licencias BAJA (tenant_role_count excluye deleted_at).
+    //   - El acceso queda BLOQUEADO server-side: ban GoTrue (rechaza login y
+    //     refresh de token) + current_tenant_id() devuelve NULL para un usuario
+    //     con deleted_at → la RLS le corta TODA lectura/escritura aunque tenga
+    //     un token vivo (cierra el gap de "sesión viva ~1h" del deactivate).
+    const BAN_DURATION = "876000h";
+    const { error: softErr } = await admin
+      .from("profiles")
+      .update({ deleted_at: new Date().toISOString(), deleted_by: caller.id, is_active: false })
+      .eq("id", targetId);
+    if (softErr) {
+      console.error("[admin-delete-user] soft-delete failed", softErr);
+      return jsonError(`No se pudo eliminar: ${softErr.message ?? "error interno"}`, 500);
     }
+    // Ban best-effort: aunque falle, el bloqueo por current_tenant_id() ya aplica.
+    const { error: banErr } = await admin.auth.admin.updateUserById(targetId, {
+      ban_duration: BAN_DURATION,
+    });
+    if (banErr) console.warn("[admin-delete-user] ban falló (el bloqueo RLS igual aplica)", banErr.message);
 
     // Audit log — actor = caller, target = el user borrado. Inserta
     // directo (no usa log_audit_event RPC) porque queremos el actor
@@ -140,6 +156,7 @@ Deno.serve(async (req) => {
         metadata: {
           target_email: targetEmail,
           target_roles: Array.from(targetRoleSet),
+          soft: true,
         },
       });
     } catch (_) {
