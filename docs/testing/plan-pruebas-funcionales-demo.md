@@ -1654,3 +1654,47 @@ Alcance: gestión de usuarios y roles, configuración de plataforma/institución
 | PRC-08 | Fuente de supuestos | Tabla `pricing_assumptions` vacía | Abrir panel | Subtítulo "Supuestos por defecto (tabla no configurada)"; usa `FALLBACK_ASSUMPTIONS` sin romper |
 
 **Checks UI/UX (Calculadora):** 375px (grid `lg:grid-cols-[340px_1fr]` colapsa a 1 columna, tablas scrollean); claro/oscuro; loading (`SectionLoader`); toasts español; `DecimalInput` con coma y `HelpHint`; moneda/porcentaje/números en es-CO (`toLocaleString('es-CO')`); a11y (Label `required` en matrículas/margen, `Switch` con label en `ToggleRow`).
+
+---
+
+## Novedades — 2026-07-20 (verificar tras Publish)
+
+Casos nuevos derivados de los cambios de esta fecha. Requieren **Publish** en Lovable para
+los que tocan edges/migraciones.
+
+### IA compartida por institución (`tenants.ai_mode`)
+| ID | Caso | Pasos | Resultado esperado |
+|----|------|-------|--------------------|
+| IA-01 | Modo compartido por defecto | SA → Instituciones → nueva institución | Nace `ai_mode='shared'`; su IA (calificar/generar/tutor) funciona SIN configurar key propia (usa la de plataforma) |
+| IA-02 | Modo propio | SA → Facturación y plan → IA = "Propia" + institución con key propia | La IA usa la key del tenant; sin key → error accionable pidiendo configurarla |
+| IA-03 | Institución con key previa no se rompe | Tenant shared que ya tenía key propia | La IA sigue funcionando (fallback a su key) tras el cambio |
+
+### Compiladores (edge `execute-code`)
+| ID | Caso | Pasos | Resultado esperado |
+|----|------|-------|--------------------|
+| CMP-01 | Auto-fallback de provider | Provider activo sin secret (ej. jdoodle) | La corrida NO falla: cae a onlinecompiler; respuesta trae `providerUsed`; audit `code.provider_fallback` |
+| CMP-02 | Timeout | Provider colgado | Error claro "no respondió en 45s" en vez de spinner eterno |
+| CMP-03 | Error de código del alumno | Código con error de compilación | Se ve el error en la terminal del examen (no como "error de compilador"); NO ensucia el panel de Errores |
+
+### Entregas en grupo / multi-curso (notas)
+| ID | Caso | Pasos | Resultado esperado |
+|----|------|-------|--------------------|
+| GRP-01 | Precedencia de grupo (mixto) | Alumno entrega individual, luego se agrupa y el grupo se califica | Gradebook docente, boletín y vista del estudiante muestran la MISMA nota (la de grupo) |
+| GRP-02 | Miembro no-editor ve su nota | Grupo calificado; entrar como el miembro que NO envió | Ve la nota del grupo (no 0), aunque group_mode cambie |
+| GRP-03 | Grupos son OPCIONALES | Alumno sin grupo en item mixto | Mantiene su entrega y nota individual |
+| GRP-04 | Taller multi-curso en boletín | Taller compartido a curso secundario, alumno de ese curso con nota | El taller aparece y pesa en el boletín/informe del curso secundario (= gradebook) |
+| GRP-05 | Agrupar alumnos de curso secundario | Taller compartido; abrir "Grupos" | Aparecen los alumnos de TODOS los cursos del taller (no solo el ancla) |
+
+### Asistente IA + FAQ
+| ID | Caso | Pasos | Resultado esperado |
+|----|------|-------|--------------------|
+| ASI-01 | Nombre único | Recorrer sidebar/página/tour en los 3 roles | Siempre "Asistente IA" (nunca "Asistente de la plataforma"/"de IA") |
+| ASI-02 | FAQ referenciado con link | Preguntar al Asistente IA una FAQ (ver ejemplos por rol) | Responde y comparte el enlace público del clip corto correspondiente |
+| ASI-03 | No anuncia videos sin link | — | El asistente solo referencia videos con `video_url` real (nunca "en preparación") |
+
+### Módulo comercial de instituciones (SuperAdmin)
+| ID | Caso | Pasos | Resultado esperado |
+|----|------|-------|--------------------|
+| COM-01 | Facturación y plan | SA → Instituciones → menú → Facturación y plan | Edita plan, ciclo, fechas, gracia (días hábiles), IA, auto-suspender |
+| COM-02 | Grid sin columna Licencias | SA → Instituciones | El grid muestra Plan · IA · Almacenamiento · Facturación (sin la columna A/D/E) + buscador |
+| COM-03 | Banner al Admin | Entrar como Admin de institución por vencer/suspendida | Aparece el banner de facturación (solo lectura) |

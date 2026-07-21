@@ -3,6 +3,13 @@
 > Estado: **DISEÑO aprobado como plan** (no implementado aún, decisión del usuario 2026-07-14).
 > Único cambio ya aplicado: endurecimiento de seguridad (ver §5). Deriva del workflow de
 > investigación `email-sender-per-user-refactor`.
+>
+> **Revisado 2026-07-20**: la sesión de esta fecha NO tocó la arquitectura de envío de
+> correo (pipeline `notifications → notify_send_email → send-email → SMTP` intacto; la
+> resolución de remitente por institución vía `tenant_email_settings` sigue dormida como se
+> describe abajo). El plan continúa **vigente y pendiente de implementación**. Sí se ajustó
+> texto de correo/notif indirectamente: "Broadcast"→"Difusión" en la UI de difusión (el
+> correo BCC del broadcast usa ese label). Sin otros ajustes de correo requeridos.
 
 ## 1. Problema
 
