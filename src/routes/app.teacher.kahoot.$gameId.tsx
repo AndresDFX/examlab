@@ -450,7 +450,7 @@ function KahootHost() {
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
               {question.options.map((o) => {
                 const shape = KAHOOT_SHAPES[o.position] ?? KAHOOT_SHAPES[0];
                 const dim = game.status === "reveal" && o.is_correct === false;
@@ -459,10 +459,10 @@ function KahootHost() {
                 return (
                   <div
                     key={o.id}
-                    className={`flex flex-col gap-2 rounded-xl ${shape.bg} text-white px-4 py-5 shadow transition-opacity animate-in fade-in zoom-in-95 duration-300 ${dim ? "opacity-40" : ""}`}
+                    className={`flex flex-col gap-2 rounded-xl ${shape.bg} text-white px-3 py-3 sm:px-4 sm:py-5 shadow transition-opacity animate-in fade-in zoom-in-95 duration-300 ${dim ? "opacity-40" : ""}`}
                   >
-                    <div className="flex items-center gap-3 text-lg font-semibold">
-                      <KahootShapeIcon icon={shape.icon} className="h-7 w-7 shrink-0" />
+                    <div className="flex items-center gap-2 sm:gap-3 text-base sm:text-lg font-semibold">
+                      <KahootShapeIcon icon={shape.icon} className="h-5 w-5 sm:h-7 sm:w-7 shrink-0" />
                       <span className="flex-1">{o.label}</span>
                       {/* El conteo POR OPCIÓN solo se muestra en el REVEAL (al
                           terminar el tiempo). Durante la pregunta la pantalla del

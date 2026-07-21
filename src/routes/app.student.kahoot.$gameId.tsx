@@ -241,7 +241,7 @@ function KahootPlayer() {
                   {t("kahoot.multiSelectHint")}
                 </p>
               )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
                 {question.options.map((o) => {
                   const shape = KAHOOT_SHAPES[o.position] ?? KAHOOT_SHAPES[0];
                   const isSel = selected.includes(o.id);
@@ -264,7 +264,7 @@ function KahootPlayer() {
                       type="button"
                       disabled={submitting}
                       onClick={onPick}
-                      className={`flex items-center gap-3 rounded-xl ${shape.bg} text-white px-4 py-6 text-lg font-semibold shadow transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 animate-in fade-in zoom-in-95 duration-300 ${
+                      className={`flex items-center gap-2 sm:gap-3 rounded-xl ${shape.bg} text-white px-3 py-4 sm:px-4 sm:py-6 text-base sm:text-lg font-semibold shadow transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 animate-in fade-in zoom-in-95 duration-300 ${
                         isSel ? "ring-4 ring-white/80 scale-[1.02]" : ""
                       }`}
                     >
@@ -273,9 +273,9 @@ function KahootPlayer() {
                       ) : question.multi_select && isSel ? (
                         <CheckCircle2 className="h-7 w-7 shrink-0" />
                       ) : (
-                        <KahootShapeIcon icon={shape.icon} className="h-7 w-7 shrink-0" />
+                        <KahootShapeIcon icon={shape.icon} className="h-5 w-5 sm:h-7 sm:w-7 shrink-0" />
                       )}
-                      <span className="flex-1 text-left">{o.label}</span>
+                      <span className="flex-1 text-left break-words">{o.label}</span>
                     </button>
                   );
                 })}
