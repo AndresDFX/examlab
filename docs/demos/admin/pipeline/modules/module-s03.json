@@ -69,6 +69,64 @@
       ]
     },
     {
+      "id": "tomar",
+      "kind": "platform",
+      "openVia": {
+        "target": "button:Iniciar examen"
+      },
+      "ready": [
+        "text=Ejecutar"
+      ],
+      "narration": "Al iniciar, el examen entra en pantalla completa y el estudiante responde una pregunta a la vez. En una pregunta de programación escribe su solución en el editor de código integrado, con resaltado de sintaxis, sin salir del examen.",
+      "bufferMs": 1000,
+      "beats": [
+        {
+          "target": "maincard",
+          "scale": 1.05,
+          "hold": 9500,
+          "side": "left",
+          "syncWord": "editor",
+          "focus": {
+            "title": "Editor de código",
+            "body": "Escribe y edita tu solución dentro del examen."
+          }
+        }
+      ]
+    },
+    {
+      "id": "ejecutar",
+      "kind": "platform",
+      "narration": "Y lo ejecuta ahí mismo: el compilador integrado corre el código y muestra la salida al instante, para verificar la respuesta antes de avanzar a la siguiente pregunta.",
+      "bufferMs": 1200,
+      "beats": [
+        {
+          "click": true,
+          "target": "button:Ejecutar",
+          "afterClickMs": 6000,
+          "focusTarget": "maincard",
+          "scale": 1.05,
+          "hold": 7500,
+          "side": "left",
+          "syncWord": "ejecuta",
+          "focus": {
+            "title": "Ejecutar",
+            "body": "Corre el código y muestra la salida sin salir del examen."
+          }
+        },
+        {
+          "target": "button:Siguiente",
+          "scale": 1.4,
+          "hold": 3000,
+          "side": "top",
+          "syncWord": "avanzar",
+          "focus": {
+            "title": "Siguiente",
+            "body": "Avanza a la siguiente pregunta del examen."
+          }
+        }
+      ]
+    },
+    {
       "id": "outro",
       "kind": "card",
       "narration": "Así el estudiante presenta sus exámenes de forma clara y supervisada, con compilador y consola de redes integrados.",

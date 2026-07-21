@@ -5055,7 +5055,7 @@
     "tagsLabel": "Tags",
     "newTagPlaceholder": "New tag…",
     "addTag": "Add",
-    "shareOrgLabel": "Share with the organization",
+    "shareOrgLabel": "Share with the institution",
     "shareOrgHelp": "Any teacher at your institution will be able to view and import this question into their exams, workshops, projects, or live challenges. Only you (or an administrator) can edit or delete it.",
     "shareOrgHint": "Share = read/import at the institution level. Edit = owner only.",
     "saveChanges": "Save changes",
