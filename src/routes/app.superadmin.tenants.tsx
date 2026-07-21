@@ -82,6 +82,27 @@ export const Route = createFileRoute("/app/superadmin/tenants")({
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
+/** Fila enriquecida del RPC superadmin_tenant_overview (licencias, IA, plan,
+ *  facturación) — para mostrar "de un vistazo" por institución en el grid. */
+interface TenantOverview {
+  tenant_id: string;
+  plan_tier: string;
+  ai_mode: string;
+  has_own_ai_key: boolean;
+  admins: number;
+  teachers: number;
+  students: number;
+  max_admins: number | null;
+  max_teachers: number | null;
+  max_students: number | null;
+  subscription_status: string;
+  days_left: number | null;
+}
+
+/** clase de color para un contador de licencia que superó su cupo. */
+const overCls = (n: number, max: number | null) =>
+  max != null && n > max ? "text-destructive font-semibold" : "";
+
 function SuperAdminTenantsPage() {
   const { t: tl } = useTranslation();
   const { roles, loading: authLoading } = useAuth();
@@ -89,6 +110,9 @@ function SuperAdminTenantsPage() {
   const isSuper = roles.includes("SuperAdmin");
 
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  // Enriquecimiento comercial (licencias/IA/plan/facturación) por tenant_id,
+  // del RPC superadmin_tenant_overview (SA-only). Se muestra en columnas extra.
+  const [overview, setOverview] = useState<Record<string, TenantOverview>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -154,6 +178,16 @@ function SuperAdminTenantsPage() {
       setTenants([]);
     } else {
       setTenants((data ?? []) as Tenant[]);
+    }
+    // Enriquecimiento comercial en UN solo RPC (evita N+1). Best-effort: si
+    // falla (ej. migración aún no publicada), el grid sigue mostrando lo básico.
+    try {
+      const { data: ov } = await db.rpc("superadmin_tenant_overview");
+      const map: Record<string, TenantOverview> = {};
+      for (const r of (ov ?? []) as TenantOverview[]) map[r.tenant_id] = r;
+      setOverview(map);
+    } catch {
+      /* migración no publicada todavía — sin enriquecimiento */
     }
     setLoading(false);
   };
@@ -802,6 +836,9 @@ function SuperAdminTenantsPage() {
                   <SortableHead sortKey="status" sort={sort} className="w-28">
                     {tl("superadminTenants.colStatus")}
                   </SortableHead>
+                  <TableHead className="hidden lg:table-cell w-24">{tl("superadminTenants.colPlan")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{tl("superadminTenants.colLicenses")}</TableHead>
+                  <TableHead className="hidden lg:table-cell w-28">{tl("superadminTenants.colAi")}</TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -840,6 +877,56 @@ function SuperAdminTenantsPage() {
                         <Badge variant="outline" className="text-[10px]">
                           {tl("superadminTenants.statusPaused")}
                         </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {overview[t.id] ? (
+                        <Badge variant="outline" className="text-[10px] capitalize">
+                          {overview[t.id].plan_tier}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell text-xs tabular-nums whitespace-nowrap">
+                      {overview[t.id] ? (
+                        <span title={tl("superadminTenants.licensesTitle")}>
+                          A{" "}
+                          <span className={overCls(overview[t.id].admins, overview[t.id].max_admins)}>
+                            {overview[t.id].admins}/{overview[t.id].max_admins ?? "∞"}
+                          </span>
+                          {" · "}D{" "}
+                          <span className={overCls(overview[t.id].teachers, overview[t.id].max_teachers)}>
+                            {overview[t.id].teachers}/{overview[t.id].max_teachers ?? "∞"}
+                          </span>
+                          {" · "}E{" "}
+                          <span className={overCls(overview[t.id].students, overview[t.id].max_students)}>
+                            {overview[t.id].students}/{overview[t.id].max_students ?? "∞"}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {overview[t.id] ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Badge variant="secondary" className="text-[10px]">
+                            {overview[t.id].ai_mode === "shared"
+                              ? tl("superadminTenants.aiShared")
+                              : overview[t.id].ai_mode === "own"
+                                ? tl("superadminTenants.aiOwn")
+                                : tl("superadminTenants.aiManaged")}
+                          </Badge>
+                          {overview[t.id].has_own_ai_key && (
+                            <span
+                              className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"
+                              title={tl("superadminTenants.aiKeyPresent")}
+                            />
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </TableCell>
                     <TableCell>

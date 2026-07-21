@@ -4568,7 +4568,15 @@
     "passwordCopied": "Contraseña copiada",
     "credentialsCopied": "Credenciales copiadas",
     "searchPlaceholder": "Buscar por nombre, slug o dominio…",
-    "noMatches": "Sin coincidencias. Ajusta la búsqueda."
+    "noMatches": "Sin coincidencias. Ajusta la búsqueda.",
+    "colPlan": "Plan",
+    "colLicenses": "Licencias (uso/cupo)",
+    "colAi": "IA",
+    "licensesTitle": "Administradores · Docentes · Estudiantes (uso/cupo)",
+    "aiShared": "Compartida",
+    "aiOwn": "Propia",
+    "aiManaged": "Gestionada",
+    "aiKeyPresent": "Tiene API key propia configurada"
   },
   "adminPromptsPanel": {
     "loadingPrompts": "Cargando prompts…",
