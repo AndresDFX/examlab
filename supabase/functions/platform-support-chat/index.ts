@@ -188,14 +188,22 @@ function buildPlatformKb(rows: KbRow[]): string {
 // con enlace (Markdown) si ya tiene URL pública de Supabase Storage; si no, lo menciona como
 // "en preparación". Se inyecta al inicio del bloque {{platform_kb}} del prompt.
 function buildHelpVideoBlock(
-  rows: Array<{ title: string | null; route: string | null; video_url: string | null }>,
+  rows: Array<{
+    title: string | null;
+    route: string | null;
+    video_url: string | null;
+    question?: string | null;
+  }>,
 ): string {
   const lines = rows
     .map((r) => {
       const t = (r.title || "").trim();
       if (!t) return "";
       const link = r.video_url ? `[${t}](${r.video_url})` : `${t} (video en preparación)`;
-      return `- ${link}${r.route ? ` — sección \`${r.route}\`` : ""}`;
+      // Un clip FAQ trae la pregunta puntual que responde → la incluimos para
+      // que el modelo lo matchee con lo que pregunta el usuario y comparta el link.
+      const q = (r.question || "").trim();
+      return `- ${link}${q ? ` — responde: "${q}"` : ""}${r.route ? ` — sección \`${r.route}\`` : ""}`;
     })
     .filter(Boolean);
   if (!lines.length) return "";
@@ -332,7 +340,7 @@ Deno.serve(async (req) => {
     const roleForVideos = promptRole === "SuperAdmin" ? "Admin" : promptRole;
     const { data: videoRows } = await admin
       .from("platform_help_videos")
-      .select("title, route, video_url, role, position, is_active")
+      .select("title, route, video_url, role, position, is_active, kind, question")
       .eq("is_active", true)
       .order("position", { ascending: true });
     const relevantVideos = ((videoRows ?? []) as Array<{
@@ -340,6 +348,7 @@ Deno.serve(async (req) => {
       route: string | null;
       video_url: string | null;
       role: string | null;
+      question?: string | null;
     }>).filter((v) => v.role === roleForVideos || v.role == null);
     const videoBlock = buildHelpVideoBlock(relevantVideos);
 
