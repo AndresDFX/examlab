@@ -225,6 +225,7 @@ function QuestionBankPage() {
   // Cargar cursos del docente
   useEffect(() => {
     if (!user) return;
+    let cancelled = false;
     (async () => {
       let query;
       if (isAdminLike) {
@@ -242,6 +243,7 @@ function QuestionBankPage() {
           .order("name");
       }
       const { data, error } = await query;
+      if (cancelled) return;
       if (error) {
         toast.error(friendlyError(error));
         return;
@@ -252,6 +254,9 @@ function QuestionBankPage() {
         setCourseId(list[0].id);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
