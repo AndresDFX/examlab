@@ -74,6 +74,29 @@ Patrón usado mucho en testing — se puede simular casi todo lo que el UI hace 
 
 ---
 
+## Regla de consistencia (OBLIGATORIA al terminar una funcionalidad)
+
+Al terminar (o antes de commitear) **cualquier** funcionalidad nueva, cambio de UI, migración,
+edge o interacción que toque pantallas/textos/estado/datos, invocá el **agente `consistencia`**
+([.claude/agents/consistencia.md](.claude/agents/consistencia.md)) para validar que el cambio es
+**acorde** con el resto del proyecto y no introduce conflictos. Valida cuatro ejes:
+
+- **Iconos** — el mismo concepto (módulo/entidad/acción) usa el mismo icono lucide en todos lados
+  (sidebar ↔ PageHeader ↔ tour; acciones de fila; StatusBadge).
+- **Traducción (i18n)** — todo texto visible por `t(...)`; paridad es↔en; sin inglés filtrado en
+  es-CO; convenciones de marca ("institución" no "tenant", "Reto en vivo" no "Kahoot", naming del
+  asistente); fechas por `src/lib/format.ts`.
+- **Persistencia** — claves `examlab*` únicas (paginación/orden/tema/override); sin lectura de
+  browser APIs en initializers de `useState` (hidratación #418); effects con guard `cancelled`;
+  migraciones defensivas + scope de tenant.
+- **Coherencia / no-conflicto** — usa el design system; respeta invariantes cross-file y RLS; no
+  rompe flujos existentes (papelera, pesos/cortes, rol activo, módulos registrados en el catálogo).
+
+Es READ-ONLY: devuelve un reporte con `file:line` + fix; los cambios los aplica quien lo invoca.
+Correr también `bun tsc --noEmit` (EXIT 0) y los tests de helpers puros afectados.
+
+---
+
 ## Regla de UI: usar el design system propio SIEMPRE
 
 Antes de añadir markup nuevo o tocar estilos en una pantalla, **revisar primero si existe un componente del design system propio que cubra el caso**. Si existe, usarlo. Si no existe pero el patrón se va a repetir, **proponer crear el componente y agregarlo a este CLAUDE.md** antes de implementarlo inline en una sola pantalla.
