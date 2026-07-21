@@ -662,9 +662,20 @@ Deno.serve(async (req) => {
       },
     });
 
-    // Audit ADICIONAL si hubo error de compilación/runtime — incluye raw response
-    // para poder diagnosticar mensajes como "Internal error: code execution failed".
-    if (result.stderr.trim() || result.exitCode !== 0) {
+    // Audit de ERROR solo si es un FALLO DE INFRAESTRUCTURA (el runner/edge no
+    // pudo ejecutar): 5xx del provider, proceso matado (signal/timeout), sin
+    // salida alguna, o el mensaje opaco "Internal error: code execution failed".
+    // Un exit!=0 CON stderr real (traceback) y http 200 es un error del CÓDIGO
+    // DEL ALUMNO — salida NORMAL de terminal (esperada al aprender): ya se ve en
+    // la consola y quedó en `code.executed` (info); NO se audita como warning.
+    // Antes TODO exit!=0 emitía un warning "code.compile_error" que ensuciaba el
+    // panel de Errores con errores normales de los estudiantes.
+    const isInfraFailure =
+      (result.httpStatus != null && result.httpStatus >= 500) ||
+      !!result.signal ||
+      (!result.stdout.trim() && !result.stderr.trim()) ||
+      /internal\s+error:\s*code execution failed/i.test(result.stderr);
+    if (isInfraFailure) {
       void auditFromEdge(admin, {
         actorId: u.user.id,
         action: "code.compile_error",
@@ -679,6 +690,7 @@ Deno.serve(async (req) => {
           question_id: questionId,
           exit_code: result.exitCode,
           http_status: result.httpStatus ?? null,
+          signal: result.signal ?? null,
           stderr_preview: result.stderr.slice(0, 2000),
           stdout_preview: result.stdout.slice(0, 500),
           raw_response: result.rawResponse,
