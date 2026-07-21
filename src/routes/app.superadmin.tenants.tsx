@@ -839,6 +839,7 @@ function SuperAdminTenantsPage() {
                   <TableHead className="hidden lg:table-cell w-24">{tl("superadminTenants.colPlan")}</TableHead>
                   <TableHead className="hidden md:table-cell">{tl("superadminTenants.colLicenses")}</TableHead>
                   <TableHead className="hidden lg:table-cell w-28">{tl("superadminTenants.colAi")}</TableHead>
+                  <TableHead className="hidden xl:table-cell w-28">{tl("superadminTenants.colBilling")}</TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -928,6 +929,32 @@ function SuperAdminTenantsPage() {
                       ) : (
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
+                    </TableCell>
+                    <TableCell className="hidden xl:table-cell text-xs whitespace-nowrap">
+                      {(() => {
+                        const o = overview[t.id];
+                        if (!o) return <span className="text-muted-foreground">—</span>;
+                        const s = o.subscription_status;
+                        if (s === "suspended" || s === "expired" || s === "cancelled")
+                          return (
+                            <Badge variant="destructive" className="text-[10px]">
+                              {tl(`superadminTenants.sub_${s}`)}
+                            </Badge>
+                          );
+                        if (s === "past_due")
+                          return (
+                            <Badge className="text-[10px] border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-400">
+                              {tl("superadminTenants.sub_past_due")}
+                            </Badge>
+                          );
+                        if (o.days_left == null)
+                          return <span className="text-muted-foreground">{tl("superadminTenants.sub_courtesy")}</span>;
+                        return (
+                          <span className={o.days_left <= 7 ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground"}>
+                            {tl("superadminTenants.daysLeft", { n: o.days_left })}
+                          </span>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <RowActionsMenu

@@ -4576,7 +4576,14 @@
     "aiShared": "Compartida",
     "aiOwn": "Propia",
     "aiManaged": "Gestionada",
-    "aiKeyPresent": "Tiene API key propia configurada"
+    "aiKeyPresent": "Tiene API key propia configurada",
+    "colBilling": "Facturación",
+    "sub_suspended": "Suspendida",
+    "sub_expired": "Vencida",
+    "sub_cancelled": "Cancelada",
+    "sub_past_due": "En gracia",
+    "sub_courtesy": "Cortesía",
+    "daysLeft": "Vence en {{n}} d"
   },
   "adminPromptsPanel": {
     "loadingPrompts": "Cargando prompts…",

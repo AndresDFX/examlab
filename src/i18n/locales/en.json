@@ -4576,7 +4576,14 @@
     "aiShared": "Shared",
     "aiOwn": "Own",
     "aiManaged": "Managed",
-    "aiKeyPresent": "Has its own API key configured"
+    "aiKeyPresent": "Has its own API key configured",
+    "colBilling": "Billing",
+    "sub_suspended": "Suspended",
+    "sub_expired": "Expired",
+    "sub_cancelled": "Cancelled",
+    "sub_past_due": "Grace period",
+    "sub_courtesy": "Courtesy",
+    "daysLeft": "{{n}} d left"
   },
   "adminPromptsPanel": {
     "loadingPrompts": "Loading prompts…",
