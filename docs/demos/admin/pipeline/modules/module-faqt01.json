@@ -1,0 +1,31 @@
+{
+  "id": "modulo-faqt01",
+  "kind": "faq",
+  "question": "¿Cómo creo un examen?",
+  "title": "Crear un examen",
+  "series": "faq",
+  "role": "Docente",
+  "appPath": "/app/teacher/exams",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/exams\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo se crea un examen y se le agregan preguntas?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Crear un examen", "subtitle": "Preguntas y asignación" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Exámenes, Nuevo examen define el curso, la duración y las reglas de navegación. Luego se agregan preguntas a mano o con ayuda de la inteligencia artificial, y se asigna al curso para que los estudiantes lo presenten.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/teacher/exams\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Exámenes", "body": "Tus evaluaciones en un solo lugar." } },
+        { "target": "text:Nuevo", "scale": 1.35, "hold": 3400, "side": "bottom", "focus": { "title": "Nuevo examen", "body": "Curso, duración y navegación." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 3400, "side": "bottom", "focus": { "title": "Preguntas y asignación", "body": "A mano o con IA, luego se asigna al curso." } }
+      ]
+    }
+  ]
+}

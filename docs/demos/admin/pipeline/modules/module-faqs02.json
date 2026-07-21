@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqs02",
+  "kind": "faq",
+  "question": "¿Cómo hago check-in de asistencia?",
+  "title": "Check-in de asistencia",
+  "series": "faq",
+  "role": "Estudiante",
+  "appPath": "/app/student/attendance",
+  "readySelectors": ["[data-tour-nav=\"/app/student/attendance\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "El docente abrió el check-in. ¿Cómo marco que estoy presente?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Check-in de asistencia", "subtitle": "Escanea el QR o escribe el código" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "Cuando el docente abre el check-in, en Asistencia aparece la opción para escanear el código QR con la cámara. Si prefieres, escribes a mano el código de seis dígitos que se muestra en el proyector. Con eso quedas presente al instante.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/student/attendance\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Asistencia", "body": "Tus sesiones de clase." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Escanear o escribir", "body": "QR con la cámara o código de 6 dígitos." } }
+      ]
+    }
+  ]
+}

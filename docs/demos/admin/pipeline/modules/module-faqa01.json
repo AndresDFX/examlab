@@ -1,0 +1,31 @@
+{
+  "id": "modulo-faqa01",
+  "kind": "faq",
+  "question": "¿Cómo creo un usuario o importo estudiantes por CSV?",
+  "title": "Crear usuarios e importar estudiantes",
+  "series": "faq",
+  "role": "Admin",
+  "appPath": "/app/admin/users",
+  "readySelectors": ["[data-tour-nav=\"/app/admin/users\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo se crean usuarios o se importan estudiantes en bloque?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Crear usuarios", "subtitle": "Uno a uno o por CSV" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Usuarios, el botón Nuevo usuario crea una persona con su rol y una contraseña temporal. Para muchos a la vez, Importar recibe un archivo CSV y matricula a todos al curso indicado en un solo paso.",
+      "bufferMs": 700,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/admin/users\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Usuarios", "body": "Donde vive la gestión de personas." } },
+        { "target": "text:Nuevo", "scale": 1.35, "hold": 3200, "side": "bottom", "focus": { "title": "Nuevo usuario", "body": "Crea uno con rol y clave temporal." } },
+        { "target": "text:Importar", "scale": 1.35, "hold": 3600, "side": "bottom", "focus": { "title": "Importar CSV", "body": "Carga masiva y matrícula al curso." } }
+      ]
+    }
+  ]
+}

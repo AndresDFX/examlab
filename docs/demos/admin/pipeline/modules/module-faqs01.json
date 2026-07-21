@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqs01",
+  "kind": "faq",
+  "question": "¿Cómo presento un examen?",
+  "title": "Presentar un examen",
+  "series": "faq",
+  "role": "Estudiante",
+  "appPath": "/app/student/exams",
+  "readySelectors": ["[data-tour-nav=\"/app/student/exams\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo presento un examen que me asignaron?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Presentar un examen", "subtitle": "Desde el inicio hasta entregar" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Exámenes aparecen los que tienes disponibles. Al iniciar, respondes cada pregunta y tus respuestas se guardan solas mientras avanzas; cuando terminas, el botón Entregar envía el examen. Si dejas alguna en blanco, la plataforma te avisa antes de entregar.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/student/exams\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Exámenes", "body": "Tus evaluaciones pendientes." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Iniciar y entregar", "body": "Se autoguarda; avisa si dejas respuestas en blanco." } }
+      ]
+    }
+  ]
+}

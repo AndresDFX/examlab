@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqa03",
+  "kind": "faq",
+  "question": "¿Cómo configuro los cortes y los pesos de evaluación de un curso?",
+  "title": "Cortes y pesos de evaluación",
+  "series": "faq",
+  "role": "Admin",
+  "appPath": "/app/admin/courses",
+  "readySelectors": ["[data-tour-nav=\"/app/admin/courses\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo se definen los cortes y cuánto pesa cada cosa en la nota final?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Cortes y pesos", "subtitle": "Cómo se arma la nota final" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "Cada curso se divide en cortes, y cada corte aporta un porcentaje a la nota final; los cortes suman cien. Dentro de cada corte se reparte ese peso entre exámenes, talleres, proyectos y asistencia, y el formulario muestra cuánto disponible queda para no pasarse.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/admin/courses\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Cursos", "body": "Los cortes se configuran dentro del curso." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Cortes del curso", "body": "Cada corte es un % de la nota final." } }
+      ]
+    }
+  ]
+}

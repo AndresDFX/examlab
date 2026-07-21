@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqt03",
+  "kind": "faq",
+  "question": "¿Cómo veo el libro de notas y lo exporto?",
+  "title": "Libro de notas y exportación",
+  "series": "faq",
+  "role": "Docente",
+  "appPath": "/app/teacher/gradebook",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/gradebook\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Dónde veo las notas consolidadas del curso y cómo las exporto?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Libro de notas", "subtitle": "Consolidado y exportar a CSV" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "El libro de notas reúne el consolidado por corte de cada estudiante, con el promedio ponderado según los pesos del curso. Desde ahí se exporta todo a un archivo CSV para llevarlo a la planilla de la institución.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/teacher/gradebook\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Calificaciones", "body": "El consolidado por corte." } },
+        { "target": "text:Exportar", "scale": 1.3, "hold": 3600, "side": "bottom", "focus": { "title": "Exportar CSV", "body": "Descarga las notas del curso." } }
+      ]
+    }
+  ]
+}

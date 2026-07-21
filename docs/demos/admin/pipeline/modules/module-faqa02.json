@@ -1,0 +1,31 @@
+{
+  "id": "modulo-faqa02",
+  "kind": "faq",
+  "question": "¿Cómo creo un curso y le asigno docentes y estudiantes?",
+  "title": "Crear un curso y asignar personas",
+  "series": "faq",
+  "role": "Admin",
+  "appPath": "/app/admin/courses",
+  "readySelectors": ["[data-tour-nav=\"/app/admin/courses\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo se crea un curso y se le asignan docentes y estudiantes?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Crear un curso", "subtitle": "Docentes y matrículas" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Cursos, Nuevo curso pide el nombre y las fechas. Ya creado, desde sus acciones se asignan los docentes que lo dictan y se matriculan los estudiantes, de forma individual o desde la importación.",
+      "bufferMs": 700,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/admin/courses\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Cursos", "body": "El catálogo de cursos de la institución." } },
+        { "target": "text:Nuevo", "scale": 1.35, "hold": 3200, "side": "bottom", "focus": { "title": "Nuevo curso", "body": "Nombre, fechas y configuración." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 3600, "side": "bottom", "focus": { "title": "Docentes y estudiantes", "body": "Se asignan desde las acciones del curso." } }
+      ]
+    }
+  ]
+}

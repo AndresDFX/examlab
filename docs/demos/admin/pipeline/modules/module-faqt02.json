@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqt02",
+  "kind": "faq",
+  "question": "¿Cómo tomo asistencia con el código QR?",
+  "title": "Asistencia con QR rotativo",
+  "series": "faq",
+  "role": "Docente",
+  "appPath": "/app/teacher/attendance",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/attendance\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo tomo asistencia sin llamar a lista uno por uno?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Asistencia con QR", "subtitle": "Los estudiantes se marcan solos" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Asistencia se abre el check-in de una sesión y se proyecta un código QR que rota cada pocos segundos. Los estudiantes lo escanean desde su celular y quedan presentes en vivo; al cerrar, se pueden marcar como ausentes los que faltaron.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/teacher/attendance\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Asistencia", "body": "Sesiones de clase y check-in." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Check-in con QR", "body": "Código rotativo, presentes en tiempo real." } }
+      ]
+    }
+  ]
+}

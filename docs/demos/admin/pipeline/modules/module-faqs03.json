@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqs03",
+  "kind": "faq",
+  "question": "¿Dónde veo mis notas?",
+  "title": "Ver mis notas",
+  "series": "faq",
+  "role": "Estudiante",
+  "appPath": "/app/student/grades",
+  "readySelectors": ["[data-tour-nav=\"/app/student/grades\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Dónde consulto mis notas por curso y por corte?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Mis notas", "subtitle": "Por curso y por corte" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Notas ves cada curso con tus calificaciones por corte y el promedio ponderado. Lo que aún no tiene nota cuenta como pendiente, así que siempre sabes cómo vas y qué te falta por entregar.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/student/grades\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Notas", "body": "Tus calificaciones por curso." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4000, "side": "bottom", "focus": { "title": "Por corte y ponderado", "body": "Lo pendiente cuenta hasta que aparezca la nota." } }
+      ]
+    }
+  ]
+}
