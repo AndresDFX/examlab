@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { readTenantOverride } from "@/modules/tenants/use-tenant";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -76,6 +77,7 @@ export function AdminModelPanel() {
   const { t } = useTranslation();
   const { user, profile, roles } = useAuth();
   const activeRole = useActiveRole();
+  const confirm = useConfirm();
   // Scope: SuperAdmin cross-tenant edita la fila PLATFORM-DEFAULT
   // (tenant_id IS NULL). Cualquier otro caller (Admin común o SuperAdmin
   // con "Ver como") edita la fila de su tenant. CAMBIO: los tenants ya
@@ -101,6 +103,11 @@ export function AdminModelPanel() {
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  // Modo de IA de la institución (comercial): 'shared' usa la IA de la
+  // plataforma (default), 'own' usa la key propia del tenant, 'managed' es
+  // arreglo del proveedor (solo lo cambia el SuperAdmin). null = scope global.
+  const [aiMode, setAiMode] = useState<"shared" | "own" | "managed" | null>(null);
+  const [savingMode, setSavingMode] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -155,6 +162,13 @@ export function AdminModelPanel() {
       setDraftGeminiFallback([]);
       setDraftOpenaiFallback([]);
     }
+    // Modo de IA de la institución (solo tenant scope; el global no aplica).
+    if (!isGlobalScope) {
+      const { data: m } = await db.rpc("my_tenant_ai_mode");
+      setAiMode((m as "shared" | "own" | "managed" | null) ?? "shared");
+    } else {
+      setAiMode(null);
+    }
     setLoading(false);
   };
 
@@ -207,7 +221,9 @@ export function AdminModelPanel() {
     draftProvider === "openai" ? activeRow?.openai_api_key : activeRow?.gemini_api_key;
   const resolvedKeyAfterSave =
     activeProviderKeyDraft === "__keep" ? activeProviderKeyStored : activeProviderKeyDraft || null;
-  const tenantNeedsKey = !isGlobalScope && !resolvedKeyAfterSave;
+  // La key SOLO es obligatoria cuando el tenant usa su PROPIA IA ('own'). En
+  // 'shared'/'managed' usa la IA de la plataforma → la key es opcional.
+  const tenantNeedsKey = !isGlobalScope && aiMode === "own" && !resolvedKeyAfterSave;
 
   const handleProviderChange = (p: Provider) => {
     setDraftProvider(p);
@@ -339,6 +355,49 @@ export function AdminModelPanel() {
     );
   }
 
+  // Cambiar el modo de IA de la institución (shared ↔ own) con ALERTA previa.
+  // Aislado: la RPC set_my_tenant_ai_mode solo toca el tenant del Admin.
+  const changeAiMode = async (next: "shared" | "own") => {
+    if (next === aiMode || savingMode) return;
+    const ok = await confirm(
+      next === "own"
+        ? {
+            tone: "warning",
+            title: t("aiModel.ownConfirmTitle", { defaultValue: "Usar tu propia IA" }),
+            description: t("aiModel.ownConfirmBody", {
+              defaultValue:
+                "Tu institución dejará de usar la IA compartida de la plataforma y pasará a usar TU propia API key. El consumo se cobrará a la cuenta del proveedor de tu institución. Si la key falla o agota su cuota, la IA de tu institución dejará de funcionar hasta que la corrijas. Esto NO afecta a otras instituciones. Recordá pegar tu API key aquí abajo.",
+            }),
+            confirmLabel: t("aiModel.ownConfirmCta", { defaultValue: "Usar mi propia IA" }),
+          }
+        : {
+            tone: "warning",
+            title: t("aiModel.sharedConfirmTitle", { defaultValue: "Volver a la IA compartida" }),
+            description: t("aiModel.sharedConfirmBody", {
+              defaultValue:
+                "Tu institución volverá a usar la IA compartida de la plataforma. Tu API key quedará guardada, pero no se usará mientras estés en modo compartido.",
+            }),
+            confirmLabel: t("aiModel.sharedConfirmCta", { defaultValue: "Usar la compartida" }),
+          },
+    );
+    if (!ok) return;
+    setSavingMode(true);
+    try {
+      const { error } = await db.rpc("set_my_tenant_ai_mode", { _mode: next });
+      if (error) throw error;
+      setAiMode(next);
+      toast.success(
+        next === "own"
+          ? t("aiModel.ownDone", { defaultValue: "Ahora tu institución usa su propia IA." })
+          : t("aiModel.sharedDone", { defaultValue: "Ahora tu institución usa la IA compartida." }),
+      );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setSavingMode(false);
+    }
+  };
+
   const suggestions = MODEL_SUGGESTIONS[draftProvider];
   const datalistId = `ai-model-suggestions-${draftProvider}`;
 
@@ -380,22 +439,79 @@ export function AdminModelPanel() {
                   "Lo que guardes acá lo usan jobs internos de la plataforma. Las instituciones NO heredan de esta configuración: cada Admin debe pegar su propia API key en su panel.",
               })}
             </>
+          ) : aiMode === "own" ? (
+            <>
+              <strong>
+                {t("aiModel.scopeTenantOwn", { defaultValue: "Estás usando tu propia IA." })}
+              </strong>{" "}
+              {t("aiModel.scopeTenantOwnBody", {
+                defaultValue:
+                  "Pegá la API key del provider que vas a usar — cobra a la cuenta de tu institución. La calificación con IA no funciona hasta que esté configurada.",
+              })}
+            </>
           ) : (
             <>
               <strong>
-                {t("aiModel.scopeTenant", {
-                  defaultValue: "Configuración obligatoria de tu institución.",
+                {t("aiModel.scopeTenantShared", {
+                  defaultValue: "Estás usando la IA compartida de la plataforma.",
                 })}
               </strong>{" "}
-              {t("aiModel.scopeTenantBody", {
+              {t("aiModel.scopeTenantSharedBody", {
                 defaultValue:
-                  "Pegá la API key del provider que vas a usar — cobra a tu cuenta. La calificación con IA no funciona hasta que esté configurada.",
+                  "No necesitás configurar una API key. Si preferís usar la tuya, cambiá el modo a «Propia» abajo.",
               })}
             </>
           )}
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Modo de IA de la institución: Compartida (plataforma, default) vs
+            Propia (API key del tenant). Cambiar a "Propia" pide confirmación
+            (alerta) antes de aplicar. No afecta a otras instituciones. */}
+        {!isGlobalScope && aiMode && (
+          <div className="rounded-lg border p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium flex items-center gap-2">
+                <Cpu className="h-4 w-4 text-indigo-500" />
+                {t("aiModel.modeTitle", { defaultValue: "IA de la institución" })}
+              </span>
+              <Badge variant="secondary" className="text-[10px]">
+                {aiMode === "own"
+                  ? t("aiModel.modeOwn", { defaultValue: "Propia" })
+                  : aiMode === "managed"
+                    ? t("aiModel.modeManaged", { defaultValue: "Gestionada" })
+                    : t("aiModel.modeShared", { defaultValue: "Compartida" })}
+              </Badge>
+            </div>
+            {aiMode === "managed" ? (
+              <p className="text-xs text-muted-foreground">
+                {t("aiModel.modeManagedHint", {
+                  defaultValue:
+                    "La IA de tu institución la gestiona el proveedor. Para cambiar el modo, contacta a soporte.",
+                })}
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant={aiMode === "shared" ? "default" : "outline"}
+                  disabled={aiMode === "shared" || savingMode}
+                  onClick={() => changeAiMode("shared")}
+                >
+                  {t("aiModel.modeSharedBtn", { defaultValue: "Compartida (plataforma)" })}
+                </Button>
+                <Button
+                  size="sm"
+                  variant={aiMode === "own" ? "default" : "outline"}
+                  disabled={aiMode === "own" || savingMode}
+                  onClick={() => changeAiMode("own")}
+                >
+                  {t("aiModel.modeOwnBtn", { defaultValue: "Propia (mi API key)" })}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
         <div>
           <Label>
             {t("hc_modulesAdminAdminModelPanel.providerLabel")}{" "}
