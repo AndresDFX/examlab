@@ -1,6 +1,6 @@
 {
   "id": "modulo-s11",
-  "title": "Certificados (Estudiante)",
+  "title": "Certificaciones",
   "series": "student",
   "role": "Estudiante",
   "appPath": "/app/student/certificates",
@@ -19,7 +19,7 @@
       "narration": "Certificados de los cursos, desde el rol Estudiante.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Certificados",
+        "title": "Certificaciones",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200
@@ -58,7 +58,7 @@
       "narration": "Así el estudiante tiene sus logros acreditados siempre a la mano, listos para descargar y verificar.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Certificados (Estudiante)",
+        "title": "Certificaciones",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200

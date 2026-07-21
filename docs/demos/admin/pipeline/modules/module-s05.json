@@ -1,6 +1,6 @@
 {
   "id": "modulo-s05",
-  "title": "Proyectos (Estudiante)",
+  "title": "Proyectos",
   "series": "student",
   "role": "Estudiante",
   "appPath": "/app/student/projects",
@@ -74,7 +74,7 @@
       "narration": "Así el estudiante entrega su proyecto completo, con código, diagramas, análisis y repositorio, todo en un solo lugar.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Proyectos (Estudiante)",
+        "title": "Proyectos",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200

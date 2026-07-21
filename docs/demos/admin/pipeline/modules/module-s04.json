@@ -1,6 +1,6 @@
 {
   "id": "modulo-s04",
-  "title": "Talleres (Estudiante)",
+  "title": "Talleres",
   "series": "student",
   "role": "Estudiante",
   "appPath": "/app/student/workshops",
@@ -76,7 +76,7 @@
       "narration": "Así, los talleres reúnen instrucciones, entrega y retroalimentación en un solo lugar para el estudiante.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Talleres (Estudiante)",
+        "title": "Talleres",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200

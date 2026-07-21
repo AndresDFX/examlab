@@ -1,6 +1,6 @@
 {
   "id": "modulo-s12",
-  "title": "Calendario (Estudiante)",
+  "title": "Calendario",
   "series": "student",
   "role": "Estudiante",
   "appPath": "/app/student/calendar",
@@ -58,7 +58,7 @@
       "narration": "Con el calendario, el estudiante tiene sus clases, exámenes y entregas siempre a la vista, para organizarse sin sorpresas.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Calendario (Estudiante)",
+        "title": "Calendario",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200

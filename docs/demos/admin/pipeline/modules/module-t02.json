@@ -1,6 +1,6 @@
 {
   "id": "modulo-t02",
-  "title": "Gestión de Cursos (Docente)",
+  "title": "Cursos",
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/teacher/courses",
@@ -19,7 +19,7 @@
       "narration": "Gestión de cursos, desde el rol Docente.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
-        "title": "Mis Cursos",
+        "title": "Cursos",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 600
@@ -97,7 +97,7 @@
       "narration": "Así el docente organiza sus cursos, sesiones y estudiantes desde un solo lugar, con todo alineado al plan académico.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
-        "title": "Gestión de Cursos (Docente)",
+        "title": "Cursos",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 600

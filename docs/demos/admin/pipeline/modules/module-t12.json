@@ -1,6 +1,6 @@
 {
   "id": "modulo-t12",
-  "title": "Encuestas (Docente)",
+  "title": "Encuestas",
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/teacher/polls",
@@ -63,7 +63,7 @@
       "narration": "Con encuestas y retos en vivo conviertes cualquier clase en una dinámica participativa: recoges opiniones, asignas cupos o pones a competir a tu grupo, todo en segundos.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
-        "title": "Encuestas (Docente)",
+        "title": "Encuestas",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 600

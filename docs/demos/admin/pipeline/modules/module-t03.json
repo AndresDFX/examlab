@@ -1,6 +1,6 @@
 {
   "id": "modulo-t03",
-  "title": "Exámenes (Docente)",
+  "title": "Exámenes",
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/teacher/exams",
@@ -117,7 +117,7 @@
       "narration": "Y las preguntas no hay que escribirlas a mano: veamos en vivo cómo se generan con inteligencia artificial.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
-        "title": "Preguntas con IA",
+        "title": "Exámenes",
         "subtitle": "Generación en vivo"
       },
       "bufferMs": 600
@@ -189,7 +189,7 @@
       "narration": "Así de simple: exámenes creados, configurados y monitoreados en un solo lugar.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
-        "title": "Exámenes (Docente)",
+        "title": "Exámenes",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 600

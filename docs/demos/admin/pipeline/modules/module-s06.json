@@ -1,6 +1,6 @@
 {
   "id": "modulo-s06",
-  "title": "Mis Notas (Estudiante)",
+  "title": "Calificaciones",
   "series": "student",
   "role": "Estudiante",
   "appPath": "/app/student/grades",
@@ -19,7 +19,7 @@
       "narration": "Consulta de calificaciones, desde el rol Estudiante.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Mis Notas",
+        "title": "Calificaciones",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200
@@ -58,7 +58,7 @@
       "narration": "Así el estudiante ve, en un solo lugar, su desempeño por corte y su nota final de cada curso.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Mis Notas (Estudiante)",
+        "title": "Calificaciones",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200

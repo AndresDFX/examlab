@@ -1,6 +1,6 @@
 {
   "id": "modulo-s07",
-  "title": "Asistencia (Estudiante)",
+  "title": "Asistencia",
   "series": "student",
   "role": "Estudiante",
   "appPath": "/app/student/attendance",
@@ -68,7 +68,7 @@
       "narration": "Con el check-in por código rotativo, tu asistencia queda registrada al instante y de forma confiable.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Asistencia (Estudiante)",
+        "title": "Asistencia",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200

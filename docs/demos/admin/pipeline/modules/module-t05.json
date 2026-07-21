@@ -1,6 +1,6 @@
 {
   "id": "modulo-t05",
-  "title": "Proyectos (Docente)",
+  "title": "Proyectos",
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/teacher/projects",
@@ -164,7 +164,7 @@
       "narration": "Así, los proyectos reúnen entrega, código y sustentación en un solo flujo, con la inteligencia artificial redactando la descripción y armando los entregables.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
-        "title": "Proyectos (Docente)",
+        "title": "Proyectos",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 600

@@ -1,6 +1,6 @@
 {
   "id": "modulo-s03",
-  "title": "Exámenes (Estudiante)",
+  "title": "Exámenes",
   "series": "student",
   "role": "Estudiante",
   "appPath": "/app/student/exams",
@@ -74,7 +74,7 @@
       "narration": "Así el estudiante presenta sus exámenes de forma clara y supervisada, con compilador y consola de redes integrados.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Exámenes (Estudiante)",
+        "title": "Exámenes",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200

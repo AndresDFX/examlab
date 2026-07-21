@@ -1,6 +1,6 @@
 {
   "id": "modulo-t04",
-  "title": "Talleres (Docente)",
+  "title": "Talleres",
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/teacher/workshops",
@@ -154,7 +154,7 @@
       "narration": "Así los talleres te dan actividades prácticas con entrega, calificación y preguntas generadas con IA, todo en un mismo lugar.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
-        "title": "Talleres (Docente)",
+        "title": "Talleres",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 600

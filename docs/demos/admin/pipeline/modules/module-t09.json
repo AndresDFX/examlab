@@ -1,6 +1,6 @@
 {
   "id": "modulo-t09",
-  "title": "Contenidos (Docente)",
+  "title": "Contenidos",
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/teacher/contents",
@@ -112,7 +112,7 @@
       "narration": "Así, con IA o con tu propio material, el docente arma en minutos el contenido de cada clase del curso.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
-        "title": "Contenidos (Docente)",
+        "title": "Contenidos",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 600

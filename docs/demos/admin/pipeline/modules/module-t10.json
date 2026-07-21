@@ -1,6 +1,6 @@
 {
   "id": "modulo-t10",
-  "title": "Biblioteca de Videos (Docente)",
+  "title": "Videos",
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/videos",
@@ -19,7 +19,7 @@
       "narration": "La biblioteca de videos, desde el rol Docente.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
-        "title": "Biblioteca de Videos",
+        "title": "Videos",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 600
@@ -84,7 +84,7 @@
       "narration": "Así de simple: una biblioteca de videos de apoyo, por curso o generales, siempre a la mano para tus estudiantes.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
-        "title": "Biblioteca de Videos (Docente)",
+        "title": "Videos",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 600

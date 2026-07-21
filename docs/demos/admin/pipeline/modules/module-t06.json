@@ -1,6 +1,6 @@
 {
   "id": "modulo-t06",
-  "title": "Banco de Preguntas (Docente)",
+  "title": "Banco de preguntas",
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/teacher/question-bank",
@@ -19,7 +19,7 @@
       "narration": "El banco de preguntas, desde el rol Docente.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
-        "title": "Banco de Preguntas",
+        "title": "Banco de preguntas",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 600
@@ -112,7 +112,7 @@
       "narration": "Así, el banco de preguntas te deja crear una vez y reutilizar siempre, con la inteligencia artificial ayudándote a redactar. Menos trabajo repetido, evaluaciones más rápidas.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
-        "title": "Banco de Preguntas (Docente)",
+        "title": "Banco de preguntas",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 600

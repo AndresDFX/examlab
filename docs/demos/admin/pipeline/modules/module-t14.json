@@ -1,6 +1,6 @@
 {
   "id": "modulo-t14",
-  "title": "Calendario (Docente)",
+  "title": "Calendario",
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/teacher/calendar",
@@ -79,7 +79,7 @@
       "narration": "Así el calendario deja tus clases sincronizadas con Google y tus grabaciones al alcance de todos, en un solo lugar.",
       "card": {
         "kicker": "ExamLab · Serie de demostración",
-        "title": "Fin del recorrido",
+        "title": "Calendario",
         "subtitle": "Rol Docente · Demo Global Corp"
       },
       "bufferMs": 800

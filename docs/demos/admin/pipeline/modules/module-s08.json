@@ -1,6 +1,6 @@
 {
   "id": "modulo-s08",
-  "title": "Encuestas (Estudiante)",
+  "title": "Encuestas",
   "series": "student",
   "role": "Estudiante",
   "appPath": "/app/student/polls",
@@ -78,7 +78,7 @@
       "narration": "Así, con un clic, el estudiante hace oír su voz y participa en cada dinámica de la clase.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Encuestas (Estudiante)",
+        "title": "Encuestas",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200

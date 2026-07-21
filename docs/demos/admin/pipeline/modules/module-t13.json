@@ -1,6 +1,6 @@
 {
   "id": "modulo-t13",
-  "title": "Mensajes (Docente)",
+  "title": "Mensajes",
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/messages",
@@ -119,7 +119,7 @@
       "narration": "Así, entre el chat uno a uno y las difusiones a curso, mantienes a todos tus estudiantes informados desde un solo lugar.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
-        "title": "Mensajes (Docente)",
+        "title": "Mensajes",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 800

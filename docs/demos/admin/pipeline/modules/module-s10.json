@@ -1,6 +1,6 @@
 {
   "id": "modulo-s10",
-  "title": "Tutor del curso (Estudiante)",
+  "title": "Tutor del curso",
   "series": "student",
   "role": "Estudiante",
   "appPath": "/app/student/tutor",
@@ -82,7 +82,7 @@
       "narration": "Así el estudiante siempre tiene a mano un acompañante que entiende el material de su curso.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Tutor del curso (Estudiante)",
+        "title": "Tutor del curso",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200

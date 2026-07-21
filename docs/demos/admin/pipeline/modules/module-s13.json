@@ -1,6 +1,6 @@
 {
   "id": "modulo-s13",
-  "title": "Cuenta y Sesión (Estudiante)",
+  "title": "Cuenta y sesión",
   "series": "student",
   "role": "Estudiante",
   "appPath": "/app/student/courses",
@@ -19,7 +19,7 @@
       "narration": "Tu cuenta y la sesión dentro del rol Estudiante.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Cuenta y Sesión",
+        "title": "Cuenta y sesión",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200
@@ -74,7 +74,7 @@
       "narration": "Desde el pie del menú tienes a un clic tus avisos, tus mensajes y el cierre seguro de sesión.",
       "card": {
         "kicker": "ExamLab · Serie de demostración",
-        "title": "Fin del recorrido",
+        "title": "Cuenta y sesión",
         "subtitle": "Rol Estudiante · Demo Global Corp"
       },
       "bufferMs": 800

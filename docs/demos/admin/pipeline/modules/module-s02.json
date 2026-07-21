@@ -1,6 +1,6 @@
 {
   "id": "modulo-s02",
-  "title": "Mis Cursos (Estudiante)",
+  "title": "Cursos",
   "series": "student",
   "role": "Estudiante",
   "appPath": "/app/student/courses",
@@ -19,7 +19,7 @@
       "narration": "Tus cursos, desde el rol Estudiante.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Mis Cursos",
+        "title": "Cursos",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200
@@ -86,7 +86,7 @@
       "narration": "Así el estudiante tiene, en un solo lugar, todo lo que necesita de cada curso.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Mis Cursos (Estudiante)",
+        "title": "Cursos",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200
