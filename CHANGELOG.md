@@ -41,10 +41,56 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 - **Contenido**: el label de un contenido en el tablero ES el **nombre (`display_name`)**, no el tema (`topic`) — `display_name?.trim() || topic`. El contenido puede asociarse a >1 curso (`content_course_assignments`, vía `ManageContentCoursesDialog`) y a la sección "General" del curso (sin sesión, destino del upload del tablero). El grid de Contenidos muestra filas de **altura estándar** (una línea: nombre + estado + conteos; sin subtítulo del tema). (`f4c396d` + #22)
 - **Multi-tenant / RLS**: nunca `USING(true)` ni `has_role()` sin scope de tenant en tablas con datos de tenant (ver `CLAUDE.md`). Migraciones envuelven `ALTER` en guard `to_regclass`.
 - **Demo**: tenant `ExamLab Demo` (`729b3114-…`) tiene un curso "Curso de pruebas" con TODOS sus usuarios como docentes (mig `20260965`) — porque los docentes no pueden auto-asignarse.
+- **IA Compartida es el DEFAULT** (mig `20261340000000`, commit `1ecee536`). `tenants.ai_mode`: `shared` (default al crear institución) → usa la IA de la plataforma (fila activa SA `tenant_id IS NULL` + env), el tenant NO configura key propia; `own` → exige su key (sin ella, error accionable, no consume la cuota compartida); `managed` → compartida + medición/cobro aparte. `getActiveAiModel` (`_shared/ai-model.ts`) lo enforza. Un tenant que traiga su key DEBE quedar en `ai_mode='own'` desde el panel comercial.
+- **Borrado de usuario = LÓGICO, no físico** (edge `admin-delete-user`, `1facb8cc`; mig `20261340000000`). Setea `profiles.deleted_at`+`is_active=false`+ban en Auth. `current_tenant_id()` retorna NULL para usuarios desactivados/eliminados y para tenants con `subscription_status IN (suspended,expired,cancelled)` o `is_active=false` → la RLS los bloquea en TODA la app. Al agregar una tabla que dependa del tenant, esto ya la cubre por `current_tenant_id()`.
+- **Suscripción/facturación del tenant** (mig `20261350000000`). `process_tenant_subscriptions()` (cron diario `tenant-subscription-check-daily`) reactiva/suspende/marca past_due según `billing_end` + gracia en **días hábiles** (`add_business_days` excluye sábados/domingos + `platform_holidays`, SA-only). `auto_suspend` por tenant decide si el cron suspende al vencer la gracia. Solo el SuperAdmin edita lo comercial (RLS `tenants` UPDATE = `is_super_admin()` + guard `tg_guard_tenant_commercial_columns`).
+- **Naming visible del asistente** (auditoría 2026-07-20): "Asistente de la plataforma" = asistente de plataforma (`/app/assistant`, todos los roles); "Asistente de IA" = vista unificada del estudiante; "Tutor del curso" = tutor por curso. En texto visible a **quien NO es SuperAdmin** nunca "tenant" → siempre "institución". "Kahoot" nunca visible → "Reto en vivo" (identificadores internos siguen `kahoot`).
 
 ---
 
 ## Historial
+
+### 2026-07-20
+
+- **Módulo comercial de Instituciones (SuperAdmin).** `tenants` gana columnas comerciales
+  (plan_tier, contracted_services, ai_mode, storage_quota_mb, subscription_status,
+  billing_start/end, billing_cycle, monthly_amount, grace_business_days, auto_suspend…);
+  RPC `superadmin_tenant_overview()` (licencias por rol + almacenamiento real por bucket) y
+  `my_tenant_billing()`. Ciclos de facturación con **auto-suspensión/reactivación** del tenant
+  completo vía cron diario `process_tenant_subscriptions()` + gracia en **días hábiles**
+  (`add_business_days` excluye fines de semana + `platform_holidays`). Diálogo
+  `TenantBillingDialog`, banner al Admin (`TenantBillingBanner`). Migs `20261340000000`,
+  `20261350000000`, `20261380000000`. Commits `56c6aa52`, `15a32c93`, `d3ad2b6a`, `b0f01d76`,
+  `6a62e3e4`. El grid de Instituciones quitó la columna "Licencias" (ruido) → detalle en el
+  diálogo (`0bded47e`); se le agregó buscador + columnas Plan/IA/Almacenamiento/Facturación.
+- **IA Compartida real y por defecto** (`1ecee536`). `getActiveAiModel` respeta `tenants.ai_mode`:
+  `shared` (default) usa la IA de la plataforma sin pedir key; `own` exige la key del tenant;
+  `managed` = compartida + medición aparte. Safe pre-Publish (sin la columna → `shared`).
+- **Borrado LÓGICO de usuario** (`1facb8cc`). `admin-delete-user` ya no hace hard-delete: setea
+  `profiles.deleted_at`/`is_active=false` + banea en Auth. `current_tenant_id()` devuelve NULL
+  para usuarios desactivados/eliminados o tenants suspendidos → la RLS bloquea todo server-side.
+  `tenant_role_count` excluye `deleted_at` (baja el contador de licencias).
+- **Prompts del asistente de plataforma → editables SOLO por SuperAdmin** (mig `20261360000000`,
+  `8d1304d4`). RLS de `ai_prompts` excluye los `use_case` `platform_support*`/`support_triage`
+  de la escritura del Admin.
+- **Reto en vivo — guard de obsolescencia** (mig `20261370000000`, `323010ef`): un juego solo
+  aparece activo si el host dio señal en los últimos 3 min.
+- **execute-code**: los errores del CÓDIGO del alumno (exit≠0 con stderr, http 200) ya NO se
+  loguean como warning de "compilador"; solo fallos de infra (`650d485b`).
+- **Unificación del sidebar "Asistente de IA"** (`694bd274`): el asistente de plataforma aparece
+  como chat destacado junto a los tutores de curso del estudiante.
+- **Fix recarga extra al iniciar sesión** (`40547943`): login navega a `consumeReturnTo() ??
+  readLastRoute() ?? "/app"` (sin doble navegación).
+- **Videos FAQ cortos por rol** (migs `20261390000000`, `45928e06`; `674dd300`): `platform_help_videos`
+  gana `kind` (`module`|`faq`) + `question`. Guiones versionados `docs/demos/.../module-faq{a,t,s}NN.json`
+  (fuente de verdad) + README + `seed-faq-videos.mjs`. El asistente inyecta la pregunta del clip
+  para matchear y comparte el link público. Cross-tenant (phv_select=true), SA-only write.
+- **Auditoría de consistencia de nombres** (workflow, 20 hallazgos). Corregido: filtros de cola en
+  inglés (Pending→Pendiente…), "Broadcast"→"Difusión", "Strikes"→"Advertencias", títulos de tour
+  desalineados (Certificaciones/Encuestas/Pizarras), "Foro"→"Foros", "tenant"→"institución" en
+  texto visible a Admin/Docente, y el asistente de plataforma unificado a "Asistente de la
+  plataforma". Doc: `docs/audits/consistencia-nombres-2026-07-20.md`. Commits `595c41cd`,
+  `a02cb5cd`, `af73059f`, `28ae1e78`.
 
 ### 2026-07-19
 
