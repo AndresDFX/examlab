@@ -55,23 +55,42 @@ if (existsSync(faqDir)) {
   }
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Subida con reintentos: el uplink es lento/flaky y falla con "fetch failed"
+// (connection reset) en ráfagas de archivos grandes. 5 intentos con backoff.
+async function uploadWithRetry(j) {
+  const bytes = readFileSync(j.local);
+  let lastErr;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      const r = await fetch(`${URL}/storage/v1/object/${BUCKET}/${j.path}`, {
+        method: "POST",
+        headers: { ...H, "Content-Type": "video/mp4", "x-upsert": "true" },
+        body: bytes,
+      });
+      if (!r.ok) throw new Error(`${r.status}: ${(await r.text()).slice(0, 150)}`);
+      return { kb: Math.round(bytes.length / 1024), attempt };
+    } catch (e) {
+      lastErr = e;
+      if (attempt < 5) await sleep(attempt * 2500); // 2.5s, 5s, 7.5s, 10s
+    }
+  }
+  throw lastErr;
+}
+
 console.log(`Subiendo ${jobs.length} videos a ${BUCKET}…`);
 let ok = 0;
 const fails = [];
 for (const j of jobs) {
   try {
-    const bytes = readFileSync(j.local);
-    const r = await fetch(`${URL}/storage/v1/object/${BUCKET}/${j.path}`, {
-      method: "POST",
-      headers: { ...H, "Content-Type": "video/mp4", "x-upsert": "true" },
-      body: bytes,
-    });
-    if (!r.ok) throw new Error(`${r.status}: ${(await r.text()).slice(0, 150)}`);
+    const { kb, attempt } = await uploadWithRetry(j);
     ok++;
-    console.log(`  ✓ ${j.path} (${Math.round(bytes.length / 1024)} KB)`);
+    console.log(`  ✓ ${j.path} (${kb} KB)${attempt > 1 ? ` [intento ${attempt}]` : ""}`);
   } catch (e) {
     fails.push(j.path);
     console.error(`  ✗ ${j.path}: ${e.message ?? e}`);
   }
+  await sleep(300); // respiro entre archivos para no saturar el uplink
 }
 console.log(`\nHecho. ${ok}/${jobs.length} subidos.${fails.length ? " Fallaron: " + fails.join(", ") : ""}`);
