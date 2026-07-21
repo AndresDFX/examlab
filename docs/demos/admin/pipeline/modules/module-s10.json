@@ -55,8 +55,12 @@
     {
       "id": "abrir",
       "kind": "platform",
-      "openVia": { "target": "a[href*=\"/app/student/tutor/ae595b79\"]" },
-      "ready": ["text=mientras se cumpla"],
+      "openVia": {
+        "target": "a[href*=\"/app/student/tutor/ae595b79\"]"
+      },
+      "ready": [
+        "text=mientras se cumpla"
+      ],
       "narration": "Al abrir el tutor de un curso, el estudiante conversa con él como con un profesor auxiliar. Aquí le pregunta la diferencia entre un ciclo mientras y un ciclo para; el tutor no le entrega la respuesta hecha: lo guía con preguntas y se apoya en el material de la clase para que llegue solo a la conclusión.",
       "bufferMs": 1000,
       "beats": [
@@ -78,8 +82,8 @@
       "narration": "Así el estudiante siempre tiene a mano un acompañante que entiende el material de su curso.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Siguiente módulo",
-        "subtitle": "Certificados"
+        "title": "Tutor del curso (Estudiante)",
+        "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200
     }

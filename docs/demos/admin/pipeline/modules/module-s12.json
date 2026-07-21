@@ -58,8 +58,8 @@
       "narration": "Con el calendario, el estudiante tiene sus clases, exámenes y entregas siempre a la vista, para organizarse sin sorpresas.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Siguiente módulo",
-        "subtitle": "Cuenta y Sesión"
+        "title": "Calendario (Estudiante)",
+        "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200
     }

@@ -58,8 +58,8 @@
       "narration": "Así el estudiante ve, en un solo lugar, su desempeño por corte y su nota final de cada curso.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
-        "title": "Siguiente módulo",
-        "subtitle": "Asistencia"
+        "title": "Mis Notas (Estudiante)",
+        "subtitle": "Demo Global Corp"
       },
       "bufferMs": 2200
     }

@@ -4,14 +4,24 @@
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/teacher/courses",
-  "readySelectors": ["[data-tour-nav=\"/app/teacher/courses\"]", "text=Cursos"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "[data-tour-nav=\"/app/teacher/courses\"]",
+    "text=Cursos"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
       "narration": "Gestión de cursos, desde el rol Docente.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Mis Cursos", "subtitle": "Demo Global Corp" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Mis Cursos",
+        "subtitle": "Demo Global Corp"
+      },
       "bufferMs": 600
     },
     {
@@ -20,7 +30,16 @@
       "narration": "Aquí el docente ve únicamente los cursos que tiene asignados. Cada fila muestra el nombre del curso, el periodo y el idioma, con su estado actual.",
       "bufferMs": 800,
       "beats": [
-        { "target": "row:0", "scale": 1.0, "hold": 4000, "side": "bottom", "focus": { "title": "Tus cursos", "body": "Solo los cursos en los que enseñas." } }
+        {
+          "target": "row:0",
+          "scale": 1,
+          "hold": 4000,
+          "side": "bottom",
+          "focus": {
+            "title": "Tus cursos",
+            "body": "Solo los cursos en los que enseñas."
+          }
+        }
       ]
     },
     {
@@ -29,7 +48,11 @@
       "narration": "Desde el menú de acciones de cada curso, el docente accede a su tablero, gestiona las sesiones de clase, el contenido y los estudiantes matriculados. Cada sesión se alinea con el material, mostrando la clase que le corresponde de forma automática.",
       "bufferMs": 800,
       "beats": [
-        { "target": "rowaction:0", "clickToOpen": true, "hold": 4800 }
+        {
+          "target": "rowaction:0",
+          "clickToOpen": true,
+          "hold": 4800
+        }
       ]
     },
     {
@@ -39,16 +62,44 @@
       "bufferMs": 800,
       "openDialog": "createbtn",
       "beats": [
-        { "target": "field:Nombre", "hold": 3000, "side": "right", "focus": { "title": "Nombre", "body": "Cómo se llama el curso." } },
-        { "target": "field:Periodo", "hold": 3000, "side": "right", "focus": { "title": "Periodo académico", "body": "El periodo al que pertenece." } },
-        { "target": "field:Descripción", "hold": 3200, "side": "right", "focus": { "title": "Descripción", "body": "Resumen del curso." } }
+        {
+          "target": "field:Nombre",
+          "hold": 3000,
+          "side": "right",
+          "focus": {
+            "title": "Nombre",
+            "body": "Cómo se llama el curso."
+          }
+        },
+        {
+          "target": "field:Periodo",
+          "hold": 3000,
+          "side": "right",
+          "focus": {
+            "title": "Periodo académico",
+            "body": "El periodo al que pertenece."
+          }
+        },
+        {
+          "target": "field:Descripción",
+          "hold": 3200,
+          "side": "right",
+          "focus": {
+            "title": "Descripción",
+            "body": "Resumen del curso."
+          }
+        }
       ]
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "Así el docente organiza sus cursos, sesiones y estudiantes desde un solo lugar, con todo alineado al plan académico.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Exámenes" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Gestión de Cursos (Docente)",
+        "subtitle": "Demo Global Corp"
+      },
       "bufferMs": 600
     }
   ]

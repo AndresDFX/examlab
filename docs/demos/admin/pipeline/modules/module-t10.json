@@ -4,14 +4,24 @@
   "series": "teacher",
   "role": "Docente",
   "appPath": "/app/videos",
-  "readySelectors": ["[data-tour-nav=\"/app/videos\"]", "text=Videos"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "[data-tour-nav=\"/app/videos\"]",
+    "text=Videos"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
       "narration": "La biblioteca de videos, desde el rol Docente.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Biblioteca de Videos", "subtitle": "Demo Global Corp" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Biblioteca de Videos",
+        "subtitle": "Demo Global Corp"
+      },
       "bufferMs": 600
     },
     {
@@ -20,7 +30,16 @@
       "narration": "La biblioteca reúne los videos de apoyo del docente. Pueden asociarse a un curso específico o quedar disponibles de forma general.",
       "bufferMs": 800,
       "beats": [
-        { "target": "firstcard", "scale": 1.12, "hold": 4000, "side": "bottom", "focus": { "title": "Videos de apoyo", "body": "Por curso o generales." } }
+        {
+          "target": "firstcard",
+          "scale": 1.12,
+          "hold": 4000,
+          "side": "bottom",
+          "focus": {
+            "title": "Videos de apoyo",
+            "body": "Por curso o generales."
+          }
+        }
       ]
     },
     {
@@ -30,16 +49,44 @@
       "bufferMs": 800,
       "openDialog": "createbtn",
       "beats": [
-        { "target": "field:Título", "hold": 4500, "side": "right", "focus": { "title": "Título", "body": "Nombre del video." } },
-        { "target": "field:URL", "hold": 3500, "side": "right", "focus": { "title": "Enlace", "body": "Apunta a YouTube, Vimeo o un archivo." } },
-        { "target": "field:Descripción", "hold": 2800, "side": "right", "focus": { "title": "Descripción", "body": "Contexto opcional del material." } }
+        {
+          "target": "field:Título",
+          "hold": 4500,
+          "side": "right",
+          "focus": {
+            "title": "Título",
+            "body": "Nombre del video."
+          }
+        },
+        {
+          "target": "field:URL",
+          "hold": 3500,
+          "side": "right",
+          "focus": {
+            "title": "Enlace",
+            "body": "Apunta a YouTube, Vimeo o un archivo."
+          }
+        },
+        {
+          "target": "field:Descripción",
+          "hold": 2800,
+          "side": "right",
+          "focus": {
+            "title": "Descripción",
+            "body": "Contexto opcional del material."
+          }
+        }
       ]
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "Así de simple: una biblioteca de videos de apoyo, por curso o generales, siempre a la mano para tus estudiantes.",
-      "card": { "kicker": "ExamLab · Rol Docente", "title": "Siguiente módulo", "subtitle": "Pizarras" },
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Biblioteca de Videos (Docente)",
+        "subtitle": "Demo Global Corp"
+      },
       "bufferMs": 600
     }
   ]
