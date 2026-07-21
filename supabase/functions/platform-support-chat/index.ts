@@ -342,6 +342,9 @@ Deno.serve(async (req) => {
       .from("platform_help_videos")
       .select("title, route, video_url, role, position, is_active, kind, question")
       .eq("is_active", true)
+      // Solo videos con enlace REAL: no anunciar clips sin video_url (evita ofrecer
+      // "video en preparación" de material que aún no se generó/subió).
+      .not("video_url", "is", null)
       .order("position", { ascending: true });
     const relevantVideos = ((videoRows ?? []) as Array<{
       title: string | null;
