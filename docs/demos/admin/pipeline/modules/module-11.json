@@ -94,26 +94,12 @@
         {
           "target": "card:Variables disponibles",
           "scale": 1.15,
-          "hold": 6500,
+          "hold": 11500,
           "side": "left",
           "syncWord": "panel",
           "focus": {
             "title": "Variables disponibles",
-            "body": "Click inserta el dato en la posición del cursor."
-          }
-        },
-        {
-          "click": true,
-          "target": "button:Estudiante",
-          "afterClickMs": 900,
-          "syncWord": "insertamos",
-          "focusTarget": "card:Variables disponibles",
-          "scale": 1.15,
-          "hold": 5500,
-          "side": "left",
-          "focus": {
-            "title": "Datos dinámicos",
-            "body": "Nombre, código, nota final, curso… reemplazados por datos reales."
+            "body": "Un clic inserta el dato —nombre, nota final, curso…— donde está el cursor; se reemplaza por datos reales al generar el informe."
           }
         }
       ]

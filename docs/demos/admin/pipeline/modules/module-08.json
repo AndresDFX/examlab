@@ -1,6 +1,6 @@
 {
   "id": "modulo-08",
-  "title": "Configuración del Tenant",
+  "title": "Configuración de la institución",
   "appPath": "/app/admin/settings",
   "readySelectors": [
     "[role=\"tab\"]"
@@ -16,7 +16,7 @@
       "narration": "Configuración de la institución. Identidad, módulos visibles, correos, el compilador de código y la auditoría.",
       "card": {
         "kicker": "ExamLab · Demo Global Corp",
-        "title": "Configuración del Tenant",
+        "title": "Configuración de la institución",
         "subtitle": "Rol: Administrador"
       },
       "bufferMs": 500
@@ -152,7 +152,7 @@
       "narration": "Así se configura la identidad, los accesos, los correos, el compilador y la auditoría de toda tu institución desde un solo lugar.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
-        "title": "Configuración del Tenant",
+        "title": "Configuración de la institución",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 500
