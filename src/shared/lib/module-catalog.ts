@@ -109,7 +109,7 @@ export const MODULE_CATALOG: ModuleCatalogEntry[] = [
   { key: "messages", label: "Mensajes" },
   { key: "notifications", label: "Notificaciones" },
   { key: "support", label: "Soporte" },
-  { key: "support_assistant", label: "Asistente de la plataforma" },
+  { key: "support_assistant", label: "Asistente IA" },
   { key: "videos", label: "Videos" },
   {
     // Virtual: Admin/SA → users, Docente → teacher_students, Estudiante → n/a.
