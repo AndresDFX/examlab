@@ -127,6 +127,56 @@
       ]
     },
     {
+      "id": "entregar",
+      "kind": "platform",
+      "narration": "Se mueve entre preguntas con Siguiente y Anterior, y al terminar, Finalizar cierra el examen: si quedan respuestas en blanco, ExamLab lo avisa antes de confirmar la entrega.",
+      "bufferMs": 1500,
+      "beats": [
+        {
+          "click": true,
+          "target": "button:Siguiente",
+          "afterClickMs": 1200,
+          "focusTarget": "maincard",
+          "scale": 1.05,
+          "hold": 3200,
+          "side": "bottom",
+          "syncWord": "Siguiente",
+          "focus": {
+            "title": "Navegación",
+            "body": "Avanza y retrocede entre las preguntas."
+          }
+        },
+        {
+          "click": true,
+          "target": "button:Finalizar",
+          "afterClickMs": 1800,
+          "focusTarget": "button:Entregar de todas formas",
+          "scale": 1.1,
+          "hold": 4500,
+          "side": "bottom",
+          "syncWord": "Finalizar",
+          "focus": {
+            "title": "Finalizar",
+            "body": "Avisa si hay preguntas en blanco antes de entregar."
+          }
+        },
+        {
+          "click": true,
+          "target": "button:Entregar de todas formas",
+          "afterClickMs": 2500,
+          "focusTarget": "maincard",
+          "scale": 1.08,
+          "hold": 3000,
+          "side": "bottom",
+          "syncWord": "entrega",
+          "focus": {
+            "title": "Examen entregado",
+            "body": "La entrega queda registrada."
+          }
+        }
+      ]
+    },
+    {
       "id": "outro",
       "kind": "card",
       "narration": "Así el estudiante presenta sus exámenes de forma clara y supervisada, con compilador y consola de redes integrados.",
