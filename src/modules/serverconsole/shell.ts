@@ -31,7 +31,11 @@ const COMMANDS = [
   "cp", "mv", "rm", "chmod", "chown", "chgrp", "groupadd", "useradd", "adduser",
   "usermod", "id", "apt", "apt-get", "systemctl", "df", "du", "ps", "top",
   "kill", "crontab", "ip", "ss", "netstat", "journalctl", "tar", "clear",
-  "sudo", "nano", "vi", "vim",
+  "sudo", "nano", "vi", "vim", "python3", "python", "pip3", "pip",
+  // Comandos frecuentes del curso de Administración de SO de servidor.
+  "grep", "find", "head", "tail", "wc", "stat", "which", "file",
+  "free", "uname", "uptime", "date", "env", "export", "history",
+  "groups", "passwd", "su", "getent", "dpkg", "service", "man",
 ];
 
 /** Prefijo común más largo de una lista de strings (para el autocompletado). */
@@ -190,6 +194,30 @@ export class ShellInterpreter {
       case "tar": return this.tar(args);
       case "clear": return { out: [] };
       case "nano": case "vi": case "vim": return this.nano(cmd, args);
+      case "python3": case "python": return this.python(cmd, args);
+      case "pip3": case "pip": return this.pip(cmd, args);
+      case "grep": return this.grep(args);
+      case "find": return this.find(args);
+      case "head": return this.headTail(args, true);
+      case "tail": return this.headTail(args, false);
+      case "wc": return this.wc(args);
+      case "stat": return this.stat(args);
+      case "file": return this.fileCmd(args);
+      case "which": return this.which(args);
+      case "free": return this.free(args);
+      case "uname": return this.uname(args);
+      case "uptime": return { out: ["00:00:01 up 1 day,  1:23,  1 user,  load average: 0,15, 0,10, 0,05"] };
+      case "date": return { out: ["lun ene  1 00:00:01 -05 2026"] };
+      case "env": return { out: Object.entries(this.sys.env).map(([k, v]) => `${k}=${v}`) };
+      case "export": return this.exportCmd(args);
+      case "history": return { out: this.history.map((h, i) => `${String(i + 1).padStart(5)}  ${h}`) };
+      case "groups": return this.groupsCmd(args);
+      case "passwd": return { out: ["(passwd requiere entrada interactiva, no disponible en la consola simulada)"] };
+      case "su": return { out: ["(su requiere contraseña interactiva; usá `sudo <comando>` para tareas privilegiadas)"] };
+      case "getent": return this.getent(args);
+      case "dpkg": return this.dpkg(args);
+      case "service": return this.serviceCmd(args);
+      case "man": return this.man(args);
       default:
         return { out: [`${cmd}: command not found`] };
     }
@@ -664,5 +692,248 @@ export class ShellInterpreter {
     // Crear el archivo destino (para que file_exists lo detecte).
     this.writeFile(archive, `# tar gzip de: ${sources.join(" ")}\n`, false);
     return { out: sources.map((s) => resolvePath(this.sys, s).replace(/^\//, "")) };
+  }
+
+  /**
+   * python3 / python — el binario solo "existe" tras `apt install python3`
+   * (antes: command not found, como en un servidor real). Aceptamos `python`
+   * como alias de `python3` cuando python3 está instalado (equivalente a
+   * `python-is-python3`) para no frenar al alumno que teclea `python`.
+   * La consola es un simulador DETERMINISTA: no hay intérprete real. Soporta
+   * `--version`/`-V`, `-c "<código>"` y `python3 archivo.py`, evaluando un
+   * subconjunto MÍNIMO (llamadas `print(...)` con un literal).
+   */
+  private python(cmd: string, args: string[]): ShellResult {
+    if (!this.sys.packages.includes("python3") && !this.sys.packages.includes("python")) {
+      return { out: [`${cmd}: command not found`] };
+    }
+    const VERSION = "Python 3.11.2";
+    if (args.some((a) => a === "--version" || a === "-V")) return { out: [VERSION] };
+    const cIdx = args.indexOf("-c");
+    if (cIdx >= 0) return { out: this.simulatePython(args[cIdx + 1] ?? "") };
+    const script = args.find((a) => !a.startsWith("-"));
+    if (script) {
+      const node = getNode(this.sys, resolvePath(this.sys, script));
+      if (!node) return { out: [`${cmd}: can't open file '${script}': [Errno 2] No such file or directory`] };
+      if (node.type !== "file") return { out: [`${cmd}: can't open file '${script}': [Errno 21] Is a directory`] };
+      return { out: this.simulatePython(node.content) };
+    }
+    // Sin argumentos: el REPL interactivo no es viable en la consola simulada.
+    return { out: [
+      VERSION,
+      "Intérprete interactivo no disponible en la consola simulada.",
+      "Usá  python3 -c \"print('hola')\"  o  python3 archivo.py",
+    ] };
+  }
+
+  /** Evalúa un subconjunto MÍNIMO de Python: `print(...)` con UN literal
+   *  (cadena entre comillas o número). Alcanza para demostrar que el intérprete
+   *  corre tras instalarlo; NO es un intérprete real. */
+  private simulatePython(code: string): string[] {
+    const out: string[] = [];
+    let matched = false;
+    for (const line of code.split(/\r?\n/)) {
+      const re = /print\s*\(\s*(?:"([^"]*)"|'([^']*)'|(-?\d+(?:\.\d+)?))\s*\)/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(line))) {
+        out.push(m[1] ?? m[2] ?? m[3] ?? "");
+        matched = true;
+      }
+    }
+    if (!matched && code.trim()) {
+      out.push("(la consola simulada solo evalúa print(\"...\") sencillos)");
+    }
+    return out;
+  }
+
+  /** pip3 / pip — disponible cuando python3 está instalado. Simulación acotada:
+   *  `--version`, `list` e `install <pkg>` (registra el paquete). */
+  private pip(cmd: string, args: string[]): ShellResult {
+    if (!this.sys.packages.includes("python3") && !this.sys.packages.includes("python")) {
+      return { out: [`${cmd}: command not found`] };
+    }
+    if (args.some((a) => a === "--version" || a === "-V")) return { out: ["pip 23.0.1 (python 3.11)"] };
+    const sub = args[0];
+    if (sub === "list") return { out: ["Package    Version", "---------- -------", "pip        23.0.1"] };
+    if (sub === "install") {
+      const pkgs = args.slice(1).filter((a) => !a.startsWith("-"));
+      for (const p of pkgs) if (!this.sys.packages.includes(p)) this.sys.packages.push(p);
+      return { out: pkgs.map((p) => `Successfully installed ${p}`) };
+    }
+    return { out: [`${cmd}: subcomando '${sub ?? ""}' no soportado en la simulación`] };
+  }
+
+  // ── Comandos del curso de Administración de SO (texto/búsqueda/sistema) ──────
+
+  private grep(args: string[]): ShellResult {
+    const ci = args.includes("-i");
+    const nn = args.includes("-n");
+    const rest = args.filter((a) => !a.startsWith("-"));
+    const pattern = rest[0];
+    const files = rest.slice(1);
+    if (!pattern || files.length === 0) return { out: ["Uso: grep [-i] [-n] <patrón> <archivo...>"] };
+    const needle = ci ? pattern.toLowerCase() : pattern;
+    const out: string[] = [];
+    for (const f of files) {
+      const node = getNode(this.sys, resolvePath(this.sys, f));
+      if (!node || node.type !== "file") { out.push(`grep: ${f}: No existe el fichero o el directorio`); continue; }
+      node.content.split("\n").forEach((ln, i) => {
+        if ((ci ? ln.toLowerCase() : ln).includes(needle)) {
+          out.push((files.length > 1 ? `${f}:` : "") + (nn ? `${i + 1}:` : "") + ln);
+        }
+      });
+    }
+    return { out };
+  }
+
+  private find(args: string[]): ShellResult {
+    const start = args.find((a) => !a.startsWith("-")) ?? ".";
+    const nameIdx = args.indexOf("-name");
+    const namePat = nameIdx >= 0 ? args[nameIdx + 1] : null;
+    const typeIdx = args.indexOf("-type");
+    const typeFilter = typeIdx >= 0 ? args[typeIdx + 1] : null; // f | d
+    const startNode = getNode(this.sys, resolvePath(this.sys, start));
+    if (!startNode) return { out: [`find: '${start}': No existe el fichero o el directorio`] };
+    const nameRe = namePat
+      ? new RegExp("^" + namePat.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".") + "$")
+      : null;
+    const out: string[] = [];
+    const walk = (node: FsNode, disp: string) => {
+      const okType = !typeFilter || (typeFilter === "d" ? node.type === "dir" : node.type === "file");
+      if ((!nameRe || nameRe.test(node.name)) && okType) out.push(disp);
+      if (node.type === "dir") {
+        for (const child of Object.values(node.children)) walk(child, (disp === "/" ? "" : disp) + "/" + child.name);
+      }
+    };
+    walk(startNode, start);
+    return { out };
+  }
+
+  private headTail(args: string[], head: boolean): ShellResult {
+    let n = 10;
+    const nIdx = args.indexOf("-n");
+    if (nIdx >= 0) n = parseInt(args[nIdx + 1] || "10", 10) || 10;
+    const dashN = args.find((a) => /^-\d+$/.test(a));
+    if (dashN) n = parseInt(dashN.slice(1), 10);
+    const files = args.filter((a, i) => !a.startsWith("-") && !(nIdx >= 0 && i === nIdx + 1));
+    const out: string[] = [];
+    for (const f of files) {
+      const node = getNode(this.sys, resolvePath(this.sys, f));
+      if (!node || node.type !== "file") { out.push(`${head ? "head" : "tail"}: no se puede abrir '${f}' para lectura`); continue; }
+      const lines = node.content.split("\n").filter((l, i, a) => !(i === a.length - 1 && l === ""));
+      out.push(...(head ? lines.slice(0, n) : lines.slice(-n)));
+    }
+    return { out };
+  }
+
+  private wc(args: string[]): ShellResult {
+    const wl = args.includes("-l"), ww = args.includes("-w"), wc = args.includes("-c");
+    const all = !wl && !ww && !wc;
+    const out: string[] = [];
+    for (const f of args.filter((a) => !a.startsWith("-"))) {
+      const node = getNode(this.sys, resolvePath(this.sys, f));
+      if (!node || node.type !== "file") { out.push(`wc: ${f}: No existe el fichero o el directorio`); continue; }
+      const c = node.content;
+      const lines = c.split("\n").length - (c.endsWith("\n") ? 1 : 0);
+      const parts: string[] = [];
+      if (wl || all) parts.push(String(lines));
+      if (ww || all) parts.push(String(c.split(/\s+/).filter(Boolean).length));
+      if (wc || all) parts.push(String(c.length));
+      out.push(parts.join(" ") + " " + f);
+    }
+    return { out };
+  }
+
+  private stat(args: string[]): ShellResult {
+    const f = args.filter((a) => !a.startsWith("-"))[0];
+    if (!f) return { out: ["stat: falta el operando"] };
+    const node = getNode(this.sys, resolvePath(this.sys, f));
+    if (!node) return { out: [`stat: no se puede efectuar «stat» sobre '${f}': No existe el fichero o el directorio`] };
+    return { out: [
+      `  Fichero: ${f}`,
+      `    Tipo: ${node.type === "dir" ? "directorio" : "fichero regular"}`,
+      `  Acceso: (0${modeToOctalStr(node.mode)}/${node.type === "dir" ? "d" : "-"}${modeToRwx(node.mode)})  Uid: ( ${node.owner} )   Gid: ( ${node.group} )`,
+    ] };
+  }
+
+  private fileCmd(args: string[]): ShellResult {
+    const f = args.filter((a) => !a.startsWith("-"))[0];
+    if (!f) return { out: ["file: falta el operando"] };
+    const node = getNode(this.sys, resolvePath(this.sys, f));
+    if (!node) return { out: [`${f}: cannot open (No existe el fichero o el directorio)`] };
+    return { out: [`${f}: ${node.type === "dir" ? "directory" : "ASCII text"}`] };
+  }
+
+  private which(args: string[]): ShellResult {
+    const out: string[] = [];
+    for (const c of args.filter((a) => !a.startsWith("-"))) {
+      if (COMMANDS.includes(c) || this.sys.packages.includes(c)) out.push(`/usr/bin/${c}`);
+    }
+    return { out };
+  }
+
+  private free(args: string[]): ShellResult {
+    return { out: args.includes("-h")
+      ? ["               total        usado       libre", "Mem:            3,8Gi       1,2Gi       2,6Gi", "Swap:           2,0Gi          0B       2,0Gi"]
+      : ["               total        used        free", "Mem:         4014080     1258291     2755789", "Swap:        2097152           0     2097152"] };
+  }
+
+  private uname(args: string[]): ShellResult {
+    if (args.includes("-a")) return { out: ["Linux server 6.1.0-13-amd64 #1 SMP Debian x86_64 GNU/Linux"] };
+    if (args.includes("-r")) return { out: ["6.1.0-13-amd64"] };
+    return { out: ["Linux"] };
+  }
+
+  private exportCmd(args: string[]): ShellResult {
+    for (const a of args) {
+      const eq = a.indexOf("=");
+      if (eq > 0) this.sys.env[a.slice(0, eq)] = a.slice(eq + 1).replace(/^["']|["']$/g, "");
+    }
+    return { out: [] };
+  }
+
+  private groupsCmd(args: string[]): ShellResult {
+    const user = args.filter((a) => !a.startsWith("-"))[0] || this.sys.user;
+    if (!this.sys.users.includes(user)) return { out: [`groups: '${user}': no existe ese usuario`] };
+    const memberOf = Object.entries(this.sys.groups).filter(([, m]) => m.includes(user)).map(([g]) => g);
+    return { out: [memberOf.join(" ") || user] };
+  }
+
+  private getent(args: string[]): ShellResult {
+    const db = args[0], key = args[1];
+    if (db === "passwd") {
+      const users = key ? (this.sys.users.includes(key) ? [key] : []) : this.sys.users;
+      return { out: users.map((u, i) => `${u}:x:${1000 + i}:${1000 + i}::/home/${u}:/bin/bash`) };
+    }
+    if (db === "group") {
+      const groups = key ? (this.sys.groups[key] ? [key] : []) : Object.keys(this.sys.groups);
+      return { out: groups.map((g, i) => `${g}:x:${1000 + i}:${(this.sys.groups[g] || []).join(",")}`) };
+    }
+    return { out: [`getent: base de datos '${db ?? ""}' no soportada`] };
+  }
+
+  private dpkg(args: string[]): ShellResult {
+    if (args[0] === "-l" || args[0] === "--list") {
+      return { out: ["ii  Nombre            Versión", ...this.sys.packages.map((p) => `ii  ${p.padEnd(16)}  1.0`)] };
+    }
+    if (args[0] === "-s" || args[0] === "--status") {
+      const p = args[1];
+      if (!p || !this.sys.packages.includes(p)) return { out: [`dpkg-query: no se encontró el paquete '${p ?? ""}'`] };
+      return { out: [`Package: ${p}`, "Status: install ok installed", "Version: 1.0"] };
+    }
+    return { out: [`dpkg: opción '${args[0] ?? ""}' no soportada en la simulación`] };
+  }
+
+  private serviceCmd(args: string[]): ShellResult {
+    // `service <svc> <acción>` ≡ `systemctl <acción> <svc>`.
+    const svc = args[0], action = args[1];
+    if (!svc || !action) return { out: ["Uso: service <servicio> {start|stop|restart|status}"] };
+    return this.systemctl([action, svc]);
+  }
+
+  private man(args: string[]): ShellResult {
+    const c = args[0];
+    if (!c) return { out: ["¿Qué página de manual desea?"] };
+    return { out: [`(man simulado) Para '${c}', probá  ${c} --help. El manual completo no está en la consola simulada.`] };
   }
 }
