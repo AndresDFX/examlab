@@ -745,6 +745,37 @@ async function main() {
               await cameraReset(page, 500);
               cam = { tx: 0, ty: 0, s: 1 };
               await openMenuFocus(page, rect, beat);
+            } else if (beat.fireWarnings) {
+              // Simula el proctoring: dispara N "cambios de pestaña"
+              // (visibilitychange con document.hidden=true + blur) para que el
+              // examen sume advertencias y, al llegar al máximo (3), se marque
+              // sospechoso y se auto-entregue. Gap > 500ms por el debounce
+              // (blurLockUntil) del recordWarning en TakeExam. Se usa SOLO en el
+              // clip de demostración del flujo de suspensión.
+              const nW = typeof beat.fireWarnings === "number" ? beat.fireWarnings : 3;
+              for (let k = 0; k < nW; k++) {
+                await page.evaluate(() => {
+                  Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+                  Object.defineProperty(document, "hidden", { value: true, configurable: true });
+                  document.dispatchEvent(new Event("visibilitychange"));
+                  window.dispatchEvent(new Event("blur"));
+                  setTimeout(() => {
+                    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+                    Object.defineProperty(document, "hidden", { value: false, configurable: true });
+                    document.dispatchEvent(new Event("visibilitychange"));
+                    window.dispatchEvent(new Event("focus"));
+                  }, 150);
+                });
+                await sleep(950);
+              }
+              await sleep(beat.afterClickMs ?? 3500); // esperar el auto-submit + su UI
+              const [rW] = await measureTargets(page, [beat.target]);
+              const fsW = fitScale(rW, beat.scale ?? 1.1);
+              await cameraTo(page, rW, fsW, 600);
+              if (rW) cam = computeCam(rW, fsW, false);
+              await focusOn(page, rW, beat.focus, fsW, beat.side);
+              await sleep(effectiveHold(words, sc.beats, j, s, beat.hold ?? 3000));
+              await focusOff(page);
             } else if (beat.selectOption) {
               // Radix Select robusto: localiza el TRIGGER real ([role=combobox])
               // DENTRO del contenedor del target (un `field:Tipo` resuelve al

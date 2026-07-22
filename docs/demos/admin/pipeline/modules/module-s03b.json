@@ -1,0 +1,85 @@
+{
+  "id": "modulo-s03b",
+  "title": "Proctoring del examen",
+  "series": "student",
+  "role": "Estudiante",
+  "appPath": "/app/student/exams",
+  "readySelectors": [
+    "[data-tour-nav=\"/app/student/exams\"]",
+    "text=Exámenes"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Un vistazo al proctoring: qué pasa si durante el examen el estudiante rompe las reglas.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Proctoring del examen",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 1800
+    },
+    {
+      "id": "iniciar",
+      "kind": "platform",
+      "openVia": {
+        "target": "button:Iniciar examen"
+      },
+      "ready": [
+        "text=Ejecutar"
+      ],
+      "narration": "El estudiante inicia el examen. A partir de ahí, cambiar de pestaña, minimizar o salir de pantalla completa cuentan como advertencia.",
+      "bufferMs": 1000,
+      "beats": [
+        {
+          "target": "maincard",
+          "scale": 1.05,
+          "hold": 6500,
+          "side": "bottom",
+          "syncWord": "advertencia",
+          "focus": {
+            "title": "Examen en curso",
+            "body": "Cada salida del examen suma una advertencia."
+          }
+        }
+      ]
+    },
+    {
+      "id": "suspender",
+      "kind": "platform",
+      "narration": "Si acumula tres advertencias —por ejemplo, cambiando de pestaña varias veces—, ExamLab marca el intento como sospechoso y lo entrega automáticamente, para proteger la integridad de la evaluación.",
+      "bufferMs": 2200,
+      "beats": [
+        {
+          "fireWarnings": 3,
+          "afterClickMs": 4000,
+          "target": "maincard",
+          "scale": 1.05,
+          "hold": 6000,
+          "side": "bottom",
+          "syncWord": "sospechoso",
+          "focus": {
+            "title": "Intento suspendido",
+            "body": "Tres advertencias → sospechoso + entrega automática."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "Así el proctoring mantiene la evaluación justa, incluso a distancia.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "ExamLab",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 1800
+    }
+  ]
+}
