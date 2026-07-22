@@ -1,0 +1,94 @@
+# Consola de servidor — Linux real en el navegador (v86)
+
+La pregunta **"Consola de servidor" (`so_consola`)** dejó de usar el simulador
+determinista y ahora bootea un **Linux x86 REAL** dentro del navegador con
+[v86](https://github.com/copy/v86) (emulador x86 → WebAssembly), expuesto por su
+**consola serial** vía [xterm.js](https://xtermjs.org/). Concepto tipo
+[jslinux](https://bellard.org/jslinux/): **todos** los comandos funcionan de
+verdad (no hay simulación de comandos).
+
+## Arquitectura
+
+| Pieza | Archivo |
+|---|---|
+| Carga de v86 + xterm por CDN (patrón CheerpJ: singleton + SSR guard + cache-clear) | `src/modules/serverconsole/v86-loader.ts` |
+| Componente de terminal (boot + serial ↔ xterm + transcript) | `src/modules/serverconsole/V86Console.tsx` |
+| (De)serialización de la respuesta (transcript + comandos) | `src/modules/serverconsole/v86-answer.ts` |
+| Punto de montaje (taker de taller) | `src/modules/workshops/WorkshopQuestions.tsx` (rama `so_consola`) |
+
+- **v86 + BIOS + xterm** se cargan desde jsDelivr (`cdn.jsdelivr.net/npm/v86`,
+  `.../npm/xterm`). No se agregaron dependencias npm (el lockfile es `bun.lock`
+  y cargar por CDN evita regenerarlo) — mismo camino ya probado por CheerpJ.
+- El **service worker** (`public/sw.js`) ya cachea `.wasm`, así que el módulo
+  de v86 se cachea igual que el de CheerpJ.
+
+## ⚠ Falta: hostear la imagen del SO (paso obligatorio)
+
+Bootear Linux necesita la **imagen del sistema** (varios MB). NO se puede
+embeber en el bundle ni en el repo. Hay que hostearla y apuntarla con env vars.
+Sin esto, la consola muestra el estado *"aún no tiene una imagen configurada"*.
+
+### Env vars (`.env` — todas `VITE_`, opcionales según el modo de boot)
+
+| Var | Para qué |
+|---|---|
+| `VITE_V86_STATE_URL` | **Recomendado.** Snapshot (`initial_state`) → boot al prompt en ~1-2s. |
+| `VITE_V86_BZIMAGE_URL` | Kernel `bzimage` (boot alterno; se le agrega `console=ttyS0`). |
+| `VITE_V86_INITRD_URL` | initrd para el boot por kernel. |
+| `VITE_V86_IMAGE_URL` | Imagen ISO (se monta como `cdrom`). |
+| `VITE_V86_HDA_URL` | Disco raw (se monta como `hda`). |
+| `VITE_V86_FS_JSON_URL` + `VITE_V86_FS_BASEURL` | Filesystem 9p (`filesystem.basefs` + `baseurl`). |
+| `VITE_V86_CMDLINE` | Override del kernel cmdline. |
+| `VITE_V86_MEMORY_MB` | RAM del VM (default `128`). |
+
+Se necesita **al menos una** fuente de imagen (`STATE`, `BZIMAGE`, `IMAGE` o `HDA`).
+
+### De dónde sacar una imagen
+
+1. **Rápido para probar**: las imágenes públicas de v86 (`copy.sh/v86/images/`)
+   — p.ej. la de buildroot bzimage bootea a una shell serial en segundos. Sirven
+   para validar el flujo, pero **no** para producción (dependencia externa, CORS
+   no garantizado).
+2. **Producción (recomendado)**: construir/descargar una imagen (Alpine o
+   buildroot con serial habilitada, ver
+   [Alpine serial console](https://wiki.alpinelinux.org/wiki/Enable_Serial_Console_on_Boot))
+   y **subirla a un bucket público de Supabase Storage** (mismo proyecto).
+   Para el boot rápido, arrancarla una vez, `save_state()` y subir el snapshot
+   como `VITE_V86_STATE_URL`.
+
+> La imagen debe tener la **consola serial en `ttyS0`** (autologin ideal para un
+> examen). Para boots por `bzimage` el cmdline ya incluye `console=ttyS0`.
+
+## Calificación → manual
+
+Un VM real **no se puede auto-calificar por estado** (no se introspecciona como
+el simulador). La rama `so_consola` de `WorkshopQuestions.tsx`:
+
+- Guarda el **transcript** de la sesión en `answer_text` (JSON `{v86,transcript,commands}`).
+- Deja `ai_grade = 0` con feedback *"requiere revisión del docente"* → el docente
+  revisa el transcript y ajusta la nota con su override.
+
+El motor del simulador viejo (`shell.ts`, `system.ts`, `scenario.ts`,
+`grading.ts` + `server-console.test.ts`) **queda en el repo** (tests verdes) por
+si se quiere una futura calificación por *probe-and-parse* (correr comandos de
+verificación dentro del VM y parsear su salida) — hoy no se usa.
+
+## CSP (si algún día se agrega a nivel host)
+
+Hoy **no hay CSP** en el repo (Lovable no la inyecta). Si se agrega una CSP a
+nivel host, v86 necesita:
+
+- `script-src` con `'wasm-unsafe-eval'` (o `'unsafe-eval'` en navegadores viejos).
+- `connect-src` permitiendo el host de la imagen (Supabase Storage) + jsDelivr.
+- `worker-src blob:` (v86 usa workers/blobs).
+
+`SharedArrayBuffer` (v86 va más rápido con él) exigiría COOP+COEP, lo que podría
+romper la carga cross-origin de CheerpJ — **no** habilitar sin verificar. v86
+funciona sin SAB.
+
+## Cómo probar (requiere navegador — no se puede headless)
+
+1. Definí `VITE_V86_IMAGE_URL` (o `_STATE_URL`) en `.env` con una imagen booteable.
+2. `bun run dev`, entrá a un taller con una pregunta `so_consola`.
+3. Debe aparecer "Iniciando Linux…" y luego un prompt real; probá `python3`,
+   `apt`, `ls`, etc.

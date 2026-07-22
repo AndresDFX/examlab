@@ -74,13 +74,8 @@ import {
   parseScenario,
 } from "@/modules/network/scenario";
 import { gradeNetwork } from "@/modules/network/grading";
-import { ServerConsole } from "@/modules/serverconsole/ServerConsole";
-import {
-  type ServerScenario,
-  parseServerAnswer,
-  parseScenario as parseServerScenario,
-} from "@/modules/serverconsole/scenario";
-import { gradeServer } from "@/modules/serverconsole/grading";
+import { V86Console } from "@/modules/serverconsole/V86Console";
+import { isV86AnswerBlank } from "@/modules/serverconsole/v86-answer";
 
 export type WorkshopQuestion = {
   id: string;
@@ -1370,18 +1365,6 @@ export function StudentWorkshopTaker({
     return map;
   }, [questions]);
 
-  // Escenarios de "Consola de servidor" (so_consola), estables por questions.
-  const serverScenarios = useMemo(() => {
-    const map: Record<string, ServerScenario> = {};
-    for (const q of questions) {
-      if (q.type === "so_consola") {
-        const s = parseServerScenario(q.options);
-        if (s) map[q.id] = s;
-      }
-    }
-    return map;
-  }, [questions]);
-
   /** Cancela un run en curso para `questionId`. No mata el worker remoto
    *  (CheerpJ no expone API; el edge ya está corriendo server-side), pero
    *  libera el botón "Ejecutar" para que el estudiante pueda cambiar de
@@ -1572,9 +1555,8 @@ export function StudentWorkshopTaker({
         // topología editada en GUI).
         isBlank = !parseNetworkAnswer(a);
       } else if (q.type === "so_consola") {
-        // Vacía si no ejecutó ningún comando en la consola del servidor.
-        const parsed = parseServerAnswer(a);
-        isBlank = !parsed || (parsed.history?.length ?? 0) === 0;
+        // Vacía si no interactuó con la consola Linux (sin comandos ni salida).
+        isBlank = isV86AnswerBlank(a);
       } else {
         isBlank = !String(a ?? "").trim();
       }
@@ -2182,44 +2164,16 @@ export function StudentWorkshopTaker({
             breakdown.push({ qid: q.id, type: q.type, points: q.points, earned, feedback: fb });
           }
         } else if (q.type === "so_consola") {
-          // Calificación DETERMINISTA (sin IA): reconstruye el sistema final del
-          // alumno + su historial y evalúa las aserciones del escenario del
-          // docente (options.server). Mismo patrón que red_consola.
-          const scenario = parseServerScenario(q.options);
-          const answer = parseServerAnswer(raw);
-          const maxPoints = Number(q.points) || 0;
-          if (!scenario || !answer) {
-            payload.ai_grade = 0;
-            payload.ai_feedback = t("hc_modulesWorkshopsWorkshopQuestions.noAnswer");
-            breakdown.push({
-              qid: q.id,
-              type: q.type,
-              points: q.points,
-              earned: 0,
-              feedback: t("hc_modulesWorkshopsWorkshopQuestions.noAnswer"),
-            });
-          } else {
-            let earned = 0;
-            let fb = "Calificación de consola de servidor";
-            try {
-              const result = gradeServer(
-                { system: answer.system, history: answer.history },
-                scenario.assertions,
-              );
-              earned = Math.round(result.ratio * maxPoints * 100) / 100;
-              fb =
-                result.items
-                  .map((it) => `${it.passed ? "✓" : "✗"} ${it.label}${it.detail ? ` — ${it.detail}` : ""}`)
-                  .join("\n") || fb;
-            } catch (soErr) {
-              earned = 0;
-              fb = `Error al evaluar la respuesta de consola: ${soErr instanceof Error ? soErr.message : String(soErr)}`;
-            }
-            payload.ai_grade = earned;
-            payload.ai_feedback = fb;
-            totalEarned += earned;
-            breakdown.push({ qid: q.id, type: q.type, points: q.points, earned, feedback: fb });
-          }
+          // Consola Linux REAL (v86): NO se auto-califica por estado — un VM real
+          // no se introspecciona como el simulador. Queda pendiente de revisión
+          // del docente sobre el transcript de la sesión (guardado en answer_text).
+          const pendingFb = t("hc_modulesWorkshopsWorkshopQuestions.serverConsoleManual", {
+            defaultValue:
+              "Consola Linux real — requiere revisión del docente sobre el transcript de la sesión.",
+          });
+          payload.ai_grade = 0;
+          payload.ai_feedback = pendingFb;
+          breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: pendingFb });
         } else {
           // Detecta "sin respuesta":
           //   1. String vacío / whitespace.
@@ -2777,20 +2731,12 @@ export function StudentWorkshopTaker({
                   })}
                 </p>
               ))}
-            {q.type === "so_consola" &&
-              (serverScenarios[q.id] ? (
-                <ServerConsole
-                  scenario={serverScenarios[q.id]}
-                  value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
-                  onChange={(v) => updateAnswer(q.id, v)}
-                />
-              ) : (
-                <p className="text-xs text-destructive">
-                  {t("hc_modulesWorkshopsWorkshopQuestions.serverScenarioMissing", {
-                    defaultValue: "Esta pregunta de consola no tiene un escenario válido configurado.",
-                  })}
-                </p>
-              ))}
+            {q.type === "so_consola" && (
+              <V86Console
+                value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
+                onChange={(v) => updateAnswer(q.id, v)}
+              />
+            )}
             {q.type === "codigo_zip" &&
               q.zip_single &&
               (() => {
