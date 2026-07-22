@@ -25,6 +25,31 @@
       "bufferMs": 1800
     },
     {
+      "id": "prestart",
+      "kind": "platform",
+      "openVia": {
+        "target": "a[href*=\"/app/student/take\"]"
+      },
+      "ready": [
+        "text=Antes de comenzar"
+      ],
+      "narration": "Antes de comenzar, ExamLab muestra las reglas del entorno supervisado: hay un cronómetro y cada salida del examen —cambiar de pestaña, minimizar o salir de pantalla completa— cuenta como advertencia.",
+      "bufferMs": 1200,
+      "beats": [
+        {
+          "target": "text:Antes de comenzar",
+          "scale": 1.15,
+          "hold": 7000,
+          "side": "right",
+          "syncWord": "advertencia",
+          "focus": {
+            "title": "Reglas del examen",
+            "body": "Cada salida del examen suma una advertencia."
+          }
+        }
+      ]
+    },
+    {
       "id": "iniciar",
       "kind": "platform",
       "openVia": {
@@ -33,18 +58,18 @@
       "ready": [
         "text=Ejecutar"
       ],
-      "narration": "El estudiante inicia el examen. A partir de ahí, cambiar de pestaña, minimizar o salir de pantalla completa cuentan como advertencia.",
+      "narration": "El estudiante inicia el examen y responde con normalidad. Pero a partir de aquí, cada vez que abandona la ventana suma una advertencia.",
       "bufferMs": 1000,
       "beats": [
         {
           "target": "maincard",
           "scale": 1.05,
-          "hold": 6500,
+          "hold": 6000,
           "side": "bottom",
           "syncWord": "advertencia",
           "focus": {
             "title": "Examen en curso",
-            "body": "Cada salida del examen suma una advertencia."
+            "body": "Cambiar de pestaña o minimizar suma advertencias."
           }
         }
       ]
@@ -57,7 +82,7 @@
       "beats": [
         {
           "fireWarnings": 3,
-          "afterClickMs": 4000,
+          "afterClickMs": 4500,
           "target": "maincard",
           "scale": 1.05,
           "hold": 6000,
