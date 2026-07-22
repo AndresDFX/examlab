@@ -5,10 +5,13 @@
  * Cada hoja tiene un `page_type`:
  *   - 'drawing': escena Excalidraw → renderiza `<WhiteboardEditor>`.
  *   - 'text': markdown editor → renderiza `<TextPageEditor>`.
+ *   - 'code': editor + compilador → renderiza `<CodePageEditor>` (mig 20261410000000).
+ *   - 'console': consola Linux real (v86) → renderiza `<V86Console>` (mig 20261410000000).
  *
- * Schema (migs 20260811000000 + 20260812000000):
+ * Schema (migs 20260811000000 + 20260812000000 + 20261410000000):
  *   - `whiteboard_pages(id, whiteboard_id, position, name, scene_json,
- *      page_type, text_content)`
+ *      page_type, text_content, code_language, code_source, last_stdout,
+ *      last_stderr, last_exit_code, last_executed_at, console_transcript)`
  *   - Cada pizarra = N hojas. Position 0-indexed, gaps tolerados.
  *
  * UX cuando hay muchas hojas (rediseño V2):
@@ -52,7 +55,7 @@ import {
   Palette,
   FileText,
   Code2,
-  TerminalSquare,
+  Terminal,
   Search,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
@@ -97,7 +100,7 @@ interface WhiteboardPage {
 
 /** Icono lucide por tipo de hoja (sidebar tab + dropdown de lista). */
 function pageIcon(pt: PageType) {
-  return pt === "text" ? FileText : pt === "code" ? Code2 : pt === "console" ? TerminalSquare : Palette;
+  return pt === "text" ? FileText : pt === "code" ? Code2 : pt === "console" ? Terminal : Palette;
 }
 /** Color del icono por tipo de hoja — ancla visual consistente. */
 function pageIconColor(pt: PageType) {
@@ -798,7 +801,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                   setNewPageKind("console");
                 }}
               >
-                <TerminalSquare className="h-4 w-4 mr-2 text-emerald-500" />
+                <Terminal className="h-4 w-4 mr-2 text-emerald-500" />
                 <div className="flex flex-col">
                   <span className="text-sm">
                     {t("hc_modulesWhiteboardMultiPageWhiteboard.consolePage", { defaultValue: "Hoja de consola (Linux)" })}

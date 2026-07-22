@@ -59,14 +59,25 @@ Se necesita **al menos una** fuente de imagen (`STATE`, `BZIMAGE`, `IMAGE` o `HD
 > La imagen debe tener la **consola serial en `ttyS0`** (autologin ideal para un
 > examen). Para boots por `bzimage` el cmdline ya incluye `console=ttyS0`.
 
-## Calificación → manual
+## Calificación → IA con el transcript como insumo
 
 Un VM real **no se puede auto-calificar por estado** (no se introspecciona como
-el simulador). La rama `so_consola` de `WorkshopQuestions.tsx`:
+el simulador determinista). En su lugar, la sesión de consola alimenta el prompt
+de la IA. La rama `so_consola`:
 
 - Guarda el **transcript** de la sesión en `answer_text` (JSON `{v86,transcript,commands}`).
-- Deja `ai_grade = 0` con feedback *"requiere revisión del docente"* → el docente
-  revisa el transcript y ajusta la nota con su override.
+- En la calificación (submit del taller sync/async + re-grade del docente vía
+  `buildWorkshopItems`) se manda al edge `ai-grade-submission` como un batch item:
+  `userAnswer` = los comandos tecleados, `executionOutput` = el transcript de la
+  terminal. El prompt incluye una sección **"SALIDA DE EJECUCIÓN / SESIÓN DE
+  CONSOLA"** + una directiva `so_consola` que le dice a la IA que evalúe la tarea
+  según lo que MUESTRA el transcript.
+- El docente siempre puede ajustar con su override.
+
+Invariante cross-file del campo: `GradeBatchItem.executionOutput`
+([grade-submission.ts](../src/modules/ai/grade-submission.ts)) ↔ `BatchItem.executionOutput`
+del edge ([ai-grade-submission](../supabase/functions/ai-grade-submission/index.ts)) ↔
+`batchItems` en [WorkshopQuestions.tsx](../src/modules/workshops/WorkshopQuestions.tsx).
 
 El motor del simulador viejo (`shell.ts`, `system.ts`, `scenario.ts`,
 `grading.ts` + `server-console.test.ts`) **queda en el repo** (tests verdes) por

@@ -70,20 +70,36 @@ export function CodePageEditor({
   // Salida local del alumno (readOnly) — no se persiste.
   const [localOut, setLocalOut] = useState<{ stdout: string; stderr: string; exitCode: number } | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Último patch pendiente + ref al onPersist actual, para FLUSHear el guardado
+  // debounced al desmontar (cambio de hoja / cierre de pizarra) sin perder el
+  // último cambio. Mismo patrón que TextPageEditor/WhiteboardEditor.
+  const pendingRef = useRef<Record<string, unknown> | null>(null);
+  const onPersistRef = useRef(onPersist);
+  useEffect(() => {
+    onPersistRef.current = onPersist;
+  }, [onPersist]);
 
   useEffect(() => {
     return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        if (pendingRef.current) onPersistRef.current(pendingRef.current);
+      }
     };
   }, []);
 
   const scheduleSourceSave = useCallback(
     (nextCode: string) => {
       if (readOnly) return;
+      pendingRef.current = { code_source: nextCode };
       if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => onPersist({ code_source: nextCode }), 1200);
+      saveTimer.current = setTimeout(() => {
+        if (pendingRef.current) onPersistRef.current(pendingRef.current);
+        pendingRef.current = null;
+        saveTimer.current = null;
+      }, 1200);
     },
-    [onPersist, readOnly],
+    [readOnly],
   );
 
   const onCodeChange = (v: string) => {
@@ -94,6 +110,13 @@ export function CodePageEditor({
   const onLangChange = (v: string) => {
     if (readOnly) return;
     setLang(v);
+    // Cancelar cualquier guardado de fuente pendiente: el onPersist de abajo ya
+    // persiste el estado nuevo (incl. code_source si reseteamos el starter).
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    pendingRef.current = null;
     const patch: Record<string, unknown> = { code_language: v };
     // Si el editor está vacío o aún trae el starter del lenguaje anterior,
     // reemplazamos por el starter del nuevo lenguaje (mejor UX al cambiar).

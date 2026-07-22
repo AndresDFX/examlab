@@ -45,3 +45,14 @@ export function isV86AnswerBlank(raw: unknown): boolean {
   if (!parsed) return true;
   return parsed.commands.length === 0 && parsed.transcript.trim().length === 0;
 }
+
+/**
+ * Texto LEGIBLE del transcript para vistas de revisión (docente/alumno).
+ * Devuelve `null` si `raw` NO es una respuesta v86 — así el caller muestra el
+ * `raw` tal cual (respuestas de otros tipos no se tocan).
+ */
+export function v86TranscriptForDisplay(raw: unknown): string | null {
+  const parsed = parseV86Answer(raw);
+  if (!parsed) return null;
+  return parsed.transcript.trim() || parsed.commands.join("\n") || null;
+}

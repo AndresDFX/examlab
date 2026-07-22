@@ -6602,6 +6602,12 @@
     "cancel": "Cancel",
     "save": "Save"
   },
+  "hc_modulesWhiteboardCodePageEditor": {
+    "language": "Language",
+    "emptyCode": "The code page is empty",
+    "runFailed": "The code could not be run",
+    "lastRun": "Last run {{time}}"
+  },
   "hc_modulesWhiteboardMultiPageWhiteboard": {
     "loadPagesError": "We couldn't load the whiteboard pages.",
     "initFirstPageError": "We couldn't initialize the first page.",
@@ -6639,6 +6645,14 @@
     "drawingPageHint": "Excalidraw canvas to draw, annotate and diagram",
     "textPage": "Text page",
     "textPageHint": "Markdown editor with preview",
+    "codePage": "Code page",
+    "codePageHint": "Editor + compiler to show code live",
+    "consolePage": "Console page (Linux)",
+    "consolePageHint": "Real Linux terminal to demo commands",
+    "newCodePageTitle": "New code page",
+    "newConsolePageTitle": "New console page",
+    "codePagePlaceholder": "E.g.: For loop example",
+    "consolePagePlaceholder": "E.g.: Permission commands",
     "newTextPageTitle": "New text page",
     "newDrawingPageTitle": "New drawing page",
     "namePageDescription": "Give the page a name to identify it.",
@@ -9103,14 +9117,16 @@
     "addLink": "Add link"
   },
   "serverConsole": {
-    "welcome": "Server console. You are «{{user}}». Use Linux commands (pwd, ls, mkdir, chmod, sudo …).",
-    "title": "Server console",
-    "hint": "Privileged commands (useradd, apt install, systemctl) require `sudo`. ↑/↓ arrows for history, Tab autocompletes and `nano` edits files.",
-    "focus": "Server console",
-    "editorNewBuffer": "New buffer",
-    "editorSave": "^O Save & exit",
-    "editorExit": "^X Exit",
-    "editorHint": "Ctrl+O save · Ctrl+X / Esc exit"
+    "title": "Server console (Linux)",
+    "liveBadge": "Real Linux",
+    "hintV86": "A real Linux machine running in your browser. Type commands like in a normal terminal.",
+    "loading": "Loading the emulator…",
+    "booting": "Starting Linux…",
+    "error": "The console could not be started.",
+    "unconfigured": "The Linux console doesn't have an image configured yet.",
+    "unconfiguredHint": "The administrator must host a Linux image and set VITE_V86_IMAGE_URL (or VITE_V86_STATE_URL / VITE_V86_BZIMAGE_URL). See docs/server-console-v86.md.",
+    "transcriptTitle": "Session transcript",
+    "transcriptEmpty": "(no console activity)"
   },
   "pricingCalculator": {
     "planStarter": "Starter (≤200)",

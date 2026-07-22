@@ -26,6 +26,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ErrorState } from "@/components/ui/empty-state";
 import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { v86TranscriptForDisplay } from "@/modules/serverconsole/v86-answer";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 
 export const Route = createFileRoute("/app/student/workshop/$workshopId")({
@@ -351,7 +352,7 @@ function StudentWorkshopDetail() {
       return <span className="text-muted-foreground italic">{t("exam.review.noAnswer")}</span>;
     return (
       <div className="rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap font-mono">
-        {raw}
+        {v86TranscriptForDisplay(raw) ?? raw}
       </div>
     );
   };

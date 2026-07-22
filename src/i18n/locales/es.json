@@ -6602,6 +6602,12 @@
     "cancel": "Cancelar",
     "save": "Guardar"
   },
+  "hc_modulesWhiteboardCodePageEditor": {
+    "language": "Lenguaje",
+    "emptyCode": "La hoja de código está vacía",
+    "runFailed": "No se pudo ejecutar el código",
+    "lastRun": "Última ejecución {{time}}"
+  },
   "hc_modulesWhiteboardMultiPageWhiteboard": {
     "loadPagesError": "No pudimos cargar las hojas de la pizarra.",
     "initFirstPageError": "No pudimos inicializar la primera hoja.",
@@ -6639,6 +6645,14 @@
     "drawingPageHint": "Canvas Excalidraw para dibujar, anotar y diagramar",
     "textPage": "Hoja de texto",
     "textPageHint": "Editor markdown con vista previa",
+    "codePage": "Hoja de código",
+    "codePageHint": "Editor + compilador para mostrar código en vivo",
+    "consolePage": "Hoja de consola (Linux)",
+    "consolePageHint": "Terminal Linux real para demostrar comandos",
+    "newCodePageTitle": "Nueva hoja de código",
+    "newConsolePageTitle": "Nueva hoja de consola",
+    "codePagePlaceholder": "Ej: Ejemplo de bucle for",
+    "consolePagePlaceholder": "Ej: Comandos de permisos",
     "newTextPageTitle": "Nueva hoja de texto",
     "newDrawingPageTitle": "Nueva hoja de dibujo",
     "namePageDescription": "Ponle un nombre a la hoja para identificarla.",
@@ -9103,14 +9117,16 @@
     "addLink": "Agregar enlace"
   },
   "serverConsole": {
-    "welcome": "Consola del servidor. Estás como «{{user}}». Usa comandos de Linux (pwd, ls, mkdir, chmod, sudo …).",
-    "title": "Consola del servidor",
-    "hint": "Comandos privilegiados (useradd, apt install, systemctl) requieren `sudo`. Flechas ↑/↓ para el historial, Tab autocompleta y `nano` edita archivos.",
-    "focus": "Consola del servidor",
-    "editorNewBuffer": "Buffer nuevo",
-    "editorSave": "^O Guardar y salir",
-    "editorExit": "^X Salir",
-    "editorHint": "Ctrl+O guardar · Ctrl+X / Esc salir"
+    "title": "Consola del servidor (Linux)",
+    "liveBadge": "Linux real",
+    "hintV86": "Máquina Linux real ejecutándose en tu navegador. Escribe comandos como en una terminal normal.",
+    "loading": "Cargando el emulador…",
+    "booting": "Iniciando Linux…",
+    "error": "No se pudo iniciar la consola.",
+    "unconfigured": "La consola Linux aún no tiene una imagen configurada.",
+    "unconfiguredHint": "El administrador debe hostear una imagen de Linux y definir VITE_V86_IMAGE_URL (o VITE_V86_STATE_URL / VITE_V86_BZIMAGE_URL). Ver docs/server-console-v86.md.",
+    "transcriptTitle": "Transcript de la sesión",
+    "transcriptEmpty": "(sin actividad en la consola)"
   },
   "pricingCalculator": {
     "planStarter": "Starter (≤200)",

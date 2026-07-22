@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { cancelPendingAiJobsForTarget } from "@/modules/ai/ai-grading";
+import { v86TranscriptForDisplay } from "@/modules/serverconsole/v86-answer";
 import { useAuth } from "@/hooks/use-auth";
 import { isStaffRole } from "@/shared/lib/roles";
 import { Card, CardContent } from "@/components/ui/card";
@@ -4279,7 +4280,7 @@ function TeacherWorkshops() {
                                           </div>
                                         ) : raw ? (
                                           <pre className="mt-1 max-h-48 overflow-auto rounded bg-background border p-2 text-xs whitespace-pre-wrap font-mono">
-                                            {raw}
+                                            {v86TranscriptForDisplay(raw) ?? raw}
                                           </pre>
                                         ) : (
                                           <p className="text-xs italic text-muted-foreground mt-1">
