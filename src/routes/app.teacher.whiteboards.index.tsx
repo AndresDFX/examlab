@@ -27,7 +27,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DateCell } from "@/components/ui/date-cell";
-import { SearchInput } from "@/components/ui/search-input";
+import { ListFilters } from "@/components/ui/list-filters";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -124,6 +124,9 @@ function TeacherWhiteboards() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [search, setSearch] = useState("");
+  // Filtro por curso del grid (mismo control que talleres/proyectos/exámenes
+  // vía ListFilters). null = "Todos los cursos".
+  const [courseFilter, setCourseFilter] = useState<string | null>(null);
   // Filtro de estado: por defecto "activos" (oculta las cerradas), igual que
   // exámenes/talleres/proyectos. Mismo helper compartido `matchesActivityStatus`.
   const [statusFilter, setStatusFilter] = useState<ActivityStatusFilter>(
@@ -257,12 +260,26 @@ function TeacherWhiteboards() {
   // abrir el dialog de creación); si todavía está vacío, ordena por "".
   // Pipeline: buscar → filtrar por estado → ORDENAR → paginar. El filtro de
   // estado usa el helper compartido (nullish ⇒ published).
+  // Cursos presentes en las pizarras cargadas → opciones del selector de curso
+  // del grid. Solo cursos NO en papelera; ordenados por nombre (es-CO). Se
+  // derivan de `items` (no requiere query extra) — solo aparecen cursos que
+  // realmente tienen pizarras.
+  const filterCourses = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const w of items) {
+      if (w.courses && !w.courses.deleted_at) map.set(w.courses.id, w.courses.name);
+    }
+    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) =>
+      a.name.localeCompare(b.name, "es-CO"),
+    );
+  }, [items]);
+
   const filtered = useMemo(
     () =>
-      filterWhiteboards(items, search).filter((w) =>
-        matchesActivityStatus(w.status, statusFilter),
-      ),
-    [items, search, statusFilter],
+      filterWhiteboards(items, search)
+        .filter((w) => matchesActivityStatus(w.status, statusFilter))
+        .filter((w) => !courseFilter || w.course_id === courseFilter),
+    [items, search, statusFilter, courseFilter],
   );
   const sort = useTableSort(filtered, {
     columns: {
@@ -299,7 +316,7 @@ function TeacherWhiteboards() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_whiteboards",
-    resetKey: `${search}|${statusFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter ?? ""}|${statusFilter}|${sort.resetKey}`,
   });
 
   // Multi-selección + bulk delete — mismo patrón que cursos, usuarios,
@@ -588,18 +605,19 @@ function TeacherWhiteboards() {
         />
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-        <div className="flex-1 min-w-0">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder={t("hc_routesAppTeacherWhiteboardsIndex.searchPlaceholder")}
-          />
-        </div>
-        {/* Filtro de estado: por defecto oculta las cerradas (mismo control y
-            comportamiento que exámenes/talleres/proyectos). */}
-        <ActivityStatusSelect value={statusFilter} onChange={setStatusFilter} />
-      </div>
+      {/* Barra estándar de búsqueda + filtro por curso (ListFilters), igual que
+          talleres/proyectos/exámenes. El filtro de estado va en el slot `extra`
+          (por defecto oculta las cerradas). */}
+      <ListFilters
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder={t("hc_routesAppTeacherWhiteboardsIndex.searchPlaceholder")}
+        courseId={courseFilter}
+        onCourseChange={setCourseFilter}
+        courses={filterCourses}
+        extra={<ActivityStatusSelect value={statusFilter} onChange={setStatusFilter} />}
+        onClearExtra={() => setStatusFilter(DEFAULT_ACTIVITY_STATUS_FILTER)}
+      />
 
       {/* Toolbar de bulk delete — solo se renderiza cuando hay items
           seleccionados. Mismo patrón que el resto de listados
