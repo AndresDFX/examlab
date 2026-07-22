@@ -12,6 +12,7 @@ import {
   type ProjectFileRow,
   type ProjectSubFileRow,
 } from "./grade-submission";
+import { serializeV86Answer } from "@/modules/serverconsole/v86-answer";
 
 function wq(p: Partial<WorkshopQuestionRow> & { id: string }): WorkshopQuestionRow {
   return {
@@ -92,6 +93,37 @@ describe("buildWorkshopItems", () => {
     expect(items.find((i) => i.qid === "q1")?.language).toBe("java");
     expect(items.find((i) => i.qid === "q2")?.language).toBe("python");
     expect(items.find((i) => i.qid === "q3")?.language).toBe("javascript");
+  });
+
+  it("so_consola: desempaqueta el transcript v86 (comandos como respuesta + salida)", () => {
+    const answer = serializeV86Answer({
+      transcript: "$ ls\nfile.txt\n$ whoami\nalumno\n",
+      commands: ["ls", "whoami"],
+    });
+    const items = buildWorkshopItems(
+      [wq({ id: "q1", type: "so_consola" })],
+      [wa({ question_id: "q1", answer_text: answer })],
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ qid: "q1", type: "so_consola", userAnswer: "ls\nwhoami" });
+    expect(items[0].executionOutput).toContain("file.txt");
+  });
+
+  it("so_consola sin interacción (sin comandos ni salida) → se salta", () => {
+    const answer = serializeV86Answer({ transcript: "   ", commands: [] });
+    const items = buildWorkshopItems(
+      [wq({ id: "q1", type: "so_consola" })],
+      [wa({ question_id: "q1", answer_text: answer })],
+    );
+    expect(items).toHaveLength(0);
+  });
+
+  it("so_consola con answer_text que no es v86 (basura) → se salta", () => {
+    const items = buildWorkshopItems(
+      [wq({ id: "q1", type: "so_consola" })],
+      [wa({ question_id: "q1", answer_text: "esto no es json v86" })],
+    );
+    expect(items).toHaveLength(0);
   });
 });
 

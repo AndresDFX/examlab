@@ -75,7 +75,7 @@ import {
 } from "@/modules/network/scenario";
 import { gradeNetwork } from "@/modules/network/grading";
 import { V86Console } from "@/modules/serverconsole/V86Console";
-import { isV86AnswerBlank } from "@/modules/serverconsole/v86-answer";
+import { isV86AnswerBlank, parseV86Answer } from "@/modules/serverconsole/v86-answer";
 
 export type WorkshopQuestion = {
   id: string;
@@ -1718,6 +1718,9 @@ export function StudentWorkshopTaker({
         /** Solo aplica a type='java_gui'. Determina la rúbrica esperada
          *  por la IA (Swing vs JavaFX). Persistido en q.options. */
         framework?: string | null;
+        /** Salida de ejecución / sesión de consola — se inyecta en el prompt
+         *  de calificación (ej. transcript de la consola Linux de so_consola). */
+        executionOutput?: string | null;
       }> = [];
       // Encolas async pendientes de `codigo_zip` — se procesan después
       // del upsert porque necesitamos el row id del answer.
@@ -2164,16 +2167,33 @@ export function StudentWorkshopTaker({
             breakdown.push({ qid: q.id, type: q.type, points: q.points, earned, feedback: fb });
           }
         } else if (q.type === "so_consola") {
-          // Consola Linux REAL (v86): NO se auto-califica por estado — un VM real
-          // no se introspecciona como el simulador. Queda pendiente de revisión
-          // del docente sobre el transcript de la sesión (guardado en answer_text).
-          const pendingFb = t("hc_modulesWorkshopsWorkshopQuestions.serverConsoleManual", {
-            defaultValue:
-              "Consola Linux real — requiere revisión del docente sobre el transcript de la sesión.",
-          });
-          payload.ai_grade = 0;
-          payload.ai_feedback = pendingFb;
-          breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0, feedback: pendingFb });
+          // Consola Linux REAL (v86): la "respuesta" es el transcript de la
+          // sesión (comandos + salida). Un VM real no se auto-califica por
+          // estado, así que lo mandamos al batch de IA como insumo del prompt
+          // de calificación: userAnswer = comandos tecleados, executionOutput =
+          // salida de la terminal. Sin transcript → 0 (no interactuó).
+          const parsed = parseV86Answer(raw);
+          if (!parsed || (parsed.commands.length === 0 && !parsed.transcript.trim())) {
+            payload.ai_grade = 0;
+            payload.ai_feedback = t("hc_modulesWorkshopsWorkshopQuestions.noAnswer");
+            breakdown.push({
+              qid: q.id,
+              type: q.type,
+              points: q.points,
+              earned: 0,
+              feedback: t("hc_modulesWorkshopsWorkshopQuestions.noAnswer"),
+            });
+          } else {
+            batchItems.push({
+              qid: q.id,
+              type: q.type,
+              content: String(q.content ?? ""),
+              rubric: String(q.expected_rubric ?? ""),
+              userAnswer: parsed.commands.length ? parsed.commands.join("\n") : parsed.transcript,
+              maxPoints: Number(q.points) || 0,
+              executionOutput: parsed.transcript,
+            });
+          }
         } else {
           // Detecta "sin respuesta":
           //   1. String vacío / whitespace.
@@ -2369,10 +2389,14 @@ export function StudentWorkshopTaker({
             submissionId,
             items: batchItems.map((it) => ({
               qid: it.qid,
+              type: it.type,
               content: it.content,
               rubric: it.rubric,
               userAnswer: it.userAnswer,
               maxPoints: it.maxPoints,
+              language: it.language,
+              framework: it.framework,
+              executionOutput: it.executionOutput,
             })),
             courseLanguage,
             courseId: courseIdForJob,

@@ -51,12 +51,17 @@ import {
   List as ListIcon,
   Palette,
   FileText,
+  Code2,
+  TerminalSquare,
   Search,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useTranslation } from "react-i18next";
 import { WhiteboardEditor, type WhiteboardScene } from "@/modules/whiteboard/WhiteboardEditor";
 import { TextPageEditor } from "@/modules/whiteboard/TextPageEditor";
+import { CodePageEditor } from "@/modules/whiteboard/CodePageEditor";
+import { V86Console } from "@/modules/serverconsole/V86Console";
+import { getStarterCode } from "@/modules/code/CodeEditor";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,7 +74,7 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-type PageType = "drawing" | "text";
+type PageType = "drawing" | "text" | "code" | "console";
 
 interface WhiteboardPage {
   id: string;
@@ -79,6 +84,30 @@ interface WhiteboardPage {
   page_type: PageType;
   scene_json: WhiteboardScene;
   text_content: string | null;
+  // Hojas 'code' (compilador) — mig 20261410000000.
+  code_language: string | null;
+  code_source: string | null;
+  last_stdout: string | null;
+  last_stderr: string | null;
+  last_exit_code: number | null;
+  last_executed_at: string | null;
+  // Hojas 'console' (Linux real v86) — transcript de la sesión.
+  console_transcript: string | null;
+}
+
+/** Icono lucide por tipo de hoja (sidebar tab + dropdown de lista). */
+function pageIcon(pt: PageType) {
+  return pt === "text" ? FileText : pt === "code" ? Code2 : pt === "console" ? TerminalSquare : Palette;
+}
+/** Color del icono por tipo de hoja — ancla visual consistente. */
+function pageIconColor(pt: PageType) {
+  return pt === "text"
+    ? "text-sky-500"
+    : pt === "code"
+      ? "text-indigo-500"
+      : pt === "console"
+        ? "text-emerald-500"
+        : "text-violet-500";
 }
 
 interface Props {
@@ -91,7 +120,8 @@ interface Props {
   className?: string;
 }
 
-const PAGE_SELECT_COLS = "id, whiteboard_id, position, name, page_type, scene_json, text_content";
+const PAGE_SELECT_COLS =
+  "id, whiteboard_id, position, name, page_type, scene_json, text_content, code_language, code_source, last_stdout, last_stderr, last_exit_code, last_executed_at, console_transcript";
 
 const EMPTY_SCENE: WhiteboardScene = { elements: [], appState: {} };
 
@@ -231,6 +261,26 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
     [activePageId, t],
   );
 
+  /** Persist de hoja CODE/CONSOLE — patch multi-campo (source/lenguaje/cache de
+   *  ejecución para code; transcript para console). Actualiza el state local
+   *  además de la DB para que el cache sobreviva un cambio de hoja + vuelta
+   *  (cada hoja re-monta por `key`, leyendo de `pages`). */
+  const persistCodePage = useCallback(
+    async (patch: Record<string, unknown>) => {
+      if (!activePageId) return;
+      setPages((prev) =>
+        prev.map((p) => (p.id === activePageId ? ({ ...p, ...patch } as WhiteboardPage) : p)),
+      );
+      try {
+        const { error } = await db.from("whiteboard_pages").update(patch).eq("id", activePageId);
+        if (error) toast.error(friendlyError(error, t("hc_modulesWhiteboardMultiPageWhiteboard.savePageError")));
+      } catch (e) {
+        toast.error(friendlyError(e, t("hc_modulesWhiteboardMultiPageWhiteboard.savePageError")));
+      }
+    },
+    [activePageId, t],
+  );
+
   const addPage = async (kind: PageType, name: string) => {
     if (busy) return;
     const trimmed = name.trim();
@@ -248,9 +298,14 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
         name: trimmed,
       };
       // Inicializamos el campo correspondiente al tipo de hoja para
-      // que el editor arranque limpio. El otro campo queda NULL/default.
+      // que el editor arranque limpio. Los otros campos quedan NULL/default.
       if (kind === "drawing") insertPayload.scene_json = EMPTY_SCENE;
-      else insertPayload.text_content = "";
+      else if (kind === "text") insertPayload.text_content = "";
+      else if (kind === "code") {
+        insertPayload.code_language = "java";
+        insertPayload.code_source = getStarterCode("java");
+      }
+      // 'console' no requiere init: el VM arranca fresco y console_transcript queda NULL.
       const { data, error } = await db
         .from("whiteboard_pages")
         .insert(insertPayload)
@@ -485,7 +540,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
               const isActive = page.id === activePageId;
               const isRenaming = renamingId === page.id;
               const label = page.name ?? t("hc_modulesWhiteboardMultiPageWhiteboard.pageLabel", { n: page.position + 1 });
-              const Icon = page.page_type === "text" ? FileText : Palette;
+              const Icon = pageIcon(page.page_type);
               return (
                 <div
                   key={page.id}
@@ -546,7 +601,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                         <Icon
                           className={cn(
                             "h-3 w-3 shrink-0",
-                            page.page_type === "text" ? "text-sky-500" : "text-violet-500",
+                            pageIconColor(page.page_type),
                           )}
                         />
                         <span className="truncate">{label}</span>
@@ -642,7 +697,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
               filteredPagesForList.map((page) => {
                 const isActive = page.id === activePageId;
                 const label = page.name ?? t("hc_modulesWhiteboardMultiPageWhiteboard.pageLabel", { n: page.position + 1 });
-                const Icon = page.page_type === "text" ? FileText : Palette;
+                const Icon = pageIcon(page.page_type);
                 return (
                   <DropdownMenuItem
                     key={page.id}
@@ -659,7 +714,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                     <Icon
                       className={cn(
                         "h-3 w-3 shrink-0",
-                        page.page_type === "text" ? "text-sky-500" : "text-violet-500",
+                        pageIconColor(page.page_type),
                       )}
                     />
                     <span className="truncate flex-1">{label}</span>
@@ -719,6 +774,42 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                   </span>
                 </div>
               </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  setNewPageName("");
+                  setNewPageKind("code");
+                }}
+              >
+                <Code2 className="h-4 w-4 mr-2 text-indigo-500" />
+                <div className="flex flex-col">
+                  <span className="text-sm">
+                    {t("hc_modulesWhiteboardMultiPageWhiteboard.codePage", { defaultValue: "Hoja de código" })}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {t("hc_modulesWhiteboardMultiPageWhiteboard.codePageHint", {
+                      defaultValue: "Editor + compilador para mostrar código en vivo",
+                    })}
+                  </span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  setNewPageName("");
+                  setNewPageKind("console");
+                }}
+              >
+                <TerminalSquare className="h-4 w-4 mr-2 text-emerald-500" />
+                <div className="flex flex-col">
+                  <span className="text-sm">
+                    {t("hc_modulesWhiteboardMultiPageWhiteboard.consolePage", { defaultValue: "Hoja de consola (Linux)" })}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {t("hc_modulesWhiteboardMultiPageWhiteboard.consolePageHint", {
+                      defaultValue: "Terminal Linux real para demostrar comandos",
+                    })}
+                  </span>
+                </div>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -734,6 +825,28 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
             key={activePage.id}
             text={activePage.text_content ?? ""}
             onPersist={persistTextPage}
+            readOnly={readOnly}
+            className="w-full h-full"
+          />
+        ) : activePage.page_type === "code" ? (
+          <CodePageEditor
+            key={activePage.id}
+            pageId={activePage.id}
+            language={activePage.code_language}
+            source={activePage.code_source}
+            stdout={activePage.last_stdout}
+            stderr={activePage.last_stderr}
+            exitCode={activePage.last_exit_code}
+            executedAt={activePage.last_executed_at}
+            onPersist={persistCodePage}
+            readOnly={readOnly}
+            className="w-full h-full"
+          />
+        ) : activePage.page_type === "console" ? (
+          <V86Console
+            key={activePage.id}
+            value={activePage.console_transcript}
+            onChange={(v) => void persistCodePage({ console_transcript: v })}
             readOnly={readOnly}
             className="w-full h-full"
           />
@@ -767,14 +880,21 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {newPageKind === "text" ? (
-                <FileText className="h-5 w-5 text-sky-500" />
-              ) : (
-                <Palette className="h-5 w-5 text-violet-500" />
-              )}
+              {(() => {
+                const NewIcon = pageIcon(newPageKind ?? "drawing");
+                return <NewIcon className={cn("h-5 w-5", pageIconColor(newPageKind ?? "drawing"))} />;
+              })()}
               {newPageKind === "text"
                 ? t("hc_modulesWhiteboardMultiPageWhiteboard.newTextPageTitle")
-                : t("hc_modulesWhiteboardMultiPageWhiteboard.newDrawingPageTitle")}
+                : newPageKind === "code"
+                  ? t("hc_modulesWhiteboardMultiPageWhiteboard.newCodePageTitle", {
+                      defaultValue: "Nueva hoja de código",
+                    })
+                  : newPageKind === "console"
+                    ? t("hc_modulesWhiteboardMultiPageWhiteboard.newConsolePageTitle", {
+                        defaultValue: "Nueva hoja de consola",
+                      })
+                    : t("hc_modulesWhiteboardMultiPageWhiteboard.newDrawingPageTitle")}
             </DialogTitle>
             <DialogDescription>{t("hc_modulesWhiteboardMultiPageWhiteboard.namePageDescription")}</DialogDescription>
           </DialogHeader>
@@ -796,7 +916,15 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
               placeholder={
                 newPageKind === "text"
                   ? t("hc_modulesWhiteboardMultiPageWhiteboard.textPagePlaceholder")
-                  : t("hc_modulesWhiteboardMultiPageWhiteboard.drawingPagePlaceholder")
+                  : newPageKind === "code"
+                    ? t("hc_modulesWhiteboardMultiPageWhiteboard.codePagePlaceholder", {
+                        defaultValue: "Ej. Ejemplo de bucle for",
+                      })
+                    : newPageKind === "console"
+                      ? t("hc_modulesWhiteboardMultiPageWhiteboard.consolePagePlaceholder", {
+                          defaultValue: "Ej. Comandos de permisos",
+                        })
+                      : t("hc_modulesWhiteboardMultiPageWhiteboard.drawingPagePlaceholder")
               }
             />
           </div>

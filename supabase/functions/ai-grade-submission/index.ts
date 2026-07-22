@@ -123,6 +123,11 @@ interface BatchItem {
    *  JavaFX usa Stage/Scene/Application.launch().
    *  Para python_gui no aplica — solo tkinter está soportado. */
   framework?: string | null;
+  /** Salida de ejecución / transcript de consola. Se inyecta en el prompt como
+   *  una sección aparte para que la IA califique con evidencia de lo que pasó al
+   *  ejecutar (ej. la sesión de terminal Linux de type='so_consola', o el
+   *  stdout/stderr de un run de código). Ausente → no se agrega la sección. */
+  executionOutput?: string | null;
 }
 
 /**
@@ -188,6 +193,18 @@ function itemDirectiveForType(it: BatchItem): string {
       `escribir esa plomería.\n`
     );
   }
+  if (t === "so_consola") {
+    return (
+      `[TIPO DE RESPUESTA: sesión de consola/terminal Linux]\n` +
+      `El estudiante trabajó en una máquina Linux real. En "RESPUESTA DEL ESTUDIANTE" ves los ` +
+      `COMANDOS que tecleó; en "SALIDA DE EJECUCIÓN / SESIÓN DE CONSOLA" ves el transcript real de ` +
+      `la terminal (comandos + su salida). Evalúa si logró la TAREA del enunciado SEGÚN ese ` +
+      `transcript: si los comandos son correctos y apropiados, si la salida evidencia que el ` +
+      `objetivo se cumplió (archivos/usuarios/permisos/servicios/paquetes creados o configurados ` +
+      `como pide la rúbrica) y la corrección/eficiencia del enfoque. Basá la nota en lo que MUESTRA ` +
+      `el transcript, no en lo que el estudiante "debería" haber hecho.\n`
+    );
+  }
   if (t === "diagrama") {
     return (
       `[TIPO DE RESPUESTA: diagrama (sintaxis Mermaid, PlantUML o ASCII)]\n` +
@@ -228,7 +245,10 @@ async function gradeOpenAnswersInBatch(
         (directive ? `${directive}\n` : "") +
         `ENUNCIADO:\n${it.content}\n\n` +
         `RÚBRICA ESPERADA:\n${it.rubric}\n\n` +
-        `RESPUESTA DEL ESTUDIANTE:\n${it.userAnswer}`
+        `RESPUESTA DEL ESTUDIANTE:\n${it.userAnswer}` +
+        (it.executionOutput && it.executionOutput.trim()
+          ? `\n\nSALIDA DE EJECUCIÓN / SESIÓN DE CONSOLA:\n${it.executionOutput}`
+          : "")
       );
     })
     .join("\n\n");

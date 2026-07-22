@@ -20,6 +20,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { aiGradeOrEnqueue, PENDING_AI_FEEDBACK } from "@/modules/ai/ai-grading";
+import { parseV86Answer } from "@/modules/serverconsole/v86-answer";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -34,6 +35,8 @@ export interface GradeBatchItem {
   userAnswer: string;
   maxPoints: number;
   language?: string | null;
+  /** Salida de ejecución / transcript de consola → insumo del prompt de IA. */
+  executionOutput?: string | null;
 }
 
 // ─────────────────────── Builders puros ───────────────────────
@@ -70,6 +73,23 @@ export function buildWorkshopItems(
   for (const q of questions) {
     if (q.type === "cerrada" || q.type === "cerrada_multi") continue;
     const a = byQid.get(q.id);
+    // Consola Linux real (so_consola): la respuesta es el transcript de la
+    // sesión (JSON en answer_text). Lo desempaquetamos a comandos + salida para
+    // que la IA lo lea como una sesión de terminal, no como JSON crudo.
+    if (q.type === "so_consola") {
+      const parsed = parseV86Answer(a?.answer_text ?? null);
+      if (!parsed || (parsed.commands.length === 0 && !parsed.transcript.trim())) continue;
+      items.push({
+        qid: q.id,
+        type: q.type,
+        content: q.content,
+        rubric: q.expected_rubric ?? "",
+        userAnswer: parsed.commands.length ? parsed.commands.join("\n") : parsed.transcript,
+        maxPoints: Number(q.points) || 0,
+        executionOutput: parsed.transcript,
+      });
+      continue;
+    }
     const raw = a?.code_content ?? a?.diagram_code ?? a?.answer_text ?? "";
     const trimmed = String(raw).trim();
     const starter = String(q.starter_code ?? "").trim();
