@@ -58,7 +58,7 @@
       "narration": "Así, desde un solo lugar, el administrador controla toda la inteligencia artificial de ExamLab: generación y calificación bajo la vista.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
-        "title": "Cola de IA",
+        "title": "ExamLab",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 500

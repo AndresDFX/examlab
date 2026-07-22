@@ -4,14 +4,23 @@
   "series": "superadmin",
   "role": "SuperAdmin",
   "appPath": "/app/superadmin/pricing-calculator",
-  "readySelectors": ["text=Calculadora"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "text=Calculadora"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
       "narration": "Una herramienta interna del SuperAdmin: estimar el costo de operar la plataforma y proponer un precio.",
-      "card": { "kicker": "ExamLab · SuperAdmin", "title": "Calculadora de costos", "subtitle": "Costo de operación y precio sugerido" },
+      "card": {
+        "kicker": "ExamLab · SuperAdmin",
+        "title": "Calculadora de costos",
+        "subtitle": "Costo de operación y precio sugerido"
+      },
       "bufferMs": 600
     },
     {
@@ -20,14 +29,27 @@
       "narration": "Se ajustan los parámetros del negocio —volumen de uso, servicios de inteligencia artificial, infraestructura— y la calculadora estima el costo mensual y el precio recomendado. Es una herramienta interna, no visible para las instituciones.",
       "bufferMs": 1000,
       "beats": [
-        { "target": "firstcard", "scale": 1.15, "hold": 5500, "side": "bottom", "focus": { "title": "Parámetros", "body": "Uso, IA e infraestructura → costo y precio." } }
+        {
+          "target": "firstcard",
+          "scale": 1.15,
+          "hold": 5500,
+          "side": "bottom",
+          "focus": {
+            "title": "Parámetros",
+            "body": "Uso, IA e infraestructura → costo y precio."
+          }
+        }
       ]
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "Así, el SuperAdmin toma decisiones comerciales con números claros, sin salir de la plataforma.",
-      "card": { "kicker": "ExamLab · SuperAdmin", "title": "Decisiones con datos", "subtitle": "Costo y precio, al instante" },
+      "card": {
+        "kicker": "ExamLab · SuperAdmin",
+        "title": "ExamLab",
+        "subtitle": "Costo y precio, al instante"
+      },
       "bufferMs": 600
     }
   ]

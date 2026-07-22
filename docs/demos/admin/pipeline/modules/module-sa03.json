@@ -4,14 +4,23 @@
   "series": "superadmin",
   "role": "SuperAdmin",
   "appPath": "/app/superadmin/system",
-  "readySelectors": ["text=Plataforma"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "text=Plataforma"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
       "narration": "El SuperAdmin vigila la salud de toda la plataforma desde un panel con varias pestañas: cada una cubre una parte de lo que la sostiene.",
-      "card": { "kicker": "ExamLab · SuperAdmin", "title": "Diagnósticos del sistema", "subtitle": "Plataforma, correos, backups, salud y secretos" },
+      "card": {
+        "kicker": "ExamLab · SuperAdmin",
+        "title": "Diagnósticos del sistema",
+        "subtitle": "Plataforma, correos, backups, salud y secretos"
+      },
       "bufferMs": 600
     },
     {
@@ -21,7 +30,16 @@
       "narration": "En la pestaña Plataforma se ve la configuración global y el estado general de la plataforma que comparten todas las instituciones.",
       "bufferMs": 800,
       "beats": [
-        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Plataforma", "body": "Configuración y estado global." } }
+        {
+          "target": "firstcard",
+          "scale": 1.15,
+          "hold": 4200,
+          "side": "bottom",
+          "focus": {
+            "title": "Plataforma",
+            "body": "Configuración y estado global."
+          }
+        }
       ]
     },
     {
@@ -31,7 +49,16 @@
       "narration": "La pestaña Correos muestra la actividad de envío: cuántos correos salieron, cuáles fallaron y el estado del servicio de correo de la plataforma.",
       "bufferMs": 800,
       "beats": [
-        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Correos", "body": "Entregados, fallidos y estado del SMTP." } }
+        {
+          "target": "firstcard",
+          "scale": 1.15,
+          "hold": 4200,
+          "side": "bottom",
+          "focus": {
+            "title": "Correos",
+            "body": "Entregados, fallidos y estado del SMTP."
+          }
+        }
       ]
     },
     {
@@ -41,7 +68,16 @@
       "narration": "En Backups se administran los respaldos de la base de datos: cuándo se hicieron y la posibilidad de generarlos o restaurarlos.",
       "bufferMs": 800,
       "beats": [
-        { "target": "firstcard", "scale": 1.15, "hold": 4000, "side": "bottom", "focus": { "title": "Backups", "body": "Respaldos de la base de datos." } }
+        {
+          "target": "firstcard",
+          "scale": 1.15,
+          "hold": 4000,
+          "side": "bottom",
+          "focus": {
+            "title": "Backups",
+            "body": "Respaldos de la base de datos."
+          }
+        }
       ]
     },
     {
@@ -51,8 +87,31 @@
       "narration": "La pestaña Diagnósticos corre chequeos en vivo de los servicios críticos: al refrescar, cada uno —edge functions, base de datos, almacenamiento, proveedor de IA, notificaciones push, correo y tareas programadas— se muestra en verde si está sano o en rojo si necesita atención.",
       "bufferMs": 1200,
       "beats": [
-        { "click": true, "target": "button:Refrescar diagnóstico", "afterClickMs": 8000, "focusTarget": "button:Refrescar diagnóstico", "scale": 1.2, "hold": 3200, "side": "left", "syncWord": "refrescar", "focus": { "title": "Refrescar diagnóstico", "body": "Corre los chequeos de servicios en vivo." } },
-        { "target": "firstcard", "scale": 1.12, "hold": 6500, "side": "bottom", "syncWord": "verde", "focus": { "title": "Estado de servicios", "body": "En verde lo sano; en rojo lo que necesita atención." } }
+        {
+          "click": true,
+          "target": "button:Refrescar diagnóstico",
+          "afterClickMs": 8000,
+          "focusTarget": "button:Refrescar diagnóstico",
+          "scale": 1.2,
+          "hold": 3200,
+          "side": "left",
+          "syncWord": "refrescar",
+          "focus": {
+            "title": "Refrescar diagnóstico",
+            "body": "Corre los chequeos de servicios en vivo."
+          }
+        },
+        {
+          "target": "firstcard",
+          "scale": 1.12,
+          "hold": 6500,
+          "side": "bottom",
+          "syncWord": "verde",
+          "focus": {
+            "title": "Estado de servicios",
+            "body": "En verde lo sano; en rojo lo que necesita atención."
+          }
+        }
       ]
     },
     {
@@ -62,14 +121,27 @@
       "narration": "Y en Secretos de infraestructura se verifica que las llaves y credenciales que la plataforma necesita estén presentes, sin exponer nunca su valor.",
       "bufferMs": 800,
       "beats": [
-        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Secretos infra", "body": "Presencia de llaves, sin revelar su valor." } }
+        {
+          "target": "firstcard",
+          "scale": 1.15,
+          "hold": 4200,
+          "side": "bottom",
+          "focus": {
+            "title": "Secretos infra",
+            "body": "Presencia de llaves, sin revelar su valor."
+          }
+        }
       ]
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "Con estas pestañas, el SuperAdmin confirma de un vistazo que toda la plataforma opera bien y actúa antes de que un problema llegue a las instituciones.",
-      "card": { "kicker": "ExamLab · SuperAdmin", "title": "Operación confiable", "subtitle": "Toda la salud de la plataforma en un panel" },
+      "card": {
+        "kicker": "ExamLab · SuperAdmin",
+        "title": "ExamLab",
+        "subtitle": "Toda la salud de la plataforma en un panel"
+      },
       "bufferMs": 600
     }
   ]

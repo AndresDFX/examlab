@@ -4,14 +4,23 @@
   "series": "superadmin",
   "role": "SuperAdmin",
   "appPath": "/app/superadmin/tenants",
-  "readySelectors": ["text=Instituciones"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "text=Instituciones"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "intro",
       "kind": "card",
       "narration": "El corazón del rol SuperAdmin: administrar todas las instituciones de la plataforma desde un solo lugar.",
-      "card": { "kicker": "ExamLab · SuperAdmin", "title": "Instituciones", "subtitle": "Una plataforma, muchas instituciones" },
+      "card": {
+        "kicker": "ExamLab · SuperAdmin",
+        "title": "Instituciones",
+        "subtitle": "Una plataforma, muchas instituciones"
+      },
       "bufferMs": 600
     },
     {
@@ -20,8 +29,27 @@
       "narration": "Cada fila es una institución con su propia identidad, sus usuarios y sus cursos. El SuperAdmin crea nuevas instituciones y administra las existentes, con búsqueda y filtros para encontrarlas al instante.",
       "bufferMs": 900,
       "beats": [
-        { "target": "text:Nueva", "scale": 1.5, "hold": 3000, "side": "bottom", "syncWord": "crea", "focus": { "title": "Nueva institución", "body": "Alta con marca, cuotas y datos." } },
-        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Instituciones", "body": "Cada una con su identidad, usuarios y cursos." } }
+        {
+          "target": "text:Nueva",
+          "scale": 1.5,
+          "hold": 3000,
+          "side": "bottom",
+          "syncWord": "crea",
+          "focus": {
+            "title": "Nueva institución",
+            "body": "Alta con marca, cuotas y datos."
+          }
+        },
+        {
+          "target": "firstcard",
+          "scale": 1.15,
+          "hold": 4200,
+          "side": "bottom",
+          "focus": {
+            "title": "Instituciones",
+            "body": "Cada una con su identidad, usuarios y cursos."
+          }
+        }
       ]
     },
     {
@@ -30,14 +58,27 @@
       "narration": "Por cada institución, el SuperAdmin puede ver la plataforma como esa institución, iniciar sesión como su administrador para dar soporte, gestionar sus usuarios y ajustar su marca y sus cuotas. Es control total, con trazabilidad.",
       "bufferMs": 1000,
       "beats": [
-        { "target": "firstcard", "scale": 1.2, "hold": 6500, "side": "bottom", "focus": { "title": "Acciones por institución", "body": "Ver como, iniciar como Admin, gestionar usuarios, cuotas y marca." } }
+        {
+          "target": "firstcard",
+          "scale": 1.2,
+          "hold": 6500,
+          "side": "bottom",
+          "focus": {
+            "title": "Acciones por institución",
+            "body": "Ver como, iniciar como Admin, gestionar usuarios, cuotas y marca."
+          }
+        }
       ]
     },
     {
       "id": "outro",
       "kind": "card",
       "narration": "Así, una sola plataforma atiende a muchas instituciones, cada una aislada y con su propia experiencia, administradas centralmente por el SuperAdmin.",
-      "card": { "kicker": "ExamLab · SuperAdmin", "title": "Multi-institución", "subtitle": "Aislamiento por institución, control central" },
+      "card": {
+        "kicker": "ExamLab · SuperAdmin",
+        "title": "ExamLab",
+        "subtitle": "Aislamiento por institución, control central"
+      },
       "bufferMs": 600
     }
   ]

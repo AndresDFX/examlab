@@ -133,7 +133,7 @@
       "narration": "Así, el panel del Docente reúne en un solo lugar cursos, evaluaciones, notas y asistencia, con todo lo pendiente a la vista.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
-        "title": "Panel del Docente",
+        "title": "ExamLab",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 600

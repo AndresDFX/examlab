@@ -185,7 +185,7 @@
       "narration": "Así, desde un solo panel, el Administrador controla la identidad de la institución, sus módulos y el estado general de un vistazo.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
-        "title": "Panel de administración y Dashboard",
+        "title": "ExamLab",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 500

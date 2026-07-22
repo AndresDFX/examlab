@@ -110,7 +110,7 @@
       "narration": "Así, con plantillas globales y variables dinámicas, generás actas y boletines en PDF con los datos reales de cada estudiante.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
-        "title": "Informes",
+        "title": "ExamLab",
         "subtitle": "Demo Global Corp"
       },
       "bufferMs": 500
