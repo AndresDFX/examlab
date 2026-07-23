@@ -23,7 +23,13 @@
 // Ahora jsdelivr se deja pasar a la red (ver fetch handler). El bump a v9
 // PURGA en `activate` cualquier entrada de jsdelivr que hubiera quedado
 // cacheada en v8 y estuviera envenenando la carga.
-const CACHE_NAME = "examlab-v9";
+// v10: la consola Linux dejó de usar `i.copy.sh` (empezó a responder 403) y el
+// BIOS de jsdelivr `@master` (contenido inconsistente) → ahora los assets se
+// sirven del Storage propio (help-docs/v86/*, exento vía `supabase`). El bump a
+// v10 fuerza la purga de cualquier chunk JS viejo que aún referenciara esas
+// URLs muertas, para que tras el deploy no quede un bundle stale apuntando a
+// i.copy.sh.
+const CACHE_NAME = "examlab-v10";
 // Solo cacheamos assets inmutables (los que llevan hash en el nombre).
 // El HTML siempre se sirve desde la red — si la red falla, mostramos un
 // fallback offline mínimo construido al vuelo, no uno cacheado.

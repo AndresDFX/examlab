@@ -37,9 +37,14 @@ const V86_LIB_URL = `${V86_CDN}/build/libv86.js`;
 // sha256 idéntico al known-good) y el SW lo exenta (bypass `supabase`), así que
 // la descarga por rangos es fiable. Los binarios viven en el bucket público
 // `help-docs/v86/`. Derivamos el host de VITE_SUPABASE_URL (mismo proyecto).
+// Fallback hardcodeado al host del proyecto: `VITE_SUPABASE_URL` SIEMPRE está
+// definido en build (el cliente Supabase no arranca sin él) y es público (viaja
+// en el bundle), pero si por lo que sea no se inyecta, un `""` produciría una
+// URL RELATIVA que resolvería al origen de la app (lovable.app) → 404. El
+// fallback garantiza una URL ABSOLUTA válida a Storage.
 const SUPABASE_URL = (
-  (import.meta as unknown as { env: Record<string, string | undefined> }).env.VITE_SUPABASE_URL ??
-  ""
+  (import.meta as unknown as { env: Record<string, string | undefined> }).env.VITE_SUPABASE_URL ||
+  "https://uxxpzfsfcnqiwwdxoelm.supabase.co"
 ).replace(/\/+$/, "");
 const V86_ASSET_BASE = `${SUPABASE_URL}/storage/v1/object/public/help-docs/v86`;
 export const V86_BIOS_URL = `${V86_ASSET_BASE}/seabios.bin`;
