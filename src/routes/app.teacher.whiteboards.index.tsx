@@ -140,12 +140,26 @@ function TeacherWhiteboards() {
   const [draftCourseId, setDraftCourseId] = useState<string>("none");
   const [draftSessionId, setDraftSessionId] = useState<string>("none");
   const [saving, setSaving] = useState(false);
+  // Nombre OBLIGATORIO de la primera hoja. Antes la primera hoja se auto-creaba
+  // sin nombre (aparecía como "Hoja 1"); ahora se exige desde la creación —
+  // igual que se exige nombre al AGREGAR hojas siguientes. La hoja se crea con
+  // este nombre justo después de insertar la pizarra.
+  const [draftFirstSheetName, setDraftFirstSheetName] = useState("");
+  // Creación de sesión INLINE dentro del dialog: cuando el curso elegido no
+  // tiene sesiones (o se quiere agregar una en el momento), el docente crea la
+  // sesión acá sin salir a Asistencia. Campos mínimos para una sesión válida.
+  const [creatingSession, setCreatingSession] = useState(false);
+  const [newSessionDate, setNewSessionDate] = useState("");
+  const [newSessionTitle, setNewSessionTitle] = useState("");
+  const [newSessionStartTime, setNewSessionStartTime] = useState("");
+  const [newSessionDuration, setNewSessionDuration] = useState("");
+  const [savingSession, setSavingSession] = useState(false);
   // Guard "cambios sin guardar" para el dialog de creación. Agrupa los
   // campos editables del draft en un memo (el hook compara por
   // JSON.stringify).
   const createFormMemo = useMemo(
-    () => ({ draftName, draftDescription, draftCourseId, draftSessionId }),
-    [draftName, draftDescription, draftCourseId, draftSessionId],
+    () => ({ draftName, draftFirstSheetName, draftDescription, draftCourseId, draftSessionId }),
+    [draftName, draftFirstSheetName, draftDescription, draftCourseId, draftSessionId],
   );
   const createDirty = useDirtyDialog(createOpen, createFormMemo);
   // Cursos del docente (cargados al abrir el dialog). Mismo patrón que
@@ -197,6 +211,9 @@ function TeacherWhiteboards() {
   // otro curso, resetear session selector.
   useEffect(() => {
     setDraftSessionId("none");
+    // Cerrar el sub-form de creación de sesión al cambiar de curso (la sesión
+    // pertenece a un curso; el form quedaría apuntando al curso viejo).
+    setCreatingSession(false);
     if (draftCourseId === "none") {
       setDraftSessions([]);
       return;
@@ -352,10 +369,87 @@ function TeacherWhiteboards() {
 
   const resetCreateDialog = () => {
     setDraftName("");
+    setDraftFirstSheetName("");
     setDraftDescription("");
     setDraftCourseId("none");
     setDraftSessionId("none");
     setDraftSessions([]);
+    setCreatingSession(false);
+    setNewSessionDate("");
+    setNewSessionTitle("");
+    setNewSessionStartTime("");
+    setNewSessionDuration("");
+  };
+
+  /** Crea una sesión del curso seleccionado SIN salir del dialog de creación de
+   *  pizarra. Al crearla se agrega a la lista local y se SELECCIONA. El único
+   *  campo obligatorio es la fecha (mismo contrato que `buildNewSessionPayload`
+   *  + la RLS: el docente crea sesiones en los cursos donde es `course_teacher`). */
+  const createInlineSession = async () => {
+    if (!user || draftCourseId === "none") return;
+    if (!newSessionDate) {
+      toast.error(
+        i18n.t("toast.routes_app_teacher_whiteboards_index.sessionDateRequired", {
+          defaultValue: "La sesión necesita una fecha",
+        }),
+      );
+      return;
+    }
+    setSavingSession(true);
+    try {
+      const payload = buildNewSessionPayload({
+        course_id: draftCourseId,
+        session_date: newSessionDate,
+        created_by: user.id,
+        title: newSessionTitle.trim() || null,
+        start_time: newSessionStartTime.trim() || null,
+        duration_minutes: newSessionDuration.trim() ? Number(newSessionDuration) : null,
+      });
+      const { data, error } = await db
+        .from("attendance_sessions")
+        .insert(payload)
+        .select("id, session_date, title")
+        .single();
+      if (error || !data) {
+        toast.error(
+          friendlyError(
+            error,
+            i18n.t("toast.routes_app_teacher_whiteboards_index.sessionCreateError", {
+              defaultValue: "No se pudo crear la sesión",
+            }),
+          ),
+        );
+        return;
+      }
+      const created = data as { id: string; session_date: string; title: string | null };
+      // Insertar en la lista local ordenada por fecha desc (mismo orden que la
+      // query de sesiones) + seleccionarla automáticamente.
+      setDraftSessions((prev) =>
+        [created, ...prev].sort((a, b) => b.session_date.localeCompare(a.session_date)),
+      );
+      setDraftSessionId(created.id);
+      setCreatingSession(false);
+      setNewSessionDate("");
+      setNewSessionTitle("");
+      setNewSessionStartTime("");
+      setNewSessionDuration("");
+      toast.success(
+        i18n.t("toast.routes_app_teacher_whiteboards_index.sessionCreated", {
+          defaultValue: "Sesión creada",
+        }),
+      );
+    } catch (e) {
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("toast.routes_app_teacher_whiteboards_index.sessionCreateError", {
+            defaultValue: "No se pudo crear la sesión",
+          }),
+        ),
+      );
+    } finally {
+      setSavingSession(false);
+    }
   };
 
   const createWhiteboard = async () => {
@@ -364,6 +458,14 @@ function TeacherWhiteboards() {
       toast.error(
         i18n.t("toast.routes_app_teacher_whiteboards_index.nameRequired", {
           defaultValue: "Dale un nombre a la pizarra",
+        }),
+      );
+      return;
+    }
+    if (!draftFirstSheetName.trim()) {
+      toast.error(
+        i18n.t("toast.routes_app_teacher_whiteboards_index.firstSheetNameRequired", {
+          defaultValue: "Dale un nombre a la primera hoja",
         }),
       );
       return;
@@ -402,6 +504,22 @@ function TeacherWhiteboards() {
       if (error || !data) {
         toast.error(friendlyError(error, t("hc_routesAppTeacherWhiteboardsIndex.createError")));
         return;
+      }
+      // Crear la PRIMERA hoja con el nombre elegido (en vez de dejar que
+      // MultiPageWhiteboard la auto-cree sin nombre → "Hoja 1"). Es una hoja de
+      // dibujo (el tipo por defecto de la primera hoja). Si este insert fallara,
+      // la pizarra igual queda usable: MultiPageWhiteboard.load() auto-crea una
+      // hoja de respaldo al abrir — no bloqueamos la navegación por eso.
+      const { error: pageErr } = await db.from("whiteboard_pages").insert({
+        whiteboard_id: data.id,
+        position: 0,
+        page_type: "drawing",
+        name: draftFirstSheetName.trim(),
+        scene_json: { elements: [], appState: {} },
+      });
+      if (pageErr) {
+        // eslint-disable-next-line no-console
+        console.warn("No se pudo crear la primera hoja con nombre:", pageErr);
       }
       toast.success(
         i18n.t("toast.routes_app_teacher_whiteboards_index.created", {
@@ -826,6 +944,23 @@ function TeacherWhiteboards() {
                 autoFocus
               />
             </div>
+            {/* Nombre OBLIGATORIO de la primera hoja — se exige desde la
+                creación igual que al agregar hojas siguientes (antes salía
+                como "Hoja 1" sin nombre). */}
+            <div>
+              <Label required>
+                {t("hc_routesAppTeacherWhiteboardsIndex.fieldFirstSheetName", {
+                  defaultValue: "Nombre de la primera hoja",
+                })}
+              </Label>
+              <Input
+                value={draftFirstSheetName}
+                onChange={(e) => setDraftFirstSheetName(e.target.value)}
+                placeholder={t("hc_routesAppTeacherWhiteboardsIndex.fieldFirstSheetNamePlaceholder", {
+                  defaultValue: "Ej: Introducción",
+                })}
+              />
+            </div>
             <div data-tour-id="whiteboard-field-description">
               <Label>{t("hc_routesAppTeacherWhiteboardsIndex.fieldDescription")}</Label>
               <Textarea
@@ -880,29 +1015,138 @@ function TeacherWhiteboards() {
                     <Spinner size="xs" />{" "}
                     {t("hc_routesAppTeacherWhiteboardsIndex.loadingSessions")}
                   </div>
-                ) : draftSessions.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-2">
-                    {t("hc_routesAppTeacherWhiteboardsIndex.noSessionsNote")}
-                  </p>
                 ) : (
-                  <Select value={draftSessionId} onValueChange={setDraftSessionId}>
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={t("hc_routesAppTeacherWhiteboardsIndex.sessionPlaceholder")}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">
-                        {t("hc_routesAppTeacherWhiteboardsIndex.sessionNone")}
-                      </SelectItem>
-                      {draftSessions.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {formatDate(s.session_date)}
-                          {s.title ? ` · ${s.title}` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <>
+                    {draftSessions.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-2">
+                        {t("hc_routesAppTeacherWhiteboardsIndex.noSessionsNote")}
+                      </p>
+                    ) : (
+                      <Select value={draftSessionId} onValueChange={setDraftSessionId}>
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={t("hc_routesAppTeacherWhiteboardsIndex.sessionPlaceholder")}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">
+                            {t("hc_routesAppTeacherWhiteboardsIndex.sessionNone")}
+                          </SelectItem>
+                          {draftSessions.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {formatDate(s.session_date)}
+                              {s.title ? ` · ${s.title}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+
+                    {/* Crear sesión INLINE: cubre el caso "el curso no tiene
+                        sesiones" (y también agregar una en el momento). El
+                        docente no tiene que ir a Asistencia primero. */}
+                    {!creatingSession ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-2"
+                        onClick={() => setCreatingSession(true)}
+                      >
+                        <Plus className="h-3.5 w-3.5 mr-1" />
+                        {t("hc_routesAppTeacherWhiteboardsIndex.createSessionInline", {
+                          defaultValue: "Crear sesión nueva",
+                        })}
+                      </Button>
+                    ) : (
+                      <div className="mt-2 space-y-2 rounded-md border p-2.5 bg-muted/30">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <Label required className="text-xs">
+                              {t("hc_routesAppTeacherWhiteboardsIndex.sessionDateLabel", {
+                                defaultValue: "Fecha de la sesión",
+                              })}
+                            </Label>
+                            <Input
+                              type="date"
+                              value={newSessionDate}
+                              onChange={(e) => setNewSessionDate(e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">
+                              {t("hc_routesAppTeacherWhiteboardsIndex.sessionStartTimeLabel", {
+                                defaultValue: "Hora de inicio (opcional)",
+                              })}
+                            </Label>
+                            <Input
+                              type="time"
+                              value={newSessionStartTime}
+                              onChange={(e) => setNewSessionStartTime(e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-xs">
+                            {t("hc_routesAppTeacherWhiteboardsIndex.sessionTitleLabel", {
+                              defaultValue: "Título (opcional)",
+                            })}
+                          </Label>
+                          <Input
+                            value={newSessionTitle}
+                            onChange={(e) => setNewSessionTitle(e.target.value)}
+                            placeholder={t(
+                              "hc_routesAppTeacherWhiteboardsIndex.sessionTitlePlaceholder",
+                              { defaultValue: "Ej: Clase 4 · Herencia" },
+                            )}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">
+                            {t("hc_routesAppTeacherWhiteboardsIndex.sessionDurationLabel", {
+                              defaultValue: "Duración (min, opcional)",
+                            })}
+                          </Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={newSessionDuration}
+                            onChange={(e) => setNewSessionDuration(e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setCreatingSession(false)}
+                            disabled={savingSession}
+                          >
+                            {t("hc_routesAppTeacherWhiteboardsIndex.cancel")}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => void createInlineSession()}
+                            disabled={savingSession || !newSessionDate}
+                          >
+                            {savingSession ? (
+                              <Spinner size="xs" className="mr-1" />
+                            ) : (
+                              <Plus className="h-3.5 w-3.5 mr-1" />
+                            )}
+                            {t("hc_routesAppTeacherWhiteboardsIndex.createSessionBtn", {
+                              defaultValue: "Crear sesión",
+                            })}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
