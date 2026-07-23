@@ -30,6 +30,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { PageLoader } from "@/components/ui/loaders";
 import { CodeEditor, type CodeLanguage, getStarterCode } from "@/modules/code/CodeEditor";
 import { NetworkConsole } from "@/modules/network/NetworkConsole";
 import { NetworkTopologyEditor } from "@/modules/network/NetworkTopologyEditor";
@@ -69,6 +70,23 @@ import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/student/take/$examId")({ component: TakeExam });
+
+/** Mapa tipo-de-pregunta → clave i18n de su etiqueta legible. Espeja el
+ *  `TYPE_LABEL_KEY` del banco de preguntas — el alumno NO debe ver el código
+ *  interno crudo (`cerrada`, `codigo`, `java_gui`…) en la pantalla de toma.
+ *  Fallback al valor crudo si aparece un tipo fuera del mapa (defensivo). */
+const QUESTION_TYPE_LABEL_KEY: Record<string, string> = {
+  cerrada: "questionBank.type.cerrada",
+  cerrada_multi: "questionBank.type.cerradaMulti",
+  codigo: "questionBank.type.codigo",
+  codigo_zip: "questionBank.type.codigoZip",
+  abierta: "questionBank.type.abierta",
+  diagrama: "questionBank.type.diagrama",
+  java_gui: "questionBank.type.javaGui",
+  python_gui: "questionBank.type.pythonGui",
+  red_consola: "questionBank.type.redConsola",
+  red_gui: "questionBank.type.redGui",
+};
 
 type Question = {
   id: string;
@@ -1824,7 +1842,7 @@ function TakeExam() {
     }
   };
 
-  if (!exam) return <p className="text-muted-foreground p-6">{t("common.loading")}</p>;
+  if (!exam) return <PageLoader />;
 
   if (blockedBySession) {
     return (
@@ -2062,7 +2080,9 @@ function TakeExam() {
                     #{idx + 1}
                   </Badge>
                   <Badge variant="secondary" className="text-[10px]">
-                    {q.type}
+                    {QUESTION_TYPE_LABEL_KEY[q.type]
+                      ? t(QUESTION_TYPE_LABEL_KEY[q.type])
+                      : q.type}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
                     {t("hc_routesAppStudentTakeExamId.pointsAbbr", { points: q.points })}

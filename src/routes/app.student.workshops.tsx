@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ListFilters } from "@/components/ui/list-filters";
-import { ErrorState } from "@/components/ui/empty-state";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import {
   Select,
   SelectContent,
@@ -415,8 +415,6 @@ function StudentWorkshops() {
     resetKey: `${search}|${courseFilter}|${statusFilter}|${dateFrom}|${dateTo}|${sortBy}`,
   });
 
-  const hasActiveFilters =
-    search.trim().length > 0 || courseFilter !== null || statusFilter !== "all";
 
   // Si la query principal falló, render explícito con botón Reintentar
   // en vez de una grilla vacía silenciosa.
@@ -438,7 +436,7 @@ function StudentWorkshops() {
       <PageHeader
         icon={<Hammer className="h-6 w-6" />}
         title={t("nav.workshops")}
-        subtitle={`${visibleRows.length} ${t("nav.workshops").toLowerCase()}`}
+        subtitle={`${rows.length} ${t("nav.workshops").toLowerCase()}`}
       />
 
       {/* Stats 4-card — siempre visible, patrón compartido. */}
@@ -563,28 +561,34 @@ function StudentWorkshops() {
           </div>
         )}
         {!loading && visibleRows.length === 0 && (
-          <div className="md:col-span-2 rounded-md border border-dashed bg-muted/20 p-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              {hasActiveFilters
-                ? t("hc_routesAppStudentWorkshops.noMatches")
-                : t("common.empty")}
-            </p>
-            {hasActiveFilters && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mt-2"
-                onClick={() => {
-                  setSearch("");
-                  setCourseFilter(null);
-                  setStatusFilter("all");
-                  setDateFrom("");
-                  setDateTo("");
-                  setSortBy("due_asc");
-                }}
-              >
-                {t("hc_routesAppStudentWorkshops.clearFilters")}
-              </Button>
+          <div className="md:col-span-2">
+            {rows.length === 0 ? (
+              <EmptyState
+                icon={Hammer}
+                title={t("hc_routesAppStudentWorkshops.emptyTitle")}
+                hint={t("hc_routesAppStudentWorkshops.emptyHint")}
+              />
+            ) : (
+              <EmptyState
+                icon={Hammer}
+                title={t("hc_routesAppStudentWorkshops.noMatches")}
+                action={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSearch("");
+                      setCourseFilter(null);
+                      setStatusFilter("all");
+                      setDateFrom("");
+                      setDateTo("");
+                      setSortBy("due_asc");
+                    }}
+                  >
+                    {t("hc_routesAppStudentWorkshops.clearFilters")}
+                  </Button>
+                }
+              />
             )}
           </div>
         )}

@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ListFilters } from "@/components/ui/list-filters";
-import { ErrorState } from "@/components/ui/empty-state";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import {
   Select,
   SelectContent,
@@ -442,8 +442,6 @@ function StudentProjects() {
     resetKey: `${search}|${courseFilter}|${statusFilter}|${dateFrom}|${dateTo}|${sortBy}`,
   });
 
-  const hasActiveFilters =
-    search.trim().length > 0 || courseFilter !== null || statusFilter !== "all";
 
   // Si la query base falló (course_enrollments), no queremos mostrar
   // "Sin proyectos" como falso negativo. El usuario debe poder reintentar.
@@ -595,28 +593,34 @@ function StudentProjects() {
           </div>
         )}
         {!loading && visibleRows.length === 0 && (
-          <div className="md:col-span-2 rounded-md border border-dashed bg-muted/20 p-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              {hasActiveFilters
-                ? t("hc_routesAppStudentProjects.noMatches")
-                : t("common.empty")}
-            </p>
-            {hasActiveFilters && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mt-2"
-                onClick={() => {
-                  setSearch("");
-                  setCourseFilter(null);
-                  setStatusFilter("all");
-                  setDateFrom("");
-                  setDateTo("");
-                  setSortBy("due_asc");
-                }}
-              >
-                {t("hc_routesAppStudentProjects.clearFilters")}
-              </Button>
+          <div className="md:col-span-2">
+            {rows.length === 0 ? (
+              <EmptyState
+                icon={FolderKanban}
+                title={t("hc_routesAppStudentProjects.emptyTitle")}
+                hint={t("hc_routesAppStudentProjects.emptyHint")}
+              />
+            ) : (
+              <EmptyState
+                icon={FolderKanban}
+                title={t("hc_routesAppStudentProjects.noMatches")}
+                action={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSearch("");
+                      setCourseFilter(null);
+                      setStatusFilter("all");
+                      setDateFrom("");
+                      setDateTo("");
+                      setSortBy("due_asc");
+                    }}
+                  >
+                    {t("hc_routesAppStudentProjects.clearFilters")}
+                  </Button>
+                }
+              />
             )}
           </div>
         )}

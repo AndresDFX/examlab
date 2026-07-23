@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ListFilters } from "@/components/ui/list-filters";
-import { ErrorState } from "@/components/ui/empty-state";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import {
   Select,
   SelectContent,
@@ -349,9 +349,6 @@ function StudentExams() {
     resetKey: `${search}|${courseFilter}|${statusFilter}|${dateFrom}|${dateTo}|${sortBy}`,
   });
 
-  const hasActiveFilters =
-    search.trim().length > 0 || courseFilter !== null || statusFilter !== "all";
-
   if (loadError) {
     return (
       <div className="space-y-5">
@@ -370,7 +367,7 @@ function StudentExams() {
       <PageHeader
         icon={<FileText className="h-6 w-6" />}
         title={t("exam.title")}
-        subtitle={t("exam.availableSubtitle", { count: visibleRows.length })}
+        subtitle={t("exam.subtitle", { count: rows.length })}
       />
 
       {/* Stats 4-card — patrón compartido (StatCard). Siempre visible. */}
@@ -485,28 +482,34 @@ function StudentExams() {
           </div>
         )}
         {!loading && visibleRows.length === 0 && (
-          <div className="md:col-span-2 rounded-md border border-dashed bg-muted/20 p-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              {hasActiveFilters
-                ? t("hc_routesAppStudentExams.noFilterMatches")
-                : t("exam.noExamsAvailable")}
-            </p>
-            {hasActiveFilters && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mt-2"
-                onClick={() => {
-                  setSearch("");
-                  setCourseFilter(null);
-                  setStatusFilter("all");
-                  setDateFrom("");
-                  setDateTo("");
-                  setSortBy("due_asc");
-                }}
-              >
-                {t("hc_routesAppStudentExams.clearFilters")}
-              </Button>
+          <div className="md:col-span-2">
+            {rows.length === 0 ? (
+              <EmptyState
+                icon={FileText}
+                title={t("hc_routesAppStudentExams.emptyTitle")}
+                hint={t("hc_routesAppStudentExams.emptyHint")}
+              />
+            ) : (
+              <EmptyState
+                icon={FileText}
+                title={t("hc_routesAppStudentExams.noFilterMatches")}
+                action={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSearch("");
+                      setCourseFilter(null);
+                      setStatusFilter("all");
+                      setDateFrom("");
+                      setDateTo("");
+                      setSortBy("due_asc");
+                    }}
+                  >
+                    {t("hc_routesAppStudentExams.clearFilters")}
+                  </Button>
+                }
+              />
             )}
           </div>
         )}

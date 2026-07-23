@@ -171,6 +171,10 @@ function AdminDashboard() {
   const adminTenantId = profile?.tenant_id ?? null;
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  // Carga: arranca en true para que los stat tiles muestren "—" en vez de
+  // parpadear "0" real durante ~0.5s de cold cache (un "0 pendientes" falso
+  // le dice al Admin que no hay nada cuando sí lo hay). Espeja SuperAdmin.
+  const [loading, setLoading] = useState(true);
   // ── Stat cards superiores: métricas INSTITUCIONALES ──
   // Antes eran 4 métricas IA (errores 24h, respuestas IA, plagio, pendientes
   // docentes). Reemplazadas por métricas de negocio del Admin: cursos
@@ -224,6 +228,7 @@ function AdminDashboard() {
     let cancelled = false;
     (async () => {
       setLoadError(null);
+      setLoading(true);
       try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbAny = supabase as any;
@@ -519,6 +524,8 @@ function AdminDashboard() {
       }
       } catch (e) {
         if (!cancelled) setLoadError(friendlyError(e));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -555,23 +562,23 @@ function AdminDashboard() {
           negocio del Admin (cursos, usuarios, items pendientes,
           pendientes docentes). Mismo grid (2-col mobile, 4-col md+)
           y mismo componente <Stat> que Teacher/Student/SuperAdmin. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat
           icon={BookOpen}
           label={t("dashboard.stats.courses")}
-          value={adminStats.coursesActive}
+          value={loading ? "—" : adminStats.coursesActive}
           color="text-fuchsia-500 dark:text-fuchsia-400"
         />
         <Stat
           icon={UsersIcon}
           label={t("dashboard.stats.users")}
-          value={adminStats.usersTotal}
+          value={loading ? "—" : adminStats.usersTotal}
           color="text-indigo-500 dark:text-indigo-400"
         />
         <Stat
           icon={ListOrdered}
           label={t("dashboard.stats.pendingGrades")}
-          value={adminStats.pendingGrading}
+          value={loading ? "—" : adminStats.pendingGrading}
           color={
             adminStats.pendingGrading > 0
               ? "text-amber-500 dark:text-amber-400"
@@ -584,7 +591,7 @@ function AdminDashboard() {
         <Stat
           icon={Reply}
           label={t("dashboard.stats.pendingTeacherResponses")}
-          value={adminStats.pendingTeacherResponses}
+          value={loading ? "—" : adminStats.pendingTeacherResponses}
           color="text-rose-500 dark:text-rose-400"
         />
       </div>
@@ -606,7 +613,9 @@ function AdminDashboard() {
           <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
             <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
               {recentCourses.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">{t("hc_routesAppIndex.noCoursesYet")}</p>
+                <p className="text-sm text-muted-foreground py-6 text-center">
+                  {t("hc_routesAppIndex.noCoursesYet")}
+                </p>
               ) : (
                 recentCourses.map((c) => (
                   <EventRow
@@ -638,7 +647,7 @@ function AdminDashboard() {
           <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
             <div className="flex-1 overflow-y-auto min-h-0 pr-1">
               {recentEvents.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
+                <p className="text-sm text-muted-foreground py-6 text-center">
                   {t("hc_routesAppIndex.noEventsYet")}
                 </p>
               ) : (
@@ -798,6 +807,9 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
   const [pendingNotesModalOpen, setPendingNotesModalOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  // Carga: "—" en los tiles hasta resolver la query, para no mostrar un
+  // "0 por calificar" falso durante el cold cache. Espeja SuperAdmin/Admin.
+  const [loading, setLoading] = useState(true);
 
   // Cuenta de exam_notes (notas de apoyo) en estado 'pendiente' — chuletas
   // que el estudiante subió y esperan revisión del docente. Se llama
@@ -818,6 +830,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
     let cancelled = false;
     (async () => {
       setLoadError(null);
+      setLoading(true);
       try {
       const now = new Date().toISOString();
       // Fecha de hoy en formato YYYY-MM-DD (zona local) para comparar
@@ -1055,6 +1068,8 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       setUpcomingExams(exams ?? []);
       } catch (e) {
         if (!cancelled) setLoadError(friendlyError(e));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -1088,7 +1103,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           label={t("dashboard.stats.pendingExamNotes", {
             defaultValue: "Notas de examen pendientes",
           })}
-          value={counts.pendingExamNotes}
+          value={loading ? "—" : counts.pendingExamNotes}
           color="text-violet-500 dark:text-violet-400"
           onClick={() => setPendingNotesModalOpen(true)}
         />
@@ -1100,7 +1115,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         <Stat
           icon={ListOrdered}
           label={t("hc_routesAppIndex.queuePending")}
-          value={counts.aiPendingJobs}
+          value={loading ? "—" : counts.aiPendingJobs}
           color="text-indigo-500 dark:text-indigo-400"
           onClick={() => void navigate({ to: "/app/teacher/ai-cron" })}
         />
@@ -1113,7 +1128,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           label={t("dashboard.stats.pendingMyResponse", {
             defaultValue: "Comentarios pendientes por respuesta",
           })}
-          value={counts.pendingMyResponse}
+          value={loading ? "—" : counts.pendingMyResponse}
           color="text-rose-500 dark:text-rose-400"
           onClick={() => setPendingResponseModalOpen(true)}
         />
@@ -1126,7 +1141,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           label={t("dashboard.stats.pendingGrading", {
             defaultValue: "Pendientes de calificación",
           })}
-          value={pendingGradingTotal}
+          value={loading ? "—" : pendingGradingTotal}
           color="text-blue-500 dark:text-blue-400"
           onClick={() => setPendingGradingModalOpen(true)}
         />
@@ -1168,7 +1183,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
             <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
               {upcomingSessions.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
+                <p className="text-sm text-muted-foreground py-6 text-center">
                   {t("dashboard.noUpcomingClasses", {
                     defaultValue: "No tienes sesiones próximas programadas.",
                   })}
@@ -1209,7 +1224,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
             <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
               {upcomingExams.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
+                <p className="text-sm text-muted-foreground py-6 text-center">
                   {t("dashboard.noUpcomingExams")}
                 </p>
               ) : (
@@ -1333,6 +1348,9 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
   });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  // Carga: "—" en los tiles hasta resolver la query, para no mostrar un
+  // "0 pendientes" falso durante el cold cache. Espeja SuperAdmin/Admin.
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!userId) return;
@@ -1341,6 +1359,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
     let cancelled = false;
     (async () => {
       setLoadError(null);
+      setLoading(true);
       try {
       // Assigned exams — solo published. Draft (sin publicar) y closed
       // (cerrado manualmente por el docente) no aparecen en el dashboard
@@ -1532,6 +1551,8 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       // que se carga en el componente StudentKahootRanking vía RPC + realtime.)
       } catch (e) {
         if (!cancelled) setLoadError(friendlyError(e));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -1561,19 +1582,19 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         <Stat
           icon={FileText}
           label={t("dashboard.stats.pendingExams")}
-          value={upcomingExams.length}
+          value={loading ? "—" : upcomingExams.length}
           color="text-violet-500 dark:text-violet-400"
         />
         <Stat
           icon={Hammer}
           label={t("dashboard.stats.pendingWorkshops")}
-          value={pendingWorkshops.length}
+          value={loading ? "—" : pendingWorkshops.length}
           color="text-amber-500 dark:text-amber-400"
         />
         <Stat
           icon={FolderKanban}
           label={t("dashboard.stats.pendingProjects")}
-          value={pendingProjects.length}
+          value={loading ? "—" : pendingProjects.length}
           color="text-rose-500 dark:text-rose-400"
         />
         {/* Conversaciones pendientes — threads abiertos del estudiante
@@ -1585,7 +1606,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           label={t("dashboard.stats.conversationsPending", {
             defaultValue: "Conversaciones pendientes",
           })}
-          value={counts.pendingMyResponse}
+          value={loading ? "—" : counts.pendingMyResponse}
           color="text-sky-500 dark:text-sky-400"
           onClick={() => setPendingResponseModalOpen(true)}
         />
@@ -1625,7 +1646,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
             <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
               <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
                 {upcomingExams.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-2">
+                  <p className="text-sm text-muted-foreground py-6 text-center">
                     {t("dashboard.noUpcomingExams")}
                   </p>
                 ) : (
@@ -1783,13 +1804,13 @@ function StudentKahootRanking({
       <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
         <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
           {courses.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">
+            <p className="text-sm text-muted-foreground py-6 text-center">
               {t("dashboard.kahootNoCourses", { defaultValue: "No estás matriculado en cursos." })}
             </p>
           ) : loading ? (
-            <p className="text-sm text-muted-foreground py-2">{t("common.loading")}</p>
+            <p className="text-sm text-muted-foreground py-6 text-center">{t("common.loading")}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">
+            <p className="text-sm text-muted-foreground py-6 text-center">
               {t("dashboard.kahootNoGames", {
                 defaultValue: "Aún no hay puntajes de retos en este curso.",
               })}
@@ -2107,9 +2128,11 @@ function SuperAdminDashboard() {
           <CardContent className="flex-1 flex flex-col gap-2 min-h-0">
             <div className="flex-1 overflow-y-auto min-h-0 pr-1">
               {loading ? (
-                <p className="text-sm text-muted-foreground py-2">{t("hc_routesAppIndex.loading")}</p>
+                <p className="text-sm text-muted-foreground py-6 text-center">
+                  {t("hc_routesAppIndex.loading")}
+                </p>
               ) : tenantStats.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
+                <p className="text-sm text-muted-foreground py-6 text-center">
                   {t("hc_routesAppIndex.noInstitutionsYet")}
                 </p>
               ) : (

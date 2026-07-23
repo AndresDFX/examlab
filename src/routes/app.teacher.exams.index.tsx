@@ -966,7 +966,9 @@ function TeacherExams() {
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
                     <Badge variant="secondary" className="text-[10px]">
-                      {e.navigation_type}
+                      {e.navigation_type === "secuencial"
+                        ? t("exam.navigationSequential")
+                        : t("exam.navigationFree")}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
