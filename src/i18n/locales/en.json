@@ -1645,7 +1645,26 @@
     "fallbackKeysRemove": "Remove this key",
     "fallbackKeysAdd": "Add backup key",
     "fallbackKeysLabel": "Backup keys for {{provider}}",
-    "fallbackKeysCount": "{{count}} configured"
+    "fallbackKeysCount": "{{count}} configured",
+    "modeManaged": "Managed",
+    "modeManagedHint": "Your institution's AI is managed by the provider. To change the mode, contact support.",
+    "modeOwn": "Own",
+    "modeOwnBtn": "Own (my API key)",
+    "modeShared": "Shared",
+    "modeSharedBtn": "Shared (platform)",
+    "modeTitle": "Institution AI",
+    "ownConfirmBody": "Your institution will stop using the platform's shared AI and switch to YOUR own API key. Usage will be billed to your institution's provider account. If the key fails or runs out of quota, your institution's AI will stop working until you fix it. This does NOT affect other institutions. Remember to paste your API key below.",
+    "ownConfirmCta": "Use my own AI",
+    "ownConfirmTitle": "Use your own AI",
+    "ownDone": "Your institution now uses its own AI.",
+    "scopeTenantOwn": "You're using your own AI.",
+    "scopeTenantOwnBody": "Paste the API key of the provider you'll use — it bills your institution's account. AI grading won't work until it's configured.",
+    "scopeTenantShared": "You're using the platform's shared AI.",
+    "scopeTenantSharedBody": "You don't need to configure an API key. If you'd rather use your own, switch the mode to “Own” below.",
+    "sharedConfirmBody": "Your institution will go back to using the platform's shared AI. Your API key stays saved, but won't be used while you're in shared mode.",
+    "sharedConfirmCta": "Use the shared one",
+    "sharedConfirmTitle": "Switch back to shared AI",
+    "sharedDone": "Your institution now uses the shared AI."
   },
   "certSettings": {
     "resolutionHelp": "How each field is resolved when issuing:",
@@ -2714,7 +2733,9 @@
       "duplicateName": "You already have content named \"{{name}}\". Use a different name.",
       "noFilesUploaded": "No files could be uploaded. Please try again.",
       "fileListSaveFailed": "Files uploaded, but the file list could not be saved: {{error}}",
-      "courseAssociationFailed": "Content uploaded, but it could not be associated with some courses: {{error}}"
+      "courseAssociationFailed": "Content uploaded, but it could not be associated with some courses: {{error}}",
+      "fileTooLargeMany": "{{count}} file(s) skipped for exceeding {{maxMb}} MB: {{names}}",
+      "unsupportedFormatMany": "{{count}} file(s) skipped due to unsupported format: {{names}}"
     },
     "modules_exams_ExamNotesManager": {
       "emptyContent": "Enter the content of your notes",
@@ -2915,7 +2936,8 @@
       "duplicateStudentsSuffix": " ({{count}} student(s) copied)",
       "copyBoardFailed": "Could not copy the board: {{error}}",
       "statusChanged": "Course status updated",
-      "bulkDeletePartialError": "{{ok}} ok, {{failed}} failed. First: \"{{name}}\" — {{error}}"
+      "bulkDeletePartialError": "{{ok}} ok, {{failed}} failed. First: \"{{name}}\" — {{error}}",
+      "subjectRequired": "You must choose a subject from the plan."
     },
     "routes_app_admin_support": {
       "noTenantAssigned": "Your account has no institution assigned. Contact the SuperAdmin.",
@@ -3098,7 +3120,8 @@
       "conversationCleared": "Conversation deleted for you",
       "courseWordSingular": "course",
       "courseWordPlural": "courses",
-      "unknown": "unknown"
+      "unknown": "unknown",
+      "messageTooLong": "The message can't exceed 4000 characters."
     },
     "routes_app_student_attendance": {
       "codeMustBe6Digits": "The code must be 6 digits",
@@ -3300,7 +3323,8 @@
       "slotAdded": "Slot added",
       "slotNeedsConfig": "Add at least one date and a valid time window (start before end) to generate the slots.",
       "pollDuplicated": "Poll duplicated as a draft: \"{{title}} (copy)\"",
-      "cannotRemoveSlotWithVotes": "You can't delete dates with reservations: {{labels}}. Remove those students' responses first from \"View results\"."
+      "cannotRemoveSlotWithVotes": "You can't delete dates with reservations: {{labels}}. Remove those students' responses first from \"View results\".",
+      "slotCupoBelowReservations": "You can't lower the capacity below the reservations already made: {{labels}}. Remove a student's response first from “View results.”"
     },
     "routes_app_teacher_projects": {
       "bulkSentToTrash": "{{n}} project(s) moved to trash",
@@ -3347,7 +3371,8 @@
       "aiGenerated": "{{n}} question(s) generated and added to the bank",
       "aiNeedTopics": "Enter the topics to generate",
       "aiQueued": "Generation queued. It'll appear in the bank once processed.",
-      "invalidNetworkScenario": "The network scenario is invalid. Check the JSON: devices, links, targetDeviceId and assertions."
+      "invalidNetworkScenario": "The network scenario is invalid. Check the JSON: devices, links, targetDeviceId and assertions.",
+      "bulkDeleted": "{{count}} question(s) deleted"
     },
     "routes_app_teacher_reports": {
       "nameRequired": "The name is required",
@@ -4488,7 +4513,23 @@
       "status_past_due": "Grace period",
       "status_suspended": "Suspended",
       "status_cancelled": "Cancelled",
-      "status_expired": "Expired"
+      "status_expired": "Expired",
+      "ai": "AI mode",
+      "amount": "Amount",
+      "autoSuspend": "Auto-suspend on expiry",
+      "autoSuspendHint": "If enabled, the cron suspends the institution once the grace period (business days) has passed.",
+      "contact": "Billing email",
+      "currency": "Currency",
+      "cycle": "Cycle",
+      "end": "End date (expiry)",
+      "grace": "Grace (business days)",
+      "plan": "Plan",
+      "renew": "Renew +1 cycle",
+      "renewedHint": "End date extended — save to apply.",
+      "saved": "Billing updated.",
+      "start": "Start date",
+      "status": "Status",
+      "title": "Billing and plan"
     },
     "title": "Institutions",
     "clearViewAsBtn": "Clear \"view as\"",
@@ -5095,7 +5136,14 @@
     "aiEnqueueError": "The generation could not be queued",
     "networkScenarioLabel": "Network scenario (JSON)",
     "networkScenarioHint": "Topology (devices/links), targetDeviceId (device the student configures) and assertions (auto-graded rubric). The student solves it in an IOS-like console.",
-    "networkResetTemplate": "Reset template"
+    "networkResetTemplate": "Reset template",
+    "bulkEntityPlural": "questions",
+    "bulkEntitySingular": "question",
+    "removeTag": "Remove tag {{label}}",
+    "statShared": "Shared with the institution",
+    "statTotal": "Total questions",
+    "statUnused": "Unused",
+    "statUses": "Total uses"
   },
   "teacherPolls": {
     "pageTitle": "Polls",
@@ -6210,7 +6258,8 @@
     "cancel": "Cancel",
     "addQuestions": "Add {{count}} question",
     "addQuestions_other": "Add {{count}} questions",
-    "typeRedGui": "Network (diagram)"
+    "typeRedGui": "Network (diagram)",
+    "typeRedConsola": "Network (console)"
   },
   "hc_modulesContentsContentPromptsOverridesDialog": {
     "useCaseOrchestratorLabel": "Orchestrator prompt",
@@ -9281,5 +9330,33 @@
       "supabase_team_50k": "At ~50k enrollments it jumps to Supabase Team ($599): $/enrollment rises, renegotiate.",
       "infra_mismatch": "Standalone vs amortized infra differ >30% (typical in small clients: the $51 fixed over-attributes)."
     }
+  },
+  "billingBanner": {
+    "suspended": "Your subscription is suspended. Contact your provider to reactivate it.",
+    "pastDue": "Your subscription expired on {{date}}. Please settle it to keep your access.",
+    "pastDueNoDate": "Your subscription expired. Please settle it to keep your access.",
+    "soon_one": "Your subscription expires in {{count}} day. Contact your provider.",
+    "soon_other": "Your subscription expires in {{count}} days. Contact your provider."
+  },
+  "publicAttendance": {
+    "codeLabel": "Class code",
+    "credsHint": "We use your email and password only to confirm your identity. No session is started.",
+    "emailLabel": "Institutional email",
+    "emailPlaceholder": "your.email@institution.edu",
+    "errBadCredentials": "Invalid email or password.",
+    "errClosed": "Check-in for this session is closed.",
+    "errGeneric": "Attendance could not be recorded. Try again.",
+    "errInvalidCode": "The code is invalid or has expired. Ask your teacher for the current code.",
+    "errNotEnrolled": "You're not enrolled in this session's course.",
+    "errSession": "The session doesn't exist or was deleted.",
+    "fillAll": "Fill in email, password, and code.",
+    "loggedInAs": "Signed in. It will be recorded with your account.",
+    "markBtn": "Mark attendance",
+    "noSession": "Invalid link. Scan the class QR again.",
+    "passwordLabel": "Password",
+    "subtitle": "Confirm your attendance for this class.",
+    "success": "Attendance recorded!",
+    "successHint": "You can close this screen now.",
+    "title": "Mark attendance"
   }
 }

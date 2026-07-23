@@ -1645,7 +1645,26 @@
     "fallbackKeysRemove": "Eliminar esta clave",
     "fallbackKeysAdd": "Agregar clave de respaldo",
     "fallbackKeysLabel": "Claves de respaldo de {{provider}}",
-    "fallbackKeysCount": "{{count}} configurada(s)"
+    "fallbackKeysCount": "{{count}} configurada(s)",
+    "modeManaged": "Gestionada",
+    "modeManagedHint": "La IA de tu institución la gestiona el proveedor. Para cambiar el modo, contacta a soporte.",
+    "modeOwn": "Propia",
+    "modeOwnBtn": "Propia (mi API key)",
+    "modeShared": "Compartida",
+    "modeSharedBtn": "Compartida (plataforma)",
+    "modeTitle": "IA de la institución",
+    "ownConfirmBody": "Tu institución dejará de usar la IA compartida de la plataforma y pasará a usar TU propia API key. El consumo se cobrará a la cuenta del proveedor de tu institución. Si la key falla o agota su cuota, la IA de tu institución dejará de funcionar hasta que la corrijas. Esto NO afecta a otras instituciones. Recordá pegar tu API key aquí abajo.",
+    "ownConfirmCta": "Usar mi propia IA",
+    "ownConfirmTitle": "Usar tu propia IA",
+    "ownDone": "Ahora tu institución usa su propia IA.",
+    "scopeTenantOwn": "Estás usando tu propia IA.",
+    "scopeTenantOwnBody": "Pegá la API key del provider que vas a usar — cobra a la cuenta de tu institución. La calificación con IA no funciona hasta que esté configurada.",
+    "scopeTenantShared": "Estás usando la IA compartida de la plataforma.",
+    "scopeTenantSharedBody": "No necesitás configurar una API key. Si preferís usar la tuya, cambiá el modo a «Propia» abajo.",
+    "sharedConfirmBody": "Tu institución volverá a usar la IA compartida de la plataforma. Tu API key quedará guardada, pero no se usará mientras estés en modo compartido.",
+    "sharedConfirmCta": "Usar la compartida",
+    "sharedConfirmTitle": "Volver a la IA compartida",
+    "sharedDone": "Ahora tu institución usa la IA compartida."
   },
   "certSettings": {
     "resolutionHelp": "Cómo se resuelve cada campo al emitir:",
@@ -2714,7 +2733,9 @@
       "duplicateName": "Ya tienes un contenido llamado \"{{name}}\". Usa otro nombre.",
       "noFilesUploaded": "No se pudo subir ningún archivo. Reintenta.",
       "fileListSaveFailed": "Archivos subidos, pero no se pudo guardar el listado: {{error}}",
-      "courseAssociationFailed": "Contenido subido, pero falló la asociación a algunos cursos: {{error}}"
+      "courseAssociationFailed": "Contenido subido, pero falló la asociación a algunos cursos: {{error}}",
+      "fileTooLargeMany": "{{count}} archivo(s) omitido(s) por superar {{maxMb}} MB: {{names}}",
+      "unsupportedFormatMany": "{{count}} archivo(s) omitido(s) por formato no soportado: {{names}}"
     },
     "modules_exams_ExamNotesManager": {
       "emptyContent": "Escribe el contenido de tus notas",
@@ -2915,7 +2936,8 @@
       "duplicateStudentsSuffix": " ({{count}} estudiante(s) copiado(s))",
       "copyBoardFailed": "No se pudo copiar el tablero: {{error}}",
       "statusChanged": "Estado del curso actualizado",
-      "bulkDeletePartialError": "{{ok}} ok, {{failed}} con error. Primero: \"{{name}}\" — {{error}}"
+      "bulkDeletePartialError": "{{ok}} ok, {{failed}} con error. Primero: \"{{name}}\" — {{error}}",
+      "subjectRequired": "Debes elegir una asignatura del plan."
     },
     "routes_app_admin_support": {
       "noTenantAssigned": "Tu cuenta no tiene institución asignada. Contacta al SuperAdmin.",
@@ -3098,7 +3120,8 @@
       "conversationCleared": "Conversación eliminada para ti",
       "courseWordSingular": "curso",
       "courseWordPlural": "cursos",
-      "unknown": "desconocido"
+      "unknown": "desconocido",
+      "messageTooLong": "El mensaje no puede superar los 4000 caracteres."
     },
     "routes_app_student_attendance": {
       "codeMustBe6Digits": "El código debe tener 6 dígitos",
@@ -3300,7 +3323,8 @@
       "slotAdded": "Slot agregado",
       "slotNeedsConfig": "Agregá al menos una fecha y una ventana horaria válida (inicio antes de fin) para generar los slots.",
       "pollDuplicated": "Encuesta duplicada como borrador: \"{{title}} (copia)\"",
-      "cannotRemoveSlotWithVotes": "No puedes eliminar fechas con reservas: {{labels}}. Quítale primero la respuesta a esos estudiantes desde «Ver resultados»."
+      "cannotRemoveSlotWithVotes": "No puedes eliminar fechas con reservas: {{labels}}. Quítale primero la respuesta a esos estudiantes desde «Ver resultados».",
+      "slotCupoBelowReservations": "No puedes bajar el cupo por debajo de las reservas ya hechas: {{labels}}. Quítale primero la respuesta a algún estudiante desde «Ver resultados»."
     },
     "routes_app_teacher_projects": {
       "bulkSentToTrash": "{{n}} proyecto(s) enviado(s) a papelera",
@@ -3347,7 +3371,8 @@
       "aiGenerated": "{{n}} pregunta(s) generada(s) y agregada(s) al banco",
       "aiNeedTopics": "Escribe los temas para generar",
       "aiQueued": "Generación encolada. Aparecerá en el banco al procesarse.",
-      "invalidNetworkScenario": "El escenario de red no es válido. Revisa el JSON: devices, links, targetDeviceId y assertions."
+      "invalidNetworkScenario": "El escenario de red no es válido. Revisa el JSON: devices, links, targetDeviceId y assertions.",
+      "bulkDeleted": "{{count}} pregunta(s) eliminada(s)"
     },
     "routes_app_teacher_reports": {
       "nameRequired": "El nombre es obligatorio",
@@ -4488,7 +4513,23 @@
       "status_past_due": "En gracia",
       "status_suspended": "Suspendida",
       "status_cancelled": "Cancelada",
-      "status_expired": "Vencida"
+      "status_expired": "Vencida",
+      "ai": "Modo de IA",
+      "amount": "Monto",
+      "autoSuspend": "Auto-suspender al vencer",
+      "autoSuspendHint": "Si se activa, el cron suspende la institución al pasar la gracia en días hábiles.",
+      "contact": "Email de facturación",
+      "currency": "Moneda",
+      "cycle": "Ciclo",
+      "end": "Fecha fin (vencimiento)",
+      "grace": "Gracia (días hábiles)",
+      "plan": "Plan",
+      "renew": "Renovar +1 ciclo",
+      "renewedHint": "Fecha fin extendida — guarda para aplicar.",
+      "saved": "Facturación actualizada.",
+      "start": "Fecha inicio",
+      "status": "Estado",
+      "title": "Facturación y plan"
     },
     "title": "Instituciones",
     "clearViewAsBtn": "Limpiar \"ver como\"",
@@ -5095,7 +5136,14 @@
     "aiEnqueueError": "No se pudo encolar la generación",
     "networkScenarioLabel": "Escenario de red (JSON)",
     "networkScenarioHint": "Topología (devices/links), targetDeviceId (dispositivo que configura el alumno) y assertions (rúbrica auto-calificada). El alumno resuelve en una consola tipo IOS.",
-    "networkResetTemplate": "Restablecer plantilla"
+    "networkResetTemplate": "Restablecer plantilla",
+    "bulkEntityPlural": "preguntas",
+    "bulkEntitySingular": "pregunta",
+    "removeTag": "Quitar etiqueta {{label}}",
+    "statShared": "Compartidas con la institución",
+    "statTotal": "Total de preguntas",
+    "statUnused": "Sin usar",
+    "statUses": "Usos totales"
   },
   "teacherPolls": {
     "pageTitle": "Encuestas",
@@ -6210,7 +6258,8 @@
     "cancel": "Cancelar",
     "addQuestions": "Añadir {{count}} pregunta",
     "addQuestions_other": "Añadir {{count}} preguntas",
-    "typeRedGui": "Red (diagrama)"
+    "typeRedGui": "Red (diagrama)",
+    "typeRedConsola": "Red (consola)"
   },
   "hc_modulesContentsContentPromptsOverridesDialog": {
     "useCaseOrchestratorLabel": "Prompt orquestador",
@@ -9281,5 +9330,33 @@
       "supabase_team_50k": "A ~50k matrículas se salta a Supabase Team ($599): el $/matrícula sube, renegociar.",
       "infra_mismatch": "Infra standalone vs amortizada difieren >30% (típico en clientes chicos: el fijo $51 sobre-atribuye)."
     }
+  },
+  "billingBanner": {
+    "suspended": "Tu suscripción está suspendida. Contacta a tu proveedor para reactivarla.",
+    "pastDue": "Tu suscripción venció el {{date}}. Regularízala para no perder el acceso.",
+    "pastDueNoDate": "Tu suscripción venció. Regularízala para no perder el acceso.",
+    "soon_one": "Tu suscripción vence en {{count}} día. Contacta a tu proveedor.",
+    "soon_other": "Tu suscripción vence en {{count}} días. Contacta a tu proveedor."
+  },
+  "publicAttendance": {
+    "codeLabel": "Código de la clase",
+    "credsHint": "Usamos tu correo y contraseña solo para confirmar tu identidad. No se inicia sesión.",
+    "emailLabel": "Correo institucional",
+    "emailPlaceholder": "tu.correo@institucion.edu",
+    "errBadCredentials": "Correo o contraseña inválidos.",
+    "errClosed": "El check-in de esta sesión está cerrado.",
+    "errGeneric": "No se pudo registrar la asistencia. Intentá de nuevo.",
+    "errInvalidCode": "El código no es válido o expiró. Pedile al docente el código actual.",
+    "errNotEnrolled": "No estás matriculado en el curso de esta sesión.",
+    "errSession": "La sesión no existe o fue eliminada.",
+    "fillAll": "Completá correo, contraseña y código.",
+    "loggedInAs": "Sesión iniciada. Se marcará con tu cuenta.",
+    "markBtn": "Marcar asistencia",
+    "noSession": "Enlace inválido. Escaneá de nuevo el QR de la clase.",
+    "passwordLabel": "Contraseña",
+    "subtitle": "Confirmá tu asistencia a esta clase.",
+    "success": "¡Asistencia registrada!",
+    "successHint": "Ya podés cerrar esta pantalla.",
+    "title": "Marcar asistencia"
   }
 }

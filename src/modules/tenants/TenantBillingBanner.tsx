@@ -56,15 +56,17 @@ export function TenantBillingBanner() {
         defaultValue: "Tu suscripción está suspendida. Contacta a tu proveedor para reactivarla.",
       })
     : s === "past_due"
-      ? t("billingBanner.pastDue", {
-          defaultValue: `Tu suscripción venció${
-            b.billing_end ? ` el ${formatDateOnly(b.billing_end)}` : ""
-          }. Regularízala para no perder el acceso.`,
-        })
+      ? b.billing_end
+        ? t("billingBanner.pastDue", {
+            date: formatDateOnly(b.billing_end),
+            defaultValue: "Tu suscripción venció el {{date}}. Regularízala para no perder el acceso.",
+          })
+        : t("billingBanner.pastDueNoDate", {
+            defaultValue: "Tu suscripción venció. Regularízala para no perder el acceso.",
+          })
       : t("billingBanner.soon", {
-          defaultValue: `Tu suscripción vence en ${b.days_left} día${
-            b.days_left === 1 ? "" : "s"
-          }. Contacta a tu proveedor.`,
+          count: b.days_left ?? 0,
+          defaultValue: "Tu suscripción vence en {{count}} días. Contacta a tu proveedor.",
         });
 
   return (
