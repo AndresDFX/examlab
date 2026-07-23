@@ -111,7 +111,10 @@ export function GenerateSessionsDialog({
   onClose,
   onCreated,
 }: GenerateSessionsDialogProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // Etiquetas de día en inglés cuando el idioma activo es inglés (WEEKDAYS_ES
+  // trae short/long es + shortEn/longEn). Cae a español si no es 'en'.
+  const isEn = i18n.language?.startsWith("en") ?? false;
   const { user } = useAuth();
   const [startDate, setStartDate] = useState<string>("");
   // Default: Lun + Mié (patrón común universitario). El docente edita — o se
@@ -421,9 +424,9 @@ export function GenerateSessionsDialog({
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-border hover:bg-muted/40"
                       }`}
-                      title={d.long}
+                      title={isEn ? d.longEn : d.long}
                     >
-                      {d.short}
+                      {isEn ? d.shortEn : d.short}
                     </button>
                   );
                 })}
@@ -571,7 +574,8 @@ export function GenerateSessionsDialog({
                 {previewDates.map((d, i) => {
                   const cls = isCursoCompleto ? (classNumbers[i] ?? null) : null;
                   const extracted = cls != null ? extractClassTitle(content.files, cls) : null;
-                  const dayShort = WEEKDAYS_ES.find((x) => x.idx === d.getDay())?.short ?? "";
+                  const wd = WEEKDAYS_ES.find((x) => x.idx === d.getDay());
+                  const dayShort = wd ? (isEn ? wd.shortEn : wd.short) : "";
                   const titleLabel =
                     cls != null
                       ? t("contents.generateSessionsClassTitle", {

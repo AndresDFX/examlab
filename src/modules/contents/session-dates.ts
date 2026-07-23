@@ -9,14 +9,20 @@
 /** Días de la semana en es-CO. Map de getDay() (0..6 con 0=Domingo) a
  *  etiquetas cortas y largas. Listamos lunes primero (idx 1) porque la
  *  UI muestra el toggle de días en orden L-M-X-J-V-S-D. */
-export const WEEKDAYS_ES: { idx: number; short: string; long: string }[] = [
-  { idx: 1, short: "Lun", long: "Lunes" },
-  { idx: 2, short: "Mar", long: "Martes" },
-  { idx: 3, short: "Mié", long: "Miércoles" },
-  { idx: 4, short: "Jue", long: "Jueves" },
-  { idx: 5, short: "Vie", long: "Viernes" },
-  { idx: 6, short: "Sáb", long: "Sábado" },
-  { idx: 0, short: "Dom", long: "Domingo" },
+export const WEEKDAYS_ES: {
+  idx: number;
+  short: string;
+  long: string;
+  shortEn: string;
+  longEn: string;
+}[] = [
+  { idx: 1, short: "Lun", long: "Lunes", shortEn: "Mon", longEn: "Monday" },
+  { idx: 2, short: "Mar", long: "Martes", shortEn: "Tue", longEn: "Tuesday" },
+  { idx: 3, short: "Mié", long: "Miércoles", shortEn: "Wed", longEn: "Wednesday" },
+  { idx: 4, short: "Jue", long: "Jueves", shortEn: "Thu", longEn: "Thursday" },
+  { idx: 5, short: "Vie", long: "Viernes", shortEn: "Fri", longEn: "Friday" },
+  { idx: 6, short: "Sáb", long: "Sábado", shortEn: "Sat", longEn: "Saturday" },
+  { idx: 0, short: "Dom", long: "Domingo", shortEn: "Sun", longEn: "Sunday" },
 ];
 
 /**
