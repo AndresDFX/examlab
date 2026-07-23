@@ -16,11 +16,16 @@ verdad (no hay simulación de comandos).
 | (De)serialización de la respuesta (transcript + comandos) | `src/modules/serverconsole/v86-answer.ts` |
 | Punto de montaje (taker de taller) | `src/modules/workshops/WorkshopQuestions.tsx` (rama `so_consola`) |
 
-- **v86 + BIOS + xterm** se cargan desde jsDelivr (`cdn.jsdelivr.net/npm/v86`,
-  `.../npm/xterm`). No se agregaron dependencias npm (el lockfile es `bun.lock`
-  y cargar por CDN evita regenerarlo) — mismo camino ya probado por CheerpJ.
-- El **service worker** (`public/sw.js`) ya cachea `.wasm`, así que el módulo
-  de v86 se cachea igual que el de CheerpJ.
+- **v86 (libv86.js) + wasm + xterm** se cargan desde jsDelivr con versión
+  PINEADA (`cdn.jsdelivr.net/npm/v86@0.5.424`, `.../npm/@xterm/xterm@5.5.0`).
+  No se agregaron dependencias npm (el lockfile es `bun.lock` y cargar por CDN
+  evita regenerarlo) — mismo camino ya probado por CheerpJ.
+- **BIOS (seabios/vgabios) + imagen buildroot por defecto** se sirven desde el
+  **Storage propio** del proyecto (`help-docs/v86/*`), NO desde jsDelivr `@master`
+  ni desde `i.copy.sh`. Ver el porqué en el gotcha "BIOS inconsistente" abajo.
+- El **service worker** (`public/sw.js`) exenta `jsdelivr` y `supabase` (bypass
+  directo a la red), así que ni los assets pineados ni los self-hosteados pasan
+  por el caché-por-extensión del SW.
 
 ## Imagen del SO — default público + override recomendado
 
@@ -28,11 +33,13 @@ Bootear Linux necesita la **imagen del sistema** (varios MB). NO se puede
 embeber en el bundle ni en el repo.
 
 **Por defecto** (sin definir ninguna env `VITE_V86_*`) la consola bootea una
-imagen pública: `https://i.copy.sh/buildroot-bzimage68.bin` (buildroot con
-consola serial integrada, CDN de v86 con CORS `*`). Así la hoja de consola de
-las pizarras funciona out-of-the-box (ver `DEFAULT_BZIMAGE_URL` en
-`V86Console.tsx`). Es una **dependencia externa** (~10 MB por sesión, sin
-snapshot → boot más lento), aceptable como default pero no ideal para producción.
+imagen buildroot (consola serial integrada) **self-hosteada en el Storage propio
+del proyecto**: `…/storage/v1/object/public/help-docs/v86/buildroot-bzimage68.bin`
+(ver `V86_DEFAULT_BZIMAGE_URL` en `v86-loader.ts`, derivado de `VITE_SUPABASE_URL`).
+Antes se usaba `https://i.copy.sh/buildroot-bzimage68.bin` (host de terceros
+best-effort); se migró al Storage propio porque una descarga fallida dejaba la
+consola en "No se pudo descargar un recurso del sistema". Sigue siendo ~10 MB por
+sesión (sin snapshot → boot más lento), pero ya no depende de un host externo.
 
 **Producción (recomendado)**: overridear con las env vars de abajo apuntando a
 una imagen (idealmente un `VITE_V86_STATE_URL` = snapshot) hosteada en el
@@ -53,10 +60,22 @@ Diagnosticado con workflow multi-hipótesis contra el upstream de v86:
 - **NO forzar `console=ttyS0 rw root=/dev/ram0`** en el cmdline por defecto: rompe
   las imágenes que rootean en 9p. El cmdline correcto para buildroot68 es solo
   `tsc=reliable mitigations=off random.trust_cpu=on` (la consola serial viene baked).
-- **BIOS desde GitHub, no npm.** El paquete npm de v86 EXCLUYE `bios/` de su lista
-  `files` → `npm/v86/bios/seabios.bin` da 404 intermitente según el edge del CDN.
-  Se sirven de `cdn.jsdelivr.net/gh/copy/v86@master/bios/*.bin` (blobs estáticos).
-  El `libv86.js` + `v86.wasm` sí van de npm, **pineados** a una versión exacta.
+- **BIOS self-hosteado en Supabase Storage, NO en jsDelivr `@master`.** El paquete
+  npm de v86 EXCLUYE `bios/` de su lista `files` (`npm/v86/bios/*.bin` → 404), así
+  que la única fuente CDN era `gh/copy/v86@master/bios/*.bin`. Pero `@master` es una
+  ref MÓVIL y jsDelivr terminó sirviéndola con **contenido INCONSISTENTE**: una range
+  request devolvía `content-range: .../69157` mientras el GET completo daba 131072 B
+  (caché de la ref envenenado entre versiones del master). Como v86 descarga el BIOS
+  **por rangos**, recibía tamaño/bytes truncados → `download-error` ("No se pudo
+  descargar un recurso del sistema") y la consola no booteaba. Fix: los blobs
+  known-good (seabios 131072 B, vgabios 36352 B) se subieron a `help-docs/v86/*.bin`
+  en el Storage propio, que sirve un objeto INMUTABLE con content-range consistente
+  y CORS `*` (verificado). `libv86.js` + `v86.wasm` siguen en npm **pineados** a una
+  versión exacta (inmutables, sin el problema de `@master`).
+  > Cómo re-subir el BIOS/imagen si hay que rotarlos: descargar los blobs
+  > known-good, `POST /storage/v1/object/help-docs/v86/<archivo>` con
+  > `Content-Type: application/pdf` (el bucket rechaza `application/octet-stream`;
+  > v86 lee arraybuffer, ignora el content-type) y `x-upsert: true`.
 - **xterm se carga como ES MODULE, no como `<script>` UMD.** El bundle UMD de
   xterm (`lib/xterm.js`) solo setea `window.Terminal` cuando NO hay AMD
   (`define.amd`) ni CommonJS. Las hojas de CÓDIGO de la misma pizarra cargan

@@ -20,17 +20,34 @@
 // evitar drift de API entre deploys.
 const V86_VERSION = "0.5.424";
 const V86_CDN = `https://cdn.jsdelivr.net/npm/v86@${V86_VERSION}`;
+// wasm + libv86 desde npm PINEADO (inmutable, fiable): el service worker los
+// exenta (bypass jsdelivr) y no sufren el problema de `@master` de abajo.
 export const V86_WASM_URL = `${V86_CDN}/build/v86.wasm`;
-// WHY los BIOS desde gh/ y NO desde npm: el package.json de v86 EXCLUYE `bios/`
-// de su lista `files`, así que `npm/v86/bios/seabios.bin` da 404 intermitente
-// según el edge del CDN (a veces responde desde un cache stale) → la VM no
-// bootea y la consola queda "ready" pero vacía. Los BIOS viven en el repo
-// GitHub; el mirror gh de jsDelivr los sirve estable (verificado 200:
-// seabios 131072 B, vgabios 36352 B). Son blobs estáticos (no cambian entre
-// versiones); para reproducibilidad estricta se puede pinear @master a un SHA.
-export const V86_BIOS_URL = "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin";
-export const V86_VGABIOS_URL = "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin";
 const V86_LIB_URL = `${V86_CDN}/build/libv86.js`;
+
+// BIOS (+ imagen por defecto) self-hosteados en el Storage PROPIO del proyecto.
+// WHY se movieron desde `gh/copy/v86@master/bios/*`: `@master` es una ref MÓVIL
+// y jsDelivr terminó sirviendo el BIOS con contenido INCONSISTENTE — una range
+// request devolvía `content-range: .../69157` mientras el GET completo daba
+// 131072 bytes (caché de la ref envenenado entre versiones del master). v86
+// descarga el BIOS POR RANGOS, así que recibía tamaño/bytes truncados →
+// `download-error` ("No se pudo descargar un recurso del sistema") y la consola
+// no booteaba. Supabase Storage sirve un objeto INMUTABLE con content-range
+// consistente (verificado: seabios 131072 B, vgabios 36352 B, ambos con
+// sha256 idéntico al known-good) y el SW lo exenta (bypass `supabase`), así que
+// la descarga por rangos es fiable. Los binarios viven en el bucket público
+// `help-docs/v86/`. Derivamos el host de VITE_SUPABASE_URL (mismo proyecto).
+const SUPABASE_URL = (
+  (import.meta as unknown as { env: Record<string, string | undefined> }).env.VITE_SUPABASE_URL ??
+  ""
+).replace(/\/+$/, "");
+const V86_ASSET_BASE = `${SUPABASE_URL}/storage/v1/object/public/help-docs/v86`;
+export const V86_BIOS_URL = `${V86_ASSET_BASE}/seabios.bin`;
+export const V86_VGABIOS_URL = `${V86_ASSET_BASE}/vgabios.bin`;
+/** Imagen buildroot por DEFAULT, también self-hosteada (antes `i.copy.sh`, un
+ *  host de terceros best-effort no apto para producción). La usa
+ *  `V86Console` cuando no hay ninguna env `VITE_V86_*` definida. */
+export const V86_DEFAULT_BZIMAGE_URL = `${V86_ASSET_BASE}/buildroot-bzimage68.bin`;
 
 // xterm se carga como ES MODULE (import dinámico), NO como <script> UMD. WHY:
 // el bundle UMD `lib/xterm.js` solo setea `window.Terminal` cuando NO hay

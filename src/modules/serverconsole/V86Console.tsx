@@ -23,6 +23,7 @@ import {
   V86_WASM_URL,
   V86_BIOS_URL,
   V86_VGABIOS_URL,
+  V86_DEFAULT_BZIMAGE_URL,
   type V86Emulator,
   type XtermTerminal,
 } from "./v86-loader";
@@ -39,18 +40,20 @@ const env = (import.meta as unknown as { env: Record<string, string | undefined>
 
 /**
  * Imagen por DEFAULT cuando el entorno no define ninguna env `VITE_V86_*`.
- * Es una buildroot con la consola serial YA integrada, servida por el CDN de
- * v86 con `Access-Control-Allow-Origin: *` (verificado), así que carga
- * cross-origin sin problema. WHY hardcodear un default: sin él la consola
- * mostraba "sin imagen configurada" y NUNCA booteaba en el caso por defecto
- * (nadie define las env vars) — la hoja de consola de las pizarras quedaba
- * inservible. Con esto funciona out-of-the-box.
+ * Buildroot con la consola serial YA integrada, ahora self-hosteada en el
+ * Storage PROPIO del proyecto (ver `V86_DEFAULT_BZIMAGE_URL` en v86-loader.ts).
+ * WHY se dejó de usar `i.copy.sh`: era un host de terceros best-effort — una
+ * descarga fallida dejaba la consola en "No se pudo descargar un recurso del
+ * sistema". Hosteada en Supabase (SW-exento, CORS `*`, content-range
+ * consistente) la descarga es fiable. WHY hardcodear un default: sin él la
+ * consola mostraba "sin imagen configurada" y NUNCA booteaba en el caso por
+ * defecto (nadie define las env vars).
  *
- * Producción DEBERÍA overridear con `VITE_V86_STATE_URL` apuntando a un
- * snapshot hosteado en el Storage propio del proyecto: boot en ~1-2s y sin
- * depender de un host externo (ver docs/server-console-v86.md).
+ * Producción PUEDE overridear con `VITE_V86_STATE_URL` apuntando a un snapshot
+ * (boot en ~1-2s en vez de bootear el kernel completo). Ver
+ * docs/server-console-v86.md.
  */
-const DEFAULT_BZIMAGE_URL = "https://i.copy.sh/buildroot-bzimage68.bin";
+const DEFAULT_BZIMAGE_URL = V86_DEFAULT_BZIMAGE_URL;
 /** cmdline EXACTO que usa la demo oficial de v86 para esa imagen. */
 const DEFAULT_CMDLINE = "tsc=reliable mitigations=off random.trust_cpu=on";
 
