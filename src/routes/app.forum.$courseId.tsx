@@ -24,6 +24,7 @@ import { useActiveRole } from "@/hooks/use-active-role";
 import { isStaffActive } from "@/shared/lib/roles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { RowAction } from "@/components/ui/row-action";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DateTimePicker } from "@/components/ui/date-picker";
@@ -600,27 +601,17 @@ function ForumRow({
           <div className="flex items-center gap-1 shrink-0">
             {isStaff && (
               <>
-                <Button
-                  size="sm"
-                  variant="ghost"
+                <RowAction
+                  label={isClosed ? i18n.t("forum.actionReopen") : i18n.t("forum.actionClose")}
+                  icon={isClosed ? Unlock : Lock}
                   onClick={onToggleClosed}
-                  title={isClosed ? i18n.t("forum.actionReopen") : i18n.t("forum.actionClose")}
-                >
-                  {isClosed ? (
-                    <Unlock className="h-3.5 w-3.5" />
-                  ) : (
-                    <Lock className="h-3.5 w-3.5" />
-                  )}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
+                />
+                <RowAction
+                  label={i18n.t("forum.actionDelete")}
+                  icon={Trash2}
+                  tone="destructive"
                   onClick={onDelete}
-                  title={i18n.t("forum.actionDelete")}
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                />
               </>
             )}
             <Link
