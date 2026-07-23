@@ -90,6 +90,23 @@ self.addEventListener("fetch", (event) => {
   // Salir temprano para esos schemes evita el error sin afectar el
   // funcionamiento de la extensión (queda libre de pasar a la red).
   if (url.protocol !== "http:" && url.protocol !== "https:") return;
+
+  // REESCRITURA DE COMPAT: la consola Linux (v86) migró su imagen de arranque
+  // desde `i.copy.sh` (host de terceros que empezó a responder 403) al Storage
+  // propio del proyecto. Un bundle JS STALE de un deploy viejo (aún en caché del
+  // navegador) sigue pidiendo `i.copy.sh` → 403 → la consola no bootea. Como el
+  // service worker se actualiza en cada navegación (más rápido que refrescar el
+  // bundle entero), interceptamos ese request y lo servimos desde Storage, que
+  // SÍ responde. Así la consola funciona incluso antes de que el JS se refresque.
+  // Reenviamos el header Range si vino (v86 puede pedir la imagen por rangos).
+  if (url.hostname === "i.copy.sh" && url.pathname.includes("buildroot-bzimage68.bin")) {
+    const target =
+      "https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/v86/buildroot-bzimage68.bin";
+    const range = request.headers.get("range");
+    event.respondWith(fetch(target, range ? { headers: { range } } : undefined));
+    return;
+  }
+
   if (url.hostname.includes("supabase")) return;
   // CheerpJ CDN sirve JARs gigantes con range requests; el SW rompe el caché de
   // rango con ERR_CACHE_OPERATION_NOT_SUPPORTED. Dejar pasar a la red directo.
