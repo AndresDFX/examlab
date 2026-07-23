@@ -894,7 +894,6 @@
   "exam": {
     "title": "Exams",
     "subtitle": "{{count}} exams",
-    "availableSubtitle": "{{count}} available exams",
     "start": "Start exam",
     "resume": "Resume exam",
     "submit": "Submit",
