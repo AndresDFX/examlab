@@ -3381,6 +3381,10 @@
     "routes_app_teacher_whiteboards_index": {
       "bulkSentToTrash": "{{count}} {{noun}} {{verb}} a papelera",
       "nameRequired": "Dale un nombre a la pizarra",
+      "firstSheetNameRequired": "Dale un nombre a la primera hoja",
+      "sessionDateRequired": "La sesión necesita una fecha",
+      "sessionCreateError": "No se pudo crear la sesión",
+      "sessionCreated": "Sesión creada",
       "sessionNeedsCourse": "Si elegís una sesión, primero hay que elegir el curso.",
       "created": "Pizarra creada",
       "sentToTrash": "Pizarra enviada a papelera",

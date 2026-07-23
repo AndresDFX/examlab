@@ -158,8 +158,31 @@ function TeacherWhiteboards() {
   // campos editables del draft en un memo (el hook compara por
   // JSON.stringify).
   const createFormMemo = useMemo(
-    () => ({ draftName, draftFirstSheetName, draftDescription, draftCourseId, draftSessionId }),
-    [draftName, draftFirstSheetName, draftDescription, draftCourseId, draftSessionId],
+    () => ({
+      draftName,
+      draftFirstSheetName,
+      draftDescription,
+      draftCourseId,
+      draftSessionId,
+      // Campos del sub-form de sesión inline: sin ellos, escribir una fecha/
+      // título de sesión y cerrar el dialog no dispara el guard "cambios sin
+      // guardar" y el dato se perdería en silencio.
+      newSessionDate,
+      newSessionTitle,
+      newSessionStartTime,
+      newSessionDuration,
+    }),
+    [
+      draftName,
+      draftFirstSheetName,
+      draftDescription,
+      draftCourseId,
+      draftSessionId,
+      newSessionDate,
+      newSessionTitle,
+      newSessionStartTime,
+      newSessionDuration,
+    ],
   );
   const createDirty = useDirtyDialog(createOpen, createFormMemo);
   // Cursos del docente (cargados al abrir el dialog). Mismo patrón que
@@ -211,9 +234,14 @@ function TeacherWhiteboards() {
   // otro curso, resetear session selector.
   useEffect(() => {
     setDraftSessionId("none");
-    // Cerrar el sub-form de creación de sesión al cambiar de curso (la sesión
-    // pertenece a un curso; el form quedaría apuntando al curso viejo).
+    // Cerrar Y LIMPIAR el sub-form de creación de sesión al cambiar de curso
+    // (la sesión pertenece a un curso; los datos del curso viejo no deben
+    // reaparecer al reabrir "Crear sesión nueva" sobre el curso nuevo).
     setCreatingSession(false);
+    setNewSessionDate("");
+    setNewSessionTitle("");
+    setNewSessionStartTime("");
+    setNewSessionDuration("");
     if (draftCourseId === "none") {
       setDraftSessions([]);
       return;

@@ -3381,6 +3381,10 @@
     "routes_app_teacher_whiteboards_index": {
       "bulkSentToTrash": "{{count}} {{noun}} {{verb}} to trash",
       "nameRequired": "Give the whiteboard a name",
+      "firstSheetNameRequired": "Give the first sheet a name",
+      "sessionDateRequired": "The session needs a date",
+      "sessionCreateError": "The session could not be created",
+      "sessionCreated": "Session created",
       "sessionNeedsCourse": "If you choose a session, you must first choose the course.",
       "created": "Whiteboard created",
       "sentToTrash": "Whiteboard moved to trash",
