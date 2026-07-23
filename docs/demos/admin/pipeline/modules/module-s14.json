@@ -1,0 +1,78 @@
+{
+  "id": "modulo-s14",
+  "title": "Mensajes",
+  "series": "student",
+  "role": "Estudiante",
+  "appPath": "/app/messages",
+  "readySelectors": [
+    "text=Mensajes"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Mensajes: cómo el estudiante conversa dentro de ExamLab.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Mensajes",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 2200
+    },
+    {
+      "id": "bandeja",
+      "kind": "platform",
+      "narration": "Desde Mensajes el estudiante mantiene conversaciones uno a uno con sus docentes y compañeros. En la bandeja ve todos sus chats con el último mensaje y quién le escribió.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "firstcard",
+          "scale": 1.1,
+          "hold": 4200,
+          "side": "right",
+          "focus": {
+            "title": "Tus conversaciones",
+            "body": "Chats uno a uno con docentes y compañeros."
+          }
+        }
+      ]
+    },
+    {
+      "id": "conversacion",
+      "kind": "platform",
+      "openVia": {
+        "target": "firstcard"
+      },
+      "narration": "Al abrir una conversación ve el hilo completo y responde ahí mismo. Además puede etiquetar un taller, examen o proyecto escribiendo el símbolo numeral, para que la otra persona abra ese contenido con un clic. Los anuncios que difunde el docente también llegan acá.",
+      "bufferMs": 1000,
+      "beats": [
+        {
+          "target": "field:Escribe un mensaje",
+          "scale": 1.05,
+          "hold": 5000,
+          "side": "top",
+          "syncWord": "responde",
+          "focus": {
+            "title": "Responder e etiquetar",
+            "body": "Escribe tu respuesta; con # referencias un taller o examen."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "Así, Mensajes mantiene al estudiante conectado con sus docentes y su curso, sin salir de la plataforma.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "ExamLab",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 2200
+    }
+  ]
+}

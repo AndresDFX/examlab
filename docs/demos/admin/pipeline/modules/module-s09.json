@@ -27,7 +27,7 @@
     {
       "id": "vista",
       "kind": "platform",
-      "narration": "Cuando el docente comparte una pizarra en vivo, el estudiante la ve actualizarse en tiempo real. Y si la pizarra es colaborativa, también puede dibujar en ella. Es un espacio para resolver ejercicios y explicar ideas en conjunto durante la clase.",
+      "narration": "Cuando el docente comparte una pizarra en vivo, el estudiante la ve actualizarse en tiempo real. Una misma pizarra puede tener varias hojas —de dibujo, de texto, de código y hasta una consola Linux— y el estudiante las recorre todas. Y si la pizarra es colaborativa, también puede dibujar en ella. Es un espacio para resolver ejercicios y explicar ideas en conjunto durante la clase.",
       "bufferMs": 800,
       "beats": [
         {
