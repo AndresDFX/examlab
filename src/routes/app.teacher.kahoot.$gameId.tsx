@@ -45,6 +45,7 @@ import {
   Link2,
   Volume2,
   VolumeX,
+  ListChecks,
 } from "lucide-react";
 
 // Clave de localStorage para la preferencia "auto-avanzar cuando todos
@@ -518,23 +519,21 @@ function KahootHost() {
               )}
               {game.status === "reveal" && (
                 <div className="flex flex-wrap items-center justify-center gap-2">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    disabled={advancing}
-                    onClick={() => void advance("leaderboard")}
-                  >
-                    <Trophy className="h-5 w-5 mr-2" /> {t("kahoot.showLeaderboard")}
-                  </Button>
-                  {/* Atajo: saltar leaderboard y pasar directo a la siguiente
-                      pregunta (o al podio si era la última). Útil cuando el
-                      docente prefiere ritmo rápido sin pausa de ranking. */}
-                  <Button size="lg" disabled={advancing} onClick={() => void advance("next")}>
-                    <ChevronRight className="h-5 w-5 mr-2" />
-                    {game.current_index + 1 >= game.total_questions
-                      ? t("kahoot.showPodium")
-                      : t("kahoot.nextQuestion")}
-                  </Button>
+                  {/* Un solo botón de avance: por defecto lleva a las posiciones
+                      (leaderboard). Si era la última pregunta, avanza al podio
+                      (advance('next') resuelve a 'podium' cuando no queda otra). */}
+                  {game.current_index + 1 >= game.total_questions ? (
+                    <Button size="lg" disabled={advancing} onClick={() => void advance("next")}>
+                      <Crown className="h-5 w-5 mr-2" /> {t("kahoot.showPodium")}
+                    </Button>
+                  ) : (
+                    // Botón de avance del reveal: lleva a las POSICIONES por
+                    // defecto (no salta al next). Sin botón "Ver posiciones"
+                    // aparte — avanzar YA muestra el ranking.
+                    <Button size="lg" disabled={advancing} onClick={() => void advance("leaderboard")}>
+                      <ChevronRight className="h-5 w-5 mr-2" /> {t("kahoot.next", { defaultValue: "Siguiente" })}
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -548,7 +547,14 @@ function KahootHost() {
               <Trophy className="h-7 w-7 text-amber-500" /> {t("kahoot.leaderboard")}
             </h2>
             <Leaderboard ranked={ranked} prevScores={lbFrom} />
-            <div className="flex justify-center">
+            <div className="flex flex-wrap justify-center gap-2">
+              {/* Volver a mostrar las respuestas de la pregunta actual sin
+                  avanzar (acción dedicada 'reveal', mig 20261420000000). El
+                  estudiante lo maneja: 'reveal' no toca current_question_id,
+                  así que su resultado propio reaparece intacto. */}
+              <Button size="lg" variant="outline" disabled={advancing} onClick={() => void advance("reveal")}>
+                <ListChecks className="h-5 w-5 mr-2" /> {t("kahoot.showAnswers")}
+              </Button>
               <Button size="lg" disabled={advancing} onClick={() => void advance("next")}>
                 <ChevronRight className="h-5 w-5 mr-2" />
                 {game.current_index + 1 >= game.total_questions ? t("kahoot.showPodium") : t("kahoot.nextQuestion")}
