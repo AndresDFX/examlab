@@ -20,12 +20,37 @@ import {
   getTourForRole,
   type TourStep,
 } from "./tour-config";
+import { TOUR_EN } from "./tour-config.en";
 
 const TOURS: Array<{ name: string; steps: TourStep[] }> = [
   { name: "ADMIN", steps: ADMIN_TOUR },
   { name: "TEACHER", steps: TEACHER_TOUR },
   { name: "STUDENT", steps: STUDENT_TOUR },
 ];
+
+// Paridad EN: OnboardingTour superpone TOUR_EN[role] sobre los steps POR ÍNDICE
+// (solo si las longitudes coinciden). Este test rompe si alguien edita un tour
+// sin regenerar tour-config.en.ts → obliga a mantener la traducción alineada.
+describe("tour-config.en — paridad de longitud con los tours en español", () => {
+  const cases: Array<{ role: "Admin" | "Docente" | "Estudiante"; steps: TourStep[] }> = [
+    { role: "Admin", steps: ADMIN_TOUR },
+    { role: "Docente", steps: TEACHER_TOUR },
+    { role: "Estudiante", steps: STUDENT_TOUR },
+  ];
+  for (const { role, steps } of cases) {
+    it(`${role}: TOUR_EN tiene la misma cantidad de steps`, () => {
+      expect(TOUR_EN[role]).toBeDefined();
+      expect(TOUR_EN[role].length).toBe(steps.length);
+    });
+    it(`${role}: cada entrada EN tiene title y description no vacíos`, () => {
+      for (const s of TOUR_EN[role]) {
+        expect(typeof s.title).toBe("string");
+        expect(s.title.length).toBeGreaterThan(0);
+        expect(typeof s.description).toBe("string");
+      }
+    });
+  }
+});
 
 describe("tour-config — shape de cada step", () => {
   for (const { name, steps } of TOURS) {

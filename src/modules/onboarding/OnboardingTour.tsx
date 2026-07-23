@@ -43,6 +43,8 @@ import "driver.js/dist/driver.css";
 import "./onboarding-tour.css";
 import { useRouter } from "@tanstack/react-router";
 import { getTourForRole, getTourMetaForRole, type TourStep } from "./tour-config";
+import { TOUR_EN } from "./tour-config.en";
+import i18n from "@/i18n";
 
 interface Props {
   /** Rol cuyo tour se muestra. Si null, no se monta nada. */
@@ -124,7 +126,22 @@ export function OnboardingTour({ role, onComplete, onDismiss, manualMode = false
 
   useEffect(() => {
     if (!role) return;
-    const steps = getTourForRole(role);
+    let steps = getTourForRole(role);
+    // Overlay de traducción EN: el tour vive en español en tour-config.ts; si el
+    // idioma activo es inglés, superponemos title/description desde TOUR_EN
+    // (paridad 1:1 por índice). Guard de longitud → si algún día se desalinean
+    // (se editó el tour sin regenerar tour-config.en.ts), cae a español en vez
+    // de mostrar textos cruzados.
+    if (i18n.language?.startsWith("en")) {
+      const enSteps = TOUR_EN[role];
+      if (enSteps && enSteps.length === steps.length) {
+        steps = steps.map((s, idx) => ({
+          ...s,
+          title: enSteps[idx].title,
+          description: enSteps[idx].description,
+        }));
+      }
+    }
     if (steps.length === 0) return;
     const meta = getTourMetaForRole(role);
 
