@@ -113,7 +113,7 @@ describe("buildAttendanceCheckInUrl", () => {
       "abc-123",
       "654321",
     );
-    expect(url).toBe("https://app.example.com/app/student/attendance?session=abc-123&code=654321");
+    expect(url).toBe("https://app.example.com/asistencia?session=abc-123&code=654321");
   });
 
   it("encodea valores especiales en query", () => {

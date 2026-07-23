@@ -165,6 +165,14 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
+# Check-in de asistencia PÚBLICO (sin login): el alumno NO está autenticado
+# cuando escanea el QR / abre el link. El edge recibe {email, password,
+# sessionId, code}, verifica la contraseña server-side (y descarta la sesión)
+# y marca asistencia vía RPC SECURITY DEFINER que valida matrícula+ventana+código.
+[functions."public-attendance-check-in"]
+enabled = true
+verify_jwt = false
+
 [logging]
 vector_enabled = false
 postgres_enabled = false

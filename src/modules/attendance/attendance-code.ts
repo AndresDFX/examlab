@@ -42,13 +42,22 @@ export async function computeAttendanceCode(seed: string, period: number): Promi
   return String(num).padStart(6, "0");
 }
 
-/** Construye la URL del QR (deep-link a la app del estudiante). */
+/**
+ * Construye la URL del QR de check-in de asistencia.
+ *
+ * Apunta a la ruta PÚBLICA `/asistencia` (fuera de `/app/*`) para que el
+ * alumno pueda marcar asistencia SIN estar logueado (escanea el QR o abre el
+ * link que comparte el docente) — mismo concepto que `/reto/$pin` del Reto en
+ * vivo. `session` y `code` van como query params (no en el path) para que el
+ * scanner in-app (`AttendanceQRScanner.parsePayload`) siga extrayéndolos igual.
+ * El `session` fija la sesión/curso/tenant exacto; el check-in valida matrícula.
+ */
 export function buildAttendanceCheckInUrl(
   origin: string,
   sessionId: string,
   code: string,
 ): string {
-  const url = new URL("/app/student/attendance", origin);
+  const url = new URL("/asistencia", origin);
   url.searchParams.set("session", sessionId);
   url.searchParams.set("code", code);
   return url.toString();

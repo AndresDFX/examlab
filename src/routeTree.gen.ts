@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AsistenciaRouteImport } from './routes/asistencia'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthIndexRouteImport } from './routes/auth.index'
@@ -100,6 +101,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AsistenciaRoute = AsistenciaRouteImport.update({
+  id: '/asistencia',
+  path: '/asistencia',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppRoute = AppRouteImport.update({
@@ -514,6 +520,7 @@ const AppForumCourseIdForumIdThreadIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
+  '/asistencia': typeof AsistenciaRoute
   '/auth': typeof AuthRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/app/assistant': typeof AppAssistantRoute
@@ -597,6 +604,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/asistencia': typeof AsistenciaRoute
   '/privacy': typeof PrivacyRoute
   '/app/assistant': typeof AppAssistantRoute
   '/app/certificates': typeof AppCertificatesRoute
@@ -681,6 +689,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
+  '/asistencia': typeof AsistenciaRoute
   '/auth': typeof AuthRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/app/assistant': typeof AppAssistantRoute
@@ -767,6 +776,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/app'
+    | '/asistencia'
     | '/auth'
     | '/privacy'
     | '/app/assistant'
@@ -850,6 +860,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/asistencia'
     | '/privacy'
     | '/app/assistant'
     | '/app/certificates'
@@ -933,6 +944,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/app'
+    | '/asistencia'
     | '/auth'
     | '/privacy'
     | '/app/assistant'
@@ -1018,6 +1030,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
+  AsistenciaRoute: typeof AsistenciaRoute
   AuthRoute: typeof AuthRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
   RetoPinRoute: typeof RetoPinRoute
@@ -1038,6 +1051,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/asistencia': {
+      id: '/asistencia'
+      path: '/asistencia'
+      fullPath: '/asistencia'
+      preLoaderRoute: typeof AsistenciaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app': {
@@ -1795,6 +1815,7 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
+  AsistenciaRoute: AsistenciaRoute,
   AuthRoute: AuthRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
   RetoPinRoute: RetoPinRoute,
