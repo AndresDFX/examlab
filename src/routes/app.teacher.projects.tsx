@@ -109,6 +109,7 @@ import { FeedbackThread } from "@/modules/grading/FeedbackThread";
 import { FraudPanel } from "@/modules/exams/FraudPanel";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
+import { RowAction } from "@/components/ui/row-action";
 import { Spinner } from "@/components/ui/spinner";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { ActivitySessionSelect } from "@/modules/sessions/ActivitySessionSelect";
@@ -2803,38 +2804,24 @@ function TeacherProjects() {
                             className="text-xs h-8"
                           />
                           <div className="flex items-center gap-0.5 shrink-0">
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
+                            <RowAction
+                              label={t("hc_routesAppTeacherProjects.moveUp")}
+                              icon={ChevronUp}
                               onClick={moveUp}
                               disabled={idx === 0}
-                              title={t("hc_routesAppTeacherProjects.moveUp")}
-                            >
-                              <ChevronUp className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
+                            />
+                            <RowAction
+                              label={t("hc_routesAppTeacherProjects.moveDown")}
+                              icon={ChevronDown}
                               onClick={moveDown}
                               disabled={idx === formIntroVideos.length - 1}
-                              title={t("hc_routesAppTeacherProjects.moveDown")}
-                            >
-                              <ChevronDown className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            />
+                            <RowAction
+                              label={t("hc_routesAppTeacherProjects.removeVideo")}
+                              icon={Trash2}
+                              tone="destructive"
                               onClick={remove}
-                              title={t("hc_routesAppTeacherProjects.removeVideo")}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            />
                           </div>
                         </div>
                         {/* Selector biblioteca / URL custom. Si el docente

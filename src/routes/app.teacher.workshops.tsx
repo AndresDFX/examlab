@@ -3385,38 +3385,24 @@ function TeacherWorkshops() {
                             className="text-xs h-8"
                           />
                           <div className="flex items-center gap-0.5 shrink-0">
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
+                            <RowAction
+                              label={t("teacherWorkshops.videoMoveUp")}
+                              icon={ChevronUp}
                               onClick={moveUp}
                               disabled={idx === 0}
-                              title={t("teacherWorkshops.videoMoveUp")}
-                            >
-                              <ChevronUp className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
+                            />
+                            <RowAction
+                              label={t("teacherWorkshops.videoMoveDown")}
+                              icon={ChevronDown}
                               onClick={moveDown}
                               disabled={idx === formIntroVideos.length - 1}
-                              title={t("teacherWorkshops.videoMoveDown")}
-                            >
-                              <ChevronDown className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            />
+                            <RowAction
+                              label={t("teacherWorkshops.videoRemove")}
+                              icon={Trash2}
+                              tone="destructive"
                               onClick={removeRow}
-                              title={t("teacherWorkshops.videoRemove")}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            />
                           </div>
                         </div>
                         <Select
