@@ -57,6 +57,15 @@ Diagnosticado con workflow multi-hipótesis contra el upstream de v86:
   `files` → `npm/v86/bios/seabios.bin` da 404 intermitente según el edge del CDN.
   Se sirven de `cdn.jsdelivr.net/gh/copy/v86@master/bios/*.bin` (blobs estáticos).
   El `libv86.js` + `v86.wasm` sí van de npm, **pineados** a una versión exacta.
+- **xterm se carga como ES MODULE, no como `<script>` UMD.** El bundle UMD de
+  xterm (`lib/xterm.js`) solo setea `window.Terminal` cuando NO hay AMD
+  (`define.amd`) ni CommonJS. Las hojas de CÓDIGO de la misma pizarra cargan
+  Monaco (`@monaco-editor/react`), cuyo loader deja un `window.define.amd`
+  GLOBAL; con AMD presente, el `<script>` de xterm toma la rama `define()` y
+  NUNCA setea `window.Terminal` → error "xterm.js no expuso Terminal". Fix:
+  `await import('https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/+esm')` (ESM,
+  named export `Terminal`, inmune a globals). v86 (`libv86.js`) es un IIFE puro
+  sin wrapper UMD, por eso NO sufre esto y sí se puede cargar por `<script>`.
 - **"ready" honesto.** El badge "Linux real" ahora se enciende al llegar el PRIMER
   byte serial (evidencia real de shell), NO con un `setTimeout` ciego. Un
   `download-error` de asset (404 de bios/wasm/imagen — que v86 carga async y NO

@@ -32,9 +32,20 @@ export const V86_BIOS_URL = "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/se
 export const V86_VGABIOS_URL = "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin";
 const V86_LIB_URL = `${V86_CDN}/build/libv86.js`;
 
-const XTERM_VERSION = "5.3.0";
-const XTERM_JS_URL = `https://cdn.jsdelivr.net/npm/xterm@${XTERM_VERSION}/lib/xterm.js`;
-const XTERM_CSS_URL = `https://cdn.jsdelivr.net/npm/xterm@${XTERM_VERSION}/css/xterm.css`;
+// xterm se carga como ES MODULE (import dinámico), NO como <script> UMD. WHY:
+// el bundle UMD `lib/xterm.js` solo setea `window.Terminal` cuando NO hay
+// entorno CommonJS (module/exports) NI AMD (define.amd). Esta app carga Monaco
+// (@monaco-editor/react) en las hojas de código de la MISMA pizarra, y su
+// loader deja un `window.define.amd` GLOBAL; con AMD presente el UMD de xterm
+// toma la rama `define([], factory)` y registra un módulo AMD anónimo que nadie
+// consume → NUNCA setea window.Terminal → error "xterm.js no expuso Terminal".
+// El ESM entrega el named export `Terminal` sin depender de globals → inmune a
+// define.amd / exports / orden de carga. `@xterm/xterm` es el paquete mantenido
+// (el viejo `xterm` quedó congelado en 5.3.0). `/+esm` de jsDelivr es un bundle
+// self-contained. No toca bun.lock.
+const XTERM_VERSION = "5.5.0";
+const XTERM_ESM_URL = `https://cdn.jsdelivr.net/npm/@xterm/xterm@${XTERM_VERSION}/+esm`;
+const XTERM_CSS_URL = `https://cdn.jsdelivr.net/npm/@xterm/xterm@${XTERM_VERSION}/css/xterm.css`;
 
 /** Constructor de v86 (nombre global). Builds recientes exponen `V86`; los
  *  viejos exponían `V86Starter`. Aceptamos ambos. */
@@ -133,11 +144,19 @@ export function loadXterm(): Promise<XtermCtor> {
   if (w.__xtermLoading) return w.__xtermLoading;
 
   const p = (async () => {
-    // CSS ANTES de resolver → term.open() nunca corre sin estilos aplicados
-    // (evita el render en blanco / medición de caracteres fallida en cache fría).
-    await Promise.all([injectCss(XTERM_CSS_URL), injectScript(XTERM_JS_URL)]);
-    const c = (window as LoaderWindow).Terminal;
+    // CSS por <link> (no bloquea el boot si falla). JS por import() dinámico:
+    // `@vite-ignore` evita que Vite intente resolver/bundlear la URL externa.
+    await injectCss(XTERM_CSS_URL);
+    const mod = (await import(/* @vite-ignore */ XTERM_ESM_URL)) as {
+      Terminal?: XtermCtor;
+      default?: { Terminal?: XtermCtor } | XtermCtor;
+    };
+    const c =
+      mod.Terminal ??
+      (mod.default && (mod.default as { Terminal?: XtermCtor }).Terminal) ??
+      (typeof mod.default === "function" ? (mod.default as XtermCtor) : undefined);
     if (!c) throw new Error("xterm.js no expuso Terminal");
+    w.Terminal = c; // cache para reentradas rápidas
     return c;
   })();
   p.catch(() => {
