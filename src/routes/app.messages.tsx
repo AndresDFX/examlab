@@ -486,7 +486,7 @@ function MessagesPage() {
       const { data: roleRows } = await db.from("user_roles").select("role").eq("user_id", myUserId);
       const roles = ((roleRows ?? []) as Array<{ role: string }>).map((r) => r.role);
       const isAdminLocal =
-        activeRole != null && activeRole !== ""
+        activeRole != null
           ? activeRole === "Admin" || activeRole === "SuperAdmin"
           : isAdminLike(roles);
 
