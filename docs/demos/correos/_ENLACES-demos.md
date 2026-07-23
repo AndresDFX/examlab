@@ -23,6 +23,7 @@ cruda). La **presentación general** es la que se comparte siempre por ahora.
 | **Serie Docente** (completa) | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4 |
 | **Serie Estudiante** (completa) | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4 |
 | **Serie SuperAdmin** (completa) | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-superadmin.mp4 |
+| **Cómo ingresar / seleccionar institución** (login en cámara) | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/login.mp4 |
 | **Manual de usuario** (índice, general) | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual.pdf |
 | **Manual — Administrador** | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-administrador.pdf |
 | **Manual — Docente** | https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-docente.pdf |

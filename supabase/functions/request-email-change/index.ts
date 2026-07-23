@@ -101,7 +101,7 @@ function renderConfirmHtml(params: {
         </td></tr>
         <tr><td style="padding:16px 32px 24px 32px; border-top:1px solid #e5e7eb;">
           <p style="margin:0 0 10px 0; padding:10px 12px; font-size:12px; color:#92400e; background-color:#fef3c7; border-left:3px solid #f59e0b; line-height:1.5;">
-            <strong>⚠️ ¿No solicitaste este cambio?</strong> Ignora este correo —
+            <strong>¿No solicitaste este cambio?</strong> Ignora este correo —
             tu correo actual no se modificará.
           </p>
           <p style="margin:0; font-size:11px; color:#9ca3af; line-height:1.5;">
@@ -148,7 +148,7 @@ function renderNoticeHtml(params: {
         <tr><td style="padding:28px 32px 8px 32px;">
           <p style="margin:0 0 16px 0; font-size:14px; color:#6b7280;">${greeting}</p>
           <p style="margin:0 0 12px 0; font-size:16px; font-weight:600; color:#111827; line-height:1.4;">
-            ⚠️ Se solicitó cambiar el correo de tu cuenta
+            Se solicitó cambiar el correo de tu cuenta
           </p>
           <p style="margin:0 0 12px 0; font-size:14px; color:#374151; line-height:1.6;">
             Alguien (probablemente tú) solicitó cambiar el correo de tu cuenta en ${brand} a:
@@ -179,10 +179,10 @@ function renderNoticeHtml(params: {
         </td></tr>
         <tr><td style="padding:16px 32px 24px 32px; border-top:1px solid #e5e7eb;">
           <p style="margin:0 0 10px 0; padding:10px 12px; font-size:12px; color:#1e40af; background-color:#dbeafe; border-left:3px solid #2563eb; line-height:1.5;">
-            <strong>💡 Si fuiste tú,</strong> no hace falta hacer nada acá — solo confirma desde el correo que llegó a tu nueva dirección. El cambio se aplica solo tras la confirmación y el delay de seguridad.
+            <strong>Si fuiste tú,</strong> no hace falta hacer nada acá — solo confirma desde el correo que llegó a tu nueva dirección. El cambio se aplica solo tras la confirmación y el delay de seguridad.
           </p>
           <p style="margin:0 0 10px 0; padding:10px 12px; font-size:12px; color:#7f1d1d; background-color:#fee2e2; border-left:3px solid #dc2626; line-height:1.5;">
-            <strong>🚨 Si sospechas un intento de toma de cuenta,</strong> cancela arriba y cambia tu contraseña inmediatamente desde el login.
+            <strong>Si sospechas un intento de toma de cuenta,</strong> cancela arriba y cambia tu contraseña inmediatamente desde el login.
           </p>
           <p style="margin:0; font-size:11px; color:#9ca3af; line-height:1.5;">
             Este correo es automático. No respondas a este mensaje.
@@ -323,7 +323,7 @@ Deno.serve(async (req: Request) => {
       requestIp,
     });
     const noticeText =
-      `⚠️ Se solicitó cambiar el correo de tu cuenta en ${fromName} a: ${newEmail}\n\n` +
+      `Se solicitó cambiar el correo de tu cuenta en ${fromName} a: ${newEmail}\n\n` +
       `Si NO fuiste tú, cancela inmediatamente desde:\n${cancelUrl}\n\n` +
       `Por seguridad el cambio se aplica al menos 24h después de la confirmación — tienes ese tiempo para cancelarlo.\n` +
       `Si fuiste tú, no hace falta hacer nada acá; confirma desde el correo enviado a tu nueva dirección.`;
@@ -368,7 +368,7 @@ Deno.serve(async (req: Request) => {
             replyTo: from,
             // asciiEmailSubject: denomailer rompe asuntos no-ASCII largos (emoji
             // ⚠️ + acentos) → cuerpo MIME crudo. Ver _shared/email.ts.
-            subject: asciiEmailSubject(`${fromName}: ⚠️ Se solicitó cambiar el correo de tu cuenta`),
+            subject: asciiEmailSubject(`${fromName}: Se solicitó cambiar el correo de tu cuenta`),
             mimeContent: emailMimeContent(noticeText, noticeHtml),
             headers: {
               "X-Entity-Ref-ID": `email-change-notice-${userId}-${Date.now()}`,

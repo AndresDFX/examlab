@@ -244,7 +244,7 @@ function renderEmailHtml(params: {
           <tr>
             <td style="padding: 16px 32px 24px 32px; border-top:1px solid #e5e7eb; margin-top:16px;">
               <p style="margin:0 0 10px 0; padding:10px 12px; font-size:12px; color:#92400e; background-color:#fef3c7; border-left:3px solid #f59e0b; line-height:1.5;">
-                <strong>⚠️ Notificación automática.</strong> No respondas a este correo —
+                <strong>Notificación automática.</strong> No respondas a este correo —
                 las respuestas no se procesan. Si necesitas contestar a un docente,
                 administrador o compañero, hazlo directamente en la plataforma:
                 <strong>Mensajes → Nueva conversación</strong>.

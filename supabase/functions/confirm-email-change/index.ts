@@ -79,7 +79,7 @@ function renderAppliedNoticeHtml(params: {
         <tr><td style="padding:28px 32px 8px 32px;">
           <p style="margin:0 0 16px 0; font-size:14px; color:#6b7280;">${greeting}</p>
           <p style="margin:0 0 12px 0; font-size:16px; font-weight:600; color:#111827; line-height:1.4;">
-            ✅ El correo de tu cuenta fue cambiado
+            El correo de tu cuenta fue cambiado
           </p>
           <p style="margin:0 0 12px 0; font-size:14px; color:#374151; line-height:1.6;">
             Tu cuenta ahora usa este correo para iniciar sesión:
@@ -106,7 +106,7 @@ function renderAppliedNoticeHtml(params: {
         </td></tr>
         <tr><td style="padding:16px 32px 24px 32px; border-top:1px solid #e5e7eb;">
           <p style="margin:0 0 10px 0; padding:10px 12px; font-size:12px; color:#7f1d1d; background-color:#fee2e2; border-left:3px solid #dc2626; line-height:1.5;">
-            <strong>🚨 Si sospechás un intento de toma de cuenta,</strong> revertí arriba y cambiá tu contraseña inmediatamente.
+            <strong>Si sospechás un intento de toma de cuenta,</strong> revertí arriba y cambiá tu contraseña inmediatamente.
           </p>
           <p style="margin:0; font-size:11px; color:#9ca3af; line-height:1.5;">
             Este correo es automático. No respondas a este mensaje.
@@ -241,7 +241,7 @@ Deno.serve(async (req: Request) => {
         replyTo: from,
         // asciiEmailSubject: denomailer rompe asuntos no-ASCII largos (emoji ✅
         // + acentos + em-dash) → cuerpo MIME crudo. Ver _shared/email.ts.
-        subject: asciiEmailSubject(`${fromName}: ✅ Tu correo fue cambiado — 24h para revertir si no fuiste vos`),
+        subject: asciiEmailSubject(`${fromName}: Tu correo fue cambiado — 24h para revertir si no fuiste vos`),
         mimeContent: emailMimeContent(text, html),
         headers: {
           "X-Entity-Ref-ID": `email-change-applied-${row.user_id}-${Date.now()}`,
