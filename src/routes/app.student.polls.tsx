@@ -30,7 +30,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { Checkbox } from "@/components/ui/checkbox";
-import { SearchInput } from "@/components/ui/search-input";
+import { ListFilters } from "@/components/ui/list-filters";
 import { KahootJoinCard } from "@/modules/polls/KahootJoinCard";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -210,6 +210,9 @@ function StudentPolls() {
   // Filtro compartido entre las dos listas (activas + cerradas). Busca
   // por título / descripción / nombre del curso.
   const [search, setSearch] = useState("");
+  // Filtro por curso del listado (mismo control que exámenes/talleres/proyectos
+  // del estudiante vía ListFilters). null = "Todos los cursos".
+  const [courseFilter, setCourseFilter] = useState<string | null>(null);
   // Estado de "voting" por poll_id → option_id para mostrar spinner en
   // el botón mientras se ejecuta la RPC.
   const [voting, setVoting] = useState<string | null>(null);
@@ -381,18 +384,32 @@ function StudentPolls() {
     };
   }, [user, retryNonce]);
 
-  // Filtra por título / descripción / curso ANTES de partir en activas /
-  // cerradas, así una sola búsqueda aplica a ambas secciones.
+  // Cursos presentes en las encuestas cargadas → opciones del selector de curso
+  // (ordenados por nombre es-CO). Solo aparecen cursos que tienen encuestas.
+  const availableCourses = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of polls) {
+      if (p.course_id && p.course_name) map.set(p.course_id, p.course_name);
+    }
+    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) =>
+      a.name.localeCompare(b.name, "es-CO"),
+    );
+  }, [polls]);
+
+  // Filtra por curso + título / descripción / curso ANTES de partir en activas /
+  // cerradas, así una sola búsqueda/filtro aplica a ambas secciones.
   const filteredPolls = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return polls;
-    return polls.filter(
-      (p) =>
+    return polls.filter((p) => {
+      if (courseFilter && p.course_id !== courseFilter) return false;
+      if (!q) return true;
+      return (
         p.title.toLowerCase().includes(q) ||
         (p.description?.toLowerCase().includes(q) ?? false) ||
-        (p.course_name?.toLowerCase().includes(q) ?? false),
-    );
-  }, [polls, search]);
+        (p.course_name?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [polls, search, courseFilter]);
 
   const activePolls = useMemo(() => filteredPolls.filter((p) => pollIsOpen(p)), [filteredPolls]);
   const closedPolls = useMemo(() => filteredPolls.filter((p) => !pollIsOpen(p)), [filteredPolls]);
@@ -402,12 +419,12 @@ function StudentPolls() {
   const activePagination = usePagination(activePolls, {
     defaultPageSize: 6,
     storageKey: "examlab_pag:student_polls_active",
-    resetKey: search,
+    resetKey: `${search}|${courseFilter ?? ""}`,
   });
   const closedPagination = usePagination(closedPolls, {
     defaultPageSize: 6,
     storageKey: "examlab_pag:student_polls_closed",
-    resetKey: search,
+    resetKey: `${search}|${courseFilter ?? ""}`,
   });
 
   const castVote = async (poll: Poll, optionId: string) => {
@@ -537,10 +554,13 @@ function StudentPolls() {
         />
       ) : (
         <div className="space-y-5">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder={t("studentPolls.searchPlaceholder")}
+          <ListFilters
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder={t("studentPolls.searchPlaceholder")}
+            courseId={courseFilter}
+            onCourseChange={setCourseFilter}
+            courses={availableCourses}
           />
           {filteredPolls.length === 0 ? (
             <EmptyState

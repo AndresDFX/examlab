@@ -8,8 +8,7 @@ import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SearchInput } from "@/components/ui/search-input";
+import { ListFilters } from "@/components/ui/list-filters";
 import { ModuleGuard } from "@/shared/components/ModuleGuard";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
@@ -209,31 +208,17 @@ function TeacherStudentsInner() {
         icon={<Users className="h-5 w-5 text-violet-500" />}
       />
 
-      {/* Filtros */}
-      <div className="flex flex-col sm:flex-row gap-2">
-        <div className="flex-1 min-w-[160px] sm:min-w-48">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder={t("teacherStudents.searchPlaceholder")}
-          />
-        </div>
-        {courses.length > 1 && (
-          <Select value={courseFilter} onValueChange={setCourseFilter}>
-            <SelectTrigger className="w-full sm:w-56">
-              <SelectValue placeholder={t("teacherStudents.allCourses")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("teacherStudents.allCourses")}</SelectItem>
-              {courses.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
+      {/* Filtros: búsqueda + curso estandarizados (ListFilters), igual que los
+          demás grids docentes. */}
+      <ListFilters
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder={t("teacherStudents.searchPlaceholder")}
+        courseId={courseFilter === "all" ? null : courseFilter}
+        onCourseChange={(v) => setCourseFilter(v ?? "all")}
+        courses={courses}
+        allLabel={t("teacherStudents.allCourses")}
+      />
 
       <MultiSelectToolbar
         count={sel.count}

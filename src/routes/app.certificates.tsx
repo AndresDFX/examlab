@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
-import { SearchInput } from "@/components/ui/search-input";
+import { ListFilters } from "@/components/ui/list-filters";
 import {
   Table,
   TableBody,
@@ -323,74 +323,48 @@ function CertificatesAdmin() {
       {/* Filtros: mismo patrón que talleres/proyectos/exámenes. */}
       {!loading && (items.length > 0 || tenantFilter !== "all") && (
         <div className="flex flex-wrap items-center gap-2">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder={t("hc_routesAppCertificates.searchPlaceholder")}
-            className="w-full sm:w-72"
+          {/* Barra estándar búsqueda + curso (ListFilters). El filtro de
+              institución (SuperAdmin) y el toggle "mostrar revocados" van en el
+              slot `extra`. El filtro por tenant acota la query server-side
+              (`.in('course_id', courseIdsDelTenant)`) vía useEffect deps. */}
+          <ListFilters
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder={t("hc_routesAppCertificates.searchPlaceholder")}
+            courseId={filterCourseId || null}
+            onCourseChange={(v) => setFilterCourseId(v ?? "")}
+            courses={courseOptions}
+            allLabel={t("hc_routesAppCertificates.allCourses")}
+            onClearExtra={() => setShowRevoked(false)}
+            extra={
+              <>
+                {isSuperAdminCaller && tenants.length > 0 && (
+                  <Select value={tenantFilter} onValueChange={setTenantFilter}>
+                    <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
+                      <SelectValue placeholder={t("tenant.filterTenantPlaceholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">{t("tenant.filterAllTenants")}</SelectItem>
+                      {tenants.map((tn) => (
+                        <SelectItem key={tn.id} value={tn.id}>
+                          {tn.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <Button
+                  variant={showRevoked ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setShowRevoked((v) => !v)}
+                >
+                  {showRevoked
+                    ? t("hc_routesAppCertificates.hideRevoked")
+                    : t("hc_routesAppCertificates.showRevoked")}
+                </Button>
+              </>
+            }
           />
-          {/* Filtro de institución (solo SuperAdmin con >1 tenant).
-              Funcional: aplica `.in('course_id', courseIdsDelTenant)` a
-              la query principal. Mismo patrón que app.admin.users y
-              app.admin.courses pero adaptado al schema sin tenant_id
-              en certificates (resuelto via cursos del tenant). */}
-          {/* Antes gateado a `tenants.length > 1` (escondía el filtro en
-              deploys con un solo tenant). Bajado a `> 0` para coincidir
-              con Usuarios/Cursos/Errores/Cola — el filtro queda visible
-              siempre que el SuperAdmin tenga ≥1 institución. */}
-          {isSuperAdminCaller && tenants.length > 0 && (
-            <Select value={tenantFilter} onValueChange={setTenantFilter}>
-              <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
-                <SelectValue placeholder={t("tenant.filterTenantPlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t("tenant.filterAllTenants")}</SelectItem>
-                {tenants.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          <Select
-            value={filterCourseId || "__all"}
-            onValueChange={(v) => setFilterCourseId(v === "__all" ? "" : v)}
-          >
-            <SelectTrigger className="w-full sm:w-64 h-9 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all">{t("hc_routesAppCertificates.allCourses")}</SelectItem>
-              {courseOptions.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant={showRevoked ? "default" : "outline"}
-            size="sm"
-            onClick={() => setShowRevoked((v) => !v)}
-          >
-            {showRevoked
-              ? t("hc_routesAppCertificates.hideRevoked")
-              : t("hc_routesAppCertificates.showRevoked")}
-          </Button>
-          {(filterCourseId || search || showRevoked) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setFilterCourseId("");
-                setSearch("");
-                setShowRevoked(false);
-              }}
-            >
-              {t("hc_routesAppCertificates.clear")}
-            </Button>
-          )}
           <span className="text-[11px] text-muted-foreground ml-auto">
             {filtered.length} / {items.length}
           </span>

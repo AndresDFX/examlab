@@ -37,6 +37,7 @@ import { RowAction } from "@/components/ui/row-action";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DateCell } from "@/components/ui/date-cell";
 import { HelpHint } from "@/components/ui/help-hint";
+import { ListFilters } from "@/components/ui/list-filters";
 import {
   Table,
   TableBody,
@@ -94,7 +95,6 @@ import {
   ArrowRightLeft,
   Shuffle,
   MessageSquareText,
-  Search,
   History,
 } from "lucide-react";
 import { usePollRealtime } from "@/modules/polls/use-poll-realtime";
@@ -854,78 +854,60 @@ function TeacherPolls() {
         <StatCard icon={CalendarRange} label={t("teacherPolls.statDoodle")} value={pollStats.slot} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {/* Buscador por título (paridad con los demás grids docentes). */}
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("teacherPolls.searchPlaceholder", { defaultValue: "Buscar encuesta…" })}
-            className="pl-8 h-9 text-xs"
-          />
-        </div>
-        {/* Filtro de estado: por defecto "abiertas" (oculta cerradas, incl. las
-            que el cascade cerró al finalizar el curso). Siempre visible. */}
-        <Select
-          value={pollStatusFilter}
-          onValueChange={(v) => setPollStatusFilter(v as "abiertas" | "cerradas" | "todas")}
-        >
-          <SelectTrigger className="w-full sm:w-40 h-9 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="abiertas">
-              {t("teacherPolls.filterOpen", { defaultValue: "Abiertas" })}
-            </SelectItem>
-            <SelectItem value="cerradas">
-              {t("teacherPolls.filterClosed", { defaultValue: "Cerradas" })}
-            </SelectItem>
-            <SelectItem value="todas">
-              {t("teacherPolls.filterAll", { defaultValue: "Todas" })}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        {(courses.length > 1 || (isSuperAdminCaller && tenants.length > 0)) && (
+      {/* Barra estándar de búsqueda + curso (ListFilters), igual que los demás
+          grids docentes. El filtro de estado (abiertas/cerradas/todas) y, para
+          SuperAdmin, el de institución, van en el slot `extra`. El selector de
+          curso siempre se muestra (consistente con talleres/exámenes). */}
+      <ListFilters
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder={t("teacherPolls.searchPlaceholder", { defaultValue: "Buscar encuesta…" })}
+        courseId={courseFilter === "all" ? null : courseFilter}
+        onCourseChange={(v) => setCourseFilter(v ?? "all")}
+        courses={courses}
+        allLabel={t("teacherPolls.allCourses")}
+        onClearExtra={() => setPollStatusFilter("abiertas")}
+        extra={
           <>
-          {courses.length > 1 && (
-            <Select value={courseFilter} onValueChange={setCourseFilter}>
-              <SelectTrigger className="w-full sm:w-64 h-9 text-xs">
-                <SelectValue placeholder={t("teacherPolls.filterByCourse")} />
+            <Select
+              value={pollStatusFilter}
+              onValueChange={(v) => setPollStatusFilter(v as "abiertas" | "cerradas" | "todas")}
+            >
+              <SelectTrigger className="w-full sm:w-40 h-9 text-xs">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{t("teacherPolls.allCourses")}</SelectItem>
-                {courses.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
+                <SelectItem value="abiertas">
+                  {t("teacherPolls.filterOpen", { defaultValue: "Abiertas" })}
+                </SelectItem>
+                <SelectItem value="cerradas">
+                  {t("teacherPolls.filterClosed", { defaultValue: "Cerradas" })}
+                </SelectItem>
+                <SelectItem value="todas">
+                  {t("teacherPolls.filterAll", { defaultValue: "Todas" })}
+                </SelectItem>
               </SelectContent>
             </Select>
-          )}
-          {/* SuperAdmin cross-tenant: filtro por institución. Solo se
-              renderiza cuando el usuario actúa como SuperAdmin Y hay
-              tenants cargados. El filtro acota la query de cursos
-              server-side (`.eq("tenant_id", X)`); al cambiar dispara
-              el re-load via useEffect deps. */}
-          {isSuperAdminCaller && tenants.length > 0 && (
-            <Select value={tenantFilter} onValueChange={setTenantFilter}>
-              <SelectTrigger className="w-full sm:w-56 h-9 text-xs">
-                <SelectValue placeholder={t("teacherPolls.institution")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t("teacherPolls.allInstitutions")}</SelectItem>
-                {tenants.map((tn) => (
-                  <SelectItem key={tn.id} value={tn.id}>
-                    {tn.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+            {/* SuperAdmin cross-tenant: filtro por institución (acota la query de
+                cursos server-side vía useEffect deps). */}
+            {isSuperAdminCaller && tenants.length > 0 && (
+              <Select value={tenantFilter} onValueChange={setTenantFilter}>
+                <SelectTrigger className="w-full sm:w-56 h-9 text-xs">
+                  <SelectValue placeholder={t("teacherPolls.institution")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("teacherPolls.allInstitutions")}</SelectItem>
+                  {tenants.map((tn) => (
+                    <SelectItem key={tn.id} value={tn.id}>
+                      {tn.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </>
-        )}
-      </div>
+        }
+      />
 
       {loading ? (
         <div className="p-4 sm:p-8 flex items-center justify-center text-sm text-muted-foreground">

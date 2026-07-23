@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -56,7 +57,6 @@ import { toast } from "sonner";
 import {
   Library,
   Plus,
-  Search,
   Pencil,
   Trash2,
   X as XIcon,
@@ -859,15 +859,11 @@ function QuestionBankPage() {
             </div>
             <div>
               <Label className="text-xs">{t("questionBank.searchLabel")}</Label>
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder={t("questionBank.searchPlaceholder")}
-                  className="pl-7"
-                />
-              </div>
+              <SearchInput
+                value={search}
+                onChange={setSearch}
+                placeholder={t("questionBank.searchPlaceholder")}
+              />
             </div>
           </div>
         </CardContent>

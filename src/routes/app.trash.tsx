@@ -39,7 +39,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { RowAction } from "@/components/ui/row-action";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   Table,
   TableBody,
@@ -56,7 +56,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Trash2, RotateCcw, X, Clock, Search, AlertTriangle, Archive } from "lucide-react";
+import { Trash2, RotateCcw, X, Clock, AlertTriangle, Archive } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import {
@@ -541,13 +541,11 @@ function TrashPage() {
           es cross-curso por diseño — el filtro principal es por entidad). */}
       {items.length > 0 && (
         <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1 min-w-0">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
+          <div className="flex-1 min-w-0">
+            <SearchInput
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={setSearch}
               placeholder={t("trash.searchPlaceholder")}
-              className="pl-8 h-9"
             />
           </div>
           <Select

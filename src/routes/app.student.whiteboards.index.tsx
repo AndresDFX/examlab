@@ -21,18 +21,11 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
-import { SearchInput } from "@/components/ui/search-input";
+import { ListFilters } from "@/components/ui/list-filters";
 import { StatTile } from "@/components/ui/stat-tile";
 import { DateCell } from "@/components/ui/date-cell";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Palette, BookOpen } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useTranslation } from "react-i18next";
@@ -212,32 +205,15 @@ function StudentWhiteboards() {
 
       <Card>
         <CardContent className="p-4 space-y-3">
-          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-            <div className="flex-1 min-w-0">
-              <SearchInput
-                value={search}
-                onChange={setSearch}
-                placeholder={t("studentWhiteboards.searchPlaceholder")}
-              />
-            </div>
-            {courses.length > 1 && (
-              <Select value={courseFilter} onValueChange={setCourseFilter}>
-                <SelectTrigger className="h-9 w-full sm:w-56 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all" className="text-xs">
-                    {t("studentWhiteboards.allCourses")}
-                  </SelectItem>
-                  {courses.map((c) => (
-                    <SelectItem key={c.id} value={c.id} className="text-xs">
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+          <ListFilters
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder={t("studentWhiteboards.searchPlaceholder")}
+            courseId={courseFilter === "all" ? null : courseFilter}
+            onCourseChange={(v) => setCourseFilter(v ?? "all")}
+            courses={courses}
+            allLabel={t("studentWhiteboards.allCourses")}
+          />
 
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">

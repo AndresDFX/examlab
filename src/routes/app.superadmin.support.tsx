@@ -12,7 +12,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
@@ -33,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { LifeBuoy, MessageSquare, Clock, CheckCircle2, AlertCircle, Search, X, Trash2 } from "lucide-react";
+import { LifeBuoy, MessageSquare, Clock, CheckCircle2, AlertCircle, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -270,13 +270,11 @@ function SuperAdminSupportPage() {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input
+        <div className="flex-1 min-w-0">
+          <SearchInput
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={setSearch}
             placeholder={t("superadminSupport.searchPlaceholder")}
-            className="pl-8 h-9"
           />
         </div>
         <Select value={tenantFilter} onValueChange={setTenantFilter}>

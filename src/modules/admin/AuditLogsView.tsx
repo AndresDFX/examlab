@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -44,7 +44,6 @@ import {
   AlertCircle,
   ShieldAlert,
   Info,
-  Search,
   X,
   ChevronDown,
   ChevronRight,
@@ -583,13 +582,11 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
         <CardContent className="p-4 space-y-3">
           {/* Fila 1 — búsqueda + contador */}
           <div className="flex flex-wrap gap-3 items-center">
-            <div className="relative flex-1 min-w-[220px]">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                placeholder={t("audit.filters.searchPlaceholder")}
+            <div className="flex-1 min-w-[220px]">
+              <SearchInput
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 h-9"
+                onChange={setSearch}
+                placeholder={t("audit.filters.searchPlaceholder")}
               />
             </div>
             {total !== null && (
