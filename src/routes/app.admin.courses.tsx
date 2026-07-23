@@ -53,6 +53,7 @@ import {
   TableRow,
   SortableHead,
 } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { useTableSort } from "@/hooks/use-table-sort";
 import { toast } from "sonner";
 import {
@@ -216,6 +217,9 @@ export function AdminCourses() {
   const activeRole = useActiveRole();
   const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
+  // Carga de datos (distinta de authLoading): evita el flash del empty state
+  // "crea tu primer curso" mientras el fetch resuelve.
+  const [loading, setLoading] = useState(true);
   /** Mapa courseId → stats. Vacío al inicio; se llena después del primer
    *  load de cursos. Si falla la carga (RLS / network), simplemente la
    *  columna "Actividad" muestra "—" — el grid no se rompe. */
@@ -535,6 +539,8 @@ export function AdminCourses() {
   const canManage = isAdmin || isTeacher;
 
   const load = async () => {
+    setLoading(true);
+    try {
     // Docente actuando como tal (ROL ACTIVO = Docente): ve SOLO los cursos
     // donde es docente (course_teachers). Un Admin/SuperAdmin —o un usuario
     // multi-rol que cambió el switcher a Admin— ve todos los de su tenant via
@@ -716,6 +722,9 @@ export function AdminCourses() {
       }
     } else {
       setCourseStats(new Map());
+    }
+    } finally {
+      setLoading(false);
     }
   };
   useEffect(() => {
@@ -1964,7 +1973,9 @@ export function AdminCourses() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredCourses.length === 0 &&
+              {loading && <TableSkeleton cols={9} rows={6} />}
+              {!loading &&
+                filteredCourses.length === 0 &&
                 (() => {
                   // "Filtros activos" incluye el default de estado "activos"
                   // (todo lo NO finalizado): si hay cursos pero TODOS están

@@ -54,6 +54,7 @@ import {
   TableRow,
   SortableHead,
 } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
@@ -217,6 +218,9 @@ function TeacherProjects() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  // Carga de datos (distinta de authLoading): evita el flash del empty state
+  // "crea tu primer proyecto" mientras el fetch resuelve.
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [aiErrorsByProject, setAiErrorsByProject] = useState<Record<string, number>>({});
@@ -562,6 +566,7 @@ function TeacherProjects() {
   };
 
   const load = async () => {
+    setLoading(true);
     // Cada query se aísla en su propio try para que un fallo (p.ej. una
     // migración faltante) no esconda los datos que SÍ podemos cargar. Antes
     // un solo `Promise.all` rechazaba el load entero y la tabla quedaba
@@ -704,6 +709,8 @@ function TeacherProjects() {
       // toast para feedback inmediato.
       setLoadError(friendlyError(e, t("hc_routesAppTeacherProjects.couldNotLoadProjects")));
       toast.error(friendlyError(e, t("hc_routesAppTeacherProjects.errorLoadingProjects")));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -2587,7 +2594,9 @@ function TeacherProjects() {
                   </TableCell>
                 </TableRow>
               ))}
-              {projects.length === 0 ? (
+              {loading ? (
+                <TableSkeleton cols={9} rows={6} />
+              ) : projects.length === 0 ? (
                 <TableEmpty
                   colSpan={9}
                   icon={FolderKanban}

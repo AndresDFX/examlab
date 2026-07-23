@@ -35,6 +35,7 @@ import {
   TableRow,
   SortableHead,
 } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { DecimalInput } from "@/components/ui/decimal-input";
@@ -276,6 +277,9 @@ function TeacherWorkshops() {
   const aiGate = useAiAuthorizationGate();
   const [courses, setCourses] = useState<Course[]>([]);
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
+  // Carga de datos (distinta de authLoading): evita el flash del empty state
+  // "crea tu primer taller" mientras el fetch resuelve.
+  const [loading, setLoading] = useState(true);
   /** Mapa workshop_id → courseIds[]. Poblado desde workshop_courses (M:N).
    *  Para talleres single-course tiene un único course_id; para multi
    *  trae varios. Usado por el grid (badges) y el edit dialog (set inicial). */
@@ -608,6 +612,8 @@ function TeacherWorkshops() {
   };
 
   const load = async () => {
+    setLoading(true);
+    try {
     const [
       { data: cs, error: csErr },
       { data: ws, error: wsErr },
@@ -690,6 +696,9 @@ function TeacherWorkshops() {
     }
     setWorkshopCourses(wcMap);
     setWorkshopCourseCuts(wcCutsMap);
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => {
     load();
@@ -2797,7 +2806,9 @@ function TeacherWorkshops() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {workshops.length === 0 ? (
+              {loading ? (
+                <TableSkeleton cols={10} rows={6} />
+              ) : workshops.length === 0 ? (
                 <TableEmpty
                   colSpan={10}
                   icon={Hammer}

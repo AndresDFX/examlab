@@ -45,6 +45,7 @@ import {
   TableRow,
   SortableHead,
 } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { toast } from "sonner";
 import {
   Plus,
@@ -131,6 +132,9 @@ function TeacherExams() {
   const { t } = useTranslation();
   const [courses, setCourses] = useState<Course[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
+  // Carga de datos (distinta de authLoading): evita el flash del empty state
+  // "crea tu primer examen" mientras el fetch resuelve.
+  const [loading, setLoading] = useState(true);
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Exam>>({});
@@ -320,6 +324,8 @@ function TeacherExams() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const load = async () => {
+    setLoading(true);
+    try {
     const [{ data: cs, error: csErr }, { data: es, error: esErr }, { data: cs2 }] =
       await Promise.all([
         supabase
@@ -351,6 +357,9 @@ function TeacherExams() {
     setCourses((cs ?? []) as unknown as Course[]);
     setExams((es ?? []) as any);
     setCuts((cs2 ?? []) as Cut[]);
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => {
     load();
@@ -834,7 +843,9 @@ function TeacherExams() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {exams.length === 0 ? (
+              {loading ? (
+                <TableSkeleton cols={12} rows={6} />
+              ) : exams.length === 0 ? (
                 <TableEmpty
                   colSpan={12}
                   icon={FileText}
