@@ -3,7 +3,8 @@
   "title": "Cola de IA",
   "appPath": "/app/admin/ai-cron",
   "readySelectors": [
-    "text=Cola IA unificada"
+    "text=Cola IA unificada",
+    ".divide-y"
   ],
   "voice": {
     "name": "es-CO-GonzaloNeural",
@@ -13,7 +14,7 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "La cola de inteligencia artificial de ExamLab.",
+      "narration": "Toda la inteligencia artificial de ExamLab, en una sola cola.",
       "card": {
         "kicker": "ExamLab · Demo Global Corp",
         "title": "Cola de IA",
@@ -22,32 +23,63 @@
       "bufferMs": 500
     },
     {
-      "id": "cola",
+      "id": "panorama",
       "kind": "platform",
-      "narration": "Toda la inteligencia artificial de la plataforma pasa por una sola cola: la generación de preguntas y la calificación de entregas. Aquí el administrador ve cuántos trabajos están pendientes, en proceso o fallaron, revisa el detalle de cada uno, y puede procesarlos al instante, reintentarlos o cancelarlos.",
+      "narration": "Toda la inteligencia artificial de la plataforma pasa por una sola cola: generación de preguntas y calificación de entregas. Arriba, un tablero resume cuántos trabajos hay pendientes, en proceso, fallidos o completados. Cada fila indica de qué cola viene —generación o calificación—, su tipo y su estado. Y todo entra aquí en vez de ejecutarse al instante, para que la institución procese por lotes y controle cuánto gasta en inteligencia artificial.",
       "bufferMs": 1000,
       "beats": [
         {
           "target": "statrow",
           "scale": 1.12,
-          "hold": 8000,
+          "hold": 6000,
           "side": "bottom",
-          "syncWord": "cola",
+          "syncWord": "tablero",
           "focus": {
             "title": "Estado de la cola",
-            "body": "Pendientes, en proceso, fallados y último éxito."
+            "body": "Pendientes, en proceso, fallidos y completados."
           }
         },
         {
-          "target": "firstcard",
-          "scale": 1.05,
-          "hold": 8500,
-          "side": "top",
+          "target": ".divide-y > div:first-child",
+          "scale": 1.12,
+          "hold": 7000,
+          "side": "bottom",
           "scroll": true,
-          "syncWord": "detalle",
+          "syncWord": "fila",
           "focus": {
             "title": "Cada trabajo",
-            "body": "Tipo, estado, detalle y acciones: procesar, reintentar, cancelar."
+            "body": "Origen (generación o calificación), tipo, estado y curso."
+          }
+        }
+      ]
+    },
+    {
+      "id": "acciones",
+      "kind": "platform",
+      "narration": "Cuando un trabajo falla, no desaparece: queda a la vista con el motivo del error. Aquí, la clave de inteligencia artificial agotó su cuota del minuto. El administrador puede procesarlo al instante, cancelarlo o reintentarlo, y los errores pasajeros se reintentan solos. Además, cada trabajo guarda quién lo pidió, cuántos intentos lleva y cuándo ocurrió, y toda acción queda registrada para auditoría.",
+      "bufferMs": 1000,
+      "beats": [
+        {
+          "target": "button[title=\"Click para ver el error completo\"]",
+          "scale": 1.4,
+          "hold": 6500,
+          "side": "top",
+          "scroll": true,
+          "syncWord": "motivo",
+          "focus": {
+            "title": "Por qué falló",
+            "body": "El error queda a la vista; los transitorios se reintentan solos."
+          }
+        },
+        {
+          "target": "button[title=\"Reintentar\"]",
+          "scale": 1.9,
+          "hold": 6500,
+          "side": "left",
+          "syncWord": "reintentarlo",
+          "focus": {
+            "title": "Reintentar",
+            "body": "Procesar ahora, cancelar o reintentar; todo queda auditado."
           }
         }
       ]
@@ -55,7 +87,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "Así, desde un solo lugar, el administrador controla toda la inteligencia artificial de ExamLab: generación y calificación bajo la vista.",
+      "narration": "Así, desde un solo lugar, la institución controla toda la inteligencia artificial de ExamLab: cuánto se gasta, qué está pendiente y qué falló, con el registro de cada paso.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "ExamLab",

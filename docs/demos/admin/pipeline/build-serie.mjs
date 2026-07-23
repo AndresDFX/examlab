@@ -5,8 +5,17 @@
 // Uso:  node build-serie.mjs admin student teacher
 //
 // Requisitos: los módulos individuales ya generados por make.mjs/build-mux.mjs.
-// Como todos salen de build-mux con los MISMOS parámetros (libx264 yuv420p 30fps
-// + aac 160k), el concat demuxer con `-c copy` es lossless y rápido.
+//
+// SALIDA ÚNICA `serie-<rol>-completa.mp4`, RE-ENCODED a tamaño web (no `-c copy`).
+// WHY re-encode y no copy lossless: el concat lossless de las series largas
+// (docente/estudiante) daba 56-81 MB → NO cabe en el límite ~50 MB del upload
+// estándar de Supabase Storage, así que hacía falta un segundo archivo
+// `serie-<rol>-web.mp4` comprimido a mano SOLO para subir → dos archivos por rol
+// y confusión sobre "cuál es la final". Ahora build-serie produce directamente
+// UN archivo comprimido (CRF 30 + faststart) que es a la vez el que se revisa,
+// el que se sube y el que linkean los correos. Ese archivo ES la serie final.
+// (Los módulos ya vienen de build-mux en libx264 yuv420p 30fps; re-encodear el
+// concat a CRF 30 preserva la sincronía voz↔pantalla y baja el peso ~2-3×.)
 import { execFileSync } from "node:child_process";
 import { readdirSync, writeFileSync } from "node:fs";
 
@@ -32,8 +41,22 @@ for (const role of roles) {
   const listPath = `C:/Temp/examlab-rec/_serie-${role}.txt`;
   writeFileSync(listPath, files.map((f) => `file '${dir}/${f}'`).join("\n") + "\n");
   const out = `${REPO}/${role}/serie-${role}-completa.mp4`;
-  console.log(`\n=== ${role}: ${files.length} módulos → serie-${role}-completa.mp4 ===`);
+  console.log(`\n=== ${role}: ${files.length} módulos → serie-${role}-completa.mp4 (web) ===`);
   files.forEach((f) => console.log("  + " + f));
-  execFileSync(FF, ["-y", "-loglevel", "error", "-stats", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", out], { stdio: "inherit" });
+  // Re-encode a tamaño web (CRF 30 + faststart) → un solo archivo subible.
+  // -pix_fmt yuv420p por compat máxima; -movflags +faststart mueve el moov al
+  // inicio para streaming progresivo desde Storage.
+  execFileSync(
+    FF,
+    [
+      "-y", "-loglevel", "error", "-stats",
+      "-f", "concat", "-safe", "0", "-i", listPath,
+      "-c:v", "libx264", "-crf", "30", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+      "-c:a", "aac", "-b:a", "128k",
+      "-movflags", "+faststart",
+      out,
+    ],
+    { stdio: "inherit" },
+  );
   console.log(`✓ ${out}`);
 }
