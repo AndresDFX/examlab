@@ -1037,7 +1037,9 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       // a sus cursos.
       const { data: sess } = await (supabase as any)
         .from("attendance_sessions")
-        .select("id, title, session_date, start_time, duration_minutes, course_id, course:courses(name)")
+        .select(
+          "id, title, session_date, start_time, duration_minutes, session_type, course_id, course:courses(name)",
+        )
         .gte("session_date", todayStr)
         .is("deleted_at", null)
         .order("session_date", { ascending: true })
@@ -1200,6 +1202,8 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                       title={s.title ?? t("dashboard.untitledSession", { defaultValue: "Clase" })}
                       subtitle={s.course?.name}
                       date={`${dateLabel}${timeLabel}`}
+                      badge={s.session_type === "autonoma" ? t("sessionType.autonoma") : undefined}
+                      badgeColor="bg-violet-500 text-white"
                     />
                   );
                 })

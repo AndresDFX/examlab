@@ -125,6 +125,28 @@ Eso permite cambiar la cadencia del schedule sin riesgo de spam.
 
 ---
 
+### `notify-autonomous-sessions`
+
+- **Función**: `public.notify_autonomous_sessions_starting()` (sin parámetros)
+- **Migración**: `20261490000000_notify_autonomous_sessions.sql`
+- **Schedule**: `* * * * *` — **cada minuto** (precisión de la hora de inicio).
+- **Qué hace**: cuando llega la fecha/hora de inicio de una sesión con
+  `session_type='autonoma'`, notifica (campana + correo + push) a los alumnos
+  matriculados (`course_enrollments`) para que revisen el material.
+- **"Due"**: `(session_date + COALESCE(start_time,'09:00')) AT TIME ZONE
+  'America/Bogota' <= now()` y `> now() - INTERVAL '2 hours'` (la ventana solo
+  evita el spam retroactivo del primer deploy; el guard real es la columna).
+- **Idempotencia**: columna `attendance_sessions.notified_start_at` + `FOR UPDATE
+  SKIP LOCKED`. Se marca al notificar → nunca re-dispara.
+- **Papelera**: filtra `deleted_at IS NULL` en la sesión y en el curso.
+- **Notification emitida**: `kind='session_start'` (emailable; toggle
+  `email_settings.enabled_kinds.session_start`). Link → `/app/student/courses`.
+- **Relacionado**: el alumno "asiste" a la autónoma con el RPC
+  `student_review_autonomous_session(_session_id)` (botón "Ya revisé el material"),
+  que inserta un `attendance_record` 'presente'.
+
+---
+
 ## Comandos operacionales
 
 ### Listar todos los jobs (qué tengo programado)

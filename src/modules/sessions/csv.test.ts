@@ -119,6 +119,7 @@ describe("buildSessionsRows — export", () => {
       meeting_url: "https://meet.google.com/abc",
       cut_name: "Corte 1",
       recording_url: "",
+      session_type: "virtual", // sin session_type en la entrada → default
     });
   });
 
@@ -478,5 +479,31 @@ describe("round-trip: buildSessionsRows → parseSessionsCsv", () => {
       "2026-06-18",
     ]);
     expect(rows.map((r) => r.duration_minutes)).toEqual([90, 60, null]);
+  });
+});
+
+describe("parseSessionsCsv — session_type", () => {
+  const base = { session_date: "2026-06-14" };
+  it("acepta los tres tipos válidos (case-insensitive)", () => {
+    const { rows } = parseSessionsCsv(
+      [
+        { ...base, session_type: "presencial" },
+        { ...base, session_type: "AUTONOMA" },
+        { ...base, session_type: "Virtual" },
+      ],
+      new Map(),
+    );
+    expect(rows.map((r) => r.session_type)).toEqual(["presencial", "autonoma", "virtual"]);
+  });
+  it("vacío o inválido → default 'virtual'", () => {
+    const { rows } = parseSessionsCsv(
+      [
+        { ...base },
+        { ...base, session_type: "" },
+        { ...base, session_type: "hibrida" },
+      ],
+      new Map(),
+    );
+    expect(rows.map((r) => r.session_type)).toEqual(["virtual", "virtual", "virtual"]);
   });
 });

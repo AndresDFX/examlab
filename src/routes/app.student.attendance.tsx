@@ -50,6 +50,7 @@ import {
   ExternalLink,
   FileText,
   Code2,
+  BookOpen,
   Palette,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
@@ -64,6 +65,7 @@ const AttendanceQRScanner = lazy(() =>
   })),
 );
 import { SessionCodeSnippetsDialog } from "@/modules/sessions/SessionCodeSnippetsDialog";
+import { SessionTypeBadge } from "@/modules/sessions/SessionTypeBadge";
 import { SessionWhiteboardDialog } from "@/modules/whiteboard/SessionWhiteboardDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { ErrorState } from "@/components/ui/empty-state";
@@ -108,6 +110,8 @@ type Session = {
   /** Enlace libre a las notas / minuta de la reunión (Google Docs,
    *  Notion, etc.). Se abre en nueva pestaña. Análogo a recording_url. */
   notes_url?: string | null;
+  /** Modalidad de la sesión: presencial | virtual | autonoma. */
+  session_type?: string | null;
 };
 type OpenSession = Session & { course_name: string };
 type Record_ = {
@@ -272,7 +276,7 @@ function StudentAttendance() {
         (supabase as any)
           .from("attendance_sessions")
           .select(
-            "id, course_id, session_date, title, recording_url, recording_video_id, notes_url, whiteboard_shared, code_shared",
+            "id, course_id, session_date, title, recording_url, recording_video_id, notes_url, whiteboard_shared, code_shared, session_type",
           )
           .eq("course_id", selectedCourseId)
           .is("deleted_at", null)
@@ -331,6 +335,21 @@ function StudentAttendance() {
   // asistencia (presente / ausente) — sin importar si vino del QR o de
   // que el docente lo marcó a mano. Si ya está marcado, no tiene sentido
   // mostrar el aviso "Check-in disponible" ni el QR.
+  // Sesión AUTÓNOMA: el alumno marca el material como revisado → queda
+  // 'presente' (RPC student_review_autonomous_session valida matrícula + tipo).
+  // Refresca con retryNonce para que el badge pase a "Material revisado".
+  const markReviewed = async (sessionId: string) => {
+    const { error } = await db.rpc("student_review_autonomous_session", {
+      _session_id: sessionId,
+    });
+    if (error) {
+      toast.error(friendlyError(error, t("sessionType.reviewToastError")));
+      return;
+    }
+    toast.success(t("sessionType.reviewToastOk"));
+    setRetryNonce((n) => n + 1);
+  };
+
   const loadOpenSessions = useCallback(async () => {
     if (!user || courses.length === 0) {
       setOpenSessions([]);
@@ -697,7 +716,12 @@ function StudentAttendance() {
                               {formatDateOnly(s.session_date)}
                             </TableCell>
                             <TableCell className="text-sm">
-                              {s.title ?? <span className="text-muted-foreground">—</span>}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span>
+                                  {s.title ?? <span className="text-muted-foreground">—</span>}
+                                </span>
+                                <SessionTypeBadge type={s.session_type} />
+                              </div>
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className={`${meta.className} text-xs`}>
@@ -809,11 +833,32 @@ function StudentAttendance() {
                                     {t("studentAttendance.btnWhiteboard")}
                                   </Button>
                                 )}
+                                {s.session_type === "autonoma" &&
+                                  (rec?.status === "presente" ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[11px] border-emerald-400/60 text-emerald-700 dark:text-emerald-300"
+                                    >
+                                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                                      {t("sessionType.reviewedBadge")}
+                                    </Badge>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-8 px-2 text-[11px] border-violet-400/60 text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/30"
+                                      onClick={() => markReviewed(s.id)}
+                                    >
+                                      <BookOpen className="h-3 w-3 mr-1" />
+                                      {t("sessionType.reviewButton")}
+                                    </Button>
+                                  ))}
                                 {!video &&
                                   !s.recording_url &&
                                   !s.notes_url &&
                                   !s.code_shared &&
-                                  !s.whiteboard_shared && (
+                                  !s.whiteboard_shared &&
+                                  s.session_type !== "autonoma" && (
                                     <span className="text-xs text-muted-foreground">—</span>
                                   )}
                               </div>

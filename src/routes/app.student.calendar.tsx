@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { StudentEventsCalendar } from "@/modules/dashboard/StudentEventsCalendar";
+import { SessionTypeBadge } from "@/modules/sessions/SessionTypeBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +57,8 @@ interface CalendarEvent {
   allDay: boolean;
   location?: string | null;
   link?: string | null;
+  /** Solo para kind="session": modalidad presencial|virtual|autonoma. */
+  sessionType?: string | null;
 }
 
 const KIND_LABEL_KEY: Record<CalendarEvent["kind"], string> = {
@@ -127,7 +130,7 @@ function StudentCalendar() {
         db
           .from("course_enrollments")
           .select(
-            "course_id, courses(id, name, attendance_sessions(id, session_date, start_time, title, meeting_url, deleted_at))",
+            "course_id, courses(id, name, attendance_sessions(id, session_date, start_time, title, meeting_url, session_type, deleted_at))",
           )
           .eq("user_id", user.id),
       ]);
@@ -230,6 +233,7 @@ function StudentCalendar() {
             allDay: !timeStr,
             location: s.meeting_url ?? null,
             link: "/app/student/attendance",
+            sessionType: s.session_type ?? null,
           });
         }
       }
@@ -519,6 +523,7 @@ function EventRow({ event }: { event: CalendarEvent }) {
           <Badge variant="outline" className="text-[10px]">
             {t(KIND_LABEL_KEY[event.kind])}
           </Badge>
+          {event.kind === "session" && <SessionTypeBadge type={event.sessionType} />}
         </div>
         <div className="text-xs text-muted-foreground mt-0.5">{event.courseName}</div>
         <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">

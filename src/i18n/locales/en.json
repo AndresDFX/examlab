@@ -5367,6 +5367,17 @@
     "mixedNoAnswers": "No answers yet.",
     "searchPlaceholder": "Search survey…"
   },
+  "sessionType": {
+    "label": "Session type",
+    "presencial": "In-person",
+    "virtual": "Virtual",
+    "autonoma": "Autonomous",
+    "autonomaHint": "Autonomous session: review the material at your own pace. You'll be notified when it starts.",
+    "reviewButton": "I've reviewed the material",
+    "reviewedBadge": "Material reviewed",
+    "reviewToastOk": "Done! We marked your attendance for reviewing the material.",
+    "reviewToastError": "Couldn't mark as reviewed. Please try again."
+  },
   "teacherAttendance": {
     "statusPresentShort": "P",
     "statusPresent": "Present",

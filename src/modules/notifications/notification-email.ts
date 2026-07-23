@@ -48,6 +48,11 @@ export const CRITICAL_KINDS = [
   // email_settings.enabled_kinds.course_welcome. Sincronizado con el SQL
   // `_notification_kind_emails` y send-email/index.ts.
   "course_welcome",
+  // session_start: aviso al inicio de una sesión AUTÓNOMA (cron
+  // notify-autonomous-sessions, mig 20261490000000). Toggle en
+  // email_settings.enabled_kinds.session_start. Sincronizado con el SQL
+  // `_notification_kind_emails` y send-email/index.ts.
+  "session_start",
 ] as const;
 
 /** Prefijo de link que indica "mensaje 1-a-1" — usado para discriminar

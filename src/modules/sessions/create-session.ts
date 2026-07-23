@@ -16,6 +16,8 @@
  *
  * Pure — sin red, sin Date.now(). Testeable en aislamiento.
  */
+import type { SessionType } from "./session-type";
+
 export interface NewSessionFields {
   course_id: string;
   session_date: string; // DATE "YYYY-MM-DD"
@@ -31,6 +33,8 @@ export interface NewSessionFields {
   notes_url?: string | null;
   content_id?: string | null;
   content_class_index?: number | null;
+  /** Modalidad: presencial | virtual | autonoma. Omitida → default 'virtual' de la DB. */
+  session_type?: SessionType;
 }
 
 /** Normaliza `start_time` a "HH:MM:SS" (columna TIME sin zona horaria). Vacío/
@@ -60,5 +64,6 @@ export function buildNewSessionPayload(f: NewSessionFields): Record<string, unkn
   if (f.notes_url !== undefined) p.notes_url = f.notes_url;
   if (f.content_id !== undefined) p.content_id = f.content_id;
   if (f.content_class_index !== undefined) p.content_class_index = f.content_class_index;
+  if (f.session_type !== undefined) p.session_type = f.session_type;
   return p;
 }

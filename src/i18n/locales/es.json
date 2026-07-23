@@ -5367,6 +5367,17 @@
     "mixedNoAnswers": "Sin respuestas todavía.",
     "searchPlaceholder": "Buscar encuesta…"
   },
+  "sessionType": {
+    "label": "Tipo de sesión",
+    "presencial": "Presencial",
+    "virtual": "Virtual",
+    "autonoma": "Autónoma",
+    "autonomaHint": "Sesión autónoma: revisa el material a tu ritmo. Se te notifica al inicio.",
+    "reviewButton": "Ya revisé el material",
+    "reviewedBadge": "Material revisado",
+    "reviewToastOk": "¡Listo! Marcamos tu asistencia por revisar el material.",
+    "reviewToastError": "No se pudo marcar como revisado. Intenta de nuevo."
+  },
   "teacherAttendance": {
     "statusPresentShort": "P",
     "statusPresent": "Presente",

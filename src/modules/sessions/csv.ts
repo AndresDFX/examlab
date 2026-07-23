@@ -21,11 +21,17 @@
  *     romper round-trip de exports viejos.
  */
 
+/** Valores válidos de `session_type`. Fuente de verdad canónica en
+ *  `src/modules/sessions/session-type.ts` (`SESSION_TYPES`); se inlinea acá
+ *  para no acoplar este helper puro al módulo que importa iconos de lucide. */
+const SESSION_TYPE_VALUES = ["presencial", "virtual", "autonoma"] as const;
+const DEFAULT_SESSION_TYPE = "virtual";
+
 /** Header + filas demo del template descargable. */
-export const SESSIONS_TEMPLATE = `session_date,title,start_time,end_time,meeting_url,cut_name,recording_url
-2026-06-14,Clase 1 — Introducción,18:00,20:00,https://meet.google.com/abc-defg-hij,Corte 1,
-2026-06-16,Clase 2 — Variables y tipos,18:00,20:00,,Corte 1,
-2026-06-21,Repaso,,,,,`;
+export const SESSIONS_TEMPLATE = `session_date,title,start_time,end_time,meeting_url,cut_name,recording_url,session_type
+2026-06-14,Clase 1 — Introducción,18:00,20:00,https://meet.google.com/abc-defg-hij,Corte 1,,presencial
+2026-06-16,Clase 2 — Variables y tipos,18:00,20:00,,Corte 1,,virtual
+2026-06-21,Repaso autónomo,,,,,,autonoma`;
 
 /** Orden estable de columnas que `buildSessionsCsv` emite. Debe
  *  coincidir con el header de `SESSIONS_TEMPLATE`. */
@@ -37,6 +43,7 @@ export const SESSIONS_CSV_COLUMNS = [
   "meeting_url",
   "cut_name",
   "recording_url",
+  "session_type",
 ] as const;
 
 /** Parsea HH:MM o HH:MM:SS a minutos del día (0..1439). Inválido → null. */
@@ -71,6 +78,7 @@ export interface SessionForCsv {
   meeting_url?: string | null;
   cut_id?: string | null;
   recording_url?: string | null;
+  session_type?: string | null;
 }
 
 /** Build de las filas (array de objetos) que `toCSV` serializa.
@@ -93,6 +101,9 @@ export function buildSessionsRows(
       meeting_url: s.meeting_url ?? "",
       cut_name: s.cut_id ? (cutNameById.get(s.cut_id) ?? "") : "",
       recording_url: s.recording_url ?? "",
+      session_type: (SESSION_TYPE_VALUES as readonly string[]).includes(s.session_type ?? "")
+        ? (s.session_type as string)
+        : DEFAULT_SESSION_TYPE,
     };
   });
 }
@@ -108,6 +119,7 @@ export interface ParsedSessionRow {
   duration_minutes: number | null;
   meeting_url: string | null;
   recording_url: string | null;
+  session_type: string;
 }
 
 /** Resultado del parseo del CSV completo. `unmatchedCuts` cuenta filas
@@ -167,6 +179,11 @@ export function parseSessionsCsv(
       duration = Number.isFinite(durNum) && durNum >= 0 ? durNum : null;
     }
 
+    const rawType = (r.session_type || "").trim().toLowerCase();
+    const sessionType = (SESSION_TYPE_VALUES as readonly string[]).includes(rawType)
+      ? rawType
+      : DEFAULT_SESSION_TYPE;
+
     out.push({
       session_date: rawDate,
       title: r.title ? r.title : null,
@@ -175,6 +192,7 @@ export function parseSessionsCsv(
       duration_minutes: duration,
       meeting_url: (r.meeting_url || "").trim() || null,
       recording_url: (r.recording_url || "").trim() || null,
+      session_type: sessionType,
     });
   }
 

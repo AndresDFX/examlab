@@ -63,6 +63,11 @@ const CRITICAL_KINDS = [
   // email_settings.enabled_kinds.course_welcome (gate más abajo). Sincronizado
   // con SQL `_notification_kind_emails` y notification-email.ts.
   "course_welcome",
+  // session_start: aviso al inicio de una sesión AUTÓNOMA (cron
+  // notify-autonomous-sessions, mig 20261490000000) para que el alumno revise
+  // el material. Toggle en email_settings.enabled_kinds.session_start.
+  // Sincronizado con SQL `_notification_kind_emails` y notification-email.ts.
+  "session_start",
 ];
 const MESSAGE_LINK_PREFIX = "/app/messages";
 const SYSTEM_ALERT_LINK_PREFIX = "/app/admin/system";

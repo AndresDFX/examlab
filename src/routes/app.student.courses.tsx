@@ -41,6 +41,7 @@ import {
 } from "@/modules/code/CodeFileRunnerDialog";
 import { NotebookRunnerDialog } from "@/modules/code/NotebookRunnerDialog";
 import { isNotebookFile } from "@/modules/code/notebook";
+import { SessionTypeBadge } from "@/modules/sessions/SessionTypeBadge";
 import { MediaViewerDialog } from "@/modules/contents/MediaViewerDialog";
 import { isViewableMedia, isImageFile } from "@/modules/contents/media-files";
 import { formatDateOnly, formatWeekdayName } from "@/shared/lib/format";
@@ -114,6 +115,8 @@ type SessionRow = {
    *  El tablero del estudiante debe mostrarlos para sesiones pasadas. */
   recording_url: string | null;
   notes_url: string | null;
+  /** Modalidad de la sesión: presencial | virtual | autonoma. */
+  session_type: string | null;
 };
 
 type ContentFileEntry = {
@@ -471,7 +474,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       const { data: ses } = await db
         .from("attendance_sessions")
         .select(
-          "id, course_id, session_date, title, content_id, content_class_index, content_file_paths, meeting_url, recording_url, notes_url",
+          "id, course_id, session_date, title, content_id, content_class_index, content_file_paths, meeting_url, recording_url, notes_url, session_type",
         )
         .eq("course_id", course.id)
         .is("deleted_at", null)
@@ -1072,10 +1075,16 @@ function SessionGroup({
                       <span className="text-[11px] text-muted-foreground capitalize">
                         {formatWeekdayName(s.session_date)}
                       </span>
+                      <SessionTypeBadge type={s.session_type} />
                     </div>
                     <h3 className="font-medium text-base">
                       {s.title || t("contents.assignSessionUntitled")}
                     </h3>
+                    {s.session_type === "autonoma" && (
+                      <p className="text-[11px] text-violet-700 dark:text-violet-300">
+                        {t("sessionType.autonomaHint")}
+                      </p>
+                    )}
                     {content && (
                       <div className="text-xs text-muted-foreground flex items-center gap-1">
                         <Sparkles className="h-3 w-3" />

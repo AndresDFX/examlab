@@ -94,6 +94,8 @@ import {
 } from "@/modules/attendance/attendance-code";
 import { GenerateSessionsDialog } from "@/modules/contents/GenerateSessionsDialog";
 import { buildNewSessionPayload } from "@/modules/sessions/create-session";
+import { SESSION_TYPES, type SessionType } from "@/modules/sessions/session-type";
+import { SessionTypeBadge } from "@/modules/sessions/SessionTypeBadge";
 import { LaunchPollDialog } from "@/modules/polls/LaunchPollDialog";
 import { SessionWhiteboardDialog } from "@/modules/whiteboard/SessionWhiteboardDialog";
 import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDialog";
@@ -153,6 +155,8 @@ type Session = {
   duration_minutes?: number | null;
   /** Link a la sala virtual (Meet/Zoom/Teams). Apertura en nueva pestaña. */
   meeting_url?: string | null;
+  /** Modalidad de la sesión: presencial | virtual | autonoma. Default virtual. */
+  session_type?: SessionType | null;
 };
 /** Contenido generado disponible para asignar a una sesión. Solo
  *  status='done' y solo del docente actual (RLS lo asegura igual,
@@ -226,6 +230,9 @@ function TeacherAttendance() {
   const [newStartTime, setNewStartTime] = useState("09:00");
   const [newEndTime, setNewEndTime] = useState("10:30");
   const [newTitle, setNewTitle] = useState("");
+  // Modalidad de la sesión nueva. Default 'virtual' (coherente con el default
+  // de la DB para históricos). 'autonoma' dispara la notificación por hora de inicio.
+  const [newSessionType, setNewSessionType] = useState<SessionType>("virtual");
   // Corte explícito al que pertenece la sesión nueva. "" = sin corte
   // (la sesión queda visible pero no aporta a la nota de asistencia).
   const [newCutId, setNewCutId] = useState<string>("");
@@ -247,6 +254,7 @@ function TeacherAttendance() {
       newStartTime,
       newEndTime,
       newTitle,
+      newSessionType,
       newCutId,
       newRecordingUrl,
       newRecordingVideoId,
@@ -257,6 +265,7 @@ function TeacherAttendance() {
       newStartTime,
       newEndTime,
       newTitle,
+      newSessionType,
       newCutId,
       newRecordingUrl,
       newRecordingVideoId,
@@ -491,6 +500,7 @@ function TeacherAttendance() {
         recording_url: newRecordingUrl.trim() || null,
         recording_video_id: newRecordingVideoId || null,
         notes_url: newNotesUrl.trim() || null,
+        session_type: newSessionType,
       }),
     );
     if (error) {
@@ -504,6 +514,7 @@ function TeacherAttendance() {
     );
     setNewSessionOpen(false);
     setNewTitle("");
+    setNewSessionType("virtual");
     setNewCutId("");
     setNewRecordingUrl("");
     setNewRecordingVideoId("");
@@ -706,6 +717,21 @@ function TeacherAttendance() {
     setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, cut_id: cutId } : s)));
   };
 
+  // Cambiar la modalidad (presencial/virtual/autonoma) de una sesión existente.
+  // Cambiar a 'autonoma' habilita la notificación por hora de inicio (cron).
+  const updateSessionType = async (sessionId: string, type: SessionType) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from("attendance_sessions")
+      .update({ session_type: type })
+      .eq("id", sessionId);
+    if (error) {
+      toast.error(friendlyError(error));
+      return;
+    }
+    setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, session_type: type } : s)));
+  };
+
   /**
    * Actualiza la asignación de contenido de UNA sesión. El value que
    * recibe el Select se codifica como `"<contentId>:<classIndex>"`
@@ -880,6 +906,7 @@ function TeacherAttendance() {
       duration_minutes: p.duration_minutes,
       meeting_url: p.meeting_url,
       recording_url: p.recording_url,
+      session_type: p.session_type,
     }));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any).from("attendance_sessions").insert(payload);
@@ -1404,6 +1431,24 @@ function TeacherAttendance() {
                                 </span>
                               </div>
                               <div className="space-y-1.5">
+                                <Label className="text-[11px]">{t("sessionType.label")}</Label>
+                                <Select
+                                  value={sess.session_type ?? "virtual"}
+                                  onValueChange={(v) => updateSessionType(sess.id, v as SessionType)}
+                                >
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {SESSION_TYPES.map((st) => (
+                                      <SelectItem key={st} value={st}>
+                                        {t(`sessionType.${st}`)}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1.5">
                                 <Label className="text-[11px] flex items-center gap-1">
                                   <Scissors className="h-3 w-3" />
                                   {t("teacherAttendance.cutLabel")}
@@ -1542,6 +1587,7 @@ function TeacherAttendance() {
                               indicador read-only; click en el Settings
                               de arriba para editar. */}
                           <div className="flex flex-wrap items-center justify-center gap-0.5 pt-0.5">
+                            <SessionTypeBadge type={sess.session_type} className="text-[9px] py-0 px-1" />
                             {cutLabel ? (
                               <Badge
                                 variant="outline"
@@ -1701,6 +1747,29 @@ function TeacherAttendance() {
                 onChange={(e) => setNewTitle(e.target.value)}
                 placeholder={t("teacherAttendance.titlePlaceholder")}
               />
+            </div>
+            <div data-tour-id="session-field-type">
+              <Label>{t("sessionType.label")}</Label>
+              <Select
+                value={newSessionType}
+                onValueChange={(v) => setNewSessionType(v as SessionType)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SESSION_TYPES.map((st) => (
+                    <SelectItem key={st} value={st}>
+                      {t(`sessionType.${st}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {newSessionType === "autonoma" && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {t("sessionType.autonomaHint")}
+                </p>
+              )}
             </div>
             <div data-tour-id="session-field-cut">
               <Label>
