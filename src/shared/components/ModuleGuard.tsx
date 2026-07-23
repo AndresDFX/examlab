@@ -38,6 +38,7 @@ import { useTranslation } from "react-i18next";
 import { PageLoader } from "@/components/ui/loaders";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { isAdminLike } from "@/shared/lib/roles";
 import { Lock, Settings } from "lucide-react";
 
 interface Props {
@@ -71,9 +72,13 @@ export function ModuleGuard({ module, children }: Props) {
 
   // Solo Admin/SuperAdmin tienen acceso al panel donde reactivar — los
   // demás roles no pueden tocar la matriz, así que el CTA "Configurar"
-  // solo aparece para ellos.
-  const canFixToggle =
-    roles?.includes("Admin") || roles?.includes("SuperAdmin");
+  // solo aparece para ellos. Se gatea por el ROL ACTIVO (effectiveRole),
+  // NO por los roles POSEÍDOS: un usuario multi-rol Docente+Admin actuando
+  // como Docente NO debe ver la afordancia admin (el link cae a
+  // /app/unauthorized por checkAccess con su rol activo). effectiveRole ya
+  // es el mismo rol con el que se decidió mostrar esta pantalla, así que la
+  // capacidad de "arreglar" queda coherente con la persona activa.
+  const canFixToggle = isAdminLike([effectiveRole]);
 
   return (
     <div className="max-w-md mx-auto mt-12">

@@ -30,7 +30,7 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
-import { isStaffActive } from "@/shared/lib/roles";
+import { isAdminLike, isStaffActive } from "@/shared/lib/roles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -476,10 +476,19 @@ function MessagesPage() {
   useEffect(() => {
     if (!broadcastDialogOpen || !myUserId) return;
     void (async () => {
-      // 1) Cursos según rol.
+      // 1) Cursos según ROL ACTIVO (no el poseído). Página COMPARTIDA: un
+      // multi-rol Docente+Admin actuando como Docente debe ver SOLO los
+      // cursos que dicta (course_teachers), no todos los de la institución.
+      // El alcance "todos los cursos" es capacidad de Admin — se habilita
+      // solo cuando el rol activo del switcher es Admin/SuperAdmin. Fallback
+      // a los roles poseídos cuando activeRole aún no se pobló (primer render),
+      // mismo criterio que isStaffActive. La RLS + la edge re-validan igual.
       const { data: roleRows } = await db.from("user_roles").select("role").eq("user_id", myUserId);
       const roles = ((roleRows ?? []) as Array<{ role: string }>).map((r) => r.role);
-      const isAdminLocal = roles.includes("Admin");
+      const isAdminLocal =
+        activeRole != null && activeRole !== ""
+          ? activeRole === "Admin" || activeRole === "SuperAdmin"
+          : isAdminLike(roles);
 
       // Excluir cursos en PAPELERA (deleted_at): no deben aparecer en el
       // selector de difusión (regla universal soft-delete — un curso en la
@@ -529,7 +538,7 @@ function MessagesPage() {
       setBroadcastCourses(enriched);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [broadcastDialogOpen, myUserId]);
+  }, [broadcastDialogOpen, myUserId, activeRole]);
 
   const toggleBroadcastCourse = (courseId: string) => {
     setBroadcastCourseIds((prev) =>
