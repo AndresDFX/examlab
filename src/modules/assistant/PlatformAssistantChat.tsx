@@ -41,6 +41,46 @@ interface Message {
   created_at: string;
 }
 
+/**
+ * Preguntas sugeridas por ROL para el estado inicial/vacío del chat. Cada rol
+ * ve SOLO su set. `key` es la clave i18n bajo `supportAssistant.suggestions.*`;
+ * `es` es el defaultValue (fuente en es-CO, con la marca correcta: "institución"
+ * y "Reto en vivo"). El rol se resuelve del rol ACTIVO (fallback Estudiante).
+ */
+const SUGGESTIONS_BY_ROLE: Record<string, { key: string; es: string }[]> = {
+  Estudiante: [
+    { key: "supportAssistant.suggestions.student.q1", es: "¿Cómo presento un examen?" },
+    { key: "supportAssistant.suggestions.student.q2", es: "¿Cómo entrego un taller o proyecto?" },
+    { key: "supportAssistant.suggestions.student.q3", es: "¿Dónde veo mis notas del curso?" },
+    { key: "supportAssistant.suggestions.student.q4", es: "¿Cómo marco mi asistencia con el código QR?" },
+    { key: "supportAssistant.suggestions.student.q5", es: "¿Cómo le pregunto algo al tutor del curso?" },
+    { key: "supportAssistant.suggestions.student.q6", es: "¿Dónde descargo mis certificados?" },
+  ],
+  Docente: [
+    { key: "supportAssistant.suggestions.teacher.q1", es: "¿Cómo creo un examen con preguntas de código?" },
+    { key: "supportAssistant.suggestions.teacher.q2", es: "¿Cómo califico las entregas con IA?" },
+    { key: "supportAssistant.suggestions.teacher.q3", es: "¿Cómo abro el check-in de asistencia con QR?" },
+    { key: "supportAssistant.suggestions.teacher.q4", es: "¿Cómo lanzo un reto en vivo en mi clase?" },
+    { key: "supportAssistant.suggestions.teacher.q5", es: "¿Cómo configuro los pesos y cortes del curso?" },
+    { key: "supportAssistant.suggestions.teacher.q6", es: "¿Cómo exporto las notas del gradebook?" },
+  ],
+  Admin: [
+    { key: "supportAssistant.suggestions.admin.q1", es: "¿Cómo importo estudiantes desde un CSV?" },
+    { key: "supportAssistant.suggestions.admin.q2", es: "¿Cómo creo un usuario nuevo en mi institución?" },
+    { key: "supportAssistant.suggestions.admin.q3", es: "¿Cómo configuro el modelo de IA?" },
+    { key: "supportAssistant.suggestions.admin.q4", es: "¿Cómo activo o desactivo módulos por rol?" },
+    { key: "supportAssistant.suggestions.admin.q5", es: "¿Cómo emito certificados a un curso?" },
+    { key: "supportAssistant.suggestions.admin.q6", es: "¿Cómo abro un ticket de soporte?" },
+  ],
+  SuperAdmin: [
+    { key: "supportAssistant.suggestions.superadmin.q1", es: "¿Cómo creo una institución nueva?" },
+    { key: "supportAssistant.suggestions.superadmin.q2", es: "¿Cómo ingreso a ver una institución específica?" },
+    { key: "supportAssistant.suggestions.superadmin.q3", es: "¿Cómo reviso los diagnósticos del sistema?" },
+    { key: "supportAssistant.suggestions.superadmin.q4", es: "¿Cómo genero un backup de la base de datos?" },
+    { key: "supportAssistant.suggestions.superadmin.q5", es: "¿Cómo reviso las tareas programadas (cron)?" },
+  ],
+};
+
 export function PlatformAssistantChat() {
   const { t } = useTranslation();
   const { user, profile } = useAuth();
@@ -56,6 +96,9 @@ export function PlatformAssistantChat() {
   const [clearing, setClearing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Para el scroll de apertura: la PRIMERA vez que cargan los mensajes saltamos
+  // al final SIN animación (UX: abrir en el último mensaje, no en el primero).
+  const didInitialScrollRef = useRef(false);
 
   const loadErrorFallback = t("supportAssistant.loadErrorFallback", {
     defaultValue: "No pudimos cargar el asistente.",
@@ -65,8 +108,22 @@ export function PlatformAssistantChat() {
   });
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages.length, sending]);
+    const el = scrollRef.current;
+    if (!el) return;
+    // Mientras carga, resetear el flag para que la próxima apertura salte al
+    // final instantáneo (cubre reload y cambio de rol).
+    if (loading) {
+      didInitialScrollRef.current = false;
+      return;
+    }
+    // Apertura → salto instantáneo al final; mensajes nuevos en la charla →
+    // scroll suave. rAF espera el layout de los mensajes antes de medir.
+    const instant = !didInitialScrollRef.current;
+    didInitialScrollRef.current = true;
+    requestAnimationFrame(() => {
+      el.scrollTo({ top: el.scrollHeight, behavior: instant ? "auto" : "smooth" });
+    });
+  }, [messages.length, sending, loading]);
 
   // Cargar la sesión única (o dejarla para crear on-demand al primer mensaje).
   useEffect(() => {
@@ -88,13 +145,19 @@ export function PlatformAssistantChat() {
         }
         const sid = (s as { id: string } | null)?.id ?? null;
         setSessionId(sid);
-        if (sid) {
+        // Mensajes SOLO del rol ACTIVO (hilo por rol dentro de la sesión única).
+        // Sin activeRole (primer render) no cargamos: al hidratarse, el effect
+        // re-corre (activeRole está en deps) y trae el hilo correcto.
+        if (sid && activeRole) {
           const { data: msgs } = await db
             .from("platform_support_messages")
             .select("id, session_id, role, content, created_at")
             .eq("session_id", sid)
+            .eq("role_context", activeRole)
             .order("created_at", { ascending: true });
           if (!cancelled) setMessages((msgs ?? []) as Message[]);
+        } else if (!cancelled) {
+          setMessages([]);
         }
       } catch (e) {
         if (!cancelled) setLoadError(friendlyError(e, loadErrorFallback));
@@ -105,16 +168,24 @@ export function PlatformAssistantChat() {
     return () => {
       cancelled = true;
     };
-  }, [user, retryNonce, loadErrorFallback]);
+  }, [user, retryNonce, loadErrorFallback, activeRole]);
 
-  const loadMessages = useCallback(async (sid: string) => {
-    const { data } = await db
-      .from("platform_support_messages")
-      .select("id, session_id, role, content, created_at")
-      .eq("session_id", sid)
-      .order("created_at", { ascending: true });
-    setMessages((data ?? []) as Message[]);
-  }, []);
+  const loadMessages = useCallback(
+    async (sid: string) => {
+      if (!activeRole) {
+        setMessages([]);
+        return;
+      }
+      const { data } = await db
+        .from("platform_support_messages")
+        .select("id, session_id, role, content, created_at")
+        .eq("session_id", sid)
+        .eq("role_context", activeRole)
+        .order("created_at", { ascending: true });
+      setMessages((data ?? []) as Message[]);
+    },
+    [activeRole],
+  );
 
   const ensureSession = async (): Promise<string | null> => {
     if (sessionId) return sessionId;
@@ -154,10 +225,9 @@ export function PlatformAssistantChat() {
     });
     if (!ok) return;
     setClearing(true);
-    const { error } = await db
-      .from("platform_support_messages")
-      .delete()
-      .eq("session_id", sessionId);
+    // Limpia SOLO el hilo del rol activo (los demás roles conservan el suyo).
+    const del = db.from("platform_support_messages").delete().eq("session_id", sessionId);
+    const { error } = activeRole ? await del.eq("role_context", activeRole) : await del;
     setClearing(false);
     if (error) {
       toast.error(friendlyError(error));
@@ -168,9 +238,11 @@ export function PlatformAssistantChat() {
   };
 
   // ── Enviar mensaje ────────────────────────────────────────────────────
-  const sendMessage = async () => {
+  // `override` permite enviar una pregunta sugerida (chip) sin depender del
+  // estado `input` (que no se actualiza en el mismo tick que un setInput).
+  const sendMessage = async (override?: string) => {
     if (!user) return;
-    const text = input.trim();
+    const text = (override ?? input).trim();
     if (!text) return;
 
     const sid = await ensureSession();
@@ -209,6 +281,11 @@ export function PlatformAssistantChat() {
   };
 
   const hasMessages = messages.length > 0;
+
+  // Preguntas sugeridas del rol ACTIVO (fallback Estudiante en el primer render).
+  const suggestions = (SUGGESTIONS_BY_ROLE[activeRole ?? "Estudiante"] ?? SUGGESTIONS_BY_ROLE.Estudiante).map(
+    (s) => t(s.key, { defaultValue: s.es }),
+  );
 
   return (
     <div className="container mx-auto space-y-4 p-4 sm:p-6">
@@ -255,7 +332,11 @@ export function PlatformAssistantChat() {
               <Spinner size="md" /> {t("common.loading", { defaultValue: "Cargando…" })}
             </div>
           ) : !hasMessages ? (
-            <EmptyChat />
+            <EmptyChat
+              suggestions={suggestions}
+              disabled={sending || loading}
+              onPick={(q) => void sendMessage(q)}
+            />
           ) : (
             messages.map((m) => <MessageBubble key={m.id} message={m} />)
           )}
@@ -309,7 +390,15 @@ export function PlatformAssistantChat() {
   );
 }
 
-function EmptyChat() {
+function EmptyChat({
+  suggestions,
+  onPick,
+  disabled,
+}: {
+  suggestions: string[];
+  onPick: (question: string) => void;
+  disabled: boolean;
+}) {
   const { t } = useTranslation();
   return (
     <div className="text-center py-12 space-y-3">
@@ -325,6 +414,30 @@ function EmptyChat() {
             "Pregúntame cómo usar ExamLab según tu rol: entregar tareas, ver notas, crear cursos y evaluaciones, configurar la IA, y más. Respondo con la documentación de ExamLab.",
         })}
       </p>
+
+      {suggestions.length > 0 && (
+        <div className="pt-4 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">
+            {t("supportAssistant.suggestionsTitle", { defaultValue: "Preguntas frecuentes" })}
+          </p>
+          <div className="flex flex-wrap justify-center gap-2 max-w-2xl mx-auto">
+            {suggestions.map((q) => (
+              <Button
+                key={q}
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={disabled}
+                onClick={() => onPick(q)}
+                className="h-auto whitespace-normal rounded-full text-xs font-normal"
+              >
+                {q}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="text-[11px] text-muted-foreground flex items-center justify-center gap-1 pt-2">
         <AlertTriangle className="h-3 w-3" />
         {t("supportAssistant.emptyHint", {

@@ -8843,7 +8843,41 @@
     "cleared": "Conversation cleared",
     "loadErrorFallback": "We couldn’t load the assistant.",
     "startErrorFallback": "We couldn’t start the conversation.",
-    "askErrorFallback": "We couldn’t reach the assistant."
+    "askErrorFallback": "We couldn’t reach the assistant.",
+    "suggestionsTitle": "Frequently asked",
+    "suggestions": {
+      "student": {
+        "q1": "How do I take an exam?",
+        "q2": "How do I submit a workshop or project?",
+        "q3": "Where do I see my course grades?",
+        "q4": "How do I mark my attendance with the QR code?",
+        "q5": "How do I ask the course tutor something?",
+        "q6": "Where do I download my certificates?"
+      },
+      "teacher": {
+        "q1": "How do I create an exam with code questions?",
+        "q2": "How do I grade submissions with AI?",
+        "q3": "How do I open QR attendance check-in?",
+        "q4": "How do I launch a live challenge in my class?",
+        "q5": "How do I set up the course weights and grading periods?",
+        "q6": "How do I export the gradebook grades?"
+      },
+      "admin": {
+        "q1": "How do I import students from a CSV?",
+        "q2": "How do I create a new user in my institution?",
+        "q3": "How do I configure the AI model?",
+        "q4": "How do I enable or disable modules per role?",
+        "q5": "How do I issue certificates for a course?",
+        "q6": "How do I open a support ticket?"
+      },
+      "superadmin": {
+        "q1": "How do I create a new institution?",
+        "q2": "How do I enter and view a specific institution?",
+        "q3": "How do I review the system diagnostics?",
+        "q4": "How do I generate a database backup?",
+        "q5": "How do I review the scheduled tasks (cron)?"
+      }
+    }
   },
   "hc_routesAppStudentWorkshopWorkshopId": {
     "loadErrorFallback": "We couldn't load the workshop data.",

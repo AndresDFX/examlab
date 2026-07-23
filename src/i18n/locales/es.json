@@ -8843,7 +8843,41 @@
     "cleared": "Conversación limpiada",
     "loadErrorFallback": "No pudimos cargar el asistente.",
     "startErrorFallback": "No pudimos iniciar la conversación.",
-    "askErrorFallback": "No pudimos consultar al asistente."
+    "askErrorFallback": "No pudimos consultar al asistente.",
+    "suggestionsTitle": "Preguntas frecuentes",
+    "suggestions": {
+      "student": {
+        "q1": "¿Cómo presento un examen?",
+        "q2": "¿Cómo entrego un taller o proyecto?",
+        "q3": "¿Dónde veo mis notas del curso?",
+        "q4": "¿Cómo marco mi asistencia con el código QR?",
+        "q5": "¿Cómo le pregunto algo al tutor del curso?",
+        "q6": "¿Dónde descargo mis certificados?"
+      },
+      "teacher": {
+        "q1": "¿Cómo creo un examen con preguntas de código?",
+        "q2": "¿Cómo califico las entregas con IA?",
+        "q3": "¿Cómo abro el check-in de asistencia con QR?",
+        "q4": "¿Cómo lanzo un reto en vivo en mi clase?",
+        "q5": "¿Cómo configuro los pesos y cortes del curso?",
+        "q6": "¿Cómo exporto las notas del gradebook?"
+      },
+      "admin": {
+        "q1": "¿Cómo importo estudiantes desde un CSV?",
+        "q2": "¿Cómo creo un usuario nuevo en mi institución?",
+        "q3": "¿Cómo configuro el modelo de IA?",
+        "q4": "¿Cómo activo o desactivo módulos por rol?",
+        "q5": "¿Cómo emito certificados a un curso?",
+        "q6": "¿Cómo abro un ticket de soporte?"
+      },
+      "superadmin": {
+        "q1": "¿Cómo creo una institución nueva?",
+        "q2": "¿Cómo ingreso a ver una institución específica?",
+        "q3": "¿Cómo reviso los diagnósticos del sistema?",
+        "q4": "¿Cómo genero un backup de la base de datos?",
+        "q5": "¿Cómo reviso las tareas programadas (cron)?"
+      }
+    }
   },
   "hc_routesAppStudentWorkshopWorkshopId": {
     "loadErrorFallback": "No pudimos cargar los datos del taller.",

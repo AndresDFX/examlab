@@ -293,11 +293,16 @@ Deno.serve(async (req) => {
     // Multi-tenant: resolver modelo activo para el tenant del Admin.
     setRequestModelHint({ authHeader: req.headers.get("Authorization") });
 
-    // Cargar historial existente (antes de insertar el nuevo).
+    // Cargar historial existente (antes de insertar el nuevo). Filtrado por el
+    // ROL ACTIVO (role_context): un usuario multi-rol tiene un hilo por rol
+    // dentro de la misma sesión → el modelo NO ve las Q&A de otro rol (fix de
+    // contaminación cross-rol). Los mensajes legacy (role_context NULL) quedan
+    // fuera a propósito.
     const { data: history } = await admin
       .from("platform_support_messages")
       .select("role, content")
       .eq("session_id", sessionId)
+      .eq("role_context", promptRole)
       .order("created_at", { ascending: true });
 
     const historyMsgs = ((history ?? []) as ChatMessage[]).map((m) => ({
@@ -428,6 +433,8 @@ Deno.serve(async (req) => {
           role: "user",
           content: trimmedMessage,
           created_at: nowIso,
+          // Rol en el que se hizo la pregunta → hilo por rol (ver edit del history).
+          role_context: promptRole,
         },
         {
           session_id: sessionId,
@@ -437,6 +444,7 @@ Deno.serve(async (req) => {
           completion_tokens: result.completionTokens,
           // +1ms para garantizar orden estable en el batch.
           created_at: new Date(Date.now() + 1).toISOString(),
+          role_context: promptRole,
         },
       ])
       .select("id, role, created_at");
