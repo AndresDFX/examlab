@@ -19,6 +19,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ListFilters } from "@/components/ui/list-filters";
 import { ErrorState } from "@/components/ui/empty-state";
@@ -146,6 +147,8 @@ function StudentWorkshops() {
   const { t } = useTranslation();
   const confirm = useConfirm();
   const [rows, setRows] = useState<WorkshopRow[]>([]);
+  // Arranca en true para no mostrar el empty ("no hay talleres") antes del fetch.
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
   // Default "available" (publicado, dentro de plazo, sin entregar) = "lo que
@@ -203,6 +206,8 @@ function StudentWorkshops() {
   };
 
   const reload = async (uid: string) => {
+    setLoading(true);
+    try {
     // courses.language se introdujo en migraciones recientes; cast hasta que se
     // refresque la tipificación generada de Supabase.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -296,6 +301,9 @@ function StudentWorkshops() {
         groupId: groupIdByWorkshop.get(w.id) ?? null,
       })),
     );
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -549,7 +557,12 @@ function StudentWorkshops() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {visibleRows.length === 0 && (
+        {loading && (
+          <div className="md:col-span-2 flex justify-center py-10">
+            <Spinner size="md" />
+          </div>
+        )}
+        {!loading && visibleRows.length === 0 && (
           <div className="md:col-span-2 rounded-md border border-dashed bg-muted/20 p-6 text-center">
             <p className="text-sm text-muted-foreground">
               {hasActiveFilters

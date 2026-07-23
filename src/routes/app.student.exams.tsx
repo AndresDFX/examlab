@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ListFilters } from "@/components/ui/list-filters";
 import { ErrorState } from "@/components/ui/empty-state";
@@ -141,6 +142,9 @@ function StudentExams() {
   // "Reintentar" en vez de la grilla vacía (que el alumno interpretaría
   // como "no tengo exámenes asignados").
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Carga: arranca en true para NO mostrar "no hay exámenes disponibles" antes
+  // de resolver la query (un alumno con pendientes podría creer que no tiene nada).
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
@@ -152,7 +156,8 @@ function StudentExams() {
   // fetch vivía inline en el useEffect y no se podía rellamar.
   const loadExams = useCallback(async () => {
     if (!user) return;
-    {
+    setLoading(true);
+    try {
       const { data: asg, error: asgErr } = await supabase
         .from("exam_assignments")
         .select(
@@ -240,6 +245,8 @@ function StudentExams() {
           };
         }),
       );
+    } finally {
+      setLoading(false);
     }
   }, [user]);
 
@@ -472,7 +479,12 @@ function StudentExams() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {visibleRows.length === 0 && (
+        {loading && (
+          <div className="md:col-span-2 flex justify-center py-10">
+            <Spinner size="md" />
+          </div>
+        )}
+        {!loading && visibleRows.length === 0 && (
           <div className="md:col-span-2 rounded-md border border-dashed bg-muted/20 p-6 text-center">
             <p className="text-sm text-muted-foreground">
               {hasActiveFilters
