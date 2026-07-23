@@ -37,19 +37,41 @@ interface Props {
 
 const env = (import.meta as unknown as { env: Record<string, string | undefined> }).env;
 
-/** Config de boot resuelta desde env. `null` si no hay ninguna fuente de imagen. */
+/**
+ * Imagen por DEFAULT cuando el entorno no define ninguna env `VITE_V86_*`.
+ * Es una buildroot con la consola serial YA integrada, servida por el CDN de
+ * v86 con `Access-Control-Allow-Origin: *` (verificado), así que carga
+ * cross-origin sin problema. WHY hardcodear un default: sin él la consola
+ * mostraba "sin imagen configurada" y NUNCA booteaba en el caso por defecto
+ * (nadie define las env vars) — la hoja de consola de las pizarras quedaba
+ * inservible. Con esto funciona out-of-the-box.
+ *
+ * Producción DEBERÍA overridear con `VITE_V86_STATE_URL` apuntando a un
+ * snapshot hosteado en el Storage propio del proyecto: boot en ~1-2s y sin
+ * depender de un host externo (ver docs/server-console-v86.md).
+ */
+const DEFAULT_BZIMAGE_URL = "https://i.copy.sh/buildroot-bzimage68.bin";
+/** cmdline EXACTO que usa la demo oficial de v86 para esa imagen. */
+const DEFAULT_CMDLINE = "tsc=reliable mitigations=off random.trust_cpu=on";
+
+/** Config de boot resuelta desde env, con fallback al default público. */
 function resolveBootConfig(): Record<string, unknown> | null {
   const stateUrl = env.VITE_V86_STATE_URL;
-  const bzimageUrl = env.VITE_V86_BZIMAGE_URL;
+  let bzimageUrl = env.VITE_V86_BZIMAGE_URL;
   const initrdUrl = env.VITE_V86_INITRD_URL;
   const cdromUrl = env.VITE_V86_IMAGE_URL;
   const hdaUrl = env.VITE_V86_HDA_URL;
   const fsJsonUrl = env.VITE_V86_FS_JSON_URL;
   const fsBaseUrl = env.VITE_V86_FS_BASEURL;
-  const cmdline = env.VITE_V86_CMDLINE;
+  let cmdline = env.VITE_V86_CMDLINE;
   const memMB = Number(env.VITE_V86_MEMORY_MB) || 128;
 
-  if (!stateUrl && !bzimageUrl && !cdromUrl && !hdaUrl) return null;
+  // Sin NINGUNA fuente de imagen en env → caer al default público booteable
+  // (en vez de quedar "unconfigured" para siempre).
+  if (!stateUrl && !bzimageUrl && !cdromUrl && !hdaUrl) {
+    bzimageUrl = DEFAULT_BZIMAGE_URL;
+    if (!cmdline) cmdline = DEFAULT_CMDLINE;
+  }
 
   const cfg: Record<string, unknown> = {
     wasm_path: V86_WASM_URL,

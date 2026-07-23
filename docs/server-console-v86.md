@@ -22,11 +22,22 @@ verdad (no hay simulación de comandos).
 - El **service worker** (`public/sw.js`) ya cachea `.wasm`, así que el módulo
   de v86 se cachea igual que el de CheerpJ.
 
-## ⚠ Falta: hostear la imagen del SO (paso obligatorio)
+## Imagen del SO — default público + override recomendado
 
 Bootear Linux necesita la **imagen del sistema** (varios MB). NO se puede
-embeber en el bundle ni en el repo. Hay que hostearla y apuntarla con env vars.
-Sin esto, la consola muestra el estado *"aún no tiene una imagen configurada"*.
+embeber en el bundle ni en el repo.
+
+**Por defecto** (sin definir ninguna env `VITE_V86_*`) la consola bootea una
+imagen pública: `https://i.copy.sh/buildroot-bzimage68.bin` (buildroot con
+consola serial integrada, CDN de v86 con CORS `*`). Así la hoja de consola de
+las pizarras funciona out-of-the-box (ver `DEFAULT_BZIMAGE_URL` en
+`V86Console.tsx`). Es una **dependencia externa** (~10 MB por sesión, sin
+snapshot → boot más lento), aceptable como default pero no ideal para producción.
+
+**Producción (recomendado)**: overridear con las env vars de abajo apuntando a
+una imagen (idealmente un `VITE_V86_STATE_URL` = snapshot) hosteada en el
+**Storage propio** del proyecto → boot en ~1-2s y sin depender de un host
+externo. Si se define cualquier fuente en env, el default queda ignorado.
 
 ### Env vars (`.env` — todas `VITE_`, opcionales según el modo de boot)
 
