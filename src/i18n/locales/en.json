@@ -4472,6 +4472,25 @@
     "replyToHint": "Where students' replies go. Applies even if you don't use your own SMTP; the sender (From) doesn't change."
   },
   "superadminTenants": {
+    "billing": {
+      "plan_cortesia": "Courtesy / internal",
+      "plan_esencial": "Essential",
+      "plan_profesional": "Professional",
+      "plan_institucional": "Institutional",
+      "plan_custom": "Custom",
+      "ai_shared": "Shared (platform)",
+      "ai_own": "Own (institution key)",
+      "ai_managed": "Managed (provider)",
+      "cycle_monthly": "Monthly",
+      "cycle_quarterly": "Quarterly",
+      "cycle_yearly": "Yearly",
+      "status_trial": "Trial",
+      "status_active": "Active",
+      "status_past_due": "Grace period",
+      "status_suspended": "Suspended",
+      "status_cancelled": "Cancelled",
+      "status_expired": "Expired"
+    },
     "title": "Institutions",
     "clearViewAsBtn": "Clear \"view as\"",
     "newInstitutionBtn": "New institution",

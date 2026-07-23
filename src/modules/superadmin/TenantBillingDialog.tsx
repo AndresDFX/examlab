@@ -187,11 +187,11 @@ export function TenantBillingDialog({ tenantId, tenantName, open, onClose, onSav
                 <Select value={form.plan_tier} onValueChange={(v) => set("plan_tier", v)}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cortesia">Cortesía / interno</SelectItem>
-                    <SelectItem value="esencial">Esencial</SelectItem>
-                    <SelectItem value="profesional">Profesional</SelectItem>
-                    <SelectItem value="institucional">Institucional</SelectItem>
-                    <SelectItem value="custom">Custom</SelectItem>
+                    <SelectItem value="cortesia">{t("superadminTenants.billing.plan_cortesia", { defaultValue: "Cortesía / interno" })}</SelectItem>
+                    <SelectItem value="esencial">{t("superadminTenants.billing.plan_esencial", { defaultValue: "Esencial" })}</SelectItem>
+                    <SelectItem value="profesional">{t("superadminTenants.billing.plan_profesional", { defaultValue: "Profesional" })}</SelectItem>
+                    <SelectItem value="institucional">{t("superadminTenants.billing.plan_institucional", { defaultValue: "Institucional" })}</SelectItem>
+                    <SelectItem value="custom">{t("superadminTenants.billing.plan_custom", { defaultValue: "Custom" })}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -200,9 +200,9 @@ export function TenantBillingDialog({ tenantId, tenantName, open, onClose, onSav
                 <Select value={form.ai_mode} onValueChange={(v) => set("ai_mode", v)}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="shared">Compartida (plataforma)</SelectItem>
-                    <SelectItem value="own">Propia (key del tenant)</SelectItem>
-                    <SelectItem value="managed">Gestionada (proveedor)</SelectItem>
+                    <SelectItem value="shared">{t("superadminTenants.billing.ai_shared", { defaultValue: "Compartida (plataforma)" })}</SelectItem>
+                    <SelectItem value="own">{t("superadminTenants.billing.ai_own", { defaultValue: "Propia (key de la institución)" })}</SelectItem>
+                    <SelectItem value="managed">{t("superadminTenants.billing.ai_managed", { defaultValue: "Gestionada (proveedor)" })}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -219,9 +219,9 @@ export function TenantBillingDialog({ tenantId, tenantName, open, onClose, onSav
                 <Select value={form.billing_cycle} onValueChange={(v) => set("billing_cycle", v)}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="monthly">Mensual</SelectItem>
-                    <SelectItem value="quarterly">Trimestral</SelectItem>
-                    <SelectItem value="yearly">Anual</SelectItem>
+                    <SelectItem value="monthly">{t("superadminTenants.billing.cycle_monthly", { defaultValue: "Mensual" })}</SelectItem>
+                    <SelectItem value="quarterly">{t("superadminTenants.billing.cycle_quarterly", { defaultValue: "Trimestral" })}</SelectItem>
+                    <SelectItem value="yearly">{t("superadminTenants.billing.cycle_yearly", { defaultValue: "Anual" })}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -230,12 +230,12 @@ export function TenantBillingDialog({ tenantId, tenantName, open, onClose, onSav
                 <Select value={form.subscription_status} onValueChange={(v) => set("subscription_status", v)}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="trial">Trial</SelectItem>
-                    <SelectItem value="active">Activa</SelectItem>
-                    <SelectItem value="past_due">En gracia</SelectItem>
-                    <SelectItem value="suspended">Suspendida</SelectItem>
-                    <SelectItem value="cancelled">Cancelada</SelectItem>
-                    <SelectItem value="expired">Vencida</SelectItem>
+                    <SelectItem value="trial">{t("superadminTenants.billing.status_trial", { defaultValue: "Trial" })}</SelectItem>
+                    <SelectItem value="active">{t("superadminTenants.billing.status_active", { defaultValue: "Activa" })}</SelectItem>
+                    <SelectItem value="past_due">{t("superadminTenants.billing.status_past_due", { defaultValue: "En gracia" })}</SelectItem>
+                    <SelectItem value="suspended">{t("superadminTenants.billing.status_suspended", { defaultValue: "Suspendida" })}</SelectItem>
+                    <SelectItem value="cancelled">{t("superadminTenants.billing.status_cancelled", { defaultValue: "Cancelada" })}</SelectItem>
+                    <SelectItem value="expired">{t("superadminTenants.billing.status_expired", { defaultValue: "Vencida" })}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

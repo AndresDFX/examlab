@@ -4472,6 +4472,25 @@
     "replyToHint": "A dónde llegan las respuestas de los alumnos. Se aplica aunque no uses SMTP propio; el remitente (From) no cambia."
   },
   "superadminTenants": {
+    "billing": {
+      "plan_cortesia": "Cortesía / interno",
+      "plan_esencial": "Esencial",
+      "plan_profesional": "Profesional",
+      "plan_institucional": "Institucional",
+      "plan_custom": "Custom",
+      "ai_shared": "Compartida (plataforma)",
+      "ai_own": "Propia (key de la institución)",
+      "ai_managed": "Gestionada (proveedor)",
+      "cycle_monthly": "Mensual",
+      "cycle_quarterly": "Trimestral",
+      "cycle_yearly": "Anual",
+      "status_trial": "Trial",
+      "status_active": "Activa",
+      "status_past_due": "En gracia",
+      "status_suspended": "Suspendida",
+      "status_cancelled": "Cancelada",
+      "status_expired": "Vencida"
+    },
     "title": "Instituciones",
     "clearViewAsBtn": "Limpiar \"ver como\"",
     "newInstitutionBtn": "Nueva institución",
