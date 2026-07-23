@@ -11,7 +11,7 @@
 > están en línea, incluido el de SuperAdmin.
 
 **Para:** {{CORREO_SOCIO}}
-**Asunto:** ExamLab — recorrido completo por rol + acceso para que la pruebes 🤝
+**Asunto:** ExamLab — recorrido completo por rol + acceso para que la pruebes
 
 ---
 
@@ -22,27 +22,27 @@ Es una plataforma educativa multi-institución con IA: exámenes con proctoring,
 talleres y proyectos que la IA califica sola, asistencia con QR, retos en vivo,
 mensajería, certificados y más.
 
-**🎬 Recorrido completo, un video por rol** (cada uno muestra todo lo que ese rol puede hacer):
+** Recorrido completo, un video por rol** (cada uno muestra todo lo que ese rol puede hacer):
 
-- 🏢 **SuperAdmin** — operación de la plataforma (instituciones, diagnósticos, costos, soporte):
+- **SuperAdmin** — operación de la plataforma (instituciones, diagnósticos, costos, soporte):
   https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-superadmin.mp4
-- 🛠️ **Administrador de institución** — cursos, usuarios, académico, configuración, auditoría:
+- **Administrador de institución** — cursos, usuarios, académico, configuración, auditoría:
   https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4
-- 👩‍🏫 **Docente** — cursos, exámenes/talleres/proyectos, calificación, gradebook, asistencia:
+- **Docente** — cursos, exámenes/talleres/proyectos, calificación, gradebook, asistencia:
   https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4
-- 🎓 **Estudiante** — presentar exámenes, entregar, asistencia por QR, notas, retos en vivo:
+- **Estudiante** — presentar exámenes, entregar, asistencia por QR, notas, retos en vivo:
   https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4
 
-**📊 Presentación comercial de la plataforma** (planes, alcance y propuesta de valor):
+** Presentación comercial de la plataforma** (planes, alcance y propuesta de valor):
 https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx
 
-**📘 Manuales de usuario** (PDF, guías completas por rol):
+** Manuales de usuario** (PDF, guías completas por rol):
 - General: https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual.pdf
 - Administrador: https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-administrador.pdf
 - Docente: https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-docente.pdf
 - Estudiante: https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-estudiante.pdf
 
-**🔑 Y para que la pruebes tú mismo** — te dejé acceso de **Administrador** en nuestra
+** Y para que la pruebes tú mismo** — te dejé acceso de **Administrador** en nuestra
 institución de demostración **Demo Global Corp**:
 
 - Entra a **https://examlab.lovable.app**
@@ -53,7 +53,7 @@ Así navegas todo el rol Admin (y con el cambiador de rol, también Docente y
 Estudiante) sin tocar datos reales.
 
 Si te suena, armamos una llamada corta y dejamos por escrito los términos de la
-asociación. ¿Le entramos? 🚀
+asociación. ¿Le entramos?
 
 Un abrazo,
 {{TU_NOMBRE}}

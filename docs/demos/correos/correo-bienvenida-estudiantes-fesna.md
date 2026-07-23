@@ -8,26 +8,26 @@ Versión del correo de bienvenida **específica para FESNA** (estudiantes de **L
 
 ## Versión correo
 
-**Asunto:** 🎓 Bienvenido/a a ExamLab (FESNA) — tu acceso + recorrido
+**Asunto:** Bienvenido/a a ExamLab (FESNA) — tu acceso + recorrido
 
-> ¡Hola [Nombre]! 👋
+> ¡Hola [Nombre]!
 >
-> ⚠️ **Antes que nada:** ExamLab es una **plataforma alterna de apoyo** para nuestro curso (la administra tu docente). **No es la plataforma institucional oficial de FESNA / La Nueva América** — úsala solo para las actividades de esta materia.
+> **Antes que nada:** ExamLab es una **plataforma alterna de apoyo** para nuestro curso (la administra tu docente). **No es la plataforma institucional oficial de FESNA / La Nueva América** — úsala solo para las actividades de esta materia.
 >
 > Ya tienes tu cuenta lista. Así ingresas:
 >
-> **🔑 Cómo ingresar:**
-> 1. Abre 👉 **https://examlab.lovable.app/auth**
+> ** Cómo ingresar:**
+> 1. Abre **https://examlab.lovable.app/auth**
 > 2. En **"Selecciona tu institución"**, elige **FESNA**.
 > 3. **Usuario:** tu **correo institucional `@lanuevaamerica.edu.co`** (con el que te matriculamos).
-> 4. **Contraseña:** la **temporal** que te compartimos. En tu **primer ingreso** te pedirá cambiarla por una propia. ¿No la tienes? Usa **"¿Olvidaste tu contraseña?"**. ✅
+> 4. **Contraseña:** la **temporal** que te compartimos. En tu **primer ingreso** te pedirá cambiarla por una propia. ¿No la tienes? Usa **"¿Olvidaste tu contraseña?"**.
 >
-> **🎬 Recorrido en video** — mira todo lo que puedes hacer:
-> 👉 [🎓 Ver el recorrido del estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
-> 📘 [Descargar el manual del estudiante (PDF)](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-estudiante.pdf)
+> ** Recorrido en video** — mira todo lo que puedes hacer:
+> [ Ver el recorrido del estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
+> [Descargar el manual del estudiante (PDF)](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-estudiante.pdf)
 > *(Al ingresar por primera vez también verás un tour guiado paso a paso.)*
 >
-> **📸 Así se ve por dentro:**
+> ** Así se ve por dentro:**
 >
 > *Tu panel de inicio — todo a la mano:*
 > ![Panel del estudiante](../manual/screenshots/estudiante/01-dashboard.png)
@@ -50,9 +50,9 @@ Versión del correo de bienvenida **específica para FESNA** (estudiantes de **L
 > *Y descargas tus certificados de aprobación:*
 > ![Certificados](../manual/screenshots/estudiante/11-student_certificates.png)
 >
-> **✨ Todo lo que puedes hacer** (una vez dentro): Cursos · Exámenes · Talleres · Proyectos · Calificaciones · Asistencia (QR) · Encuestas y retos en vivo · Pizarras en vivo · Calendario · **Tutor del curso** · Videos · Mensajes · Certificados.
+> ** Todo lo que puedes hacer** (una vez dentro): Cursos · Exámenes · Talleres · Proyectos · Calificaciones · Asistencia (QR) · Encuestas y retos en vivo · Pizarras en vivo · Calendario · **Tutor del curso** · Videos · Mensajes · Certificados.
 >
-> 💡 Guarda **examlab.lovable.app** en favoritos (funciona también en el celular). Si no ves un curso, avísame. ¡Nos vemos en clase! 🚀
+> Guarda **examlab.lovable.app** en favoritos (funciona también en el celular). Si no ves un curso, avísame. ¡Nos vemos en clase!
 >
 > [Tu nombre / Docente]
 
@@ -60,24 +60,24 @@ Versión del correo de bienvenida **específica para FESNA** (estudiantes de **L
 
 ## Versión WhatsApp
 
-> ¡Hola [Nombre]! 👋 Bienvenido/a a **ExamLab** (FESNA) 🎓
+> ¡Hola [Nombre]! Bienvenido/a a **ExamLab** (FESNA)
 >
-> ⚠️ Ojo: es una **plataforma alterna de apoyo** para nuestro curso, **no** es la plataforma oficial de FESNA / La Nueva América; úsala solo para esta materia.
+> Ojo: es una **plataforma alterna de apoyo** para nuestro curso, **no** es la plataforma oficial de FESNA / La Nueva América; úsala solo para esta materia.
 >
-> 🔗 https://examlab.lovable.app/auth
-> 🏫 Institución: *FESNA*
-> 👤 Usuario: tu correo **@lanuevaamerica.edu.co**
-> 🔑 Clave: la **temporal** (en el primer ingreso la cambias). ¿No la tienes? *"¿Olvidaste tu contraseña?"*.
+> https://examlab.lovable.app/auth
+> Institución: *FESNA*
+> Usuario: tu correo **@lanuevaamerica.edu.co**
+> Clave: la **temporal** (en el primer ingreso la cambias). ¿No la tienes? *"¿Olvidaste tu contraseña?"*.
 >
-> 🎬 Mira todo lo que puedes hacer 👉 https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4
+> Mira todo lo que puedes hacer https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4
 >
-> Adentro: cursos, exámenes, talleres, proyectos, notas, asistencia (QR), encuestas y retos en vivo, pizarras en vivo, calendario, **Tutor del curso**, videos, mensajes y certificados. Cualquier cosa me escribes 🙌
+> Adentro: cursos, exámenes, talleres, proyectos, notas, asistencia (QR), encuestas y retos en vivo, pizarras en vivo, calendario, **Tutor del curso**, videos, mensajes y certificados. Cualquier cosa me escribes
 
 ---
 
 ## Notas para ti (borrar antes de enviar)
 
-- ⚠️ **No quites el aviso de "plataforma alterna / no oficial"** — es intencional (FESNA / La Nueva América tiene su propia plataforma institucional; ExamLab es solo apoyo del curso).
+- **No quites el aviso de "plataforma alterna / no oficial"** — es intencional (FESNA / La Nueva América tiene su propia plataforma institucional; ExamLab es solo apoyo del curso).
 - **Usuario = correo `@lanuevaamerica.edu.co`** de cada estudiante; en el desplegable eligen **FESNA**.
 - **Pantallazos reales:** salen de [`../manual/screenshots/estudiante/`](../manual/screenshots/estudiante/). En Markdown/GitHub se ven embebidos; para enviarlos por correo, **adjunta las imágenes** o pega los pantallazos en el cuerpo (Gmail/Outlook no leen rutas relativas). En WhatsApp, envíalos como fotos aparte.
 - **Envío masivo:** ExamLab → **Mensajes → "Difundir a curso"** (correo con estudiantes en CCO + notificación in-app). O tu propio correo con los estudiantes en **CCO**.

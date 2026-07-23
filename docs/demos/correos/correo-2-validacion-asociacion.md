@@ -38,7 +38,7 @@ Te dejo un acceso para que entres y lo toques con tus propias manos:
 - **Usuario:** [correo de acceso]
 - **Contraseña:** [contraseña temporal]
 
-Cómo entrar (1 min): [Ingresar y seleccionar tu institución](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/login.mp4) — al abrir, elige tu institución en la lista y usa el usuario y la contraseña de arriba.
+Cómo entrar (clip corto): [Ingresar y seleccionar tu institución](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/login.mp4) — al abrir, elige tu institución en la lista y usa el usuario y la contraseña de arriba.
 
 Lo que me interesa de ti: cómo lo ves funcionando en una institución real, qué le falta o le sobra, y si tiene sentido que **nos asociemos** para llevarlo a clientes. Cuando lo revises, armamos una llamada y lo aterrizamos.
 

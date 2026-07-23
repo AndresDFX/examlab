@@ -16,7 +16,7 @@ Lo que más me ha servido es que la **IA me quita de encima lo repetitivo**: me 
 Para que te hagas una idea, te dejo todo:
 
 **1) Vistazo rápido (2 min) — demo general**
-👉 [▶️ Ver el demo general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4)
+ [▶ Ver el demo general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4)
 
 **2) Demos completas por perfil (a fondo)**
 - Administrador: [Ver recorrido completo](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4)
@@ -25,10 +25,10 @@ Para que te hagas una idea, te dejo todo:
 
 **3) Presentaciones**
 - **[General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)** — qué es y qué hace la plataforma.
-- 📘 **[Manual del administrador](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-administrador.pdf)** (PDF) — la guía completa de la operación.
+- **[Manual del administrador](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-administrador.pdf)** (PDF) — la guía completa de la operación.
 - **Comercial** — los planes (se diferencian por cantidad de usuarios; todas las funciones vienen en todos). El **costo de IA lo controla la institución**: pone su propia API key (sin sobrecosto) o la incluye como add-on medido, y con la **cola de procesamiento** decide cuándo y cuánto corre la IA. Con Gemini Flash el consumo estimado es **≈ US$0,06 por estudiante/mes** (una fracción del plan; cálculos en la propuesta de costos). Para que veamos cómo encajaría con nosotros.
 
-Si lo ves con sentido, armamos una reunión y te muestro en vivo cómo la uso en mis clases. Me encantaría que la institución le sacara el mismo provecho. 🙌
+Si lo ves con sentido, armamos una reunión y te muestro en vivo cómo la uso en mis clases. Me encantaría que la institución le sacara el mismo provecho.
 
 Un abrazo,
 [Tu nombre]

@@ -13,7 +13,7 @@ Como te comenté, por fin te paso el demo de **ExamLab**, la plataforma educativ
 
 Para que te hagas una idea rápida, arranca con este **video general** (poco más de 2 minutos); ahí se ve cómo funciona para los tres perfiles: administrador, docente y estudiante.
 
-👉 **Demo general:** [▶️ Ver el video (≈2 min)](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4)
+ **Demo general:** [▶ Ver el video (≈2 min)](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4)
 
 Y si quieres ir más a fondo, acá están los **recorridos completos** por cada perfil:
 
@@ -23,9 +23,9 @@ Y si quieres ir más a fondo, acá están los **recorridos completos** por cada 
 
 Te comparto también la **[presentación general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)** con los puntos clave de la plataforma, por si quieres tenerla a mano.
 
-Y si prefieres leerlo con calma, te dejo los **manuales de usuario en PDF**: [📘 Manual del administrador](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-administrador.pdf) y [📗 Manual general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual.pdf).
+Y si prefieres leerlo con calma, te dejo los **manuales de usuario en PDF**: [ Manual del administrador](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-administrador.pdf) y [ Manual general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual.pdf).
 
-Míralo con calma cuando tengas un rato y me cuentas qué te parece. Cualquier duda me escribes y lo vemos. 🙌
+Míralo con calma cuando tengas un rato y me cuentas qué te parece. Cualquier duda me escribes y lo vemos.
 
 Un abrazo,
 [Tu nombre]

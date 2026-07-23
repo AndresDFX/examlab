@@ -38,7 +38,7 @@ Mismas franjas que la suscripción estándar de ExamLab (por cantidad de usuario
 | Plan | Estudiantes | Docentes | Mensual | Anual *(2 meses gratis)* | Montaje inicial |
 |---|---|---|---|---|---|
 | **Esencial administrado** | hasta 250 | hasta 5 | **$249** | **$2.490** | incluido |
-| **Profesional administrado** ⭐ | hasta 1.500 | hasta 20 | **$649** | **$6.490** | $200 |
+| **Profesional administrado** | hasta 1.500 | hasta 20 | **$649** | **$6.490** | $200 |
 | **Institucional administrado** | hasta 5.000 | hasta 100 | **$1.900** | **$19.000** | $500 |
 | **A medida** | +5.000 | ilimitado | **Contáctanos** *(por rango o ~$0,35–$0,50 por estudiante/mes)* | — | cotizado |
 
@@ -81,12 +81,12 @@ La IA viene **incluida** (genera y califica exámenes, talleres y proyectos; **T
 > **El valor mensual depende de la cantidad de usuarios activos** (docentes + estudiantes), y **los usuarios desactivados no cuentan**, así solo pagan por lo que usan. Todas las funciones vienen incluidas en todos los planes.
 >
 > Para que se hagan una idea completa:
-> - 📹 Recorrido general: [Ver el demo general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4)
-> - 🛠️ Administrador: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 Docente: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 Estudiante: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
-> - 📊 Presentación general: [Abrir presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)
-> - 📘 Manual de usuario (PDF): [Descargar](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual.pdf)
+> - Recorrido general: [Ver el demo general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4)
+> - Administrador: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · Docente: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · Estudiante: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
+> - Presentación general: [Abrir presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)
+> - Manual de usuario (PDF): [Descargar](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual.pdf)
 >
-> Si les hace sentido, armamos una reunión corta, les muestro en vivo cómo quedaría el espacio de [Institución] y les paso una **cotización cerrada según su número de usuarios**. 🙌
+> Si les hace sentido, armamos una reunión corta, les muestro en vivo cómo quedaría el espacio de [Institución] y les paso una **cotización cerrada según su número de usuarios**.
 >
 > Un saludo,
 > [Tu nombre] · [correo / WhatsApp]
@@ -95,13 +95,13 @@ La IA viene **incluida** (genera y califica exámenes, talleres y proyectos; **T
 
 ## Versión WhatsApp
 
-> Hola [Nombre] 👋 Te propongo **ExamLab administrado** para [Institución]: la plataforma educativa con IA (arma y califica exámenes/talleres, Tutor del curso, asistencia con QR, reportes, actas) y **yo la administro por ustedes** — monto el espacio con su marca, cargo docentes y estudiantes, configuro todo, doy soporte y mantengo respaldos. Cero TI de su lado.
+> Hola [Nombre] Te propongo **ExamLab administrado** para [Institución]: la plataforma educativa con IA (arma y califica exámenes/talleres, Tutor del curso, asistencia con QR, reportes, actas) y **yo la administro por ustedes** — monto el espacio con su marca, cargo docentes y estudiantes, configuro todo, doy soporte y mantengo respaldos. Cero TI de su lado.
 >
-> 💰 El valor **depende de la cantidad de usuarios activos** (los desactivados no cuentan). Todas las funciones en todos los planes.
+> El valor **depende de la cantidad de usuarios activos** (los desactivados no cuentan). Todas las funciones en todos los planes.
 >
-> 🎬 Demo y series: 📹 [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · 🛠️ [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · 📊 [Presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx) · 📘 [Manual](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual.pdf)
+> Demo y series: [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · [Presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx) · [Manual](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual.pdf)
 >
-> ¿Armamos una llamada corta y te paso la cotización según su número de usuarios? 🚀
+> ¿Armamos una llamada corta y te paso la cotización según su número de usuarios?
 
 ---
 

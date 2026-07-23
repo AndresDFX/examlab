@@ -7,45 +7,45 @@
 
 ## Versión corta (recomendada)
 
-> ¡Hola [Nombre]! 👋 Te dejo en 20 segundos qué es **ExamLab** 👇
+> ¡Hola [Nombre]! Te dejo en 20 segundos qué es **ExamLab**
 >
-> 🎥 *(video adjunto)*
+> *(video adjunto)*
 >
-> Es una plataforma educativa con **IA que te ahorra horas**: genera exámenes y talleres, califica las entregas sola y hasta les da un tutor a los estudiantes. 🤖✨
+> Es una plataforma educativa con **IA que te ahorra horas**: genera exámenes y talleres, califica las entregas sola y hasta les da un tutor a los estudiantes.
 >
-> Si te late, te paso una **demo** para que la pruebes con tu propia cuenta. ¿La miramos? 🙌
+> Si te late, te paso una **demo** para que la pruebes con tu propia cuenta. ¿La miramos?
 
 ---
 
 ## Versión mínima (un solo párrafo)
 
-> ¡Hola [Nombre]! 👋 Mira este video de 20s 👇 Es **ExamLab**, una plataforma educativa con IA que **arma y califica las evaluaciones por ti** 🤖. ¿Te paso una demo para probarla? 🙌
+> ¡Hola [Nombre]! Mira este video de 20s Es **ExamLab**, una plataforma educativa con IA que **arma y califica las evaluaciones por ti** . ¿Te paso una demo para probarla?
 >
-> 🎥 *(video adjunto)*
+> *(video adjunto)*
 
 ---
 
 ## Versión con más gancho
 
-> [Nombre], ¿cuánto tiempo te gasta armar y calificar evaluaciones? ⏱️
+> [Nombre], ¿cuánto tiempo te gasta armar y calificar evaluaciones? ⏱
 >
-> 🎥 *(video adjunto — 20s)*
+> *(video adjunto — 20s)*
 >
-> Eso es **ExamLab**: la IA te genera exámenes, talleres y proyectos, los **califica con retroalimentación** y detecta copias. Tú revisas y publicas. 🤖✨
+> Eso es **ExamLab**: la IA te genera exámenes, talleres y proyectos, los **califica con retroalimentación** y detecta copias. Tú revisas y publicas.
 >
-> Lo estoy probando y me está gustando 👌. Si quieres, te creo una **cuenta de prueba** y lo ves por dentro. ¿Le entramos? 🚀
+> Lo estoy probando y me está gustando . Si quieres, te creo una **cuenta de prueba** y lo ves por dentro. ¿Le entramos?
 
 ---
 
 ## Bloque de videos y presentación (pega los enlaces, borra lo que no uses)
 
-> 🎬 Mira ExamLab en video y la presentación:
-> 📹 Recorrido general: [Ver demo general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4)
-> 🛠️ Funcionalidades — Administrador: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4)
-> 👩‍🏫 Funcionalidades — Docente: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4)
-> 🎓 Funcionalidades — Estudiante: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
-> 📊 Presentación general: [Abrir presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)
-> 📘 Manual de usuario (PDF): [Descargar](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual.pdf)
+> Mira ExamLab en video y la presentación:
+> Recorrido general: [Ver demo general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4)
+> Funcionalidades — Administrador: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4)
+> Funcionalidades — Docente: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4)
+> Funcionalidades — Estudiante: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
+> Presentación general: [Abrir presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)
+> Manual de usuario (PDF): [Descargar](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual.pdf)
 
 ---
 

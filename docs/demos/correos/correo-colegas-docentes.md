@@ -8,9 +8,9 @@ Para gente con la que **eres docente** (pares). Tono de colega a colega: que lo 
 
 ## Versión correo
 
-**Asunto:** Armé una plataforma con IA para docentes — ¿me la revisas? 👀
+**Asunto:** Armé una plataforma con IA para docentes — ¿me la revisas?
 
-> ¡Hola [Nombre]! 👋
+> ¡Hola [Nombre]!
 >
 > Te escribo de colega a colega. Llevo un tiempo armando **ExamLab**, una plataforma educativa con **IA** pensada para lo que más nos quita tiempo: armar exámenes/talleres/proyectos y calificarlos. La IA genera las preguntas y ayuda a calificar con retroalimentación (y hasta detecta posibles copias); uno revisa y publica, nada más.
 >
@@ -18,28 +18,28 @@ Para gente con la que **eres docente** (pares). Tono de colega a colega: que lo 
 >
 > **Para que la pruebes tú mismo** te dejo una **cuenta de docente gratis por tiempo limitado** (cuentas ya creadas, para que entres sin trámites). Así entras:
 >
-> 1. Abre 👉 **https://examlab.lovable.app/auth**
+> 1. Abre **https://examlab.lovable.app/auth**
 > 2. En **"Selecciona tu institución"**, elige **ExamLab Demo**.
 > 3. **Usuario:** `[tu correo del demo, ej. docente1@demo-examlab.co]` · **Contraseña:** `ExamlabDemo2026`
-> 4. Entra y listo ✅
+> 4. Entra y listo
 >
-> **Pruébala en 2 minutos:** crea un **curso** y entra a **Exámenes** o **Talleres** → **Crear** → deja que la **IA te genere las preguntas**. Ahí se ve el ahorro de tiempo real 🤖✨
+> **Pruébala en 2 minutos:** crea un **curso** y entra a **Exámenes** o **Talleres** → **Crear** → deja que la **IA te genere las preguntas**. Ahí se ve el ahorro de tiempo real
 >
-> 🔁 Tu cuenta trae **dos roles, Docente y Estudiante**: con el selector arriba del menú cambias entre ellos y revisas la plataforma desde ambos lados.
+> Tu cuenta trae **dos roles, Docente y Estudiante**: con el selector arriba del menú cambias entre ellos y revisas la plataforma desde ambos lados.
 >
 > Un par de cosas para que no te tome por sorpresa: la cuenta **no trae estudiantes** (eso lo hace un administrador), así que el ciclo completo de calificar entregas reales se aprecia mejor en los videos. Y si en algún momento la **IA no responde**, casi siempre es disponibilidad del modelo (es un entorno de demo) — espera un ratito y reintenta.
 >
-> **🎬 Videos por rol + presentación** (para que veas el panorama completo):
-> - 📹 Recorrido general: [Ver demo general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4)
-> - 🛠️ Todas las funcionalidades — Administrador: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4)
-> - 👩‍🏫 Todas las funcionalidades — Docente: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4)
-> - 🎓 Todas las funcionalidades — Estudiante: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
-> - 📊 Presentación general: [Abrir presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)
-> - 📘 Manual del docente (PDF): [Descargar manual](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-docente.pdf)
+> ** Videos por rol + presentación** (para que veas el panorama completo):
+> - Recorrido general: [Ver demo general](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4)
+> - Todas las funcionalidades — Administrador: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4)
+> - Todas las funcionalidades — Docente: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4)
+> - Todas las funcionalidades — Estudiante: [Ver serie completa](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4)
+> - Presentación general: [Abrir presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx)
+> - Manual del docente (PDF): [Descargar manual](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-docente.pdf)
 >
-> Si después de verla te gusta y crees que a otros profes les serviría, **pásala** — ese es el mejor favor que me puedes hacer 🙌. Y cualquier comentario, por crudo que sea, lo recibo feliz.
+> Si después de verla te gusta y crees que a otros profes les serviría, **pásala** — ese es el mejor favor que me puedes hacer . Y cualquier comentario, por crudo que sea, lo recibo feliz.
 >
-> ¡Gracias de antemano, colega! 🚀
+> ¡Gracias de antemano, colega!
 
 ---
 
@@ -47,25 +47,25 @@ Para gente con la que **eres docente** (pares). Tono de colega a colega: que lo 
 
 **Variante A — pedir revisión (recomendada):**
 
-> ¡Hola [Nombre]! 👋 De colega a colega: armé *ExamLab*, una plataforma con IA para docentes que genera exámenes/talleres y ayuda a calificar con retro (uno revisa y publica) 🤖.
+> ¡Hola [Nombre]! De colega a colega: armé *ExamLab*, una plataforma con IA para docentes que genera exámenes/talleres y ayuda a calificar con retro (uno revisa y publica) .
 >
-> Quiero que me la **revise gente que sí da clase** y confío en tu criterio 🙏. Te dejo una **cuenta de docente gratis por tiempo limitado** para que la pruebes:
-> 🔗 https://examlab.lovable.app/auth · 🏫 *ExamLab Demo*
-> 👤 `[tu correo, ej. docente1@demo-examlab.co]` · 🔑 `ExamlabDemo2026`
+> Quiero que me la **revise gente que sí da clase** y confío en tu criterio . Te dejo una **cuenta de docente gratis por tiempo limitado** para que la pruebes:
+> https://examlab.lovable.app/auth · *ExamLab Demo*
+> `[tu correo, ej. docente1@demo-examlab.co]` · `ExamlabDemo2026`
 >
-> Pruébala: crea un **curso** y deja que la **IA te arme un examen o taller**. Si te gusta y crees que a otros profes les sirve, **pásala** 🙌. Cualquier comentario, bienvenido.
+> Pruébala: crea un **curso** y deja que la **IA te arme un examen o taller**. Si te gusta y crees que a otros profes les sirve, **pásala** . Cualquier comentario, bienvenido.
 >
-> 🎬 Videos y presentación:
-> 📹 [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · 🛠️ [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · 📊 [Presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx) · 📘 [Manual docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-docente.pdf)
+> Videos y presentación:
+> [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · [Presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx) · [Manual docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-docente.pdf)
 
 **Variante B — más corta y directa:**
 
-> [Nombre], necesito tu ojo de docente 👀 Armé *ExamLab*: IA que genera evaluaciones y ayuda a calificar; uno revisa y publica.
+> [Nombre], necesito tu ojo de docente Armé *ExamLab*: IA que genera evaluaciones y ayuda a calificar; uno revisa y publica.
 >
-> Te paso **cuenta de prueba gratis** (limitada): 🔗 https://examlab.lovable.app/auth → *ExamLab Demo* → `[tu correo demo]` / `ExamlabDemo2026`. Crea un curso y deja que la IA te arme un examen 🤖. Si te gusta, **pásala** 🙌
+> Te paso **cuenta de prueba gratis** (limitada): https://examlab.lovable.app/auth → *ExamLab Demo* → `[tu correo demo]` / `ExamlabDemo2026`. Crea un curso y deja que la IA te arme un examen . Si te gusta, **pásala**
 >
-> 🎬 Videos y presentación:
-> 📹 [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · 🛠️ [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · 👩‍🏫 [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · 🎓 [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · 📊 [Presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx) · 📘 [Manual docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-docente.pdf)
+> Videos y presentación:
+> [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · [Presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx) · [Manual docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-docente.pdf)
 
 ---
 
