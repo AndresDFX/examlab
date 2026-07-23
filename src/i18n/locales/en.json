@@ -6911,6 +6911,7 @@
     "tagsPlaceholder": "recursion, midterm1, java"
   },
   "hc_routesAppIndex": {
+    "dashboardLoadError": "The dashboard could not be loaded",
     "relativeNow": "now",
     "recentCourses": "Recent courses",
     "noCoursesYet": "No courses created yet.",

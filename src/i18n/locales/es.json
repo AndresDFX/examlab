@@ -6911,6 +6911,7 @@
     "tagsPlaceholder": "recursividad, parcial1, java"
   },
   "hc_routesAppIndex": {
+    "dashboardLoadError": "No se pudo cargar el panel",
     "relativeNow": "ahora",
     "recentCourses": "Cursos recientes",
     "noCoursesYet": "Sin cursos creados todavía.",

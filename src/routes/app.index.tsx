@@ -10,6 +10,8 @@ import { sessionIsUpcoming } from "@/shared/lib/session-time";
 import { consumeBootLastRoute } from "@/shared/lib/last-route";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ErrorState } from "@/components/ui/empty-state";
+import { friendlyError } from "@/shared/lib/db-errors";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -167,6 +169,8 @@ function AdminDashboard() {
   // defense-in-depth. Sin esto un tenant nuevo veía counts de OTROS
   // tenants en el card "Por calificar".
   const adminTenantId = profile?.tenant_id ?? null;
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   // ── Stat cards superiores: métricas INSTITUCIONALES ──
   // Antes eran 4 métricas IA (errores 24h, respuestas IA, plagio, pendientes
   // docentes). Reemplazadas por métricas de negocio del Admin: cursos
@@ -219,6 +223,8 @@ function AdminDashboard() {
     // huérfano en pantalla nueva. `cancelled` corta el flow.
     let cancelled = false;
     (async () => {
+      setLoadError(null);
+      try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbAny = supabase as any;
 
@@ -511,6 +517,9 @@ function AdminDashboard() {
         );
         if (!cancelled) setCoursesDiagnostic(merged);
       }
+      } catch (e) {
+        if (!cancelled) setLoadError(friendlyError(e));
+      }
     })();
     return () => {
       cancelled = true;
@@ -519,7 +528,19 @@ function AdminDashboard() {
     // (en el primer render del dashboard puede venir null mientras
     // useAuth termina de hidratar) y para re-fetch si el SuperAdmin
     // cambia de override de tenant.
-  }, [adminTenantId]);
+  }, [adminTenantId, retryNonce]);
+
+  if (loadError) {
+    return (
+      <ErrorState
+        message={t("hc_routesAppIndex.dashboardLoadError", {
+          defaultValue: "No se pudo cargar el panel",
+        })}
+        hint={loadError}
+        onRetry={() => setRetryNonce((n) => n + 1)}
+      />
+    );
+  }
 
   return (
     // Wrapper flex-col + flex-1 + min-h-0 — espeja el patrón del
@@ -775,6 +796,8 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
    *  card "Comentarios pendientes por respuesta". */
   const [pendingResponseModalOpen, setPendingResponseModalOpen] = useState(false);
   const [pendingNotesModalOpen, setPendingNotesModalOpen] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   // Cuenta de exam_notes (notas de apoyo) en estado 'pendiente' — chuletas
   // que el estudiante subió y esperan revisión del docente. Se llama
@@ -794,6 +817,8 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
     // del AdminDashboard arriba).
     let cancelled = false;
     (async () => {
+      setLoadError(null);
+      try {
       const now = new Date().toISOString();
       // Fecha de hoy en formato YYYY-MM-DD (zona local) para comparar
       // con `attendance_sessions.session_date` que es columna DATE sin TZ.
@@ -1028,11 +1053,26 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         .limit(8);
       if (cancelled) return;
       setUpcomingExams(exams ?? []);
+      } catch (e) {
+        if (!cancelled) setLoadError(friendlyError(e));
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, retryNonce]);
+
+  if (loadError) {
+    return (
+      <ErrorState
+        message={t("hc_routesAppIndex.dashboardLoadError", {
+          defaultValue: "No se pudo cargar el panel",
+        })}
+        hint={loadError}
+        onRetry={() => setRetryNonce((n) => n + 1)}
+      />
+    );
+  }
 
   return (
     // Wrapper flex-col + flex-1 para que la fila de 4 cards de abajo
@@ -1291,6 +1331,8 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
      *  Inversa del card del docente. */
     pendingMyResponse: 0,
   });
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     if (!userId) return;
@@ -1298,6 +1340,8 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
     // dashboards Admin/Teacher arriba).
     let cancelled = false;
     (async () => {
+      setLoadError(null);
+      try {
       // Assigned exams — solo published. Draft (sin publicar) y closed
       // (cerrado manualmente por el docente) no aparecen en el dashboard
       // del estudiante. Mismo criterio que workshops/projects.
@@ -1486,11 +1530,26 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       // (Las "Próximas clases" del estudiante se removieron del dashboard: la
       // columna derecha ahora muestra el ranking acumulado de Kahoot por curso,
       // que se carga en el componente StudentKahootRanking vía RPC + realtime.)
+      } catch (e) {
+        if (!cancelled) setLoadError(friendlyError(e));
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, retryNonce]);
+
+  if (loadError) {
+    return (
+      <ErrorState
+        message={t("hc_routesAppIndex.dashboardLoadError", {
+          defaultValue: "No se pudo cargar el panel",
+        })}
+        hint={loadError}
+        onRetry={() => setRetryNonce((n) => n + 1)}
+      />
+    );
+  }
 
   return (
     // Mismo wrapper que TeacherDashboard: flex-col + flex-1 + min-h-0
@@ -1847,11 +1906,15 @@ function SuperAdminDashboard() {
     }>
   >([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       setLoading(true);
+      setLoadError(null);
+      try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbAny = supabase as any;
       const now = Date.now();
@@ -1958,12 +2021,28 @@ function SuperAdminDashboard() {
         errors24h: errors24hRes.count ?? 0,
         submissionsToday: (subExamRes.count ?? 0) + (subWsRes.count ?? 0) + (subProjRes.count ?? 0),
       });
-      setLoading(false);
+      } catch (e) {
+        if (!cancelled) setLoadError(friendlyError(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [retryNonce]);
+
+  if (loadError) {
+    return (
+      <ErrorState
+        message={t("hc_routesAppIndex.dashboardLoadError", {
+          defaultValue: "No se pudo cargar el panel",
+        })}
+        hint={loadError}
+        onRetry={() => setRetryNonce((n) => n + 1)}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 flex-1 min-h-0">
