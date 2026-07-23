@@ -75,6 +75,13 @@ import { formatFileSize } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
+import { MaterialStatusSelect } from "@/shared/components/MaterialStatusSelect";
+import {
+  matchesMaterialStatus,
+  DEFAULT_MATERIAL_STATUS_FILTER,
+  type MaterialStatusFilter,
+} from "@/shared/lib/material-status";
+import type { CourseLifecycleShape } from "@/modules/courses/course-status";
 import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
 
@@ -108,6 +115,11 @@ interface VideoRow {
 interface CourseOption {
   id: string;
   name: string;
+  /** Ciclo de vida del curso — se usa para derivar el estado del video
+   *  (curso finalizado → video "cerrado"). No lo necesita `ListFilters`. */
+  status?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
 }
 
 // MIME types aceptados por el bucket — debe coincidir con la migración.
@@ -185,6 +197,13 @@ function VideoLibrary() {
   // de curso (incluye videos globales y de cualquier curso).
   const [search, setSearch] = useState("");
   const [filterCourseId, setFilterCourseId] = useState<string | null>(null);
+  // Filtro por estado del CURSO del video. Default "activos" = videos de
+  // cursos NO finalizados (+ globales sin curso). Los videos de cursos
+  // FINALIZADOS pasan a "cerrados" y se ocultan por defecto. course_id null
+  // (Global / catálogo) nunca se considera cerrado. Ver material-status.ts.
+  const [materialStatusFilter, setMaterialStatusFilter] = useState<MaterialStatusFilter>(
+    DEFAULT_MATERIAL_STATUS_FILTER,
+  );
   const [courses, setCourses] = useState<CourseOption[]>([]);
   // Tenants — solo el SuperAdmin ve la lista. La RLS acota a 1 para
   // Admin/Docente normal y el filtro UI no se renderiza.
@@ -233,7 +252,7 @@ function VideoLibrary() {
       // Excluir cursos en papelera del selector de curso del form de video.
       const { data } = await db
         .from("courses")
-        .select("id, name")
+        .select("id, name, status, start_date, end_date")
         .is("deleted_at", null)
         .order("name");
       setCourses((data ?? []) as CourseOption[]);
@@ -273,21 +292,31 @@ function VideoLibrary() {
     return { total: rows.length, global, inCourse };
   }, [rows]);
 
-  const visible = useMemo(
-    () =>
-      rows.filter((r) => {
-        if (filterCourseId && r.course_id !== filterCourseId) return false;
-        if (search) {
-          const q = search.toLowerCase();
-          const hay =
-            r.title.toLowerCase().includes(q) ||
-            (r.description?.toLowerCase().includes(q) ?? false);
-          if (!hay) return false;
-        }
-        return true;
-      }),
-    [rows, filterCourseId, search],
-  );
+  const courseStatusById = useMemo(() => {
+    const m = new Map<string, CourseLifecycleShape>();
+    for (const c of courses)
+      m.set(c.id, { status: c.status, start_date: c.start_date, end_date: c.end_date });
+    return m;
+  }, [courses]);
+
+  const visible = useMemo(() => {
+    const now = Date.now();
+    return rows.filter((r) => {
+      // Estado del curso: por defecto oculta videos de cursos finalizados
+      // (Global sin curso siempre pasa).
+      if (!matchesMaterialStatus(r.course_id, courseStatusById, materialStatusFilter, now))
+        return false;
+      if (filterCourseId && r.course_id !== filterCourseId) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        const hay =
+          r.title.toLowerCase().includes(q) ||
+          (r.description?.toLowerCase().includes(q) ?? false);
+        if (!hay) return false;
+      }
+      return true;
+    });
+  }, [rows, filterCourseId, search, courseStatusById, materialStatusFilter]);
   const courseNameById = useMemo(() => {
     const m: Record<string, string> = {};
     for (const c of courses) m[c.id] = c.name;
@@ -314,7 +343,7 @@ function VideoLibrary() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:videos",
-    resetKey: `${search}|${filterCourseId ?? ""}|${tenantFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${filterCourseId ?? ""}|${materialStatusFilter}|${tenantFilter}|${sort.resetKey}`,
   });
 
   const openNew = () => {
@@ -695,6 +724,13 @@ function VideoLibrary() {
             courses={courses}
           />
         </div>
+        {/* Filtro por estado del curso: por defecto "Activos" oculta los
+            videos de cursos finalizados (accesibles en "Cerrados"). */}
+        <MaterialStatusSelect
+          value={materialStatusFilter}
+          onChange={setMaterialStatusFilter}
+          className="w-full sm:w-44 h-9 text-xs"
+        />
         {/* SuperAdmin cross-tenant: filtro por institución + opción
             "Global plataforma" (videos con `tenant_id IS NULL`). El
             filtro se aplica server-side en `load()` para que la RLS
@@ -753,7 +789,10 @@ function VideoLibrary() {
               <TableBody>
                 {visible.length === 0
                   ? (() => {
-                      const filterActive = !!search || filterCourseId != null;
+                      const filterActive =
+                        !!search ||
+                        filterCourseId != null ||
+                        materialStatusFilter !== DEFAULT_MATERIAL_STATUS_FILTER;
                       const noMatch = filterActive && rows.length > 0;
                       return (
                         <TableEmpty

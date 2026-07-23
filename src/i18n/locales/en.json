@@ -141,7 +141,7 @@
     "projects": "Projects",
     "aiPrompts": "Prompts",
     "aiCron": "Queue",
-    "questionBank": "Question bank",
+    "questionBank": "Questions",
     "contents": "Contents",
     "statistics": "Statistics",
     "auditLogs": "Audit Log",
@@ -5000,12 +5000,12 @@
       "redConsola": "Network (console)",
       "redGui": "Network (diagram)"
     },
-    "pageTitle": "Question bank",
-    "pageSubtitle": "Reusable questions shared among the course's teachers. Import selections when creating exams, workshops, or projects.",
+    "pageTitle": "Questions",
+    "pageSubtitle": "Your reusable question bank (formerly «Question bank»), shared among the course's teachers. Import selections when creating exams, workshops, or projects.",
     "generateWithAi": "Generate with AI",
     "newQuestion": "New question",
     "staffOnly": "Teachers and admins only.",
-    "disabledTitle": "Question bank disabled",
+    "disabledTitle": "Questions module disabled",
     "disabledDescription": "The administrator disabled this module. Contact your admin if you need to use it.",
     "courseLabel": "Course",
     "noCoursesAssigned": "You have no courses assigned",
@@ -5022,7 +5022,7 @@
     "difficulty5": "5 — very hard",
     "searchLabel": "Search",
     "searchPlaceholder": "Statement, topic, or tag…",
-    "loadError": "We couldn't load the question bank.",
+    "loadError": "We couldn't load the questions.",
     "loadErrorTitle": "We couldn't load the bank",
     "colQuestion": "Question",
     "colType": "Type",
@@ -6158,7 +6158,7 @@
     "typeDiagrama": "Diagram",
     "typeJavaGui": "Java GUI",
     "typePythonGui": "Python GUI (tkinter)",
-    "dialogTitle": "Import from question bank",
+    "dialogTitle": "Import questions",
     "dialogDescriptionLead": "Select questions from the course bank. They will be cloned to the",
     "dialogDescriptionTrail": "; future changes in the bank won't affect the copies.",
     "targetExam": "exam",
@@ -9064,6 +9064,10 @@
   },
   "activityStatus": {
     "activos": "Active and drafts",
+    "cerrados": "Closed"
+  },
+  "materialStatus": {
+    "activos": "Active",
     "cerrados": "Closed"
   },
   "reopenBanner": {

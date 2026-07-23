@@ -72,6 +72,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MaterialStatusSelect } from "@/shared/components/MaterialStatusSelect";
+import {
+  DEFAULT_MATERIAL_STATUS_FILTER,
+  type MaterialStatusFilter,
+} from "@/shared/lib/material-status";
+import { deriveCourseDisplayState } from "@/modules/courses/course-status";
 
 export const Route = createFileRoute("/app/student/courses")({ component: StudentCourses });
 
@@ -88,6 +94,9 @@ type CourseRow = {
   start_date: string | null;
   end_date: string | null;
   language: string | null;
+  /** Ciclo de vida del curso. Un curso `finalizado` (y todo su material)
+   *  se considera "cerrado": oculto en la vista activa por defecto. */
+  status: string | null;
 };
 
 type SessionRow = {
@@ -167,6 +176,13 @@ function StudentCourses() {
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [search, setSearch] = useState("");
   const [sortMode, setSortMode] = useState<CourseSortMode>("period_desc");
+  // Filtro por estado del curso. Default "activos" = cursos NO finalizados;
+  // los FINALIZADOS (y todo su material) se ocultan de la vista activa y
+  // quedan accesibles en "Cerrados"/"Todos". El estado se deriva del curso
+  // (courses.status) — mismo criterio que el grid docente de cursos.
+  const [statusFilter, setStatusFilter] = useState<MaterialStatusFilter>(
+    DEFAULT_MATERIAL_STATUS_FILTER,
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -195,9 +211,11 @@ function StudentCourses() {
         setLoading(false);
         return;
       }
-      const { data } = await supabase
+      // `db` (untyped): la columna `courses.status` aún no está en los
+      // types generados de Supabase; el cliente tipado la rechaza.
+      const { data } = await db
         .from("courses")
-        .select("id, name, description, period, start_date, end_date, language")
+        .select("id, name, description, period, start_date, end_date, language, status")
         .in("id", courseIds)
         .is("deleted_at", null)
         .order("period", { ascending: false, nullsFirst: false })
@@ -219,11 +237,21 @@ function StudentCourses() {
   // período (default, desc), nombre A→Z / Z→A o fecha de inicio (desc).
   const filteredCourses = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const base = q
+    const now = Date.now();
+    let base = q
       ? courses.filter(
           (c) => c.name.toLowerCase().includes(q) || (c.period?.toLowerCase().includes(q) ?? false),
         )
       : courses;
+    // Estado del curso: por defecto oculta los finalizados (y con ellos
+    // todo su material del tablero). "cerrados" muestra solo finalizados;
+    // "todos" no filtra.
+    if (statusFilter !== "todos") {
+      base = base.filter((c) => {
+        const finalized = deriveCourseDisplayState(c, now) === "finalizado";
+        return statusFilter === "cerrados" ? finalized : !finalized;
+      });
+    }
     const arr = base.slice();
     switch (sortMode) {
       case "name_asc":
@@ -246,14 +274,14 @@ function StudentCourses() {
         break;
     }
     return arr;
-  }, [courses, search, sortMode]);
+  }, [courses, search, sortMode, statusFilter]);
 
   // Paginación client-side. Cards son grandes → default 12, no 25.
   const pagination = usePagination(filteredCourses, {
     defaultPageSize: 12,
     pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:student_courses",
-    resetKey: `${search}|${sortMode}`,
+    resetKey: `${search}|${sortMode}|${statusFilter}`,
   });
 
   if (loading) {
@@ -297,6 +325,13 @@ function StudentCourses() {
             placeholder={t("hc_routesAppStudentCourses.searchPlaceholder")}
           />
         </div>
+        {/* Filtro por estado del curso: por defecto oculta los cursos
+            finalizados (y su material); quedan accesibles en "Cerrados". */}
+        <MaterialStatusSelect
+          value={statusFilter}
+          onChange={setStatusFilter}
+          className="h-9 w-full sm:w-40 text-xs"
+        />
         {/* Selector de orden: período (default), nombre A→Z / Z→A, inicio.
             Útil cuando el estudiante tiene historial de varios períodos. */}
         <Select value={sortMode} onValueChange={(v) => setSortMode(v as CourseSortMode)}>
@@ -323,12 +358,14 @@ function StudentCourses() {
       {filteredCourses.length === 0 ? (
         <EmptyState
           text={
-            search.trim() && courses.length > 0
+            (search.trim() || statusFilter !== DEFAULT_MATERIAL_STATUS_FILTER) &&
+            courses.length > 0
               ? t("hc_routesAppStudentCourses.noMatches")
               : t("courseBoard.noEnrollments")
           }
           hint={
-            search.trim() && courses.length > 0
+            (search.trim() || statusFilter !== DEFAULT_MATERIAL_STATUS_FILTER) &&
+            courses.length > 0
               ? t("hc_routesAppStudentCourses.noMatchesHint")
               : undefined
           }

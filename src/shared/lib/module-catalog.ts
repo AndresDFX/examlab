@@ -102,7 +102,7 @@ export const MODULE_CATALOG: ModuleCatalogEntry[] = [
   { key: "calendar", label: "Calendario" },
   { key: "certificates", label: "Certificaciones" },
   { key: "tutor", label: "Tutor del curso" },
-  { key: "question_bank", label: "Banco de preguntas" },
+  { key: "question_bank", label: "Preguntas" },
   { key: "ai_prompts", label: "Prompts" },
   { key: "ai_cron", label: "Cola" },
   { key: "statistics", label: "Estadísticas" },

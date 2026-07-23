@@ -114,6 +114,13 @@ import { parseDurationInput } from "@/modules/contents/upload-external-helpers";
 import { usePagination } from "@/hooks/use-pagination";
 import { useTableSort } from "@/hooks/use-table-sort";
 import { DataPagination } from "@/components/ui/data-pagination";
+import { MaterialStatusSelect } from "@/shared/components/MaterialStatusSelect";
+import {
+  matchesMaterialStatus,
+  DEFAULT_MATERIAL_STATUS_FILTER,
+  type MaterialStatusFilter,
+} from "@/shared/lib/material-status";
+import type { CourseLifecycleShape } from "@/modules/courses/course-status";
 
 export const Route = createFileRoute("/app/teacher/contents")({ component: TeacherContents });
 
@@ -182,6 +189,11 @@ interface GeneratedContent {
 interface CourseLite {
   id: string;
   name: string;
+  /** Ciclo de vida del curso — se usa para derivar el estado del material
+   *  (finalizado → material "cerrado"). No lo necesita `ListFilters`. */
+  status?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
 }
 
 interface BrandConfig {
@@ -268,12 +280,34 @@ function TeacherContents() {
    *  `ListFilters`. Útil para que el docente vea qué material tiene
    *  asignado a un curso específico cuando administra varios. */
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
-  // Filtra por curso primero, luego por texto (display_name + topic +
-  // autor + nombre del curso). Case-insensitive, includes. Los items
-  // con `course_id = null` (sin curso) solo aparecen cuando el filtro
-  // de curso es "Todos" — un filtro específico los excluye.
+  // Filtro por estado del CURSO al que pertenece el material. Default
+  // "activos" = material de cursos NO finalizados (borradores/próximos/
+  // en curso). El material de cursos FINALIZADOS pasa a "cerrados" y no se
+  // ve por defecto. El estado se deriva del curso ancla — ver
+  // material-status.ts. Contenidos con course_id null (sin curso) nunca
+  // se consideran cerrados.
+  const [materialStatusFilter, setMaterialStatusFilter] = useState<MaterialStatusFilter>(
+    DEFAULT_MATERIAL_STATUS_FILTER,
+  );
+  // Map courseId → ciclo de vida (status + fechas) para derivar si el
+  // material está "cerrado" (curso finalizado). Se rellena desde el mismo
+  // `courses` que alimenta el dropdown de curso.
+  const courseStatusById = useMemo(() => {
+    const m = new Map<string, CourseLifecycleShape>();
+    for (const c of courses)
+      m.set(c.id, { status: c.status, start_date: c.start_date, end_date: c.end_date });
+    return m;
+  }, [courses]);
+  // Filtra por estado del curso, luego por curso, luego por texto
+  // (display_name + topic + autor + nombre del curso). Case-insensitive,
+  // includes. Los items con `course_id = null` (sin curso) solo aparecen
+  // cuando el filtro de curso es "Todos" — un filtro específico los excluye.
   const filteredItems = useMemo(() => {
     let arr = items;
+    const now = Date.now();
+    arr = arr.filter((it) =>
+      matchesMaterialStatus(it.course_id, courseStatusById, materialStatusFilter, now),
+    );
     if (courseFilter) {
       arr = arr.filter((it) => it.course_id === courseFilter);
     }
@@ -288,7 +322,7 @@ function TeacherContents() {
         courseName.includes(q)
       );
     });
-  }, [items, courses, search, courseFilter]);
+  }, [items, courses, search, courseFilter, courseStatusById, materialStatusFilter]);
   // Orden por columna (asc/desc clicando el encabezado). Va ENTRE el
   // filtro y la paginación: filtrar → ORDENAR → paginar. Accessors
   // robustos a null (el hook manda los vacíos al final). El nombre de
@@ -310,7 +344,7 @@ function TeacherContents() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_contents",
-    resetKey: `${search}|${courseFilter ?? ""}|${tenantFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter ?? ""}|${materialStatusFilter}|${tenantFilter}|${sort.resetKey}`,
   });
 
   // Stats compactas arriba del listado — mismo patrón que proyectos /
@@ -539,7 +573,13 @@ function TeacherContents() {
         // por docente (en orgs chicas o cuando los cursos los crea Admin
         // sin asignación explícita queda vacía). Ahora pedimos `courses`
         // directo y dejamos que la RLS de la tabla recorte.
-        supabase.from("courses").select("id, name").is("deleted_at", null).order("name"),
+        // `db` (untyped): la columna `courses.status` aún no está en los
+        // types generados de Supabase; el cliente tipado la rechaza.
+        db
+          .from("courses")
+          .select("id, name, status, start_date, end_date")
+          .is("deleted_at", null)
+          .order("name"),
         // Tenants — solo el SuperAdmin ve >1. Para Admin/Docente la RLS
         // recorta al suyo y el array queda en 1 → el Select abajo no se
         // renderiza (`tenants.length > 0` gate).
@@ -1204,6 +1244,13 @@ function TeacherContents() {
             courses={courses}
           />
         </div>
+        {/* Filtro por estado del curso: por defecto "Activos" oculta el
+            material de cursos finalizados (queda accesible en "Cerrados"). */}
+        <MaterialStatusSelect
+          value={materialStatusFilter}
+          onChange={setMaterialStatusFilter}
+          className="w-full sm:w-44 h-9 text-xs"
+        />
         {/* SuperAdmin cross-tenant: filtro por institución. Solo se
             renderiza cuando el usuario actúa como SuperAdmin Y hay >0
             tenants cargados (Admin común no llega a verlo). Aplica vía
@@ -1263,7 +1310,10 @@ function TeacherContents() {
                     // de "crea tu primer contenido". Si hay items pero
                     // el filtro (texto o curso) los recortó a 0, mostramos
                     // un mensaje con la pista para ajustar el filtro.
-                    const filterActive = search.trim() !== "" || courseFilter != null;
+                    const filterActive =
+                      search.trim() !== "" ||
+                      courseFilter != null ||
+                      materialStatusFilter !== DEFAULT_MATERIAL_STATUS_FILTER;
                     const noMatch = filterActive && items.length > 0;
                     return (
                       <TableEmpty

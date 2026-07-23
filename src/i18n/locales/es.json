@@ -141,7 +141,7 @@
     "projects": "Proyectos",
     "aiPrompts": "Prompts",
     "aiCron": "Cola",
-    "questionBank": "Banco de preguntas",
+    "questionBank": "Preguntas",
     "contents": "Contenidos",
     "statistics": "Estadísticas",
     "auditLogs": "Auditoría",
@@ -5000,12 +5000,12 @@
       "redConsola": "Red (consola)",
       "redGui": "Red (diagrama)"
     },
-    "pageTitle": "Banco de preguntas",
-    "pageSubtitle": "Preguntas reutilizables compartidas entre los docentes del curso. Importa selecciones al crear exámenes, talleres o proyectos.",
+    "pageTitle": "Preguntas",
+    "pageSubtitle": "Tu banco de preguntas reutilizables (antes «Banco de preguntas»), compartidas entre los docentes del curso. Importa selecciones al crear exámenes, talleres o proyectos.",
     "generateWithAi": "Generar con IA",
     "newQuestion": "Nueva pregunta",
     "staffOnly": "Solo docentes y admins.",
-    "disabledTitle": "Banco de preguntas deshabilitado",
+    "disabledTitle": "Módulo de preguntas deshabilitado",
     "disabledDescription": "El administrador desactivó este módulo. Contacta al admin si necesitas usarlo.",
     "courseLabel": "Curso",
     "noCoursesAssigned": "No tenés cursos asignados",
@@ -5022,7 +5022,7 @@
     "difficulty5": "5 — muy difícil",
     "searchLabel": "Buscar",
     "searchPlaceholder": "Enunciado, tema o tag…",
-    "loadError": "No pudimos cargar el banco de preguntas.",
+    "loadError": "No pudimos cargar las preguntas.",
     "loadErrorTitle": "No pudimos cargar el banco",
     "colQuestion": "Pregunta",
     "colType": "Tipo",
@@ -6158,7 +6158,7 @@
     "typeDiagrama": "Diagrama",
     "typeJavaGui": "Java GUI",
     "typePythonGui": "Python GUI (tkinter)",
-    "dialogTitle": "Importar del banco de preguntas",
+    "dialogTitle": "Importar preguntas",
     "dialogDescriptionLead": "Selecciona preguntas del banco del curso. Se clonarán al",
     "dialogDescriptionTrail": "; los cambios futuros en el banco no afectarán las copias.",
     "targetExam": "examen",
@@ -9064,6 +9064,10 @@
   },
   "activityStatus": {
     "activos": "Activos y borradores",
+    "cerrados": "Cerrados"
+  },
+  "materialStatus": {
+    "activos": "Activos",
     "cerrados": "Cerrados"
   },
   "reopenBanner": {

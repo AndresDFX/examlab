@@ -493,7 +493,7 @@ export const TEACHER_TOUR: TourStep[] = [
   {
     element: '[data-tour-module="question_bank"]',
     route: "/app/teacher/question-bank",
-    title: "Banco de preguntas",
+    title: "Preguntas",
     description:
       "Tu <strong>biblioteca de preguntas reutilizables</strong> por curso. Una vez que armás una buena pregunta, la guardás acá y la importás desde cualquier examen/taller/proyecto en vez de reescribirla.",
     side: "right",
