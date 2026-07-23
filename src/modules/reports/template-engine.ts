@@ -244,97 +244,111 @@ export function renderTemplate(template: string, ctx: TemplateContext): string {
  */
 export interface VariableNode {
   label: string;
+  /** Traducción EN del label (paridad es↔en). TemplateEditor usa este cuando
+   *  el idioma activo es inglés; si falta, cae a `label`. Co-locado (no i18n
+   *  keys) porque los labels/paths se repiten y una key estable sería ambigua. */
+  labelEn?: string;
   path: string;
   kind: "scalar" | "each" | "group";
   hint?: string;
+  hintEn?: string;
   children?: VariableNode[];
 }
 
 export const REPORT_VARIABLE_CATALOG: VariableNode[] = [
   {
     label: "Estudiante",
+    labelEn: "Student",
     path: "estudiante",
     kind: "group",
     children: [
-      { label: "Nombre", path: "estudiante.nombre", kind: "scalar" },
-      { label: "Correo", path: "estudiante.email", kind: "scalar" },
-      { label: "Código estudiantil", path: "estudiante.codigo", kind: "scalar", hint: "Matrícula institucional" },
-      { label: "Documento de identidad", path: "estudiante.documento", kind: "scalar" },
-      { label: "Cohorte", path: "estudiante.cohorte", kind: "scalar", hint: "Periodo de ingreso" },
-      { label: "Estado", path: "estudiante.estado", kind: "scalar", hint: "activo / retirado / graduado / aplazado" },
-      { label: "Programa", path: "estudiante.programa", kind: "scalar" },
+      { label: "Nombre", labelEn: "Name", path: "estudiante.nombre", kind: "scalar" },
+      { label: "Correo", labelEn: "Email", path: "estudiante.email", kind: "scalar" },
+      { label: "Código estudiantil", labelEn: "Student ID", path: "estudiante.codigo", kind: "scalar", hint: "Matrícula institucional", hintEn: "Institutional enrollment ID" },
+      { label: "Documento de identidad", labelEn: "ID document", path: "estudiante.documento", kind: "scalar" },
+      { label: "Cohorte", labelEn: "Cohort", path: "estudiante.cohorte", kind: "scalar", hint: "Periodo de ingreso", hintEn: "Entry term" },
+      { label: "Estado", labelEn: "Status", path: "estudiante.estado", kind: "scalar", hint: "activo / retirado / graduado / aplazado", hintEn: "active / withdrawn / graduated / deferred" },
+      { label: "Programa", labelEn: "Program", path: "estudiante.programa", kind: "scalar" },
     ],
   },
   {
     label: "Curso",
+    labelEn: "Course",
     path: "curso",
     kind: "group",
     children: [
-      { label: "Nombre", path: "curso.nombre", kind: "scalar" },
-      { label: "Código", path: "curso.codigo", kind: "scalar" },
-      { label: "Semestre", path: "curso.semestre", kind: "scalar", hint: "Si el curso lo tiene definido" },
-      { label: "Grupo", path: "curso.grupo", kind: "scalar", hint: "Si el curso lo tiene definido" },
-      { label: "Programa académico", path: "curso.programa", kind: "scalar", hint: "Si el curso está asociado a un programa" },
-      { label: "Código del programa", path: "curso.programa_codigo", kind: "scalar" },
-      { label: "Facultad", path: "curso.facultad", kind: "scalar" },
-      { label: "Asignatura del plan", path: "curso.asignatura", kind: "scalar", hint: "Si el curso está asociado a una asignatura del plan" },
-      { label: "Código de la asignatura", path: "curso.asignatura_codigo", kind: "scalar" },
-      { label: "Créditos", path: "curso.creditos", kind: "scalar" },
-      { label: "Horario", path: "curso.horario", kind: "scalar", hint: "Bloques semanales formateados: 'Lun 10:00–12:00 · Jue 14:00–16:00'" },
-      { label: "Periodo", path: "periodo", kind: "scalar" },
-      { label: "Periodo · Inicio", path: "periodo_obj.start_date", kind: "scalar" },
-      { label: "Periodo · Fin", path: "periodo_obj.end_date", kind: "scalar" },
-      { label: "Periodo · Estado", path: "periodo_obj.status", kind: "scalar" },
-      { label: "Fecha de emisión", path: "fecha_emision", kind: "scalar" },
+      { label: "Nombre", labelEn: "Name", path: "curso.nombre", kind: "scalar" },
+      { label: "Código", labelEn: "Code", path: "curso.codigo", kind: "scalar" },
+      { label: "Semestre", labelEn: "Semester", path: "curso.semestre", kind: "scalar", hint: "Si el curso lo tiene definido", hintEn: "If the course has it defined" },
+      { label: "Grupo", labelEn: "Group", path: "curso.grupo", kind: "scalar", hint: "Si el curso lo tiene definido", hintEn: "If the course has it defined" },
+      { label: "Programa académico", labelEn: "Academic program", path: "curso.programa", kind: "scalar", hint: "Si el curso está asociado a un programa", hintEn: "If the course is linked to a program" },
+      { label: "Código del programa", labelEn: "Program code", path: "curso.programa_codigo", kind: "scalar" },
+      { label: "Facultad", labelEn: "Faculty", path: "curso.facultad", kind: "scalar" },
+      { label: "Asignatura del plan", labelEn: "Curriculum subject", path: "curso.asignatura", kind: "scalar", hint: "Si el curso está asociado a una asignatura del plan", hintEn: "If the course is linked to a curriculum subject" },
+      { label: "Código de la asignatura", labelEn: "Subject code", path: "curso.asignatura_codigo", kind: "scalar" },
+      { label: "Créditos", labelEn: "Credits", path: "curso.creditos", kind: "scalar" },
+      { label: "Horario", labelEn: "Schedule", path: "curso.horario", kind: "scalar", hint: "Bloques semanales formateados: 'Lun 10:00–12:00 · Jue 14:00–16:00'", hintEn: "Formatted weekly blocks: 'Mon 10:00–12:00 · Thu 14:00–16:00'" },
+      { label: "Periodo", labelEn: "Term", path: "periodo", kind: "scalar" },
+      { label: "Periodo · Inicio", labelEn: "Term · Start", path: "periodo_obj.start_date", kind: "scalar" },
+      { label: "Periodo · Fin", labelEn: "Term · End", path: "periodo_obj.end_date", kind: "scalar" },
+      { label: "Periodo · Estado", labelEn: "Term · Status", path: "periodo_obj.status", kind: "scalar" },
+      { label: "Fecha de emisión", labelEn: "Issue date", path: "fecha_emision", kind: "scalar" },
     ],
   },
   {
     label: "Docente",
+    labelEn: "Teacher",
     path: "docente",
     kind: "group",
     children: [
-      { label: "Nombre", path: "docente.nombre", kind: "scalar" },
-      { label: "Correo", path: "docente.email", kind: "scalar" },
+      { label: "Nombre", labelEn: "Name", path: "docente.nombre", kind: "scalar" },
+      { label: "Correo", labelEn: "Email", path: "docente.email", kind: "scalar" },
     ],
   },
   {
     label: "Institución",
+    labelEn: "Institution",
     path: "institucion",
     kind: "group",
     children: [
-      { label: "Nombre", path: "institucion.nombre", kind: "scalar" },
-      { label: "Logo (URL)", path: "institucion.logo", kind: "scalar" },
+      { label: "Nombre", labelEn: "Name", path: "institucion.nombre", kind: "scalar" },
+      { label: "Logo (URL)", labelEn: "Logo (URL)", path: "institucion.logo", kind: "scalar" },
     ],
   },
   {
     label: "Notas",
+    labelEn: "Grades",
     path: "notas",
     kind: "group",
     children: [
-      { label: "Nota final", path: "nota_final", kind: "scalar" },
-      { label: "Aprobado (true/false)", path: "aprobado", kind: "scalar", hint: "Para usar con {{#if aprobado}}" },
-      { label: "Estado de aprobación", path: "estado_aprobacion", kind: "scalar", hint: "'Aprobado', 'Reprobado' o 'Sin nota'" },
-      { label: "Escala máxima", path: "escala_max", kind: "scalar" },
+      { label: "Nota final", labelEn: "Final grade", path: "nota_final", kind: "scalar" },
+      { label: "Aprobado (true/false)", labelEn: "Passed (true/false)", path: "aprobado", kind: "scalar", hint: "Para usar con {{#if aprobado}}", hintEn: "For use with {{#if aprobado}}" },
+      { label: "Estado de aprobación", labelEn: "Pass status", path: "estado_aprobacion", kind: "scalar", hint: "'Aprobado', 'Reprobado' o 'Sin nota'", hintEn: "'Passed', 'Failed' or 'No grade'" },
+      { label: "Escala máxima", labelEn: "Max scale", path: "escala_max", kind: "scalar" },
       {
         label: "Iterar cortes",
+        labelEn: "Iterate terms",
         path: "cortes",
         kind: "each",
         hint: "{{nombre}}, {{nota}}, {{peso}}",
       },
       {
         label: "Iterar exámenes",
+        labelEn: "Iterate exams",
         path: "examenes",
         kind: "each",
         hint: "{{titulo}}, {{nota}}, {{peso}}",
       },
       {
         label: "Iterar talleres",
+        labelEn: "Iterate workshops",
         path: "talleres",
         kind: "each",
         hint: "{{titulo}}, {{nota}}, {{peso}}",
       },
       {
         label: "Iterar proyectos",
+        labelEn: "Iterate projects",
         path: "proyectos",
         kind: "each",
         hint: "{{titulo}}, {{nota}}, {{peso}}",
@@ -343,31 +357,36 @@ export const REPORT_VARIABLE_CATALOG: VariableNode[] = [
   },
   {
     label: "Asistencia",
+    labelEn: "Attendance",
     path: "asistencia",
     kind: "group",
     children: [
-      { label: "Presentes", path: "asistencia.presentes", kind: "scalar" },
-      { label: "Ausentes", path: "asistencia.ausentes", kind: "scalar" },
-      { label: "Total sesiones", path: "asistencia.total", kind: "scalar" },
-      { label: "Porcentaje", path: "asistencia.porcentaje", kind: "scalar" },
+      { label: "Presentes", labelEn: "Present", path: "asistencia.presentes", kind: "scalar" },
+      { label: "Ausentes", labelEn: "Absent", path: "asistencia.ausentes", kind: "scalar" },
+      { label: "Total sesiones", labelEn: "Total sessions", path: "asistencia.total", kind: "scalar" },
+      { label: "Porcentaje", labelEn: "Percentage", path: "asistencia.porcentaje", kind: "scalar" },
     ],
   },
   {
     label: "Curso (solo informes consolidados)",
+    labelEn: "Course (consolidated reports only)",
     path: "estudiantes",
     kind: "group",
     hint: "Solo aparece en informes consolidados de curso",
+    hintEn: "Only appears in consolidated course reports",
     children: [
       {
         label: "Iterar estudiantes",
+        labelEn: "Iterate students",
         path: "estudiantes",
         kind: "each",
         hint: "Dentro: {{nombre}}, {{email}}, {{codigo}}, {{documento}}, {{nota_final}}, {{estado_aprobacion}}, {{asistencia.porcentaje}}",
+        hintEn: "Inside: {{nombre}}, {{email}}, {{codigo}}, {{documento}}, {{nota_final}}, {{estado_aprobacion}}, {{asistencia.porcentaje}}",
       },
-      { label: "Total estudiantes", path: "total_estudiantes", kind: "scalar" },
-      { label: "Total aprobados", path: "total_aprobados", kind: "scalar" },
-      { label: "Total reprobados", path: "total_reprobados", kind: "scalar" },
-      { label: "Total sin nota", path: "total_sin_nota", kind: "scalar" },
+      { label: "Total estudiantes", labelEn: "Total students", path: "total_estudiantes", kind: "scalar" },
+      { label: "Total aprobados", labelEn: "Total passed", path: "total_aprobados", kind: "scalar" },
+      { label: "Total reprobados", labelEn: "Total failed", path: "total_reprobados", kind: "scalar" },
+      { label: "Total sin nota", labelEn: "Total without grade", path: "total_sin_nota", kind: "scalar" },
     ],
   },
 ];

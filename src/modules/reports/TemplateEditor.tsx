@@ -682,9 +682,15 @@ function CatalogNode({
   onInsert: (snippet: string) => void;
   depth?: number;
 }) {
+  const { i18n } = useTranslation();
   const [open, setOpen] = useState(depth === 0);
   const hasChildren = node.children && node.children.length > 0;
   const isClickable = node.kind !== "group";
+  // Resolución EN del catálogo: labelEn/hintEn co-locados en cada nodo (ver
+  // template-engine.ts). Si falta la traducción, cae al español.
+  const isEn = i18n.language?.startsWith("en") ?? false;
+  const label = isEn && node.labelEn ? node.labelEn : node.label;
+  const hint = isEn && node.hintEn ? node.hintEn : node.hint;
 
   return (
     <div>
@@ -701,7 +707,7 @@ function CatalogNode({
           isClickable && "font-mono text-[11px]",
         )}
         style={{ paddingLeft: depth * 8 + 8 }}
-        title={node.hint}
+        title={hint}
       >
         {hasChildren ? (
           open ? <ChevronDown className="h-3 w-3 mr-1 shrink-0" /> : <ChevronRight className="h-3 w-3 mr-1 shrink-0" />
@@ -710,7 +716,7 @@ function CatalogNode({
         ) : (
           <span className="w-3 mr-1 shrink-0" />
         )}
-        <span className="truncate text-left">{node.label}</span>
+        <span className="truncate text-left">{label}</span>
       </Button>
       {hasChildren && open && (
         <div>
