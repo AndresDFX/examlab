@@ -6613,7 +6613,10 @@
     "language": "Language",
     "emptyCode": "The code page is empty",
     "runFailed": "The code could not be run",
-    "lastRun": "Last run {{time}}"
+    "lastRun": "Last run {{time}}",
+    "langChangeTitle": "Change language?",
+    "langChangeDesc": "Changing the language replaces the current code with the new language's example. You'll lose what you wrote on this sheet. This action can't be undone.",
+    "langChangeConfirm": "Change and replace"
   },
   "hc_modulesWhiteboardMultiPageWhiteboard": {
     "loadPagesError": "We couldn't load the whiteboard pages.",
@@ -8489,7 +8492,10 @@
     "shareWithCourse": "Share with course",
     "onlyMePrivate": "Only me (private)",
     "shareWithStudents": "Share with students",
-    "save": "Save"
+    "save": "Save",
+    "needsNameToSave": "Enter a name to save",
+    "autosaving": "Saving…",
+    "autosaved": "Saved automatically"
   },
   "hc_routesAppTeacherWhiteboardsIndex": {
     "loadErrorFallback": "We couldn't load your whiteboards.",

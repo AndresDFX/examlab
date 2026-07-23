@@ -27,6 +27,13 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { CodeEditor, type CodeLanguage, getStarterCode } from "@/modules/code/CodeEditor";
 import { combineFilesForExec } from "@/modules/code/combine-files";
+import {
+  CodeRunnerPicker,
+  type CodeRunnerProvider,
+  providersForLanguage,
+} from "@/modules/code/CodeRunnerPicker";
+import { runJavaInBrowser, CANCELLED_SENTINEL } from "@/modules/code/run-java";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatTime } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
@@ -64,11 +71,18 @@ export function CodePageEditor({
   className,
 }: Props) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const [lang, setLang] = useState<string>(language || "java");
   const [code, setCode] = useState<string>(source ?? getStarterCode(language || "java"));
   const [running, setRunning] = useState(false);
   // Salida local del alumno (readOnly) — no se persiste.
   const [localOut, setLocalOut] = useState<{ stdout: string; stderr: string; exitCode: number } | null>(null);
+  // Selector de compilador (paridad con el examen): default global del admin
+  // (code_execution_settings) + override local por hoja. cheerp corre en el
+  // navegador (solo Java); el resto via edge execute-code.
+  const [defaultProvider, setDefaultProvider] = useState<string>("onlinecompiler");
+  const [runnerOverride, setRunnerOverride] = useState<CodeRunnerProvider | undefined>(undefined);
+  const runAbortRef = useRef<AbortController | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Último patch pendiente + ref al onPersist actual, para FLUSHear el guardado
   // debounced al desmontar (cambio de hoja / cierre de pizarra) sin perder el
@@ -85,6 +99,27 @@ export function CodePageEditor({
         clearTimeout(saveTimer.current);
         if (pendingRef.current) onPersistRef.current(pendingRef.current);
       }
+      // Abortar cualquier run en curso al desmontar (cambio de hoja / cierre).
+      runAbortRef.current?.abort();
+    };
+  }, []);
+
+  // Provider de ejecución por defecto (global del admin). SELECT abierto a
+  // authenticated (el alumno también lo necesita para ejecutar). Guard cancelled.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("code_execution_settings")
+        .select("provider")
+        .limit(1)
+        .maybeSingle();
+      if (cancelled) return;
+      const p = (data as { provider?: string } | null)?.provider;
+      if (p) setDefaultProvider(p);
+    })();
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -107,26 +142,46 @@ export function CodePageEditor({
     scheduleSourceSave(v);
   };
 
-  const onLangChange = (v: string) => {
-    if (readOnly) return;
-    setLang(v);
-    // Cancelar cualquier guardado de fuente pendiente: el onPersist de abajo ya
-    // persiste el estado nuevo (incl. code_source si reseteamos el starter).
+  const onLangChange = async (v: string) => {
+    if (readOnly || v === lang) return;
+    const prevStarter = getStarterCode(lang as CodeLanguage).trim();
+    const hasRealCode = code.trim() !== "" && code.trim() !== prevStarter;
+    // Cambiar de lenguaje REEMPLAZA el código por el ejemplo (template) del
+    // nuevo lenguaje — no se "traduce" el código. Si hay código propio,
+    // confirmamos la pérdida antes de pisarlo.
+    if (hasRealCode) {
+      const ok = await confirm({
+        title: t("hc_modulesWhiteboardCodePageEditor.langChangeTitle", {
+          defaultValue: "¿Cambiar de lenguaje?",
+        }),
+        description: t("hc_modulesWhiteboardCodePageEditor.langChangeDesc", {
+          defaultValue:
+            "Al cambiar el lenguaje se reemplaza el código actual por el ejemplo del nuevo lenguaje. Se perderá lo que escribiste en esta hoja. Esta acción no se puede deshacer.",
+        }),
+        tone: "warning",
+        confirmLabel: t("hc_modulesWhiteboardCodePageEditor.langChangeConfirm", {
+          defaultValue: "Cambiar y reemplazar",
+        }),
+      });
+      if (!ok) return; // mantener el lenguaje actual
+    }
+    // Cancelar guardado de fuente pendiente (vamos a pisar el código).
     if (saveTimer.current) {
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
     }
     pendingRef.current = null;
-    const patch: Record<string, unknown> = { code_language: v };
-    // Si el editor está vacío o aún trae el starter del lenguaje anterior,
-    // reemplazamos por el starter del nuevo lenguaje (mejor UX al cambiar).
-    const prevStarter = getStarterCode(lang as CodeLanguage).trim();
-    if (!code.trim() || code.trim() === prevStarter) {
-      const nextStarter = getStarterCode(v as CodeLanguage);
-      setCode(nextStarter);
-      patch.code_source = nextStarter;
-    }
-    onPersist(patch);
+    // Si el nuevo lenguaje no soporta el compilador elegido (ej. cheerp es
+    // Java-only y cambio a python), volver al default para no ejecutar con un
+    // provider inválido.
+    setRunnerOverride((prev) =>
+      prev && !providersForLanguage(v as CodeLanguage).includes(prev) ? undefined : prev,
+    );
+    setLang(v);
+    // Cargar SIEMPRE el ejemplo (template) del nuevo lenguaje.
+    const nextStarter = getStarterCode(v as CodeLanguage);
+    setCode(nextStarter);
+    onPersist({ code_language: v, code_source: nextStarter });
   };
 
   const run = async () => {
@@ -136,32 +191,64 @@ export function CodePageEditor({
       );
       return;
     }
+    // Provider efectivo: override de la hoja o el default global. cheerp corre
+    // client-side (solo Java); el resto via edge execute-code. Mismo patrón que
+    // el examen (app.student.take.$examId.tsx runCode).
+    const provider = runnerOverride ?? defaultProvider;
+    runAbortRef.current?.abort();
+    const controller = new AbortController();
+    runAbortRef.current = controller;
+    const { signal } = controller;
     setRunning(true);
     try {
-      const files = [{ filename: LANG_FILENAME[lang] ?? "main.txt", content: code }];
-      const { data, error } = await supabase.functions.invoke("execute-code", {
-        body: {
-          files,
-          sourceCode: combineFilesForExec(files, lang),
-          language: lang,
-          // pageId como metadata de audit (no es FK a questions).
-          questionId: pageId,
-        },
-      });
-      if (error || data?.error) {
-        toast.error(
-          friendlyError(
-            error ?? data?.error,
-            t("hc_modulesWhiteboardCodePageEditor.runFailed", { defaultValue: "No se pudo ejecutar el código" }),
-          ),
-        );
-        return;
+      let stdout = "";
+      let stderr = "";
+      let exitCode = 0;
+      if (provider === "cheerp" && lang === "java") {
+        // Java en el navegador (CheerpJ), sin API externa ni cuota.
+        const result = await runJavaInBrowser(code, signal);
+        stdout = result.stdout;
+        stderr = result.stderr;
+      } else {
+        const files = [{ filename: LANG_FILENAME[lang] ?? "main.txt", content: code }];
+        // Carrera contra el abort para liberar la UI si el usuario cancela;
+        // el edge sigue server-side pero al usuario ya no le importa.
+        const cancelPromise = new Promise<never>((_, reject) => {
+          if (signal.aborted) {
+            reject(new Error(CANCELLED_SENTINEL));
+            return;
+          }
+          signal.addEventListener("abort", () => reject(new Error(CANCELLED_SENTINEL)), { once: true });
+        });
+        const invokePromise = supabase.functions.invoke("execute-code", {
+          body: {
+            files,
+            sourceCode: combineFilesForExec(files, lang),
+            language: lang,
+            // pageId como metadata de audit (no es FK a questions).
+            questionId: pageId,
+            // Solo mandamos provider si la hoja lo overrideó; sin override el
+            // edge usa el default del admin (igual que el examen).
+            ...(runnerOverride ? { provider: runnerOverride } : {}),
+          },
+        });
+        const { data, error } = await (Promise.race([invokePromise, cancelPromise]) as Promise<
+          Awaited<typeof invokePromise>
+        >);
+        if (error || data?.error) {
+          toast.error(
+            friendlyError(
+              error ?? data?.error,
+              t("hc_modulesWhiteboardCodePageEditor.runFailed", { defaultValue: "No se pudo ejecutar el código" }),
+            ),
+          );
+          return;
+        }
+        stdout = (data?.stdout as string) ?? "";
+        stderr = (data?.stderr as string) ?? "";
+        exitCode = typeof data?.exitCode === "number" ? data.exitCode : 0;
       }
-      const out = {
-        stdout: (data?.stdout as string) ?? "",
-        stderr: (data?.stderr as string) ?? "",
-        exitCode: typeof data?.exitCode === "number" ? data.exitCode : 0,
-      };
+      const out = { stdout, stderr, exitCode };
       if (readOnly) {
         setLocalOut(out);
       } else {
@@ -172,9 +259,28 @@ export function CodePageEditor({
           last_executed_at: new Date().toISOString(),
         });
       }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // Cancelación del usuario: silenciar (la UI ya se liberó en cancelRun).
+      if (msg === CANCELLED_SENTINEL) return;
+      toast.error(
+        friendlyError(
+          e,
+          t("hc_modulesWhiteboardCodePageEditor.runFailed", { defaultValue: "No se pudo ejecutar el código" }),
+        ),
+      );
     } finally {
       setRunning(false);
     }
+  };
+
+  /** Cancela el run en curso: libera la UI de inmediato. cheerp no expone kill
+   *  del worker y el edge sigue server-side, pero el usuario puede cambiar de
+   *  compilador y reintentar sin esperar (mismo trade-off que el examen). */
+  const cancelRun = () => {
+    runAbortRef.current?.abort();
+    runAbortRef.current = null;
+    setRunning(false);
   };
 
   const output = readOnly
@@ -185,23 +291,34 @@ export function CodePageEditor({
 
   return (
     <div className={cn("flex flex-col h-full min-h-0 overflow-y-auto p-3 gap-2", className)}>
-      {!readOnly && (
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">
-            {t("hc_modulesWhiteboardCodePageEditor.language", { defaultValue: "Lenguaje" })}
-          </span>
-          <Select value={lang} onValueChange={onLangChange}>
-            <SelectTrigger className="h-8 w-[140px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="java">Java</SelectItem>
-              <SelectItem value="python">Python</SelectItem>
-              <SelectItem value="javascript">JavaScript</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+      {/* Controles: lenguaje (solo docente) + selector de compilador (para
+          docente Y alumno, porque ambos pueden ejecutar) — igual que el examen. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        {!readOnly && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              {t("hc_modulesWhiteboardCodePageEditor.language", { defaultValue: "Lenguaje" })}
+            </span>
+            <Select value={lang} onValueChange={(v) => void onLangChange(v)}>
+              <SelectTrigger className="h-8 w-[140px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="java">Java</SelectItem>
+                <SelectItem value="python">Python</SelectItem>
+                <SelectItem value="javascript">JavaScript</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <CodeRunnerPicker
+          language={(lang as CodeLanguage) ?? "java"}
+          defaultProvider={defaultProvider}
+          value={runnerOverride}
+          onChange={setRunnerOverride}
+          disabled={running}
+        />
+      </div>
       <CodeEditor
         value={code}
         onChange={onCodeChange}
@@ -209,6 +326,7 @@ export function CodePageEditor({
         showLanguageSelector={false}
         showRunButton
         onRun={() => void run()}
+        onCancel={cancelRun}
         isRunning={running}
         readOnly={readOnly}
         hideHints

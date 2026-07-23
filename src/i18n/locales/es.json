@@ -6613,7 +6613,10 @@
     "language": "Lenguaje",
     "emptyCode": "La hoja de código está vacía",
     "runFailed": "No se pudo ejecutar el código",
-    "lastRun": "Última ejecución {{time}}"
+    "lastRun": "Última ejecución {{time}}",
+    "langChangeTitle": "¿Cambiar de lenguaje?",
+    "langChangeDesc": "Al cambiar el lenguaje se reemplaza el código actual por el ejemplo del nuevo lenguaje. Se perderá lo que escribiste en esta hoja. Esta acción no se puede deshacer.",
+    "langChangeConfirm": "Cambiar y reemplazar"
   },
   "hc_modulesWhiteboardMultiPageWhiteboard": {
     "loadPagesError": "No pudimos cargar las hojas de la pizarra.",
@@ -8489,7 +8492,10 @@
     "shareWithCourse": "Compartir con curso",
     "onlyMePrivate": "Solo yo (privada)",
     "shareWithStudents": "Compartir con alumnos",
-    "save": "Guardar"
+    "save": "Guardar",
+    "needsNameToSave": "Poné un nombre para guardar",
+    "autosaving": "Guardando…",
+    "autosaved": "Guardado automáticamente"
   },
   "hc_routesAppTeacherWhiteboardsIndex": {
     "loadErrorFallback": "No pudimos cargar tus pizarras.",

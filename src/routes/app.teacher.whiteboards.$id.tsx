@@ -6,12 +6,11 @@
  * controles para renombrar y para compartir con un curso.
  */
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -31,7 +30,7 @@ import i18n from "@/i18n";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { type WhiteboardScene } from "@/modules/whiteboard/WhiteboardEditor";
 import { MultiPageWhiteboard } from "@/modules/whiteboard/MultiPageWhiteboard";
-import { Palette, Save, Share2 } from "lucide-react";
+import { Palette, Share2, Check } from "lucide-react";
 
 export const Route = createFileRoute("/app/teacher/whiteboards/$id")({
   component: WhiteboardEditorPage,
@@ -58,7 +57,11 @@ function WhiteboardEditorPage() {
   const [wb, setWb] = useState<Whiteboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [savingMeta, setSavingMeta] = useState(false);
+  // Estado del auto-guardado de la meta (nombre/curso/compartir): ya no hay
+  // botón "Guardar" — se persiste solo con debounce. El indicador muestra
+  // "Guardando…" / "Guardado".
+  const [metaStatus, setMetaStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const metaSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Cursos del docente para el selector de "compartir con curso".
   const [courses, setCourses] = useState<Array<{ id: string; name: string }>>([]);
   // Form local de meta — controlled inputs para nombre, curso, share.
@@ -137,50 +140,85 @@ function WhiteboardEditorPage() {
     };
   }, [id, user]);
 
-  const saveMeta = async () => {
+  // Persiste la meta. `silent` (auto-guardado) omite el toast de éxito — el
+  // indicador de estado ya comunica "Guardado". Los errores SIEMPRE avisan.
+  const saveMeta = async (opts?: { silent?: boolean }) => {
     if (!wb) return;
     if (!metaName.trim()) {
-      toast.error(
-        i18n.t("toast.routes_app_teacher_whiteboards_id.whiteboardNeedsName", {
-          defaultValue: "La pizarra necesita un nombre",
-        }),
-      );
+      // El auto-guardado está gateado por el effect (no llega sin nombre); si
+      // un flujo manual lo llamara sin nombre, avisamos.
+      if (!opts?.silent) {
+        toast.error(
+          i18n.t("toast.routes_app_teacher_whiteboards_id.whiteboardNeedsName", {
+            defaultValue: "La pizarra necesita un nombre",
+          }),
+        );
+      }
       return;
     }
-    setSavingMeta(true);
+    const nextCourse = metaCourse === "none" ? null : metaCourse;
+    const nextShared = metaCourse !== "none" && metaShared;
+    setMetaStatus("saving");
     try {
       const { error } = await db
         .from("whiteboards")
-        .update({
-          name: metaName.trim(),
-          course_id: metaCourse === "none" ? null : metaCourse,
-          is_shared_with_course: metaCourse !== "none" && metaShared,
-        })
+        .update({ name: metaName.trim(), course_id: nextCourse, is_shared_with_course: nextShared })
         .eq("id", wb.id);
       if (error) {
+        setMetaStatus("idle");
         toast.error(friendlyError(error, t("hc_routesAppTeacherWhiteboardsId.couldNotSave")));
         return;
       }
-      toast.success(
-        i18n.t("toast.routes_app_teacher_whiteboards_id.changesSaved", {
-          defaultValue: "Cambios guardados",
-        }),
-      );
-      setWb({
-        ...wb,
-        name: metaName.trim(),
-        course_id: metaCourse === "none" ? null : metaCourse,
-        is_shared_with_course: metaCourse !== "none" && metaShared,
-      });
+      // Actualizar wb → el effect de auto-guardado ve que ya no hay cambios y
+      // no re-dispara (evita loop).
+      setWb({ ...wb, name: metaName.trim(), course_id: nextCourse, is_shared_with_course: nextShared });
+      setMetaStatus("saved");
     } catch (e) {
-      // Caller: `() => void saveMeta()` desde onClick. Sin catch
-      // explícito, una rejection del update burbujea como unhandled
-      // rejection. Mostramos toast amigable usando friendlyError.
+      // Caller: onChange debounced / flush al desmontar. Sin catch, una
+      // rejection del update burbujea como unhandled rejection.
+      setMetaStatus("idle");
       toast.error(friendlyError(e, t("hc_routesAppTeacherWhiteboardsId.couldNotSave")));
-    } finally {
-      setSavingMeta(false);
     }
   };
+
+  // Ref al saveMeta actual para el flush al desmontar (cierre sobre estado
+  // fresco sin meter saveMeta en deps del effect de unmount).
+  const saveMetaRef = useRef(saveMeta);
+  useEffect(() => {
+    saveMetaRef.current = saveMeta;
+  });
+
+  // Auto-guardado debounced (900ms) de la meta. El docente ya no necesita el
+  // botón "Guardar" (se olvidaban / se perdía al recargar). Solo guarda si algo
+  // cambió vs la fila cargada y hay nombre. Al persistir, `setWb` sincroniza la
+  // referencia → este effect ve "sin cambios" y no re-dispara.
+  useEffect(() => {
+    if (!wb) return;
+    const nextCourse = metaCourse === "none" ? null : metaCourse;
+    const nextShared = metaCourse !== "none" && metaShared;
+    const changed =
+      metaName.trim() !== wb.name ||
+      nextCourse !== wb.course_id ||
+      nextShared !== wb.is_shared_with_course;
+    if (!changed || !metaName.trim()) return;
+    if (metaSaveTimer.current) clearTimeout(metaSaveTimer.current);
+    metaSaveTimer.current = setTimeout(() => void saveMetaRef.current({ silent: true }), 900);
+    return () => {
+      if (metaSaveTimer.current) clearTimeout(metaSaveTimer.current);
+    };
+  }, [metaName, metaCourse, metaShared, wb]);
+
+  // Flush del guardado pendiente al desmontar (navegar/cerrar) — best-effort
+  // contra pérdida si el docente sale antes de que dispare el debounce.
+  useEffect(
+    () => () => {
+      if (metaSaveTimer.current) {
+        clearTimeout(metaSaveTimer.current);
+        void saveMetaRef.current({ silent: true });
+      }
+    },
+    [],
+  );
 
   if (loading) {
     return (
@@ -252,14 +290,27 @@ function WhiteboardEditorPage() {
                   disabled={metaCourse === "none"}
                 />
               </div>
-              <Button size="sm" onClick={() => void saveMeta()} disabled={savingMeta}>
-                {savingMeta ? (
-                  <Spinner size="xs" className="mr-1" />
-                ) : (
-                  <Save className="h-3.5 w-3.5 mr-1" />
-                )}
-                {t("hc_routesAppTeacherWhiteboardsId.save")}
-              </Button>
+              {/* Auto-guardado: sin botón. Indicador de estado (o aviso si
+                  falta el nombre, único caso que bloquea el guardado). */}
+              {!metaName.trim() ? (
+                <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                  {t("hc_routesAppTeacherWhiteboardsId.needsNameToSave", {
+                    defaultValue: "Poné un nombre para guardar",
+                  })}
+                </span>
+              ) : metaStatus === "saving" ? (
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Spinner size="xs" />{" "}
+                  {t("hc_routesAppTeacherWhiteboardsId.autosaving", { defaultValue: "Guardando…" })}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Check className="h-3.5 w-3.5 text-emerald-500" />{" "}
+                  {t("hc_routesAppTeacherWhiteboardsId.autosaved", {
+                    defaultValue: "Guardado automáticamente",
+                  })}
+                </span>
+              )}
             </div>
           </div>
         </CardContent>
