@@ -67,6 +67,7 @@ import {
   BookOpen,
   FileText,
   ClipboardList,
+  FileBarChart,
   LayoutDashboard,
   LogOut,
   ShieldCheck,
@@ -376,13 +377,13 @@ const NAV: NavItem[] = [
   {
     to: "/app/admin/report-templates",
     labelKey: "nav.reports",
-    icon: ClipboardList,
+    icon: FileBarChart,
     roles: ["Admin"],
   },
   {
     to: "/app/teacher/reports",
     labelKey: "nav.reports",
-    icon: ClipboardList,
+    icon: FileBarChart,
     roles: ["Docente"],
   },
   // Auditoría: Admin ve todo, Docente ve su alcance.

@@ -53,7 +53,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ClipboardList, Plus, Pencil, Trash2, Copy, Upload, Sparkles } from "lucide-react";
+import { FileBarChart, Plus, Pencil, Trash2, Copy, Upload, Sparkles } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
   TemplateEditor,
@@ -507,7 +507,7 @@ function Inner() {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<ClipboardList className="h-5 w-5 text-pink-500" />}
+        icon={<FileBarChart className="h-5 w-5 text-pink-500" />}
         title={t("adminReportTemplates.title")}
         subtitle={loading ? undefined : t("adminReportTemplates.subtitleCount", { count: templates.length })}
         actions={

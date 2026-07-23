@@ -1522,7 +1522,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
             responder). Inversa del card del docente. Click → abre el
             modal de OpenFeedbackModal con filterMode=needsMyResponse. */}
         <Stat
-          icon={MessageSquareText}
+          icon={Reply}
           label={t("dashboard.stats.conversationsPending", {
             defaultValue: "Conversaciones pendientes",
           })}

@@ -57,7 +57,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
-  ClipboardList,
+  FileBarChart,
   Plus,
   Pencil,
   Trash2,
@@ -962,7 +962,7 @@ function Inner() {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<ClipboardList className="h-5 w-5 text-pink-500" />}
+        icon={<FileBarChart className="h-5 w-5 text-pink-500" />}
         title={t("hc_routesAppTeacherReports.pageTitle")}
         subtitle={loading ? undefined : t("hc_routesAppTeacherReports.templatesAvailable", { count: templates.length })}
         actions={

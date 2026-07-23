@@ -132,7 +132,7 @@ function CalendarPage() {
       // devolvían `provider_mismatch`.
       if (r.connected && r.provider) setProvider(r.provider);
     } catch (e) {
-      toast.error(`${t("calendar.statusError")}: ${(e as Error).message}`);
+      toast.error(`${t("calendar.statusError")}: ${friendlyError(e)}`);
     } finally {
       setStatusLoading(false);
     }
@@ -265,7 +265,7 @@ function CalendarPage() {
       });
       window.location.href = r.url;
     } catch (e) {
-      toast.error(`${t("calendar.connectError")}: ${(e as Error).message}`);
+      toast.error(`${t("calendar.connectError")}: ${friendlyError(e)}`);
       setConnecting(false);
     }
   };
@@ -356,7 +356,7 @@ function CalendarPage() {
         );
         await loadStatus();
       } else {
-        toast.error(`${t("calendar.syncError")}: ${msg}`);
+        toast.error(`${t("calendar.syncError")}: ${friendlyError(e)}`);
       }
     } finally {
       setSyncing(false);

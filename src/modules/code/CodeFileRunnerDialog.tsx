@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FileCode2 } from "lucide-react";
+import { Code2 } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { combineFilesForExec } from "@/modules/code/combine-files";
@@ -111,7 +111,7 @@ export function CodeFileRunnerDialog({ file, onOpenChange, auditId }: Props) {
       <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm font-semibold min-w-0">
-            <FileCode2 className="h-4 w-4 text-indigo-500 shrink-0" />
+            <Code2 className="h-4 w-4 text-indigo-500 shrink-0" />
             <span className="truncate">{file?.name}</span>
           </DialogTitle>
           <DialogDescription>

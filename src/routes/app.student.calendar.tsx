@@ -26,7 +26,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
 import {
-  Calendar as CalendarIcon,
+  CalendarDays as CalendarIcon,
   Copy,
   RefreshCw,
   FileText,

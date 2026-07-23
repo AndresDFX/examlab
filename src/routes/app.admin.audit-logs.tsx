@@ -16,7 +16,7 @@ import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, AlertTriangle } from "lucide-react";
+import { ShieldEllipsis, AlertTriangle } from "lucide-react";
 import { AuditLogsView } from "@/modules/admin/AuditLogsView";
 import { ErrorsPanel } from "@/modules/admin/ErrorsPanel";
 import { PageLoader } from "@/components/ui/loaders";
@@ -51,7 +51,7 @@ function AdminAuditLogs() {
     <Tabs defaultValue={initialTab}>
       <TabsList className="max-w-full overflow-x-auto">
         <TabsTrigger value="logs" className="gap-1.5">
-          <Shield className="h-3.5 w-3.5" />
+          <ShieldEllipsis className="h-3.5 w-3.5" />
           {t("audit.title", { defaultValue: "Auditoría" })}
         </TabsTrigger>
         <TabsTrigger value="errors" className="gap-1.5">
