@@ -509,6 +509,17 @@ function TeacherWhiteboards() {
       );
       return;
     }
+    // Regla de negocio: el curso es OPCIONAL, pero si se elige curso, la sesión
+    // es OBLIGATORIA. Si el curso no tiene sesiones, el docente crea una inline
+    // ("Crear sesión nueva") — al crearla queda seleccionada y pasa esta guarda.
+    if (draftCourseId !== "none" && draftSessionId === "none") {
+      toast.error(
+        i18n.t("toast.routes_app_teacher_whiteboards_index.sessionRequiredForCourse", {
+          defaultValue: "Al asociar la pizarra a un curso, elegí (o creá) una sesión.",
+        }),
+      );
+      return;
+    }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -1034,8 +1045,10 @@ function TeacherWhiteboards() {
                 (sin UNIQUE constraint en attendance_session_id). */}
             {draftCourseId !== "none" && (
               <div>
-                <Label>
-                  {t("hc_routesAppTeacherWhiteboardsIndex.fieldSession")}{" "}
+                <Label required>
+                  {t("hc_routesAppTeacherWhiteboardsIndex.fieldSessionRequired", {
+                    defaultValue: "Sesión del curso",
+                  })}{" "}
                   <HelpHint>{t("help.whiteboardSessionBindingHelp")}</HelpHint>
                 </Label>
                 {loadingSessions ? (
@@ -1053,13 +1066,16 @@ function TeacherWhiteboards() {
                       <Select value={draftSessionId} onValueChange={setDraftSessionId}>
                         <SelectTrigger>
                           <SelectValue
-                            placeholder={t("hc_routesAppTeacherWhiteboardsIndex.sessionPlaceholder")}
+                            placeholder={t(
+                              "hc_routesAppTeacherWhiteboardsIndex.sessionPlaceholderRequired",
+                              { defaultValue: "Elegí una sesión" },
+                            )}
                           />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">
-                            {t("hc_routesAppTeacherWhiteboardsIndex.sessionNone")}
-                          </SelectItem>
+                          {/* Sin opción "Sin sesión específica": al elegir curso,
+                              la sesión es OBLIGATORIA — hay que elegir una real o
+                              crearla con el botón de abajo. */}
                           {draftSessions.map((s) => (
                             <SelectItem key={s.id} value={s.id}>
                               {formatDate(s.session_date)}
