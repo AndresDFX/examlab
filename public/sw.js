@@ -17,7 +17,13 @@
 
 // v8: icons PNG para que Android Chrome NO descarte notificaciones (SVG en
 // icon/badge causa drop silencioso en Android).
-const CACHE_NAME = "examlab-v8";
+// v9: el asset-handler cache-first capturaba también CDN cross-origin
+// (jsdelivr → Monaco + v86/xterm) y podía servir chunks stale/opacos que
+// dejaban el editor de código en "Loading…" y la consola Linux sin bootear.
+// Ahora jsdelivr se deja pasar a la red (ver fetch handler). El bump a v9
+// PURGA en `activate` cualquier entrada de jsdelivr que hubiera quedado
+// cacheada en v8 y estuviera envenenando la carga.
+const CACHE_NAME = "examlab-v9";
 // Solo cacheamos assets inmutables (los que llevan hash en el nombre).
 // El HTML siempre se sirve desde la red — si la red falla, mostramos un
 // fallback offline mínimo construido al vuelo, no uno cacheado.
@@ -82,6 +88,13 @@ self.addEventListener("fetch", (event) => {
   // CheerpJ CDN sirve JARs gigantes con range requests; el SW rompe el caché de
   // rango con ERR_CACHE_OPERATION_NOT_SUPPORTED. Dejar pasar a la red directo.
   if (url.hostname.includes("leaningtech.com")) return;
+  // jsDelivr sirve Monaco (editor de código de las hojas de código) y v86 +
+  // xterm (consola Linux real). El asset-handler cache-first de abajo casa por
+  // EXTENSIÓN (.js/.wasm/.css) sin mirar el origen, así que capturaba estos
+  // assets cross-origin y los servía opacos/stale → Monaco quedaba en
+  // "Loading…" para siempre y la consola v86 no arrancaba. Mismo síntoma y
+  // misma cura que leaningtech: bypass total del SW, directo a la red.
+  if (url.hostname.includes("jsdelivr.net")) return;
 
   // Navegación: SIEMPRE red. Sin cache. Si la red falla:
   //  - Reintenta UNA vez después de 600ms (la mayoría de fallos durante
