@@ -238,7 +238,7 @@ function WhiteboardEditorPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-7rem)] gap-3">
+    <div className="flex flex-col h-[calc(100dvh-7rem)] gap-3">
       <PageHeader
         icon={<Palette className="h-6 w-6 text-primary" />}
         backTo="/app/teacher/whiteboards"

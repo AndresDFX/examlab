@@ -397,7 +397,7 @@ export function SupabaseCronPanel() {
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-7 w-7 shrink-0"
+                        className="h-8 w-8 shrink-0"
                         onClick={() => openEditDesc(job)}
                         title={t("hc_modulesAdminSupabaseCronPanel.editDescriptionTitle")}
                       >
@@ -406,7 +406,7 @@ export function SupabaseCronPanel() {
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-7 w-7 shrink-0"
+                        className="h-8 w-8 shrink-0"
                         onClick={() => openEdit(job)}
                         title={t("hc_modulesAdminSupabaseCronPanel.editScheduleTitle")}
                       >

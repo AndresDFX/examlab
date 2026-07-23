@@ -29,7 +29,7 @@
  * Tamaño:
  *   El padre controla el alto vía `className`. Excalidraw ocupa el
  *   100% del contenedor. Para fullscreen, usar h-screen; para un
- *   dialog, h-[80vh] funciona bien.
+ *   dialog, h-[80dvh] funciona bien (dvh, no vh: iOS Safari).
  */
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { ComponentType } from "react";

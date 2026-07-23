@@ -1319,7 +1319,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7"
+                            className="h-8 w-8"
                             disabled={busy}
                             onClick={() => void retryJob(j.id)}
                             title={isCancelled ? t("aiCronPage.requeue") : t("aiCronPage.retry")}
@@ -1335,7 +1335,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7"
+                            className="h-8 w-8"
                             disabled={busy}
                             onClick={() => void processOne(j.id)}
                             title={t("aiCronPage.processNow")}
@@ -1357,7 +1357,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7 text-orange-600 hover:text-orange-700 hover:bg-orange-500/10 dark:text-orange-400 dark:hover:text-orange-300"
+                            className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-500/10 dark:text-orange-400 dark:hover:text-orange-300"
                             disabled={busy}
                             onClick={() => openReject(j.id, label)}
                             title={t("aiCronPage.rejectWithReason")}
@@ -1369,7 +1369,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                             disabled={busy}
                             onClick={() => void cancelJob(j.id, label)}
                             title={

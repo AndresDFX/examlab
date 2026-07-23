@@ -168,7 +168,7 @@ export function KahootHistoryDialog({
           />
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <StatCard icon={Gamepad2} label={t("kahoot.historyStatGames", { defaultValue: "Veces jugado" })} value={String(totals.games)} />
               <StatCard icon={Users} label={t("kahoot.historyStatPlayers", { defaultValue: "Jugadores (total)" })} value={String(totals.players)} />
               <StatCard icon={Trophy} label={t("kahoot.historyStatFinished", { defaultValue: "Finalizados" })} value={String(totals.finished)} />

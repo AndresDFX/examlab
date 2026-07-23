@@ -356,7 +356,7 @@ export function DbBackupsPanel() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 ml-auto"
+              className="h-8 w-8 ml-auto"
               onClick={() => void load()}
               title={t("hc_modulesAdminDbBackupsPanel.refresh")}
             >
