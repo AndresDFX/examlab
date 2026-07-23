@@ -16,13 +16,20 @@
  * y se apunta con las env vars VITE_V86_*.
  */
 
-// Versión de v86 servida por jsDelivr. jsDelivr resuelve rangos semver; se
-// puede fijar a una versión exacta para reproducibilidad de examen.
-const V86_VERSION = "latest";
+// Versión de v86 PINEADA (no "latest") para reproducibilidad de examen y para
+// evitar drift de API entre deploys.
+const V86_VERSION = "0.5.424";
 const V86_CDN = `https://cdn.jsdelivr.net/npm/v86@${V86_VERSION}`;
 export const V86_WASM_URL = `${V86_CDN}/build/v86.wasm`;
-export const V86_BIOS_URL = `${V86_CDN}/bios/seabios.bin`;
-export const V86_VGABIOS_URL = `${V86_CDN}/bios/vgabios.bin`;
+// WHY los BIOS desde gh/ y NO desde npm: el package.json de v86 EXCLUYE `bios/`
+// de su lista `files`, así que `npm/v86/bios/seabios.bin` da 404 intermitente
+// según el edge del CDN (a veces responde desde un cache stale) → la VM no
+// bootea y la consola queda "ready" pero vacía. Los BIOS viven en el repo
+// GitHub; el mirror gh de jsDelivr los sirve estable (verificado 200:
+// seabios 131072 B, vgabios 36352 B). Son blobs estáticos (no cambian entre
+// versiones); para reproducibilidad estricta se puede pinear @master a un SHA.
+export const V86_BIOS_URL = "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin";
+export const V86_VGABIOS_URL = "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin";
 const V86_LIB_URL = `${V86_CDN}/build/libv86.js`;
 
 const XTERM_VERSION = "5.3.0";
@@ -83,12 +90,18 @@ function injectScript(src: string): Promise<void> {
   });
 }
 
-function injectCss(href: string): void {
-  if (document.querySelector(`link[href="${href}"]`)) return;
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.href = href;
-  document.head.appendChild(link);
+function injectCss(href: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (document.querySelector(`link[href="${href}"]`)) return resolve();
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = href;
+    // Resolvemos también en error: si el CSS no carga, xterm igual renderiza
+    // con sus estilos base — no bloqueamos el boot por el stylesheet.
+    link.onload = () => resolve();
+    link.onerror = () => resolve();
+    document.head.appendChild(link);
+  });
 }
 
 /** Carga libv86.js y devuelve el constructor global (`V86` o `V86Starter`). */
@@ -120,8 +133,9 @@ export function loadXterm(): Promise<XtermCtor> {
   if (w.__xtermLoading) return w.__xtermLoading;
 
   const p = (async () => {
-    injectCss(XTERM_CSS_URL);
-    await injectScript(XTERM_JS_URL);
+    // CSS ANTES de resolver → term.open() nunca corre sin estilos aplicados
+    // (evita el render en blanco / medición de caracteres fallida en cache fría).
+    await Promise.all([injectCss(XTERM_CSS_URL), injectScript(XTERM_JS_URL)]);
     const c = (window as LoaderWindow).Terminal;
     if (!c) throw new Error("xterm.js no expuso Terminal");
     return c;

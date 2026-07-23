@@ -39,6 +39,30 @@ una imagen (idealmente un `VITE_V86_STATE_URL` = snapshot) hosteada en el
 **Storage propio** del proyecto → boot en ~1-2s y sin depender de un host
 externo. Si se define cualquier fuente en env, el default queda ignorado.
 
+### Gotchas verificados (bug "la consola bootea pero al escribir no se ve nada")
+
+Diagnosticado con workflow multi-hipótesis contra el upstream de v86:
+
+- **`filesystem: {}` es OBLIGATORIO para boots por `bzimage`.** `buildroot-bzimage68.bin`
+  (y las imágenes tipo jslinux) montan su ROOT sobre 9p (`root=host9p`, baked en
+  el `CONFIG_CMDLINE` del kernel). v86 SOLO crea el dispositivo virtio-9p si se
+  pasa la opción `filesystem`; sin ella el kernel arranca pero no tiene rootfs →
+  no llega a `getty`/busybox → terminal vacía sin shell ni echo. El ejemplo
+  oficial `examples/serial.html` lo pasa por esto. `resolveBootConfig()` ahora
+  setea `filesystem: {}` en boots por bzimage sin `VITE_V86_FS_JSON_URL`.
+- **NO forzar `console=ttyS0 rw root=/dev/ram0`** en el cmdline por defecto: rompe
+  las imágenes que rootean en 9p. El cmdline correcto para buildroot68 es solo
+  `tsc=reliable mitigations=off random.trust_cpu=on` (la consola serial viene baked).
+- **BIOS desde GitHub, no npm.** El paquete npm de v86 EXCLUYE `bios/` de su lista
+  `files` → `npm/v86/bios/seabios.bin` da 404 intermitente según el edge del CDN.
+  Se sirven de `cdn.jsdelivr.net/gh/copy/v86@master/bios/*.bin` (blobs estáticos).
+  El `libv86.js` + `v86.wasm` sí van de npm, **pineados** a una versión exacta.
+- **"ready" honesto.** El badge "Linux real" ahora se enciende al llegar el PRIMER
+  byte serial (evidencia real de shell), NO con un `setTimeout` ciego. Un
+  `download-error` de asset (404 de bios/wasm/imagen — que v86 carga async y NO
+  rechaza `new V86()`) pasa la consola a estado `error`; un watchdog de 45s sin
+  salida también. Antes el timer ciego pintaba "ready" sobre una VM muerta.
+
 ### Env vars (`.env` — todas `VITE_`, opcionales según el modo de boot)
 
 | Var | Para qué |

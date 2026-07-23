@@ -9188,7 +9188,9 @@
     "unconfigured": "The Linux console doesn't have an image configured yet.",
     "unconfiguredHint": "The administrator must host a Linux image and set VITE_V86_IMAGE_URL (or VITE_V86_STATE_URL / VITE_V86_BZIMAGE_URL). See docs/server-console-v86.md.",
     "transcriptTitle": "Session transcript",
-    "transcriptEmpty": "(no console activity)"
+    "transcriptEmpty": "(no console activity)",
+    "downloadError": "A system resource could not be downloaded: {{url}}",
+    "timeout": "The console didn't respond in time. The Linux image may be unavailable."
   },
   "pricingCalculator": {
     "planStarter": "Starter (≤200)",

@@ -88,9 +88,17 @@ function resolveBootConfig(): Record<string, unknown> | null {
   if (cdromUrl) cfg.cdrom = { url: cdromUrl };
   if (hdaUrl) cfg.hda = { url: hdaUrl };
   if (fsJsonUrl) cfg.filesystem = { basefs: { url: fsJsonUrl }, baseurl: fsBaseUrl };
-  // Para boots por kernel (bzimage) la consola serial necesita console=ttyS0.
+  // WHY filesystem vacío para boots por bzimage: buildroot-bzimage68.bin (y las
+  // imágenes tipo jslinux de v86) montan su ROOT sobre 9p (root=host9p, baked
+  // en el CONFIG_CMDLINE del kernel). v86 SOLO crea el dispositivo virtio-9p si
+  // se pasa la opción `filesystem`; sin ella el kernel arranca pero NO tiene
+  // rootfs → no llega a getty/busybox → terminal vacía, sin shell ni echo. El
+  // ejemplo oficial examples/serial.html pasa `filesystem: {}` por esto mismo.
+  else if (bzimageUrl) cfg.filesystem = {};
+  // cmdline SOLO si el operador lo define (VITE_V86_CMDLINE) o el default lo
+  // setea arriba. NO forzar console=ttyS0/root=/dev/ram0: rompe imágenes que
+  // rootean en 9p (como la default, que ya trae su consola serial baked).
   if (cmdline) cfg.cmdline = cmdline;
-  else if (bzimageUrl) cfg.cmdline = "console=ttyS0 rw root=/dev/ram0";
 
   return cfg;
 }
@@ -106,6 +114,11 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
   const commandsRef = useRef<string[]>([]);
   const cmdBufRef = useRef<string>("");
   const emitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // "ready" REAL = llegó el primer byte serial (evidencia de que el kernel
+  // emite en ttyS0 → hay shell). El watchdog surfacea el error si NO llega
+  // nada en 45s (boot fallido silencioso) en vez de fingir "ready".
+  const sawOutputRef = useRef(false);
+  const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -113,6 +126,7 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
   useEffect(() => {
     if (typeof window === "undefined" || readOnly) return;
     let cancelled = false;
+    sawOutputRef.current = false;
 
     const bootConfig = resolveBootConfig();
     if (!bootConfig) {
@@ -154,6 +168,17 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
 
         // Salida serial del VM → xterm + transcript.
         emulator.add_listener("serial0-output-byte", (byte) => {
+          // "ready" REAL: el kernel emite en ttyS0 ⇒ hay shell usable. Reemplaza
+          // al timer ciego que fingía "ready" sobre una VM que nunca booteó.
+          if (!sawOutputRef.current) {
+            sawOutputRef.current = true;
+            if (watchdogRef.current) clearTimeout(watchdogRef.current);
+            if (!cancelled) {
+              setStatus("ready");
+              // Auto-foco: el alumno puede tipear sin clickear la terminal.
+              queueMicrotask(() => termRef.current?.focus());
+            }
+          }
           const ch = String.fromCharCode(byte as number);
           term.write(ch);
           transcriptRef.current += ch;
@@ -179,14 +204,43 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
           }
         });
 
+        // emulator-started solo dice que el CPU arrancó, NO que el SO booteó.
+        // No marca "ready" — eso lo hace el primer byte serial (arriba).
         emulator.add_listener("emulator-started", () => {
-          if (!cancelled) setStatus("ready");
+          if (!cancelled) setStatus((s) => (s === "loading" ? "booting" : s));
         });
+
+        // Fallo honesto de descarga de assets (bios/wasm/imagen). v86 los carga
+        // async DESPUÉS de que el constructor retorna, así que un 404 NO rechaza
+        // `new V86()` ni cae en el catch — hay que escuchar el evento, o el
+        // fallo queda enmascarado como "ready" (bug reportado).
+        emulator.add_listener("download-error", (e) => {
+          if (cancelled || sawOutputRef.current) return;
+          const url = (e as { request?: { url?: string } } | null)?.request?.url;
+          setError(
+            t("serverConsole.downloadError", {
+              defaultValue: "No se pudo descargar un recurso del sistema: {{url}}",
+              url: url ?? "(desconocido)",
+            }),
+          );
+          setStatus("error");
+        });
+
         setStatus("booting");
-        // Fallback: si el evento emulator-started no llega, marcá ready al toque.
-        setTimeout(() => {
-          if (!cancelled && emulatorRef.current) setStatus((s) => (s === "booting" ? "ready" : s));
-        }, 4000);
+
+        // Watchdog: si NO llega NINGÚN byte serial en 45s, el boot falló en
+        // silencio (imagen no disponible / 9p mal / assets caídos). Mostramos
+        // error en vez de pintar el badge verde sobre una VM que nunca booteó.
+        watchdogRef.current = setTimeout(() => {
+          if (cancelled || sawOutputRef.current) return;
+          setError(
+            t("serverConsole.timeout", {
+              defaultValue:
+                "La consola no respondió a tiempo. La imagen de Linux puede no estar disponible.",
+            }),
+          );
+          setStatus("error");
+        }, 45000);
       } catch (e) {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : String(e));
@@ -197,6 +251,7 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
     return () => {
       cancelled = true;
       if (emitTimer.current) clearTimeout(emitTimer.current);
+      if (watchdogRef.current) clearTimeout(watchdogRef.current);
       // Emisión final del transcript antes de desmontar.
       try {
         onChange?.(

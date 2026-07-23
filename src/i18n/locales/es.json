@@ -9188,7 +9188,9 @@
     "unconfigured": "La consola Linux aún no tiene una imagen configurada.",
     "unconfiguredHint": "El administrador debe hostear una imagen de Linux y definir VITE_V86_IMAGE_URL (o VITE_V86_STATE_URL / VITE_V86_BZIMAGE_URL). Ver docs/server-console-v86.md.",
     "transcriptTitle": "Transcript de la sesión",
-    "transcriptEmpty": "(sin actividad en la consola)"
+    "transcriptEmpty": "(sin actividad en la consola)",
+    "downloadError": "No se pudo descargar un recurso del sistema: {{url}}",
+    "timeout": "La consola no respondió a tiempo. La imagen de Linux puede no estar disponible."
   },
   "pricingCalculator": {
     "planStarter": "Starter (≤200)",
