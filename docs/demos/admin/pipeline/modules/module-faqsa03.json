@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqsa03",
+  "kind": "faq",
+  "question": "¿Cómo asigno o quito usuarios de una institución?",
+  "title": "Usuarios de una institución",
+  "series": "faq",
+  "role": "SuperAdmin",
+  "appPath": "/app/superadmin/tenants",
+  "readySelectors": ["[data-tour-nav=\"/app/superadmin/tenants\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo asigno o quito usuarios de una institución?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Usuarios de una institución", "subtitle": "Asigna o quita personas" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Instituciones abres Gestionar usuarios de la institución y marcas o desmarcas a las personas que pertenecen a ella. Al guardar se aplican los cambios; quitar a alguien pide confirmación.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/superadmin/tenants\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Instituciones", "body": "Elige la institución a gestionar." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Gestionar usuarios", "body": "Marca o desmarca a sus miembros." } }
+      ]
+    }
+  ]
+}

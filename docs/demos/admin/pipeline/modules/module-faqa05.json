@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqa05",
+  "kind": "faq",
+  "question": "¿Cómo configuro los correos que envía la institución?",
+  "title": "Configuración de correos",
+  "series": "faq",
+  "role": "Admin",
+  "appPath": "/app/admin/email-settings",
+  "readySelectors": ["main"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo configuro los correos que envía la institución?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Correos de la institución", "subtitle": "Qué se envía y cuándo" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En la configuración de correos activas o desactivas cada tipo de mensaje que envía la plataforma, como la bienvenida al curso o los avisos. Así controlas qué notificaciones llegan por correo a docentes y estudiantes.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "text:Configuración", "scale": 1.35, "hold": 3200, "side": "bottom", "focus": { "title": "Correos", "body": "La configuración de correos de la institución." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4000, "side": "bottom", "focus": { "title": "Tipos de correo", "body": "Activa o desactiva cada mensaje." } }
+      ]
+    }
+  ]
+}

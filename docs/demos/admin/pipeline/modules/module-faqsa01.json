@@ -1,0 +1,31 @@
+{
+  "id": "modulo-faqsa01",
+  "kind": "faq",
+  "question": "¿Cómo creo una institución nueva en la plataforma?",
+  "title": "Crear una institución",
+  "series": "faq",
+  "role": "SuperAdmin",
+  "appPath": "/app/superadmin/tenants",
+  "readySelectors": ["[data-tour-nav=\"/app/superadmin/tenants\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo creo una institución nueva en la plataforma?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Crear una institución", "subtitle": "Alta en la plataforma" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Instituciones, Nueva institución pide el nombre, los colores de marca y las cuotas. Al crearla, la plataforma siembra su configuración por defecto para que quede lista para operar.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/superadmin/tenants\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Instituciones", "body": "El listado de instituciones." } },
+        { "target": "text:Nueva", "scale": 1.35, "hold": 3200, "side": "bottom", "focus": { "title": "Nueva institución", "body": "Nombre, marca y cuotas." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 3400, "side": "bottom", "focus": { "title": "Lista para operar", "body": "Se siembra su configuración por defecto." } }
+      ]
+    }
+  ]
+}

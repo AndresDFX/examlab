@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqt12",
+  "kind": "faq",
+  "question": "¿Cómo consulto la cola de calificación con IA y reintento un trabajo?",
+  "title": "Cola de calificación con IA",
+  "series": "faq",
+  "role": "Docente",
+  "appPath": "/app/teacher/ai-cron",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/ai-cron\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo consulto la cola de calificación con inteligencia artificial y reintento un trabajo?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Cola de IA", "subtitle": "Consulta y reintenta" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En la sección de trabajos de IA ves la cola de calificación con su estado: pendientes, en proceso y fallidos. Puedes abrir cada trabajo para ver el error completo y, si falló, reintentarlo o procesarlo de inmediato.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/teacher/ai-cron\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Cron", "body": "La cola de trabajos de IA." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Estado y reintento", "body": "Ve el error y reintenta o procesa ya." } }
+      ]
+    }
+  ]
+}

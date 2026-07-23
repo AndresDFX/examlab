@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqs04",
+  "kind": "faq",
+  "question": "¿Cómo entrego un taller?",
+  "title": "Entregar un taller",
+  "series": "faq",
+  "role": "Estudiante",
+  "appPath": "/app/student/workshops",
+  "readySelectors": ["[data-tour-nav=\"/app/student/workshops\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo entrego un taller que me asignaron?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Entregar un taller", "subtitle": "Responde y envía" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Talleres aparecen los que tienes disponibles con su fecha límite. Al abrir uno respondes cada punto y tu avance se guarda solo; cuando terminas, el botón Entregar envía el taller. Si trabajas en grupo, todos comparten la misma entrega.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/student/workshops\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Talleres", "body": "Tus talleres pendientes." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Abrir y entregar", "body": "Se autoguarda; en grupo la entrega es compartida." } }
+      ]
+    }
+  ]
+}

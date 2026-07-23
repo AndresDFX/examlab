@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqa06",
+  "kind": "faq",
+  "question": "¿Cómo elijo el modelo de IA y ajusto los prompts globales?",
+  "title": "Modelo y prompts de IA",
+  "series": "faq",
+  "role": "Admin",
+  "appPath": "/app/admin/ai-prompts",
+  "readySelectors": ["[data-tour-nav=\"/app/admin/ai-prompts\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo elijo el modelo de inteligencia artificial y ajusto los prompts globales?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "IA de la institución", "subtitle": "Modelo y prompts" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En la configuración de IA eliges el proveedor y el modelo que usa la institución, y editas los prompts globales para calificar y generar contenido. Los docentes pueden ajustar esos prompts para sus propios cursos.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/admin/ai-prompts\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Prompts", "body": "Modelo y prompts de la institución." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Modelo y prompts", "body": "Proveedor, modelo y textos base." } }
+      ]
+    }
+  ]
+}

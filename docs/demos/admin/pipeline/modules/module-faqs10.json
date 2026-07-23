@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqs10",
+  "kind": "faq",
+  "question": "¿Dónde veo el calendario con mis clases, exámenes y entregas?",
+  "title": "Mi calendario",
+  "series": "faq",
+  "role": "Estudiante",
+  "appPath": "/app/student/calendar",
+  "readySelectors": ["[data-tour-nav=\"/app/student/calendar\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Dónde veo un calendario con mis clases, exámenes y entregas?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Mi calendario", "subtitle": "Clases, exámenes y entregas" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Calendario ves el mes con un punto de color por tipo de evento: clases, exámenes, talleres y proyectos. Al tocar un día revisas el detalle de lo que tienes y qué se te vence pronto.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/student/calendar\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Calendario", "body": "Tus eventos del mes." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Vista de mes", "body": "Un punto de color por tipo de evento." } }
+      ]
+    }
+  ]
+}

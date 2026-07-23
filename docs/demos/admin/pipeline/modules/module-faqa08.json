@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqa08",
+  "kind": "faq",
+  "question": "¿Dónde veo las estadísticas de uso de mi institución?",
+  "title": "Estadísticas de la institución",
+  "series": "faq",
+  "role": "Admin",
+  "appPath": "/app/admin/statistics",
+  "readySelectors": ["[data-tour-nav=\"/app/admin/statistics\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Dónde veo las estadísticas de uso de mi institución?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Estadísticas", "subtitle": "Uso de la institución" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Estadísticas ves el resumen de actividad de la institución: cursos, usuarios y uso de la plataforma. Te sirve para entender cómo se está aprovechando y dónde hace falta apoyo.",
+      "bufferMs": 700,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/admin/statistics\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Estadísticas", "body": "La actividad de tu institución." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4000, "side": "bottom", "focus": { "title": "Resumen de uso", "body": "Cursos, usuarios y actividad." } }
+      ]
+    }
+  ]
+}

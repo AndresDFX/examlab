@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqa12",
+  "kind": "faq",
+  "question": "¿Cómo activo u oculto módulos del menú según el rol?",
+  "title": "Módulos del menú",
+  "series": "faq",
+  "role": "Admin",
+  "appPath": "/app/admin/settings",
+  "readySelectors": ["[data-tour-nav=\"/app/admin/settings\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo activo u oculto módulos del menú según el rol?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Módulos", "subtitle": "Muestra u oculta por rol" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Configuración de módulos decides qué secciones del menú ve cada rol y en qué orden aparecen. Activas o desactivas cada módulo para docentes, estudiantes o administradores según lo que necesite la institución.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/admin/settings\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Configuración", "body": "Los módulos del menú." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Visibilidad por rol", "body": "Activa, oculta y ordena por rol." } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqs06",
+  "kind": "faq",
+  "question": "¿Cómo le pregunto al tutor de IA sobre el material del curso?",
+  "title": "Tutor de IA del curso",
+  "series": "faq",
+  "role": "Estudiante",
+  "appPath": "/app/student/tutor",
+  "readySelectors": ["[data-tour-nav=\"/app/student/tutor\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo le pregunto al tutor de inteligencia artificial sobre el material del curso?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Tutor de IA", "subtitle": "Pregunta sobre el material" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "El Tutor de IA responde con base en el material real del curso, no solo con los títulos. Eliges el curso, escribes tu pregunta y, si quieres, referencias un archivo escribiendo almohadilla para que el tutor se enfoque en ese documento.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/student/tutor\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Tutor de IA", "body": "Un asistente por curso." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Elige el curso", "body": "Pregunta y referencia archivos con #." } }
+      ]
+    }
+  ]
+}

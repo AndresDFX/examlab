@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqa10",
+  "kind": "faq",
+  "question": "¿Cómo recupero algo que eliminé desde la papelera?",
+  "title": "Recuperar desde la papelera",
+  "series": "faq",
+  "role": "Admin",
+  "appPath": "/app/trash",
+  "readySelectors": ["[data-tour-nav=\"/app/trash\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo recupero algo que eliminé desde la papelera?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Papelera", "subtitle": "Recupera lo eliminado" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "Lo que eliminas va primero a la Papelera, donde permanece treinta días antes de borrarse para siempre. Desde ahí seleccionas el elemento y lo restauras, y vuelve tal como estaba.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/trash\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Papelera", "body": "Lo eliminado espera aquí 30 días." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Restaurar", "body": "Selecciona y recupéralo tal como estaba." } }
+      ]
+    }
+  ]
+}

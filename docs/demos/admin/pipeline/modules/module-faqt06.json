@@ -1,0 +1,31 @@
+{
+  "id": "modulo-faqt06",
+  "kind": "faq",
+  "question": "¿Cómo guardo preguntas para reutilizarlas en varios exámenes?",
+  "title": "Preguntas",
+  "series": "faq",
+  "role": "Docente",
+  "appPath": "/app/teacher/question-bank",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/question-bank\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo guardo preguntas para reutilizarlas en varios exámenes?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Preguntas", "subtitle": "Reutiliza en varios exámenes" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "El módulo de Preguntas guarda preguntas por curso para reutilizarlas cuando quieras. Eliges el curso, creas cada pregunta con su tipo y respuesta, y luego la insertas en los exámenes o talleres de ese curso sin volver a escribirla.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/teacher/question-bank\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Preguntas", "body": "Preguntas reutilizables por curso." } },
+        { "target": "text:Nueva", "scale": 1.35, "hold": 3200, "side": "bottom", "focus": { "title": "Nueva pregunta", "body": "Tipo, enunciado y respuesta." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 3400, "side": "bottom", "focus": { "title": "Reutilizar", "body": "Insértala en exámenes y talleres." } }
+      ]
+    }
+  ]
+}

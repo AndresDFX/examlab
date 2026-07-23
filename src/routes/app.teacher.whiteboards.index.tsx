@@ -54,6 +54,7 @@ import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { filterWhiteboards } from "@/modules/whiteboard/whiteboards-filter";
+import { buildNewSessionPayload } from "@/modules/sessions/create-session";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ActivityStatusSelect } from "@/shared/components/ActivityStatusSelect";
 import {

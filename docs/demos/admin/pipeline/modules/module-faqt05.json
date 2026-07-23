@@ -1,0 +1,31 @@
+{
+  "id": "modulo-faqt05",
+  "kind": "faq",
+  "question": "¿Cómo creo un proyecto con entrega de repositorio y sustentación?",
+  "title": "Crear un proyecto",
+  "series": "faq",
+  "role": "Docente",
+  "appPath": "/app/teacher/projects",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/projects\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo creo un proyecto con entrega de repositorio y sustentación?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Crear un proyecto", "subtitle": "Repositorio y sustentación" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Proyectos, Nuevo proyecto define los archivos que esperas, incluido un comprimido con el código. Los estudiantes entregan pegando el enlace del repositorio, y tú completas la nota final aplicando el factor de la sustentación.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/teacher/projects\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Proyectos", "body": "Tus proyectos del curso." } },
+        { "target": "text:Nuevo", "scale": 1.35, "hold": 3200, "side": "bottom", "focus": { "title": "Nuevo proyecto", "body": "Archivos esperados y repositorio." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 3400, "side": "bottom", "focus": { "title": "Sustentación", "body": "La nota final aplica el factor de sustentación." } }
+      ]
+    }
+  ]
+}

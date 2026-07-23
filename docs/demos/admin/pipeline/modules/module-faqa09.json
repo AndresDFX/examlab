@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqa09",
+  "kind": "faq",
+  "question": "¿Cómo reviso el registro de actividad y la auditoría de la institución?",
+  "title": "Registro de auditoría",
+  "series": "faq",
+  "role": "Admin",
+  "appPath": "/app/admin/audit-logs",
+  "readySelectors": ["[data-tour-nav=\"/app/admin/audit-logs\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo reviso el registro de actividad y la auditoría de la institución?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Auditoría", "subtitle": "Registro de actividad" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Auditoría encuentras el registro de las acciones importantes de la institución, con quién las hizo y cuándo. Puedes filtrar y buscar para investigar un evento o dar seguimiento a un cambio.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/admin/audit-logs\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Auditoría", "body": "El registro de actividad." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Eventos registrados", "body": "Quién hizo qué y cuándo; con filtros." } }
+      ]
+    }
+  ]
+}

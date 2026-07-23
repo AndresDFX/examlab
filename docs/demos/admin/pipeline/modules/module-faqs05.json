@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqs05",
+  "kind": "faq",
+  "question": "¿Cómo entrego un proyecto y subo el enlace del repositorio?",
+  "title": "Entregar un proyecto",
+  "series": "faq",
+  "role": "Estudiante",
+  "appPath": "/app/student/projects",
+  "readySelectors": ["[data-tour-nav=\"/app/student/projects\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo entrego un proyecto y dónde pongo el enlace del repositorio?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Entregar un proyecto", "subtitle": "Enlace del repositorio" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Proyectos abres el que te asignaron, subes tus archivos y, cuando aplica, un comprimido con todo tu código. Para entregar es obligatorio pegar el enlace del repositorio; la nota final se completa después de la sustentación con el docente.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/student/projects\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Proyectos", "body": "Tus proyectos asignados." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Archivos y repositorio", "body": "El enlace del repositorio es obligatorio." } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqs11",
+  "kind": "faq",
+  "question": "¿Cómo abro el material de clase y ejecuto el código del curso?",
+  "title": "Material y código del curso",
+  "series": "faq",
+  "role": "Estudiante",
+  "appPath": "/app/student/courses",
+  "readySelectors": ["[data-tour-nav=\"/app/student/courses\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo abro el material de clase y ejecuto el código que dejó el docente?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Material del curso", "subtitle": "Abre y ejecuta el código" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Cursos entras al tablero del curso y ves el material por clase: diapositivas, documentos, imágenes y archivos de código. Los archivos de código y los notebooks traen un botón para ejecutarlos ahí mismo y ver el resultado sin instalar nada.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/student/courses\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Cursos", "body": "El tablero de cada curso." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Tablero del curso", "body": "Material por clase; código ejecutable." } }
+      ]
+    }
+  ]
+}

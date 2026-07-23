@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqa04",
+  "kind": "faq",
+  "question": "¿Cómo configuro las carreras, asignaturas y periodos de mi institución?",
+  "title": "Estructura académica",
+  "series": "faq",
+  "role": "Admin",
+  "appPath": "/app/admin/academic",
+  "readySelectors": ["[data-tour-nav=\"/app/admin/academic\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo configuro las carreras, asignaturas y periodos de mi institución?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Estructura académica", "subtitle": "Carreras, asignaturas y periodos" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En la sección académica defines las carreras, las asignaturas con su sílabo y los periodos de la institución. Esa estructura sirve de base para organizar los cursos y sus planes de evaluación.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/admin/academic\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Académico", "body": "La estructura de tu institución." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Carreras y asignaturas", "body": "Con su sílabo y sus periodos." } }
+      ]
+    }
+  ]
+}

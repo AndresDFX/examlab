@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqsa06",
+  "kind": "faq",
+  "question": "¿Cómo estimo los costos y el precio de una institución?",
+  "title": "Calculadora de precios",
+  "series": "faq",
+  "role": "SuperAdmin",
+  "appPath": "/app/superadmin/pricing-calculator",
+  "readySelectors": ["[data-tour-nav=\"/app/superadmin/pricing-calculator\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo estimo los costos y el precio de una institución?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Calculadora de precios", "subtitle": "Costos por institución" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En la calculadora de precios ingresas los parámetros de una institución y obtienes una estimación de costos y precio. Te sirve para preparar una propuesta comercial con números claros.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/superadmin/pricing-calculator\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Calculadora", "body": "Estima costos y precio." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Parámetros y estimación", "body": "Ingresa los datos y obtén el precio." } }
+      ]
+    }
+  ]
+}

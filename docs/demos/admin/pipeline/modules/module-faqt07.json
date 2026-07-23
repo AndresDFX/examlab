@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqt07",
+  "kind": "faq",
+  "question": "¿Cómo subo el material y las diapositivas de mis clases?",
+  "title": "Subir material de clase",
+  "series": "faq",
+  "role": "Docente",
+  "appPath": "/app/teacher/contents",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/contents\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo subo el material y las diapositivas de mis clases?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Material de clase", "subtitle": "Diapositivas y documentos" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Contenidos subes diapositivas, documentos, imágenes y archivos de código, y los asignas a la clase que corresponde. También puedes generar material didáctico con inteligencia artificial. Los estudiantes lo ven ordenado por clase en el tablero del curso.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/teacher/contents\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Contenidos", "body": "El material de tus clases." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Material por clase", "body": "Sube o genera con IA y asigna a la clase." } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqt11",
+  "kind": "faq",
+  "question": "¿Cómo monitoreo un examen en vivo y reviso posibles fraudes?",
+  "title": "Monitorear un examen",
+  "series": "faq",
+  "role": "Docente",
+  "appPath": "/app/teacher/exams",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/exams\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo monitoreo un examen en vivo y reviso posibles fraudes?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Monitor de examen", "subtitle": "En vivo y detección de fraude" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "Desde Exámenes abres el monitor del examen y ves en vivo quién está presentando y sus avisos de proctoring. La plataforma marca las entregas sospechosas y compara respuestas entre estudiantes para ayudarte a detectar copia.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/teacher/exams\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Exámenes", "body": "Desde aquí abres el monitor." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Monitor y fraude", "body": "Avisos en vivo y entregas sospechosas." } }
+      ]
+    }
+  ]
+}

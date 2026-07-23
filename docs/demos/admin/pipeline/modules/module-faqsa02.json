@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqsa02",
+  "kind": "faq",
+  "question": "¿Cómo entro a ver una institución o inicio sesión como su Admin?",
+  "title": "Ver o entrar a una institución",
+  "series": "faq",
+  "role": "SuperAdmin",
+  "appPath": "/app/superadmin/tenants",
+  "readySelectors": ["[data-tour-nav=\"/app/superadmin/tenants\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo entro a ver una institución o inicio sesión como su administrador?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Ver una institución", "subtitle": "Entra como su Admin" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Instituciones, desde el menú de cada una eliges Ver como esa institución para navegar con su marca, o Iniciar sesión como su administrador para dar soporte desde adentro. Un banner te recuerda en qué institución estás.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/superadmin/tenants\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Instituciones", "body": "Cada fila es una institución." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Menú de la institución", "body": "Ver como… o iniciar sesión como su Admin." } }
+      ]
+    }
+  ]
+}

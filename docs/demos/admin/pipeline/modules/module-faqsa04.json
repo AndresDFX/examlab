@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqsa04",
+  "kind": "faq",
+  "question": "¿Cómo atiendo los tickets de soporte de las instituciones?",
+  "title": "Atender tickets de soporte",
+  "series": "faq",
+  "role": "SuperAdmin",
+  "appPath": "/app/superadmin/support",
+  "readySelectors": ["[data-tour-nav=\"/app/superadmin/support\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo atiendo los tickets de soporte que abren las instituciones?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Bandeja de soporte", "subtitle": "Tickets de las instituciones" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Soporte ves la bandeja de tickets de todas las instituciones, con filtros por estado e institución. Al responder, el ticket se te asigna y pasa a en proceso; lo cierras cuando queda resuelto.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/superadmin/support\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Soporte", "body": "Tickets de todas las instituciones." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Bandeja de tickets", "body": "Responde, se te asigna y ciérralo al resolver." } }
+      ]
+    }
+  ]
+}

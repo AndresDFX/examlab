@@ -1,0 +1,31 @@
+{
+  "id": "modulo-faqa11",
+  "kind": "faq",
+  "question": "¿Cómo abro un ticket de soporte al equipo de ExamLab?",
+  "title": "Abrir un ticket de soporte",
+  "series": "faq",
+  "role": "Admin",
+  "appPath": "/app/admin/support",
+  "readySelectors": ["[data-tour-nav=\"/app/admin/support\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo abro un ticket de soporte al equipo de ExamLab?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Soporte", "subtitle": "Escríbele al equipo de ExamLab" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Soporte, Nuevo ticket abre una petición al equipo de la plataforma con su categoría y descripción. Luego conversas por el chat del ticket y adjuntas archivos hasta que quede resuelto.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/admin/support\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Soporte", "body": "Tu canal con el equipo de ExamLab." } },
+        { "target": "text:Nuevo", "scale": 1.35, "hold": 3200, "side": "bottom", "focus": { "title": "Nuevo ticket", "body": "Categoría y descripción." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 3400, "side": "bottom", "focus": { "title": "Chat del ticket", "body": "Conversa y adjunta archivos." } }
+      ]
+    }
+  ]
+}

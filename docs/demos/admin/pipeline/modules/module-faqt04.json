@@ -1,0 +1,31 @@
+{
+  "id": "modulo-faqt04",
+  "kind": "faq",
+  "question": "¿Cómo creo un taller y genero sus preguntas con IA?",
+  "title": "Crear un taller con IA",
+  "series": "faq",
+  "role": "Docente",
+  "appPath": "/app/teacher/workshops",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/workshops\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo creo un taller y genero sus preguntas con inteligencia artificial?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Crear un taller", "subtitle": "Preguntas con IA" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Talleres, Nuevo taller define el curso, las fechas y si es en grupo. Luego agregas las preguntas a mano o pides que la inteligencia artificial las genere a partir del tema, y asignas el taller al curso.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/teacher/workshops\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Talleres", "body": "Tus talleres en un solo lugar." } },
+        { "target": "text:Nuevo", "scale": 1.35, "hold": 3200, "side": "bottom", "focus": { "title": "Nuevo taller", "body": "Curso, fechas y trabajo en grupo." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 3400, "side": "bottom", "focus": { "title": "Preguntas con IA", "body": "A mano o generadas por IA." } }
+      ]
+    }
+  ]
+}

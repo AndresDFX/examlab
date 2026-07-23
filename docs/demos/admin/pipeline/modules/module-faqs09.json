@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqs09",
+  "kind": "faq",
+  "question": "¿Cómo le escribo un mensaje a mi docente?",
+  "title": "Escribir a mi docente",
+  "series": "faq",
+  "role": "Estudiante",
+  "appPath": "/app/messages",
+  "readySelectors": ["[data-tour-id=\"messages-bell\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo le escribo un mensaje directo a mi docente?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Mensajes", "subtitle": "Escríbele a tu docente" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "Desde la campana de mensajes abres tu bandeja, eliges la conversación con tu docente o inicias una nueva, y escribes en el cuadro de abajo. Puedes adjuntar archivos y etiquetar un taller o examen escribiendo almohadilla.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-id=\"messages-bell\"]", "scale": 1.4, "hold": 3000, "side": "bottom", "focus": { "title": "Mensajes", "body": "Abre tu bandeja desde aquí." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4000, "side": "bottom", "focus": { "title": "Tu conversación", "body": "Escribe, adjunta y etiqueta con #." } }
+      ]
+    }
+  ]
+}

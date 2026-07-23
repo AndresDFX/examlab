@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqt10",
+  "kind": "faq",
+  "question": "¿Cómo genero un informe del curso?",
+  "title": "Generar un informe",
+  "series": "faq",
+  "role": "Docente",
+  "appPath": "/app/teacher/reports",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/reports\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo genero un informe del curso?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Informe del curso", "subtitle": "Con ayuda de la IA" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Informes eliges una plantilla y el curso, y la plataforma arma el informe con el contexto del curso y ayuda de la inteligencia artificial. Puedes revisarlo y descargarlo para compartirlo con la institución.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/teacher/reports\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Informes", "body": "Informes de tus cursos." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Plantilla y curso", "body": "La IA arma el informe con su contexto." } }
+      ]
+    }
+  ]
+}

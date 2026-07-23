@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqs08",
+  "kind": "faq",
+  "question": "¿Dónde descargo mis certificados?",
+  "title": "Mis certificados",
+  "series": "faq",
+  "role": "Estudiante",
+  "appPath": "/app/student/certificates",
+  "readySelectors": ["[data-tour-nav=\"/app/student/certificates\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Dónde descargo los certificados que gané?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Mis certificados", "subtitle": "Descarga tu diploma" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Certificados aparecen los que la institución te ha emitido por los cursos aprobados. Desde cada uno descargas el archivo para guardarlo o compartirlo cuando lo necesites.",
+      "bufferMs": 700,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/student/certificates\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Certificados", "body": "Los que te ha emitido la institución." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4000, "side": "bottom", "focus": { "title": "Descargar", "body": "Guarda o comparte tu certificado." } }
+      ]
+    }
+  ]
+}

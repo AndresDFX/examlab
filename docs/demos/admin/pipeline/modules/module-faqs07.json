@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqs07",
+  "kind": "faq",
+  "question": "¿Cómo respondo una encuesta o me uno a un Reto en vivo?",
+  "title": "Encuestas y Reto en vivo",
+  "series": "faq",
+  "role": "Estudiante",
+  "appPath": "/app/student/polls",
+  "readySelectors": ["[data-tour-nav=\"/app/student/polls\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo respondo una encuesta o me uno a un Reto en vivo?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Encuestas y Reto en vivo", "subtitle": "Responde o únete con un PIN" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Encuestas ves las que están abiertas y eliges tu opción; si la encuesta lo permite, puedes cambiar o quitar tu respuesta. Cuando el docente lanza un Reto en vivo, te unes con el PIN que proyecta y respondes desde tu celular en tiempo real.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/student/polls\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Encuestas", "body": "Encuestas y retos del curso." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Responder o unirse", "body": "Elige tu opción o entra con el PIN." } }
+      ]
+    }
+  ]
+}

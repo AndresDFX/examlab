@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqsa05",
+  "kind": "faq",
+  "question": "¿Cómo reviso el estado y los diagnósticos de la plataforma?",
+  "title": "Estado de la plataforma",
+  "series": "faq",
+  "role": "SuperAdmin",
+  "appPath": "/app/superadmin/system",
+  "readySelectors": ["[data-tour-nav=\"/app/superadmin/system\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo reviso el estado y los diagnósticos de la plataforma?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Diagnósticos", "subtitle": "Estado de la plataforma" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En el panel de sistema revisas los diagnósticos de la plataforma: correo, notificaciones, tareas programadas y demás servicios. Cada tarjeta muestra si está en orden o si algo necesita atención.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/superadmin/system\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Sistema", "body": "El estado de la plataforma." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Diagnósticos", "body": "Una tarjeta por servicio." } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqt09",
+  "kind": "faq",
+  "question": "¿Cómo uso una pizarra compartida con consola de código durante la clase?",
+  "title": "Pizarra compartida",
+  "series": "faq",
+  "role": "Docente",
+  "appPath": "/app/teacher/whiteboards",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/whiteboards\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo uso una pizarra compartida con consola de código en clase?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Pizarra compartida", "subtitle": "Dibuja y ejecuta código" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Pizarras creas una pizarra y, al activarla como compartida, los estudiantes ven y editan lo mismo en vivo. Además puedes preparar fragmentos de código y ejecutarlos ahí mismo para mostrar el resultado durante la clase.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/teacher/whiteboards\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Pizarras", "body": "Tus pizarras de clase." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Compartir y ejecutar", "body": "Edición en vivo y código ejecutable." } }
+      ]
+    }
+  ]
+}

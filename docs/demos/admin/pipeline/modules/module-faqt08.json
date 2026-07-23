@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqt08",
+  "kind": "faq",
+  "question": "¿Cómo lanzo un Reto en vivo con mis estudiantes?",
+  "title": "Lanzar un Reto en vivo",
+  "series": "faq",
+  "role": "Docente",
+  "appPath": "/app/teacher/polls",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/polls\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo lanzo un Reto en vivo con mis estudiantes?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Reto en vivo", "subtitle": "Preguntas en tiempo real" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Encuestas creas un Reto en vivo con sus preguntas, tiempo y puntaje. Al lanzarlo se genera un PIN que proyectas; los estudiantes se unen desde su celular y responden en tiempo real mientras ves el marcador.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/teacher/polls\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Encuestas", "body": "Encuestas y Reto en vivo." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Crear y lanzar", "body": "Genera el PIN y proyéctalo a la clase." } }
+      ]
+    }
+  ]
+}
