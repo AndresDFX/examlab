@@ -346,6 +346,35 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
               "Máquina Linux real ejecutándose en tu navegador. Escribe comandos como en una terminal normal. Es un entorno de práctica EFÍMERO y aislado: corre solo en tu navegador, cada sesión arranca limpia y nada se guarda — no afecta ningún servidor real.",
           })}
         </p>
+        {/* Guía de comandos: el sistema es un Linux MÍNIMO (BusyBox), sin gestor
+            de paquetes ni red. Los alumnos vienen con reflejos de Ubuntu
+            (sudo/apt/pip) que NO aplican acá → esta ayuda aclara qué usar. */}
+        <details className="mt-1.5 group">
+          <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground hover:text-foreground">
+            {t("serverConsole.helpTitle", { defaultValue: "¿Qué comandos funcionan aquí?" })}
+          </summary>
+          <ul className="mt-1 space-y-0.5 text-[11px] text-muted-foreground list-disc pl-4">
+            <li>{t("serverConsole.helpRoot", { defaultValue: "Ya eres root: no uses sudo." })}</li>
+            <li>
+              {t("serverConsole.helpOffline", {
+                defaultValue:
+                  "Sandbox aislado sin internet: apt, apk y pip install no funcionan (no hay de dónde bajar paquetes).",
+              })}
+            </li>
+            <li>
+              {t("serverConsole.helpCommands", {
+                defaultValue:
+                  "Es un Linux mínimo (BusyBox). Funcionan: ls, cd, pwd, cat, echo, mkdir, rm, cp, mv, touch, vi, grep, sed, awk, find, chmod, ps, wc, head, tail, tar, mount, y scripts de shell (pipes | y redirecciones > incluidos).",
+              })}
+            </li>
+            <li>
+              {t("serverConsole.helpLanguages", {
+                defaultValue:
+                  "¿Necesitas Python, Java o JavaScript? Usa una hoja de Código: ejecuta el lenguaje de verdad.",
+              })}
+            </li>
+          </ul>
+        </details>
       </div>
 
       <div className="relative bg-zinc-950">
