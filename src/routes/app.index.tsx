@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
@@ -23,6 +23,7 @@ import {
 } from "@/modules/grading/feedback-stats";
 import { AiGradingQueueWidget } from "@/modules/ai/AiGradingQueueWidget";
 import { StudentEventsCalendar } from "@/modules/dashboard/StudentEventsCalendar";
+import { SessionTypeBadge } from "@/modules/sessions/SessionTypeBadge";
 import {
   FileText,
   Hammer,
@@ -1202,8 +1203,11 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                       title={s.title ?? t("dashboard.untitledSession", { defaultValue: "Clase" })}
                       subtitle={s.course?.name}
                       date={`${dateLabel}${timeLabel}`}
-                      badge={s.session_type === "autonoma" ? t("sessionType.autonoma") : undefined}
-                      badgeColor="bg-violet-500 text-white"
+                      badgeNode={
+                        s.session_type === "autonoma" ? (
+                          <SessionTypeBadge type="autonoma" />
+                        ) : undefined
+                      }
                     />
                   );
                 })
@@ -1860,12 +1864,16 @@ function EventRow({
   date,
   badge,
   badgeColor = "bg-primary text-primary-foreground",
+  badgeNode,
 }: {
   title: string;
   subtitle?: string;
   date: string;
   badge?: string;
   badgeColor?: string;
+  /** Badge arbitrario (ej. <SessionTypeBadge/>) cuando el pill de string no
+   *  alcanza. Se renderiza tal cual, sin envolver en <Badge>. */
+  badgeNode?: ReactNode;
 }) {
   return (
     <div className="flex items-start gap-2 p-2 rounded-md border">
@@ -1877,7 +1885,11 @@ function EventRow({
         {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
         <div className="text-xs text-muted-foreground mt-0.5">{date}</div>
       </div>
-      {badge && <Badge className={`text-[10px] shrink-0 ${badgeColor}`}>{badge}</Badge>}
+      {badgeNode ? (
+        <span className="shrink-0">{badgeNode}</span>
+      ) : (
+        badge && <Badge className={`text-[10px] shrink-0 ${badgeColor}`}>{badge}</Badge>
+      )}
     </div>
   );
 }

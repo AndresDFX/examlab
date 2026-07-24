@@ -87,7 +87,9 @@ BEGIN
                AT TIME ZONE 'America/Bogota' <= now()
          AND (s.session_date + COALESCE(s.start_time, '09:00'::time))
                AT TIME ZONE 'America/Bogota' > now() - INTERVAL '2 hours'
-       FOR UPDATE SKIP LOCKED
+       -- OF s: solo lockeamos la fila de attendance_sessions (no la de courses
+       -- del JOIN) para no saltear una sesión por contención en courses.
+       FOR UPDATE OF s SKIP LOCKED
     LOOP
       -- Una notif por alumno matriculado (kind emailable → correo + campana + push).
       INSERT INTO public.notifications (user_id, title, body, kind, link)

@@ -46,6 +46,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { DateCell } from "@/components/ui/date-cell";
 import { formatDateOnly } from "@/shared/lib/format";
 import { buildNewSessionPayload } from "@/modules/sessions/create-session";
+import { SESSION_TYPES, type SessionType } from "@/modules/sessions/session-type";
 import {
   nextBoardContentName,
   uploadBoardContent,
@@ -415,6 +416,7 @@ function CourseBoardPage() {
   const [draftStartTime, setDraftStartTime] = useState("09:00");
   const [draftDuration, setDraftDuration] = useState(90);
   const [draftTitle, setDraftTitle] = useState("");
+  const [draftSessionType, setDraftSessionType] = useState<SessionType>("virtual");
   const [draftMeetingUrl, setDraftMeetingUrl] = useState("");
   const [draftRecordingUrl, setDraftRecordingUrl] = useState("");
   const [draftNotesUrl, setDraftNotesUrl] = useState("");
@@ -805,6 +807,7 @@ function CourseBoardPage() {
             meeting_url: draftMeetingUrl.trim() || null,
             recording_url: draftRecordingUrl.trim() || null,
             notes_url: draftNotesUrl.trim() || null,
+            session_type: draftSessionType,
           }),
         )
         .select(
@@ -822,6 +825,7 @@ function CourseBoardPage() {
       setDraftStartTime("09:00");
       setDraftDuration(90);
       setDraftTitle("");
+      setDraftSessionType("virtual");
       setDraftMeetingUrl("");
       setDraftRecordingUrl("");
       setDraftNotesUrl("");
@@ -1310,6 +1314,27 @@ function CourseBoardPage() {
               placeholder={t("course.boardSessionTitlePlaceholder")}
               className="h-8 text-xs"
             />
+          </div>
+          <div className="space-y-1 w-full sm:w-auto sm:min-w-[140px]">
+            <Label className="text-[11px]">{t("sessionType.label")}</Label>
+            <Select
+              value={editingId ? "virtual" : draftSessionType}
+              onValueChange={(v) => {
+                if (editingId) cancelEdit();
+                setDraftSessionType(v as SessionType);
+              }}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SESSION_TYPES.map((st) => (
+                  <SelectItem key={st} value={st}>
+                    {t(`sessionType.${st}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1 w-full sm:flex-1 sm:min-w-[160px] md:min-w-48">
             <Label className="text-[11px]">{t("course.boardMeetingUrl")}</Label>

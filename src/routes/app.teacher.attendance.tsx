@@ -561,6 +561,9 @@ function TeacherAttendance() {
         start_time: s.start_time ?? null,
         duration_minutes: s.duration_minutes ?? null,
         meeting_url: s.meeting_url ?? null,
+        // La modalidad es estructural de la sesión → se copia siempre (sin
+        // este campo, duplicar una autónoma/presencial daba una copia virtual).
+        session_type: s.session_type ?? "virtual",
       };
       if (opts.copyContent) {
         payload.content_id = s.content_id ?? null;

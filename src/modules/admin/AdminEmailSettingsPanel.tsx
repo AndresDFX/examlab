@@ -67,6 +67,9 @@ interface EnabledKinds {
    *  estudiantes del curso). Lo dispara el trigger AFTER INSERT en
    *  course_enrollments (mig 20261110000000). Default true. */
   course_welcome?: boolean;
+  /** Aviso al inicio de una sesión AUTÓNOMA (cron notify-autonomous-sessions,
+   *  mig 20261490000000). Default true. */
+  session_start?: boolean;
 }
 
 interface EmailSettings {
@@ -160,6 +163,13 @@ const CATEGORIES: Array<{
     desc: "Correo automático cuando se inscribe a un estudiante en un curso, por cualquier vía (alta individual, importación masiva o gestión de estudiantes del curso).",
     icon: GraduationCap,
     color: "text-teal-500",
+  },
+  {
+    key: "session_start",
+    label: "Inicio de sesión autónoma",
+    desc: "Aviso automático a los estudiantes del curso cuando llega la fecha y hora de inicio de una sesión de tipo Autónoma, para que revisen el material.",
+    icon: BookOpen,
+    color: "text-violet-500",
   },
 ];
 
