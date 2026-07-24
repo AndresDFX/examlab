@@ -50,6 +50,45 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## Historial
 
+> Desde 2026-07-24 el Historial se versiona por release (`## [X.Y.Z] — fecha`, un Publish = una versión).
+> Proceso y reglas de bump: **[docs/RELEASING.md](docs/RELEASING.md)**. Las entradas fechadas de abajo
+> (formato viejo `### AAAA-MM-DD`) se conservan tal cual.
+
+## [1.1.0] — 2026-07-24
+
+### 🎉 Novedades
+- **Sesiones y asistencia:** cada sesión se marca como **Presencial, Virtual o Autónoma**. Las autónomas
+  **notifican a los estudiantes** en su fecha/hora de inicio para que revisen el material, y el alumno "asiste"
+  marcando **"Ya revisé el material"** (cuenta como presente).
+- **Pizarras:** hoja de **código con compilador** (igual que en el examen) + **autoguardado**; al asociar una
+  pizarra a un curso la **sesión es obligatoria** (se puede crear en el momento); se pide el **nombre de la 1ª hoja**.
+- **Consola / terminal:** se aclara que es un **sandbox efímero** (corre en el navegador, no toca ningún servidor
+  real) con badge + botón **"Reiniciar"** (sesión limpia) y una guía **"¿qué comandos funcionan aquí?"**.
+- **Preguntas:** el "Banco de preguntas" ahora se llama **"Preguntas"**; el material de un curso cerrado se ve bajo
+  el filtro "cerrados".
+- **Cursos:** recordatorio recurrente al docente para **cerrar un curso vencido**.
+
+### 🔧 Correcciones
+- **Experiencia de uso:** la app **ya no se recarga/reinicia al cambiar de pestaña** del navegador (la pizarra y la
+  consola conservan el estado); pulido de la toma de examen, listas del estudiante y tableros (estados de carga y de
+  error, esqueletos de carga); mejoras en móvil (áreas táctiles, diseño responsive).
+- **Reto en vivo:** la **respuesta correcta ya no queda siempre en la primera opción** (se baraja al crear; datos
+  existentes corregidos). *(El más rápido en acertar ya recibía más puntos — sin cambios.)*
+- **Consola Linux (v86):** ahora **bootea y carga de forma confiable** (varios arreglos de imagen/assets del emulador).
+- **Traducción al inglés:** se corrigieron pantallas que mostraban texto en español a usuarios en inglés (tour de
+  bienvenida, catálogo de reportes, selects de facturación, días de la semana, varios textos).
+- **Correos:** se quitaron los emojis decorativos de las plantillas; el correo de asociación referencia los 3 modelos
+  + credenciales y video de acceso.
+
+### Interno (equipo)
+- Commits `2b5fb72e`…`1852ef81` (git log 2026-07-22 → 2026-07-24; incluye la auditoría web/móvil de consistencia+i18n).
+- Migraciones: `20261480000000` (session_type + notified_start_at), `20261490000000` (kind `session_start` + cron
+  `notify-autonomous-sessions` + RPC `student_review_autonomous_session`), `20261500000000` (barajado en import de banco a kahoot).
+- Datos: re-barajado de opciones de kahoot en **FESNA** (cursos "Administración de SO de Servidor" y "Cableado
+  Estructurado", 72 preguntas) — solo `position`, `is_correct` intacto.
+- Videos demo regrabados (series por rol + escena Cola de IA). **Requiere Publish en Lovable.**
+- Invariante nueva: la modalidad de sesión (`session_type`) y el kind emailable `session_start` (predicado de 3 lados).
+
 ### 2026-07-20
 
 - **Módulo comercial de Instituciones (SuperAdmin).** `tenants` gana columnas comerciales
