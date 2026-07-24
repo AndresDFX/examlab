@@ -700,11 +700,20 @@ function TeacherPolls() {
             toast.error(friendlyError(qInsErr, t("teacherPolls.errCopyKahootQuestions")));
             return;
           }
-          const optRows = (q.options ?? []).map((o) => ({
+          // Barajar la posición al duplicar: la copia obtiene un layout de
+          // opciones distinto (la correcta no queda en el mismo slot que el
+          // original). Solo permutamos `position`; is_correct viaja con su fila.
+          const srcOpts = q.options ?? [];
+          const shuffledPos = srcOpts.map((_, i) => i);
+          for (let i = shuffledPos.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffledPos[i], shuffledPos[j]] = [shuffledPos[j], shuffledPos[i]];
+          }
+          const optRows = srcOpts.map((o, idx) => ({
             question_id: newQ.id,
             label: o.label,
             is_correct: o.is_correct,
-            position: o.position,
+            position: shuffledPos[idx],
           }));
           if (optRows.length > 0) {
             const { error: oInsErr } = await db.from("kahoot_question_options").insert(optRows);

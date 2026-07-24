@@ -1354,11 +1354,21 @@ Idioma de salida obligatorio: ${langName}.`;
           console.error("[ai-generate-questions] kahoot question insert", qErr);
           continue;
         }
+        // Barajar la POSICIÓN de las opciones: el LLM tiende a devolver la
+        // respuesta correcta como opción A (correct_indices=[0]) y el juego
+        // renderiza ORDER BY position, así que sin barajar la correcta quedaba
+        // SIEMPRE en el primer slot (bug reportado). Permutamos solo `position`
+        // (is_correct viaja con su fila) → la correcta cae en un slot aleatorio.
+        const perm = opts.map((_, i) => i);
+        for (let i = perm.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [perm[i], perm[j]] = [perm[j], perm[i]];
+        }
         const optRows = opts.map((label, idx) => ({
           question_id: qRow.id,
           label: String(label).slice(0, 200),
           is_correct: correctSet.has(idx),
-          position: idx,
+          position: perm[idx],
         }));
         // Defensa: garantizar ≥1 correcta si el modelo no marcó ninguna válida.
         if (!optRows.some((o) => o.is_correct)) optRows[0].is_correct = true;
