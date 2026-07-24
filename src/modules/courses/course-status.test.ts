@@ -3,6 +3,8 @@ import {
   COURSE_STATUS_VALUES,
   deriveCourseDisplayState,
   summarizeCourses,
+  partitionCoursesByLifecycle,
+  sortCoursesByPriority,
 } from "./course-status";
 
 // Fecha de referencia fija para todos los casos: 2026-06-14T12:00:00Z.
@@ -121,5 +123,69 @@ describe("summarizeCourses", () => {
       upcoming: 0,
       finalized: 0,
     });
+  });
+});
+
+describe("partitionCoursesByLifecycle", () => {
+  const mk = (id: string, name: string, status: string) => ({ id, name, status });
+
+  it("open = no-finalizado, closed = finalizado; alfabético es-CO dentro de cada grupo", () => {
+    const courses = [
+      mk("1", "Zoología", "en_curso"),
+      mk("2", "álgebra", "finalizado"),
+      mk("3", "Botánica", "borrador"),
+      mk("4", "Cálculo", "en_curso"),
+      mk("5", "Redes", "finalizado"),
+    ];
+    const { open, closed } = partitionCoursesByLifecycle(courses);
+    // open: Botánica (borrador), Cálculo (en_curso), Zoología (en_curso) — alfabético
+    expect(open.map((c) => c.name)).toEqual(["Botánica", "Cálculo", "Zoología"]);
+    // closed: álgebra, Redes — alfabético insensible a acentos/mayúsculas
+    expect(closed.map((c) => c.name)).toEqual(["álgebra", "Redes"]);
+  });
+
+  it("keepIds fuerza a open un curso finalizado (el que se está editando/filtrando)", () => {
+    const courses = [
+      mk("1", "Activo", "en_curso"),
+      mk("2", "Viejo", "finalizado"),
+    ];
+    const { open, closed } = partitionCoursesByLifecycle(courses, ["2"]);
+    expect(open.map((c) => c.id).sort()).toEqual(["1", "2"]);
+    expect(closed).toEqual([]);
+  });
+
+  it("status ausente/null → tratado como open (no se esconde)", () => {
+    const courses = [
+      { id: "1", name: "Sin status", status: null },
+      { id: "2", name: "Undef", status: undefined },
+    ];
+    const { open, closed } = partitionCoursesByLifecycle(courses);
+    expect(open).toHaveLength(2);
+    expect(closed).toHaveLength(0);
+  });
+
+  it("acepta Set como keepIds", () => {
+    const { open } = partitionCoursesByLifecycle(
+      [{ id: "x", name: "X", status: "finalizado" }],
+      new Set(["x"]),
+    );
+    expect(open.map((c) => c.id)).toEqual(["x"]);
+  });
+});
+
+describe("sortCoursesByPriority", () => {
+  it("lista plana: abiertos primero (alfabético), luego cerrados (alfabético)", () => {
+    const courses = [
+      { id: "1", name: "Cerrado B", status: "finalizado" },
+      { id: "2", name: "Abierto B", status: "en_curso" },
+      { id: "3", name: "Cerrado A", status: "finalizado" },
+      { id: "4", name: "Abierto A", status: "en_curso" },
+    ];
+    expect(sortCoursesByPriority(courses).map((c) => c.name)).toEqual([
+      "Abierto A",
+      "Abierto B",
+      "Cerrado A",
+      "Cerrado B",
+    ]);
   });
 });

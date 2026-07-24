@@ -30,7 +30,17 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "./input";
 import { Button } from "./button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "./select";
+import { partitionCoursesByLifecycle } from "@/modules/courses/course-status";
 
 const ALL_COURSES = "__all__";
 const ALL_CUTS = "__all_cuts__";
@@ -42,7 +52,9 @@ interface ListFiltersProps {
   /** ID del curso seleccionado, o null para "Todos los cursos". */
   courseId: string | null;
   onCourseChange: (v: string | null) => void;
-  courses: Array<{ id: string; name: string }>;
+  /** `status` (opcional) habilita el agrupado "Cursos activos"/"Cerrados" con
+   *  los abiertos primero. Si no viene, degrada a una lista plana alfabética. */
+  courses: Array<{ id: string; name: string; status?: string | null }>;
   /** Etiqueta para el item "todos" — default "Todos los cursos". */
   allLabel?: string;
   /**
@@ -89,6 +101,12 @@ export function ListFilters({
     allLabel ?? t("hc_componentsUiListFilters.allCourses", { defaultValue: "Todos los cursos" });
   const resolvedAllCutsLabel =
     allCutsLabel ?? t("hc_componentsUiListFilters.allCuts", { defaultValue: "Todos los cortes" });
+  // Prioridad UX: cursos ABIERTOS primero. `keepIds` mantiene el curso
+  // seleccionado en el grupo activo aunque esté finalizado (no lo esconde abajo).
+  const { open: openCourses, closed: closedCourses } = partitionCoursesByLifecycle(
+    courses,
+    courseId ? [courseId] : undefined,
+  );
   const cutsForCourse = courseId ? (cuts ?? []).filter((c) => c.course_id === courseId) : [];
   const showCutSelect = !!courseId && cutsForCourse.length > 0 && !!onCutChange;
   const hasFilters = !!search || courseId != null || cutId != null;
@@ -112,11 +130,37 @@ export function ListFilters({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL_COURSES}>{resolvedAllLabel}</SelectItem>
-          {courses.map((c) => (
-            <SelectItem key={c.id} value={c.id}>
-              {c.name}
-            </SelectItem>
-          ))}
+          {closedCourses.length > 0 ? (
+            <>
+              <SelectGroup>
+                <SelectLabel>
+                  {t("course.groupActive", { defaultValue: "Cursos activos" })}
+                </SelectLabel>
+                {openCourses.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+              <SelectSeparator />
+              <SelectGroup>
+                <SelectLabel>
+                  {t("course.groupClosed", { defaultValue: "Cursos cerrados" })}
+                </SelectLabel>
+                {closedCourses.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </>
+          ) : (
+            openCourses.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))
+          )}
         </SelectContent>
       </Select>
       {showCutSelect && (

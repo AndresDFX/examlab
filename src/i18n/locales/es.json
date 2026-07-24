@@ -502,6 +502,8 @@
       "proximo": "Próximo",
       "finalizado": "Finalizado"
     },
+    "groupActive": "Cursos activos",
+    "groupClosed": "Cursos cerrados",
     "actionPublish": "Publicar (poner en curso)",
     "actionPublishConfirmTitle": "¿Publicar el curso?",
     "actionPublishConfirmBody": "El curso pasará a En curso y será visible como activo.",

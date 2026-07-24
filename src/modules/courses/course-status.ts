@@ -70,6 +70,60 @@ export function deriveCourseDisplayState(
   return "en_curso";
 }
 
+/** Forma mínima para ordenar/particionar un curso en un selector. */
+export interface CoursePickShape extends CourseLifecycleShape {
+  id: string;
+  name: string;
+}
+
+/** Collation es-CO estable (numérico + insensible a mayúsculas/acentos),
+ *  mismo criterio que useTableSort — vacíos van al final. */
+function byNameEsCo<T extends { name?: string | null }>(a: T, b: T): number {
+  const an = (a.name ?? "").trim();
+  const bn = (b.name ?? "").trim();
+  if (!an && !bn) return 0;
+  if (!an) return 1;
+  if (!bn) return -1;
+  return an.localeCompare(bn, "es-CO", { numeric: true, sensitivity: "base" });
+}
+
+/**
+ * Parte una lista de cursos en { open, closed } para priorizar los ABIERTOS
+ * en los selectores/filtros de curso (UX: el docente con 1 curso activo + N
+ * finalizados ve primero el activo). `open` = todo lo que NO está finalizado
+ * (borrador + en_curso + próximo); `closed` = finalizado. Cada grupo se ordena
+ * alfabético es-CO. `keepIds` fuerza a `open` los cursos seleccionados aunque
+ * estén finalizados (el curso que se está editando/filtrando no debe esconderse).
+ *
+ * Es la ÚNICA fuente de orden de cursos en los selectores — no duplicar el
+ * criterio inline. Render agrupado (SelectGroup "Cursos activos"/"Cerrados") o
+ * plano (sortCoursesByPriority) según el contenedor.
+ */
+export function partitionCoursesByLifecycle<T extends CoursePickShape>(
+  courses: readonly T[],
+  keepIds?: ReadonlySet<string> | readonly string[],
+): { open: T[]; closed: T[] } {
+  const keep = keepIds instanceof Set ? keepIds : new Set(keepIds ?? []);
+  const open: T[] = [];
+  const closed: T[] = [];
+  for (const c of courses) {
+    if (c.status === "finalizado" && !keep.has(c.id)) closed.push(c);
+    else open.push(c);
+  }
+  open.sort(byNameEsCo);
+  closed.sort(byNameEsCo);
+  return { open, closed };
+}
+
+/** Lista PLANA con los abiertos primero (para selectores que no agrupan). */
+export function sortCoursesByPriority<T extends CoursePickShape>(
+  courses: readonly T[],
+  keepIds?: ReadonlySet<string> | readonly string[],
+): T[] {
+  const { open, closed } = partitionCoursesByLifecycle(courses, keepIds);
+  return [...open, ...closed];
+}
+
 /** Conteos por estado de display para las StatCards del grid. */
 export interface CoursesSummary {
   total: number;

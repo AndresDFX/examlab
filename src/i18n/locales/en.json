@@ -502,6 +502,8 @@
       "proximo": "Upcoming",
       "finalizado": "Finished"
     },
+    "groupActive": "Active courses",
+    "groupClosed": "Closed courses",
     "actionPublish": "Publish (set in progress)",
     "actionPublishConfirmTitle": "Publish course?",
     "actionPublishConfirmBody": "The course will move to In progress and show as active.",
