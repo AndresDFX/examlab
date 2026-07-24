@@ -9266,7 +9266,10 @@
   "serverConsole": {
     "title": "Consola del servidor (Linux)",
     "liveBadge": "Linux real",
-    "hintV86": "Máquina Linux real ejecutándose en tu navegador. Escribe comandos como en una terminal normal.",
+    "ephemeralBadge": "Efímero",
+    "restart": "Reiniciar",
+    "restartTitle": "Reiniciar con una sesión limpia",
+    "hintV86": "Máquina Linux real ejecutándose en tu navegador. Escribe comandos como en una terminal normal. Es un entorno de práctica EFÍMERO y aislado: corre solo en tu navegador, cada sesión arranca limpia y nada se guarda — no afecta ningún servidor real.",
     "loading": "Cargando el emulador…",
     "booting": "Iniciando Linux…",
     "error": "No se pudo iniciar la consola.",

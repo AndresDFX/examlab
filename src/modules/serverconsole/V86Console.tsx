@@ -281,6 +281,17 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt]);
 
+  // Reiniciar a una sesión LIMPIA: descarta el transcript/comandos acumulados y
+  // re-bootea una VM fresca (bump de `attempt` → el effect corre de nuevo). Deja
+  // explícito el carácter EFÍMERO del sandbox (nada persiste entre sesiones).
+  const restartConsole = () => {
+    transcriptRef.current = "";
+    commandsRef.current = [];
+    cmdBufRef.current = "";
+    onChange?.(serializeV86Answer({ transcript: "", commands: [] }));
+    setAttempt((a) => a + 1);
+  };
+
   // Modo revisión: no bootea VM, muestra el transcript guardado.
   if (readOnly) {
     const parsed = parseV86Answer(value);
@@ -310,11 +321,29 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
               {t("serverConsole.liveBadge", { defaultValue: "Linux real" })}
             </span>
           )}
+          {/* Sandbox efímero: refuerza que corre en el navegador y no toca
+              infraestructura real. Se muestra siempre (no solo cuando ready). */}
+          <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium text-violet-500">
+            {t("serverConsole.ephemeralBadge", { defaultValue: "Efímero" })}
+          </span>
+          {/* Reiniciar → sesión limpia (nueva VM efímera). Solo en modo edición
+              (readOnly = revisión, no hay VM viva). */}
+          {!readOnly && status === "ready" && (
+            <button
+              type="button"
+              onClick={restartConsole}
+              title={t("serverConsole.restartTitle", { defaultValue: "Reiniciar con una sesión limpia" })}
+              className="ml-auto inline-flex items-center gap-1 rounded border border-border/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted"
+            >
+              <RotateCw className="h-3 w-3" />
+              {t("serverConsole.restart", { defaultValue: "Reiniciar" })}
+            </button>
+          )}
         </div>
         <p className="text-muted-foreground mt-0.5">
           {t("serverConsole.hintV86", {
             defaultValue:
-              "Máquina Linux real ejecutándose en tu navegador. Escribe comandos como en una terminal normal.",
+              "Máquina Linux real ejecutándose en tu navegador. Escribe comandos como en una terminal normal. Es un entorno de práctica EFÍMERO y aislado: corre solo en tu navegador, cada sesión arranca limpia y nada se guarda — no afecta ningún servidor real.",
           })}
         </p>
       </div>

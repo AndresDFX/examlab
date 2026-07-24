@@ -9266,7 +9266,10 @@
   "serverConsole": {
     "title": "Server console (Linux)",
     "liveBadge": "Real Linux",
-    "hintV86": "A real Linux machine running in your browser. Type commands like in a normal terminal.",
+    "ephemeralBadge": "Ephemeral",
+    "restart": "Restart",
+    "restartTitle": "Restart with a clean session",
+    "hintV86": "A real Linux machine running in your browser. Type commands like in a normal terminal. It's an EPHEMERAL, isolated practice sandbox: it runs only in your browser, every session starts clean and nothing is saved — it does not touch any real server.",
     "loading": "Loading the emulator…",
     "booting": "Starting Linux…",
     "error": "The console could not be started.",

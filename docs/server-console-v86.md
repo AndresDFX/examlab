@@ -7,6 +7,20 @@ determinista y ahora bootea un **Linux x86 REAL** dentro del navegador con
 [jslinux](https://bellard.org/jslinux/): **todos** los comandos funcionan de
 verdad (no hay simulación de comandos).
 
+> **Efímero + aislado por diseño (sandbox).** Toda la VM corre DENTRO del
+> navegador (x86 → WebAssembly); NO hay backend de ejecución ni conexión a
+> ningún servidor real. El único tráfico es la descarga READ-ONLY de la imagen
+> de arranque (Supabase Storage / CDN); las escrituras del alumno viven en la
+> memoria de la VM (RAM / 9p) y se **descartan al cerrar o recargar** la hoja.
+> No hay `save_state`/persistencia cableada para la consola de las hojas, así
+> que `rm -rf`, instalar paquetes, escribir archivos, etc. NO pueden afectar
+> infraestructura real: cada sesión arranca limpia. El botón **"Reiniciar"** de
+> la cabecera fuerza una VM nueva a demanda (descarta transcript + comandos).
+> Lo ÚNICO que se guarda es el `console_transcript` (el texto de la sesión, para
+> revisión/calificación), no el estado de la VM. Los runners de código
+> (`page_type='code'`, snippets, `so_codigo`) corren en AWS Lambda, también
+> stateless/aislado por invocación — mismo carácter efímero, distinto mecanismo.
+
 ## Arquitectura
 
 | Pieza | Archivo |
