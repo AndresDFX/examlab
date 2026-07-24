@@ -211,23 +211,17 @@ function RootShell({ children }: { children: React.ReactNode }) {
                             }
                           });
                         });
-                        document.addEventListener('visibilitychange', function () {
-                          if (document.visibilityState === 'visible') {
-                            // reg.update() re-fetcha /sw.js de la red (se sirve con
-                            // Cache-Control: no-cache). En conexiones intermitentes —móvil
-                            // que bloquea/desbloquea, red escolar tras Cloudflare— ese fetch
-                            // falla y update() RECHAZA con "Script .../sw.js load failed".
-                            // El try/catch NO atrapa el rechazo async; hay que encadenar
-                            // .catch o queda como unhandledrejection (benigno: el SW vigente
-                            // sigue activo, pero ensucia el monitoreo). Si el navegador se
-                            // reporta offline, ni intentamos el fetch.
-                            if (navigator.onLine === false) return;
-                            try {
-                              var up = reg.update();
-                              if (up && typeof up.catch === 'function') up.catch(function () {});
-                            } catch (e) {}
-                          }
-                        });
+                        // NOTA: se REMOVIÓ el chequeo de actualización del SW en
+                        // 'visibilitychange' (cada foco de pestaña). Ese reg.update()
+                        // en cada focus, justo después de un Publish, encontraba el SW
+                        // nuevo → skipWaiting → 'controllerchange' → window.location.reload()
+                        // A MITAD DE SESIÓN: recargaba TODA la app al cambiar de pestaña
+                        // (la pizarra se reseteaba, la consola v86 re-booteaba Linux) —
+                        // bug reportado. Las actualizaciones del SW se aplican igual en la
+                        // próxima navegación/carga completa (register on load + el chequeo
+                        // periódico del navegador), y los chunks stale de un deploy nuevo
+                        // ya tienen su propio recovery (reloadOnce en el listener de error
+                        // de abajo). Así no se yanquea la página del usuario en pleno trabajo.
                       })
                       .catch(function () {});
                   });

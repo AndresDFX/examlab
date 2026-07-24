@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import { removePushSubscription } from "@/modules/notifications/push-subscription";
@@ -43,6 +43,14 @@ export function useAuth() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
+  // Id del usuario actualmente reflejado en el state. Sirve de guard para
+  // NO re-setear user / re-fetchear profile+roles cuando llega un evento que
+  // NO cambia la identidad (típicamente TOKEN_REFRESHED, que Supabase dispara
+  // en CADA foco de pestaña con autoRefreshToken). Sin este guard, cada cambio
+  // de pestaña churnneaba user/session/profile con referencias nuevas y el
+  // árbol de la app (AppLayout: `if (!user) return null`) remontaba entero →
+  // la pizarra se reseteaba y la consola v86 re-booteaba Linux. Bug reportado.
+  const currentUidRef = useRef<string | null>(null);
 
   const loadExtras = useCallback(async (uid: string) => {
     const [{ data: prof }, { data: roleRows }] = await Promise.all([
@@ -64,6 +72,17 @@ export function useAuth() {
         // eslint-disable-next-line no-console
         console.warn(`[auth] ${evt} — session lost`);
       }
+      const newUid = sess?.user?.id ?? null;
+      // La identidad NO cambió (ej. TOKEN_REFRESHED en cada foco de pestaña):
+      // refrescamos SOLO el token de la sesión (para que las llamadas autenticadas
+      // usen el JWT nuevo) SIN tocar `user` ni re-fetchear profile/roles. Así el
+      // cambio de pestaña deja de remontar el árbol (v86/pizarra ya no se reinician).
+      if (newUid === currentUidRef.current) {
+        if (newUid) setSession(sess);
+        return;
+      }
+      // La identidad SÍ cambió (login / logout / switch de cuenta).
+      currentUidRef.current = newUid;
       setSession(sess);
       setUser(sess?.user ?? null);
       if (sess?.user) {
@@ -85,6 +104,7 @@ export function useAuth() {
     supabase.auth
       .getSession()
       .then(({ data: { session: sess } }) => {
+        currentUidRef.current = sess?.user?.id ?? null;
         setSession(sess);
         setUser(sess?.user ?? null);
         if (sess?.user)
