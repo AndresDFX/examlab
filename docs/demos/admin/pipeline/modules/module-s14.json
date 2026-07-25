@@ -30,8 +30,8 @@
       "bufferMs": 800,
       "beats": [
         {
-          "target": "firstcard",
-          "scale": 1.1,
+          "target": "main li button",
+          "scale": 1.15,
           "hold": 4200,
           "side": "right",
           "focus": {
@@ -45,20 +45,34 @@
       "id": "conversacion",
       "kind": "platform",
       "openVia": {
-        "target": "firstcard"
+        "target": "main li button"
       },
-      "narration": "Al abrir una conversación ve el hilo completo y responde ahí mismo. Además puede etiquetar un taller, examen o proyecto escribiendo el símbolo numeral, para que la otra persona abra ese contenido con un clic. Los anuncios que difunde el docente también llegan acá.",
+      "narration": "Al abrir una conversación ve el hilo completo de mensajes y responde ahí mismo. Y para referenciar un taller, examen o proyecto, escribe el símbolo numeral: aparece un buscador para elegir el contenido, y la otra persona lo abre con un clic.",
       "bufferMs": 1000,
       "beats": [
         {
-          "target": "field:Escribe un mensaje",
-          "scale": 1.05,
-          "hold": 5000,
+          "target": "textarea",
+          "scale": 1.1,
+          "hold": 4200,
           "side": "top",
-          "syncWord": "responde",
+          "syncWord": "hilo",
           "focus": {
-            "title": "Responder e etiquetar",
-            "body": "Escribe tu respuesta; con # referencias un taller o examen."
+            "title": "El hilo completo",
+            "body": "Ves toda la conversación y respondes desde aquí."
+          }
+        },
+        {
+          "typeInto": true,
+          "target": "textarea",
+          "text": "#",
+          "typeDelayMs": 140,
+          "scale": 1.15,
+          "hold": 5500,
+          "side": "top",
+          "syncWord": "numeral",
+          "focus": {
+            "title": "Etiquetar con #",
+            "body": "Escribe # y elige el taller o examen a referenciar."
           }
         }
       ]
