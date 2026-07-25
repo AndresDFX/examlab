@@ -3,7 +3,7 @@ import { useNotifications, type Notification } from "@/hooks/use-notifications";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-import { Bell, CheckCheck, FileText, Hammer, Award, Info, AlertTriangle } from "lucide-react";
+import { Bell, CheckCheck, ClipboardList, FileText, Hammer, Award, Info, AlertTriangle } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
@@ -11,7 +11,7 @@ import i18n from "@/i18n";
 const KIND_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   exam: FileText,
   workshop: Hammer,
-  grade: Award,
+  grade: ClipboardList,
   system: AlertTriangle,
   info: Info,
 };

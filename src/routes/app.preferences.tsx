@@ -40,6 +40,7 @@ import {
   Hammer,
   FolderKanban,
   Award,
+  ClipboardList,
   MessageSquareText,
   Send,
   CalendarCheck,
@@ -108,7 +109,7 @@ const KINDS: KindConfig[] = [
   {
     key: "grade",
     i18nKey: "grade",
-    icon: Award,
+    icon: ClipboardList,
     color: "text-emerald-500",
     availableChannels: ["email", "push"],
     roles: ["Estudiante"],

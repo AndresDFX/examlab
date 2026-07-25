@@ -773,7 +773,10 @@ async function main() {
             }
           }
           await page.evaluate(() => document.querySelector('[data-demo-hit]')?.removeAttribute('data-demo-hit'));
-          await sleep(700);
+          // Settle generoso: el dialogo puede seguir CRECIENDO tras abrirse
+          // (selects que cargan cursos por red, descripciones). Si el primer beat
+          // mide antes de que pare de moverse, el spotlight queda desfasado.
+          await sleep(1100);
           console.log(`  → diálogo abierto: ${await page.evaluate(() => !!document.querySelector('[role="dialog"]'))}`);
           const words = sceneWords[i];
           for (let j = 0; j < sc.beats.length; j++) {
@@ -782,8 +785,14 @@ async function main() {
             await waitForGate(beatGateMs(words, beat), s);
             // measureTargets con scroll=true hace scrollIntoView del campo
             // (sirve para targets CSS y custom como `field:`) y mide su rect.
-            const [rect] = await measureTargets(page, [beat.target], true);
-            await sleep(300);
+            await measureTargets(page, [beat.target], true);
+            await sleep(450);
+            // RE-MEDIR tras el settle: el scrollIntoView del paso anterior (y el
+            // relayout del diálogo cuando su contenido async termina de cargar)
+            // MUEVEN el campo después de la primera medición. Dibujar el aro con
+            // el rect viejo lo dejaba "en el aire", desfasado cientos de px del
+            // campo real (bug QA en el diálogo "Generar preguntas con IA").
+            const [rect] = await measureTargets(page, [beat.target], false);
             await focusOn(page, rect, beat.focus, 1.0, beat.side);
             await sleep(effectiveHold(words, sc.beats, j, s, beat.hold ?? 3500));
             await focusOff(page);
@@ -826,7 +835,14 @@ async function main() {
               await sleep(140);
               cam = { tx: 0, ty: 0, s: 1 };
             }
-            const [rectRaw] = await measureTargets(page, [beat.target], !!beat.scroll);
+            let [rectRaw] = await measureTargets(page, [beat.target], !!beat.scroll);
+            if (beat.scroll) {
+              // El scrollIntoView de la medición anterior sigue en curso; medir
+              // ya daba un rect viejo y el spotlight quedaba desfasado. Dejamos
+              // asentar el scroll y RE-MEDIMOS (mismo fix que en openDialog).
+              await sleep(400);
+              [rectRaw] = await measureTargets(page, [beat.target], false);
+            }
             const rect = unproject(rectRaw);
             if (beat.clickToOpen) {
               await cameraReset(page, 500);

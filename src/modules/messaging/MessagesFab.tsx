@@ -27,6 +27,7 @@ import {
   FileText,
   Hammer,
   Award,
+  ClipboardList,
   Info,
   AlertTriangle,
   ArrowRight,
@@ -38,7 +39,7 @@ import i18n from "@/i18n";
 const KIND_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   exam: FileText,
   workshop: Hammer,
-  grade: Award,
+  grade: ClipboardList,
   system: AlertTriangle,
   info: Info,
 };

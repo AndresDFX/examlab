@@ -29,6 +29,7 @@ import {
   Hammer,
   FolderKanban,
   Award,
+  ClipboardList,
   MessageSquareText,
   Send,
   Server,
@@ -112,7 +113,7 @@ const CATEGORIES: Array<{
     key: "grade",
     label: "Calificaciones",
     desc: "Cuando se publica la nota de una entrega",
-    icon: Award,
+    icon: ClipboardList,
     color: "text-emerald-500",
   },
   {

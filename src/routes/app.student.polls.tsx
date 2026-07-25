@@ -31,6 +31,13 @@ import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ListFilters } from "@/components/ui/list-filters";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { KahootJoinCard } from "@/modules/polls/KahootJoinCard";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -213,6 +220,8 @@ function StudentPolls() {
   // Filtro por curso del listado (mismo control que exámenes/talleres/proyectos
   // del estudiante vía ListFilters). null = "Todos los cursos".
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  // Orden elegible (paridad con las demás vistas de cards del estudiante).
+  const [sortMode, setSortMode] = useState<"recent" | "closes_asc" | "title_asc">("recent");
   // Estado de "voting" por poll_id → option_id para mostrar spinner en
   // el botón mientras se ejecuta la RPC.
   const [voting, setVoting] = useState<string | null>(null);
@@ -411,20 +420,43 @@ function StudentPolls() {
     });
   }, [polls, search, courseFilter]);
 
-  const activePolls = useMemo(() => filteredPolls.filter((p) => pollIsOpen(p)), [filteredPolls]);
-  const closedPolls = useMemo(() => filteredPolls.filter((p) => !pollIsOpen(p)), [filteredPolls]);
+  // Orden elegible — mismo patrón `sortMode` que el resto de las vistas de
+  // cards del estudiante (Exámenes, Talleres, Proyectos, Cursos, Certificados).
+  const sortedPolls = useMemo(() => {
+    const arr = filteredPolls.slice();
+    switch (sortMode) {
+      case "closes_asc":
+        arr.sort((a, b) => (a.closes_at ?? "9999").localeCompare(b.closes_at ?? "9999"));
+        break;
+      case "title_asc":
+        arr.sort((a, b) => a.title.localeCompare(b.title, "es-CO", { sensitivity: "base" }));
+        break;
+      case "recent":
+      default:
+        arr.sort((a, b) => (b.opens_at ?? "").localeCompare(a.opens_at ?? ""));
+        break;
+    }
+    return arr;
+  }, [filteredPolls, sortMode]);
+
+  const activePolls = useMemo(() => sortedPolls.filter((p) => pollIsOpen(p)), [sortedPolls]);
+  const closedPolls = useMemo(() => sortedPolls.filter((p) => !pollIsOpen(p)), [sortedPolls]);
 
   // Paginación independiente por sección. defaultPageSize 6 — cards de
   // encuesta son verticalmente densas (preguntas + opciones + barras).
+  // `pageSizes` explícito: sin él el selector caía al default [10,25,50,100]
+  // y mostraba "6" como valor fuera de su propia lista.
   const activePagination = usePagination(activePolls, {
     defaultPageSize: 6,
+    pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:student_polls_active",
-    resetKey: `${search}|${courseFilter ?? ""}`,
+    resetKey: `${search}|${courseFilter ?? ""}|${sortMode}`,
   });
   const closedPagination = usePagination(closedPolls, {
     defaultPageSize: 6,
+    pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:student_polls_closed",
-    resetKey: `${search}|${courseFilter ?? ""}`,
+    resetKey: `${search}|${courseFilter ?? ""}|${sortMode}`,
   });
 
   const castVote = async (poll: Poll, optionId: string) => {
@@ -561,6 +593,24 @@ function StudentPolls() {
             courseId={courseFilter}
             onCourseChange={setCourseFilter}
             courses={availableCourses}
+            extra={
+              <Select value={sortMode} onValueChange={(v) => setSortMode(v as typeof sortMode)}>
+                <SelectTrigger className="w-full sm:w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recent">
+                    {t("studentPolls.sortRecent", { defaultValue: "Más recientes primero" })}
+                  </SelectItem>
+                  <SelectItem value="closes_asc">
+                    {t("studentPolls.sortClosesAsc", { defaultValue: "Cierran primero" })}
+                  </SelectItem>
+                  <SelectItem value="title_asc">
+                    {t("studentPolls.sortTitleAsc", { defaultValue: "Título (A–Z)" })}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            }
           />
           {filteredPolls.length === 0 ? (
             <EmptyState
