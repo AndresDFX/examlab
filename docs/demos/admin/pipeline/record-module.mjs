@@ -135,12 +135,24 @@ const INIT = `(() => {
        tapaba el botón "Nuevo ticket" arriba a la derecha). Se mantienen en el
        DOM: Playwright trata opacity:0 como "visible", así que el waitText de la
        serie Docente (timing de "generada", etc.) sigue funcionando. */
-    [data-sonner-toaster],.toaster{opacity:0 !important;pointer-events:none !important;}
+    [data-sonner-toaster],.toaster,[data-sonner-toast],[data-sonner-toaster] *{opacity:0 !important;visibility:hidden !important;pointer-events:none !important;}
   \`;
   (document.head||document.documentElement).appendChild(css);
   const dot=document.createElement('div'); dot.id='demo-cursor';
   const mount=()=>{ if(document.body && !document.body.contains(dot)) document.body.appendChild(dot); };
   if(document.body) mount(); document.addEventListener('DOMContentLoaded',mount);
+  // REMOVER toasts de notificación realtime (RUIDO). El CSS opacity:0 NO gana
+  // de forma fiable contra el portal de sonner en esta versión (toasts visibles
+  // en el video pese al CSS — bug QA "notificación push"). Los REMOVEMOS del DOM
+  // con un observer + intervalo. Los specs NO dependen de toasts (sincronizan por
+  // syncWord de voz), así que removerlos es seguro y determinista.
+  try {
+    const SEL = '[data-sonner-toaster],[data-sonner-toast],.toaster,section[aria-label][aria-live],ol[data-sonner-toaster] li';
+    const killToasts = () => { try { document.querySelectorAll(SEL).forEach((n) => n.remove()); } catch (e) {} };
+    const startObs = () => { if (!document.body) return; try { new MutationObserver(killToasts).observe(document.body, { childList: true, subtree: true }); } catch (e) {} killToasts(); };
+    if (document.body) startObs(); else document.addEventListener('DOMContentLoaded', startObs);
+    setInterval(killToasts, 400);
+  } catch (e) {}
 })();`;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
