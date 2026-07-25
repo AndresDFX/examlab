@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
@@ -21,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Award, Download, Copy, ExternalLink, Hash, Lock } from "lucide-react";
+import { Award, Download, Copy, ExternalLink, Hash, Lock, Search, X } from "lucide-react";
 import { formatDateLong, formatDateOnly } from "@/shared/lib/format";
 import { downloadCertificate, buildVerifyUrl } from "@/modules/certificates/certificate-pdf";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -76,6 +77,12 @@ function StudentCertificates() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [sortMode, setSortMode] = useState<CertSortMode>("issued_desc");
+  // Buscador + filtros (por curso y por estado) — mismo estilo que los grids
+  // de la app. Client-side sobre los certificados ya cargados.
+  const [search, setSearch] = useState("");
+  const ALL_COURSES = "__all_courses__";
+  const [courseFilter, setCourseFilter] = useState<string>(ALL_COURSES);
+  const [statusFilter, setStatusFilter] = useState<"all" | "valid" | "revoked">("all");
 
   useEffect(() => {
     if (!user) return;
@@ -165,11 +172,38 @@ function StudentCertificates() {
     );
   };
 
+  // Cursos distintos (para el filtro por curso). Los certificados guardan
+  // course_name denormalizado; agrupamos por ese texto.
+  const courseOptions = useMemo(
+    () =>
+      Array.from(new Set(items.map((c) => c.course_name).filter(Boolean))).sort((a, b) =>
+        a.localeCompare(b, "es-CO", { sensitivity: "base" }),
+      ),
+    [items],
+  );
+
+  // Filtrado: búsqueda (curso / código / período) + curso + estado.
+  const filteredItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return items.filter((c) => {
+      if (courseFilter !== ALL_COURSES && c.course_name !== courseFilter) return false;
+      if (statusFilter === "valid" && c.revoked_at) return false;
+      if (statusFilter === "revoked" && !c.revoked_at) return false;
+      if (q) {
+        const hay = `${c.course_name} ${c.short_code} ${c.course_period ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [items, search, courseFilter, statusFilter]);
+
+  const hasActiveFilters = search.trim() !== "" || courseFilter !== ALL_COURSES || statusFilter !== "all";
+
   // Lista ordenada — la query base ya viene por issued_at desc, pero
   // mantener el sort en cliente nos permite ofrecer orden alterno sin
-  // refetch.
+  // refetch. Opera sobre los filtrados (flujo: filtrar → ordenar → paginar).
   const sortedItems = useMemo(() => {
-    const arr = items.slice();
+    const arr = filteredItems.slice();
     switch (sortMode) {
       case "issued_asc":
         arr.sort((a, b) => a.issued_at.localeCompare(b.issued_at));
@@ -186,14 +220,14 @@ function StudentCertificates() {
         break;
     }
     return arr;
-  }, [items, sortMode]);
+  }, [filteredItems, sortMode]);
 
   // Paginación client-side. Cards son densas (datos + acciones) → default 12.
   const pagination = usePagination(sortedItems, {
     defaultPageSize: 12,
     pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:student_certificates",
-    resetKey: sortMode,
+    resetKey: `${sortMode}|${search}|${courseFilter}|${statusFilter}`,
   });
 
   return (
@@ -228,11 +262,62 @@ function StudentCertificates() {
         </Card>
       ) : (
         <>
-          {/* Selector de orden — útil cuando hay varios certificados de
-              distintos cursos / períodos. */}
-          <div className="flex justify-end">
+          {/* Barra de búsqueda + filtros (curso, estado) + orden — mismo
+              estilo que los grids de la app. */}
+          <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+            <div className="relative flex-1 min-w-[160px] sm:min-w-48">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t("hc_routesAppStudentCertificates.searchPlaceholder", {
+                  defaultValue: "Buscar por curso, código o período…",
+                })}
+                className="h-9 pl-8"
+              />
+            </div>
+            <Select value={courseFilter} onValueChange={setCourseFilter}>
+              <SelectTrigger className="h-9 w-full sm:w-52 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_COURSES} className="text-xs">
+                  {t("hc_routesAppStudentCertificates.filterAllCourses", {
+                    defaultValue: "Todos los cursos",
+                  })}
+                </SelectItem>
+                {courseOptions.map((c) => (
+                  <SelectItem key={c} value={c} className="text-xs">
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v as "all" | "valid" | "revoked")}
+            >
+              <SelectTrigger className="h-9 w-full sm:w-40 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">
+                  {t("hc_routesAppStudentCertificates.filterStatusAll", {
+                    defaultValue: "Todos los estados",
+                  })}
+                </SelectItem>
+                <SelectItem value="valid" className="text-xs">
+                  {t("hc_routesAppStudentCertificates.filterStatusValid", { defaultValue: "Válidos" })}
+                </SelectItem>
+                <SelectItem value="revoked" className="text-xs">
+                  {t("hc_routesAppStudentCertificates.filterStatusRevoked", {
+                    defaultValue: "Revocados",
+                  })}
+                </SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={sortMode} onValueChange={(v) => setSortMode(v as CertSortMode)}>
-              <SelectTrigger className="h-9 w-full sm:w-64 text-xs">
+              <SelectTrigger className="h-9 w-full sm:w-56 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -250,7 +335,38 @@ function StudentCertificates() {
                 </SelectItem>
               </SelectContent>
             </Select>
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9"
+                onClick={() => {
+                  setSearch("");
+                  setCourseFilter(ALL_COURSES);
+                  setStatusFilter("all");
+                }}
+              >
+                <X className="h-3.5 w-3.5 mr-1" />
+                {t("hc_routesAppStudentCertificates.clearFilters", { defaultValue: "Limpiar" })}
+              </Button>
+            )}
           </div>
+          {filteredItems.length === 0 ? (
+            <Card>
+              <CardContent className="p-0">
+                <TableEmpty
+                  title={t("hc_routesAppStudentCertificates.noMatchTitle", {
+                    defaultValue: "Sin resultados",
+                  })}
+                  description={t("hc_routesAppStudentCertificates.noMatchDescription", {
+                    defaultValue: "Ningún certificado coincide con los filtros actuales.",
+                  })}
+                  icon={Search}
+                />
+              </CardContent>
+            </Card>
+          ) : (
+          <>
           <div className="grid gap-4">
             {pagination.paginatedItems.map((cert) => (
               <Card
@@ -373,6 +489,8 @@ function StudentCertificates() {
             state={pagination}
             entityNamePlural={t("hc_routesAppStudentCertificates.entityNamePlural")}
           />
+          </>
+          )}
         </>
       )}
     </div>

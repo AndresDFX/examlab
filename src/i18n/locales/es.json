@@ -7073,6 +7073,14 @@
     "goTo": "Ir a"
   },
   "hc_routesAppStudentCertificates": {
+    "searchPlaceholder": "Buscar por curso, código o período…",
+    "filterAllCourses": "Todos los cursos",
+    "filterStatusAll": "Todos los estados",
+    "filterStatusValid": "Válidos",
+    "filterStatusRevoked": "Revocados",
+    "clearFilters": "Limpiar",
+    "noMatchTitle": "Sin resultados",
+    "noMatchDescription": "Ningún certificado coincide con los filtros actuales.",
     "loadErrorFallback": "No pudimos cargar tus certificados.",
     "pdfGenerationError": "Error generando PDF",
     "pageTitle": "Certificaciones",
