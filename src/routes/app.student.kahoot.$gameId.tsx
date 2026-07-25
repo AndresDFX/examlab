@@ -22,7 +22,8 @@ import { kahootSound } from "@/modules/polls/kahoot-sound";
 import { useKahootMuted } from "@/modules/polls/use-kahoot-muted";
 import { KAHOOT_SHAPES, secondsLeft, getReadySecondsLeft } from "@/modules/polls/kahoot";
 import { KahootShapeIcon } from "@/modules/polls/KahootShapeIcon";
-import { CheckCircle2, XCircle, Trophy, Crown, Hourglass, Rocket, Volume2, VolumeX } from "lucide-react";
+import { CheckCircle2, XCircle, Trophy, Crown, Hourglass, Rocket, Volume2, VolumeX, History } from "lucide-react";
+import { KahootReviewDialog } from "@/modules/polls/KahootReviewDialog";
 
 export const Route = createFileRoute("/app/student/kahoot/$gameId")({ component: KahootPlayer });
 
@@ -35,6 +36,8 @@ function KahootPlayer() {
   const navigate = useNavigate();
   const { state, loading, error, reload } = useKahootGame(gameId);
   const [submitting, setSubmitting] = useState(false);
+  // Revisión read-only de preguntas ya jugadas (volver atrás solo visual).
+  const [reviewOpen, setReviewOpen] = useState(false);
   // Opciones marcadas por el alumno. Single: se setea [id] al tocar y se envía
   // al instante. Multiple: se togglean varias y se envían con "Confirmar".
   const [selected, setSelected] = useState<string[]>([]);
@@ -374,6 +377,22 @@ function KahootPlayer() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Volver a una pregunta anterior — SOLO lectura (no se puede responder de
+          nuevo). Disponible cuando ya se jugó al menos una pregunta (reveal en
+          adelante), nunca durante una pregunta en vivo. */}
+      {(game.status === "reveal" ||
+        game.status === "leaderboard" ||
+        game.status === "podium" ||
+        game.status === "ended") && (
+        <Button variant="outline" size="sm" className="mt-2" onClick={() => setReviewOpen(true)}>
+          <History className="h-4 w-4 mr-1" />
+          {t("kahootReview.open", { defaultValue: "Revisar preguntas" })}
+        </Button>
+      )}
+      {reviewOpen && (
+        <KahootReviewDialog gameId={gameId} variant="authed" onClose={() => setReviewOpen(false)} />
       )}
     </div>
   );

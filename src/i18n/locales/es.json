@@ -4919,6 +4919,19 @@
   "routes_app_student_attendance": {
     "viewNotes": "Ver notas"
   },
+  "kahootReview": {
+    "open": "Revisar preguntas",
+    "title": "Revisar preguntas",
+    "counter": "{{n}} de {{total}}",
+    "empty": "Todavía no hay preguntas para revisar.",
+    "yourChoice": "Tu respuesta",
+    "gotItRight": "Acertaste (+{{pts}} pts)",
+    "gotItWrong": "No acertaste",
+    "notAnswered": "No respondiste esta pregunta.",
+    "prev": "Anterior",
+    "next": "Siguiente",
+    "backToLive": "Volver al vivo"
+  },
   "kahoot": {
     "loadError": "No pudimos cargar el juego",
     "hostTitle": "Reto en vivo",

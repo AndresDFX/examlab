@@ -4919,6 +4919,19 @@
   "routes_app_student_attendance": {
     "viewNotes": "View notes"
   },
+  "kahootReview": {
+    "open": "Review questions",
+    "title": "Review questions",
+    "counter": "{{n}} of {{total}}",
+    "empty": "No questions to review yet.",
+    "yourChoice": "Your answer",
+    "gotItRight": "Correct (+{{pts}} pts)",
+    "gotItWrong": "Not correct",
+    "notAnswered": "You didn't answer this question.",
+    "prev": "Previous",
+    "next": "Next",
+    "backToLive": "Back to live"
+  },
   "kahoot": {
     "loadError": "We couldn't load the game",
     "hostTitle": "Live Challenge",

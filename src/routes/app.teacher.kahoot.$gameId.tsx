@@ -24,6 +24,7 @@ import { friendlyError } from "@/shared/lib/db-errors";
 import { useKahootGame } from "@/modules/polls/use-kahoot-game";
 import { kahootSound, startKahootMusic, stopKahootMusic } from "@/modules/polls/kahoot-sound";
 import { useKahootMuted } from "@/modules/polls/use-kahoot-muted";
+import { KahootReviewDialog } from "@/modules/polls/KahootReviewDialog";
 import { KAHOOT_SHAPES, secondsLeft, getReadySecondsLeft, buildKahootJoinUrl } from "@/modules/polls/kahoot";
 import { KahootShapeIcon } from "@/modules/polls/KahootShapeIcon";
 import { QRCodeSVG } from "qrcode.react";
@@ -46,6 +47,7 @@ import {
   Volume2,
   VolumeX,
   ListChecks,
+  History,
 } from "lucide-react";
 
 // Clave de localStorage para la preferencia "auto-avanzar cuando todos
@@ -161,6 +163,8 @@ function KahootHost() {
   // clase); los jugadores tienen sus propios efectos de respuesta.
   const { muted, toggle: toggleMuted } = useKahootMuted();
   const prevPlayerCountRef = useRef(0);
+  // Revisión read-only de preguntas ya jugadas (volver atrás solo visual).
+  const [reviewOpen, setReviewOpen] = useState(false);
   useEffect(() => {
     if (!state) return;
     const st = state.game.status;
@@ -600,6 +604,32 @@ function KahootHost() {
               </Button>
             )}
           </div>
+        )}
+
+        {/* Volver a una pregunta anterior — SOLO lectura. Disponible cuando ya
+            se jugó al menos una (reveal en adelante), nunca en una pregunta en
+            vivo. No toca el estado del juego (RPC read-only). */}
+        {(game.status === "reveal" ||
+          game.status === "leaderboard" ||
+          game.status === "podium" ||
+          game.status === "ended") && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => setReviewOpen(true)}
+          >
+            <History className="h-4 w-4 mr-1" />
+            {t("kahootReview.open", { defaultValue: "Revisar preguntas" })}
+          </Button>
+        )}
+        {reviewOpen && (
+          <KahootReviewDialog
+            gameId={gameId}
+            variant="authed"
+            showMyAnswer={false}
+            onClose={() => setReviewOpen(false)}
+          />
         )}
       </div>
     </div>

@@ -31,6 +31,7 @@ import { ErrorState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { usePublicKahootGame } from "@/modules/polls/use-public-kahoot-game";
+import { KahootReviewDialog } from "@/modules/polls/KahootReviewDialog";
 import { kahootSound } from "@/modules/polls/kahoot-sound";
 import { useKahootMuted } from "@/modules/polls/use-kahoot-muted";
 import { KAHOOT_SHAPES, secondsLeft, getReadySecondsLeft } from "@/modules/polls/kahoot";
@@ -46,6 +47,7 @@ import {
   Mail,
   Volume2,
   VolumeX,
+  History,
 } from "lucide-react";
 
 export const Route = createFileRoute("/reto/$pin")({
@@ -211,6 +213,8 @@ function RetoPlay({
   const { state, loading, error, reload } = usePublicKahootGame(player.gameId, player.playerId);
   const [submitting, setSubmitting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
+  // Revisión read-only de preguntas ya jugadas (volver atrás solo visual).
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [nowMs, setNowMs] = useState(0);
   const autoSentRef = useRef<string | null>(null);
   const { muted, toggle: toggleMuted } = useKahootMuted();
@@ -534,6 +538,25 @@ function RetoPlay({
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Volver a una pregunta anterior — SOLO lectura (no se puede responder). */}
+      {(game.status === "reveal" ||
+        game.status === "leaderboard" ||
+        game.status === "podium" ||
+        game.status === "ended") && (
+        <Button variant="outline" size="sm" onClick={() => setReviewOpen(true)}>
+          <History className="h-4 w-4 mr-1" />
+          {t("kahootReview.open", { defaultValue: "Revisar preguntas" })}
+        </Button>
+      )}
+      {reviewOpen && (
+        <KahootReviewDialog
+          gameId={player.gameId}
+          variant="public"
+          playerId={player.playerId}
+          onClose={() => setReviewOpen(false)}
+        />
       )}
       <p className="text-[11px] text-muted-foreground tabular-nums">PIN {pin}</p>
     </div>
