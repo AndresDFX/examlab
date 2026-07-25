@@ -31,6 +31,7 @@ import { ErrorState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { usePublicKahootGame } from "@/modules/polls/use-public-kahoot-game";
+import { useKahootClock } from "@/modules/polls/use-kahoot-clock";
 import { KahootReviewDialog } from "@/modules/polls/KahootReviewDialog";
 import { kahootSound } from "@/modules/polls/kahoot-sound";
 import { useKahootMuted } from "@/modules/polls/use-kahoot-muted";
@@ -211,6 +212,11 @@ function RetoPlay({
 }) {
   const { t } = useTranslation();
   const { state, loading, error, reload } = usePublicKahootGame(player.gameId, player.playerId);
+  // Ancla el cronómetro a la hora del servidor (ver useKahootClock): un reloj
+  // de dispositivo adelantado veía el countdown vencido y no podía responder.
+  const { offsetMs: clockOffset, ready: clockReady } = useKahootClock();
+  const clockOffsetRef = useRef(0);
+  clockOffsetRef.current = clockOffset;
   const [submitting, setSubmitting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   // Revisión read-only de preguntas ya jugadas (volver atrás solo visual).
@@ -221,10 +227,17 @@ function RetoPlay({
   const revealPlayedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    setNowMs(Date.now());
-    const id = setInterval(() => setNowMs(Date.now()), 250);
+    // nowMs = reloj del servidor estimado (Date.now() + offset), leído por ref
+    // para no recrear el intervalo cuando el offset se resuelve.
+    setNowMs(Date.now() + clockOffsetRef.current);
+    const id = setInterval(() => setNowMs(Date.now() + clockOffsetRef.current), 250);
     return () => clearInterval(id);
   }, []);
+
+  // Resincroniza nowMs apenas se conoce el offset (no esperar al tick de 250ms).
+  useEffect(() => {
+    if (clockReady) setNowMs(Date.now() + clockOffsetRef.current);
+  }, [clockReady]);
 
   useEffect(() => {
     setSelected([]);
@@ -264,6 +277,9 @@ function RetoPlay({
   // jugador logueado. El cierre real lo valida el server con su ventana de gracia.
   useEffect(() => {
     if (!state) return;
+    // No auto-enviar en blanco hasta conocer el offset del reloj (evita el
+    // envío vacío que bloqueaba al alumno por un cronómetro sin corregir).
+    if (!clockReady) return;
     const { game, question, me } = state;
     if (game.status !== "question" || !question || !me || me.answered) return;
     if (submitting) return;
@@ -273,7 +289,7 @@ function RetoPlay({
     autoSentRef.current = question.id;
     void submit(selected, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, nowMs, selected, submitting]);
+  }, [state, nowMs, selected, submitting, clockReady]);
 
   const left = useMemo(() => {
     if (!state?.question || state.game.status !== "question") return null;

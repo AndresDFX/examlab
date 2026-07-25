@@ -3,6 +3,7 @@ import {
   kahootPoints,
   secondsLeft,
   getReadySecondsLeft,
+  estimateClockOffsetMs,
   KAHOOT_SHAPES,
   buildKahootJoinUrl,
 } from "./kahoot";
@@ -127,5 +128,59 @@ describe("buildKahootJoinUrl", () => {
     expect(buildKahootJoinUrl("http://localhost:5173", "000111")).toBe(
       "http://localhost:5173/reto/000111",
     );
+  });
+});
+
+describe("estimateClockOffsetMs", () => {
+  it("devuelve 0 (no corrige) si no hay hora de servidor — deploy viejo sin RPC", () => {
+    expect(estimateClockOffsetMs(null, 1_000, 1_050)).toBe(0);
+  });
+
+  it("devuelve 0 ante una fecha inválida (no rompe el cronómetro)", () => {
+    expect(estimateClockOffsetMs("no-es-fecha", 1_000, 1_050)).toBe(0);
+  });
+
+  it("reloj del dispositivo ADELANTADO → offset negativo (resta al Date.now local)", () => {
+    // Cliente cree que son las 12:00:12 (t0..t1) pero el server dice 12:00:00.
+    const serverIso = "2026-07-25T12:00:00.000Z";
+    const t0 = new Date("2026-07-25T12:00:12.000Z").getTime();
+    const t1 = new Date("2026-07-25T12:00:12.100Z").getTime();
+    const offset = estimateClockOffsetMs(serverIso, t0, t1);
+    // ~-12.05 s: al sumarlo a Date.now() del cliente lo lleva a la hora server.
+    expect(offset).toBeGreaterThan(-12_100);
+    expect(offset).toBeLessThan(-12_000);
+  });
+
+  it("reloj del dispositivo ATRASADO → offset positivo", () => {
+    const serverIso = "2026-07-25T12:00:05.000Z";
+    const t0 = new Date("2026-07-25T12:00:00.000Z").getTime();
+    const t1 = new Date("2026-07-25T12:00:00.200Z").getTime();
+    const offset = estimateClockOffsetMs(serverIso, t0, t1);
+    // ~+4.9 s
+    expect(offset).toBeGreaterThan(4_800);
+    expect(offset).toBeLessThan(5_000);
+  });
+
+  it("estima el instante del servidor en el punto medio del round-trip (descuenta latencia)", () => {
+    // server = mismo instante que el punto medio → offset ≈ 0 pese a 400ms RTT.
+    const mid = new Date("2026-07-25T12:00:00.200Z").getTime();
+    const t0 = mid - 200;
+    const t1 = mid + 200;
+    expect(estimateClockOffsetMs("2026-07-25T12:00:00.200Z", t0, t1)).toBe(0);
+  });
+
+  it("caso Mario: server-real 7.6s con límite 20s ⇒ reloj adelantado neutralizado", () => {
+    // Con el offset aplicado, secondsLeft usa la hora del servidor: a 7.6s
+    // reales de una pregunta de 20s deben quedar ~12s (no vencida).
+    const startedIso = "2026-07-25T00:00:00.000Z";
+    const serverNowIso = "2026-07-25T00:00:07.638Z"; // 7.638s reales transcurridos
+    // El dispositivo va ~13s adelantado: su Date.now() marca 20.638s → ya vencida.
+    const deviceNowMs = new Date("2026-07-25T00:00:20.638Z").getTime();
+    // Sin corrección, el cliente ve la pregunta vencida (lft=0 → auto-envío en blanco):
+    expect(secondsLeft(startedIso, 20, deviceNowMs)).toBe(0);
+    // El RPC se resuelve "ahora" en el dispositivo (RTT ~0 para el test).
+    const offset = estimateClockOffsetMs(serverNowIso, deviceNowMs, deviceNowMs);
+    const corrected = deviceNowMs + offset;
+    expect(secondsLeft(startedIso, 20, corrected)).toBe(13); // ceil(20 - 7.638) = 13, NO 0
   });
 });

@@ -18,6 +18,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useKahootGame } from "@/modules/polls/use-kahoot-game";
+import { useKahootClock } from "@/modules/polls/use-kahoot-clock";
 import { kahootSound } from "@/modules/polls/kahoot-sound";
 import { useKahootMuted } from "@/modules/polls/use-kahoot-muted";
 import { KAHOOT_SHAPES, secondsLeft, getReadySecondsLeft } from "@/modules/polls/kahoot";
@@ -35,6 +36,11 @@ function KahootPlayer() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { state, loading, error, reload } = useKahootGame(gameId);
+  // Ancla el cronómetro a la hora del servidor: un reloj de dispositivo
+  // adelantado veía el countdown vencido y no podía responder (ver useKahootClock).
+  const { offsetMs: clockOffset, ready: clockReady } = useKahootClock();
+  const clockOffsetRef = useRef(0);
+  clockOffsetRef.current = clockOffset;
   const [submitting, setSubmitting] = useState(false);
   // Revisión read-only de preguntas ya jugadas (volver atrás solo visual).
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -51,10 +57,20 @@ function KahootPlayer() {
   const revealPlayedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    setNowMs(Date.now());
-    const id = setInterval(() => setNowMs(Date.now()), 250);
+    // nowMs = reloj del servidor estimado (Date.now() + offset). El offset lo
+    // resuelve useKahootClock a los ~pocos cientos de ms; hasta entonces es 0
+    // (= Date.now() crudo). Se lee por ref para no recrear el intervalo.
+    setNowMs(Date.now() + clockOffsetRef.current);
+    const id = setInterval(() => setNowMs(Date.now() + clockOffsetRef.current), 250);
     return () => clearInterval(id);
   }, []);
+
+  // Resincroniza nowMs en el instante en que se conoce el offset (no esperar al
+  // próximo tick de 250ms): cierra la ventana en la que el effect gateado por
+  // clockReady correría con un nowMs aún sin corregir.
+  useEffect(() => {
+    if (clockReady) setNowMs(Date.now() + clockOffsetRef.current);
+  }, [clockReady]);
 
   useEffect(() => {
     if (!state) return;
@@ -95,6 +111,10 @@ function KahootPlayer() {
   // su ventana de gracia; este disparo es UX, no autoridad.
   useEffect(() => {
     if (!state) return;
+    // No auto-enviar en blanco hasta conocer el offset del reloj: evita que un
+    // reloj de dispositivo adelantado dispare el envío vacío (y bloquee al
+    // alumno) por un cronómetro sin corregir.
+    if (!clockReady) return;
     const { game, question, me } = state;
     if (game.status !== "question" || !question || !me || me.answered) return;
     if (submitting) return;
@@ -104,7 +124,7 @@ function KahootPlayer() {
     autoSentRef.current = question.id;
     void submit(selected, /* allowEmpty */ true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, nowMs, selected, submitting]);
+  }, [state, nowMs, selected, submitting, clockReady]);
 
   if (loading) return <PageLoader />;
   if (error || !state) {

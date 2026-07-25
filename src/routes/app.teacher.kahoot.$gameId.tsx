@@ -22,6 +22,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useKahootGame } from "@/modules/polls/use-kahoot-game";
+import { useKahootClock } from "@/modules/polls/use-kahoot-clock";
 import { kahootSound, startKahootMusic, stopKahootMusic } from "@/modules/polls/kahoot-sound";
 import { useKahootMuted } from "@/modules/polls/use-kahoot-muted";
 import { KahootReviewDialog } from "@/modules/polls/KahootReviewDialog";
@@ -64,6 +65,12 @@ function KahootHost() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { state, loading, error, reload } = useKahootGame(gameId);
+  // Ancla el cronómetro (y el auto-lock por tiempo) a la hora del servidor: un
+  // reloj de host adelantado cerraría cada pregunta antes de tiempo para TODA
+  // la sala (ver useKahootClock).
+  const { offsetMs: clockOffset, ready: clockReady } = useKahootClock();
+  const clockOffsetRef = useRef(0);
+  clockOffsetRef.current = clockOffset;
   const [advancing, setAdvancing] = useState(false);
   const [nowMs, setNowMs] = useState(0);
   const [isFs, setIsFs] = useState(false);
@@ -94,12 +101,19 @@ function KahootHost() {
     }
   };
 
-  // Reloj para el countdown (deterministic init=0; arranca post-mount).
+  // Reloj para el countdown, anclado a la hora del servidor (Date.now()+offset,
+  // leído por ref). Deterministic init=0; arranca post-mount.
   useEffect(() => {
-    setNowMs(Date.now());
-    const id = setInterval(() => setNowMs(Date.now()), 250);
+    setNowMs(Date.now() + clockOffsetRef.current);
+    const id = setInterval(() => setNowMs(Date.now() + clockOffsetRef.current), 250);
     return () => clearInterval(id);
   }, []);
+
+  // Resincroniza nowMs apenas se conoce el offset (no esperar al tick de 250ms):
+  // el auto-lock por tiempo gateado por clockReady no corre con nowMs sin corregir.
+  useEffect(() => {
+    if (clockReady) setNowMs(Date.now() + clockOffsetRef.current);
+  }, [clockReady]);
 
   // Heartbeat de presencia del host: mientras esta vista esté montada, el
   // docente "late" cada 8s (kahoot_host_heartbeat). Si cierra la pestaña o se
@@ -251,6 +265,9 @@ function KahootHost() {
 
   // Auto-bloqueo cuando se acaba el tiempo (se siente como Kahoot real).
   useEffect(() => {
+    // No cerrar por tiempo hasta conocer el offset del reloj: evita que un
+    // reloj de host adelantado cierre la pregunta antes de tiempo para todos.
+    if (!clockReady) return;
     if (
       state?.game.status === "question" &&
       !state.game.question_locked &&
@@ -268,7 +285,7 @@ function KahootHost() {
       return () => clearTimeout(id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [left, state?.game.status]);
+  }, [left, state?.game.status, clockReady]);
 
   // Auto-avanzar cuando TODOS respondieron (sin esperar al timer). Comparte
   // `autoLockedRef` con el effect de tiempo agotado para evitar doble lock

@@ -145,3 +145,24 @@ export function getReadySecondsLeft(startedAtIso: string | null, nowMs: number):
   if (Number.isNaN(started)) return null;
   return Math.max(0, Math.ceil((started - nowMs) / 1000));
 }
+
+/** Desfase (ms) entre el reloj del DISPOSITIVO y el del servidor, para anclar
+ *  los cronómetros del reto a la hora del servidor. Sin esto, un dispositivo
+ *  con el reloj adelantado ve el countdown casi vencido y no alcanza a
+ *  responder (incidente real FESNA jul-2026: ~12 s de adelanto → auto-envío en
+ *  blanco que bloqueaba al alumno). `t0`/`t1` acotan el round-trip del RPC
+ *  `kahoot_server_now`; el instante del servidor se estima en el punto medio
+ *  del viaje para descontar la latencia. El resultado se SUMA a `Date.now()`
+ *  del cliente: `nowCorregido = Date.now() + offset`. Devuelve 0 (no corrige)
+ *  si no hay hora de servidor (deploy viejo sin el RPC) → sin regresión. */
+export function estimateClockOffsetMs(
+  serverNowIso: string | null,
+  t0: number,
+  t1: number,
+): number {
+  if (!serverNowIso) return 0;
+  const serverMs = new Date(serverNowIso).getTime();
+  if (Number.isNaN(serverMs)) return 0;
+  const clientMid = (t0 + t1) / 2;
+  return serverMs - clientMid;
+}
