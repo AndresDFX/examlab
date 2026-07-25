@@ -95,6 +95,7 @@ import {
 import { GenerateSessionsDialog } from "@/modules/contents/GenerateSessionsDialog";
 import { buildNewSessionPayload } from "@/modules/sessions/create-session";
 import { SESSION_TYPES, type SessionType } from "@/modules/sessions/session-type";
+import { CourseSelect } from "@/modules/courses/CourseSelect";
 import { SessionTypeBadge } from "@/modules/sessions/SessionTypeBadge";
 import { LaunchPollDialog } from "@/modules/polls/LaunchPollDialog";
 import { SessionWhiteboardDialog } from "@/modules/whiteboard/SessionWhiteboardDialog";
@@ -119,7 +120,7 @@ estudiante1@uni.edu,2025-08-03,presente,`;
 
 export const Route = createFileRoute("/app/teacher/attendance")({ component: TeacherAttendance });
 
-type Course = { id: string; name: string; period: string | null };
+type Course = { id: string; name: string; period: string | null; status?: string | null };
 type Session = {
   id: string;
   course_id: string;
@@ -328,7 +329,7 @@ function TeacherAttendance() {
   useEffect(() => {
     supabase
       .from("courses")
-      .select("id, name, period")
+      .select("id, name, period, status")
       // Ocultar cursos en papelera del Select de curso del tablero.
       .is("deleted_at", null)
       .order("name")
@@ -338,8 +339,11 @@ function TeacherAttendance() {
           return;
         }
         setLoadError(null);
-        setCourses((data ?? []) as Course[]);
-        if (data?.[0]) setCourseId(data[0].id);
+        // `as unknown as`: types.ts generado aún no incluye `courses.status`
+        // (columna existente en DB) → el cliente tipado la ve como error.
+        const rows = (data ?? []) as unknown as Course[];
+        setCourses(rows);
+        if (rows[0]) setCourseId(rows[0].id);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryNonce]);
@@ -1248,19 +1252,14 @@ function TeacherAttendance() {
         })}
         actions={
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-            <Select value={courseId} onValueChange={setCourseId}>
-              <SelectTrigger className="w-full sm:w-56">
-                <SelectValue placeholder={t("teacherAttendance.coursePlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                {courses.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                    {c.period ? ` (${c.period})` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <CourseSelect
+              courses={courses}
+              value={courseId}
+              onChange={(v) => v && setCourseId(v)}
+              showPeriod
+              placeholder={t("teacherAttendance.coursePlaceholder")}
+              triggerClassName="w-full sm:w-56"
+            />
             <ImportExportMenu
               label={t("teacherAttendance.classesLabel")}
               resourceName={t("teacherAttendance.classesResourceName")}

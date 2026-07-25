@@ -66,6 +66,7 @@ import { startImpersonate } from "@/modules/admin/impersonation";
 import { downloadCSV, toCSV } from "@/shared/lib/csv";
 import { toXLSX, downloadXLSX } from "@/shared/lib/xlsx";
 import { computeWeightedGrade, countsAsPresent, type GradedItem } from "@/modules/grading/grade";
+import { CourseSelect } from "@/modules/courses/CourseSelect";
 import { computeAttemptGrade, type RetryMode } from "@/modules/exams/exam-attempts";
 import {
   downloadCertificate,
@@ -87,6 +88,7 @@ type Course = {
   passing_grade: number;
   exam_weight: number;
   workshop_weight: number;
+  status?: string | null;
 };
 type Exam = {
   id: string;
@@ -258,7 +260,7 @@ function Gradebook() {
     supabase
       .from("courses")
       .select(
-        "id, name, grade_scale_min, grade_scale_max, passing_grade, exam_weight, workshop_weight",
+        "id, name, grade_scale_min, grade_scale_max, passing_grade, exam_weight, workshop_weight, status",
       )
       .is("deleted_at", null)
       .order("name")
@@ -270,8 +272,10 @@ function Gradebook() {
           return;
         }
         setLoadError(null);
-        setCourses(data ?? []);
-        if (data?.[0]) setCourseId(data[0].id);
+        // `as unknown as`: types.ts generado aún no incluye `courses.status`.
+        const rows = (data ?? []) as unknown as Course[];
+        setCourses(rows);
+        if (rows[0]) setCourseId(rows[0].id);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryNonce]);
@@ -1632,18 +1636,13 @@ function Gradebook() {
         subtitle={t("hc_routesAppTeacherGradebook.pageSubtitle")}
         actions={
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          <Select value={courseId} onValueChange={setCourseId}>
-            <SelectTrigger className="w-full sm:w-56">
-              <SelectValue placeholder={t("hc_routesAppTeacherGradebook.coursePlaceholder")} />
-            </SelectTrigger>
-            <SelectContent>
-              {courses.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <CourseSelect
+            courses={courses}
+            value={courseId}
+            onChange={(v) => v && setCourseId(v)}
+            placeholder={t("hc_routesAppTeacherGradebook.coursePlaceholder")}
+            triggerClassName="w-full sm:w-56"
+          />
           {hasEdits && (
             <Button size="sm" onClick={saveAll} disabled={saving}>
               {saving ? (

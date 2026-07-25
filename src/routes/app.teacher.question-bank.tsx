@@ -69,6 +69,7 @@ import {
 } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
+import { CourseSelect } from "@/modules/courses/CourseSelect";
 import { defaultScenario, parseScenario } from "@/modules/network/scenario";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { toCSV } from "@/shared/lib/csv";
@@ -132,6 +133,7 @@ interface BankRow {
 interface Course {
   id: string;
   name: string;
+  status?: string | null;
 }
 
 // Mapa de tipo → clave i18n. Resolvemos el label vía i18n.t() en cada uso
@@ -240,13 +242,13 @@ function QuestionBankPage() {
       if (isAdminLike) {
         query = db
           .from("courses")
-          .select("id, name")
+          .select("id, name, status")
           .is("deleted_at", null)
           .order("name");
       } else {
         query = db
           .from("courses")
-          .select("id, name, course_teachers!inner(user_id)")
+          .select("id, name, status, course_teachers!inner(user_id)")
           .eq("course_teachers.user_id", user.id)
           .is("deleted_at", null)
           .order("name");
@@ -795,24 +797,17 @@ function QuestionBankPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
               <Label className="text-xs">{t("questionBank.courseLabel")}</Label>
-              <Select value={courseId} onValueChange={setCourseId} disabled={courses.length === 0}>
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      courses.length === 0
-                        ? t("questionBank.noCoursesAssigned")
-                        : t("questionBank.selectCoursePlaceholder")
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {courses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CourseSelect
+                courses={courses}
+                value={courseId}
+                onChange={(v) => v && setCourseId(v)}
+                disabled={courses.length === 0}
+                placeholder={
+                  courses.length === 0
+                    ? t("questionBank.noCoursesAssigned")
+                    : t("questionBank.selectCoursePlaceholder")
+                }
+              />
               {courses.length === 0 && (
                 // Mensaje accionable cuando el docente no está en
                 // course_teachers de ningún curso. Sin esto, el botón

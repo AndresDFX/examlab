@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { partitionCoursesByLifecycle } from "./course-status";
 
 /**
  * Selector multi-curso para los forms de crear/editar taller, proyecto y examen.
@@ -45,12 +46,10 @@ export function CoursePicker({
   const isClosed = (c: CoursePickerCourse) => c.status === "finalizado";
 
   // Prioridad: cursos NO finalizados, o ya seleccionados (incluye el curso
-  // actual del ítem en edición aunque esté finalizado). Seleccionados primero.
-  const priority = courses
-    .filter((c) => !isClosed(c) || sel.has(c.id))
-    .sort((a, b) => Number(sel.has(b.id)) - Number(sel.has(a.id)));
-  // Finalizados sin seleccionar: ocultos tras el toggle.
-  const closed = courses.filter((c) => isClosed(c) && !sel.has(c.id));
+  // actual del ítem en edición aunque esté finalizado). Fuente de orden única
+  // compartida con los demás selectores (partitionCoursesByLifecycle, alfabético
+  // es-CO). Finalizados sin seleccionar quedan ocultos tras el toggle.
+  const { open: priority, closed } = partitionCoursesByLifecycle(courses, sel);
 
   const Item = ({ c }: { c: CoursePickerCourse }) => (
     <label className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer">
