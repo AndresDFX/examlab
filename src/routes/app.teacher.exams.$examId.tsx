@@ -501,8 +501,10 @@ function ExamEditor() {
     if (!isExternal) {
       await supabase.rpc("notify_course_students", {
         _course_id: newCourseId,
-        _title: courseChanged ? "Examen movido a este curso" : "Examen actualizado",
-        _body: `Se actualizó el examen "${exam.title}"`,
+        _title: courseChanged
+          ? t("hc_routesAppTeacherExamsExamId.notifyMovedTitle")
+          : t("hc_routesAppTeacherExamsExamId.notifyUpdatedTitle"),
+        _body: t("hc_routesAppTeacherExamsExamId.notifyUpdatedBody", { title: exam.title }),
         _kind: "exam",
         _link: "/app/student/exams",
       });
@@ -1233,7 +1235,10 @@ function ExamEditor() {
                       />
                     </div>
                     <div>
-                      <Label>{t("hc_routesAppTeacherExamsExamId.fieldNavigation")}</Label>
+                      <Label className="flex items-center gap-1.5">
+                        {t("hc_routesAppTeacherExamsExamId.fieldNavigation")}
+                        <HelpHint>{t("help.examNavigationHelp")}</HelpHint>
+                      </Label>
                       <Select
                         value={exam.navigation_type}
                         onValueChange={(v) => setExam({ ...exam, navigation_type: v })}

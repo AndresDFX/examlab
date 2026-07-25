@@ -303,7 +303,10 @@ export function AdminGeneralSettingsPanel() {
             </Select>
           </div>
           <div>
-            <Label>{t("adminGeneralSettings.labelMaxAttemptsExam")}</Label>
+            <Label className="flex items-center gap-1.5">
+              {t("adminGeneralSettings.labelMaxAttemptsExam")}
+              <HelpHint>{t("help.maxExamAttemptsHelp")}</HelpHint>
+            </Label>
             <Input
               type="number"
               min={1}

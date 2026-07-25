@@ -33,7 +33,7 @@ export const Route = createFileRoute("/app/superadmin/system")({
 function SuperAdminSystem() {
   const { t } = useTranslation();
   const { roles, loading } = useAuth();
-  if (loading) return <SectionLoader text="Cargando…" />;
+  if (loading) return <SectionLoader text={t("common.loading")} />;
   if (!roles.includes("SuperAdmin")) return <Navigate to="/app" />;
 
   return (

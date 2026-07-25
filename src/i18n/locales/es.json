@@ -1688,6 +1688,9 @@
     "scopeTenantBody": "Lo que guardás acá aplica SOLO a esta institución y se superpone sobre la configuración global de la plataforma. Si dejás un módulo o estado sin tocar, se hereda del default global."
   },
   "help": {
+    "examNavigationHelp": "Libre: el estudiante puede avanzar y volver a preguntas anteriores. Secuencial: responde una por una, sin poder regresar.",
+    "examShuffleHelp": "Cada estudiante recibe las preguntas en un orden distinto (aleatorio), lo que dificulta la copia entre compañeros.",
+    "defenseFactorHelp": "Multiplicador según la calidad de la sustentación oral: 1 mantiene la nota de la entrega, 0,5 la reduce a la mitad, 0 la anula. Nota final = nota de la entrega × este factor.",
     "newPasswordLeaveEmpty": "Déjalo vacío para no cambiar la contraseña actual.",
     "studentIdentityOfficialData": "Datos institucionales que aparecen en actas y certificados oficiales. Todos\n                      opcionales, pero recomendados.",
     "moduleVisibilityHelp": "Habilita o deshabilita módulos por rol (3 switches a la derecha de cada fila). El orden vertical define cómo aparecen en el sidebar — arrastra una fila, o usa las flechas ▲▼. Los cambios de orden se guardan al pulsar \"Guardar orden\". Los switches se guardan al instante.",
@@ -3685,6 +3688,7 @@
     "btnSave": "Guardar configuración"
   },
   "aiCronPage": {
+    "refresh": "Refrescar",
     "title": "Cron IA",
     "subtitleAdmin": "Cola de calificación y generación IA · Configuración · Tareas programadas Supabase",
     "subtitleTeacher": "Cola de calificación y generación IA · Historial",
@@ -5161,6 +5165,7 @@
     "statUses": "Usos totales"
   },
   "teacherPolls": {
+    "reopenPollHint": "Fija un cierre futuro y guarda para reabrir la encuesta.",
     "pageTitle": "Encuestas",
     "pageSubtitle": "Lanzá preguntas a tus alumnos: en vivo durante una sesión, o asíncronas tipo Doodle (cupo por opción).",
     "refresh": "Actualizar",
@@ -7858,6 +7863,9 @@
     "materialsCount": "Materiales ({{count}})"
   },
   "hc_routesAppTeacherExamsExamId": {
+    "notifyMovedTitle": "Examen movido a este curso",
+    "notifyUpdatedTitle": "Examen actualizado",
+    "notifyUpdatedBody": "Se actualizó el examen \"{{title}}\"",
     "loadErrorTitle": "No pudimos cargar el examen",
     "loading": "Cargando…",
     "aiOverlayTitle": "Generando preguntas con IA…",
@@ -8322,6 +8330,7 @@
     "applyNewGrade": "Aplicar nueva calificación"
   },
   "hc_routesAppTeacherProjects": {
+    "overrideManualIa": "Ajuste manual (IA: {{value}})",
     "errorLoadingCourses": "Error cargando cursos",
     "errorLoadingCourseLinks": "Error cargando vínculos de cursos",
     "couldNotLoadProjects": "No pudimos cargar los proyectos.",

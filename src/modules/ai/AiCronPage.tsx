@@ -1171,7 +1171,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
               size="icon"
               className="h-8 w-8"
               onClick={() => void load()}
-              title="Refrescar"
+              title={t("aiCronPage.refresh")}
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             </Button>

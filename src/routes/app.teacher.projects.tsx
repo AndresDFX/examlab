@@ -3970,13 +3970,14 @@ function DefensePanel({
             )}
             {subGradeChanged && subGradeValid && (
               <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
-                Override manual (IA: {baselineSubGrade ?? 0})
+                {t("hc_routesAppTeacherProjects.overrideManualIa", { value: baselineSubGrade ?? 0 })}
               </p>
             )}
           </div>
           <div>
-            <div className="text-muted-foreground text-[11px]">
+            <div className="text-muted-foreground text-[11px] flex items-center gap-1">
               {t("hc_routesAppTeacherProjects.factor01")}
+              <HelpHint>{t("help.defenseFactorHelp")}</HelpHint>
             </div>
             <Input
               type="text"

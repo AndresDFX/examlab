@@ -1200,7 +1200,10 @@ function TeacherExams() {
                   />
                 </div>
                 <div>
-                  <Label>{t("exam.navigation")}</Label>
+                  <Label className="flex items-center gap-1.5">
+                    {t("exam.navigation")}
+                    <HelpHint>{t("help.examNavigationHelp")}</HelpHint>
+                  </Label>
                   <Select
                     value={form.navigation_type}
                     onValueChange={(v) => setForm({ ...form, navigation_type: v })}
@@ -1274,7 +1277,10 @@ function TeacherExams() {
             )}
             {!(form as any).is_external && (
               <div className="flex items-center justify-between">
-                <Label>{t("exam.shuffle")}</Label>
+                <Label className="flex items-center gap-1.5">
+                  {t("exam.shuffle")}
+                  <HelpHint>{t("help.examShuffleHelp")}</HelpHint>
+                </Label>
                 <Switch
                   checked={!!form.shuffle_enabled}
                   onCheckedChange={(v) => setForm({ ...form, shuffle_enabled: v })}

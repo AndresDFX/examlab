@@ -2367,7 +2367,7 @@ function CreatePollDialog({
               {isEdit && editingPoll && !pollIsOpen(editingPoll) && (
                 <div className="mt-2">
                   <ReopenClosedBanner
-                    hint="Fija un cierre futuro y guarda para reabrir la encuesta."
+                    hint={t("teacherPolls.reopenPollHint")}
                     onReopen={() => {
                       // Plazo futuro por defecto = ahora + 7 días, en el MISMO
                       // formato datetime-local (YYYY-MM-DDTHH:mm, hora local) que

@@ -1688,6 +1688,9 @@
     "scopeTenantBody": "What you save here applies ONLY to this institution and overlays on top of the platform global configuration. Anything you leave untouched is inherited from the global default."
   },
   "help": {
+    "examNavigationHelp": "Free: the student can move forward and back between questions. Sequential: one at a time, no going back.",
+    "examShuffleHelp": "Each student gets the questions in a different (random) order, making it harder to copy from classmates.",
+    "defenseFactorHelp": "Multiplier for the oral defense quality: 1 keeps the submission grade, 0.5 halves it, 0 nullifies it. Final grade = submission grade × this factor.",
     "newPasswordLeaveEmpty": "Leave empty to keep the current password.",
     "studentIdentityOfficialData": "Institutional data that appears on official records and certificates. All fields are optional but recommended.",
     "moduleVisibilityHelp": "Enable or disable modules per role (3 switches on the right side of each row). The vertical order defines how they appear in the sidebar — drag a row or use the ▲▼ arrows. Order changes are saved when you press \"Save order\". Switches save instantly.",
@@ -3685,6 +3688,7 @@
     "btnSave": "Save configuration"
   },
   "aiCronPage": {
+    "refresh": "Refresh",
     "title": "AI Cron",
     "subtitleAdmin": "AI grading and generation queue · Configuration · Supabase scheduled tasks",
     "subtitleTeacher": "AI grading and generation queue · History",
@@ -5161,6 +5165,7 @@
     "statUses": "Total uses"
   },
   "teacherPolls": {
+    "reopenPollHint": "Set a future close date and save to reopen the poll.",
     "pageTitle": "Polls",
     "pageSubtitle": "Pose questions to your students: live during a session, or async Doodle-style (quota per option).",
     "refresh": "Refresh",
@@ -7858,6 +7863,9 @@
     "materialsCount": "Materials ({{count}})"
   },
   "hc_routesAppTeacherExamsExamId": {
+    "notifyMovedTitle": "Exam moved to this course",
+    "notifyUpdatedTitle": "Exam updated",
+    "notifyUpdatedBody": "The exam \"{{title}}\" was updated",
     "loadErrorTitle": "We couldn't load the exam",
     "loading": "Loading…",
     "aiOverlayTitle": "Generating questions with AI…",
@@ -8322,6 +8330,7 @@
     "applyNewGrade": "Apply new grade"
   },
   "hc_routesAppTeacherProjects": {
+    "overrideManualIa": "Manual override (AI: {{value}})",
     "errorLoadingCourses": "Error loading courses",
     "errorLoadingCourseLinks": "Error loading course links",
     "couldNotLoadProjects": "We couldn't load the projects.",
