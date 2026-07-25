@@ -30,6 +30,10 @@ export function setKahootMuted(muted: boolean): void {
   } catch {
     /* noop */
   }
+  // Al silenciar, cortar de una la música de fondo (los SFX ya se auto-silencian
+  // en playTones). Al reactivar, el que reanude la reproducción es la pantalla
+  // del juego (sabe si el reto sigue activo) vía el evento de abajo.
+  if (muted) stopKahootMusic();
   try {
     window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: muted }));
   } catch {
@@ -147,3 +151,82 @@ export const kahootSound = {
 };
 
 export type KahootSoundName = keyof typeof kahootSound;
+
+// ──────────────────────────────────────────────────────────────────────────
+// MÚSICA DE FONDO (loop) del Reto en vivo — sintetizada (sin archivos), a bajo
+// volumen para no tapar los SFX. Un arpegio suave y alegre que se re-agenda por
+// compás con el reloj del AudioContext. Respeta el mismo mute que los SFX; se
+// silencia al mutear y la pantalla del juego la arranca/detiene según el estado.
+// ──────────────────────────────────────────────────────────────────────────
+let musicTimer: ReturnType<typeof setInterval> | null = null;
+let musicGain: GainNode | null = null;
+const MUSIC_BAR_S = 1.8; // duración de un compás
+// Arpegio (Do mayor con vuelta) — suave, no invasivo.
+const MUSIC_NOTES = [523.25, 659.25, 783.99, 659.25, 587.33, 783.99, 987.77, 783.99];
+
+/** ¿La música de fondo está sonando? */
+export function isKahootMusicPlaying(): boolean {
+  return musicTimer !== null;
+}
+
+/** Arranca la música de fondo en loop (no-op si está muteada o ya suena). */
+export function startKahootMusic(): void {
+  if (isKahootMuted() || musicTimer) return;
+  const c = getCtx();
+  if (!c || c.state !== "running") return;
+  musicGain = c.createGain();
+  musicGain.gain.value = 0.045; // bajo: fondo, no protagonista
+  musicGain.connect(c.destination);
+
+  const step = MUSIC_BAR_S / MUSIC_NOTES.length;
+  const scheduleBar = () => {
+    const cc = getCtx();
+    if (!cc || cc.state !== "running" || !musicGain || isKahootMuted()) return;
+    const t0 = cc.currentTime + 0.06;
+    MUSIC_NOTES.forEach((f, i) => {
+      try {
+        const osc = cc.createOscillator();
+        const g = cc.createGain();
+        osc.type = "triangle";
+        osc.frequency.value = f;
+        const start = t0 + i * step;
+        g.gain.setValueAtTime(0.0001, start);
+        g.gain.exponentialRampToValueAtTime(1, start + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, start + step - 0.04);
+        osc.connect(g);
+        g.connect(musicGain!);
+        osc.start(start);
+        osc.stop(start + step);
+      } catch {
+        /* un nodo que falle no rompe el loop */
+      }
+    });
+  };
+  scheduleBar();
+  musicTimer = setInterval(scheduleBar, MUSIC_BAR_S * 1000);
+}
+
+/** Detiene la música de fondo (con un fade corto para no cortar abrupto). */
+export function stopKahootMusic(): void {
+  if (musicTimer) {
+    clearInterval(musicTimer);
+    musicTimer = null;
+  }
+  if (musicGain) {
+    const g = musicGain;
+    musicGain = null;
+    try {
+      const c = getCtx();
+      if (c) g.gain.setTargetAtTime(0.0001, c.currentTime, 0.12);
+    } catch {
+      /* noop */
+    }
+    setTimeout(() => {
+      try {
+        g.disconnect();
+      } catch {
+        /* noop */
+      }
+    }, 500);
+  }
+}

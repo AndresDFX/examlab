@@ -22,7 +22,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useKahootGame } from "@/modules/polls/use-kahoot-game";
-import { kahootSound } from "@/modules/polls/kahoot-sound";
+import { kahootSound, startKahootMusic, stopKahootMusic } from "@/modules/polls/kahoot-sound";
 import { useKahootMuted } from "@/modules/polls/use-kahoot-muted";
 import { KAHOOT_SHAPES, secondsLeft, getReadySecondsLeft, buildKahootJoinUrl } from "@/modules/polls/kahoot";
 import { KahootShapeIcon } from "@/modules/polls/KahootShapeIcon";
@@ -184,6 +184,24 @@ function KahootHost() {
     if (st === "lobby" && n > prevPlayerCountRef.current) kahootSound.join();
     prevPlayerCountRef.current = n;
   }, [state]);
+
+  // Música de FONDO — solo el host/proyector (fuente de sonido del aula; poner
+  // música en cada celular de alumno sería caótico y ellos ya tienen sus SFX).
+  // Suena mientras el reto está activo (sala → leaderboard) y se corta en el
+  // podio/fin o al silenciar. Los SFX de fase suenan por encima. Se apaga con el
+  // mismo toggle de mute (setKahootMuted corta la música al mutear).
+  const gameStatus = state?.game.status;
+  useEffect(() => {
+    const active =
+      gameStatus === "lobby" ||
+      gameStatus === "question" ||
+      gameStatus === "reveal" ||
+      gameStatus === "leaderboard";
+    if (active && !muted) startKahootMusic();
+    else stopKahootMusic();
+  }, [gameStatus, muted]);
+  // Cortar la música al salir de la pantalla del juego.
+  useEffect(() => () => stopKahootMusic(), []);
 
   useEffect(() => {
     const onFs = () => setIsFs(!!document.fullscreenElement);
