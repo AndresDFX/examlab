@@ -25,27 +25,38 @@
       "id": "carreras",
       "kind": "platform",
       "tab": "Carreras",
-      "narration": "En Carreras viven los programas de la institución, como Ingeniería de Software. Cada carrera agrupa sus asignaturas y se crea con un clic.",
+      "openDialog": "createbtn",
+      "narration": "En Carreras viven los programas de la institución, como Ingeniería de Software. Al crear una, le damos un nombre, un código único y el área o departamento al que pertenece.",
       "bufferMs": 800,
       "beats": [
         {
-          "target": "createbtn",
-          "scale": 1.6,
-          "hold": 3800,
-          "side": "bottom",
+          "target": "field:Nombre",
+          "hold": 3200,
+          "side": "right",
+          "syncWord": "nombre",
           "focus": {
-            "title": "Nueva carrera",
-            "body": "Agrega un programa académico a la institución."
+            "title": "Nombre",
+            "body": "El programa académico, p. ej. Ingeniería de Software."
           }
         },
         {
-          "target": "row:0",
-          "scale": 1,
-          "hold": 4500,
-          "side": "bottom",
+          "target": "field:Código",
+          "hold": 3000,
+          "side": "right",
+          "syncWord": "código",
           "focus": {
-            "title": "Carreras",
-            "body": "Los programas de la institución, p. ej. Ingeniería de Software."
+            "title": "Código",
+            "body": "Identificador único de la carrera."
+          }
+        },
+        {
+          "target": "field:Área",
+          "hold": 3400,
+          "side": "right",
+          "syncWord": "área",
+          "focus": {
+            "title": "Área / Departamento",
+            "body": "La facultad o área a la que pertenece."
           }
         }
       ]
@@ -54,27 +65,48 @@
       "id": "asignaturas",
       "kind": "platform",
       "tab": "Asignaturas",
-      "narration": "Las asignaturas son el corazón del catálogo: cada una guarda su sílabo —objetivos, contenidos, bibliografía e intensidad horaria— y se asocia a una carrera y un semestre. Al crear un curso, la asignatura define su nombre y su programa, y todo eso se hereda.",
+      "openDialog": "createbtn",
+      "narration": "Las asignaturas son el corazón del catálogo. Al crear una, definimos su nombre y su código, y luego su sílabo: los objetivos de aprendizaje y los contenidos o temáticas que cubre el curso.",
       "bufferMs": 900,
       "beats": [
         {
-          "target": "createbtn",
-          "scale": 1.6,
-          "hold": 4500,
-          "side": "bottom",
+          "target": "field:Nombre",
+          "hold": 3000,
+          "side": "right",
+          "syncWord": "nombre",
           "focus": {
-            "title": "Nueva asignatura",
-            "body": "Define la asignatura y su sílabo completo."
+            "title": "Nombre",
+            "body": "La asignatura, p. ej. Programación II."
           }
         },
         {
-          "target": "row:0",
-          "scale": 1,
-          "hold": 6500,
-          "side": "bottom",
+          "target": "field:Código",
+          "hold": 2800,
+          "side": "right",
+          "syncWord": "código",
           "focus": {
-            "title": "Asignaturas",
-            "body": "Cada una con su sílabo: objetivos, contenidos, bibliografía e intensidad."
+            "title": "Código",
+            "body": "Identificador único de la asignatura."
+          }
+        },
+        {
+          "target": "field:Objetivos",
+          "hold": 3400,
+          "side": "right",
+          "syncWord": "objetivos",
+          "focus": {
+            "title": "Objetivos",
+            "body": "Los objetivos de aprendizaje del curso."
+          }
+        },
+        {
+          "target": "field:Contenidos",
+          "hold": 3600,
+          "side": "right",
+          "syncWord": "contenidos",
+          "focus": {
+            "title": "Contenidos",
+            "body": "Las temáticas que cubre la asignatura."
           }
         }
       ]
@@ -83,27 +115,48 @@
       "id": "periodos",
       "kind": "platform",
       "tab": "Periodos",
-      "narration": "Los periodos académicos, como el primer semestre de 2026, marcan la ventana temporal de los cursos, con sus fechas de inicio y fin.",
+      "openDialog": "createbtn",
+      "narration": "Los periodos académicos marcan la ventana temporal de los cursos. Al crear uno, le damos un código, un nombre como el primer semestre de 2026, y sus fechas de inicio y fin.",
       "bufferMs": 800,
       "beats": [
         {
-          "target": "createbtn",
-          "scale": 1.6,
-          "hold": 3800,
-          "side": "bottom",
+          "target": "field:Código",
+          "hold": 3000,
+          "side": "right",
+          "syncWord": "código",
           "focus": {
-            "title": "Nuevo periodo",
-            "body": "Agrega un semestre o cuatrimestre."
+            "title": "Código",
+            "body": "Identificador del periodo, p. ej. 2026-I."
           }
         },
         {
-          "target": "row:0",
-          "scale": 1,
-          "hold": 4500,
-          "side": "bottom",
+          "target": "field:Nombre",
+          "hold": 3200,
+          "side": "right",
+          "syncWord": "nombre",
           "focus": {
-            "title": "Periodos",
-            "body": "Ej. 2026-I, con sus fechas de inicio y fin."
+            "title": "Nombre",
+            "body": "El nombre del periodo académico."
+          }
+        },
+        {
+          "target": "field:Inicio",
+          "hold": 2800,
+          "side": "right",
+          "syncWord": "inicio",
+          "focus": {
+            "title": "Inicio",
+            "body": "Fecha en que arranca el periodo."
+          }
+        },
+        {
+          "target": "field:Fin",
+          "hold": 3200,
+          "side": "right",
+          "syncWord": "fin",
+          "focus": {
+            "title": "Fin",
+            "body": "Fecha en que cierra el periodo."
           }
         }
       ]
