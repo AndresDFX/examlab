@@ -20,25 +20,34 @@ RATE = voice.get("rate", "-4%")
 PITCH = voice.get("pitch", "+0Hz")  # opcional por módulo: levanta el tono (ej. "+8Hz") para una voz menos plana
 scenes = spec["scenes"]
 
-async def save_with_retry(text, path, words_path, rate=None, pitch=None, attempts=4):
+async def _synth(text, path, words_path, rate, pitch):
+    c = edge_tts.Communicate(text, VOICE, rate=rate, pitch=pitch, boundary="WordBoundary")
+    words = []
+    with open(path, "wb") as f:
+        async for ch in c.stream():
+            if ch["type"] == "audio":
+                f.write(ch["data"])
+            elif ch["type"] == "WordBoundary":
+                # offset viene en ticks de 100ns → ms
+                words.append({"w": ch["text"], "t": round(ch["offset"] / 10000)})
+    if os.path.getsize(path) > 1000:
+        with open(words_path, "w", encoding="utf-8") as wf:
+            json.dump(words, wf, ensure_ascii=False)
+        return
+    raise RuntimeError("archivo vacío")
+
+# TIMEOUT por intento: el stream() de edge-tts puede COLGARSE indefinidamente si
+# la red se estanca (no lanza excepción → el retry de abajo nunca dispararía).
+# asyncio.wait_for convierte el cuelgue en TimeoutError → reintenta; si agota los
+# intentos, propaga y make.mjs marca el módulo como fallido y sigue con el
+# siguiente (antes: un cuelgue detenía TODO el batch ~2h, caso real t05).
+async def save_with_retry(text, path, words_path, rate=None, pitch=None, attempts=4, timeout=45):
     rate = rate if rate is not None else RATE
     pitch = pitch if pitch is not None else PITCH
     for a in range(1, attempts + 1):
         try:
-            c = edge_tts.Communicate(text, VOICE, rate=rate, pitch=pitch, boundary="WordBoundary")
-            words = []
-            with open(path, "wb") as f:
-                async for ch in c.stream():
-                    if ch["type"] == "audio":
-                        f.write(ch["data"])
-                    elif ch["type"] == "WordBoundary":
-                        # offset viene en ticks de 100ns → ms
-                        words.append({"w": ch["text"], "t": round(ch["offset"] / 10000)})
-            if os.path.getsize(path) > 1000:
-                with open(words_path, "w", encoding="utf-8") as wf:
-                    json.dump(words, wf, ensure_ascii=False)
-                return
-            raise RuntimeError("archivo vacío")
+            await asyncio.wait_for(_synth(text, path, words_path, rate, pitch), timeout=timeout)
+            return
         except Exception as e:
             print(f"    intento {a}/{attempts} falló: {e}")
             await asyncio.sleep(2 * a)

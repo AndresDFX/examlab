@@ -105,23 +105,12 @@
           "afterClickMs": 6000,
           "focusTarget": "maincard",
           "scale": 1.05,
-          "hold": 7500,
+          "hold": 9500,
           "side": "left",
           "syncWord": "ejecuta",
           "focus": {
             "title": "Ejecutar",
             "body": "Corre el código y muestra la salida sin salir del examen."
-          }
-        },
-        {
-          "target": "button:Siguiente",
-          "scale": 1.4,
-          "hold": 3000,
-          "side": "top",
-          "syncWord": "avanzar",
-          "focus": {
-            "title": "Siguiente",
-            "body": "Avanza a la siguiente pregunta del examen."
           }
         }
       ]
@@ -129,23 +118,9 @@
     {
       "id": "entregar",
       "kind": "platform",
-      "narration": "Se mueve entre preguntas con Siguiente y Anterior, y al terminar, Finalizar cierra el examen: si quedan respuestas en blanco, ExamLab lo avisa antes de confirmar la entrega.",
+      "narration": "El estudiante se mueve entre preguntas con Siguiente y Anterior, y al terminar, Finalizar cierra el examen: si quedan respuestas en blanco, ExamLab lo avisa antes de confirmar la entrega.",
       "bufferMs": 1500,
       "beats": [
-        {
-          "click": true,
-          "target": "button:Siguiente",
-          "afterClickMs": 1200,
-          "focusTarget": "maincard",
-          "scale": 1.05,
-          "hold": 3200,
-          "side": "bottom",
-          "syncWord": "Siguiente",
-          "focus": {
-            "title": "Navegación",
-            "body": "Avanza y retrocede entre las preguntas."
-          }
-        },
         {
           "click": true,
           "target": "button:Finalizar",

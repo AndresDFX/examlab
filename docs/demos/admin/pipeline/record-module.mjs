@@ -93,6 +93,21 @@ const INIT = `(() => {
     document.exitFullscreen = noop;
     Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => null });
   } catch (e) {}
+  // Demo: bloquear PROMPTS de notificaciones push. Si la app pide permiso de
+  // notificaciones durante la grabación, el prompt nativo (o el banner de la app)
+  // podría interceptar un click automatizado y desviar la secuencia. Forzamos
+  // 'denied' silencioso — no afecta a la app real, solo a esta sesión grabada.
+  try {
+    if (window.Notification) {
+      Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'denied' });
+      Notification.requestPermission = () => Promise.resolve('denied');
+    }
+    if (navigator.permissions && navigator.permissions.query) {
+      const _q = navigator.permissions.query.bind(navigator.permissions);
+      navigator.permissions.query = (d) => (d && d.name === 'notifications')
+        ? Promise.resolve({ state: 'denied', onchange: null }) : _q(d);
+    }
+  } catch (e) {}
   const css = document.createElement('style');
   css.textContent = \`
     /* opacity:0 por defecto → el cursor NO se ve a menos que se muestre
@@ -548,10 +563,31 @@ async function openVia(page, spec) {
   }
 }
 
+// Navegación con reintentos: la PRIMERA conexión a prod a veces se cierra en
+// frío (net::ERR_CONNECTION_CLOSED / ERR_NETWORK_CHANGED) — un agente de red o
+// el CDN corta el primer handshake del navegador. curl y reintentos posteriores
+// funcionan, así que reintentamos con backoff corto en vez de abortar el módulo.
+async function gotoRetry(page, url, opts = {}, tries = 5) {
+  let lastErr;
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000, ...opts });
+    } catch (e) {
+      lastErr = e;
+      const msg = (e && e.message) || "";
+      const retriable = /ERR_CONNECTION_CLOSED|ERR_NETWORK_CHANGED|ERR_CONNECTION_RESET|ERR_TIMED_OUT|ERR_ABORTED|Timeout/i.test(msg);
+      if (!retriable || i === tries - 1) throw e;
+      console.log(`  ↻ goto reintento ${i + 1}/${tries - 1} (${msg.split("\n")[0].slice(0, 50)})`);
+      await page.waitForTimeout(1500 + i * 1000);
+    }
+  }
+  throw lastErr;
+}
+
 async function loginAndGetState(browser) {
   const ctx = await browser.newContext({ viewport: VIEWPORT, locale: "es-CO" });
   const page = await ctx.newPage();
-  await page.goto(`${APP_URL}/auth`, { waitUntil: "domcontentloaded" });
+  await gotoRetry(page, `${APP_URL}/auth`);
   await page.waitForSelector('input[type="email"]', { timeout: 20000 });
   await page.locator("#li-tenant").click();
   await page.waitForSelector('[role="option"]', { timeout: 5000 });
@@ -597,7 +633,7 @@ async function main() {
 
   try {
     // Todos aterrizan en /app; el rol + SPA-nav a appPath ocurren en la escena 0.
-    await page.goto(`${APP_URL}/app`, { waitUntil: "domcontentloaded" });
+    await gotoRetry(page, `${APP_URL}/app`);
     // Carátula de la 1ª escena ASAP → cubre la carga (pre-roll mínimo).
     if (scenes[0].kind === "card") await overlay(page, scenes[0].card);
     await sleep(300);
@@ -648,14 +684,19 @@ async function main() {
         const totalCard = target(i);
         const nextIsCard = scenes[i + 1] && scenes[i + 1].kind === "card";
         const blueCap = sc.blueMs ?? CARD_BLUE_MS;
-        if (!nextIsCard && !sc.holdCard) {
+        // La ÚLTIMA escena card (outro de marca) se mantiene AZUL hasta el final:
+        // sin esto, clearOverlay() revelaba el panel de fondo y el video "volvía a
+        // reproducir el panel anterior después del cierre" (bug sistemático QA).
+        const isLast = i === scenes.length - 1;
+        const holdBlue = sc.holdCard || (isLast && sc.kind === "card");
+        if (!nextIsCard && !holdBlue) {
           await sleep(Math.max(0, Math.min(totalCard, blueCap) - (Date.now() - s)));
           await page.evaluate(() => { document.body.style.transform = "none"; document.body.style.willChange = "auto"; });
           await clearOverlay(page);
           await sleep(Math.max(0, totalCard - (Date.now() - s)));
         } else {
           await sleep(Math.max(0, totalCard - (Date.now() - s)));
-          if (!nextIsCard) await clearOverlay(page);
+          if (!nextIsCard && !holdBlue) await clearOverlay(page);
         }
       } else {
         // platform: cámara identidad → (opcional) abrir vía menú / cambiar de
