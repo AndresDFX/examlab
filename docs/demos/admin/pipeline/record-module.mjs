@@ -257,6 +257,24 @@ async function selectRole(page, roleLabel) {
 // el rol. Fallback a page.goto si el link no existe (ej. rutas sin nav item;
 // seguro para Admin, cuyo rol por defecto persiste tras el reload).
 async function spaNavigate(page, route) {
+  // Mensajes NO es ítem del sidebar nav. Se llega por el popover del MessagesBell
+  // (footer): clic en la campana → clic en su <Link to="/app/messages">. Es
+  // navegación IN-APP que PRESERVA el rol activo (en memoria). Un page.goto
+  // recargaría y reseteo el rol al default de la cuenta → síntoma QA: video de
+  // Estudiante mostrando el sidebar de Docente en Mensajes (s14).
+  if (route === "/app/messages") {
+    try {
+      const bellBtn = page.locator('[data-tour-id="messages-bell"] button').first();
+      await bellBtn.click({ timeout: 5000 });
+      await sleep(600);
+      const link = page.locator('a[href="/app/messages"]').first();
+      await link.click({ timeout: 5000 });
+      await page.waitForTimeout(1000);
+      return true;
+    } catch (e) {
+      console.log("  ⚠ nav Mensajes vía bell falló, cae a goto:", (e && e.message || "").split("\n")[0]);
+    }
+  }
   const link = page.locator(`[data-tour-nav="${route}"]`).first();
   try {
     await link.waitFor({ timeout: 6000 });
@@ -381,6 +399,15 @@ async function measureTargets(page, targets, scroll = false, mark = false) {
         el = [...document.querySelectorAll("main button")].find((b) => rxC.test(b.textContent || ""))
           || [...document.querySelectorAll("button")].find((b) => b.getAttribute("role") !== "tab" && rxC.test(b.textContent || ""))
           || null;
+      }
+      else if (ts.startsWith("combobox:")) {
+        // El N-ésimo <button role="combobox"> del <main> (shadcn Select). Ej.
+        // en la lista de talleres del alumno: combobox:0 = filtro Curso,
+        // combobox:1 = filtro Estado. Para abrir el Select y luego elegir una
+        // opción con openVia `option`.
+        const n = parseInt(ts.slice(9), 10) || 0;
+        const scope = document.querySelector("main") || document.body;
+        el = [...scope.querySelectorAll('[role="combobox"]')][n] || null;
       }
       else if (ts.startsWith("button:")) {
         // BOTÓN por texto, excluyendo tabs (Radix TabsTrigger es <button
@@ -572,6 +599,13 @@ async function openVia(page, spec) {
     const item = page.getByRole("menuitem", { name: new RegExp(spec.menuItem, "i") }).first();
     await item.click({ timeout: 5000 }).catch((e) => console.log(`  ⚠ openVia menuItem "${spec.menuItem}":`, e.message));
     await sleep(1300);
+  }
+  if (spec.option) {
+    // Opción de un shadcn Select (role="option"). Ej. cambiar el filtro de
+    // estado a "Calificado" en la lista de talleres del alumno (s04).
+    const opt = page.getByRole("option", { name: new RegExp(spec.option, "i") }).first();
+    await opt.click({ timeout: 5000 }).catch((e) => console.log(`  ⚠ openVia option "${spec.option}":`, e.message));
+    await sleep(1200);
   }
 }
 

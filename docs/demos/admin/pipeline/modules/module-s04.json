@@ -27,6 +27,7 @@
     {
       "id": "vista",
       "kind": "platform",
+      "openVia": { "target": "combobox:1", "option": "Calificado" },
       "narration": "Los talleres son actividades prácticas con entrega y calificación. El estudiante revisa las instrucciones, desarrolla su trabajo y lo entrega antes de la fecha límite. Después recibe su nota y la retroalimentación detallada del docente.",
       "bufferMs": 800,
       "beats": [
